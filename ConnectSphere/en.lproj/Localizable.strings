@@ -1,0 +1,312 @@
+// MARK: - Auth / Login
+"hoặc tiếp tục với" = "or continue with";
+"Continue with Google" = "Continue with Google";
+"Đăng nhập vào tài khoản của bạn" = "Sign in to your account";
+"Tên người dùng" = "Username";
+"Mật khẩu" = "Password";
+"Quên mật khẩu?" = "Forgot password?";
+"Đăng nhập" = "Log in";
+"Chưa có tài khoản?" = "Don't have an account?";
+"Đăng ký" = "Sign up";
+"Vui lòng điền đầy đủ thông tin." = "Please fill in all fields.";
+"Không lấy được Google token" = "Could not get Google token";
+
+// MARK: - Register
+"Thông tin tài khoản" = "Account information";
+"Về bạn" = "About you";
+"Thông tin nghề nghiệp" = "Professional information";
+"Vị trí của bạn" = "Your location";
+"Email (Tùy chọn)" = "Email (Optional)";
+"Tạo tài khoản" = "Create account";
+"Quay lại" = "Go back";
+"Chế độ Bạn bè" = "Friend Mode";
+"Chế độ Đồng nghiệp" = "Colleague Mode";
+"Điền thông tin để bắt đầu" = "Fill in your info to get started";
+"Xác nhận mật khẩu" = "Confirm password";
+"Tên hiển thị" = "Display name";
+"Kỹ năng (VD: Swift, UI/UX, Python)" = "Skills (e.g. Swift, UI/UX, Python)";
+"Số điện thoại" = "Phone number";
+"Gửi" = "Send";
+"Đã gửi mã xác nhận" = "Verification code sent";
+"Địa chỉ email (tùy chọn)" = "Email address (optional)";
+"Dùng để khôi phục tài khoản. Bạn có thể bỏ qua." = "Used to recover your account. You can skip this.";
+"Vui lòng nhập tên người dùng." = "Please enter a username.";
+"Mật khẩu phải có ít nhất 8 ký tự." = "Password must be at least 8 characters.";
+"Mật khẩu không khớp." = "Passwords do not match.";
+"Vui lòng chọn tỉnh/thành và phường/xã của bạn." = "Please select your province and ward.";
+"Khi tạo tài khoản, bạn đồng ý với **Điều khoản dịch vụ** và **Chính sách bảo mật** của chúng tôi." = "By creating an account, you agree to our **Terms of Service** and **Privacy Policy**.";
+
+// MARK: - Phone Verification
+"Xác minh" = "Verify";
+"Xác minh số điện thoại" = "Phone verification";
+"Chúng tôi đã gửi mã 6 chữ số đến\n**+%@**" = "We sent a 6-digit code to\n**+%@**";
+"Chưa nhận được mã?" = "Didn't receive the code?";
+"Gửi lại sau %ds" = "Resend in %ds";
+"Gửi lại" = "Resend";
+"Xác minh số điện thoại thành công!" = "Phone verified successfully!";
+"Vui lòng nhập đủ 6 chữ số." = "Please enter all 6 digits.";
+"Mã không đúng. Vui lòng thử lại." = "Incorrect code. Please try again.";
+
+// MARK: - Interest Picker
+"Phổ biến" = "Popular";
+"Bỏ qua" = "Skip";
+"Thêm" = "Add";
+"Cụ thể là %@ nào? (tùy chọn)" = "Specifically which %@? (optional)";
+
+// MARK: - Main Tab
+"Trang chủ" = "Home";
+"Tìm kiếm" = "Search";
+"Cộng đồng" = "Community";
+"Thông báo" = "Notifications";
+"Hồ sơ" = "Profile";
+
+// MARK: - Mode Selection
+"Bạn muốn dùng\nConnectSphere cho mục đích gì?" = "What do you want to use\nConnectSphere for?";
+"Bạn có thể đổi chế độ sau trong cài đặt" = "You can change modes later in Settings";
+"Tìm bạn bè" = "Find friends";
+"Kết nối với người có cùng sở thích và đam mê" = "Connect with people who share your interests and passions";
+"Tìm đồng nghiệp" = "Find colleagues";
+"Mở rộng mạng lưới chuyên nghiệp, tìm cộng tác viên và cơ hội nghề nghiệp" = "Expand your professional network, find collaborators and career opportunities";
+"Tiếp tục" = "Continue";
+"Bạn có thể thiết lập Chế độ Đồng nghiệp sau, hoặc " = "You can set up Colleague Mode later, or ";
+"Bạn có thể thiết lập Chế độ Bạn bè sau, hoặc " = "You can set up Friend Mode later, or ";
+"thiết lập ngay →" = "set up now →";
+
+// MARK: - Onboarding
+"Thiết lập hồ sơ" = "Set up profile";
+"Bạn muốn dùng ConnectSphere cho mục đích gì?" = "What do you want to use ConnectSphere for?";
+"Bạn có thể thay đổi sau" = "You can change this later";
+"Kết bạn & Giải trí" = "Friends & Fun";
+"Tìm bạn chơi, chia sẻ sở thích" = "Find friends, share interests";
+"Công việc & Học tập" = "Work & Study";
+"Networking, tìm cộng tác viên" = "Networking, find collaborators";
+"Thông tin cơ bản" = "Basic information";
+"Điền tên hiển thị và username của bạn" = "Enter your display name and username";
+"Tên hiển thị *" = "Display name *";
+"Username * (chỉ a-z, 0-9, _)" = "Username * (a-z, 0-9, _ only)";
+"Giới tính *" = "Gender *";
+"Nam" = "Male";
+"Nữ" = "Female";
+"Khác" = "Other";
+"Ngày sinh (tùy chọn)" = "Date of birth (optional)";
+"Ngày sinh: %@" = "Date of birth: %@";
+"Tỉnh / Thành phố *" = "Province / City *";
+"Sở thích của bạn" = "Your interests";
+"Kỹ năng & Công ty" = "Skills & Company";
+"Giúp ConnectSphere tìm người phù hợp với bạn" = "Help ConnectSphere find the right people for you";
+"Chọn những gì bạn thích" = "Select what you like";
+"Chức danh (iOS Developer...)" = "Job title (iOS Developer...)";
+"Công ty / Trường học" = "Company / School";
+"Kỹ năng (Swift, Python, UI/UX...)" = "Skills (Swift, Python, UI/UX...)";
+"Giới thiệu bản thân" = "About yourself";
+"Viết vài dòng để mọi người biết bạn là ai" = "Write a few lines so people know who you are";
+"Ví dụ: iOS Developer | Thích cafe và anime ☕🌸" = "e.g. iOS Developer | Love coffee and anime ☕🌸";
+"Đang lưu..." = "Saving...";
+"Hoàn tất 🎉" = "Complete 🎉";
+"Tìm tỉnh / thành phố" = "Search province / city";
+"Chọn tỉnh / thành phố" = "Select province / city";
+
+// MARK: - Common
+"Hủy" = "Cancel";
+"Huỷ" = "Cancel";
+"Sở thích" = "Interests";
+"Chức danh" = "Job title";
+"Công ty" = "Company";
+"Kỹ năng" = "Skills";
+
+// MARK: - Feed
+"Bạn bè" = "Friends";
+"Công việc" = "Work";
+"Bạn đang nghĩ gì vậy?" = "What's on your mind?";
+"Chia sẻ cập nhật chuyên nghiệp..." = "Share a professional update...";
+"Trực tiếp" = "Live";
+"Cảm xúc" = "Feelings";
+"Bài viết" = "Posts";
+
+// MARK: - Create Post
+"Đang tải link preview..." = "Loading link preview...";
+"Đang kiểm tra..." = "Checking...";
+"Đăng" = "Post";
+"Tạo bài viết" = "New post";
+"Đăng ở Chế độ %@" = "Post in %@ Mode";
+"Chuyển sang Chế độ %@" = "Switch to %@ Mode";
+"Bạn bè" = "Friends";
+"Đồng nghiệp" = "Colleague";
+"Bài viết này có vẻ liên quan đến %@" = "This post seems related to %@";
+"công việc 💼" = "work 💼";
+"giải trí 🎉" = "fun 🎉";
+
+// MARK: - Post Card
+"%d bình luận" = "%d comments";
+"%d lượt chia sẻ" = "%d shares";
+
+// MARK: - Comment Sheet
+"Chưa có bình luận nào" = "No comments yet";
+"Viết bình luận..." = "Write a comment...";
+"Bình luận" = "Comments";
+
+// MARK: - Stories
+"Tin của bạn" = "Your story";
+
+// MARK: - Privacy Picker
+"Ai có thể xem?" = "Who can see this?";
+
+// MARK: - Search
+"%d kết quả" = "%d results";
+"Tìm theo tên, sở thích, địa điểm..." = "Search by name, interests, location...";
+"Tìm theo tên, kỹ năng, công ty..." = "Search by name, skills, company...";
+"Từ khoá AI đã tìm" = "AI search keywords";
+"Yêu cầu của bạn thật độc nhất luôn á!" = "Your request is truly unique!";
+"Kujira chưa tìm thấy ai có sở thích như bạn mô tả... Tiếc ghê! Nhưng ít nhất Kujira có bạn ở đây rồi~ 💕" = "Kujira couldn't find anyone matching your description... What a shame! But at least Kujira has you here~ 💕";
+"Kujira gặp chút sự cố rồi!" = "Kujira ran into a problem!";
+"Có thể do mạng yếu hoặc Kujira đang bận tý~ Bạn thử lại sau nhé! 🙏" = "Maybe the network is weak or Kujira is busy~ Try again later! 🙏";
+"Hãy để Kujira giúp bạn tìm hiệu quả hơn nha~" = "Let Kujira help you search more effectively~";
+"Mình vừa giúp bạn tìm rồi á~ \nBạn mình luôn sẵn lòng giúp bạn! 💕" = "I just helped you search~\nAlways here for you! 💕";
+"Nhập người bạn muốn tìm vào đây nhe" = "Enter who you're looking for";
+"Tui muốn tìm bạn thích xem jjk..." = "I want to find someone who likes jjk...";
+"Xu hướng" = "Trending";
+"Đang trên đại hải trình..." = "Searching the high seas...";
+"Tìm cùng Kujira" = "Search with Kujira";
+"Bạn hỏi, Kujira trả lời" = "You ask, Kujira answers";
+"Kết nối" = "Connect";
+"%d kết nối chung" = "%d mutual connections";
+
+// MARK: - AI Search Loading
+"Kujira đang đọc mô tả từ bạn iu" = "Kujira is reading your description~";
+"Đang nỗ lực phân tích mô tả đây" = "Analyzing your description";
+"Danh sách, danh sách, lên danh sách" = "Making a list, checking it twice";
+"Chút xíu nữa thôi" = "Almost there";
+"Thật là nhiều người quá đi" = "There are so many people";
+"Thế giới thì xoay, mình thì bơi" = "The world turns, we swim";
+"Chiều nay ăn gì giờ ta" = "What to eat this afternoon";
+
+// MARK: - Notifications
+"Mới" = "New";
+"Trước đó" = "Earlier";
+
+// MARK: - Profile
+"Chỉnh sửa hồ sơ" = "Edit profile";
+"Người theo dõi" = "Followers";
+"Đang theo dõi" = "Following";
+"Nhắn tin" = "Message";
+
+// MARK: - Settings
+"Chế độ đang dùng" = "Current mode";
+"Giao diện · %@" = "Appearance · %@";
+"Giao diện" = "Appearance";
+"Ngôn ngữ" = "Language";
+"Không giới hạn khoảng cách khi tìm kiếm có địa điểm." = "No distance limit when searching with location.";
+"Kujira chỉ gợi ý người trong vòng %dkm khi bạn tìm kiếm có địa điểm." = "Kujira only suggests people within %dkm when searching with location.";
+"Tài khoản" = "Account";
+"Thông tin" = "About";
+"Trợ giúp & Hỗ trợ" = "Help & Support";
+"Điều khoản dịch vụ" = "Terms of Service";
+"Chính sách bảo mật" = "Privacy Policy";
+"Quyền riêng tư & Bảo mật" = "Privacy & Security";
+"Đã lưu" = "Saved";
+"Phiên bản" = "Version";
+"Đăng xuất" = "Log out";
+"Cài đặt" = "Settings";
+"Bán kính tìm kiếm" = "Search radius";
+"Không giới hạn" = "Unlimited";
+"Không\ngiới hạn" = "No\nlimit";
+"%d km" = "%d km";
+
+// MARK: - Theme Picker
+"Tùy chỉnh giao diện" = "Customize appearance";
+"Xem trước" = "Preview";
+"Đang dùng" = "Active";
+
+// MARK: - Communities
+"Cộng đồng của tôi" = "My communities";
+"Khám phá" = "Discover";
+"Tìm cộng đồng" = "Search communities";
+"Chưa tham gia cộng đồng nào" = "You haven't joined any communities";
+"Không tìm thấy kết quả" = "No results found";
+"Tất cả" = "All";
+"Lỗi" = "Error";
+"OK" = "OK";
+
+// MARK: - Community Detail
+"%lld thành viên" = "%lld members";
+"Yêu cầu tham gia" = "Request to join";
+"Tham gia" = "Join";
+"Đang chờ" = "Pending";
+"Bảng tin" = "Feed";
+"Thành viên" = "Members";
+"Chưa có bài viết nào" = "No posts yet";
+"Hãy là người đầu tiên đăng bài trong cộng đồng này!" = "Be the first to post in this community!";
+"Phong Điều hành viên" = "Promote to admin";
+"Xóa Điều hành viên" = "Remove admin";
+"Xóa khỏi cộng đồng" = "Remove from community";
+"Báo cáo thành viên này" = "Report this member";
+"Đã tham gia" = "Joined";
+
+// MARK: - Create Community
+"Vui lòng nhập tên cộng đồng" = "Please enter a community name";
+"Tên phải có ít nhất 3 ký tự" = "Name must be at least 3 characters";
+"Tên không được vượt quá 100 ký tự" = "Name must not exceed 100 characters";
+"Không thể tạo cộng đồng. Vui lòng thử lại." = "Could not create community. Please try again.";
+"Tên cộng đồng" = "Community name";
+"Tên" = "Name";
+"3–100 ký tự" = "3–100 characters";
+"Mô tả (tùy chọn)" = "Description (optional)";
+"Loại" = "Type";
+"Quyền riêng tư" = "Privacy";
+"Công khai" = "Public";
+"Riêng tư" = "Private";
+"Biểu tượng" = "Icon";
+"Gõ hoặc dán emoji…" = "Type or paste an emoji…";
+"Gõ hoặc dán bất kỳ emoji nào" = "Type or paste any emoji";
+"Thêm emoji" = "Add emoji";
+"Màu bìa" = "Cover color";
+"Màu tùy chỉnh" = "Custom color";
+"Tạo cộng đồng" = "Create community";
+
+// MARK: - Community Post
+"Đăng vào %@" = "Post to %@";
+"Văn bản" = "Text";
+"Bình chọn" = "Poll";
+"Sự kiện" = "Event";
+"Bài viết mới" = "New post";
+"Chia sẻ điều gì đó với cộng đồng…" = "Share something with the community…";
+"Bạn muốn hỏi điều gì?" = "What do you want to ask?";
+"Mô tả sự kiện này…" = "Describe this event…";
+
+// MARK: - Discover
+"Chưa có gì để khám phá" = "Nothing to discover yet";
+"Hãy quay lại sau khi có thêm cộng đồng mới" = "Come back when there are more communities";
+
+// MARK: - Report Sheet
+"Báo cáo bài viết" = "Report post";
+"Báo cáo thành viên" = "Report member";
+"Gửi báo cáo" = "Submit report";
+"Tại sao bạn báo cáo nội dung này?" = "Why are you reporting this content?";
+"Chi tiết thêm (tùy chọn)" = "Additional details (optional)";
+"Báo cáo đã được gửi" = "Report submitted";
+"Cảm ơn bạn. Quản trị viên sẽ xem xét báo cáo này sớm." = "Thank you. An admin will review this report soon.";
+"Không thể gửi báo cáo. Vui lòng thử lại." = "Could not submit report. Please try again.";
+
+// MARK: - Chat
+"Cài đặt cuộc trò chuyện" = "Conversation settings";
+"Tính năng đang được phát triển" = "Feature coming soon";
+"Tải tin nhắn cũ hơn" = "Load older messages";
+"Bạn đã kết nối với tài khoản này, hãy gửi lời chào 👋" = "You're connected — say hello 👋";
+"Bạn chưa kết nối với tài khoản này" = "You're not connected with this user";
+"Nhắn tin..." = "Message...";
+"Tin nhắn" = "Messages";
+"Chưa có cuộc trò chuyện nào" = "No conversations yet";
+"Bắt đầu trò chuyện bằng cách vào trang cá nhân của ai đó." = "Start a conversation by visiting someone's profile.";
+"vừa xong" = "just now";
+"%d phút" = "%d min";
+
+// MARK: - Ward Picker
+"Chọn tỉnh/thành" = "Select province";
+"Chọn phường/xã" = "Select ward";
+"Đang tải..." = "Loading...";
+"Chọn tỉnh/thành trước" = "Select a province first";
+
+// MARK: - Connect Button
+"Đã gửi" = "Sent";
+"Phản hồi" = "Respond";
+"Đã kết nối" = "Connected";

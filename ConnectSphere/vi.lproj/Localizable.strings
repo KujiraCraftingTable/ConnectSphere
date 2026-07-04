@@ -1,0 +1,311 @@
+// MARK: - Auth / Login
+"hoặc tiếp tục với" = "hoặc tiếp tục với";
+"Continue with Google" = "Tiếp tục với Google";
+"Đăng nhập vào tài khoản của bạn" = "Đăng nhập vào tài khoản của bạn";
+"Tên người dùng" = "Tên người dùng";
+"Mật khẩu" = "Mật khẩu";
+"Quên mật khẩu?" = "Quên mật khẩu?";
+"Đăng nhập" = "Đăng nhập";
+"Chưa có tài khoản?" = "Chưa có tài khoản?";
+"Đăng ký" = "Đăng ký";
+"Vui lòng điền đầy đủ thông tin." = "Vui lòng điền đầy đủ thông tin.";
+"Không lấy được Google token" = "Không lấy được Google token";
+
+// MARK: - Register
+"Thông tin tài khoản" = "Thông tin tài khoản";
+"Về bạn" = "Về bạn";
+"Thông tin nghề nghiệp" = "Thông tin nghề nghiệp";
+"Vị trí của bạn" = "Vị trí của bạn";
+"Email (Tùy chọn)" = "Email (Tùy chọn)";
+"Tạo tài khoản" = "Tạo tài khoản";
+"Quay lại" = "Quay lại";
+"Chế độ Bạn bè" = "Chế độ Bạn bè";
+"Chế độ Đồng nghiệp" = "Chế độ Đồng nghiệp";
+"Điền thông tin để bắt đầu" = "Điền thông tin để bắt đầu";
+"Xác nhận mật khẩu" = "Xác nhận mật khẩu";
+"Tên hiển thị" = "Tên hiển thị";
+"Kỹ năng (VD: Swift, UI/UX, Python)" = "Kỹ năng (VD: Swift, UI/UX, Python)";
+"Số điện thoại" = "Số điện thoại";
+"Gửi" = "Gửi";
+"Đã gửi mã xác nhận" = "Đã gửi mã xác nhận";
+"Địa chỉ email (tùy chọn)" = "Địa chỉ email (tùy chọn)";
+"Dùng để khôi phục tài khoản. Bạn có thể bỏ qua." = "Dùng để khôi phục tài khoản. Bạn có thể bỏ qua.";
+"Vui lòng nhập tên người dùng." = "Vui lòng nhập tên người dùng.";
+"Mật khẩu phải có ít nhất 8 ký tự." = "Mật khẩu phải có ít nhất 8 ký tự.";
+"Mật khẩu không khớp." = "Mật khẩu không khớp.";
+"Vui lòng chọn tỉnh/thành và phường/xã của bạn." = "Vui lòng chọn tỉnh/thành và phường/xã của bạn.";
+"Khi tạo tài khoản, bạn đồng ý với **Điều khoản dịch vụ** và **Chính sách bảo mật** của chúng tôi." = "Khi tạo tài khoản, bạn đồng ý với **Điều khoản dịch vụ** và **Chính sách bảo mật** của chúng tôi.";
+
+// MARK: - Phone Verification
+"Xác minh" = "Xác minh";
+"Xác minh số điện thoại" = "Xác minh số điện thoại";
+"Chúng tôi đã gửi mã 6 chữ số đến\n**+%@**" = "Chúng tôi đã gửi mã 6 chữ số đến\n**+%@**";
+"Chưa nhận được mã?" = "Chưa nhận được mã?";
+"Gửi lại sau %ds" = "Gửi lại sau %ds";
+"Gửi lại" = "Gửi lại";
+"Xác minh số điện thoại thành công!" = "Xác minh số điện thoại thành công!";
+"Vui lòng nhập đủ 6 chữ số." = "Vui lòng nhập đủ 6 chữ số.";
+"Mã không đúng. Vui lòng thử lại." = "Mã không đúng. Vui lòng thử lại.";
+
+// MARK: - Interest Picker
+"Phổ biến" = "Phổ biến";
+"Bỏ qua" = "Bỏ qua";
+"Thêm" = "Thêm";
+"Cụ thể là %@ nào? (tùy chọn)" = "Cụ thể là %@ nào? (tùy chọn)";
+
+// MARK: - Main Tab
+"Trang chủ" = "Trang chủ";
+"Tìm kiếm" = "Tìm kiếm";
+"Cộng đồng" = "Cộng đồng";
+"Thông báo" = "Thông báo";
+"Hồ sơ" = "Hồ sơ";
+
+// MARK: - Mode Selection
+"Bạn muốn dùng\nConnectSphere cho mục đích gì?" = "Bạn muốn dùng\nConnectSphere cho mục đích gì?";
+"Bạn có thể đổi chế độ sau trong cài đặt" = "Bạn có thể đổi chế độ sau trong cài đặt";
+"Tìm bạn bè" = "Tìm bạn bè";
+"Kết nối với người có cùng sở thích và đam mê" = "Kết nối với người có cùng sở thích và đam mê";
+"Tìm đồng nghiệp" = "Tìm đồng nghiệp";
+"Mở rộng mạng lưới chuyên nghiệp, tìm cộng tác viên và cơ hội nghề nghiệp" = "Mở rộng mạng lưới chuyên nghiệp, tìm cộng tác viên và cơ hội nghề nghiệp";
+"Tiếp tục" = "Tiếp tục";
+"Bạn có thể thiết lập Chế độ Đồng nghiệp sau, hoặc " = "Bạn có thể thiết lập Chế độ Đồng nghiệp sau, hoặc ";
+"Bạn có thể thiết lập Chế độ Bạn bè sau, hoặc " = "Bạn có thể thiết lập Chế độ Bạn bè sau, hoặc ";
+"thiết lập ngay →" = "thiết lập ngay →";
+
+// MARK: - Onboarding
+"Thiết lập hồ sơ" = "Thiết lập hồ sơ";
+"Bạn muốn dùng ConnectSphere cho mục đích gì?" = "Bạn muốn dùng ConnectSphere cho mục đích gì?";
+"Bạn có thể thay đổi sau" = "Bạn có thể thay đổi sau";
+"Kết bạn & Giải trí" = "Kết bạn & Giải trí";
+"Tìm bạn chơi, chia sẻ sở thích" = "Tìm bạn chơi, chia sẻ sở thích";
+"Công việc & Học tập" = "Công việc & Học tập";
+"Networking, tìm cộng tác viên" = "Networking, tìm cộng tác viên";
+"Thông tin cơ bản" = "Thông tin cơ bản";
+"Điền tên hiển thị và username của bạn" = "Điền tên hiển thị và username của bạn";
+"Tên hiển thị *" = "Tên hiển thị *";
+"Username * (chỉ a-z, 0-9, _)" = "Username * (chỉ a-z, 0-9, _)";
+"Giới tính *" = "Giới tính *";
+"Nam" = "Nam";
+"Nữ" = "Nữ";
+"Khác" = "Khác";
+"Ngày sinh (tùy chọn)" = "Ngày sinh (tùy chọn)";
+"Ngày sinh: %@" = "Ngày sinh: %@";
+"Tỉnh / Thành phố *" = "Tỉnh / Thành phố *";
+"Sở thích của bạn" = "Sở thích của bạn";
+"Kỹ năng & Công ty" = "Kỹ năng & Công ty";
+"Giúp ConnectSphere tìm người phù hợp với bạn" = "Giúp ConnectSphere tìm người phù hợp với bạn";
+"Chọn những gì bạn thích" = "Chọn những gì bạn thích";
+"Chức danh (iOS Developer...)" = "Chức danh (iOS Developer...)";
+"Công ty / Trường học" = "Công ty / Trường học";
+"Kỹ năng (Swift, Python, UI/UX...)" = "Kỹ năng (Swift, Python, UI/UX...)";
+"Giới thiệu bản thân" = "Giới thiệu bản thân";
+"Viết vài dòng để mọi người biết bạn là ai" = "Viết vài dòng để mọi người biết bạn là ai";
+"Ví dụ: iOS Developer | Thích cafe và anime ☕🌸" = "Ví dụ: iOS Developer | Thích cafe và anime ☕🌸";
+"Đang lưu..." = "Đang lưu...";
+"Hoàn tất 🎉" = "Hoàn tất 🎉";
+"Tìm tỉnh / thành phố" = "Tìm tỉnh / thành phố";
+"Chọn tỉnh / thành phố" = "Chọn tỉnh / thành phố";
+
+// MARK: - Common
+"Hủy" = "Hủy";
+"Huỷ" = "Huỷ";
+"Sở thích" = "Sở thích";
+"Chức danh" = "Chức danh";
+"Công ty" = "Công ty";
+"Kỹ năng" = "Kỹ năng";
+
+// MARK: - Feed
+"Bạn bè" = "Bạn bè";
+"Công việc" = "Công việc";
+"Bạn đang nghĩ gì vậy?" = "Bạn đang nghĩ gì vậy?";
+"Chia sẻ cập nhật chuyên nghiệp..." = "Chia sẻ cập nhật chuyên nghiệp...";
+"Trực tiếp" = "Trực tiếp";
+"Cảm xúc" = "Cảm xúc";
+"Bài viết" = "Bài viết";
+
+// MARK: - Create Post
+"Đang tải link preview..." = "Đang tải link preview...";
+"Đang kiểm tra..." = "Đang kiểm tra...";
+"Đăng" = "Đăng";
+"Tạo bài viết" = "Tạo bài viết";
+"Đăng ở Chế độ %@" = "Đăng ở Chế độ %@";
+"Chuyển sang Chế độ %@" = "Chuyển sang Chế độ %@";
+"Đồng nghiệp" = "Đồng nghiệp";
+"Bài viết này có vẻ liên quan đến %@" = "Bài viết này có vẻ liên quan đến %@";
+"công việc 💼" = "công việc 💼";
+"giải trí 🎉" = "giải trí 🎉";
+
+// MARK: - Post Card
+"%d bình luận" = "%d bình luận";
+"%d lượt chia sẻ" = "%d lượt chia sẻ";
+
+// MARK: - Comment Sheet
+"Chưa có bình luận nào" = "Chưa có bình luận nào";
+"Viết bình luận..." = "Viết bình luận...";
+"Bình luận" = "Bình luận";
+
+// MARK: - Stories
+"Tin của bạn" = "Tin của bạn";
+
+// MARK: - Privacy Picker
+"Ai có thể xem?" = "Ai có thể xem?";
+
+// MARK: - Search
+"%d kết quả" = "%d kết quả";
+"Tìm theo tên, sở thích, địa điểm..." = "Tìm theo tên, sở thích, địa điểm...";
+"Tìm theo tên, kỹ năng, công ty..." = "Tìm theo tên, kỹ năng, công ty...";
+"Từ khoá AI đã tìm" = "Từ khoá AI đã tìm";
+"Yêu cầu của bạn thật độc nhất luôn á!" = "Yêu cầu của bạn thật độc nhất luôn á!";
+"Kujira chưa tìm thấy ai có sở thích như bạn mô tả... Tiếc ghê! Nhưng ít nhất Kujira có bạn ở đây rồi~ 💕" = "Kujira chưa tìm thấy ai có sở thích như bạn mô tả... Tiếc ghê! Nhưng ít nhất Kujira có bạn ở đây rồi~ 💕";
+"Kujira gặp chút sự cố rồi!" = "Kujira gặp chút sự cố rồi!";
+"Có thể do mạng yếu hoặc Kujira đang bận tý~ Bạn thử lại sau nhé! 🙏" = "Có thể do mạng yếu hoặc Kujira đang bận tý~ Bạn thử lại sau nhé! 🙏";
+"Hãy để Kujira giúp bạn tìm hiệu quả hơn nha~" = "Hãy để Kujira giúp bạn tìm hiệu quả hơn nha~";
+"Mình vừa giúp bạn tìm rồi á~ \nBạn mình luôn sẵn lòng giúp bạn! 💕" = "Mình vừa giúp bạn tìm rồi á~ \nBạn mình luôn sẵn lòng giúp bạn! 💕";
+"Nhập người bạn muốn tìm vào đây nhe" = "Nhập người bạn muốn tìm vào đây nhe";
+"Tui muốn tìm bạn thích xem jjk..." = "Tui muốn tìm bạn thích xem jjk...";
+"Xu hướng" = "Xu hướng";
+"Đang trên đại hải trình..." = "Đang trên đại hải trình...";
+"Tìm cùng Kujira" = "Tìm cùng Kujira";
+"Bạn hỏi, Kujira trả lời" = "Bạn hỏi, Kujira trả lời";
+"Kết nối" = "Kết nối";
+"%d kết nối chung" = "%d kết nối chung";
+
+// MARK: - AI Search Loading
+"Kujira đang đọc mô tả từ bạn iu" = "Kujira đang đọc mô tả từ bạn iu";
+"Đang nỗ lực phân tích mô tả đây" = "Đang nỗ lực phân tích mô tả đây";
+"Danh sách, danh sách, lên danh sách" = "Danh sách, danh sách, lên danh sách";
+"Chút xíu nữa thôi" = "Chút xíu nữa thôi";
+"Thật là nhiều người quá đi" = "Thật là nhiều người quá đi";
+"Thế giới thì xoay, mình thì bơi" = "Thế giới thì xoay, mình thì bơi";
+"Chiều nay ăn gì giờ ta" = "Chiều nay ăn gì giờ ta";
+
+// MARK: - Notifications
+"Mới" = "Mới";
+"Trước đó" = "Trước đó";
+
+// MARK: - Profile
+"Chỉnh sửa hồ sơ" = "Chỉnh sửa hồ sơ";
+"Người theo dõi" = "Người theo dõi";
+"Đang theo dõi" = "Đang theo dõi";
+"Nhắn tin" = "Nhắn tin";
+
+// MARK: - Settings
+"Chế độ đang dùng" = "Chế độ đang dùng";
+"Giao diện · %@" = "Giao diện · %@";
+"Giao diện" = "Giao diện";
+"Ngôn ngữ" = "Ngôn ngữ";
+"Không giới hạn khoảng cách khi tìm kiếm có địa điểm." = "Không giới hạn khoảng cách khi tìm kiếm có địa điểm.";
+"Kujira chỉ gợi ý người trong vòng %dkm khi bạn tìm kiếm có địa điểm." = "Kujira chỉ gợi ý người trong vòng %dkm khi bạn tìm kiếm có địa điểm.";
+"Tài khoản" = "Tài khoản";
+"Thông tin" = "Thông tin";
+"Trợ giúp & Hỗ trợ" = "Trợ giúp & Hỗ trợ";
+"Điều khoản dịch vụ" = "Điều khoản dịch vụ";
+"Chính sách bảo mật" = "Chính sách bảo mật";
+"Quyền riêng tư & Bảo mật" = "Quyền riêng tư & Bảo mật";
+"Đã lưu" = "Đã lưu";
+"Phiên bản" = "Phiên bản";
+"Đăng xuất" = "Đăng xuất";
+"Cài đặt" = "Cài đặt";
+"Bán kính tìm kiếm" = "Bán kính tìm kiếm";
+"Không giới hạn" = "Không giới hạn";
+"Không\ngiới hạn" = "Không\ngiới hạn";
+"%d km" = "%d km";
+
+// MARK: - Theme Picker
+"Tùy chỉnh giao diện" = "Tùy chỉnh giao diện";
+"Xem trước" = "Xem trước";
+"Đang dùng" = "Đang dùng";
+
+// MARK: - Communities
+"Cộng đồng của tôi" = "Cộng đồng của tôi";
+"Khám phá" = "Khám phá";
+"Tìm cộng đồng" = "Tìm cộng đồng";
+"Chưa tham gia cộng đồng nào" = "Chưa tham gia cộng đồng nào";
+"Không tìm thấy kết quả" = "Không tìm thấy kết quả";
+"Tất cả" = "Tất cả";
+"Lỗi" = "Lỗi";
+"OK" = "OK";
+
+// MARK: - Community Detail
+"%lld thành viên" = "%lld thành viên";
+"Yêu cầu tham gia" = "Yêu cầu tham gia";
+"Tham gia" = "Tham gia";
+"Đang chờ" = "Đang chờ";
+"Bảng tin" = "Bảng tin";
+"Thành viên" = "Thành viên";
+"Chưa có bài viết nào" = "Chưa có bài viết nào";
+"Hãy là người đầu tiên đăng bài trong cộng đồng này!" = "Hãy là người đầu tiên đăng bài trong cộng đồng này!";
+"Phong Điều hành viên" = "Phong Điều hành viên";
+"Xóa Điều hành viên" = "Xóa Điều hành viên";
+"Xóa khỏi cộng đồng" = "Xóa khỏi cộng đồng";
+"Báo cáo thành viên này" = "Báo cáo thành viên này";
+"Đã tham gia" = "Đã tham gia";
+
+// MARK: - Create Community
+"Vui lòng nhập tên cộng đồng" = "Vui lòng nhập tên cộng đồng";
+"Tên phải có ít nhất 3 ký tự" = "Tên phải có ít nhất 3 ký tự";
+"Tên không được vượt quá 100 ký tự" = "Tên không được vượt quá 100 ký tự";
+"Không thể tạo cộng đồng. Vui lòng thử lại." = "Không thể tạo cộng đồng. Vui lòng thử lại.";
+"Tên cộng đồng" = "Tên cộng đồng";
+"Tên" = "Tên";
+"3–100 ký tự" = "3–100 ký tự";
+"Mô tả (tùy chọn)" = "Mô tả (tùy chọn)";
+"Loại" = "Loại";
+"Quyền riêng tư" = "Quyền riêng tư";
+"Công khai" = "Công khai";
+"Riêng tư" = "Riêng tư";
+"Biểu tượng" = "Biểu tượng";
+"Gõ hoặc dán emoji…" = "Gõ hoặc dán emoji…";
+"Gõ hoặc dán bất kỳ emoji nào" = "Gõ hoặc dán bất kỳ emoji nào";
+"Thêm emoji" = "Thêm emoji";
+"Màu bìa" = "Màu bìa";
+"Màu tùy chỉnh" = "Màu tùy chỉnh";
+"Tạo cộng đồng" = "Tạo cộng đồng";
+
+// MARK: - Community Post
+"Đăng vào %@" = "Đăng vào %@";
+"Văn bản" = "Văn bản";
+"Bình chọn" = "Bình chọn";
+"Sự kiện" = "Sự kiện";
+"Bài viết mới" = "Bài viết mới";
+"Chia sẻ điều gì đó với cộng đồng…" = "Chia sẻ điều gì đó với cộng đồng…";
+"Bạn muốn hỏi điều gì?" = "Bạn muốn hỏi điều gì?";
+"Mô tả sự kiện này…" = "Mô tả sự kiện này…";
+
+// MARK: - Discover
+"Chưa có gì để khám phá" = "Chưa có gì để khám phá";
+"Hãy quay lại sau khi có thêm cộng đồng mới" = "Hãy quay lại sau khi có thêm cộng đồng mới";
+
+// MARK: - Report Sheet
+"Báo cáo bài viết" = "Báo cáo bài viết";
+"Báo cáo thành viên" = "Báo cáo thành viên";
+"Gửi báo cáo" = "Gửi báo cáo";
+"Tại sao bạn báo cáo nội dung này?" = "Tại sao bạn báo cáo nội dung này?";
+"Chi tiết thêm (tùy chọn)" = "Chi tiết thêm (tùy chọn)";
+"Báo cáo đã được gửi" = "Báo cáo đã được gửi";
+"Cảm ơn bạn. Quản trị viên sẽ xem xét báo cáo này sớm." = "Cảm ơn bạn. Quản trị viên sẽ xem xét báo cáo này sớm.";
+"Không thể gửi báo cáo. Vui lòng thử lại." = "Không thể gửi báo cáo. Vui lòng thử lại.";
+
+// MARK: - Chat
+"Cài đặt cuộc trò chuyện" = "Cài đặt cuộc trò chuyện";
+"Tính năng đang được phát triển" = "Tính năng đang được phát triển";
+"Tải tin nhắn cũ hơn" = "Tải tin nhắn cũ hơn";
+"Bạn đã kết nối với tài khoản này, hãy gửi lời chào 👋" = "Bạn đã kết nối với tài khoản này, hãy gửi lời chào 👋";
+"Bạn chưa kết nối với tài khoản này" = "Bạn chưa kết nối với tài khoản này";
+"Nhắn tin..." = "Nhắn tin...";
+"Tin nhắn" = "Tin nhắn";
+"Chưa có cuộc trò chuyện nào" = "Chưa có cuộc trò chuyện nào";
+"Bắt đầu trò chuyện bằng cách vào trang cá nhân của ai đó." = "Bắt đầu trò chuyện bằng cách vào trang cá nhân của ai đó.";
+"vừa xong" = "vừa xong";
+"%d phút" = "%d phút";
+
+// MARK: - Ward Picker
+"Chọn tỉnh/thành" = "Chọn tỉnh/thành";
+"Chọn phường/xã" = "Chọn phường/xã";
+"Đang tải..." = "Đang tải...";
+"Chọn tỉnh/thành trước" = "Chọn tỉnh/thành trước";
+
+// MARK: - Connect Button
+"Đã gửi" = "Đã gửi";
+"Phản hồi" = "Phản hồi";
+"Đã kết nối" = "Đã kết nối";

@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		4C9F54AF2FD1658400531410 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 4C9F54AE2FD1658400531410 /* GoogleSignIn */; };
+		4C9F54B12FD1658800531410 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 4C9F54B02FD1658800531410 /* GoogleSignInSwift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		4CBE22A42FB620DE008E9B1A /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -24,9 +29,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		4CBE22912FB620DC008E9B1A /* ConnectSphere.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ConnectSphere.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		4CBE22A32FB620DE008E9B1A /* ConnectSphereTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ConnectSphereTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		4CBE22AD2FB620DE008E9B1A /* ConnectSphereUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ConnectSphereUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4CAFED032FC0D65000412094 /* ConnectSphere.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ConnectSphere.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4CAFED042FC0D65000412094 /* ConnectSphereTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ConnectSphereTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4CAFED052FC0D65000412094 /* ConnectSphereUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ConnectSphereUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -52,6 +57,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4C9F54AF2FD1658400531410 /* GoogleSignIn in Frameworks */,
+				4C9F54B12FD1658800531410 /* GoogleSignInSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -72,24 +79,24 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		4C9F54AD2FD1658400531410 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		4CBE22882FB620DC008E9B1A = {
 			isa = PBXGroup;
 			children = (
 				4CBE22932FB620DC008E9B1A /* ConnectSphere */,
 				4CBE22A62FB620DE008E9B1A /* ConnectSphereTests */,
 				4CBE22B02FB620DE008E9B1A /* ConnectSphereUITests */,
-				4CBE22922FB620DC008E9B1A /* Products */,
+				4CAFED032FC0D65000412094 /* ConnectSphere.app */,
+				4CAFED042FC0D65000412094 /* ConnectSphereTests.xctest */,
+				4CAFED052FC0D65000412094 /* ConnectSphereUITests.xctest */,
+				4C9F54AD2FD1658400531410 /* Frameworks */,
 			);
-			sourceTree = "<group>";
-		};
-		4CBE22922FB620DC008E9B1A /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				4CBE22912FB620DC008E9B1A /* ConnectSphere.app */,
-				4CBE22A32FB620DE008E9B1A /* ConnectSphereTests.xctest */,
-				4CBE22AD2FB620DE008E9B1A /* ConnectSphereUITests.xctest */,
-			);
-			name = Products;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -112,9 +119,11 @@
 			);
 			name = ConnectSphere;
 			packageProductDependencies = (
+				4C9F54AE2FD1658400531410 /* GoogleSignIn */,
+				4C9F54B02FD1658800531410 /* GoogleSignInSwift */,
 			);
 			productName = ConnectSphere;
-			productReference = 4CBE22912FB620DC008E9B1A /* ConnectSphere.app */;
+			productReference = 4CAFED032FC0D65000412094 /* ConnectSphere.app */;
 			productType = "com.apple.product-type.application";
 		};
 		4CBE22A22FB620DE008E9B1A /* ConnectSphereTests */ = {
@@ -137,7 +146,7 @@
 			packageProductDependencies = (
 			);
 			productName = ConnectSphereTests;
-			productReference = 4CBE22A32FB620DE008E9B1A /* ConnectSphereTests.xctest */;
+			productReference = 4CAFED042FC0D65000412094 /* ConnectSphereTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		4CBE22AC2FB620DE008E9B1A /* ConnectSphereUITests */ = {
@@ -160,7 +169,7 @@
 			packageProductDependencies = (
 			);
 			productName = ConnectSphereUITests;
-			productReference = 4CBE22AD2FB620DE008E9B1A /* ConnectSphereUITests.xctest */;
+			productReference = 4CAFED052FC0D65000412094 /* ConnectSphereUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -192,11 +201,15 @@
 			knownRegions = (
 				en,
 				Base,
+				vi,
 			);
 			mainGroup = 4CBE22882FB620DC008E9B1A;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				4C9F54AC2FD164D200531410 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+			);
 			preferredProjectObjectVersion = 77;
-			productRefGroup = 4CBE22922FB620DC008E9B1A /* Products */;
+			productRefGroup = 4CBE22882FB620DC008E9B1A;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -395,13 +408,10 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = U2A5448M9S;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "ConnectSphere-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -426,13 +436,10 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = U2A5448M9S;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "ConnectSphere-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -570,6 +577,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		4C9F54AC2FD164D200531410 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.1.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		4C9F54AE2FD1658400531410 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4C9F54AC2FD164D200531410 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		4C9F54B02FD1658800531410 /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4C9F54AC2FD164D200531410 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 4CBE22892FB620DC008E9B1A /* Project object */;
 }

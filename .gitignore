@@ -1,0 +1,15 @@
+# macOS
+.DS_Store
+
+# Xcode user state
+xcuserdata/
+*.xcuserstate
+
+# Agent / tooling runtime (không phải source của app)
+.claude/settings.local.json
+.Rhistory
+data/
+skills-lock.json
+
+# User-uploaded media (dev)
+backend/uploads/

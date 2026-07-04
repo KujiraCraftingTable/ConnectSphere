@@ -1,0 +1,324 @@
+import SwiftUI
+
+// MARK: - In-App Language Bundle EnvironmentKey
+// Inject `appState.bundle` at root; all views read it via @Environment(\.appBundle).
+
+struct AppBundleKey: EnvironmentKey {
+    static let defaultValue: Bundle = .main
+}
+
+extension EnvironmentValues {
+    /// The Bundle for the currently selected in-app language.
+    var appBundle: Bundle {
+        get { self[AppBundleKey.self] }
+        set { self[AppBundleKey.self] = newValue }
+    }
+}
+
+extension Bundle {
+    /// Looks up a localized string in this bundle, falling back to the key itself.
+    func loc(_ key: String) -> String {
+        localizedString(forKey: key, value: key, table: nil)
+    }
+}
+
+// MARK: - Gradient Palette
+// DEPRECATED: Use ThemeManager via @EnvironmentObject instead.
+// Kept for backward compatibility during migration. Will be removed once
+// all views have been migrated to ThemeManager.theme.primaryGradient.
+
+struct AppGradient {
+    static let primary = LinearGradient(
+        colors: [Color(hex: "#7F5AF0"), Color(hex: "#2CB67D")],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+    static let background = LinearGradient(
+        colors: [Color(hex: "#0F0C29"), Color(hex: "#302B63"), Color(hex: "#24243E")],
+        startPoint: .top,
+        endPoint: .bottom
+    )
+    static let card = LinearGradient(
+        colors: [Color.white.opacity(0.08), Color.white.opacity(0.03)],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+    static let accent = LinearGradient(
+        colors: [Color(hex: "#F7971E"), Color(hex: "#FFD200")],
+        startPoint: .leading,
+        endPoint: .trailing
+    )
+}
+
+// MARK: - Color Hex Extension
+
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3:
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6:
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8:
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (1, 1, 1, 0)
+        }
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue: Double(b) / 255,
+            opacity: Double(a) / 255
+        )
+    }
+
+    /// Returns the hex string representation (e.g. "#FF9800") of the color.
+    func toHex() -> String? {
+        guard let components = UIColor(self).cgColor.components, components.count >= 3 else { return nil }
+        let r = Int(components[0] * 255)
+        let g = Int(components[1] * 255)
+        let b = Int(components[2] * 255)
+        return String(format: "#%02X%02X%02X", r, g, b)
+    }
+}
+
+// MARK: - Card (light mode — warm white surface)
+
+struct GlassCard<Content: View>: View {
+    let content: Content
+    init(@ViewBuilder content: () -> Content) { self.content = content() }
+
+    var body: some View {
+        content
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(AppColors.surface(.light))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(AppColors.borderDefault(.light), lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.06), radius: 16, x: 0, y: 4)
+            )
+    }
+}
+
+// MARK: - Custom Text Field
+
+struct AuthTextField: View {
+    let icon: String
+    let placeholder: String
+    @Binding var text: String
+    var isSecure: Bool = false
+    var keyboardType: UIKeyboardType = .default
+    var prefix: String? = nil
+
+    @Environment(ThemeManager.self) var themeManager
+    @State private var isRevealed = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .foregroundStyle(themeManager.theme.primaryGradient)
+                .frame(width: 20)
+
+            if let prefix = prefix {
+                Text(prefix)
+                    .foregroundColor(AppColors.textSecondary(.light))
+                    .font(.system(size: 15))
+            }
+
+            Group {
+                if isSecure && !isRevealed {
+                    SecureField("", text: $text)
+                        .placeholder(when: text.isEmpty) {
+                            Text(placeholder).foregroundColor(AppColors.textTertiary(.light))
+                        }
+                } else {
+                    TextField("", text: $text)
+                        .placeholder(when: text.isEmpty) {
+                            Text(placeholder).foregroundColor(AppColors.textTertiary(.light))
+                        }
+                        .keyboardType(keyboardType)
+                }
+            }
+            .foregroundColor(AppColors.textPrimary(.light))
+            .font(.system(size: 15))
+
+            if isSecure {
+                Button(action: { isRevealed.toggle() }) {
+                    Image(systemName: isRevealed ? "eye.slash" : "eye")
+                        .foregroundColor(AppColors.textTertiary(.light))
+                        .font(.system(size: 14))
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(AppColors.surface(.light))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(AppColors.borderDefault(.light), lineWidth: 1)
+                )
+        )
+    }
+}
+
+// MARK: - Placeholder helper
+
+extension View {
+    func placeholder<Content: View>(
+        when shouldShow: Bool,
+        @ViewBuilder placeholder: () -> Content
+    ) -> some View {
+        ZStack(alignment: .leading) {
+            if shouldShow { placeholder() }
+            self
+        }
+    }
+}
+
+// MARK: - Gradient Primary Button
+
+struct GradientButton: View {
+    let title: String
+    var isLoading: Bool = false
+    let action: () -> Void
+
+    @Environment(ThemeManager.self) var themeManager
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(themeManager.theme.primaryGradient)
+                    .frame(height: 52)
+
+                if isLoading {
+                    ProgressView().tint(.white)
+                } else {
+                    Text(title)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.white)
+                }
+            }
+        }
+        .disabled(isLoading)
+    }
+}
+
+// MARK: - Social Sign-In Button
+
+struct SocialButton<Icon: View>: View {
+    let icon: Icon
+    let label: String
+    let color: Color
+    let action: () -> Void
+
+    init(label: String, color: Color, action: @escaping () -> Void, @ViewBuilder icon: () -> Icon) {
+        self.icon = icon()
+        self.label = label
+        self.color = color
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                icon
+                    .frame(width: 20, height: 20)
+                Text(label)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 50)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(color.opacity(0.15))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(color.opacity(0.4), lineWidth: 1)
+                    )
+            )
+        }
+    }
+}
+
+// MARK: - Divider with label
+
+struct LabelDivider: View {
+    let label: String
+    var body: some View {
+        HStack(spacing: 12) {
+            Rectangle()
+                .fill(AppColors.borderDefault(.light))
+                .frame(height: 1)
+            Text(label)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(AppColors.textTertiary(.light))
+                .fixedSize()
+            Rectangle()
+                .fill(AppColors.borderDefault(.light))
+                .frame(height: 1)
+        }
+    }
+}
+
+// MARK: - Password Strength Bar
+
+struct PasswordStrengthBar: View {
+    let password: String
+
+    private var strength: Int {
+        var score = 0
+        if password.count >= 8  { score += 1 }
+        if password.count >= 12 { score += 1 }
+        if password.range(of: "[A-Z]", options: .regularExpression) != nil { score += 1 }
+        if password.range(of: "[0-9]", options: .regularExpression) != nil { score += 1 }
+        if password.range(of: "[^A-Za-z0-9]", options: .regularExpression) != nil { score += 1 }
+        return score
+    }
+
+    private var label: String {
+        switch strength {
+        case 0...1: return "Yếu"
+        case 2...3: return "Trung bình"
+        case 4:     return "Tốt"
+        default:    return "Mạnh"
+        }
+    }
+
+    private var color: Color {
+        switch strength {
+        case 0...1: return Color(hex: "#FF6B6B")
+        case 2...3: return Color(hex: "#F7971E")
+        case 4:     return Color(hex: "#2CB67D")
+        default:    return Color(hex: "#00D4AA")
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                ForEach(0..<5) { i in
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(i < strength ? color : Color.white.opacity(0.1))
+                        .frame(height: 4)
+                        .animation(.easeInOut(duration: 0.25), value: strength)
+                }
+            }
+            Text("Độ mạnh mật khẩu: \(label)")
+                .font(.system(size: 11))
+                .foregroundColor(color)
+        }
+        .padding(.horizontal, 4)
+    }
+}
+
