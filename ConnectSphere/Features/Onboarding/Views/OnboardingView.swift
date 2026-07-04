@@ -1,0 +1,395 @@
+import SwiftUI
+
+struct OnboardingView: View {
+    @Environment(AppState.self) var appState
+    @Environment(\.appBundle) var bundle
+    @State private var step    = 0
+    @State private var form    = OnboardingForm()
+    @State private var isLoading = false
+    @State private var error: String? = nil
+    @State private var selectedInterests: [InterestItem] = []
+    @State private var showProvincePicker = false
+
+    private let totalSteps = 4
+
+    var body: some View {
+        ZStack {
+            AppColors.base(.light).ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                // Progress bar
+                progressBar.padding(.horizontal, 24).padding(.top, 16)
+
+                // Step content
+                TabView(selection: $step) {
+                    step0.tag(0)
+                    step1.tag(1)
+                    step2.tag(2)
+                    step3.tag(3)
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .animation(.easeInOut, value: step)
+            }
+        }
+    }
+
+    // MARK: Progress
+
+    private var progressBar: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Text("Thiết lập hồ sơ", bundle: bundle)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(AppColors.textSecondary(.light))
+                Spacer()
+                Text("\(step + 1)/\(totalSteps)")
+                    .font(.system(size: 13))
+                    .foregroundColor(AppColors.textSecondary(.light))
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(AppColors.borderDefault(.light)).frame(height: 4)
+                    Capsule()
+                        .fill(Color.white)
+                        .frame(width: geo.size.width * CGFloat(step + 1) / CGFloat(totalSteps), height: 4)
+                        .animation(.spring(), value: step)
+                }
+            }
+            .frame(height: 4)
+        }
+    }
+
+    // MARK: Step 0 — Mode selection
+
+    private var step0: some View {
+        OnboardingCard(title: bundle.loc("Bạn muốn dùng ConnectSphere cho mục đích gì?"),
+                       subtitle: bundle.loc("Bạn có thể thay đổi sau")) {
+            VStack(spacing: 14) {
+                modeCard(mode: "friend", icon: "person.2.fill",
+                         title: bundle.loc("Kết bạn & Giải trí"),
+                         desc: bundle.loc("Tìm bạn chơi, chia sẻ sở thích"),
+                         color: Color(hex: "#FF6B35"))
+                modeCard(mode: "colleague", icon: "briefcase.fill",
+                         title: bundle.loc("Công việc & Học tập"),
+                         desc: bundle.loc("Networking, tìm cộng tác viên"),
+                         color: Color(hex: "#1877F2"))
+            }
+            nextButton(enabled: true, label: bundle.loc("Tiếp tục"))
+        }
+    }
+
+    private func modeCard(mode: String, icon: String, title: String, desc: String, color: Color) -> some View {
+        let selected = form.default_mode == mode
+        return Button { form.default_mode = mode } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle().fill(color.opacity(0.15)).frame(width: 50, height: 50)
+                    Image(systemName: icon).font(.system(size: 22)).foregroundColor(color)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(.system(size: 15, weight: .semibold)).foregroundColor(AppColors.textPrimary(.light))
+                    Text(desc).font(.system(size: 13)).foregroundColor(AppColors.textSecondary(.light))
+                }
+                Spacer()
+                if selected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 22)).foregroundColor(color)
+                }
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color.white.opacity(selected ? 0.15 : 0.07))
+                    .overlay(RoundedRectangle(cornerRadius: 14)
+                        .stroke(selected ? color : Color.clear, lineWidth: 2))
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: Step 1 — Basic info
+
+    private var step1: some View {
+        OnboardingCard(title: bundle.loc("Thông tin cơ bản"), subtitle: bundle.loc("Điền tên hiển thị và username của bạn")) {
+            VStack(spacing: 14) {
+                AuthTextField(icon: "textformat", placeholder: bundle.loc("Tên hiển thị *"), text: $form.display_name)
+                AuthTextField(icon: "at", placeholder: bundle.loc("Username * (chỉ a-z, 0-9, _)"), text: Binding(
+                    get: { form.username },
+                    set: { form.username = $0.lowercased().filter { $0.isLetter || $0.isNumber || $0 == "_" } }
+                ))
+
+                // Province picker (required)
+                Button { showProvincePicker = true } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "mappin.circle")
+                            .foregroundColor(AppColors.textSecondary(.light))
+                        Text(selectedProvinceDisplay)
+                            .foregroundColor(form.location.isEmpty
+                                ? AppColors.textTertiary(.light)
+                                : AppColors.textPrimary(.light))
+                            .font(.system(size: 15))
+                        Spacer()
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 12))
+                            .foregroundColor(AppColors.textSecondary(.light))
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .background(AppColors.surface(.light))
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+                .buttonStyle(.plain)
+                .sheet(isPresented: $showProvincePicker) {
+                    ProvincePickerSheet(selectedId: $form.location)
+                }
+
+                // Gender picker (required)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Giới tính *", bundle: bundle)
+                        .font(.system(size: 13))
+                        .foregroundColor(AppColors.textSecondary(.light))
+                    HStack(spacing: 10) {
+                        ForEach([("male", "Nam"), ("female", "Nữ"), ("other", "Khác")], id: \.0) { value, label in
+                            let selected = form.gender == value
+                            Button { form.gender = value } label: {
+                                Text(bundle.loc(label))
+                                    .font(.system(size: 14, weight: selected ? .semibold : .regular))
+                                    .foregroundColor(selected ? .white : AppColors.textSecondary(.light))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .fill(selected ? Color(hex: "#1877F2") : AppColors.surface(.light))
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
+                // DOB
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "calendar").foregroundColor(AppColors.textSecondary(.light))
+                        Text(form.dob.isEmpty ? bundle.loc("Ngày sinh (tùy chọn)") : String(format: bundle.loc("Ngày sinh: %@"), form.dob))
+                            .foregroundColor(form.dob.isEmpty ? AppColors.textTertiary(.light) : AppColors.textPrimary(.light))
+                            .font(.system(size: 15))
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .background(AppColors.surface(.light))
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(
+                        DatePicker("", selection: Binding(
+                            get: { dobDate },
+                            set: { form.dob = dobFormatter.string(from: $0) }
+                        ), displayedComponents: .date)
+                        .blendMode(.destinationOver)
+                        .padding(.horizontal, 8)
+                    )
+                }
+            }
+
+            if let e = error { errorBanner(e) }
+
+            nextButton(
+                enabled: !form.display_name.trimmingCharacters(in: .whitespaces).isEmpty &&
+                         form.username.count >= 3 &&
+                         !form.location.isEmpty,
+                label: bundle.loc("Tiếp tục")
+            )
+        }
+    }
+
+    private var selectedProvinceDisplay: String {
+        guard !form.location.isEmpty else { return bundle.loc("Tỉnh / Thành phố *") }
+        return VietnamProvinces.all.first(where: { $0.id == form.location })?.displayName ?? form.location
+    }
+
+    // MARK: Step 2 — Interests / Skills
+
+    private var step2: some View {
+        OnboardingCard(
+            title: form.default_mode == "friend" ? bundle.loc("Sở thích của bạn") : bundle.loc("Kỹ năng & Công ty"),
+            subtitle: bundle.loc("Giúp ConnectSphere tìm người phù hợp với bạn")
+        ) {
+            if form.default_mode == "friend" {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Chọn những gì bạn thích", bundle: bundle)
+                        .font(.system(size: 13))
+                        .foregroundColor(AppColors.textSecondary(.light))
+                    InterestPickerView(selectedInterests: $selectedInterests)
+                }
+            } else {
+                VStack(spacing: 14) {
+                    AuthTextField(icon: "briefcase", placeholder: bundle.loc("Chức danh (iOS Developer...)"), text: $form.job_title)
+                    AuthTextField(icon: "building.2", placeholder: bundle.loc("Công ty / Trường học"), text: $form.company)
+                    AuthTextField(icon: "sparkles", placeholder: bundle.loc("Kỹ năng (Swift, Python, UI/UX...)"), text: Binding(
+                        get: { form.skills.joined(separator: ", ") },
+                        set: { form.skills = $0.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }
+                    ))
+                }
+            }
+
+            nextButton(enabled: true, label: bundle.loc("Tiếp tục"))
+        }
+    }
+
+    // MARK: Step 3 — Bio + finish
+
+    private var step3: some View {
+        OnboardingCard(title: bundle.loc("Giới thiệu bản thân"), subtitle: bundle.loc("Viết vài dòng để mọi người biết bạn là ai")) {
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(AppColors.surface(.light))
+                    .frame(minHeight: 120)
+                if form.bio.isEmpty {
+                    Text("Ví dụ: iOS Developer | Thích cafe và anime ☕🌸", bundle: bundle)
+                        .font(.system(size: 14))
+                        .foregroundColor(AppColors.textDisabled(.light))
+                        .padding(14)
+                }
+                TextEditor(text: $form.bio)
+                    .font(.system(size: 15))
+                    .foregroundColor(AppColors.textPrimary(.light))
+                    .scrollContentBackground(.hidden)
+                    .background(Color.clear)
+                    .frame(minHeight: 120)
+                    .padding(8)
+            }
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(AppColors.borderDefault(.light), lineWidth: 1))
+
+            if let e = error { errorBanner(e) }
+
+            GradientButton(title: isLoading ? bundle.loc("Đang lưu...") : bundle.loc("Hoàn tất 🎉"), isLoading: isLoading) {
+                Task { await finish() }
+            }
+        }
+    }
+
+    // MARK: Helpers
+
+    private func nextButton(enabled: Bool, label: String) -> some View {
+        GradientButton(title: label, isLoading: false) {
+            withAnimation { step = min(step + 1, totalSteps - 1) }
+        }
+        .opacity(enabled ? 1 : 0.5)
+        .disabled(!enabled)
+    }
+
+    private func errorBanner(_ msg: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+            Text(msg).font(.system(size: 13))
+        }
+        .foregroundColor(Color(hex: "#FF6B6B"))
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(hex: "#FF6B6B").opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var dobDate: Date {
+        dobFormatter.date(from: form.dob) ?? Calendar.current.date(byAdding: .year, value: -20, to: Date())!
+    }
+
+    private let dobFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f
+    }()
+
+    private func finish() async {
+        // Sync selectedInterests → form.interests
+        form.interests = selectedInterests.map { $0.displayText }
+
+        isLoading = true
+        error = nil
+        do {
+            try await appState.completeOnboarding(form: form)
+        } catch {
+            self.error = error.localizedDescription
+        }
+        isLoading = false
+    }
+}
+
+// MARK: - Onboarding Card container
+
+struct OnboardingCard<Content: View>: View {
+    let title:    String
+    let subtitle: String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 0) {
+                VStack(spacing: 6) {
+                    Text(title)
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundColor(AppColors.textPrimary(.light))
+                        .multilineTextAlignment(.center)
+                    Text(subtitle)
+                        .font(.system(size: 14))
+                        .foregroundColor(AppColors.textSecondary(.light))
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.top, 28)
+                .padding(.bottom, 24)
+
+                GlassCard {
+                    VStack(spacing: 16) { content() }.padding(24)
+                }
+                .padding(.horizontal, 24)
+
+                Spacer(minLength: 40)
+            }
+        }
+        .preferredColorScheme(.light)
+    }
+}
+
+// MARK: - Province picker sheet
+
+struct ProvincePickerSheet: View {
+    @Binding var selectedId: String
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appBundle) var bundle
+    @State private var searchText = ""
+
+    private var filtered: [Province] {
+        if searchText.isEmpty { return VietnamProvinces.all }
+        let q = searchText.lowercased()
+        return VietnamProvinces.all.filter {
+            $0.displayName.lowercased().contains(q) || $0.id.lowercased().contains(q)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List(filtered) { province in
+                Button {
+                    selectedId = province.id
+                    dismiss()
+                } label: {
+                    HStack {
+                        Text(province.displayName)
+                            .foregroundColor(.primary)
+                        Spacer()
+                        if selectedId == province.id {
+                            Image(systemName: "checkmark")
+                                .foregroundColor(Color(hex: "#1877F2"))
+                        }
+                    }
+                }
+            }
+            .searchable(text: $searchText, prompt: bundle.loc("Tìm tỉnh / thành phố"))
+            .navigationTitle(bundle.loc("Chọn tỉnh / thành phố"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(bundle.loc("Hủy")) { dismiss() }
+                }
+            }
+        }
+    }
+}
