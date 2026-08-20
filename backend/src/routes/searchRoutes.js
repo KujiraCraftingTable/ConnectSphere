@@ -9,7 +9,7 @@ router.use(authMiddleware);
 
 router.post('/ai', aiSearchHandler);
 
-// GET /api/search/suggestions?mode=friend|colleague
+// GET /api/search/suggestions?mode=hobby|work
 router.get('/suggestions', async (req, res, next) => {
   try {
     const { mode } = req.query;
