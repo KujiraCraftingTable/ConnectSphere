@@ -37,29 +37,4 @@ async function getAnalytics(communityId, { days = 30 } = {}) {
   return rows;
 }
 
-// Communities ranked by recent member growth (used for top communities list)
-async function getTopCommunities({ type = null, limit = 10 } = {}) {
-  const params = [limit];
-  let typeFilter = '';
-  if (type) {
-    params.push(type);
-    typeFilter = `AND c.type = $${params.length}`;
-  }
-
-  const { rows } = await query(
-    `SELECT c.id, c.name, c.icon_emoji, c.cover_color, c.member_count,
-            COALESCE(SUM(a.new_members), 0) AS recent_growth
-     FROM communities c
-     LEFT JOIN community_analytics a
-       ON a.community_id = c.id
-       AND a.snapshot_date >= CURRENT_DATE - INTERVAL '7 days'
-     WHERE 1=1 ${typeFilter}
-     GROUP BY c.id
-     ORDER BY recent_growth DESC, c.member_count DESC
-     LIMIT $1`,
-    params
-  );
-  return rows;
-}
-
-module.exports = { upsertDailySnapshot, getAnalytics, getTopCommunities };
+module.exports = { upsertDailySnapshot, getAnalytics };

@@ -460,14 +460,6 @@ async function main() {
     }
   }
 
-  lines.push('');
-  lines.push(`-- Rebuild IVFFlat index after bulk insert`);
-  lines.push(`DROP INDEX IF EXISTS idx_entities_embedding;`);
-  lines.push(
-    `CREATE INDEX idx_entities_embedding ON interest_entities` +
-    ` USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);`
-  );
-
   fs.writeFileSync(OUTPUT_FILE, lines.join('\n'), 'utf8');
 
   console.log(`\n✅ Done — ${total} entities written, ${failed} failed`);

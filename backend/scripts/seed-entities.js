@@ -224,15 +224,15 @@ async function embedAllEntities(pool) {
   }
   console.log(`  ✓ ${done}/${rows.length} entities embedded`);
 
-  // Build IVFFlat index now that vectors are populated
-  console.log('\n📐 Building IVFFlat vector index…');
+  // HNSW index — already created by 001_init.sql; this is a safety net in case
+  // this script runs against a DB where the baseline index is missing.
+  console.log('\n📐 Ensuring HNSW vector index exists…');
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_entities_embedding
       ON interest_entities
-      USING ivfflat (embedding vector_cosine_ops)
-      WITH (lists = 100)
+      USING hnsw (embedding vector_cosine_ops)
   `);
-  console.log('  ✓ Index created');
+  console.log('  ✓ Index ready');
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────

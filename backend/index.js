@@ -9,7 +9,7 @@ const jwt        = require('jsonwebtoken');
 const path       = require('path');
 
 const { validateEnv, PORT, NODE_ENV } = require('./src/config/env');
-const { connectDB }    = require('./src/config/db');
+const { connectDB, query } = require('./src/config/db');
 const errorHandler     = require('./src/middlewares/errorHandler');
 const logger           = require('./src/utils/logger');
 const messageModel     = require('./src/models/messageModel');
@@ -41,12 +41,60 @@ io.use((socket, next) => {
   }
 });
 
+// ── Presence (in-memory) ────────────────────────────────────────────────────
+// userId → số socket đang mở. User được coi là "online" khi count > 0.
+const onlineCounts = new Map();
+
+function isOnline(userId) {
+  return (onlineCounts.get(userId) || 0) > 0;
+}
+
+// Id các kết nối đã accepted của một user (mọi mode — presence không theo mode).
+async function acceptedConnectionIds(userId) {
+  const { rows } = await query(
+    `SELECT CASE WHEN requester_id = $1 THEN addressee_id ELSE requester_id END AS other_id
+       FROM connections
+      WHERE status = 'accepted' AND (requester_id = $1 OR addressee_id = $1)`,
+    [userId]
+  );
+  return rows.map((r) => r.other_id);
+}
+
+// Báo cho tất cả kết nối của user biết user vừa online / offline.
+async function broadcastPresence(userId, online) {
+  try {
+    const ids = await acceptedConnectionIds(userId);
+    ids.forEach((cid) => io.to(`user:${cid}`).emit('presence_update', { userId, online }));
+  } catch (err) {
+    logger.warn({ err, userId }, 'broadcastPresence failed');
+  }
+}
+
+// Gửi cho một socket snapshot các kết nối đang online của user đó.
+async function sendPresenceSnapshot(socket) {
+  try {
+    const ids = await acceptedConnectionIds(socket.userId);
+    socket.emit('presence_snapshot', { userIds: ids.filter(isOnline) });
+  } catch (err) {
+    logger.warn({ err, userId: socket.userId }, 'sendPresenceSnapshot failed');
+  }
+}
+
 io.on('connection', (socket) => {
   logger.info({ userId: socket.userId }, 'Socket connected');
 
   // Room riêng theo user — dùng để push notification & cập nhật
   // danh sách hội thoại realtime dù user không mở đúng đoạn chat.
   socket.join(`user:${socket.userId}`);
+
+  // ── Presence: đánh dấu online, báo kết nối, gửi snapshot ──
+  const prevCount = onlineCounts.get(socket.userId) || 0;
+  onlineCounts.set(socket.userId, prevCount + 1);
+  if (prevCount === 0) broadcastPresence(socket.userId, true); // 0 → 1: vừa online
+  sendPresenceSnapshot(socket);
+
+  // Client chủ động xin lại snapshot (vd: quay lại tab Messages khi socket đã connect)
+  socket.on('get_presence', () => sendPresenceSnapshot(socket));
 
   // Client joins a conversation room to receive messages
   socket.on('join_conversation', async (conversationId) => {
@@ -60,17 +108,25 @@ io.on('connection', (socket) => {
   });
 
   // Client sends a message via socket
-  socket.on('send_message', async ({ conversationId, content, messageType = 'text', mediaUrl = null }, ack) => {
+  socket.on('send_message', async ({ conversationId, content, messageType = 'text', mediaUrl = null, replyToMessageId = null }, ack) => {
     try {
       const allowed = await messageModel.isParticipant(conversationId, socket.userId);
       if (!allowed) return ack?.({ error: 'Not a participant' });
 
       if (messageType === 'text' && !content?.trim()) return ack?.({ error: 'Content required' });
 
+      // Reply target must exist in this same conversation
+      let replyTo = null;
+      if (replyToMessageId) {
+        const target = await messageModel.getMessageBasic(replyToMessageId);
+        if (target && target.conversation_id === conversationId) replyTo = replyToMessageId;
+      }
+
       const message = await messageModel.insertMessage(conversationId, socket.userId, {
         content: content?.trim() || null,
         messageType,
         mediaUrl,
+        replyToMessageId: replyTo,
       });
 
       // Broadcast to everyone in the room (including sender for confirmation)
@@ -86,6 +142,30 @@ io.on('connection', (socket) => {
     } catch (err) {
       logger.error({ err }, 'send_message error');
       ack?.({ error: 'Failed to send message' });
+    }
+  });
+
+  // Client reacts to a message — toggle off on same emoji, else set/replace
+  socket.on('react_message', async ({ conversationId, messageId, emoji }, ack) => {
+    try {
+      const allowed = await messageModel.isParticipant(conversationId, socket.userId);
+      if (!allowed) return ack?.({ error: 'Not a participant' });
+      if (!messageModel.ALLOWED_REACTION_EMOJI.includes(emoji)) return ack?.({ error: 'Unsupported emoji' });
+
+      const target = await messageModel.getMessageBasic(messageId);
+      if (!target || target.conversation_id !== conversationId) return ack?.({ error: 'Message not found' });
+
+      const reactions = await messageModel.setReaction(messageId, socket.userId, emoji);
+      const payload = { conversation_id: conversationId, message_id: messageId, reactions };
+
+      io.to(conversationId).emit('reaction_updated', payload);
+      const participants = await messageModel.getParticipants(conversationId).catch(() => []);
+      participants.forEach((uid) => io.to(`user:${uid}`).emit('reaction_updated', payload));
+
+      ack?.({ data: reactions });
+    } catch (err) {
+      logger.error({ err }, 'react_message error');
+      ack?.({ error: 'Failed to react to message' });
     }
   });
 
@@ -109,12 +189,26 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     logger.info({ userId: socket.userId }, 'Socket disconnected');
+
+    // ── Presence: giảm đếm, khi hết socket thì báo offline ──
+    const count = (onlineCounts.get(socket.userId) || 1) - 1;
+    if (count <= 0) {
+      onlineCounts.delete(socket.userId);
+      broadcastPresence(socket.userId, false); // 1 → 0: vừa offline
+    } else {
+      onlineCounts.set(socket.userId, count);
+    }
   });
 });
 
 // ── Security middleware ───────────────────────────────────────────────────────
 app.use(helmet());
-app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHeaders: true, legacyHeaders: false }));
+// General-purpose limiter for all routes — kept generous (unlike the 10/15min
+// passwordAuthLimiter scoped to auth/password endpoints in authRoutes.js) so a
+// normal session (feed scroll + chat polling + likes + comments) never trips it.
+// Still bounds abusive/scripted traffic per security.md's "rate limiting on all
+// public routes" requirement.
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 1000, standardHeaders: true, legacyHeaders: false }));
 
 // ── Body parsing ──────────────────────────────────────────────────────────────
 app.use(express.json());
@@ -135,6 +229,7 @@ app.use('/api/events',        require('./src/routes/eventRoutes'));
 app.use('/api/notifications',      require('./src/routes/notificationRoutes'));
 app.use('/api/user-notifications', require('./src/routes/userNotificationRoutes'));
 app.use('/api/search',        require('./src/routes/searchRoutes'));
+app.use('/api/entities',      require('./src/routes/entityRoutes'));
 app.use('/api/uploads',       require('./src/routes/uploadRoutes'));
 app.use('/api/link-preview',  require('./src/routes/linkPreviewRoutes'));
 app.use('/api/wards',         require('./src/routes/wardRoutes'));
@@ -155,6 +250,9 @@ async function start() {
 
   const { startAllJobs } = require('./src/jobs/communityJobs');
   startAllJobs();
+
+  const { startAgeJob } = require('./src/jobs/ageJob');
+  startAgeJob();
 
   const { startTagWorker }     = require('./src/queues/tagQueue');
   const { startEmbedWorker }   = require('./src/queues/embedQueue');

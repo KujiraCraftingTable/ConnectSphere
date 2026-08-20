@@ -1,372 +1,390 @@
-// Seed script — generates 100 users, 5 posts each, 6 interests & 6 skills each
+// Seed script — 40 user theo cụm test thiết kế (anime / coffee / sports / music
+// / react / data / cloud + filler), phục vụ verify search & feed chunk-based.
+//
+// Bổ sung so với bản cũ: gender cố định theo persona, is_setup=TRUE, ward_id thật
+// từ vn_wards, tag cho cả hobby post, bio/post tiếng Việt (test dịch EN).
+//
+// Dùng:
+//   node scripts/seed.js                 → chỉ seed dữ liệu
+//   node scripts/seed.js --build-chunks  → seed xong build luôn chunk (cần Ollama)
 require('dotenv').config();
+process.env.LOG_LEVEL = process.env.LOG_LEVEL || 'warn'; // giảm noise khi build chunk
 const { Pool } = require('pg');
 const env = require('../src/config/env');
 
 const pool = new Pool(env.db);
+const BUILD_CHUNKS = process.argv.includes('--build-chunks');
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
 const pick  = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const pickN = (arr, n) => [...arr].sort(() => Math.random() - 0.5).slice(0, n);
 const rnd   = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-
-// ─── Data Pools ───────────────────────────────────────────────────────────────
-
-const SURNAMES = [
-  'Nguyễn','Trần','Lê','Phạm','Hoàng','Huỳnh','Phan','Vũ','Võ','Đặng',
-  'Bùi','Đỗ','Hồ','Ngô','Dương','Lý','Đinh','Tô','Tạ','Cao',
-];
-
-const GIVEN_NAMES = [
-  'Minh','Tuấn','Hùng','Long','Phúc','Đức','Anh','Khoa','Nam','Tùng',
-  'Hải','Bảo','Quân','Thịnh','Việt','Dũng','Mạnh','Kiên','Thành','Phong',
-  'Linh','Hương','Thu','Lan','Mai','Ngọc','Hà','Trang','Phương','Nhung',
-  'Yến','Thủy','Giang','Loan','Trinh','Hoa','Thảo','Vy','Chi','Ngân',
-  'Khánh','Quỳnh','Diễm','Thi','Nhi','Bích','Như','Tiên','Duyên','Hiền',
-];
-
-const LOCATIONS = [
-  'Ho Chi Minh City','Hanoi','Da Nang','Hue','Can Tho',
-  'Nha Trang','Vung Tau','Bien Hoa','Hai Phong','Quy Nhon',
-];
-
-const INTERESTS = [
-  'Movies','Music','Coffee','Travel','Street Food','Photography','Gaming',
-  'Books','Yoga','Cooking','Art','Football','Fashion','Technology','K-drama',
-  'Anime','Cycling','Swimming','Hiking','Dancing','Fitness','Meditation',
-  'Painting','Podcasts','Concerts','Nature','Startups','Design','Blogging',
-  'Board Games','Rock Climbing','Skateboarding','Volunteering','DIY Crafts',
-];
-
-const SKILLS = [
-  'Swift','React','Node.js','Python','JavaScript','TypeScript','Go','Java',
-  'Kotlin','Flutter','Vue.js','Django','FastAPI','Spring Boot',
-  'UI/UX Design','Figma','Sketch','Product Management','Marketing','SEO',
-  'Data Science','Machine Learning','PostgreSQL','MongoDB','Redis',
-  'Docker','Kubernetes','AWS','GCP','CI/CD','Leadership','Sales',
-  'Business Development','Finance','Analytics','Agile','Scrum',
-];
-
-const JOB_TITLES = [
-  'Software Engineer','Senior Developer','Product Manager','UX Designer',
-  'Data Scientist','Marketing Manager','Sales Executive','Business Analyst',
-  'DevOps Engineer','Backend Engineer','Frontend Engineer','Mobile Developer',
-  'Full Stack Developer','Creative Director','Content Manager','Growth Hacker',
-  'CEO','CTO','Product Designer','QA Engineer','Data Engineer',
-  'AI/ML Engineer','Cloud Architect','Cybersecurity Analyst','Tech Lead',
-];
-
-const COMPANIES = [
-  'VNG','Tiki','Shopee Vietnam','Grab Vietnam','MoMo','FPT Software',
-  'Zalo','KMS Technology','Sky Mavis','Be Group','VNPAY','Axon Active',
-  'Saigon Technology','CMC Global','VCorp','Lazada Vietnam',
-  'Gojek Vietnam','TechVN','Nashtech','Codelink','TokyoTech','Rikkeisoft',
-];
+const slug  = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .replace(/đ/gi, 'd').replace(/\s+/g, '').toLowerCase();
 
 const AVATAR_COLORS = [
   '#1877F2','#E91E63','#4CAF50','#FF9800','#9C27B0','#00BCD4',
   '#FF5722','#607D8B','#795548','#F44336','#3F51B5','#009688',
-  '#8BC34A','#FFC107','#673AB7','#00ACC1','#43A047','#E53935',
 ];
 
-const FRIEND_BIOS = [
-  'Coffee addict & travel enthusiast ☕🌍',
-  'Living my best life one adventure at a time 🌟',
-  'Foodie | Photographer | Dog lover 📸🐶',
-  'Just a human trying to find good coffee ☕',
-  'Music is my therapy 🎵 | Bookworm 📚',
-  'Street food explorer & weekend hiker 🍜🏔️',
-  'Art lover | Cinema nerd | Cat parent 🎬🐱',
-  'Yoga instructor by day, gamer by night 🧘🎮',
-  'Chasing sunsets and good vibes 🌅',
-  'Making memories, not excuses ✨',
-  'Amateur chef & professional napper 👨‍🍳😴',
-  'K-drama addict | Bubble tea enthusiast 🧋',
-  'Always planning the next trip ✈️',
-  'Cycling everywhere in the city 🚴',
-  'Dance like nobody\'s watching 💃',
+// ─── Post template pools (VN) — {text, tags} ──────────────────────────────────
+
+const ANIME_TITLES = ['Naruto', 'One Piece', 'Jujutsu Kaisen', 'Demon Slayer', 'Attack on Titan'];
+const ARTISTS       = ['BLACKPINK', 'BTS', 'IU', 'Sơn Tùng M-TP'];
+const PLACES        = ['Đà Lạt', 'Sa Pa', 'Hội An', 'Mộc Châu', 'Ninh Bình'];
+
+const POST_POOLS = {
+  anime: () => {
+    const t = pick(ANIME_TITLES);
+    return pick([
+      { text: `Vừa cày xong ${t} — arc mới đỉnh thật sự, cảm xúc vỡ oà 😭🔥`, tags: ['Anime', t] },
+      { text: `Cuối tuần marathon lại ${t}, xem bao nhiêu lần cũng không chán 📺`, tags: ['Anime', t] },
+      { text: `Ai đang theo ${t} mùa này không? Kiếm hội bàn luận với mình đi 🍿`, tags: ['Anime', t] },
+      { text: `Mới tậu figure ${t} về, đẹp không cưỡng lại nổi 😍`, tags: ['Anime', 'Manga'] },
+    ]);
+  },
+  coffee: () => pick([
+    { text: `Sáng nay thử cold brew ở quán mới, hạt Arabica thơm dịu quá ☕`, tags: ['Coffee', 'Cafe'] },
+    { text: `Cuối tuần trốn phố lên ${pick(PLACES)} săn mây, ai đi cùng không? 🌿`, tags: ['Travel', 'Nature'] },
+    { text: `Bộ ảnh film chụp ở ${pick(PLACES)} vừa tráng xong, ưng cả mắt 📸`, tags: ['Photography', 'Travel'] },
+    { text: `Tự pha pour over tại nhà cả tuần nay, ghiền cái vị chua thanh 🤎`, tags: ['Coffee'] },
+  ]),
+  sports: () => pick([
+    { text: `Vừa hoàn thành 10km sáng nay, cảm giác nhẹ cả người 🏃‍♂️`, tags: ['Fitness', 'Running'] },
+    { text: `Tối nay có kèo đá banh sân 7, còn thiếu 2 người, ai vào không? ⚽`, tags: ['Football', 'Sports'] },
+    { text: `Chinh phục thêm cung đường đạp xe 40km cuối tuần, mệt mà đã 🚴`, tags: ['Cycling', 'Fitness'] },
+    { text: `Tháng này lên được 3kg cơ nhờ tập đều với ăn sạch 💪`, tags: ['Fitness', 'Gym'] },
+  ]),
+  music: () => {
+    const a = pick(ARTISTS);
+    return pick([
+      { text: `Album mới của ${a} nghe cháy quá, replay cả ngày không dứt ra được 🎧`, tags: ['Music', a] },
+      { text: `Ai có vé concert ${a} pass lại mình với, năn nỉ 🥹`, tags: ['Concerts', a] },
+      { text: `Cày lại hết MV của ${a}, đúng gu nhạc của mình luôn 🎵`, tags: ['Music', a] },
+    ]);
+  },
+  react: () => pick([
+    { text: `Chia sẻ cách tối ưu re-render trong React bằng useMemo và memo, giảm 40% lag 🚀`, tags: ['React', 'JavaScript'] },
+    { text: `Migrate codebase sang TypeScript sau 2 tuần, type-safety đáng đồng tiền bát gạo 💪`, tags: ['TypeScript', 'React'] },
+    { text: `So sánh React Query vs SWR cho data fetching — góc nhìn sau 6 tháng chạy production 🔧`, tags: ['React', 'Frontend'] },
+    { text: `Vừa refactor component tree, tách logic ra custom hook cho gọn và dễ test ⚛️`, tags: ['React', 'JavaScript'] },
+  ]),
+  data: () => pick([
+    { text: `Train xong model phân loại với Python + scikit-learn, accuracy chạm 92% rồi 📊`, tags: ['Python', 'Machine Learning'] },
+    { text: `Tối ưu query PostgreSQL với index đúng, giảm thời gian từ 3s xuống 200ms ⚡`, tags: ['PostgreSQL', 'Data Science'] },
+    { text: `Dựng pipeline ETL với Python, dữ liệu sạch hơn hẳn cho khâu phân tích 🧹`, tags: ['Python', 'Analytics'] },
+  ]),
+  cloud: () => pick([
+    { text: `Dựng CI/CD với Docker + GitHub Actions, mỗi lần merge là auto deploy 🐳`, tags: ['Docker', 'CI/CD'] },
+    { text: `Chia sẻ kinh nghiệm tối ưu chi phí AWS, cắt được 30% hoá đơn hàng tháng ☁️`, tags: ['AWS', 'Cloud'] },
+    { text: `Chuyển hạ tầng sang Kubernetes, scale mượt hẳn lúc traffic tăng đột biến 🚢`, tags: ['Kubernetes', 'Docker'] },
+  ]),
+  filler_hobby: () => pick([
+    { text: `Cuối tuần đọc xong một cuốn sách hay, tâm hồn được nạp đầy năng lượng 📚`, tags: ['Reading', 'Books'] },
+    { text: `Thử nấu món mới theo công thức trên mạng, kết quả bất ngờ ngon 👨‍🍳`, tags: ['Cooking', 'Food'] },
+    { text: `Sáng nay tập yoga bên cửa sổ, bắt đầu ngày mới thật an yên 🧘`, tags: ['Yoga', 'Wellness'] },
+  ]),
+  filler_work: () => pick([
+    { text: `Chia sẻ quy trình review code giúp team mình giảm bug rớt production 🔍`, tags: ['Engineering', 'Teamwork'] },
+    { text: `Sau vài năm làm nghề, bài học lớn nhất là biết ưu tiên đúng việc 💡`, tags: ['Career', 'Growth'] },
+    { text: `Vừa hoàn thành khoá học mới, đầu tư cho bản thân chưa bao giờ lỗ 📈`, tags: ['Learning', 'Career'] },
+  ]),
+};
+
+// ─── Cluster definitions ──────────────────────────────────────────────────────
+// core = luôn có; extra = bốc ngẫu nhiên thêm 1–2.  gender/location gán từng member.
+
+const CLUSTERS = [
+  {
+    key: 'anime', mode: 'hobby', field: 'interests',
+    core: ['Anime', 'Manga'], extra: ['Naruto', 'One Piece', 'Jujutsu Kaisen', 'Gaming'],
+    bios: ['Fan anime chính hiệu, cuối tuần là cắm mặt vào màn hình 🍿',
+           'Otaku tập sự, mê manga và figure 😍', 'Sống để xem anime và sưu tầm truyện 📚'],
+    members: [
+      ['Trần', 'Minh',  'male',   'Ho Chi Minh City'],
+      ['Nguyễn', 'Khoa','male',   'Ho Chi Minh City'],
+      ['Lê', 'Tùng',    'male',   'Ha Noi City'],
+      ['Phạm', 'Linh',  'female', 'Ho Chi Minh City'],
+      ['Hoàng', 'Ngọc', 'female', 'Ho Chi Minh City'],
+      ['Vũ', 'Chi',     'female', 'Da Nang City'],
+    ],
+  },
+  {
+    key: 'coffee', mode: 'hobby', field: 'interests',
+    core: ['Coffee', 'Travel'], extra: ['Photography', 'Street Food', 'Hiking', 'Nature'],
+    bios: ['Nghiện cà phê và mê xê dịch ☕🌍', 'Săn quán đẹp, chụp ảnh film, đi phượt 📸',
+           'Cuối tuần không lên đường là không chịu được ✈️'],
+    members: [
+      ['Đặng', 'Hải',    'male',   'Da Nang City'],
+      ['Bùi', 'Nam',     'male',   'Ho Chi Minh City'],
+      ['Ngô', 'Mai',     'female', 'Ho Chi Minh City'],
+      ['Dương', 'Phương','female', 'Ha Noi City'],
+      ['Lý', 'Thảo',     'female', 'Da Nang City'],
+    ],
+  },
+  {
+    key: 'sports', mode: 'hobby', field: 'interests',
+    core: ['Football', 'Fitness'], extra: ['Cycling', 'Swimming', 'Gym', 'Running'],
+    bios: ['Sân cỏ là nhà, gym là chân lý ⚽💪', 'Chạy bộ mỗi sáng, đá banh mỗi tối 🏃',
+           'Thể thao giúp mình cân bằng cuộc sống 🚴'],
+    members: [
+      ['Đỗ', 'Quân',   'male',   'Ho Chi Minh City'],
+      ['Hồ', 'Mạnh',   'male',   'Ha Noi City'],
+      ['Cao', 'Kiên',  'male',   'Ho Chi Minh City'],
+      ['Tô', 'Phong',  'male',   'Hai Phong City'],
+      ['Tạ', 'Vy',     'female', 'Ho Chi Minh City'],
+    ],
+  },
+  {
+    key: 'music', mode: 'hobby', field: 'interests',
+    core: ['Music', 'K-drama'], extra: ['BLACKPINK', 'BTS', 'Concerts', 'Dancing'],
+    bios: ['Sống nhờ nhạc và K-pop 🎧', 'Fangirl chính hiệu, cày MV cả ngày 💜',
+           'Âm nhạc là liều thuốc chữa lành 🎵'],
+    members: [
+      ['Phan', 'Bảo',   'male',   'Ho Chi Minh City'],
+      ['Đinh', 'Quỳnh', 'female', 'Ha Noi City'],
+      ['Võ', 'Nhi',     'female', 'Ho Chi Minh City'],
+    ],
+  },
+  {
+    key: 'filler_hobby', mode: 'hobby', field: 'interests',
+    core: [], extra: ['Reading', 'Cooking', 'Yoga', 'Photography', 'Gaming', 'Art', 'Books'],
+    bios: ['Yêu những điều bình dị trong cuộc sống 🌿', 'Đọc sách, nấu ăn, sống chậm 📖',
+           'Tìm niềm vui trong từng khoảnh khắc ✨'],
+    members: [
+      ['Huỳnh', 'Đức',   'male',   'Can Tho City'],
+      ['Trịnh', 'Hương', 'female', 'Hue City'],
+      ['Lương', 'Thành', 'male',   'Ha Noi City'],
+    ],
+  },
+  {
+    key: 'react', mode: 'work', field: 'skills',
+    core: ['React', 'JavaScript', 'TypeScript'], extra: ['Node.js', 'Vue.js', 'Figma', 'UI/UX Design'],
+    jobs: ['Frontend Engineer', 'Full Stack Developer', 'Mobile Developer'],
+    companies: ['FPT Software', 'VNG', 'KMS Technology'],
+    bios: ['Frontend engineer mê UI mượt và code sạch ⚛️', 'Xây sản phẩm web với React mỗi ngày 💻',
+           'Đam mê tối ưu trải nghiệm người dùng 🎨'],
+    members: [
+      ['Nguyễn', 'Tuấn',  'male',   'Ho Chi Minh City'],
+      ['Trần', 'Việt',    'male',   'Ha Noi City'],
+      ['Lê', 'Dũng',      'male',   'Ho Chi Minh City'],
+      ['Phạm', 'Trang',   'female', 'Ho Chi Minh City'],
+      ['Hoàng', 'Nhung',  'female', 'Da Nang City'],
+      ['Đỗ', 'Yến',       'female', 'Ho Chi Minh City'],
+    ],
+  },
+  {
+    key: 'data', mode: 'work', field: 'skills',
+    core: ['Python', 'Machine Learning'], extra: ['PostgreSQL', 'Data Science', 'Analytics', 'MongoDB'],
+    jobs: ['Data Scientist', 'Data Engineer', 'AI/ML Engineer'],
+    companies: ['Tiki', 'VNPAY', 'MoMo', 'Axon Active'],
+    bios: ['Biến dữ liệu thành quyết định 📊', 'Data scientist mê model và thống kê 🤖',
+           'Sống trong thế giới của số liệu và insight 📈'],
+    members: [
+      ['Bùi', 'Thịnh',  'male',   'Ho Chi Minh City'],
+      ['Ngô', 'Long',   'male',   'Ha Noi City'],
+      ['Đặng', 'Loan',  'female', 'Ho Chi Minh City'],
+      ['Vũ', 'Giang',   'female', 'Da Nang City'],
+    ],
+  },
+  {
+    key: 'cloud', mode: 'work', field: 'skills',
+    core: ['AWS', 'Docker'], extra: ['Kubernetes', 'CI/CD', 'GCP', 'Redis'],
+    jobs: ['DevOps Engineer', 'Cloud Architect', 'Backend Engineer'],
+    companies: ['Grab Vietnam', 'VNG', 'Sky Mavis'],
+    bios: ['DevOps, tự động hoá mọi thứ có thể ☁️', 'Dựng hạ tầng scale triệu user 🚢',
+           'Ổn định và tối ưu chi phí là ưu tiên số 1 🔧'],
+    members: [
+      ['Hồ', 'Phúc',    'male',   'Ho Chi Minh City'],
+      ['Dương', 'Hùng', 'male',   'Ha Noi City'],
+      ['Cao', 'Thành',  'male',   'Ho Chi Minh City'],
+      ['Lý', 'Hà',      'female', 'Ho Chi Minh City'],
+    ],
+  },
+  {
+    key: 'filler_work', mode: 'work', field: 'skills',
+    core: [], extra: ['Marketing', 'SEO', 'Product Management', 'Figma', 'Leadership', 'Agile'],
+    jobs: ['Product Manager', 'QA Engineer', 'Marketing Manager', 'Product Designer'],
+    companies: ['Nashtech', 'Shopee Vietnam', 'Zalo', 'Tiki'],
+    bios: ['Kết nối giữa công nghệ và kinh doanh 🤝', 'Tư duy sản phẩm, lấy người dùng làm gốc 💡',
+           'Không ngừng học hỏi mỗi ngày 📚'],
+    members: [
+      ['Phan', 'Khánh',  'male',   'Can Tho City'],
+      ['Tạ', 'Duyên',    'female', 'Hue City'],
+      ['Đinh', 'Kiên',   'male',   'Ha Noi City'],
+      ['Võ', 'Hiền',     'female', 'Ho Chi Minh City'],
+    ],
+  },
 ];
 
-const COLLEAGUE_BIOS = [
-  'Building products that matter | {years}+ yrs in tech',
-  'Passionate about scalable systems & clean code',
-  'Turning data into decisions 📊',
-  'Product thinker | User advocate | Growth mindset',
-  'Helping teams ship faster with better processes 🚀',
-  'Bridging the gap between tech & business',
-  'Open source contributor | Speaker | Mentor',
-  'Scaling startups from 0 to 1 💡',
-  'Design systems enthusiast | Accessibility advocate',
-  'Building the future of fintech in Vietnam 🏦',
-];
+// ─── Ward lookup ──────────────────────────────────────────────────────────────
 
-// ─── Post Content Generators ──────────────────────────────────────────────────
+async function loadWardsByProvince(client) {
+  const provinces = [...new Set(CLUSTERS.flatMap(c => c.members.map(m => m[3])))];
+  const map = {};
+  for (const prov of provinces) {
+    const { rows } = await client.query(
+      `SELECT id FROM vn_wards WHERE province_name_en = $1`, [prov]
+    );
+    map[prov] = rows.map(r => r.id);
+  }
+  return map;
+}
 
-const FRIEND_POSTS = [
-  () => `Vừa xem xong ${pick(['Dune Part Two','Oppenheimer','Past Lives','The Bear','Beef'])} — đỉnh quá! Ai đã xem chưa? 🎬✨`,
-  () => `Weekend này đi ${pick(['Đà Lạt','Phú Quốc','Hội An','Ninh Bình','Mũi Né'])} — ai rảnh đi cùng không? 🌿🏔️`,
-  () => `Mới thử ${pick(['bánh mì Phượng','phở Thìn','bún bò Huế','cơm tấm Kiều Giang','bánh xèo miền Trung'])} — ngon hơn kỳ vọng rất nhiều 😍🍜`,
-  () => `Bắt đầu thử ${pick(['cold brew','pour over','Aeropress','moka pot','siphon coffee'])} tại nhà — ai có recipe ngon share cho mình với ☕`,
-  () => `Hoàn thành thử thách ${pick(['30 ngày yoga','21 ngày đọc sách','chạy 5km mỗi ngày','không dùng điện thoại trước 9h sáng'])} 💪 Cảm giác tuyệt vời!`,
-  () => `Check-in ${pick(['Đà Lạt','Sa Pa','Phú Quốc','Hội An','Vũng Tàu'])} — đẹp hơn mình nghĩ nhiều! 📸`,
-  () => `Ai ở ${pick(['Sài Gòn','Hà Nội','Đà Nẵng'])} recommend quán ${pick(['cà phê','ăn vặt','lẩu','nướng'])} ngon không? Đang tìm chỗ mới để khám phá 🗺️`,
-  () => `Hôm nay học được cách ${pick(['pha trà sữa tại nhà','làm bánh tiramisu','nấu phở bò','tự cắt tóc'])} từ YouTube — kết quả khả quan lắm 😂`,
-  () => `Mới đọc xong "${pick(['Atomic Habits','The Alchemist','Sapiens','Ikigai','The Subtle Art of Not Giving a F*ck'])}" — highly recommend cho ai chưa đọc 📚`,
-  () => `Cuối tuần này có ai muốn đi ${pick(['cắm trại','leo núi','đạp xe','chèo thuyền kayak'])} không? Đang tìm team 🏕️`,
-  () => `Vừa xem concert ${pick(['IU','BTS','Blackpink','Sơn Tùng M-TP','Mỹ Tâm'])} — xứng đáng từng đồng 🎵🔥`,
-  () => `Bật mí bí quyết ${pick(['ngủ đủ giấc','giảm stress','tăng năng suất làm việc'])} của mình — đơn giản nhưng hiệu quả 🌙`,
-  () => `Ai có kinh nghiệm du lịch ${pick(['Nhật Bản','Hàn Quốc','Châu Âu','Úc'])} solo không? Đang lên kế hoạch cho chuyến đi năm sau ✈️`,
-  () => `Mới tập ${pick(['chụp ảnh film','vẽ màu nước','đánh đàn ukulele','học tiếng Nhật'])} — khó hơn tưởng nhưng vui lắm 🎨`,
-  () => `Happy ${pick(['sinh nhật','kỷ niệm','Friday'])}! ${pick(['Cảm ơn mọi người đã nhớ đến mình 🥹','Cuộc sống thật tuyệt vời 🌟','Cheers to good times! 🥂'])}`,
-];
-
-const COLLEAGUE_POSTS = [
-  {
-    fn: () => `Chia sẻ kinh nghiệm sau ${rnd(1,3)} năm làm ${pick(JOB_TITLES)}: bài học quan trọng nhất là biết nói "không" với đúng thứ. Thread dài nhưng đáng đọc 🧵`,
-    tags: () => pickN(['Career','Lessons','Growth','Mindset'], 3),
-    title: () => `${rnd(1,3)} Years as a ${pick(JOB_TITLES)}: What I Wish I Knew Earlier`,
-  },
-  {
-    fn: () => `Vừa ship feature ${pick(['real-time notifications','AI search','dark mode','offline mode'])} sau ${rnd(2,8)} tuần build. Chia sẻ một vài technical decisions mình đã làm 🚀`,
-    tags: () => pickN(['Engineering','Tech','Product','Shipping'], 3),
-    title: () => `How We Built ${pick(['Real-time Notifications','AI-Powered Search','Offline Mode'])} in ${rnd(2,8)} Weeks`,
-  },
-  {
-    fn: () => `${pick(COMPANIES)} đang mở rộng team! Đang tìm kiếm ${pick(JOB_TITLES)} có kinh nghiệm ${rnd(1,5)}+ năm. DM mình hoặc apply qua link trong bio 📩`,
-    tags: () => pickN(['Hiring','JobOpening','Tech','Recruitment'], 3),
-    title: null,
-  },
-  {
-    fn: () => `Case study: Làm thế nào team mình tăng ${pick(['conversion rate','user retention','DAU','revenue'])} lên ${rnd(30,200)}% trong ${rnd(2,6)} tháng. Không magic, chỉ là process đúng 📊`,
-    tags: () => pickN(['CaseStudy','Growth','Analytics','Product'], 3),
-    title: () => `How We Grew ${pick(['Conversion Rate','User Retention','DAU'])} by ${rnd(30,200)}% in ${rnd(2,6)} Months`,
-  },
-  {
-    fn: () => `Framework mình dùng để ${pick(['prioritize backlog','run 1-on-1s','make tech decisions','hire engineers'])} — đơn giản nhưng hiệu quả với team ${rnd(3,20)} người 💡`,
-    tags: () => pickN(['Framework','Leadership','Management','Productivity'], 3),
-    title: () => `My Framework for ${pick(['Backlog Prioritization','Running 1-on-1s','Making Tech Decisions'])}`,
-  },
-  {
-    fn: () => `Sau ${rnd(6,24)} tháng build ${pick(['startup','side project','open source project','internal tool'])}, đây là ${rnd(3,7)} bài học đau thương nhất mình rút ra được 😅`,
-    tags: () => pickN(['Startup','Lessons','Building','Founder'], 3),
-    title: () => `${rnd(3,7)} Hard Lessons from Building My ${pick(['Startup','Side Project','Open Source Project'])}`,
-  },
-  {
-    fn: () => `Hội thảo "${pick(['AI in Product Development','Future of Work','Web3 & Beyond','Design Systems at Scale'])}" sẽ diễn ra tại ${pick(LOCATIONS)} vào tháng tới. Mình sẽ speaker — ai tham dự không? 🎤`,
-    tags: () => pickN(['Event','Conference','Speaking','Community'], 3),
-    title: null,
-  },
-  {
-    fn: () => `${pick(['Python','TypeScript','Go','Rust','Kotlin'])} vs ${pick(['JavaScript','Java','Swift','PHP'])} cho backend năm ${new Date().getFullYear()}? Đây là góc nhìn của mình sau khi dùng cả hai trong production 🔧`,
-    tags: () => pickN(['Backend','Engineering','TechDebate','Programming'], 3),
-    title: () => `${pick(['Python','TypeScript','Go'])} vs ${pick(['JavaScript','Java','Swift'])} for Backend in ${new Date().getFullYear()}`,
-  },
-  {
-    fn: () => `Excited thông báo: mình vừa join ${pick(COMPANIES)} với vai trò ${pick(JOB_TITLES)}! Hành trình mới bắt đầu — cảm ơn tất cả đã support 🙏`,
-    tags: () => pickN(['NewJob','Career','Grateful','Opportunity'], 3),
-    title: null,
-  },
-  {
-    fn: () => `Nếu mình phải chọn ${rnd(3,5)} tool quan trọng nhất cho ${pick(['một developer','một product manager','một designer','một data scientist'])}, đó sẽ là... (Thread) 🛠️`,
-    tags: () => pickN(['Tools','Productivity','Tech','Tips'], 3),
-    title: () => `The ${rnd(3,5)} Most Important Tools for Every ${pick(['Developer','Product Manager','Designer','Data Scientist'])}`,
-  },
-];
-
-// ─── Seed Functions ───────────────────────────────────────────────────────────
+// ─── Seed ─────────────────────────────────────────────────────────────────────
 
 async function clearSeedData(client) {
-  // Remove seed users (identified by password_hash = 'SEED_DATA')
-  await client.query(`
-    DELETE FROM users WHERE password_hash = 'SEED_DATA'
-  `);
+  await client.query(`DELETE FROM users WHERE password_hash = 'SEED_DATA'`);
   console.log('[clear] Removed previous seed data');
 }
 
-async function seedUsers(client) {
-  const users = [];
+async function seedAll(client) {
+  const wardsByProvince = await loadWardsByProvince(client);
   const usedUsernames = new Set();
+  const seeded = []; // { id, mode, cluster }
+  const clusterMembers = {}; // cluster key → [ids] (cho connections)
 
-  for (let i = 0; i < 100; i++) {
-    const surname   = pick(SURNAMES);
-    const givenName = pick(GIVEN_NAMES);
-    const displayName = `${surname} ${givenName}`;
+  for (const cluster of CLUSTERS) {
+    clusterMembers[cluster.key] = [];
 
-    // Unique username: lowercase, no diacritics, + index suffix
-    let base = (surname + givenName)
-      .normalize('NFD').replace(/[̀-ͯ]/g, '')
-      .replace(/đ/gi, 'd').replace(/\s+/g, '').toLowerCase();
-    let username = base;
-    let suffix = 1;
-    while (usedUsernames.has(username)) {
-      username = `${base}${suffix++}`;
-    }
-    usedUsernames.add(username);
+    for (const [surname, given, gender, location] of cluster.members) {
+      // Unique username
+      let base = slug(surname + given), username = base, i = 1;
+      while (usedUsernames.has(username)) username = `${base}${i++}`;
+      usedUsernames.add(username);
 
-    const mode = i < 40 ? 'friend' : i < 70 ? 'colleague' : 'friend'; // varied distribution
-    const jobTitle  = pick(JOB_TITLES);
-    const company   = pick(COMPANIES);
-    const location  = pick(LOCATIONS);
-    const bio = mode === 'friend'
-      ? pick(FRIEND_BIOS)
-      : pick(COLLEAGUE_BIOS).replace('{years}', rnd(2, 8));
-
-    users.push({
-      username,
-      display_name:    displayName,
-      bio,
-      avatar_color:    pick(AVATAR_COLORS),
-      location,
-      job_title:       jobTitle,
-      company,
-      default_mode:    mode,
-      friend_theme:    pick(['blue','sunset','teal']),
-      colleague_theme: pick(['blue','navy','slate']),
-      follower_count:  rnd(10, 2000),
-      following_count: rnd(10, 500),
-      post_count:      5,
-    });
-  }
-
-  // Batch insert
-  const ids = [];
-  for (const u of users) {
-    const { rows } = await client.query(
-      `INSERT INTO users
-         (username, password_hash, display_name, bio, avatar_color, location,
-          job_title, company, default_mode, friend_theme, colleague_theme,
-          follower_count, following_count, post_count)
-       VALUES ($1,'SEED_DATA',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-       RETURNING id`,
-      [
-        u.username, u.display_name, u.bio, u.avatar_color, u.location,
-        u.job_title, u.company, u.default_mode, u.friend_theme, u.colleague_theme,
-        u.follower_count, u.following_count, u.post_count,
-      ]
-    );
-    ids.push({ id: rows[0].id, mode: u.default_mode });
-  }
-
-  console.log(`[seed] Inserted ${ids.length} users`);
-  return ids;
-}
-
-async function seedSkillsAndInterests(client, userIds) {
-  let skillRows = 0, interestRows = 0;
-
-  for (const { id } of userIds) {
-    const interests = pickN(INTERESTS, 6);
-    const skills    = pickN(SKILLS, 6);
-
-    for (const interest of interests) {
-      await client.query(
-        'INSERT INTO user_interests (user_id, interest) VALUES ($1,$2) ON CONFLICT DO NOTHING',
-        [id, interest]
-      );
-      interestRows++;
-    }
-    for (const skill of skills) {
-      await client.query(
-        'INSERT INTO user_skills (user_id, skill) VALUES ($1,$2) ON CONFLICT DO NOTHING',
-        [id, skill]
-      );
-      skillRows++;
-    }
-  }
-
-  console.log(`[seed] Inserted ${interestRows} interests, ${skillRows} skills`);
-}
-
-async function seedPosts(client, userIds) {
-  let postCount = 0, tagCount = 0;
-
-  for (const { id: authorId, mode } of userIds) {
-    // 3 posts in primary mode, 2 in secondary
-    const primaryMode   = mode;
-    const secondaryMode = mode === 'friend' ? 'colleague' : 'friend';
-    const postModes     = [primaryMode, primaryMode, primaryMode, secondaryMode, secondaryMode];
-
-    for (const postMode of postModes) {
-      let content, articleTitle = null, tags = [];
-
-      if (postMode === 'friend') {
-        content = pick(FRIEND_POSTS)();
-      } else {
-        const template = pick(COLLEAGUE_POSTS);
-        content      = template.fn();
-        articleTitle = template.title ? template.title() : null;
-        tags         = template.tags();
-      }
+      const wards = wardsByProvince[location] || [];
+      const wardId = wards.length ? pick(wards) : null;
+      const isWork = cluster.mode === 'work';
 
       const { rows } = await client.query(
-        `INSERT INTO posts (author_id, content, mode, article_title, like_count, comment_count, share_count)
-         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-        [authorId, content, postMode, articleTitle, rnd(0,300), rnd(0,80), rnd(0,50)]
+        `INSERT INTO users
+           (username, password_hash, display_name, bio, avatar_color, location, ward_id,
+            gender, job_title, company, default_mode, is_setup,
+            follower_count, following_count, post_count)
+         VALUES ($1,'SEED_DATA',$2,$3,$4,$5,$6,$7,$8,$9,$10,TRUE,$11,$12,$13)
+         RETURNING id`,
+        [
+          username, `${surname} ${given}`, pick(cluster.bios), pick(AVATAR_COLORS),
+          location, wardId, gender,
+          isWork ? pick(cluster.jobs) : null,
+          isWork ? pick(cluster.companies) : null,
+          cluster.mode, rnd(10, 2000), rnd(10, 500),
+          0, // post_count cập nhật sau
+        ]
       );
-      postCount++;
+      const userId = rows[0].id;
+      seeded.push({ id: userId, mode: cluster.mode, cluster: cluster.key });
+      clusterMembers[cluster.key].push(userId);
 
-      const postId = rows[0].id;
-      for (const tag of tags) {
+      // Interests / skills: core + 1–2 extra
+      const terms = [...cluster.core, ...pickN(cluster.extra, rnd(1, 2))];
+      const table = cluster.field === 'skills' ? 'user_skills' : 'user_interests';
+      const col   = cluster.field === 'skills' ? 'skill' : 'interest';
+      for (const term of new Set(terms)) {
         await client.query(
-          'INSERT INTO post_tags (post_id, tag) VALUES ($1,$2) ON CONFLICT DO NOTHING',
-          [postId, tag]
+          `INSERT INTO ${table} (user_id, ${col}) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
+          [userId, term]
         );
-        tagCount++;
       }
+
+      // Posts: 3–4 bài trong đúng mode của cụm, kèm tag (POST_POOLS key = cluster.key)
+      const nPosts = rnd(3, 4);
+      for (let p = 0; p < nPosts; p++) {
+        const { text, tags } = POST_POOLS[cluster.key]();
+        const { rows: pr } = await client.query(
+          `INSERT INTO posts (author_id, content, mode, like_count, comment_count, share_count)
+           VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+          [userId, text, cluster.mode, rnd(0, 300), rnd(0, 80), rnd(0, 50)]
+        );
+        const postId = pr[0].id;
+        for (const tag of tags) {
+          await client.query(
+            `INSERT INTO post_tags (post_id, tag) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
+            [postId, tag]
+          );
+        }
+      }
+      await client.query(`UPDATE users SET post_count = $1 WHERE id = $2`, [nPosts, userId]);
     }
   }
 
-  console.log(`[seed] Inserted ${postCount} posts, ${tagCount} tags`);
+  // Connections: mỗi user nối ~4 người cùng cụm + 1 ngẫu nhiên khác cụm
+  const allIds = seeded.map(s => s.id);
+  let connCount = 0;
+  for (const s of seeded) {
+    const sameCluster = clusterMembers[s.cluster].filter(id => id !== s.id);
+    const targets = new Set([
+      ...pickN(sameCluster, Math.min(4, sameCluster.length)),
+      ...pickN(allIds.filter(id => id !== s.id), 1),
+    ]);
+    for (const addressee of targets) {
+      await client.query(
+        `INSERT INTO connections (requester_id, addressee_id, mode, status)
+         VALUES ($1,$2,$3,'accepted') ON CONFLICT DO NOTHING`,
+        [s.id, addressee, s.mode]
+      ).then(() => connCount++).catch(() => {});
+    }
+  }
+
+  console.log(`[seed] ${seeded.length} users, connections ~${connCount}`);
+  return seeded;
 }
 
-async function seedConnections(client, userIds) {
-  const ids = userIds.map((u) => u.id);
-  let count = 0;
+// ─── Build chunks (--build-chunks) ────────────────────────────────────────────
 
-  // Each user connects with ~8 random others
-  for (const { id: requesterId } of userIds) {
-    const targets = pickN(ids.filter((id) => id !== requesterId), 8);
-    for (const addresseeId of targets) {
-      const mode   = pick(['friend', 'colleague']);
-      const status = pick(['accepted','accepted','accepted','pending','pending']);
-      try {
-        await client.query(
-          `INSERT INTO connections (requester_id, addressee_id, mode, status)
-           VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
-          [requesterId, addresseeId, mode, status]
-        );
-        count++;
-      } catch (_) { /* skip duplicates */ }
-    }
+async function buildChunks(client, seeded) {
+  const { buildProfileChunk, buildPostChunk } = require('../src/services/chunkService');
+
+  const userIds = seeded.map(s => s.id);
+  const { rows: posts } = await client.query(
+    `SELECT id FROM posts WHERE author_id = ANY($1::uuid[])`, [userIds]
+  );
+
+  console.log(`[chunks] Building ${userIds.length} profile + ${posts.length} post chunks (cần Ollama)...`);
+  let done = 0;
+  for (const id of userIds) {
+    await buildProfileChunk(id).catch(e => console.warn('  profile fail', e.message));
+    if (++done % 10 === 0) console.log(`  profiles: ${done}/${userIds.length}`);
   }
-
-  console.log(`[seed] Inserted ~${count} connections`);
+  done = 0;
+  for (const { id } of posts) {
+    await buildPostChunk(id).catch(e => console.warn('  post fail', e.message));
+    if (++done % 25 === 0) console.log(`  posts: ${done}/${posts.length}`);
+  }
+  console.log('[chunks] Done.');
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function seed() {
   const client = await pool.connect();
+  let seeded;
   try {
     await client.query('BEGIN');
-
     await clearSeedData(client);
-    const userIds = await seedUsers(client);
-    await seedSkillsAndInterests(client, userIds);
-    await seedPosts(client, userIds);
-    await seedConnections(client, userIds);
-
+    seeded = await seedAll(client);
     await client.query('COMMIT');
-    console.log('\n✅ Seed complete.');
+    console.log('✅ Seed data complete.');
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('❌ Seed failed:', err.message);
-    process.exit(1);
-  } finally {
     client.release();
     await pool.end();
+    process.exit(1);
   }
+  client.release();
+
+  if (BUILD_CHUNKS) {
+    const c2 = await pool.connect();
+    try { await buildChunks(c2, seeded); }
+    catch (err) { console.error('❌ Chunk build failed:', err.message); }
+    finally { c2.release(); }
+  }
+
+  await pool.end();
+  process.exit(0);
 }
 
 seed();
