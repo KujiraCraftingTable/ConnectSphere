@@ -27,16 +27,39 @@
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>
 				<true/>
 			</dict>
+			<!-- IP LAN của Mac dev — cho phép HTTP thường khi test trên iPhone thật qua WiFi.
+			     Đổi mạng WiFi là IP đổi theo → thêm/sửa entry ở đây VÀ APIBaseURL bên dưới. -->
+			<key>192.168.68.59</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+			<key>192.168.68.62</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+			<key>10.25.35.171</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
 		</dict>
 	</dict>
+	<!-- Cần cho request tới IP mạng nội bộ (192.168.x.x) từ iOS 14+ — thiếu key này
+	     iOS có thể chặn âm thầm request thay vì hiện prompt xin quyền. -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>ConnectSphere cần truy cập mạng nội bộ để kết nối tới server phát triển khi test trên thiết bị thật.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 	</dict>
-	<!-- Base URL của backend — đổi giá trị này khi test trên device thật / production -->
+	<!-- Base URL của backend — đổi giá trị này khi test trên device thật / production.
+	     Đang trỏ về IP LAN hiện tại của Mac dev (xem bằng `ipconfig getifaddr en0`).
+	     Simulator luôn dùng localhost (override trong APIConfig.swift) nên không phụ thuộc IP này. -->
 	<key>APIBaseURL</key>
-	<string>http://localhost:3000</string>
+	<string>http://192.168.68.59:3000</string>
 	<!-- Google Sign-In: thay YOUR_CLIENT_ID bằng ID từ Google Cloud Console -->
 	<key>GIDClientID</key>
 	<string>518394941509-iitibu52ufov7mm8u570g919e0ah9nkn.apps.googleusercontent.com</string>

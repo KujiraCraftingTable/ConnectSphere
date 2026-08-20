@@ -1,7 +1,7 @@
 import Foundation
 
 struct PostAnalyzeDTO: Decodable {
-    let suggestedMode: String   // "friend" | "colleague" | "neutral"
+    let suggestedMode: String   // "hobby" | "work" | "neutral"
     let confidence:    Double
     let reason:        String
     let isMismatch:    Bool

@@ -52,7 +52,7 @@ extension ThemePalette {
 
 @Observable
 final class ThemeManager {
-    var currentMode: AppMode = .friend
+    var currentMode: AppMode = .hobby
     var socialPaletteId: String
     var workPaletteId: String
 
@@ -67,9 +67,9 @@ final class ThemeManager {
     /// Active palette based on currentMode and selected id.
     var theme: ThemePalette {
         switch currentMode {
-        case .friend:
+        case .hobby:
             return ThemePalette.socialPalettes.first { $0.id == socialPaletteId } ?? .blueShared
-        case .colleague:
+        case .work:
             return ThemePalette.workPalettes.first { $0.id == workPaletteId } ?? .blueShared
         }
     }
@@ -82,10 +82,10 @@ final class ThemeManager {
     /// Persists palette selection for the current mode.
     func selectPalette(id: String) {
         switch currentMode {
-        case .friend:
+        case .hobby:
             socialPaletteId = id
             UserDefaults.standard.set(id, forKey: socialKey)
-        case .colleague:
+        case .work:
             workPaletteId = id
             UserDefaults.standard.set(id, forKey: workKey)
         }
