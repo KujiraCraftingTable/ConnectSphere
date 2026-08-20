@@ -17,6 +17,9 @@ struct PostCard: View {
     @State private var showDeleteAlert = false
     @State private var showEditSheet   = false
     @State private var isHidden        = false   // ẩn bài người khác cục bộ
+    @State private var showReportDialog  = false
+    @State private var showReportResult  = false
+    @State private var reportResultMessage = ""
 
     var post: Post
     var disableSelfNavigation: Bool = false
@@ -74,6 +77,13 @@ struct PostCard: View {
                     .padding(.top, 10)
             }
 
+            // Hashtag chips — bấm vào mở TagFeedView duyệt theo tag
+            if !post.tags.isEmpty {
+                hashtagRow
+                    .padding(.horizontal, 12)
+                    .padding(.top, 10)
+            }
+
             // Link preview card (nếu có link_url)
             if let linkUrl = post.linkUrl, let url = URL(string: linkUrl) {
                 linkPreviewCard(url: url)
@@ -90,22 +100,6 @@ struct PostCard: View {
             if post.sharedPostId != nil {
                 sharedPostEmbed
                     .padding(.horizontal, 12)
-                    .padding(.top, 10)
-            }
-
-            // Article card — colleague mode (legacy)
-            if post.mode == .colleague, let title = post.articleTitle, post.linkUrl == nil {
-                articleCard(title: title)
-                    .padding(.horizontal, 12)
-                    .padding(.top, 10)
-            }
-
-            // Image placeholder — friend mode (mock data)
-            if let colorHex = post.imagePlaceholderColor, post.linkUrl == nil {
-                Rectangle()
-                    .fill(Color(hex: colorHex))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 200)
                     .padding(.top, 10)
             }
 
@@ -141,14 +135,47 @@ struct PostCard: View {
             .environment(themeManager)
         }
         // Delete confirmation alert
-        .alert("Xoá bài viết?", isPresented: $showDeleteAlert) {
-            Button("Xoá", role: .destructive) {
+        .alert(bundle.loc("Delete post?"), isPresented: $showDeleteAlert) {
+            Button(bundle.loc("Delete"), role: .destructive) {
                 Task { await handleDeletePost() }
             }
-            Button("Huỷ", role: .cancel) {}
+            Button(bundle.loc("Cancel"), role: .cancel) {}
         } message: {
-            Text("Bài viết sẽ bị xoá và không thể khôi phục.")
+            Text("This post will be permanently deleted.", bundle: bundle)
         }
+        // Report reason picker
+        .confirmationDialog(
+            bundle.loc("Why are you reporting this content?"),
+            isPresented: $showReportDialog,
+            titleVisibility: .visible
+        ) {
+            ForEach(ReportReason.allCases, id: \.self) { reason in
+                Button(reason.displayName) {
+                    Task { await handleReportPost(reason: reason) }
+                }
+            }
+            Button(bundle.loc("Cancel"), role: .cancel) {}
+        }
+        // Report result feedback
+        .alert(reportResultMessage, isPresented: $showReportResult) {
+            Button(bundle.loc("Done")) {}
+        }
+    }
+
+    // MARK: Report
+
+    /// Gửi báo cáo bài viết với lý do được chọn
+    private func handleReportPost(reason: ReportReason) async {
+        do {
+            try await repository.reportPost(postId: post.id, reason: reason)
+            reportResultMessage = bundle.loc("Report submitted")
+        } catch {
+            #if DEBUG
+            print("[PostCard] reportPost error: \(error)")
+            #endif
+            reportResultMessage = bundle.loc("Could not submit report. Please try again.")
+        }
+        showReportResult = true
     }
 
     // MARK: Delete
@@ -299,7 +326,7 @@ struct PostCard: View {
                     }
                 }
 
-                if post.mode == .colleague,
+                if post.mode == .work,
                    let title = post.author.jobTitle,
                    let company = post.author.company {
                     Text("\(title) · \(company)")
@@ -322,7 +349,7 @@ struct PostCard: View {
                 let isSelf = post.author.id == appState.currentUser?.id
                 if isSelf {
                     Button { showEditSheet = true } label: {
-                        Label("Chỉnh sửa bài viết", systemImage: "pencil")
+                        Label(bundle.loc("Edit post"), systemImage: "pencil")
                     }
                     Button(role: .destructive) {
                         // Delay để menu dismiss xong trước khi alert xuất hiện (SwiftUI timing bug)
@@ -330,11 +357,20 @@ struct PostCard: View {
                             showDeleteAlert = true
                         }
                     } label: {
-                        Label("Xoá bài viết", systemImage: "trash")
+                        Label(bundle.loc("Delete post"), systemImage: "trash")
                     }
                 } else {
-                    Button { withAnimation { isHidden = true } } label: {
-                        Label("Ẩn bài viết", systemImage: "eye.slash")
+                    Button {
+                        // Ẩn ngay trên UI, đồng thời persist để reload không hiện lại
+                        withAnimation { isHidden = true }
+                        Task { try? await repository.hidePost(postId: post.id) }
+                    } label: {
+                        Label(bundle.loc("Hide post"), systemImage: "eye.slash")
+                    }
+                    Button(role: .destructive) {
+                        showReportDialog = true
+                    } label: {
+                        Label(bundle.loc("Report post"), systemImage: "flag")
                     }
                 }
             } label: {
@@ -349,34 +385,25 @@ struct PostCard: View {
         .padding(.top, 12)
     }
 
-    // MARK: Article Card
+    // MARK: Hashtag Chips
 
-    private func articleCard(title: String) -> some View {
-        HStack(spacing: 10) {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color(hex: post.imagePlaceholderColor ?? "#BBDEFB"))
-                .frame(width: 80, height: 80)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(AppColors.textPrimary(colorScheme))
-                    .lineLimit(3)
-                Text("Bài viết", bundle: bundle)
-                    .font(.system(size: 12))
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
+    /// Danh sách hashtag của bài viết — bấm vào 1 chip mở TagFeedView duyệt theo tag đó
+    private var hashtagRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(post.tags, id: \.self) { tag in
+                    NavigationLink(destination: TagFeedView(tag: tag)) {
+                        Text("#\(tag)")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(themeManager.theme.primary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(themeManager.theme.primary.opacity(0.12), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
             }
-            Spacer()
         }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(AppColors.base(colorScheme))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(AppColors.borderDefault(colorScheme), lineWidth: 1)
-                )
-        )
     }
 
     // MARK: Stats Row
@@ -399,12 +426,12 @@ struct PostCard: View {
             Spacer()
             HStack(spacing: 10) {
                 if commentCount > 0 {
-                    Text(String(format: bundle.loc("%d bình luận"), commentCount))
+                    Text(String(format: bundle.loc("%d comments"), commentCount))
                         .font(.system(size: 13))
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 if shareCount > 0 {
-                    Text(String(format: bundle.loc("%d lượt chia sẻ"), shareCount))
+                    Text(String(format: bundle.loc("%d shares"), shareCount))
                         .font(.system(size: 13))
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
@@ -496,7 +523,7 @@ struct PostCard: View {
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                Text("Nội dung không còn tồn tại", bundle: bundle)
+                Text("This content no longer exists", bundle: bundle)
                     .font(.system(size: 14))
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .padding(14)

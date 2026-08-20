@@ -53,7 +53,7 @@ async function getPost(req, res, next) {
 }
 
 // POST /api/posts/analyze
-// Body: { content: string, currentMode: "friend" | "colleague" }
+// Body: { content: string, currentMode: "hobby" | "work" }
 async function analyzePost(req, res, next) {
   try {
     const { content, currentMode } = req.body;
@@ -97,8 +97,8 @@ async function createPost(req, res, next) {
     if (!hasContent && !hasLink && !imageUrls) {
       return res.status(400).json({ error: 'content, link_url or image_urls is required' });
     }
-    if (!['friend', 'colleague'].includes(mode))
-      return res.status(400).json({ error: 'mode must be friend or colleague' });
+    if (!['hobby', 'work'].includes(mode))
+      return res.status(400).json({ error: 'mode must be hobby or work' });
 
     const post = await postModel.create({
       authorId:     req.userId,
@@ -170,8 +170,8 @@ async function runModeCheck(postId, authorId, postedMode, content) {
 async function sharePost(req, res, next) {
   try {
     const { content, mode, privacy = 'public' } = req.body;
-    if (!['friend', 'colleague'].includes(mode)) {
-      return res.status(400).json({ error: 'mode must be friend or colleague' });
+    if (!['hobby', 'work'].includes(mode)) {
+      return res.status(400).json({ error: 'mode must be hobby or work' });
     }
 
     // findById enforce privacy — chỉ share được bài mình có quyền xem

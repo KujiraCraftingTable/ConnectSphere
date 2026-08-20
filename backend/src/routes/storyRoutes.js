@@ -2,12 +2,14 @@
  * storyRoutes.js — Stories 24h
  * POST   /api/stories           — đăng story  { image_url }
  * GET    /api/stories           — story của mình + của connections (chưa hết hạn)
- * POST   /api/stories/:id/view  — đánh dấu đã xem
- * DELETE /api/stories/:id       — xóa story của mình
+ * POST   /api/stories/:id/view    — đánh dấu đã xem
+ * GET    /api/stories/:id/viewers — danh sách người xem (chỉ tác giả)
+ * DELETE /api/stories/:id         — xóa story của mình
  */
 
 const router = require('express').Router();
 const { query } = require('../config/db');
+const { personaExpr } = require('../utils/personaSql');
 const { authMiddleware } = require('./authRoutes');
 
 router.use(authMiddleware);
@@ -42,9 +44,9 @@ router.get('/', async (req, res, next) => {
               json_build_object(
                 'id',           u.id,
                 'username',     u.username,
-                'display_name', u.display_name,
+                'display_name', ${personaExpr('display_name', "'hobby'")},
                 'avatar_color', u.avatar_color,
-                'avatar_url',   u.avatar_url
+                'avatar_url',   ${personaExpr('avatar_url', "'hobby'")}
               ) AS author,
               EXISTS(
                 SELECT 1 FROM story_views sv
@@ -90,6 +92,35 @@ router.post('/:id/view', async (req, res, next) => {
       [req.params.id, req.userId]
     );
     res.json({ status: 'ok' });
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/stories/:id/viewers ──────────────────────────────────────────────
+// Danh sách người đã xem — chỉ tác giả story mới xem được; loại lượt tự xem.
+// 404 cho cả "không tồn tại" lẫn "không phải của mình" để không lộ thông tin.
+
+router.get('/:id/viewers', async (req, res, next) => {
+  try {
+    const { rows: [story] } = await query(
+      'SELECT id, author_id FROM stories WHERE id = $1', [req.params.id]
+    );
+    if (!story || story.author_id !== req.userId) {
+      return res.status(404).json({ error: 'Story not found' });
+    }
+
+    const { rows } = await query(
+      `SELECT u.id,
+              ${personaExpr('display_name', "'hobby'")} AS display_name,
+              u.avatar_color,
+              ${personaExpr('avatar_url', "'hobby'")} AS avatar_url,
+              sv.viewed_at
+       FROM story_views sv
+       JOIN users u ON u.id = sv.viewer_id
+       WHERE sv.story_id = $1 AND sv.viewer_id <> $2
+       ORDER BY sv.viewed_at DESC`,
+      [req.params.id, req.userId]
+    );
+    res.json({ data: rows });
   } catch (err) { next(err); }
 });
 

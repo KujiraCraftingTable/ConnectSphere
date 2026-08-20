@@ -1,9 +1,9 @@
 import Foundation
 import Observation
 
-/// Phạm vi feed: tất cả bài public, hoặc chỉ bài của người đã kết nối
-enum FeedScope: String, CaseIterable {
-    case all
+/// Nguồn dữ liệu của feed: gợi ý cá nhân hoá (mặc định) hoặc chỉ bài của connections.
+enum FeedScope: String {
+    case forYou
     case connections
 }
 
@@ -15,14 +15,17 @@ class FeedViewModel {
     var isLoading = false
     var isLoadingMore = false
     var error: String?
-
-    /// Đổi scope → reload lại feed của mode hiện tại từ đầu
-    var feedScope: FeedScope = .all
+    /// Nguồn feed hiện tại — đổi giá trị này rồi gọi loadPosts(for:) để chuyển nguồn dữ liệu
+    var feedScope: FeedScope = .forYou
 
     private let repository = PostRepository()
     private let pageSize = 20
     private var loadedModes: Set<AppMode> = []
     private var hasMore: [AppMode: Bool] = [:]
+    /// Cursor trang kế cho scope .forYou (personalized feed); nil = còn từ đầu
+    private var nextCursor: [AppMode: String?] = [:]
+    /// Offset trang kế cho scope .connections (phân trang kiểu offset, không có cursor)
+    private var connectionsOffset: [AppMode: Int] = [:]
     nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
 
     init() {
@@ -45,7 +48,7 @@ class FeedViewModel {
     }
 
     func posts(for mode: AppMode) -> [Post] {
-        mode == .friend ? friendPosts : colleaguePosts
+        mode == .hobby ? friendPosts : colleaguePosts
     }
 
     func loadPostsIfNeeded(for mode: AppMode) async {
@@ -53,19 +56,27 @@ class FeedViewModel {
         await loadPosts(for: mode)
     }
 
-    /// Tải trang đầu (reset phân trang)
+    /// Tải trang đầu (reset phân trang) — nguồn dữ liệu phụ thuộc feedScope hiện tại.
     func loadPosts(for mode: AppMode) async {
         isLoading = true
         error = nil
         do {
-            let posts = try await repository.fetchPosts(
-                mode: mode,
-                connectionsOnly: feedScope == .connections,
-                limit: pageSize,
-                offset: 0
-            )
-            if mode == .friend { friendPosts = posts } else { colleaguePosts = posts }
-            hasMore[mode] = posts.count == pageSize
+            switch feedScope {
+            case .forYou:
+                let page = try await repository.fetchRecommendedFeed(
+                    mode: mode, cursor: nil, limit: pageSize
+                )
+                nextCursor[mode] = page.nextCursor
+                hasMore[mode]    = page.nextCursor != nil
+                setPosts(page.posts, for: mode)
+            case .connections:
+                let fetched = try await repository.fetchPosts(
+                    mode: mode, connectionsOnly: true, limit: pageSize, offset: 0
+                )
+                connectionsOffset[mode] = fetched.count
+                hasMore[mode] = fetched.count == pageSize
+                setPosts(fetched, for: mode)
+            }
             loadedModes.insert(mode)
         } catch {
             self.error = error.localizedDescription
@@ -78,30 +89,30 @@ class FeedViewModel {
         guard !isLoadingMore, hasMore[mode] == true else { return }
         isLoadingMore = true
         defer { isLoadingMore = false }
+        let current = posts(for: mode)
+        let existingIds = Set(current.map(\.id))
         do {
-            let current = posts(for: mode)
-            let more = try await repository.fetchPosts(
-                mode: mode,
-                connectionsOnly: feedScope == .connections,
-                limit: pageSize,
-                offset: current.count
-            )
-            // Tránh trùng khi có bài mới chen vào giữa 2 lần fetch
-            let existingIds = Set(current.map(\.id))
-            let fresh = more.filter { !existingIds.contains($0.id) }
-            if mode == .friend { friendPosts += fresh } else { colleaguePosts += fresh }
-            hasMore[mode] = more.count == pageSize
+            switch feedScope {
+            case .forYou:
+                let page = try await repository.fetchRecommendedFeed(
+                    mode: mode, cursor: nextCursor[mode] ?? nil, limit: pageSize
+                )
+                nextCursor[mode] = page.nextCursor
+                hasMore[mode]    = page.nextCursor != nil
+                // Tránh trùng khi có bài mới chen vào giữa 2 lần fetch
+                appendPosts(page.posts.filter { !existingIds.contains($0.id) }, for: mode)
+            case .connections:
+                let offset = connectionsOffset[mode] ?? 0
+                let fetched = try await repository.fetchPosts(
+                    mode: mode, connectionsOnly: true, limit: pageSize, offset: offset
+                )
+                connectionsOffset[mode] = offset + fetched.count
+                hasMore[mode] = fetched.count == pageSize
+                appendPosts(fetched.filter { !existingIds.contains($0.id) }, for: mode)
+            }
         } catch {
             // Cuộn tiếp sẽ retry — không hiện lỗi chặn feed
         }
-    }
-
-    /// Đổi phạm vi feed và reload
-    func switchScope(_ scope: FeedScope, mode: AppMode) async {
-        guard scope != feedScope else { return }
-        feedScope = scope
-        loadedModes.removeAll()
-        await loadPosts(for: mode)
     }
 
     func removePost(id: String) {
@@ -116,5 +127,15 @@ class FeedViewModel {
         if let i = colleaguePosts.firstIndex(where: { $0.id == updated.id }) {
             colleaguePosts[i] = updated
         }
+    }
+
+    // MARK: - Private helpers
+
+    private func setPosts(_ newPosts: [Post], for mode: AppMode) {
+        if mode == .hobby { friendPosts = newPosts } else { colleaguePosts = newPosts }
+    }
+
+    private func appendPosts(_ newPosts: [Post], for mode: AppMode) {
+        if mode == .hobby { friendPosts += newPosts } else { colleaguePosts += newPosts }
     }
 }

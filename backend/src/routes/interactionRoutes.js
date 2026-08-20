@@ -5,6 +5,8 @@
  * POST   /api/posts/:id/comments                   — add comment / reply
  * DELETE /api/posts/:id/comments/:commentId        — xóa comment (tác giả comment hoặc chủ post)
  * POST   /api/posts/:id/comments/:commentId/like   — toggle like comment
+ * POST   /api/posts/:id/hide                       — ẩn bài khỏi feed của mình
+ * DELETE /api/posts/:id/hide                       — bỏ ẩn
  */
 
 const router = require('express').Router({ mergeParams: true });
@@ -13,14 +15,16 @@ const postModel = require('../models/postModel');
 const {
   pushUserNotification, actorPayload, hasRecentDuplicate,
 } = require('../services/userNotifyService');
+const { personaExpr } = require('../utils/personaSql');
 const logger = require('../utils/logger');
 
-// Check tồn tại + quyền XEM (privacy/block qua findById) rồi trả về author id.
-// Không xem được thì cũng không like/comment được.
+// Check tồn tại + quyền XEM (privacy/block qua findById) rồi trả về author id
+// + mode (để resolve persona người tương tác). Không xem được thì cũng không
+// like/comment được.
 async function fetchVisiblePostMeta(postId, viewerId) {
   const post = await postModel.findById(postId, viewerId);
   if (!post) return null;
-  return { id: post.id, author_id: post.author.id };
+  return { id: post.id, author_id: post.author.id, mode: post.mode };
 }
 
 // ── Like toggle ───────────────────────────────────────────────────────────────
@@ -99,11 +103,12 @@ router.get('/comments', async (req, res, next) => {
               ) AS is_liked,
               json_build_object(
                 'id',           u.id,
-                'display_name', u.display_name,
+                'display_name', ${personaExpr('display_name', 'p.mode')},
                 'avatar_color', u.avatar_color,
-                'avatar_url',   u.avatar_url
+                'avatar_url',   ${personaExpr('avatar_url', 'p.mode')}
               ) AS author
        FROM comments c
+       JOIN posts p ON p.id = c.post_id
        JOIN users u ON u.id = c.author_id
        WHERE c.post_id = $1 AND c.status = 'posted'
        ORDER BY c.created_at ASC
@@ -153,8 +158,14 @@ router.post('/comments', async (req, res, next) => {
 
     await query('UPDATE posts SET comment_count = comment_count + 1 WHERE id = $1', [postId]);
 
+    // Danh tính người comment theo mode của bài (post.mode từ fetchVisiblePostMeta)
     const { rows: [author] } = await query(
-      'SELECT id, display_name, avatar_color, avatar_url FROM users WHERE id = $1', [req.userId]
+      `SELECT id,
+              ${personaExpr('display_name', '$2', 'users')} AS display_name,
+              avatar_color,
+              ${personaExpr('avatar_url', '$2', 'users')} AS avatar_url
+       FROM users WHERE id = $1`,
+      [req.userId, post.mode]
     );
 
     res.status(201).json({ data: { ...comment, is_liked: false, author } });
@@ -216,6 +227,34 @@ router.delete('/comments/:commentId', async (req, res, next) => {
     );
 
     res.json({ status: 'ok', removed: rowCount });
+  } catch (err) { next(err); }
+});
+
+// ── Hide / Unhide (ẩn bài khỏi feed của riêng mình) ───────────────────────────
+
+router.post('/hide', async (req, res, next) => {
+  try {
+    const { id: postId } = req.params;
+    if (!(await fetchVisiblePostMeta(postId, req.userId))) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    await query(
+      `INSERT INTO hidden_posts (user_id, post_id) VALUES ($1, $2)
+       ON CONFLICT DO NOTHING`,
+      [req.userId, postId]
+    );
+    res.json({ status: 'ok', hidden: true });
+  } catch (err) { next(err); }
+});
+
+router.delete('/hide', async (req, res, next) => {
+  try {
+    const { id: postId } = req.params;
+    await query(
+      'DELETE FROM hidden_posts WHERE user_id = $1 AND post_id = $2',
+      [req.userId, postId]
+    );
+    res.json({ status: 'ok', hidden: false });
   } catch (err) { next(err); }
 });
 

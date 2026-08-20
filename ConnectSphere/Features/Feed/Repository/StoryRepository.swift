@@ -45,4 +45,24 @@ struct StoryRepository {
             token: try token()
         )
     }
+
+    /// Xoá story của mình (backend check author)
+    func deleteStory(storyId: String) async throws {
+        _ = try await client.fetch(
+            OkResponse.self,
+            path: "/stories/\(storyId)",
+            method: "DELETE",
+            token: try token()
+        )
+    }
+
+    /// Danh sách người đã xem — chỉ gọi được với story của mình
+    func fetchViewers(storyId: String) async throws -> [StoryViewerDTO] {
+        struct ViewersResponse: Decodable { let data: [StoryViewerDTO] }
+        return try await client.fetch(
+            ViewersResponse.self,
+            path: "/stories/\(storyId)/viewers",
+            token: try token()
+        ).data
+    }
 }

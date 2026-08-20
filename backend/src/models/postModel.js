@@ -1,7 +1,10 @@
 const { query } = require('../config/db');
+const { personaExpr } = require('../utils/personaSql');
 
 // Shared SELECT for post rows. `viewerRef` là placeholder SQL (vd '$1') chứa
 // UUID của viewer (hoặc NULL) — luôn parameterized, không bao giờ nội suy chuỗi.
+// Danh tính tác giả resolve theo persona của MODE BÀI VIẾT (p.mode/sp.mode) —
+// bài hobby hiện tên hobby, bài work hiện tên work.
 const buildPostSelect = (viewerRef) => `
   SELECT
     p.id, p.content, p.mode, p.privacy, p.image_urls[1] AS image_url, p.image_urls, p.article_title, p.link_url,
@@ -23,9 +26,9 @@ const buildPostSelect = (viewerRef) => `
         'author', json_build_object(
           'id',           su.id,
           'username',     su.username,
-          'display_name', su.display_name,
+          'display_name', ${personaExpr('display_name', 'sp.mode', 'su')},
           'avatar_color', su.avatar_color,
-          'avatar_url',   su.avatar_url
+          'avatar_url',   ${personaExpr('avatar_url', 'sp.mode', 'su')}
         )
       )
       FROM posts sp
@@ -36,12 +39,50 @@ const buildPostSelect = (viewerRef) => `
     json_build_object(
       'id',           u.id,
       'username',     u.username,
-      'display_name', u.display_name,
+      'display_name', ${personaExpr('display_name', 'p.mode')},
       'avatar_color', u.avatar_color,
-      'avatar_url',   u.avatar_url,
+      'avatar_url',   ${personaExpr('avatar_url', 'p.mode')},
       'job_title',    u.job_title,
       'company',      u.company
-    ) AS author
+    ) AS author,
+    -- Poll/event payload — mirrors postModel.getPostsByCommunity so a single-post
+    -- fetch (deep link, notification tap) returns the same data as the list view.
+    -- 'id' inside event_data is community_events.id, distinct from the post id —
+    -- required by POST /api/events/:id/rsvp which keys off the event id, not the post id.
+    CASE WHEN p.post_type = 'event' THEN (
+      SELECT json_build_object(
+        'id',         ce.id,
+        'title',      ce.title,
+        'location',   ce.location,
+        'starts_at',  ce.starts_at,
+        'ends_at',    ce.ends_at,
+        'rsvp_count', ce.rsvp_count,
+        'user_rsvp',  (SELECT er.status FROM event_rsvps er
+                        WHERE er.event_id = ce.id AND er.user_id = ${viewerRef}::uuid)
+      )
+      FROM community_events ce
+      WHERE ce.post_id = p.id
+    ) ELSE NULL END AS event_data,
+    CASE WHEN p.post_type = 'poll' THEN
+      json_build_object(
+        'options', (
+          SELECT json_agg(
+            json_build_object(
+              'id',         po.id,
+              'text',       po.text,
+              'vote_count', po.vote_count,
+              'position',   po.position,
+              'ends_at',    po.ends_at
+            ) ORDER BY po.position
+          )
+          FROM poll_options po WHERE po.post_id = p.id
+        ),
+        'user_vote', (SELECT pv.poll_option_id::TEXT
+                       FROM poll_votes pv
+                       JOIN poll_options po2 ON po2.id = pv.poll_option_id
+                       WHERE po2.post_id = p.id AND pv.user_id = ${viewerRef}::uuid)
+      )
+    ELSE NULL END AS poll_data
   FROM posts p
   JOIN  users     u  ON u.id = p.author_id
   LEFT JOIN post_tags pt ON pt.post_id = p.id
@@ -71,6 +112,15 @@ const notBlockedClause = (viewerRef) => `
   )
 `;
 
+// Loại bài mà viewer đã bấm "Ẩn bài viết" (chỉ áp cho các query dạng danh sách;
+// findById giữ nguyên để share embed / notification vẫn mở được bài)
+const notHiddenClause = (viewerRef) => `
+  NOT EXISTS (
+    SELECT 1 FROM hidden_posts hp
+    WHERE hp.user_id = ${viewerRef}::uuid AND hp.post_id = p.id
+  )
+`;
+
 // Chỉ hiện bài của chính mình + của những người đã accepted connection
 const connectionsOnlyClause = (viewerRef) => `
   (
@@ -87,7 +137,7 @@ const connectionsOnlyClause = (viewerRef) => `
 async function findAll({ mode, authorId, viewerId = null, tag = null, limit = 20, offset = 0, connectionsOnly = false }) {
   const params = [viewerId];
   let where = `WHERE p.status = 'posted' AND p.community_id IS NULL
-    AND ${privacyClause('$1')} AND ${notBlockedClause('$1')}`;
+    AND ${privacyClause('$1')} AND ${notBlockedClause('$1')} AND ${notHiddenClause('$1')}`;
 
   if (connectionsOnly) {
     where += ` AND ${connectionsOnlyClause('$1')}`;
@@ -124,7 +174,7 @@ async function findAll({ mode, authorId, viewerId = null, tag = null, limit = 20
 async function countAll({ mode, authorId, viewerId = null, tag = null, connectionsOnly = false }) {
   const params = [viewerId];
   let where = `WHERE p.status = 'posted' AND p.community_id IS NULL
-    AND ${privacyClause('$1')} AND ${notBlockedClause('$1')}`;
+    AND ${privacyClause('$1')} AND ${notBlockedClause('$1')} AND ${notHiddenClause('$1')}`;
 
   if (connectionsOnly) {
     where += ` AND ${connectionsOnlyClause('$1')}`;
@@ -185,7 +235,7 @@ async function create({ authorId, content, mode, privacy = 'public', imageUrl = 
 async function createCommunityPost({ content, authorId, communityId, postType = 'text' }) {
   const { rows } = await query(
     `INSERT INTO posts (author_id, content, mode, privacy, community_id, post_type)
-     VALUES ($1, $2, 'friend', 'public', $3, $4)
+     VALUES ($1, $2, 'hobby', 'public', $3, $4)
      RETURNING id`,
     [authorId, content, communityId, postType]
   );

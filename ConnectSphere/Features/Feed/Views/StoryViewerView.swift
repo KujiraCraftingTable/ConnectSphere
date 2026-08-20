@@ -3,22 +3,44 @@ import Combine
 
 /// Xem stories của một người — full screen, thanh progress từng tin,
 /// tự chuyển sau 5 giây, chạm trái/phải để lùi/tới.
+/// Story của chính mình có thêm nút xoá + danh sách người xem.
 struct StoryViewerView: View {
+    @Environment(AppState.self) var appState
+    @Environment(\.appBundle) var bundle
     @Environment(\.dismiss) var dismiss
 
     let group: StoryGroup
     var onClose: (() -> Void)? = nil
 
+    /// Bản sao cục bộ để xoá story tại chỗ mà không đụng group (let)
+    @State private var stories: [StoryDTO]
     @State private var currentIndex = 0
     @State private var progress: Double = 0   // 0...1 của story hiện tại
+
+    // Own-story features
+    @State private var viewers: [StoryViewerDTO] = []
+    @State private var showViewers = false
+    @State private var showDeleteConfirm = false
+    @State private var isDeleting = false
 
     private let storyRepo = StoryRepository()
     private let secondsPerStory: Double = 5
     private let tick: Double = 0.05
     private let timer = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
 
+    init(group: StoryGroup, onClose: (() -> Void)? = nil) {
+        self.group = group
+        self.onClose = onClose
+        _stories = State(initialValue: group.stories)
+    }
+
+    private var isOwn: Bool { group.author.id == appState.currentUser?.id }
+
+    /// Timer dừng khi đang mở sheet người xem / dialog xoá
+    private var isPaused: Bool { showViewers || showDeleteConfirm || isDeleting }
+
     private var currentStory: StoryDTO? {
-        group.stories.indices.contains(currentIndex) ? group.stories[currentIndex] : nil
+        stories.indices.contains(currentIndex) ? stories[currentIndex] : nil
     }
 
     var body: some View {
@@ -51,7 +73,7 @@ struct StoryViewerView: View {
             VStack(spacing: 10) {
                 // Progress segments
                 HStack(spacing: 4) {
-                    ForEach(group.stories.indices, id: \.self) { i in
+                    ForEach(stories.indices, id: \.self) { i in
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
                                 Capsule().fill(Color.white.opacity(0.3))
@@ -66,7 +88,7 @@ struct StoryViewerView: View {
                 .padding(.horizontal, 12)
                 .padding(.top, 8)
 
-                // Header: author + close
+                // Header: author + delete (own) + close
                 HStack(spacing: 10) {
                     AvatarView(user: group.author, size: 36)
                     VStack(alignment: .leading, spacing: 1) {
@@ -80,6 +102,16 @@ struct StoryViewerView: View {
                         }
                     }
                     Spacer()
+                    if isOwn {
+                        Button {
+                            showDeleteConfirm = true
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(8)
+                        }
+                    }
                     Button {
                         close()
                     } label: {
@@ -92,11 +124,36 @@ struct StoryViewerView: View {
                 .padding(.horizontal, 12)
 
                 Spacer()
+
+                // Own story: hàng người xem ở đáy
+                if isOwn {
+                    Button {
+                        showViewers = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "eye.fill")
+                                .font(.system(size: 13))
+                            Text("\(viewers.count)")
+                                .font(.system(size: 14, weight: .semibold))
+                            Text("Viewers", bundle: bundle)
+                                .font(.system(size: 14))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Capsule().fill(Color.white.opacity(0.18)))
+                    }
+                    .padding(.bottom, 24)
+                }
             }
         }
         .statusBarHidden()
-        .onAppear { markCurrentViewed() }
+        .onAppear {
+            markCurrentViewed()
+            loadViewers()
+        }
         .onReceive(timer) { _ in
+            guard !isPaused else { return }
             progress += tick / secondsPerStory
             if progress >= 1 { goNext() }
         }
@@ -105,6 +162,112 @@ struct StoryViewerView: View {
                 if value.translation.height > 60 { close() }
             }
         )
+        .confirmationDialog(
+            bundle.loc("Delete this story?"),
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button(bundle.loc("Delete"), role: .destructive) {
+                Task { await deleteCurrentStory() }
+            }
+            Button(bundle.loc("Cancel"), role: .cancel) {}
+        }
+        .sheet(isPresented: $showViewers) {
+            viewersSheet
+        }
+    }
+
+    // MARK: - Viewers sheet
+
+    private var viewersSheet: some View {
+        NavigationStack {
+            Group {
+                if viewers.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "eye.slash")
+                            .font(.system(size: 36))
+                            .foregroundColor(.secondary.opacity(0.5))
+                        Text("No views yet", bundle: bundle)
+                            .font(.system(size: 15))
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List(viewers) { viewer in
+                        HStack(spacing: 12) {
+                            ZStack {
+                                Circle().fill(Color(hex: viewer.avatarColor ?? "#7F5AF0"))
+                                Text(String(viewer.displayName.prefix(1)))
+                                    .font(.system(size: 15, weight: .bold))
+                                    .foregroundColor(.white)
+                                if let urlStr = viewer.avatarUrl, let url = URL(string: urlStr) {
+                                    AsyncImage(url: url) { phase in
+                                        if let image = phase.image {
+                                            image.resizable().scaledToFill()
+                                        }
+                                    }
+                                    .clipShape(Circle())
+                                }
+                            }
+                            .frame(width: 40, height: 40)
+                            .clipShape(Circle())
+
+                            Text(viewer.displayName)
+                                .font(.system(size: 15, weight: .medium))
+
+                            Spacer()
+
+                            Text(viewer.viewedAt.timeAgoString)
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .listStyle(.plain)
+                }
+            }
+            .navigationTitle(bundle.loc("Viewers"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(bundle.loc("Done")) { showViewers = false }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    // MARK: - Own-story actions
+
+    /// Xoá story đang hiển thị; hết story thì đóng viewer
+    private func deleteCurrentStory() async {
+        guard let story = currentStory, !isDeleting else { return }
+        isDeleting = true
+        defer { isDeleting = false }
+
+        do {
+            try await storyRepo.deleteStory(storyId: story.id)
+            stories.removeAll { $0.id == story.id }
+            if stories.isEmpty {
+                close()
+            } else {
+                currentIndex = min(currentIndex, stories.count - 1)
+                progress = 0
+                markCurrentViewed()
+                loadViewers()
+            }
+        } catch {
+            // Giữ nguyên story; user có thể thử lại
+        }
+    }
+
+    /// Lấy danh sách người xem cho story hiện tại (chỉ story của mình)
+    private func loadViewers() {
+        guard isOwn, let story = currentStory else { return }
+        Task {
+            if let list = try? await storyRepo.fetchViewers(storyId: story.id) {
+                viewers = list
+            }
+        }
     }
 
     // MARK: - Navigation
@@ -116,10 +279,11 @@ struct StoryViewerView: View {
     }
 
     private func goNext() {
-        if currentIndex < group.stories.count - 1 {
+        if currentIndex < stories.count - 1 {
             currentIndex += 1
             progress = 0
             markCurrentViewed()
+            loadViewers()
         } else {
             close()
         }
@@ -131,6 +295,7 @@ struct StoryViewerView: View {
         } else if currentIndex > 0 {
             currentIndex -= 1
             progress = 0
+            loadViewers()
         }
     }
 

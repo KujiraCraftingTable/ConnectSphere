@@ -1,12 +1,12 @@
 const { getRecommendedFeed } = require('../models/feedModel');
 
-// GET /api/feed/recommendations?mode=friend|colleague&cursor=<token>&limit=20
+// GET /api/feed/recommendations?mode=hobby|work&cursor=<token>&limit=20
 async function getRecommendations(req, res, next) {
   try {
     const { mode, cursor, limit = '20' } = req.query;
 
-    if (!['friend', 'colleague'].includes(mode)) {
-      return res.status(400).json({ status: 'error', message: 'mode must be friend or colleague' });
+    if (!['hobby', 'work'].includes(mode)) {
+      return res.status(400).json({ status: 'error', message: 'mode must be hobby or work' });
     }
 
     const parsedLimit = Math.min(parseInt(limit, 10) || 20, 50);
