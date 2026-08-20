@@ -64,17 +64,20 @@ struct MessageRepository {
         content: String?,
         messageType: MessageType,
         mediaUrl: String? = nil,
+        replyToMessageId: String? = nil,
         token: String
     ) async throws -> Message {
         struct Body: Encodable {
             let content: String?
             let message_type: String
             let media_url: String?
+            let reply_to_message_id: String?
         }
         let body = try JSONEncoder().encode(Body(
             content: content,
             message_type: messageType.rawValue,
-            media_url: mediaUrl
+            media_url: mediaUrl,
+            reply_to_message_id: replyToMessageId
         ))
         let response = try await client.fetch(
             DataResponse<Message>.self,
@@ -132,6 +135,26 @@ struct MessageRepository {
         )
     }
 
+    // MARK: - Reactions
+
+    /// React to a message (toggle off if re-tapping the same emoji, else set/replace).
+    /// Returns the message's fresh reaction summary: emoji → user ids.
+    @discardableResult
+    func react(conversationId: String, messageId: String, emoji: String, token: String) async throws -> [String: [String]] {
+        struct Body: Encodable { let emoji: String }
+        struct ReactionsResponse: Decodable { let reactions: [String: [String]] }
+
+        let body = try JSONEncoder().encode(Body(emoji: emoji))
+        let response = try await client.fetch(
+            DataResponse<ReactionsResponse>.self,
+            path: "/messages/conversations/\(conversationId)/messages/\(messageId)/reactions",
+            method: "POST",
+            token: token,
+            bodyData: body
+        )
+        return response.data.reactions
+    }
+
     // MARK: - Read receipt
 
     /// Mark all messages in a conversation as read (REST call; socket also handles this).
@@ -155,5 +178,93 @@ struct MessageRepository {
             queryItems: [URLQueryItem(name: "mode", value: mode)]
         )
         return response.data.count
+    }
+
+    // MARK: - Conversation settings
+
+    /// Fetch shared settings (theme, other person's nickname) + my mute state.
+    func fetchSettings(conversationId: String, token: String) async throws -> ConversationSettings {
+        let response = try await client.fetch(
+            DataResponse<ConversationSettings>.self,
+            path: "/messages/conversations/\(conversationId)/settings",
+            method: "GET",
+            token: token
+        )
+        return response.data
+    }
+
+    /// PATCH shared settings with a body that can carry an explicit null.
+    private func patchSettings(conversationId: String, body: [String: Any], token: String) async throws -> ConversationSettings {
+        let bodyData = try JSONSerialization.data(withJSONObject: body)
+        let response = try await client.fetch(
+            DataResponse<ConversationSettings>.self,
+            path: "/messages/conversations/\(conversationId)/settings",
+            method: "PATCH",
+            token: token,
+            bodyData: bodyData
+        )
+        return response.data
+    }
+
+    /// Update the shared chat theme (nil resets to the app default).
+    func updateTheme(conversationId: String, theme: String?, token: String) async throws -> ConversationSettings {
+        try await patchSettings(conversationId: conversationId, body: ["theme": theme.map { $0 as Any } ?? NSNull()], token: token)
+    }
+
+    /// Update the shared nickname for the other person (nil clears it).
+    func updateNickname(conversationId: String, nickname: String?, token: String) async throws -> ConversationSettings {
+        try await patchSettings(conversationId: conversationId, body: ["nickname": nickname.map { $0 as Any } ?? NSNull()], token: token)
+    }
+
+    /// Set my mute for the conversation. `minutes`: nil = unmute, negative = until
+    /// turned back on, N>0 = N minutes. Returns the new muted-until date (if any).
+    @discardableResult
+    func setMute(conversationId: String, minutes: Int?, token: String) async throws -> Date? {
+        struct MuteResult: Decodable {
+            let mutedUntil: Date?
+            enum CodingKeys: String, CodingKey { case mutedUntil = "muted_until" }
+        }
+        let bodyData = try JSONSerialization.data(withJSONObject: ["minutes": minutes.map { $0 as Any } ?? NSNull()])
+        let response = try await client.fetch(
+            DataResponse<MuteResult>.self,
+            path: "/messages/conversations/\(conversationId)/mute",
+            method: "PUT",
+            token: token,
+            bodyData: bodyData
+        )
+        return response.data.mutedUntil
+    }
+
+    /// Images/videos sent in the conversation, newest first.
+    func fetchMedia(conversationId: String, token: String) async throws -> [ChatMediaItem] {
+        let response = try await client.fetch(
+            DataListResponse<ChatMediaItem>.self,
+            path: "/messages/conversations/\(conversationId)/media",
+            method: "GET",
+            token: token
+        )
+        return response.data
+    }
+
+    /// Keyword search over the conversation's text messages.
+    func searchMessages(conversationId: String, query: String, token: String) async throws -> [Message] {
+        let response = try await client.fetch(
+            DataListResponse<Message>.self,
+            path: "/messages/conversations/\(conversationId)/messages/search",
+            method: "GET",
+            token: token,
+            queryItems: [URLQueryItem(name: "q", value: query)]
+        )
+        return response.data
+    }
+
+    /// Clear the conversation on my side only (sets my cleared_at server-side).
+    func clearConversation(conversationId: String, token: String) async throws {
+        _ = try await client.fetch(
+            OKResponse.self,
+            path: "/messages/conversations/\(conversationId)/messages",
+            method: "DELETE",
+            token: token
+        )
     }
 }

@@ -7,31 +7,113 @@ struct ConversationListView: View {
     @Environment(\.appBundle) var bundle
 
     @State private var viewModel = ConversationListViewModel()
+    @State private var activeRoute: ActiveChatRoute?
 
     var body: some View {
-        Group {
-            if viewModel.isLoading && viewModel.conversations.isEmpty {
-                ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if viewModel.conversations.isEmpty {
-                emptyState
-            } else {
-                conversationList
+        VStack(spacing: 0) {
+            // Hàng bạn bè đang active — bấm để nhảy thẳng vào hội thoại
+            if !viewModel.activeConnections.isEmpty {
+                activeConnectionsBar
+                Divider()
+            }
+
+            Group {
+                if viewModel.isLoading && viewModel.conversations.isEmpty {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if viewModel.conversations.isEmpty {
+                    emptyState
+                } else {
+                    conversationList
+                }
             }
         }
         .background(AppColors.base(colorScheme))
-        .navigationTitle(bundle.loc("Tin nhắn"))
+        .navigationTitle(bundle.loc("Messages"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
+        .navigationDestination(item: $activeRoute) { route in
+            ChatView(
+                conversationId: route.conversationId,
+                otherUserId: route.userId,
+                otherUserName: route.name,
+                otherUserAvatarColor: route.avatarColor,
+                otherUserLocation: route.location,
+                currentUserId: appState.currentUser?.id ?? "",
+                token: appState.authToken ?? ""
+            )
+        }
         .onAppear {
             guard let token = appState.authToken else { return }
             let mode = appState.currentMode.rawValue
             viewModel.connectSocket(token: token)
             viewModel.registerNewMessageHandler(mode: mode, token: token)
+            viewModel.registerPresenceHandlers()
             Task { await viewModel.load(mode: mode, token: token) }
+            Task { await viewModel.loadConnections(mode: mode) }
         }
         .onDisappear {
             viewModel.unregisterHandlers()
+        }
+    }
+
+    // MARK: - Active connections bar
+
+    private var activeConnectionsBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(alignment: .top, spacing: 16) {
+                ForEach(viewModel.activeConnections) { conn in
+                    Button {
+                        openActiveChat(conn)
+                    } label: {
+                        VStack(spacing: 6) {
+                            ZStack(alignment: .bottomTrailing) {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color(hex: conn.user.avatarColor))
+                                        .frame(width: 56, height: 56)
+                                    Text(String(conn.user.displayName.prefix(1)))
+                                        .font(.system(size: 22, weight: .bold))
+                                        .foregroundColor(.white)
+                                }
+                                // Chấm xanh báo online
+                                Circle()
+                                    .fill(Color.green)
+                                    .frame(width: 14, height: 14)
+                                    .overlay(Circle().stroke(AppColors.surface(colorScheme), lineWidth: 2))
+                            }
+
+                            Text(conn.user.displayName)
+                                .font(.system(size: 12))
+                                .foregroundColor(AppColors.textSecondary(colorScheme))
+                                .lineLimit(1)
+                                .frame(width: 64)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+        }
+        .background(AppColors.surface(colorScheme))
+    }
+
+    /// Mở (hoặc tạo) hội thoại với một kết nối đang active, rồi điều hướng sang ChatView.
+    private func openActiveChat(_ conn: ConnectionItemDTO) {
+        guard let token = appState.authToken else { return }
+        let mode = appState.currentMode.rawValue
+        Task {
+            guard let convId = try? await viewModel.openConversation(
+                with: conn.user.id, mode: mode, token: token
+            ) else { return }
+            activeRoute = ActiveChatRoute(
+                conversationId: convId,
+                userId: conn.user.id,
+                name: conn.user.displayName,
+                avatarColor: conn.user.avatarColor,
+                location: conn.user.location
+            )
         }
     }
 
@@ -45,7 +127,7 @@ struct ConversationListView: View {
                         ChatView(
                             conversationId: conversation.id,
                             otherUserId: conversation.otherUserId,
-                            otherUserName: conversation.otherUserName,
+                            otherUserName: conversation.displayName,
                             otherUserAvatarColor: conversation.otherUserAvatarColor,
                             currentUserId: appState.currentUser?.id ?? "",
                             token: appState.authToken ?? ""
@@ -70,10 +152,10 @@ struct ConversationListView: View {
             Image(systemName: "bubble.left.and.bubble.right")
                 .font(.system(size: 52))
                 .foregroundColor(AppColors.textTertiary(colorScheme))
-            Text("Chưa có cuộc trò chuyện nào", bundle: bundle)
+            Text("No conversations yet", bundle: bundle)
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(AppColors.textPrimary(colorScheme))
-            Text("Bắt đầu trò chuyện bằng cách vào trang cá nhân của ai đó.", bundle: bundle)
+            Text("Start a conversation by visiting someone's profile.", bundle: bundle)
                 .font(.system(size: 14))
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .multilineTextAlignment(.center)
@@ -98,7 +180,7 @@ private struct ConversationRow: View {
                 Circle()
                     .fill(Color(hex: conversation.otherUserAvatarColor))
                     .frame(width: 52, height: 52)
-                Text(String(conversation.otherUserName.prefix(1)))
+                Text(String(conversation.displayName.prefix(1)))
                     .font(.system(size: 20, weight: .bold))
                     .foregroundColor(.white)
             }
@@ -106,7 +188,7 @@ private struct ConversationRow: View {
             // Name + preview
             VStack(alignment: .leading, spacing: 3) {
                 HStack {
-                    Text(conversation.otherUserName)
+                    Text(conversation.displayName)
                         .font(.system(size: 15, weight: conversation.hasUnread ? .semibold : .regular))
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                         .lineLimit(1)
@@ -147,14 +229,27 @@ private struct ConversationRow: View {
     }
 }
 
+// MARK: - Active chat navigation route
+
+/// Đích điều hướng khi bấm vào một bạn bè đang active trên hàng trên cùng.
+struct ActiveChatRoute: Identifiable, Hashable {
+    let conversationId: String
+    let userId: String
+    let name: String
+    let avatarColor: String
+    let location: String?
+
+    var id: String { conversationId }
+}
+
 // MARK: - Date helper
 
 private extension Date {
     func relativeShort(bundle: Bundle = .main) -> String {
         let now = Date()
         let diff = now.timeIntervalSince(self)
-        if diff < 60 { return bundle.loc("vừa xong") }
-        if diff < 3600 { return String(format: bundle.loc("%d phút"), Int(diff / 60)) }
+        if diff < 60 { return bundle.loc("just now") }
+        if diff < 3600 { return String(format: bundle.loc("%d min"), Int(diff / 60)) }
         if diff < 86400 { return formatted(.dateTime.hour().minute()) }
         if diff < 604800 { return formatted(.dateTime.weekday(.abbreviated)) }
         return formatted(.dateTime.month(.abbreviated).day())

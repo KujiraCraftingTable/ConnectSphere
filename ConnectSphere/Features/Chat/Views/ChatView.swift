@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import AudioToolbox
 
 struct ChatView: View {
     @Environment(AppState.self) var appState
@@ -13,14 +14,24 @@ struct ChatView: View {
     let otherUserName: String
     let otherUserAvatarColor: String
     let otherUserLocation: String?
+    private let token: String
 
     @State private var viewModel: ChatViewModel
     @State private var inputText = ""
-    @State private var pickerItem: PhotosPickerItem?
+    @State private var pickerItems: [PhotosPickerItem] = []
+    @State private var pendingMedia: [PendingMedia] = []
     @State private var isTyping = false
+    @State private var appearedMessageIDs: Set<String> = []
     @State private var showChatSettings = false
-    @State private var navigateToProfile = false
+    @State private var mediaViewerItem: ChatMediaViewerItem?
+    // Jump-to-message từ kết quả tìm kiếm (và từ tap vào quoted preview của reply)
+    @State private var pendingScrollTarget: String?
+    @State private var highlightedMessageId: String?
+    @State private var isJumping = false
+    // Tin đang được trích dẫn để trả lời (Reply) — hiện thanh preview trên input bar
+    @State private var replyingTo: Message?
     @State private var connectVM = ConnectViewModel()
+    @AppStorage("messageSoundEnabled") private var messageSoundEnabled = true
     private let bottomID = "chatBottom"
 
     init(conversationId: String, otherUserId: String, otherUserName: String,
@@ -31,11 +42,23 @@ struct ChatView: View {
         self.otherUserName = otherUserName
         self.otherUserAvatarColor = otherUserAvatarColor
         self.otherUserLocation = otherUserLocation
+        self.token = token
         _viewModel = State(initialValue: ChatViewModel(
             conversationId: conversationId,
             currentUserId: currentUserId,
+            otherUserId: otherUserId,
             token: token
         ))
+    }
+
+    /// Palette for this conversation: its shared theme if set, else the global theme.
+    private var chatPalette: ThemePalette {
+        ThemePalette.byId(viewModel.chatThemeId) ?? themeManager.theme
+    }
+
+    /// Name to show for the other person (shared nickname overrides real name).
+    private var headerName: String {
+        viewModel.otherNickname ?? otherUserName
     }
 
     var body: some View {
@@ -44,7 +67,9 @@ struct ChatView: View {
             Divider()
             inputBar
         }
-        .background(AppColors.base(colorScheme))
+        // ignoresSafeArea (mặc định gồm cả .keyboard) để nền phủ ra sau bàn phím
+        // nổi của iOS 26 — không còn dải đen hệ thống giữa input bar và bàn phím
+        .background(AppColors.base(colorScheme).ignoresSafeArea())
         .navigationBarBackButtonHidden(true)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
@@ -61,21 +86,28 @@ struct ChatView: View {
             // Tappable display name → chat settings
             ToolbarItem(placement: .principal) {
                 Button { showChatSettings = true } label: {
-                    Text(otherUserName)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(AppColors.textPrimary(colorScheme))
+                    HStack(spacing: 5) {
+                        Text(headerName)
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundColor(AppColors.textPrimary(colorScheme))
+                        if viewModel.isMuted {
+                            Image(systemName: "bell.slash.fill")
+                                .font(.system(size: 12))
+                                .foregroundColor(AppColors.textTertiary(colorScheme))
+                        }
+                    }
                 }
                 .buttonStyle(.plain)
             }
 
-            // Avatar → profile
+            // Avatar → chat settings
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button { navigateToProfile = true } label: {
+                Button { showChatSettings = true } label: {
                     ZStack {
                         Circle()
                             .fill(Color(hex: otherUserAvatarColor))
                             .frame(width: 34, height: 34)
-                        Text(String(otherUserName.prefix(1)))
+                        Text(String(headerName.prefix(1)))
                             .font(.system(size: 14, weight: .bold))
                             .foregroundColor(.white)
                     }
@@ -83,17 +115,31 @@ struct ChatView: View {
                 .buttonStyle(.plain)
             }
         }
-        .navigationDestination(isPresented: $navigateToProfile) {
-            UserProfileView(userId: otherUserId)
-                .environment(appState)
-        }
         .sheet(isPresented: $showChatSettings) {
-            chatSettingsSheet
+            ChatSettingsView(
+                conversationId: conversationId,
+                otherUserId: otherUserId,
+                fallbackName: otherUserName,
+                avatarColor: otherUserAvatarColor,
+                token: token,
+                onCleared: {
+                    viewModel.messages = []
+                    viewModel.hasMoreMessages = false
+                    appearedMessageIDs = []
+                },
+                onJumpToMessage: { messageId in
+                    Task { await jumpToMessage(messageId) }
+                }
+            )
+            .environment(appState)
         }
         .task {
             viewModel.joinConversation()
             await viewModel.loadMessages()
+            // Existing history should appear without the send animation.
+            appearedMessageIDs = Set(viewModel.messages.map(\.id))
             viewModel.markRead()
+            await viewModel.loadSettings()
             if let me = appState.currentUser?.id {
                 await connectVM.load(
                     viewerId: me,
@@ -105,41 +151,17 @@ struct ChatView: View {
         .onDisappear {
             viewModel.leaveConversation()
         }
-        .onChange(of: pickerItem) { _, item in
-            guard let item else { return }
-            Task { await handlePickedMedia(item) }
+        .onChange(of: pickerItems) { _, items in
+            guard !items.isEmpty else { return }
+            Task { await handlePickedMedia(items) }
         }
-    }
-
-    // MARK: - Chat settings placeholder
-
-    private var chatSettingsSheet: some View {
-        NavigationStack {
-            VStack(spacing: 16) {
-                Spacer().frame(height: 20)
-                Image(systemName: "gear")
-                    .font(.system(size: 44))
-                    .foregroundColor(AppColors.textTertiary(colorScheme))
-                Text("Cài đặt cuộc trò chuyện", bundle: bundle)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(AppColors.textPrimary(colorScheme))
-                Text("Tính năng đang được phát triển", bundle: bundle)
-                    .font(.system(size: 14))
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-                Spacer()
-            }
-            .frame(maxWidth: .infinity)
-            .background(AppColors.base(colorScheme))
-            .navigationTitle(bundle.loc("Cài đặt"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(bundle.loc("Xong")) { showChatSettings = false }
-                        .foregroundColor(themeManager.theme.primary)
-                }
-            }
+        .onChange(of: showChatSettings) { _, isShowing in
+            // Refresh mute/theme/nickname after closing the settings sheet.
+            if !isShowing { Task { await viewModel.loadSettings() } }
         }
-        .presentationDetents([.medium])
+        .fullScreenCover(item: $mediaViewerItem) { item in
+            ChatMediaViewerView(items: [item])
+        }
     }
 
     // MARK: - Message list
@@ -150,11 +172,15 @@ struct ChatView: View {
                 LazyVStack(spacing: 0) {
                     if viewModel.hasMoreMessages {
                         Button {
-                            Task { await viewModel.loadOlderMessages() }
+                            Task {
+                                await viewModel.loadOlderMessages()
+                                // Older history is not "new", so skip its animation too.
+                                appearedMessageIDs.formUnion(viewModel.messages.map(\.id))
+                            }
                         } label: {
-                            Text("Tải tin nhắn cũ hơn", bundle: bundle)
+                            Text("Load older messages", bundle: bundle)
                                 .font(.system(size: 13))
-                                .foregroundColor(themeManager.theme.primary)
+                                .foregroundColor(chatPalette.primary)
                                 .padding(.vertical, 10)
                         }
                     }
@@ -166,13 +192,46 @@ struct ChatView: View {
                     } else {
                         ForEach(viewModel.messages) { message in
                             let isOwn = message.isOwn(userId: appState.currentUser?.id ?? "")
-                            MessageBubble(message: message, isOwn: isOwn)
+                            MessageBubble(message: message, isOwn: isOwn, palette: chatPalette,
+                                          onMediaTap: openMediaViewer,
+                                          onReplyPreviewTap: { messageId in
+                                              Task { await jumpToMessage(messageId) }
+                                          })
+                                .modifier(MessageAppearModifier(
+                                    id: message.id,
+                                    appearedIDs: $appearedMessageIDs,
+                                    onAnimationFinished: { playMessageSound(isOwn: isOwn) }
+                                ))
+                                // Nháy nền khi được nhảy tới từ kết quả tìm kiếm
+                                .background(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .fill(chatPalette.primary.opacity(
+                                            message.id == highlightedMessageId ? 0.16 : 0))
+                                        .padding(.horizontal, 6)
+                                )
                                 .contextMenu {
+                                    if !message.isDeleted {
+                                        // Quick-react row: long-press already opens this menu,
+                                        // so the emoji row lives at the top of it.
+                                        ControlGroup {
+                                            ForEach(ReactionEmoji.allCases, id: \.rawValue) { r in
+                                                Button(r.rawValue) {
+                                                    Task { await viewModel.sendReaction(messageId: message.id, emoji: r.rawValue) }
+                                                }
+                                            }
+                                        }
+
+                                        Button {
+                                            replyingTo = message
+                                        } label: {
+                                            Label(bundle.loc("Reply"), systemImage: "arrowshape.turn.up.left")
+                                        }
+                                    }
                                     if isOwn && !message.isDeleted {
                                         Button(role: .destructive) {
                                             Task { await viewModel.recallMessage(message) }
                                         } label: {
-                                            Label(bundle.loc("Thu hồi tin nhắn"), systemImage: "arrow.uturn.backward")
+                                            Label(bundle.loc("Unsend message"), systemImage: "arrow.uturn.backward")
                                         }
                                     }
                                 }
@@ -188,8 +247,26 @@ struct ChatView: View {
                 }
                 .padding(.vertical, 8)
             }
-            .onChange(of: viewModel.messages.count) { _, _ in scrollToBottom(proxy: proxy) }
+            .onChange(of: viewModel.messages.count) { _, _ in
+                // Đang jump thì các trang cũ vừa load không được kéo xuống đáy
+                guard !isJumping else { return }
+                scrollToBottom(proxy: proxy)
+            }
             .onChange(of: viewModel.isOtherTyping) { _, _ in scrollToBottom(proxy: proxy) }
+            .onChange(of: pendingScrollTarget) { _, target in
+                guard let target else { return }
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    proxy.scrollTo(target, anchor: .center)
+                }
+                highlightedMessageId = target
+                pendingScrollTarget = nil
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { isJumping = false }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+                    withAnimation(.easeOut(duration: 0.4)) {
+                        if highlightedMessageId == target { highlightedMessageId = nil }
+                    }
+                }
+            }
             .task { scrollToBottom(proxy: proxy, animated: false) }
         }
     }
@@ -220,8 +297,8 @@ struct ChatView: View {
 
             // Trạng thái kết nối
             Text(isConnected
-                 ? bundle.loc("Bạn đã kết nối với tài khoản này, hãy gửi lời chào 👋")
-                 : bundle.loc("Bạn chưa kết nối với tài khoản này"))
+                 ? bundle.loc("You're connected — say hello 👋")
+                 : bundle.loc("You're not connected with this user"))
                 .font(.system(size: 13))
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .multilineTextAlignment(.center)
@@ -245,28 +322,33 @@ struct ChatView: View {
     // MARK: - Input bar
 
     private var inputBar: some View {
-        HStack(alignment: .bottom, spacing: 10) {
-            PhotosPicker(selection: $pickerItem, matching: .any(of: [.images, .videos])) {
-                Image(systemName: "photo.on.rectangle.angled")
-                    .font(.system(size: 22))
-                    .foregroundColor(themeManager.theme.primary)
-                    .padding(.bottom, 6)
+        VStack(spacing: 8) {
+            // "Replying to X" preview — clearable with an X button
+            if let replyingTo {
+                replyingToBar(replyingTo)
             }
 
-            ZStack(alignment: .topLeading) {
-                if inputText.isEmpty {
-                    Text("Nhắn tin...", bundle: bundle)
-                        .foregroundColor(AppColors.textTertiary(colorScheme))
-                        .font(.system(size: 15))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
+            // Preview of the selected media before sending
+            if !pendingMedia.isEmpty {
+                mediaPreview
+            }
+
+            HStack(alignment: .bottom, spacing: 10) {
+                PhotosPicker(selection: $pickerItems,
+                             maxSelectionCount: 10,
+                             matching: .any(of: [.images, .videos])) {
+                    Image(systemName: "photo.on.rectangle.angled")
+                        .font(.system(size: 22))
+                        .foregroundColor(chatPalette.primary)
+                        .padding(.bottom, 6)
                 }
-                TextEditor(text: $inputText)
+
+                TextField("", text: $inputText, prompt: Text("Message...", bundle: bundle), axis: .vertical)
                     .font(.system(size: 15))
-                    .frame(minHeight: 36, maxHeight: 120)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .scrollContentBackground(.hidden)
+                    .lineLimit(1...5)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 20))
                     .onChange(of: inputText) { _, newVal in
                         let typing = !newVal.isEmpty
                         if typing != isTyping {
@@ -274,31 +356,171 @@ struct ChatView: View {
                             viewModel.sendTyping(typing)
                         }
                     }
-            }
-            .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 20))
 
-            Button {
-                let text = inputText
-                inputText = ""
-                isTyping = false
-                viewModel.sendTyping(false)
-                Task { await viewModel.sendText(text) }
-            } label: {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 32))
-                    .foregroundColor(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                     ? AppColors.textTertiary(colorScheme)
-                                     : themeManager.theme.primary)
-                    .padding(.bottom, 2)
+                Button { sendPending() } label: {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 32))
+                        .foregroundColor(canSend
+                                         ? chatPalette.primary
+                                         : AppColors.textTertiary(colorScheme))
+                        .padding(.bottom, 2)
+                }
+                .disabled(!canSend || viewModel.isSending)
             }
-            .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isSending)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(AppColors.surface(colorScheme))
     }
 
+    /// "Replying to X" bar shown above the composer while `replyingTo` is set.
+    private func replyingToBar(_ message: Message) -> some View {
+        let isOwnReply = message.isOwn(userId: appState.currentUser?.id ?? "")
+        let senderName = isOwnReply ? bundle.loc("You") : headerName
+        let preview: String = {
+            switch message.messageType {
+            case .text:  return message.content ?? ""
+            case .image: return bundle.loc("Photo")
+            case .video: return bundle.loc("Video")
+            }
+        }()
+
+        return HStack(spacing: 8) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(chatPalette.primary)
+                .frame(width: 3, height: 30)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(String(format: bundle.loc("Replying to %@"), senderName))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(chatPalette.primary)
+                Text(preview)
+                    .font(.system(size: 12))
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Button {
+                replyingTo = nil
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(AppColors.textTertiary(colorScheme))
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    /// Whether the send button should be active (text and/or media present).
+    private var canSend: Bool {
+        !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !pendingMedia.isEmpty
+    }
+
+    /// Horizontal strip of thumbnails for the picked media, each with a remove button.
+    private var mediaPreview: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(pendingMedia) { media in
+                    ZStack(alignment: .topTrailing) {
+                        Group {
+                            if let image = media.image {
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                            } else {
+                                // Video (or non-image) placeholder
+                                ZStack {
+                                    Rectangle().fill(AppColors.elevated(colorScheme))
+                                    Image(systemName: "video.fill")
+                                        .font(.system(size: 24))
+                                        .foregroundColor(AppColors.textSecondary(colorScheme))
+                                }
+                            }
+                        }
+                        .frame(width: 72, height: 72)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                        Button {
+                            pendingMedia.removeAll { $0.id == media.id }
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 20))
+                                .foregroundStyle(.white, .black.opacity(0.5))
+                        }
+                        .offset(x: 6, y: -6)
+                    }
+                    .padding(.top, 6)
+                    .padding(.trailing, 4)
+                }
+            }
+            .padding(.horizontal, 4)
+        }
+    }
+
+    /// Sends every pending media item (if any) and the text, then clears the composer.
+    /// The reply reference (if any) is attached only to the first item sent, then cleared.
+    private func sendPending() {
+        let text = inputText
+        let media = pendingMedia
+        let replyToId = replyingTo?.id
+        inputText = ""
+        pendingMedia = []
+        replyingTo = nil
+        isTyping = false
+        viewModel.sendTyping(false)
+        Task {
+            var replyTo = replyToId
+            for item in media {
+                await viewModel.sendMedia(fileURL: item.url, replyTo: replyTo)
+                replyTo = nil
+            }
+            if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                await viewModel.sendText(text, replyTo: replyTo)
+            }
+        }
+    }
+
     // MARK: - Helpers
+
+    /// Nhảy tới một tin nhắn từ kết quả tìm kiếm: load lùi lịch sử tới khi
+    /// thấy tin (tối đa 10 trang), cuộn tới giữa màn hình và nháy highlight.
+    private func jumpToMessage(_ messageId: String) async {
+        isJumping = true
+        // Chờ sheet cài đặt đóng xong để cuộn không bị nuốt animation
+        try? await Task.sleep(for: .milliseconds(300))
+        let found = await viewModel.loadUntilFound(messageId: messageId)
+        // Trang cũ vừa load hiển thị ngay, không chạy animation "tin mới"
+        appearedMessageIDs.formUnion(viewModel.messages.map(\.id))
+        guard found else {
+            isJumping = false
+            return
+        }
+        pendingScrollTarget = messageId
+    }
+
+    /// Mở viewer fullscreen cho ảnh/video của một bubble.
+    private func openMediaViewer(_ message: Message) {
+        guard let url = message.absoluteMediaURL() else { return }
+        mediaViewerItem = ChatMediaViewerItem(
+            id: message.id,
+            url: url,
+            isVideo: message.messageType == .video
+        )
+    }
+
+    /// Plays a short system sound once a message finishes its appear animation.
+    /// Incoming tone is skipped while the conversation is muted; the own-send
+    /// whoosh stays because it is feedback for the user's own action.
+    private func playMessageSound(isOwn: Bool) {
+        guard messageSoundEnabled else { return }
+        if !isOwn && viewModel.isMuted { return }
+        // 1004 = "message sent" whoosh, 1003 = "message received" tone.
+        AudioServicesPlaySystemSound(isOwn ? 1004 : 1003)
+    }
 
     private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool = true) {
         if animated {
@@ -308,11 +530,24 @@ struct ChatView: View {
         }
     }
 
-    private func handlePickedMedia(_ item: PhotosPickerItem) async {
-        guard let url = try? await item.loadTransferable(type: MediaFileTransferable.self) else { return }
-        await viewModel.sendMedia(fileURL: url.url)
-        pickerItem = nil
+    private func handlePickedMedia(_ items: [PhotosPickerItem]) async {
+        for item in items {
+            guard let media = try? await item.loadTransferable(type: MediaFileTransferable.self) else { continue }
+            // Build a thumbnail for images; videos fall back to a placeholder in the preview.
+            let image = UIImage(contentsOfFile: media.url.path).map { Image(uiImage: $0) }
+            pendingMedia.append(PendingMedia(url: media.url, image: image))
+        }
+        pickerItems = []
     }
+}
+
+// MARK: - Pending media awaiting send
+
+/// A picked image/video held in the composer before the user taps send.
+private struct PendingMedia: Identifiable {
+    let id = UUID()
+    let url: URL
+    let image: Image?   // nil for videos / non-image files (shown as a placeholder)
 }
 
 // MARK: - Transferable wrapper for photos picker
@@ -329,5 +564,40 @@ private struct MediaFileTransferable: Transferable {
             try? FileManager.default.copyItem(at: received.file, to: dest)
             return MediaFileTransferable(url: dest)
         }
+    }
+}
+
+// MARK: - Message appear animation
+
+/// Scales a message bubble up while sliding it in from the bottom the first time it
+/// appears, then fires a completion callback (used to play a sound). Messages already
+/// present in `appearedIDs` (loaded history) are shown instantly with no animation.
+private struct MessageAppearModifier: ViewModifier {
+    let id: String
+    @Binding var appearedIDs: Set<String>
+    let onAnimationFinished: () -> Void
+
+    @State private var shown = false
+
+    private let duration = 0.35
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(shown ? 1 : 0.6, anchor: .bottom)
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown ? 0 : 20)
+            .onAppear {
+                if appearedIDs.contains(id) {
+                    shown = true
+                    return
+                }
+                appearedIDs.insert(id)
+                withAnimation(.spring(response: duration, dampingFraction: 0.7)) {
+                    shown = true
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+                    onAnimationFinished()
+                }
+            }
     }
 }

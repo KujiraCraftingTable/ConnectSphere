@@ -10,6 +10,7 @@ struct Conversation: Identifiable, Decodable, Equatable {
     let otherUserName: String
     let otherUserAvatarColor: String
     let otherUserJobTitle: String?
+    let otherUserNickname: String?
 
     let lastMessageContent: String?
     let lastMessageType: String?
@@ -26,6 +27,7 @@ struct Conversation: Identifiable, Decodable, Equatable {
         case otherUserName      = "other_user_name"
         case otherUserAvatarColor = "other_user_avatar_color"
         case otherUserJobTitle  = "other_user_job_title"
+        case otherUserNickname  = "other_user_nickname"
         case lastMessageContent = "last_message_content"
         case lastMessageType    = "last_message_type"
         case lastMessageSenderId = "last_message_sender_id"
@@ -35,6 +37,9 @@ struct Conversation: Identifiable, Decodable, Equatable {
 
     /// True when the current user has unread messages in this conversation.
     var hasUnread: Bool { unreadCount > 0 }
+
+    /// Name to show for the other person: shared nickname overrides real name.
+    var displayName: String { otherUserNickname ?? otherUserName }
 
     /// Formatted preview text for the conversation list row.
     func previewText(currentUserId: String) -> String {
