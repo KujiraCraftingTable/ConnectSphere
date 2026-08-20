@@ -10,6 +10,15 @@ struct OnboardingView: View {
     @State private var selectedInterests: [InterestItem] = []
     @State private var showProvincePicker = false
 
+    // Realtime username availability (chỉ check username — display_name không cần vì
+    // nhiều người có thể trùng tên, chỉ username mới cần duy nhất).
+    @State private var usernameAvailability: UsernameAvailability = .idle
+    @State private var usernameCheckTask: Task<Void, Never>?
+
+    private enum UsernameAvailability: Equatable {
+        case idle, checking, available, taken
+    }
+
     private let totalSteps = 4
 
     var body: some View {
@@ -38,7 +47,7 @@ struct OnboardingView: View {
     private var progressBar: some View {
         VStack(spacing: 8) {
             HStack {
-                Text("Thiết lập hồ sơ", bundle: bundle)
+                Text("Set up profile", bundle: bundle)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(AppColors.textSecondary(.light))
                 Spacer()
@@ -62,19 +71,19 @@ struct OnboardingView: View {
     // MARK: Step 0 — Mode selection
 
     private var step0: some View {
-        OnboardingCard(title: bundle.loc("Bạn muốn dùng ConnectSphere cho mục đích gì?"),
-                       subtitle: bundle.loc("Bạn có thể thay đổi sau")) {
+        OnboardingCard(title: bundle.loc("What do you want to use ConnectSphere for?"),
+                       subtitle: bundle.loc("You can change this later")) {
             VStack(spacing: 14) {
-                modeCard(mode: "friend", icon: "person.2.fill",
-                         title: bundle.loc("Kết bạn & Giải trí"),
-                         desc: bundle.loc("Tìm bạn chơi, chia sẻ sở thích"),
+                modeCard(mode: "hobby", icon: "person.2.fill",
+                         title: bundle.loc("Friends & Fun"),
+                         desc: bundle.loc("Find friends, share interests"),
                          color: Color(hex: "#FF6B35"))
-                modeCard(mode: "colleague", icon: "briefcase.fill",
-                         title: bundle.loc("Công việc & Học tập"),
-                         desc: bundle.loc("Networking, tìm cộng tác viên"),
+                modeCard(mode: "work", icon: "briefcase.fill",
+                         title: bundle.loc("Work & Study"),
+                         desc: bundle.loc("Networking, find collaborators"),
                          color: Color(hex: "#1877F2"))
             }
-            nextButton(enabled: true, label: bundle.loc("Tiếp tục"))
+            nextButton(enabled: true, label: bundle.loc("Continue"))
         }
     }
 
@@ -110,13 +119,20 @@ struct OnboardingView: View {
     // MARK: Step 1 — Basic info
 
     private var step1: some View {
-        OnboardingCard(title: bundle.loc("Thông tin cơ bản"), subtitle: bundle.loc("Điền tên hiển thị và username của bạn")) {
+        OnboardingCard(title: bundle.loc("Basic information"), subtitle: bundle.loc("Enter your display name and username")) {
             VStack(spacing: 14) {
-                AuthTextField(icon: "textformat", placeholder: bundle.loc("Tên hiển thị *"), text: $form.display_name)
-                AuthTextField(icon: "at", placeholder: bundle.loc("Username * (chỉ a-z, 0-9, _)"), text: Binding(
-                    get: { form.username },
-                    set: { form.username = $0.lowercased().filter { $0.isLetter || $0.isNumber || $0 == "_" } }
-                ))
+                AuthTextField(icon: "textformat", placeholder: bundle.loc("Display name *"), text: $form.display_name)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    AuthTextField(icon: "at", placeholder: bundle.loc("Username * (a-z, 0-9, _ only)"), text: Binding(
+                        get: { form.username },
+                        set: {
+                            form.username = $0.lowercased().filter { $0.isLetter || $0.isNumber || $0 == "_" }
+                            scheduleUsernameCheck(form.username)
+                        }
+                    ))
+                    usernameStatusView
+                }
 
                 // Province picker (required)
                 Button { showProvincePicker = true } label: {
@@ -145,11 +161,11 @@ struct OnboardingView: View {
 
                 // Gender picker (required)
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Giới tính *", bundle: bundle)
+                    Text("Gender *", bundle: bundle)
                         .font(.system(size: 13))
                         .foregroundColor(AppColors.textSecondary(.light))
                     HStack(spacing: 10) {
-                        ForEach([("male", "Nam"), ("female", "Nữ"), ("other", "Khác")], id: \.0) { value, label in
+                        ForEach([("male", "Male"), ("female", "Female"), ("other", "Other")], id: \.0) { value, label in
                             let selected = form.gender == value
                             Button { form.gender = value } label: {
                                 Text(bundle.loc(label))
@@ -167,11 +183,11 @@ struct OnboardingView: View {
                     }
                 }
 
-                // DOB
+                // DOB (required)
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 10) {
                         Image(systemName: "calendar").foregroundColor(AppColors.textSecondary(.light))
-                        Text(form.dob.isEmpty ? bundle.loc("Ngày sinh (tùy chọn)") : String(format: bundle.loc("Ngày sinh: %@"), form.dob))
+                        Text(form.dob.isEmpty ? bundle.loc("Date of birth *") : String(format: bundle.loc("Date of birth: %@"), form.dob))
                             .foregroundColor(form.dob.isEmpty ? AppColors.textTertiary(.light) : AppColors.textPrimary(.light))
                             .font(.system(size: 15))
                         Spacer()
@@ -189,6 +205,9 @@ struct OnboardingView: View {
                         .padding(.horizontal, 8)
                     )
                 }
+
+                // Ai được xem tuổi — mặc định Private, không ảnh hưởng search theo tuổi
+                DobVisibilityToggle(visibility: $form.dob_visibility, accentColor: Color(hex: "#1877F2"))
             }
 
             if let e = error { errorBanner(e) }
@@ -196,14 +215,73 @@ struct OnboardingView: View {
             nextButton(
                 enabled: !form.display_name.trimmingCharacters(in: .whitespaces).isEmpty &&
                          form.username.count >= 3 &&
-                         !form.location.isEmpty,
-                label: bundle.loc("Tiếp tục")
+                         usernameAvailability != .taken &&
+                         !form.location.isEmpty &&
+                         !form.gender.isEmpty &&
+                         !form.dob.isEmpty,
+                label: bundle.loc("Continue")
             )
         }
     }
 
+    /// Trạng thái availability hiển thị ngay dưới ô username: đang kiểm tra / đã trùng / còn trống.
+    @ViewBuilder
+    private var usernameStatusView: some View {
+        switch usernameAvailability {
+        case .idle:
+            EmptyView()
+        case .checking:
+            HStack(spacing: 6) {
+                ProgressView().scaleEffect(0.7)
+                Text("Checking availability...", bundle: bundle)
+                    .font(.system(size: 12))
+                    .foregroundColor(AppColors.textTertiary(.light))
+            }
+            .padding(.leading, 4)
+        case .available:
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(Color(hex: "#2CB67D"))
+                Text("Username available", bundle: bundle)
+                    .font(.system(size: 12))
+                    .foregroundColor(Color(hex: "#2CB67D"))
+            }
+            .padding(.leading, 4)
+        case .taken:
+            HStack(spacing: 6) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                Text("Username already taken", bundle: bundle)
+                    .font(.system(size: 12))
+            }
+            .foregroundColor(Color(hex: "#FF6B6B"))
+            .padding(.leading, 4)
+        }
+    }
+
+    /// Debounce 500ms rồi gọi API check-username; huỷ lần gõ trước đó nếu còn đang chạy.
+    private func scheduleUsernameCheck(_ username: String) {
+        usernameCheckTask?.cancel()
+        guard username.count >= 3 else {
+            usernameAvailability = .idle
+            return
+        }
+        usernameAvailability = .checking
+        usernameCheckTask = Task {
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled, let token = appState.authToken else { return }
+            do {
+                let available = try await AuthService.shared.checkUsernameAvailable(token: token, username: username)
+                guard !Task.isCancelled else { return }
+                usernameAvailability = available ? .available : .taken
+            } catch {
+                guard !Task.isCancelled else { return }
+                usernameAvailability = .idle
+            }
+        }
+    }
+
     private var selectedProvinceDisplay: String {
-        guard !form.location.isEmpty else { return bundle.loc("Tỉnh / Thành phố *") }
+        guard !form.location.isEmpty else { return bundle.loc("Province / City *") }
         return VietnamProvinces.all.first(where: { $0.id == form.location })?.displayName ?? form.location
     }
 
@@ -211,41 +289,41 @@ struct OnboardingView: View {
 
     private var step2: some View {
         OnboardingCard(
-            title: form.default_mode == "friend" ? bundle.loc("Sở thích của bạn") : bundle.loc("Kỹ năng & Công ty"),
-            subtitle: bundle.loc("Giúp ConnectSphere tìm người phù hợp với bạn")
+            title: form.default_mode == "hobby" ? bundle.loc("Your interests") : bundle.loc("Skills & Company"),
+            subtitle: bundle.loc("Help ConnectSphere find the right people for you")
         ) {
-            if form.default_mode == "friend" {
+            if form.default_mode == "hobby" {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Chọn những gì bạn thích", bundle: bundle)
+                    Text("Select what you like", bundle: bundle)
                         .font(.system(size: 13))
                         .foregroundColor(AppColors.textSecondary(.light))
                     InterestPickerView(selectedInterests: $selectedInterests)
                 }
             } else {
                 VStack(spacing: 14) {
-                    AuthTextField(icon: "briefcase", placeholder: bundle.loc("Chức danh (iOS Developer...)"), text: $form.job_title)
-                    AuthTextField(icon: "building.2", placeholder: bundle.loc("Công ty / Trường học"), text: $form.company)
-                    AuthTextField(icon: "sparkles", placeholder: bundle.loc("Kỹ năng (Swift, Python, UI/UX...)"), text: Binding(
+                    AuthTextField(icon: "briefcase", placeholder: bundle.loc("Job title (iOS Developer...)"), text: $form.job_title)
+                    AuthTextField(icon: "building.2", placeholder: bundle.loc("Company / School"), text: $form.company)
+                    AuthTextField(icon: "sparkles", placeholder: bundle.loc("Skills (Swift, Python, UI/UX...)"), text: Binding(
                         get: { form.skills.joined(separator: ", ") },
                         set: { form.skills = $0.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }
                     ))
                 }
             }
 
-            nextButton(enabled: true, label: bundle.loc("Tiếp tục"))
+            nextButton(enabled: true, label: bundle.loc("Continue"))
         }
     }
 
     // MARK: Step 3 — Bio + finish
 
     private var step3: some View {
-        OnboardingCard(title: bundle.loc("Giới thiệu bản thân"), subtitle: bundle.loc("Viết vài dòng để mọi người biết bạn là ai")) {
+        OnboardingCard(title: bundle.loc("About yourself"), subtitle: bundle.loc("Write a few lines so people know who you are")) {
             ZStack(alignment: .topLeading) {
                 RoundedRectangle(cornerRadius: 14)
                     .fill(AppColors.surface(.light))
                     .frame(minHeight: 120)
                 if form.bio.isEmpty {
-                    Text("Ví dụ: iOS Developer | Thích cafe và anime ☕🌸", bundle: bundle)
+                    Text("e.g. iOS Developer | Love coffee and anime ☕🌸", bundle: bundle)
                         .font(.system(size: 14))
                         .foregroundColor(AppColors.textDisabled(.light))
                         .padding(14)
@@ -262,7 +340,7 @@ struct OnboardingView: View {
 
             if let e = error { errorBanner(e) }
 
-            GradientButton(title: isLoading ? bundle.loc("Đang lưu...") : bundle.loc("Hoàn tất 🎉"), isLoading: isLoading) {
+            GradientButton(title: isLoading ? bundle.loc("Saving...") : bundle.loc("Complete 🎉"), isLoading: isLoading) {
                 Task { await finish() }
             }
         }
@@ -382,12 +460,12 @@ struct ProvincePickerSheet: View {
                     }
                 }
             }
-            .searchable(text: $searchText, prompt: bundle.loc("Tìm tỉnh / thành phố"))
-            .navigationTitle(bundle.loc("Chọn tỉnh / thành phố"))
+            .searchable(text: $searchText, prompt: bundle.loc("Search province / city"))
+            .navigationTitle(bundle.loc("Select province / city"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(bundle.loc("Hủy")) { dismiss() }
+                    Button(bundle.loc("Cancel")) { dismiss() }
                 }
             }
         }

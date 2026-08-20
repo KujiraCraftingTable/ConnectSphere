@@ -1,5 +1,4 @@
 import SwiftUI
-import AuthenticationServices
 import GoogleSignIn
 
 // MARK: - LoginView
@@ -14,6 +13,7 @@ struct LoginView: View {
     @State private var showError: Bool = false
     @State private var errorMessage: String = ""
     @State private var navigateToRegister: Bool = false
+    @State private var showForgotPassword: Bool = false
     @State private var logoScale: CGFloat = 0.6
     @State private var cardOffset: CGFloat = 60
     @State private var cardOpacity: Double = 0
@@ -40,7 +40,7 @@ struct LoginView: View {
                             VStack(spacing: 20) {
                                 credentialSection
                                 Spacer(minLength: 4)
-                                LabelDivider(label: bundle.loc("hoặc tiếp tục với"))
+                                LabelDivider(label: bundle.loc("or continue with"))
                                 socialSection
                                 registerPrompt
                             }
@@ -57,7 +57,11 @@ struct LoginView: View {
                 }
             }
             .navigationDestination(isPresented: $navigateToRegister) {
-                ModeSelectionView()
+                RegisterView()
+            }
+            .sheet(isPresented: $showForgotPassword) {
+                ForgotPasswordView()
+                    .environment(themeManager)
             }
             .onAppear {
                 logoScale = 1.0
@@ -83,7 +87,7 @@ struct LoginView: View {
             Text("ConnectSphere")
                 .font(.system(size: 28, weight: .bold))
                 .foregroundStyle(themeManager.theme.primaryGradient)
-            Text("Đăng nhập vào tài khoản của bạn", bundle: bundle)
+            Text("Sign in to your account", bundle: bundle)
                 .font(.system(size: 14))
                 .foregroundColor(AppColors.textSecondary(.light))
         }
@@ -95,24 +99,21 @@ struct LoginView: View {
         VStack(spacing: 14) {
             AuthTextField(
                 icon: "person.fill",
-                placeholder: bundle.loc("Tên người dùng"),
+                placeholder: bundle.loc("Username"),
                 text: $username
             )
             AuthTextField(
                 icon: "lock.fill",
-                placeholder: bundle.loc("Mật khẩu"),
+                placeholder: bundle.loc("Password"),
                 text: $password,
                 isSecure: true
             )
 
-            // Forgot password
             HStack {
                 Spacer()
-                Button(bundle.loc("Quên mật khẩu?")) {
-                    // TODO: navigate to forgot-password flow
-                }
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(themeManager.theme.accentGradient)
+                Button(bundle.loc("Forgot password?")) { showForgotPassword = true }
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(AppColors.textSecondary(.light))
             }
 
             // Error banner
@@ -130,7 +131,7 @@ struct LoginView: View {
                 .transition(.scale.combined(with: .opacity))
             }
 
-            GradientButton(title: bundle.loc("Đăng nhập"), isLoading: isLoading) {
+            GradientButton(title: bundle.loc("Log in"), isLoading: isLoading) {
                 handleLogin()
             }
         }
@@ -162,14 +163,6 @@ struct LoginView: View {
                 )
             }
 
-            SignInWithAppleButton(.continue) { request in
-                request.requestedScopes = [.fullName, .email]
-            } onCompletion: { result in
-                handleAppleSignIn(result: result)
-            }
-            .signInWithAppleButtonStyle(.black)
-            .frame(height: 50)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
         }
     }
 
@@ -177,10 +170,10 @@ struct LoginView: View {
 
     private var registerPrompt: some View {
         HStack(spacing: 4) {
-            Text("Chưa có tài khoản?", bundle: bundle)
+            Text("Don't have an account?", bundle: bundle)
                 .font(.system(size: 14))
                 .foregroundColor(AppColors.textSecondary(.light))
-            Button(bundle.loc("Đăng ký")) {
+            Button(bundle.loc("Sign up")) {
                 navigateToRegister = true
             }
             .font(.system(size: 14, weight: .bold))
@@ -193,21 +186,53 @@ struct LoginView: View {
 
     private func handleLogin() {
         guard !username.isEmpty, !password.isEmpty else {
-            triggerError(bundle.loc("Vui lòng điền đầy đủ thông tin."))
+            triggerError(bundle.loc("Please fill in all fields."))
             return
         }
         isLoading = true
         showError = false
-        // Mock login — succeeds for any non-empty credentials
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-            isLoading = false
-            appState.login(mode: .friend)
+        Task {
+            do {
+                try await appState.loginWithPassword(
+                    username: username.trimmingCharacters(in: .whitespaces),
+                    password: password
+                )
+            } catch {
+                await MainActor.run {
+                    isLoading = false
+                    triggerError(loginErrorMessage(error))
+                }
+            }
         }
     }
 
+    /// Map HTTP status từ server sang thông báo đã localize.
+    private func loginErrorMessage(_ error: Error) -> String {
+        if let networkMessage = networkErrorMessage(error) { return networkMessage }
+        switch (error as NSError).code {
+        case 401: return bundle.loc("Invalid username or password")
+        case 429: return bundle.loc("Too many attempts, please try again later")
+        default:  return bundle.loc("Couldn't sign in, please try again")
+        }
+    }
+
+    /// Request không tới được server (sai IP/mất mạng/server chưa chạy) → message riêng,
+    /// tránh hiển thị lỗi hệ thống thô hoặc câu chung chung dễ hiểu nhầm là sai mật khẩu.
+    private func networkErrorMessage(_ error: Error) -> String? {
+        (error as NSError).domain == NSURLErrorDomain
+            ? bundle.loc("Cannot reach the server, please check your connection")
+            : nil
+    }
+
     private func handleGoogleSignIn() {
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let rootVC = windowScene.windows.first?.rootViewController else { return }
+        guard let windowScene = UIApplication.shared.connectedScenes
+                  .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene
+                  ?? UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let rootVC = (windowScene.windows.first(where: \.isKeyWindow) ?? windowScene.windows.first)?.rootViewController
+        else {
+            triggerError(bundle.loc("Couldn't sign in, please try again"))
+            return
+        }
 
         isLoading = true
         showError = false
@@ -222,7 +247,7 @@ struct LoginView: View {
             }
             guard let idToken = result?.user.idToken?.tokenString else {
                 isLoading = false
-                triggerError(bundle.loc("Không lấy được Google token"))
+                triggerError(bundle.loc("Could not get Google token"))
                 return
             }
             Task {
@@ -231,23 +256,12 @@ struct LoginView: View {
                 } catch {
                     await MainActor.run {
                         isLoading = false
-                        triggerError(error.localizedDescription)
+                        // Server trả lỗi (vd "Invalid Google token") thì hiển thị nguyên văn;
+                        // còn lỗi không kết nối được thì map sang message mạng đã localize.
+                        triggerError(networkErrorMessage(error) ?? error.localizedDescription)
                     }
                 }
             }
-        }
-    }
-
-    private func handleAppleSignIn(result: Result<ASAuthorization, Error>) {
-        switch result {
-        case .success(let auth):
-            if let credential = auth.credential as? ASAuthorizationAppleIDCredential {
-                let userID = credential.user
-                print("Apple Sign-In succeeded, userID: \(userID)")
-                // TODO: send to backend
-            }
-        case .failure(let error):
-            triggerError(error.localizedDescription)
         }
     }
 

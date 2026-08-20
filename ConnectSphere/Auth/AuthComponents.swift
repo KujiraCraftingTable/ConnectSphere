@@ -16,6 +16,14 @@ extension EnvironmentValues {
 }
 
 extension Bundle {
+    /// Bundle theo ngôn ngữ app đang chọn (đọc UserDefaults) — dùng ở nơi
+    /// không có @Environment(\.appBundle), vd Date extension / ViewModel / push.
+    static var app: Bundle {
+        let code = UserDefaults.standard.string(forKey: "appLanguage")
+            ?? Locale.current.language.languageCode?.identifier ?? "en"
+        return Bundle(path: Bundle.main.path(forResource: code, ofType: "lproj") ?? "") ?? .main
+    }
+
     /// Looks up a localized string in this bundle, falling back to the key itself.
     func loc(_ key: String) -> String {
         localizedString(forKey: key, value: key, table: nil)
@@ -213,44 +221,6 @@ struct GradientButton: View {
     }
 }
 
-// MARK: - Social Sign-In Button
-
-struct SocialButton<Icon: View>: View {
-    let icon: Icon
-    let label: String
-    let color: Color
-    let action: () -> Void
-
-    init(label: String, color: Color, action: @escaping () -> Void, @ViewBuilder icon: () -> Icon) {
-        self.icon = icon()
-        self.label = label
-        self.color = color
-        self.action = action
-    }
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 10) {
-                icon
-                    .frame(width: 20, height: 20)
-                Text(label)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.white)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 50)
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(color.opacity(0.15))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(color.opacity(0.4), lineWidth: 1)
-                    )
-            )
-        }
-    }
-}
-
 // MARK: - Divider with label
 
 struct LabelDivider: View {
@@ -268,57 +238,6 @@ struct LabelDivider: View {
                 .fill(AppColors.borderDefault(.light))
                 .frame(height: 1)
         }
-    }
-}
-
-// MARK: - Password Strength Bar
-
-struct PasswordStrengthBar: View {
-    let password: String
-
-    private var strength: Int {
-        var score = 0
-        if password.count >= 8  { score += 1 }
-        if password.count >= 12 { score += 1 }
-        if password.range(of: "[A-Z]", options: .regularExpression) != nil { score += 1 }
-        if password.range(of: "[0-9]", options: .regularExpression) != nil { score += 1 }
-        if password.range(of: "[^A-Za-z0-9]", options: .regularExpression) != nil { score += 1 }
-        return score
-    }
-
-    private var label: String {
-        switch strength {
-        case 0...1: return "Yếu"
-        case 2...3: return "Trung bình"
-        case 4:     return "Tốt"
-        default:    return "Mạnh"
-        }
-    }
-
-    private var color: Color {
-        switch strength {
-        case 0...1: return Color(hex: "#FF6B6B")
-        case 2...3: return Color(hex: "#F7971E")
-        case 4:     return Color(hex: "#2CB67D")
-        default:    return Color(hex: "#00D4AA")
-        }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 4) {
-                ForEach(0..<5) { i in
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(i < strength ? color : Color.white.opacity(0.1))
-                        .frame(height: 4)
-                        .animation(.easeInOut(duration: 0.25), value: strength)
-                }
-            }
-            Text("Độ mạnh mật khẩu: \(label)")
-                .font(.system(size: 11))
-                .foregroundColor(color)
-        }
-        .padding(.horizontal, 4)
     }
 }
 

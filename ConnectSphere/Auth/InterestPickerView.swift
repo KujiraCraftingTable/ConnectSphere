@@ -44,6 +44,9 @@ private let categoryIcons: [String: String] = [
 
 struct InterestPickerView: View {
     @Binding var selectedInterests: [InterestItem]
+    // Màn auth nền sáng cố định nên mặc định .light; nhúng vào Form (EditProfile)
+    // thì truyền colorScheme thật để chip không lệch màu ở dark mode.
+    var colorScheme: ColorScheme = .light
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
 
@@ -61,9 +64,9 @@ struct InterestPickerView: View {
 
             // ── Popular chips ───────────────────────────────────────────────
             VStack(alignment: .leading, spacing: 8) {
-                Text("Phổ biến", bundle: bundle)
+                Text("Popular", bundle: bundle)
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.4))
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
                     .textCase(.uppercase)
                     .kerning(0.6)
                 FlowLayout(spacing: 8) {
@@ -119,13 +122,15 @@ struct InterestPickerView: View {
                 Text(category)
                     .font(.system(size: 13, weight: .medium))
             }
-            .foregroundColor(isSelected ? .white : .white.opacity(0.75))
+            .foregroundColor(isSelected ? .white : AppColors.textPrimary(colorScheme))
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
             .background(
                 Capsule().fill(isSelected
                     ? AnyShapeStyle(themeManager.theme.primaryGradient)
-                    : AnyShapeStyle(Color.white.opacity(0.1)))
+                    : AnyShapeStyle(colorScheme == .dark
+                        ? Color.white.opacity(0.1)
+                        : Color.black.opacity(0.06)))
             )
         }
         .buttonStyle(.plain)
@@ -139,7 +144,7 @@ struct InterestPickerView: View {
                 Text(pendingCategory)
                     .font(.system(size: 20, weight: .bold))
                     .foregroundColor(AppTheme.textPrimary)
-                Text(String(format: bundle.loc("Cụ thể là %@ nào? (tùy chọn)"), pendingCategory.lowercased()))
+                Text(String(format: bundle.loc("Specifically which %@? (optional)"), pendingCategory.lowercased()))
                     .font(.system(size: 14))
                     .foregroundColor(AppTheme.textSecondary)
             }
@@ -158,7 +163,7 @@ struct InterestPickerView: View {
 
             HStack(spacing: 12) {
                 // Skip — add only category
-                Button(bundle.loc("Bỏ qua")) {
+                Button(bundle.loc("Skip")) {
                     addInterest(category: pendingCategory, rawInput: "")
                     showSubItemSheet = false
                 }
@@ -170,7 +175,7 @@ struct InterestPickerView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12))
 
                 // Add with sub-item
-                Button(bundle.loc("Thêm")) {
+                Button(bundle.loc("Add")) {
                     confirmSubItem()
                 }
                 .font(.system(size: 15, weight: .semibold))
