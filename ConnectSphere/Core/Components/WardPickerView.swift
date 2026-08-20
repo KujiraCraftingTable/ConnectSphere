@@ -17,11 +17,11 @@ struct WardPickerView: View {
     private let repository = WardRepository()
 
     var selectedProvinceName: String {
-        provinces.first { $0.province_code == selectedProvinceCode }?.province_name ?? bundle.loc("Chọn tỉnh/thành")
+        provinces.first { $0.province_code == selectedProvinceCode }?.province_name ?? bundle.loc("Select province")
     }
 
     var selectedWardName: String {
-        wards.first { $0.id == selectedWardId }?.full_name ?? bundle.loc("Chọn phường/xã")
+        wards.first { $0.id == selectedWardId }?.full_name ?? bundle.loc("Select ward")
     }
 
     var body: some View {
@@ -29,7 +29,7 @@ struct WardPickerView: View {
             // Province picker
             Menu {
                 if isLoadingProvinces {
-                    Text("Đang tải...", bundle: bundle).foregroundColor(.secondary)
+                    Text("Loading...", bundle: bundle).foregroundColor(.secondary)
                 } else {
                     ForEach(provinces) { province in
                         Button(province.province_name) {
@@ -52,9 +52,9 @@ struct WardPickerView: View {
             // Ward picker — only enabled after province selected
             Menu {
                 if isLoadingWards {
-                    Text("Đang tải...", bundle: bundle).foregroundColor(.secondary)
+                    Text("Loading...", bundle: bundle).foregroundColor(.secondary)
                 } else if wards.isEmpty {
-                    Text("Chọn tỉnh/thành trước", bundle: bundle).foregroundColor(.secondary)
+                    Text("Select a province first", bundle: bundle).foregroundColor(.secondary)
                 } else {
                     ForEach(wards) { ward in
                         Button(ward.full_name) {

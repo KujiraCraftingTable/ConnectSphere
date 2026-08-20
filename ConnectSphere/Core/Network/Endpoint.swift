@@ -5,9 +5,10 @@ import Foundation
 /// nên không endpoint nào nhận viewer/user id từ client nữa.
 enum Endpoint {
     case listUsers(mode: String? = nil, search: String? = nil, limit: Int = 20, offset: Int = 0)
-    case getUser(id: String)
+    case getUser(id: String, mode: String? = nil)
     case listPosts(mode: String? = nil, authorId: String? = nil, filter: String? = nil, tag: String? = nil, limit: Int = 20, offset: Int = 0)
     case getPost(id: String)
+    case recommendedFeed(mode: String, cursor: String? = nil, limit: Int = 20)
     case aiSearch(query: String, mode: String? = nil, radiusKm: Int? = nil)
     case listProvinces
     case listWards(provinceCode: String)
@@ -58,9 +59,10 @@ enum Endpoint {
     private var path: String {
         switch self {
         case .listUsers:                return "/users"
-        case .getUser(let id):          return "/users/\(id)"
+        case .getUser(let id, _):       return "/users/\(id)"
         case .listPosts:                return "/posts"
         case .getPost(let id):          return "/posts/\(id)"
+        case .recommendedFeed:          return "/feed/recommendations"
         case .analyzePost:              return "/posts/analyze"
         case .linkPreview:              return "/link-preview"
         case .listComments(let postId): return "/posts/\(postId)/comments"
@@ -82,6 +84,11 @@ enum Endpoint {
             if let search = search { items.append(.init(name: "search", value: search)) }
             return items
 
+        case .getUser(_, let mode):
+            var items: [URLQueryItem] = []
+            if let mode { items.append(.init(name: "mode", value: mode)) }
+            return items
+
         case .searchSuggestions(let mode):
             var items: [URLQueryItem] = []
             if let mode { items.append(.init(name: "mode", value: mode)) }
@@ -99,6 +106,14 @@ enum Endpoint {
             if let authorId = authorId { items.append(.init(name: "author_id", value: authorId)) }
             if let filter   = filter   { items.append(.init(name: "filter",    value: filter)) }
             if let tag      = tag      { items.append(.init(name: "tag",       value: tag)) }
+            return items
+
+        case .recommendedFeed(let mode, let cursor, let limit):
+            var items: [URLQueryItem] = [
+                .init(name: "mode",  value: mode),
+                .init(name: "limit", value: "\(limit)"),
+            ]
+            if let cursor = cursor { items.append(.init(name: "cursor", value: cursor)) }
             return items
 
         default:

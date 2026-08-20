@@ -18,6 +18,7 @@ class ConnectViewModel {
     var status: ConnectionStatus = .none
     var connectionId: String? = nil
     var isLoading = false
+    var errorMessage: String?
 
     private let client = NetworkClient.shared
 
@@ -45,7 +46,7 @@ class ConnectViewModel {
         }
     }
 
-    func load(viewerId: String, targetId: String, mode: String = "friend") async {
+    func load(viewerId: String, targetId: String, mode: String = "hobby") async {
         guard viewerId != targetId else { status = .self; return }
         guard let token = authToken() else { return }
         isLoading = true
@@ -67,14 +68,17 @@ class ConnectViewModel {
         defer { isLoading = false }
 
         let body = NetworkClient.encode(["addressee_id": targetId, "mode": mode])
-        if let res = try? await client.fetch(
-            StatusResponse.self,
-            path: "/connections/request",
-            method: "POST",
-            token: token,
-            bodyData: body
-        ) {
+        do {
+            let res = try await client.fetch(
+                StatusResponse.self,
+                path: "/connections/request",
+                method: "POST",
+                token: token,
+                bodyData: body
+            )
             apply(res)
+        } catch {
+            errorMessage = friendlyError(error)
         }
     }
 
@@ -86,10 +90,13 @@ class ConnectViewModel {
 
         struct Res: Decodable { let status: String }
         let body = NetworkClient.encode(["connection_id": connId])
-        if (try? await client.fetch(
-            Res.self, path: "/connections/accept", method: "POST", token: token, bodyData: body
-        )) != nil {
+        do {
+            _ = try await client.fetch(
+                Res.self, path: "/connections/accept", method: "POST", token: token, bodyData: body
+            )
             status = .accepted
+        } catch {
+            errorMessage = friendlyError(error)
         }
     }
 
@@ -101,11 +108,14 @@ class ConnectViewModel {
 
         struct Res: Decodable { let status: String }
         let body = NetworkClient.encode(["connection_id": connId])
-        if (try? await client.fetch(
-            Res.self, path: "/connections/decline", method: "POST", token: token, bodyData: body
-        )) != nil {
+        do {
+            _ = try await client.fetch(
+                Res.self, path: "/connections/decline", method: "POST", token: token, bodyData: body
+            )
             status = .none
             connectionId = nil
+        } catch {
+            errorMessage = friendlyError(error)
         }
     }
 
@@ -117,51 +127,106 @@ class ConnectViewModel {
 
         struct Res: Decodable { let status: String }
         let body = NetworkClient.encode(["connection_id": connId])
-        _ = try? await client.fetch(
-            Res.self, path: "/connections/cancel", method: "POST", token: token, bodyData: body
-        )
-        status = .none
-        connectionId = nil
+        do {
+            _ = try await client.fetch(
+                Res.self, path: "/connections/cancel", method: "POST", token: token, bodyData: body
+            )
+            status = .none
+            connectionId = nil
+        } catch {
+            errorMessage = friendlyError(error)
+        }
+    }
+
+    /// Gỡ kết nối đã accepted (cả 2 phía đều gỡ được)
+    func remove() async {
+        guard let token = authToken(), let connId = connectionId else { return }
+        isLoading = true
+        defer { isLoading = false }
+
+        struct Res: Decodable { let status: String }
+        let body = NetworkClient.encode(["connection_id": connId])
+        do {
+            _ = try await client.fetch(
+                Res.self, path: "/connections/remove", method: "POST", token: token, bodyData: body
+            )
+            status = .none
+            connectionId = nil
+        } catch {
+            errorMessage = friendlyError(error)
+        }
     }
 }
 
 struct ConnectButton: View {
     @Environment(AppState.self) var appState
     @Environment(ThemeManager.self) var themeManager
+    @Environment(\.colorScheme) var colorScheme
     @Environment(\.appBundle) var bundle
     @State private var vm = ConnectViewModel()
+    @State private var showDisconnectConfirm = false
 
     let targetUserId: String
     var compact: Bool = false   // true = hiện kế bên tên, nhỏ hơn
 
+    /// Nội dung phụ hiển thị cùng lúc (vd: nút Nhắn tin ở profile header).
+    /// Khi trạng thái cần 2 nút Accept/Decline, companion được đặt lên trên và
+    /// 2 nút đó xuống hàng riêng bên dưới để tránh chen chúc/xuống dòng chữ.
+    var companion: (() -> AnyView)? = nil
+
+    /// Nhãn nút gửi lời mời theo mode: sở thích = "Kết bạn", công việc = "Kết nối"
+    private var connectLabel: String {
+        appState.currentMode == .hobby ? bundle.loc("Add friend") : bundle.loc("Connect")
+    }
+
+    /// Chiều rộng tối thiểu cho các chip trạng thái đơn (Kết bạn/Đã gửi/Đã kết nối)
+    /// để chúng đồng nhất kích thước. Chỉ áp ở dạng đầy đủ (không compact).
+    private var singleChipMinWidth: CGFloat? { compact ? nil : 112 }
+
     var body: some View {
         Group {
             switch vm.status {
-            case .self:     EmptyView()
-            case .accepted: connectedChip
+            case .self:
+                if let companion { companion() }
+            case .accepted:
+                withCompanion { connectedChip }
             case .pendingSent:
-                actionChip(label: bundle.loc("Đã gửi"), icon: "clock", color: AppTheme.textSecondary) {
-                    Task { await vm.cancel() }
+                withCompanion {
+                    actionChip(label: bundle.loc("Sent"), icon: "clock", color: AppTheme.textSecondary,
+                               minWidth: singleChipMinWidth) {
+                        Task { await vm.cancel() }
+                    }
                 }
             case .pendingReceived:
-                // Họ đã gửi lời mời cho mình → chấp nhận hoặc từ chối
-                HStack(spacing: 6) {
-                    actionChip(label: bundle.loc("Chấp nhận"), icon: "checkmark",
+                // Họ đã gửi lời mời cho mình → chấp nhận hoặc từ chối.
+                // Companion (nếu có) nằm hàng trên, 2 nút này luôn cùng 1 hàng riêng bên dưới.
+                let acceptDecline = HStack(spacing: 6) {
+                    actionChip(label: bundle.loc("Accept"), icon: "checkmark",
                                color: themeManager.theme.primary) {
                         Task { await vm.accept() }
                     }
-                    actionChip(label: bundle.loc("Từ chối"), icon: "xmark", color: .red) {
+                    actionChip(label: bundle.loc("Decline"), icon: "xmark", color: .red) {
                         Task { await vm.decline() }
                     }
                 }
+                if let companion {
+                    VStack(alignment: .trailing, spacing: 8) {
+                        companion()
+                        acceptDecline
+                    }
+                } else {
+                    acceptDecline
+                }
             case .none:
-                actionChip(label: bundle.loc("Kết nối"), icon: "person.badge.plus",
-                           color: themeManager.theme.primary) {
-                    Task {
-                        await vm.sendRequest(
-                            targetId: targetUserId,
-                            mode: appState.currentMode.rawValue
-                        )
+                withCompanion {
+                    actionChip(label: connectLabel, icon: "person.badge.plus",
+                               color: themeManager.theme.primary, minWidth: singleChipMinWidth) {
+                        Task {
+                            await vm.sendRequest(
+                                targetId: targetUserId,
+                                mode: appState.currentMode.rawValue
+                            )
+                        }
                     }
                 }
             }
@@ -175,22 +240,66 @@ struct ConnectButton: View {
                 )
             }
         }
-    }
-
-    private var connectedChip: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "checkmark")
-                .font(.system(size: compact ? 10 : 11, weight: .bold))
-            Text("Đã kết nối", bundle: bundle)
-                .font(.system(size: compact ? 11 : 12, weight: .semibold))
+        .alert(bundle.loc("Error"), isPresented: .constant(vm.errorMessage != nil)) {
+            Button(bundle.loc("OK")) { vm.errorMessage = nil }
+        } message: {
+            Text(vm.errorMessage ?? "")
         }
-        .foregroundColor(.green)
-        .padding(.horizontal, compact ? 8 : 10)
-        .padding(.vertical, compact ? 3 : 5)
-        .background(Capsule().fill(Color.green.opacity(0.12)))
     }
 
+    /// Đặt companion (nếu có) cạnh chip trạng thái, cùng 1 hàng — dùng cho các
+    /// trạng thái chỉ có 1 chip (connected/sent/none), không cần xuống hàng riêng.
+    @ViewBuilder
+    private func withCompanion<C: View>(@ViewBuilder _ chip: () -> C) -> some View {
+        if let companion {
+            HStack(spacing: 8) { chip(); companion() }
+        } else {
+            chip()
+        }
+    }
+
+    // Kiểu nút "Friends" của Facebook: nền xám đặc + chữ đậm (tương phản tốt),
+    // bấm vào để hỏi xác nhận gỡ kết nối.
+    private var connectedChip: some View {
+        Button {
+            showDisconnectConfirm = true
+        } label: {
+            HStack(spacing: 4) {
+                if vm.isLoading {
+                    ProgressView().scaleEffect(compact ? 0.6 : 0.7)
+                } else {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: compact ? 10 : 11, weight: .bold))
+                }
+                Text("Connected", bundle: bundle)
+                    .font(.system(size: compact ? 11 : 13, weight: .semibold))
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+            .foregroundColor(AppColors.textPrimary(colorScheme))
+            .padding(.horizontal, compact ? 8 : 14)
+            .padding(.vertical, compact ? 3 : 7)
+            .frame(minWidth: singleChipMinWidth)
+            .background(Capsule().fill(AppColors.elevated(colorScheme)))
+        }
+        .buttonStyle(.plain)
+        .disabled(vm.isLoading)
+        .confirmationDialog(
+            bundle.loc("Disconnect from this person?"),
+            isPresented: $showDisconnectConfirm,
+            titleVisibility: .visible
+        ) {
+            Button(bundle.loc("Disconnect"), role: .destructive) {
+                Task { await vm.remove() }
+            }
+            Button(bundle.loc("Cancel"), role: .cancel) {}
+        }
+    }
+
+    // minWidth: chiều rộng tối thiểu để các trạng thái đơn (Kết bạn / Đã gửi)
+    // có cùng kích thước dù nội dung khác nhau — canh theo nút rộng nhất.
     private func actionChip(label: String, icon: String, color: Color,
+                             minWidth: CGFloat? = nil,
                              action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 4) {
@@ -202,10 +311,13 @@ struct ConnectButton: View {
                 }
                 Text(label)
                     .font(.system(size: compact ? 11 : 13, weight: .semibold))
+                    .lineLimit(1)
+                    .fixedSize()
             }
             .foregroundColor(color == themeManager.theme.primary ? .white : color)
             .padding(.horizontal, compact ? 8 : 14)
             .padding(.vertical, compact ? 3 : 7)
+            .frame(minWidth: minWidth)
             .background(
                 Capsule().fill(
                     color == themeManager.theme.primary

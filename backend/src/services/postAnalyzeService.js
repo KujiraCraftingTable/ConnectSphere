@@ -2,7 +2,7 @@
  * postAnalyzeService.js
  *
  * Dùng LLM để phân tích nội dung bài viết:
- * → trả về { suggestedMode: "friend" | "colleague" | "neutral", confidence, reason }
+ * → trả về { suggestedMode: "hobby" | "work" | "neutral", confidence, reason }
  */
 
 const { ollama } = require('../config/env');
@@ -31,36 +31,36 @@ const FRIEND_KEYWORDS = [
 function keywordCheck(content) {
   const lower = content.toLowerCase();
 
-  let colleagueScore = 0;
-  let friendScore    = 0;
+  let workScore = 0;
+  let hobbyScore    = 0;
 
   for (const kw of COLLEAGUE_KEYWORDS) {
-    if (lower.includes(kw)) colleagueScore++;
+    if (lower.includes(kw)) workScore++;
   }
   for (const kw of FRIEND_KEYWORDS) {
-    if (lower.includes(kw)) friendScore++;
+    if (lower.includes(kw)) hobbyScore++;
   }
 
   // Chỉ kết luận khi có sự chênh lệch rõ ràng
-  if (colleagueScore >= 2 && colleagueScore > friendScore * 2) {
-    return { suggestedMode: 'colleague', confidence: 0.85, reason: 'Nội dung liên quan đến công việc', fast: true };
+  if (workScore >= 2 && workScore > hobbyScore * 2) {
+    return { suggestedMode: 'work', confidence: 0.85, reason: 'Nội dung liên quan đến công việc', fast: true };
   }
-  if (friendScore >= 2 && friendScore > colleagueScore * 2) {
-    return { suggestedMode: 'friend', confidence: 0.85, reason: 'Nội dung mang tính cá nhân/giải trí', fast: true };
+  if (hobbyScore >= 2 && hobbyScore > workScore * 2) {
+    return { suggestedMode: 'hobby', confidence: 0.85, reason: 'Nội dung mang tính cá nhân/giải trí', fast: true };
   }
 
   return null; // không rõ → gọi LLM
 }
 
-const SYSTEM_PROMPT = `You analyze social media post content and classify it as "friend" (personal/entertainment/lifestyle/hobbies) or "colleague" (professional/work/career/skills/business) or "neutral".
+const SYSTEM_PROMPT = `You analyze social media post content and classify it as "hobby" (personal/entertainment/lifestyle/hobbies) or "work" (professional/work/career/skills/business) or "neutral".
 
 Reply ONLY with JSON, no explanation outside JSON.
 
-Schema: {"suggestedMode": "friend|colleague|neutral", "confidence": 0.0-1.0, "reason": "one short sentence in Vietnamese"}
+Schema: {"suggestedMode": "hobby|work|neutral", "confidence": 0.0-1.0, "reason": "one short sentence in Vietnamese"}
 
 Examples:
-"Hôm nay đi cafe với bạn, uống trà sữa ngon lắm ☕" → {"suggestedMode":"friend","confidence":0.95,"reason":"Nội dung cá nhân về giải trí"}
-"Vừa ra mắt tính năng mới cho dự án, team làm việc rất hiệu quả!" → {"suggestedMode":"colleague","confidence":0.92,"reason":"Nội dung liên quan đến công việc"}
+"Hôm nay đi cafe với bạn, uống trà sữa ngon lắm ☕" → {"suggestedMode":"hobby","confidence":0.95,"reason":"Nội dung cá nhân về giải trí"}
+"Vừa ra mắt tính năng mới cho dự án, team làm việc rất hiệu quả!" → {"suggestedMode":"work","confidence":0.92,"reason":"Nội dung liên quan đến công việc"}
 "Trời hôm nay đẹp quá" → {"suggestedMode":"neutral","confidence":0.8,"reason":"Không rõ ngữ cảnh"}`;
 
 async function analyzePostContent(content) {
@@ -107,7 +107,7 @@ async function analyzePostContent(content) {
     const result = JSON.parse(cleaned.slice(start, end + 1));
 
     return {
-      suggestedMode: ['friend', 'colleague', 'neutral'].includes(result.suggestedMode)
+      suggestedMode: ['hobby', 'work', 'neutral'].includes(result.suggestedMode)
         ? result.suggestedMode
         : 'neutral',
       confidence: typeof result.confidence === 'number'
