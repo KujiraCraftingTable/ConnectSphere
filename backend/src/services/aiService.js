@@ -12,30 +12,36 @@ const WORK_TYPES = new Set([
 // ── Query Understanding prompts ─────────────────────────────────────────────────────────────
 
 const NORMALIZER_PROMPT = `You are the query normalizer for a social network people-search.
-Given a raw search query in any language, return JSON with exactly these 4 fields:
+Given a raw search query in any language, return JSON with exactly these 6 fields:
 {
   "intent_en": "...",
-  "mode": "friend" | "colleague" | null,
+  "mode": "hobby" | "work" | null,
   "has_entity": true | false,
-  "target_gender": "male" | "female" | null
+  "target_gender": "male" | "female" | null,
+  "target_age_min": <int> | null,
+  "target_age_max": <int> | null
 }
 
 intent_en: the core search intent, translated to English.
 - Preserve all proper nouns exactly as written: movie/anime/song titles, artist names, team names, brand/company names, university names, framework and tool names, place names
 - Remove greetings ("Hey Kujira", "hello"), filler phrases ("help me", "I want to", "can you"), and emotional noise ("I'm so sad", "it's raining today")
 - Keep only what describes WHO the user wants to find
-mode: "friend" if looking for friends or social connections. "colleague" if looking for work or study partners. null if unclear.
+mode: "hobby" if looking for friends or social connections. "work" if looking for work or study partners. null if unclear.
 has_entity: true if the query mentions a specific named entity — a movie, anime, song, artist, sports team, company, university, framework, tool, or certification name.
 target_gender: only when the user EXPLICITLY asks for a gender ("bạn nam", "bạn gái", "female friend", "a guy who..."). Otherwise null — never guess from context.
+target_age_min / target_age_max: only when the user EXPLICITLY states an age or age range. "20-30" → min:20,max:30. "over 25"/"trên 25" → min:25,max:null. "under 30"/"dưới 30" → min:null,max:30. A single exact age ("25 years old"/"25 tuổi"/"around 25") → a small fuzzy range of ±2 years, i.e. min:23,max:27. Otherwise both null — never guess from context.
 
 Return only valid JSON, no explanation.
 
 Examples:
-"Ê Kujira, tìm giúp mình 1 bạn nam thích đá banh, đặc biệt là fan của Ronaldo" → {"intent_en": "find male friend who likes football, especially a fan of Ronaldo", "mode": "friend", "has_entity": true, "target_gender": "male"}
-"tìm bạn nữ xem Kimetsu no Yaiba" → {"intent_en": "find female friend who watches Kimetsu no Yaiba", "mode": "friend", "has_entity": true, "target_gender": "female"}
-"help me find an RMIT student studying React" → {"intent_en": "find RMIT student studying React", "mode": "colleague", "has_entity": true, "target_gender": null}
-"hôm nay buồn quá, muốn tìm người đi du lịch cùng" → {"intent_en": "find someone to travel with", "mode": "friend", "has_entity": false, "target_gender": null}
-"find iOS developer in Ho Chi Minh" → {"intent_en": "find iOS developer in Ho Chi Minh", "mode": "colleague", "has_entity": false, "target_gender": null}`;
+"Ê Kujira, tìm giúp mình 1 bạn nam thích đá banh, đặc biệt là fan của Ronaldo" → {"intent_en": "find male friend who likes football, especially a fan of Ronaldo", "mode": "hobby", "has_entity": true, "target_gender": "male", "target_age_min": null, "target_age_max": null}
+"tìm bạn nữ xem Kimetsu no Yaiba" → {"intent_en": "find female friend who watches Kimetsu no Yaiba", "mode": "hobby", "has_entity": true, "target_gender": "female", "target_age_min": null, "target_age_max": null}
+"help me find an RMIT student studying React" → {"intent_en": "find RMIT student studying React", "mode": "work", "has_entity": true, "target_gender": null, "target_age_min": null, "target_age_max": null}
+"hôm nay buồn quá, muốn tìm người đi du lịch cùng" → {"intent_en": "find someone to travel with", "mode": "hobby", "has_entity": false, "target_gender": null, "target_age_min": null, "target_age_max": null}
+"find iOS developer in Ho Chi Minh" → {"intent_en": "find iOS developer in Ho Chi Minh", "mode": "work", "has_entity": false, "target_gender": null, "target_age_min": null, "target_age_max": null}
+"the guy should be 20-30" → {"intent_en": "find a guy aged 20-30", "mode": null, "has_entity": false, "target_gender": "male", "target_age_min": 20, "target_age_max": 30}
+"tìm bạn nữ trên 25 tuổi" → {"intent_en": "find female friend over 25 years old", "mode": "hobby", "has_entity": false, "target_gender": "female", "target_age_min": 25, "target_age_max": null}
+"someone around 25 who likes coffee" → {"intent_en": "find someone around 25 years old who likes coffee", "mode": "hobby", "has_entity": false, "target_gender": null, "target_age_min": 23, "target_age_max": 27}`;
 
 const ENTITY_EXTRACTOR_PROMPT = `You are an entity classifier for a social network search.
 Given a search query, identify the specific named entity and return JSON:
@@ -59,7 +65,7 @@ Examples:
 
 const LOCATION_LIST = '"Ho Chi Minh"|"Hanoi"|"Da Nang"|"Hai Phong"|"Can Tho"|"Hue"|"Tuyen Quang"|"Lao Cai"|"Thai Nguyen"|"Phu Tho"|"Bac Ninh"|"Hung Yen"|"Ninh Binh"|"Quang Tri"|"Quang Ngai"|"Gia Lai"|"Khanh Hoa"|"Lam Dong"|"Dak Lak"|"Dong Nai"|"Tay Ninh"|"Vinh Long"|"Dong Thap"|"Ca Mau"|"An Giang"|"Lai Chau"|"Dien Bien"|"Son La"|"Lang Son"|"Quang Ninh"|"Thanh Hoa"|"Nghe An"|"Ha Tinh"|"Cao Bang"';
 
-const EXTRACTOR_FRIEND_PROMPT = `You are a semantic extractor for a social friend-search query.
+const EXTRACTOR_HOBBY_PROMPT = `You are a semantic extractor for a social friend-search query.
 Extract criteria and return JSON:
 {
   "interest_groups": [],
@@ -97,7 +103,7 @@ Reasoning:
 - "coffee" → distinct lifestyle, separate concept → interest group: ["coffee","cafe"]
 Output: {"interest_groups": [["anime","manga"],["coffee","cafe"]], "bio_keywords": ["student"], "location": "Hanoi", "place_name": null}`;
 
-const EXTRACTOR_COLLEAGUE_PROMPT = `You are a semantic extractor for a professional colleague-search query.
+const EXTRACTOR_WORK_PROMPT = `You are a semantic extractor for a professional colleague-search query.
 Extract criteria and return JSON:
 {
   "skills": [],
@@ -227,23 +233,40 @@ const cleanKeywords = (arr) =>
 
 // ── Normalizer — translate + denoise + classify (one LLM call) ────────────────
 
-/** Translate to English, strip noise, detect mode/entity/target gender.
+/** Sanitize a raw target age (min/max) pair from the Normalizer: must be integers
+ *  in [0,120] with min <= max, otherwise null out the offending value(s) rather
+ *  than throwing — matches the file's fail-safe-to-null pattern. */
+function sanitizeAgeRange(rawMin, rawMax) {
+  const clean = (v) => {
+    const n = Number.isInteger(v) ? v : (typeof v === 'string' ? parseInt(v, 10) : NaN);
+    return Number.isInteger(n) && n >= 0 && n <= 120 ? n : null;
+  };
+  let min = clean(rawMin);
+  let max = clean(rawMax);
+  if (min != null && max != null && min > max) { min = null; max = null; }
+  return { target_age_min: min, target_age_max: max };
+}
+
+/** Translate to English, strip noise, detect mode/entity/target gender/target age.
  *  Falls back to safe defaults on failure. */
 async function normalizeAndClassify(query) {
   try {
     const raw  = await callOllama(query, NORMALIZER_PROMPT);
     const json = parseRawJSON(raw);
+    const { target_age_min, target_age_max } = sanitizeAgeRange(json.target_age_min, json.target_age_max);
     return {
       intent_en: typeof json.intent_en === 'string' && json.intent_en.trim()
         ? json.intent_en.trim()
         : query,
-      mode:          ['friend', 'colleague'].includes(json.mode) ? json.mode : null,
+      mode:          ['hobby', 'work'].includes(json.mode) ? json.mode : null,
       has_entity:    !!json.has_entity,
       target_gender: ['male', 'female'].includes(json.target_gender) ? json.target_gender : null,
+      target_age_min,
+      target_age_max,
     };
   } catch (err) {
     logger.warn({ err }, 'Normalizer failed — using defaults');
-    return { intent_en: query, mode: null, has_entity: true, target_gender: null };
+    return { intent_en: query, mode: null, has_entity: true, target_gender: null, target_age_min: null, target_age_max: null };
   }
 }
 
@@ -270,8 +293,8 @@ async function extractEntity(cleanedQuery) {
 /** Extract interests, skills, location, and bio signals. Returns {} on failure. */
 async function extractSemantics(cleanedQuery, mode) {
   const prompt =
-    mode === 'friend'    ? EXTRACTOR_FRIEND_PROMPT :
-    mode === 'colleague' ? EXTRACTOR_COLLEAGUE_PROMPT :
+    mode === 'hobby'    ? EXTRACTOR_HOBBY_PROMPT :
+    mode === 'work' ? EXTRACTOR_WORK_PROMPT :
                            EXTRACTOR_GENERAL_PROMPT;
   try {
     const raw = await callOllama(cleanedQuery, prompt);
@@ -296,6 +319,8 @@ function sanitizeAndMerge(normalized, entityInfo, semantics, mode) {
   const result = {
     intent_en:          normalized.intent_en            || '',
     target_gender:      normalized.target_gender        || null,
+    target_age_min:     normalized.target_age_min       ?? null,
+    target_age_max:     normalized.target_age_max       ?? null,
     entity_type:        entityInfo?.entity_type        || null,
     entity_name:        entityInfo?.entity_name        || null,
     entity_keywords:    entityInfo?.entity_keywords    || [],
@@ -312,7 +337,7 @@ function sanitizeAndMerge(normalized, entityInfo, semantics, mode) {
   };
 
   // Safety net: strip fields that don't belong to the active mode
-  if (mode === 'friend') {
+  if (mode === 'hobby') {
     result.skills             = [];
     result.job_title_keywords = [];
     if (result.entity_type && WORK_TYPES.has(result.entity_type)) {
@@ -322,7 +347,7 @@ function sanitizeAndMerge(normalized, entityInfo, semantics, mode) {
     }
   }
 
-  if (mode === 'colleague') {
+  if (mode === 'work') {
     result.interest_groups = [];
     result.interests       = [];
     if (result.entity_type && ENTERTAINMENT_TYPES.has(result.entity_type)) {
@@ -410,7 +435,7 @@ function generateFallbackTips(result, mode) {
 
   const filledCount = [hasInterests || hasSkills, hasEntity, hasLocation, hasBio].filter(Boolean).length;
 
-  if (mode === 'friend') {
+  if (mode === 'hobby') {
     if (filledCount === 0) return 'Ôi, Kujira chưa hiểu rõ bạn muốn tìm ai rồi! 🥺 Thêm sở thích cụ thể (anime, café, du lịch...) hoặc khu vực bạn ở để Kujira tìm chuẩn hơn nhé~ ✨';
     if (filledCount >= 3) return 'Wow, bạn mô tả rõ quá luôn! 🌟 Kujira đã tìm được những người phù hợp nhất rồi đây~ 🎊';
     const missing = [];
@@ -420,7 +445,7 @@ function generateFallbackTips(result, mode) {
     return `Đang đi đúng hướng rồi nè! 🎉 Thêm ${missing.slice(0, 2).join(' hoặc ')} để Kujira tìm được bạn phù hợp hơn cho bạn nhé! 💕`;
   }
 
-  if (mode === 'colleague') {
+  if (mode === 'work') {
     if (filledCount === 0) return 'Kujira chưa đủ thông tin để tìm chính xác đâu! 💼 Thêm kỹ năng, lĩnh vực hoặc địa điểm để Kujira giúp tốt hơn nhé!';
     if (filledCount >= 3) return 'Xịn quá! 🎯 Kujira đã tối ưu kết quả theo yêu cầu của bạn rồi đây~ ✅';
     const missing = [];

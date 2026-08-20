@@ -1,11 +1,16 @@
 const { extractSearchCriteria, embedText } = require('../services/aiService');
 const {
   vectorSearch,
+  findCommunityEvidence,
   logSearch,
   getUserContext,
   DATING_KEYWORDS,
+  EVIDENCE_PER_USER,
 } = require('../models/searchModel');
-const { exactMatch, lookupEntity } = require('../services/entityLookupService');
+const {
+  exactMatch, lookupEntity, findEntityCandidates,
+  HIGH_CONFIDENCE_THRESHOLD, SUGGEST_THRESHOLD,
+} = require('../services/entityLookupService');
 const { resolveVenueToCity } = require('../services/venueLocationService');
 const logger = require('../utils/logger');
 
@@ -14,38 +19,85 @@ const W_ENTITY  = 0.7;
 const W_GENERAL = 0.3;
 
 /**
- * Query Builder — biến specific entity thành 1 query vector (3 nhánh):
- *   1. Entity có trong interest_entities (canonical_name / aliases) → embed canonical_name
- *      (canonical được đính vào chunk text nên hai vế gặp nhau trong không gian vector)
- *   2. Entity chưa có trong DB → embed thẳng entity text, đồng thời fire-and-forget
- *      lookupEntity để Wikipedia/vector tự học, lần sau đã có canonical
- * Trả về number[] hoặc null.
+ * Query Builder — biến specific entity thành query vector (3 nhánh) + gợi ý alias.
+ *   1. Exact match (canonical_name / aliases) → embed canonical_name (chắc chắn)
+ *   2. Vector match ≥ 0.8 → embed canonical + auto-save alias nền (tự tin)
+ *   3. Vùng xám 0.6–0.8 → embed THẲNG entity (an toàn) + trả suggestion để user confirm;
+ *      < 0.6 → embed thẳng + fire-and-forget lookupEntity (Wikipedia tự học entity mới)
+ * Trả về { vec: number[]|null, suggestion: {keyword, candidates[]}|null }.
  */
 async function buildEntityVector(criteria) {
   const name = criteria.entity_name;
-  if (!name) return null;
+  if (!name) return { vec: null, suggestion: null };
 
   // Nhánh 1 — Tier-1 exact match trên canonical name, rồi từng alias keyword
-  const candidates = [name, ...(criteria.entity_keywords ?? [])];
-  for (const term of candidates) {
+  for (const term of [name, ...(criteria.entity_keywords ?? [])]) {
     const hit = await exactMatch(term, null);
     if (hit) {
-      logger.debug({ term, canonical: hit.canonical_name }, 'QueryBuilder: entity → canonical');
-      return embedText(hit.canonical_name);
+      logger.debug({ term, canonical: hit.canonical_name }, 'QueryBuilder: exact → canonical');
+      return { vec: await embedText(hit.canonical_name), suggestion: null };
     }
   }
 
-  // Nhánh 2 — chưa có trong DB: embed trực tiếp + tự học nền (không chặn search)
+  // Chưa exact — xem ứng viên vector gần nhất
+  const cands = await findEntityCandidates(name, criteria.entity_type || null, 3);
+  const top = cands[0];
+
+  // Nhánh 2 — tự tin: embed canonical, alias auto-save do lookupEntity xử lý nền
+  if (top && top.similarity >= HIGH_CONFIDENCE_THRESHOLD) {
+    logger.debug({ name, canonical: top.canonical_name, sim: top.similarity }, 'QueryBuilder: confident vector → canonical');
+    lookupEntity(name, criteria.entity_type || null).catch(() => {});
+    return { vec: await embedText(top.canonical_name), suggestion: null };
+  }
+
+  // Nhánh 3 — embed thẳng entity (an toàn, không đoán bừa canonical)
+  const vec = await embedText(name);
+
+  const greyZone = cands.filter(c => c.similarity >= SUGGEST_THRESHOLD);
+  if (greyZone.length) {
+    // Vùng xám: hỏi user "ý bạn là …?" — KHÔNG tự lưu alias
+    logger.debug({ name, candidates: greyZone.map(c => c.canonical_name) }, 'QueryBuilder: grey-zone suggestion');
+    return {
+      vec,
+      suggestion: {
+        keyword:    name,
+        candidates: greyZone.map(c => ({ entity_id: c.entity_id, canonical_name: c.canonical_name })),
+      },
+    };
+  }
+
+  // Không có ứng viên nào gần: entity có thể là proper noun mới → tự học nền qua Wikipedia
   lookupEntity(name, criteria.entity_type || null)
     .catch(err => logger.warn({ err, name }, 'QueryBuilder: background entity self-learn failed'));
-  logger.debug({ name }, 'QueryBuilder: entity not in DB → embed directly');
-  return embedText(name);
+  logger.debug({ name }, 'QueryBuilder: entity unknown → embed directly');
+  return { vec, suggestion: null };
 }
 
 /** Ngữ nghĩa chung từ interests + skills (nhánh 3). Trả về number[] hoặc null. */
 async function buildGeneralVector(criteria) {
   const terms = [...(criteria.interests ?? []), ...(criteria.skills ?? [])];
   return terms.length ? embedText(terms.join(', ')) : null;
+}
+
+/**
+ * Merge evidence của 2 lượt retrieval (giữ entry có similarity cao hơn),
+ * sắp giảm dần, cắt còn EVIDENCE_PER_USER.
+ * Key: profile là 1 entry/user; post đã gộp theo topic ở SQL nên key theo topic.
+ */
+function evidenceKey(ev) {
+  return ev.source_type === 'user_profile' ? 'profile' : `post|${ev.topic ?? ''}`;
+}
+
+function mergeEvidence(a, b) {
+  const byKey = new Map();
+  for (const ev of [...(a ?? []), ...(b ?? [])]) {
+    const key  = evidenceKey(ev);
+    const prev = byKey.get(key);
+    if (!prev || (ev.similarity ?? 0) > (prev.similarity ?? 0)) byKey.set(key, ev);
+  }
+  return Array.from(byKey.values())
+    .sort((x, y) => (y.similarity ?? 0) - (x.similarity ?? 0))
+    .slice(0, EVIDENCE_PER_USER);
 }
 
 /**
@@ -61,13 +113,72 @@ function mergeWeighted(entitySet, generalSet) {
   }
   for (const user of generalSet) {
     if (map.has(user.id)) {
-      map.get(user.id).score += W_GENERAL * user.score;
+      const merged = map.get(user.id);
+      merged.score += W_GENERAL * user.score;
+      merged.match_evidence = mergeEvidence(merged.match_evidence, user.match_evidence);
     } else {
       map.set(user.id, { ...user, score: W_GENERAL * user.score });
     }
   }
 
   return Array.from(map.values()).sort((a, b) => b.score - a.score);
+}
+
+/**
+ * Gom mọi keyword hiển thị được từ criteria — dùng để quét chunk content
+ * tìm matched_terms và để match tên/tags community.
+ */
+function collectCriteriaTerms(criteria) {
+  const terms = new Set();
+  if (criteria.entity_name) terms.add(criteria.entity_name);
+  for (const t of criteria.entity_keywords ?? []) terms.add(t);
+  for (const group of criteria.interest_groups ?? []) {
+    for (const t of group ?? []) terms.add(t);
+  }
+  for (const t of criteria.skills ?? []) terms.add(t);
+  for (const t of criteria.bio_keywords ?? []) terms.add(t);
+  for (const t of criteria.job_title_keywords ?? []) terms.add(t);
+  return Array.from(terms).filter(t => typeof t === 'string' && t.trim().length >= 2);
+}
+
+/**
+ * Biến evidence thô (chunk + community) thành match_evidence gửi client:
+ * quét content (bản EN) tìm matched_terms rồi BỎ content/chunk_id khỏi response,
+ * map source_type → type gọn, chèn community, cắt còn EVIDENCE_PER_USER.
+ * Mutate trực tiếp từng user trong mảng.
+ */
+function finalizeEvidence(users, terms, communityByUser) {
+  for (const user of users) {
+    const chunkEv = (user.match_evidence ?? []).map(ev => {
+      const content = (ev.content ?? '').toLowerCase();
+      const matched = terms.filter(t => content.includes(t.toLowerCase()));
+      return {
+        type:           ev.source_type === 'user_profile' ? 'profile' : 'post',
+        topic:          ev.topic ?? null,
+        similarity:     ev.similarity ?? null,
+        matched_terms:  matched.slice(0, 3),
+        post_count:     ev.post_count ?? null,
+        latest_post_at: ev.latest_post_at ?? null,
+        oldest_post_at: ev.oldest_post_at ?? null,
+      };
+    });
+
+    const commEv = (communityByUser.get(user.id) ?? []).map(name => ({
+      type:           'community',
+      topic:          null,
+      similarity:     null,
+      matched_terms:  [],
+      post_count:     null,
+      latest_post_at: null,
+      oldest_post_at: null,
+      community_name: name,
+    }));
+
+    // Chừa chỗ cho community (tối đa 2) nhưng chunk trúng vẫn đứng trước
+    const chunkSlots = EVIDENCE_PER_USER - Math.min(commEv.length, 2);
+    user.match_evidence = [...chunkEv.slice(0, chunkSlots), ...commEv]
+      .slice(0, EVIDENCE_PER_USER);
+  }
 }
 
 // POST /api/search/ai  (auth required)
@@ -106,11 +217,13 @@ async function aiSearchHandler(req, res, next) {
       currentUserGender = ctx?.gender ?? null;
     }
 
-    // Step 2: Query Builder — entity vector (nhánh 1/2) + general vector (nhánh 3), song song
-    const [entityVec, generalVec] = await Promise.all([
+    // Step 2: Query Builder — entity vector (+ alias suggestion) và general vector, song song
+    const [entityResult, generalVec] = await Promise.all([
       buildEntityVector(criteria),
       buildGeneralVector(criteria),
     ]);
+    const entityVec         = entityResult.vec;
+    const entitySuggestions = entityResult.suggestion ? [entityResult.suggestion] : [];
 
     // Step 2.5: Fallback — criteria không ra vector nào, embed intent tiếng Anh đã normalize
     let fallbackVec = null;
@@ -118,7 +231,7 @@ async function aiSearchHandler(req, res, next) {
       fallbackVec = await embedText(criteria.intent_en || userQuery.trim());
       if (!fallbackVec) {
         logSearch(userQuery.trim(), mode ?? null).catch(() => {});
-        return res.json({ data: [], criteria, reasoning: criteria.reasoning, tips: criteria.tips });
+        return res.json({ data: [], criteria, reasoning: criteria.reasoning, tips: criteria.tips, entity_suggestions: entitySuggestions });
       }
     }
 
@@ -131,6 +244,8 @@ async function aiSearchHandler(req, res, next) {
       mode:             mode ?? criteria.mode,
       location:         criteria.location,
       targetGender:     criteria.target_gender ?? null,
+      targetAgeMin:     criteria.target_age_min ?? null,
+      targetAgeMax:     criteria.target_age_max ?? null,
       hasDatingIntent,
       currentUserGender,
       searchCoords,
@@ -164,6 +279,16 @@ async function aiSearchHandler(req, res, next) {
       users = mergeWeighted(entityResults, generalResults);
     }
 
+    // Step 6: Mini-CV evidence — matched terms trong chunk + community đã tham gia
+    const terms = collectCriteriaTerms(criteria);
+    let communityByUser = new Map();
+    try {
+      communityByUser = await findCommunityEvidence(users.map(u => u.id), terms);
+    } catch (err) {
+      logger.warn({ err }, 'Community evidence lookup failed — skipping');
+    }
+    finalizeEvidence(users, terms, communityByUser);
+
     logSearch(userQuery.trim(), mode ?? null).catch(err =>
       logger.warn({ err }, 'Failed to log search query')
     );
@@ -173,6 +298,7 @@ async function aiSearchHandler(req, res, next) {
       criteria,
       reasoning: criteria.reasoning,
       tips:      criteria.tips,
+      entity_suggestions: entitySuggestions, // vùng xám: "ý bạn là …?" để user confirm
     });
   } catch (err) {
     next(err);

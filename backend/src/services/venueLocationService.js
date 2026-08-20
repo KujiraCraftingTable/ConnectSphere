@@ -1,4 +1,24 @@
 const logger = require('../utils/logger');
+const { query } = require('../config/db');
+
+/**
+ * Dịch tên tỉnh tiếng Việt (từ geocoder) sang tên tiếng Anh chuẩn của vn_wards,
+ * để khớp với users.location (app lưu tiếng Anh). Fallback về input nếu không tra được.
+ */
+async function toEnglishProvince(name) {
+  try {
+    const { rows } = await query(
+      `SELECT province_name_en FROM vn_wards
+       WHERE province_name ILIKE '%' || $1 || '%' OR province_name_en ILIKE '%' || $1 || '%'
+       LIMIT 1`,
+      [name]
+    );
+    return rows[0]?.province_name_en ?? name;
+  } catch (err) {
+    logger.warn({ err, name }, 'toEnglishProvince lookup failed');
+    return name;
+  }
+}
 
 /**
  * ISO 3166-2 province codes → app-standard province name + coordinates.
@@ -82,15 +102,16 @@ async function resolveVenueToCity(placeName) {
     const isoCode = addr['ISO3166-2-lvl4'];
     if (isoCode && ISO_CODE_MAP.has(isoCode)) {
       const mapped = ISO_CODE_MAP.get(isoCode);
-      logger.debug({ placeName, isoCode, province: mapped.name }, 'Venue geocoded via ISO code');
-      return { provinceName: mapped.name, lat, lng };
+      const provinceName = await toEnglishProvince(mapped.name); // VN → EN cho khớp users.location
+      logger.debug({ placeName, isoCode, province: provinceName }, 'Venue geocoded via ISO code');
+      return { provinceName, lat, lng };
     }
 
     // 2. Fallback: derive province name from address fields
     const rawCity = (addr.city || addr.state || addr.county || '').trim();
     if (!rawCity) return null;
 
-    const provinceName = normalizeProvinceName(rawCity);
+    const provinceName = await toEnglishProvince(normalizeProvinceName(rawCity));
     logger.debug({ placeName, rawCity, provinceName }, 'Venue geocoded via address text');
     return { provinceName, lat, lng };
 

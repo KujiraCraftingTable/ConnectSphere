@@ -78,8 +78,11 @@ async function upsertChunk({ userId, sourceType, sourceId, chunkIndex = 0, topic
 
 /** Build (or rebuild) the profile chunk for a user. Returns true on success. */
 async function buildProfileChunk(userId) {
+  // Bio lấy theo persona (hobby_bio/work_bio) — chunk gộp cả 2 để bio của
+  // persona nào cũng search được; hard filter theo mode nằm ở tầng user
+  // (personaSetupClause trong vectorSearch) nên không lộ user sang mode chưa setup.
   const { rows } = await query(
-    `SELECT u.bio, u.job_title, u.company, u.location,
+    `SELECT u.hobby_bio, u.work_bio, u.job_title, u.company, u.location,
             COALESCE(json_agg(DISTINCT ui.interest) FILTER (WHERE ui.interest IS NOT NULL), '[]') AS interests,
             COALESCE(json_agg(DISTINCT us.skill)    FILTER (WHERE us.skill    IS NOT NULL), '[]') AS skills
      FROM users u
@@ -93,16 +96,18 @@ async function buildProfileChunk(userId) {
   if (!profile) return false;
 
   // interests/skills canonicalize (đã tiếng Anh); bio là free-text VN → dịch EN
-  const [interests, skills, bioEn] = await Promise.all([
+  const [interests, skills, hobbyBioEn, workBioEn] = await Promise.all([
     canonicalizeAll(profile.interests),
     canonicalizeAll(profile.skills),
-    translateToEnglish(profile.bio),
+    translateToEnglish(profile.hobby_bio),
+    translateToEnglish(profile.work_bio),
   ]);
 
   const parts = [];
   if (interests.length)     parts.push(`Interests: ${interests.join(', ')}`);
   if (skills.length)        parts.push(`Skills: ${skills.join(', ')}`);
-  if (bioEn)                parts.push(`Bio: ${bioEn}`);
+  if (hobbyBioEn)           parts.push(`Bio: ${hobbyBioEn}`);
+  if (workBioEn && workBioEn !== hobbyBioEn) parts.push(`Work bio: ${workBioEn}`);
   if (profile.job_title)    parts.push(`Job: ${profile.job_title}`);
   if (profile.company)      parts.push(`Company: ${profile.company}`);
   if (profile.location)     parts.push(`Location: ${profile.location}`);

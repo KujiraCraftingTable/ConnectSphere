@@ -12,13 +12,13 @@ const logger = require('../utils/logger');
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 const DEFAULT_SUGGESTIONS = {
-  friend: [
+  hobby: [
     'tìm bạn thích anime để hẹn hò cuối tuần',
     'tìm người có cùng sở thích xem phim',
     'tìm bạn chơi game online cùng',
     'tìm người thích du lịch khám phá',
   ],
-  colleague: [
+  work: [
     'tìm iOS developer sinh viên có hứng thú chung',
     'tìm đồng nghiệp làm React ở Hồ Chí Minh',
     'tìm sinh viên kế toán muốn học nhóm',
@@ -27,7 +27,7 @@ const DEFAULT_SUGGESTIONS = {
 };
 
 const LLM_PROMPT = {
-  friend: `Bạn đang phân tích xu hướng tìm bạn bè trên ConnectSphere trong 7 ngày qua.
+  hobby: `Bạn đang phân tích xu hướng tìm bạn bè trên ConnectSphere trong 7 ngày qua.
 
 Các query tìm kiếm phổ biến nhất:
 {QUERIES}
@@ -36,7 +36,7 @@ Tạo 4 câu gợi ý tìm kiếm tiếng Việt cho người muốn tìm BẠN 
 Mỗi câu phải ngắn gọn, tự nhiên, phản ánh xu hướng trên.
 Trả về JSON thuần túy: {"suggestions": ["...", "...", "...", "..."]}`,
 
-  colleague: `Bạn đang phân tích xu hướng tìm đồng nghiệp/cộng tác viên trên ConnectSphere trong 7 ngày qua.
+  work: `Bạn đang phân tích xu hướng tìm đồng nghiệp/cộng tác viên trên ConnectSphere trong 7 ngày qua.
 
 Các query tìm kiếm phổ biến nhất:
 {QUERIES}
@@ -124,8 +124,8 @@ async function callLLM(prompt) {
  * Serves from DB cache if fresh, otherwise recomputes from trending queries + LLM.
  */
 async function getSuggestions(mode) {
-  if (mode !== 'friend' && mode !== 'colleague') {
-    return [...DEFAULT_SUGGESTIONS.friend, ...DEFAULT_SUGGESTIONS.colleague].slice(0, 4);
+  if (mode !== 'hobby' && mode !== 'work') {
+    return [...DEFAULT_SUGGESTIONS.hobby, ...DEFAULT_SUGGESTIONS.work].slice(0, 4);
   }
 
   // 1. Try cache

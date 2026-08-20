@@ -18,8 +18,9 @@ const { query } = require('../config/db');
 const { ollama } = require('../config/env');
 const logger = require('../utils/logger');
 const { isProperNoun, searchWikipedia, parseWikiData } = require('./wikipediaService');
-const EMBED_MODEL       = 'mxbai-embed-large';
-const VECTOR_THRESHOLD  = 0.65;   // cosine similarity tối thiểu cho tier 2
+const EMBED_MODEL             = 'mxbai-embed-large';
+const HIGH_CONFIDENCE_THRESHOLD = 0.8;  // ≥ ngưỡng này: tự tin, auto-save alias
+const SUGGEST_THRESHOLD         = 0.6;  // [0.6, 0.8): vùng xám, gợi ý cho user confirm
 
 // ─── Tier 1: Exact match ──────────────────────────────────────────────────────
 
@@ -56,79 +57,54 @@ async function embedText(text) {
   return data.embedding; // number[]
 }
 
-async function vectorSearch(text, category) {
+/**
+ * Top-k entity candidates by cosine similarity — pure read, KHÔNG side-effect.
+ * Returns [{ entity_id, canonical_name, category, similarity }] sorted desc.
+ */
+async function findEntityCandidates(text, category = null, limit = 3) {
   let embedding;
   try {
     embedding = await embedText(text);
   } catch (err) {
     logger.warn({ err }, 'Embed failed — skipping vector tier');
-    return null;
+    return [];
   }
 
   const vecLiteral = `[${embedding.join(',')}]`;
 
   const { rows } = await query(
-    `SELECT id, canonical_name, category,
+    `SELECT id AS entity_id, canonical_name, category,
             1 - (embedding <=> $1::vector) AS similarity
      FROM interest_entities
      WHERE embedding IS NOT NULL
        AND ($2::text IS NULL OR category = $2)
      ORDER BY embedding <=> $1::vector
-     LIMIT 1`,
-    [vecLiteral, category || null]
+     LIMIT $3`,
+    [vecLiteral, category || null, limit]
   );
 
-  if (!rows[0]) return null;
-
-  const sim = parseFloat(rows[0].similarity);
-  logger.debug({ text, match: rows[0].canonical_name, similarity: sim }, 'Vector search result');
-
-  if (sim < VECTOR_THRESHOLD) return null;
-
-  return rows[0];
+  return rows.map((r) => ({ ...r, similarity: parseFloat(r.similarity) }));
 }
 
-/** Sau khi vector match, tìm entity trong DB và lưu alias để lần sau dùng tier 1 */
-async function findAndSaveAlias(text, llmResult) {
-  // Tìm entity trong DB theo canonical_name — exact trước, rồi partial (ILIKE)
-  let { rows } = await query(
-    `SELECT id, canonical_name, category, aliases
-     FROM interest_entities
-     WHERE LOWER(canonical_name) = LOWER($1)
-       AND ($2::text IS NULL OR category = $2)
-     LIMIT 1`,
-    [llmResult.canonical_name, llmResult.category || null]
+/** Append keyword vào aliases của một entity (idempotent). Returns entity hoặc null. */
+async function saveAlias(keyword, entityId) {
+  const alias = keyword?.trim();
+  if (!alias) return null;
+
+  const { rows } = await query(
+    `SELECT id, canonical_name, aliases FROM interest_entities WHERE id = $1`,
+    [entityId]
   );
-
-  // Fallback: tìm partial match (e.g. "Kimetsu no Yaiba" khớp với "Demon Slayer: Kimetsu no Yaiba...")
-  if (!rows[0]) {
-    const partial = await query(
-      `SELECT id, canonical_name, category, aliases
-       FROM interest_entities
-       WHERE canonical_name ILIKE $1
-         AND ($2::text IS NULL OR category = $2)
-       LIMIT 1`,
-      [`%${llmResult.canonical_name}%`, llmResult.category || null]
-    );
-    rows = partial.rows;
-  }
-
-  if (!rows[0]) return null;
-
   const entity = rows[0];
-  const alias  = text.trim();
+  if (!entity) return null;
 
-  // Lưu alias nếu chưa có (tránh duplicate)
   if (!entity.aliases.map((a) => a.toLowerCase()).includes(alias.toLowerCase())) {
     await query(
-      `UPDATE interest_entities
-       SET aliases = array_append(aliases, $1)
-       WHERE id = $2`,
-      [alias, entity.id]
+      `UPDATE interest_entities SET aliases = array_append(aliases, $1) WHERE id = $2`,
+      [alias, entityId]
     );
-    logger.info({ alias, canonical: entity.canonical_name }, 'New alias saved');
+    logger.info({ alias, canonical: entity.canonical_name }, 'New alias saved (confirmed)');
   }
-
   return entity;
 }
 
@@ -158,17 +134,18 @@ async function lookupEntity(text, category = null) {
     };
   }
 
-  // Tier 2 — Vector similarity
-  const vector = await vectorSearch(text, category);
-  if (vector) {
-    logger.debug({ text, match: vector.canonical_name }, 'Tier 2 vector match');
+  // Tier 2 — Vector similarity. Chỉ auto-match + auto-save khi TỰ TIN (≥ 0.8).
+  // Vùng xám (0.6–0.8) KHÔNG tự quyết ở đây — search path sẽ hỏi user confirm.
+  const [top] = await findEntityCandidates(text, category, 1);
+  if (top && top.similarity >= HIGH_CONFIDENCE_THRESHOLD) {
+    logger.debug({ text, match: top.canonical_name, sim: top.similarity }, 'Tier 2 confident match');
     // Save alias fire-and-forget — không block response, lỗi chỉ log warn
-    findAndSaveAlias(text, { canonical_name: vector.canonical_name, category: vector.category })
-      .catch((err) => logger.warn({ err, text }, 'findAndSaveAlias failed after vector match'));
+    saveAlias(text, top.entity_id)
+      .catch((err) => logger.warn({ err, text }, 'saveAlias failed after vector match'));
     return {
-      entity_id:      vector.id,
-      canonical_name: vector.canonical_name,
-      category:       vector.category,
+      entity_id:      top.entity_id,
+      canonical_name: top.canonical_name,
+      category:       top.category,
       confidence:     'vector',
     };
   }
@@ -217,4 +194,7 @@ async function lookupEntity(text, category = null) {
   return { entity_id: null, canonical_name: null, category: null, confidence: 'none' };
 }
 
-module.exports = { lookupEntity, exactMatch };
+module.exports = {
+  lookupEntity, exactMatch, findEntityCandidates, saveAlias,
+  HIGH_CONFIDENCE_THRESHOLD, SUGGEST_THRESHOLD,
+};
