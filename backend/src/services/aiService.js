@@ -9,41 +9,35 @@ const WORK_TYPES = new Set([
   'company','university','industry','programming_language','framework','tool','certification','job_role','professional_field','startup',
 ]);
 
-// ── Agent Prompts ─────────────────────────────────────────────────────────────
+// ── Query Understanding prompts ─────────────────────────────────────────────────────────────
 
-const AGENT0_PROMPT = `Translate the following text to English.
-Rules:
-- Preserve all proper nouns exactly as written: movie/anime/song titles, artist names, brand names, company names, university names, framework and tool names, place names
-- Output ONLY the translated English text — no explanation, no quotes, no extra text
-- If the input is already in English, output it unchanged
-
-Examples:
-"tìm bạn nữ xem Kimetsu no Yaiba" → "find female friend who watches Kimetsu no Yaiba"
-"muốn kết bạn sinh viên RMIT học React" → "want to befriend RMIT student studying React"
-"Ê Kujira ơi, mình thích cà phê và du lịch Đà Lạt" → "Hey Kujira, I like coffee and traveling to Da Lat"
-"find iOS developer in Ho Chi Minh" → "find iOS developer in Ho Chi Minh"`;
-
-const AGENT1_PROMPT = `You are a search intent classifier for a social network.
-Given a search query, return JSON with exactly these 3 fields:
+const NORMALIZER_PROMPT = `You are the query normalizer for a social network people-search.
+Given a raw search query in any language, return JSON with exactly these 4 fields:
 {
-  "cleaned_query": "...",
+  "intent_en": "...",
   "mode": "friend" | "colleague" | null,
-  "has_entity": true | false
+  "has_entity": true | false,
+  "target_gender": "male" | "female" | null
 }
 
-cleaned_query: remove greetings ("Hey Kujira", "Hello", "hi"), filler phrases ("help me", "I want to", "can you"), and emotional noise ("I'm so sad", "it's raining today"). Keep only the core search intent.
+intent_en: the core search intent, translated to English.
+- Preserve all proper nouns exactly as written: movie/anime/song titles, artist names, team names, brand/company names, university names, framework and tool names, place names
+- Remove greetings ("Hey Kujira", "hello"), filler phrases ("help me", "I want to", "can you"), and emotional noise ("I'm so sad", "it's raining today")
+- Keep only what describes WHO the user wants to find
 mode: "friend" if looking for friends or social connections. "colleague" if looking for work or study partners. null if unclear.
-has_entity: true if the query mentions a specific named entity — a movie, anime, song, artist, company, university, specific framework, tool, or certification name.
+has_entity: true if the query mentions a specific named entity — a movie, anime, song, artist, sports team, company, university, framework, tool, or certification name.
+target_gender: only when the user EXPLICITLY asks for a gender ("bạn nam", "bạn gái", "female friend", "a guy who..."). Otherwise null — never guess from context.
 
 Return only valid JSON, no explanation.
 
 Examples:
-"Hey Kujira, I want to connect with a female who watches Kimetsu no Yaiba" → {"cleaned_query": "find female friend who watches Kimetsu no Yaiba", "mode": "friend", "has_entity": true}
-"help me find an RMIT student studying React" → {"cleaned_query": "find RMIT student studying React", "mode": "colleague", "has_entity": true}
-"I'm so lonely today, looking for someone to travel with" → {"cleaned_query": "find someone to travel with", "mode": "friend", "has_entity": false}
-"find iOS developer in Ho Chi Minh" → {"cleaned_query": "find iOS developer in Ho Chi Minh", "mode": "colleague", "has_entity": false}`;
+"Ê Kujira, tìm giúp mình 1 bạn nam thích đá banh, đặc biệt là fan của Ronaldo" → {"intent_en": "find male friend who likes football, especially a fan of Ronaldo", "mode": "friend", "has_entity": true, "target_gender": "male"}
+"tìm bạn nữ xem Kimetsu no Yaiba" → {"intent_en": "find female friend who watches Kimetsu no Yaiba", "mode": "friend", "has_entity": true, "target_gender": "female"}
+"help me find an RMIT student studying React" → {"intent_en": "find RMIT student studying React", "mode": "colleague", "has_entity": true, "target_gender": null}
+"hôm nay buồn quá, muốn tìm người đi du lịch cùng" → {"intent_en": "find someone to travel with", "mode": "friend", "has_entity": false, "target_gender": null}
+"find iOS developer in Ho Chi Minh" → {"intent_en": "find iOS developer in Ho Chi Minh", "mode": "colleague", "has_entity": false, "target_gender": null}`;
 
-const AGENT2A_PROMPT = `You are an entity classifier for a social network search.
+const ENTITY_EXTRACTOR_PROMPT = `You are an entity classifier for a social network search.
 Given a search query, identify the specific named entity and return JSON:
 {
   "entity_type": "anime"|"manga"|"movie"|"tv_show"|"book"|"game"|"music"|"podcast"|"celebrity"|"art"|"food"|"sport"|"company"|"university"|"industry"|"programming_language"|"framework"|"tool"|"certification"|"job_role"|"professional_field"|"startup",
@@ -65,7 +59,7 @@ Examples:
 
 const LOCATION_LIST = '"Ho Chi Minh"|"Hanoi"|"Da Nang"|"Hai Phong"|"Can Tho"|"Hue"|"Tuyen Quang"|"Lao Cai"|"Thai Nguyen"|"Phu Tho"|"Bac Ninh"|"Hung Yen"|"Ninh Binh"|"Quang Tri"|"Quang Ngai"|"Gia Lai"|"Khanh Hoa"|"Lam Dong"|"Dak Lak"|"Dong Nai"|"Tay Ninh"|"Vinh Long"|"Dong Thap"|"Ca Mau"|"An Giang"|"Lai Chau"|"Dien Bien"|"Son La"|"Lang Son"|"Quang Ninh"|"Thanh Hoa"|"Nghe An"|"Ha Tinh"|"Cao Bang"';
 
-const AGENT2B_FRIEND_PROMPT = `You are a semantic extractor for a social friend-search query.
+const EXTRACTOR_FRIEND_PROMPT = `You are a semantic extractor for a social friend-search query.
 Extract criteria and return JSON:
 {
   "interest_groups": [],
@@ -103,7 +97,7 @@ Reasoning:
 - "coffee" → distinct lifestyle, separate concept → interest group: ["coffee","cafe"]
 Output: {"interest_groups": [["anime","manga"],["coffee","cafe"]], "bio_keywords": ["student"], "location": "Hanoi", "place_name": null}`;
 
-const AGENT2B_COLLEAGUE_PROMPT = `You are a semantic extractor for a professional colleague-search query.
+const EXTRACTOR_COLLEAGUE_PROMPT = `You are a semantic extractor for a professional colleague-search query.
 Extract criteria and return JSON:
 {
   "skills": [],
@@ -139,7 +133,7 @@ Reasoning:
 - "teaches part-time" → secondary role → job_title_keywords: ["teacher"], bio_keywords: ["part-time"]
 Output: {"skills": ["Accounting","Excel","Teaching"], "bio_keywords": ["student","part-time"], "job_title_keywords": ["teacher","accountant"], "location": null, "place_name": null}`;
 
-const AGENT2B_GENERAL_PROMPT = `You are a semantic extractor for a social search query.
+const EXTRACTOR_GENERAL_PROMPT = `You are a semantic extractor for a social search query.
 Extract criteria and return JSON:
 {
   "interest_groups": [],
@@ -231,45 +225,34 @@ const cleanKeywords = (arr) =>
         .filter(k => k && !CJK_RE.test(k) && !INVALID_ADJECTIVES.has(k.toLowerCase()))
     : [];
 
-// ── Agent 0: Translator ───────────────────────────────────────────────────────
+// ── Normalizer — translate + denoise + classify (one LLM call) ────────────────
 
-/** Translate raw user input to English. Falls back to original on failure. */
-async function translateToEnglish(query) {
+/** Translate to English, strip noise, detect mode/entity/target gender.
+ *  Falls back to safe defaults on failure. */
+async function normalizeAndClassify(query) {
   try {
-    const result = await callOllama(query, AGENT0_PROMPT, 0);
-    return result.trim() || query;
-  } catch (err) {
-    logger.warn({ err }, 'Agent0 (translate) failed — using original query');
-    return query;
-  }
-}
-
-// ── Agent 1: Mode Classifier + Noise Reducer ──────────────────────────────────
-
-/** Detect mode, strip noise, and flag entity presence. Falls back to safe defaults on failure. */
-async function classifyAndClean(englishQuery) {
-  try {
-    const raw  = await callOllama(englishQuery, AGENT1_PROMPT);
+    const raw  = await callOllama(query, NORMALIZER_PROMPT);
     const json = parseRawJSON(raw);
     return {
-      cleaned_query: typeof json.cleaned_query === 'string' && json.cleaned_query.trim()
-        ? json.cleaned_query.trim()
-        : englishQuery,
-      mode:       ['friend', 'colleague'].includes(json.mode) ? json.mode : null,
-      has_entity: !!json.has_entity,
+      intent_en: typeof json.intent_en === 'string' && json.intent_en.trim()
+        ? json.intent_en.trim()
+        : query,
+      mode:          ['friend', 'colleague'].includes(json.mode) ? json.mode : null,
+      has_entity:    !!json.has_entity,
+      target_gender: ['male', 'female'].includes(json.target_gender) ? json.target_gender : null,
     };
   } catch (err) {
-    logger.warn({ err }, 'Agent1 (classify) failed — using defaults');
-    return { cleaned_query: englishQuery, mode: null, has_entity: true };
+    logger.warn({ err }, 'Normalizer failed — using defaults');
+    return { intent_en: query, mode: null, has_entity: true, target_gender: null };
   }
 }
 
-// ── Agent 2a: Entity Classifier ───────────────────────────────────────────────
+// ── Entity Extractor ───────────────────────────────────────────────
 
 /** Classify the named entity in the query. Returns null on failure. */
-async function classifyEntity(cleanedQuery) {
+async function extractEntity(cleanedQuery) {
   try {
-    const raw  = await callOllama(cleanedQuery, AGENT2A_PROMPT);
+    const raw  = await callOllama(cleanedQuery, ENTITY_EXTRACTOR_PROMPT);
     const json = parseRawJSON(raw);
     return {
       entity_type:     json.entity_type     || null,
@@ -277,33 +260,33 @@ async function classifyEntity(cleanedQuery) {
       entity_keywords: cleanKeywords(json.entity_keywords),
     };
   } catch (err) {
-    logger.warn({ err }, 'Agent2a (entity) failed');
+    logger.warn({ err }, 'Entity extractor failed');
     return null;
   }
 }
 
-// ── Agent 2b: Semantic Extractor ──────────────────────────────────────────────
+// ── Semantic Extractor ──────────────────────────────────────────────
 
 /** Extract interests, skills, location, and bio signals. Returns {} on failure. */
 async function extractSemantics(cleanedQuery, mode) {
   const prompt =
-    mode === 'friend'    ? AGENT2B_FRIEND_PROMPT :
-    mode === 'colleague' ? AGENT2B_COLLEAGUE_PROMPT :
-                           AGENT2B_GENERAL_PROMPT;
+    mode === 'friend'    ? EXTRACTOR_FRIEND_PROMPT :
+    mode === 'colleague' ? EXTRACTOR_COLLEAGUE_PROMPT :
+                           EXTRACTOR_GENERAL_PROMPT;
   try {
     const raw = await callOllama(cleanedQuery, prompt);
     return parseRawJSON(raw);
   } catch (err) {
-    logger.warn({ err }, 'Agent2b (semantics) failed');
+    logger.warn({ err }, 'Semantic extractor failed');
     return {};
   }
 }
 
 // ── Merge + Sanitize ──────────────────────────────────────────────────────────
 
-/** Merge outputs from all agents, apply mode safety net, and generate tips. */
-function sanitizeAndMerge(agent1, agent2a, agent2b, mode) {
-  const rawGroups = Array.isArray(agent2b.interest_groups) ? agent2b.interest_groups : [];
+/** Merge normalizer + extractor outputs, apply mode safety net, and generate tips. */
+function sanitizeAndMerge(normalized, entityInfo, semantics, mode) {
+  const rawGroups = Array.isArray(semantics.interest_groups) ? semantics.interest_groups : [];
   const interest_groups = rawGroups
     .filter(g => Array.isArray(g) && g.length > 0)
     .map(g => cleanKeywords(g))
@@ -311,16 +294,18 @@ function sanitizeAndMerge(agent1, agent2a, agent2b, mode) {
   const interests = [...new Set(interest_groups.flat())];
 
   const result = {
-    entity_type:        agent2a?.entity_type        || null,
-    entity_name:        agent2a?.entity_name        || null,
-    entity_keywords:    agent2a?.entity_keywords    || [],
+    intent_en:          normalized.intent_en            || '',
+    target_gender:      normalized.target_gender        || null,
+    entity_type:        entityInfo?.entity_type        || null,
+    entity_name:        entityInfo?.entity_name        || null,
+    entity_keywords:    entityInfo?.entity_keywords    || [],
     interest_groups,
     interests,
-    skills:             cleanKeywords(agent2b.skills),
-    bio_keywords:       cleanKeywords(agent2b.bio_keywords),
-    job_title_keywords: cleanKeywords(agent2b.job_title_keywords),
-    location:           agent2b.location   || null,
-    place_name:         agent2b.place_name || null,
+    skills:             cleanKeywords(semantics.skills),
+    bio_keywords:       cleanKeywords(semantics.bio_keywords),
+    job_title_keywords: cleanKeywords(semantics.job_title_keywords),
+    location:           semantics.location   || null,
+    place_name:         semantics.place_name || null,
     mode,
     reasoning:          '',
     tips:               '',
@@ -354,28 +339,44 @@ function sanitizeAndMerge(agent1, agent2a, agent2b, mode) {
 // ── Main entry point ──────────────────────────────────────────────────────────
 
 async function extractSearchCriteria(userQuery, mode = null) {
-  // Agent 0: normalize input to English
-  const englishQuery = await translateToEnglish(userQuery.trim());
-  logger.debug({ englishQuery }, 'Agent0: translated');
+  // Stage 1 — Normalizer: translate + denoise + classify (one call)
+  const normalized = await normalizeAndClassify(userQuery.trim());
+  logger.debug({ normalized }, 'Normalizer: done');
 
-  // Agent 1: classify mode and strip noise
-  const agent1 = await classifyAndClean(englishQuery);
-  logger.debug({ agent1 }, 'Agent1: classified');
+  const intentEn     = normalized.intent_en;
+  const resolvedMode = mode ?? normalized.mode;
 
-  const cleanedQuery = agent1.cleaned_query;
-  const resolvedMode = mode ?? agent1.mode;
-
-  // Agent 2a (entity) and 2b (semantics) in parallel
-  // 2a only runs when Agent 1 detected a named entity
-  const [agent2a, agent2b] = await Promise.all([
-    agent1.has_entity
-      ? classifyEntity(cleanedQuery)
+  // Stage 2 — Extractors: entity + semantics in parallel on the English intent
+  // entity extractor only runs when the Normalizer detected a named entity
+  const [entityInfo, semantics] = await Promise.all([
+    normalized.has_entity
+      ? extractEntity(intentEn)
       : Promise.resolve(null),
-    extractSemantics(cleanedQuery, resolvedMode),
+    extractSemantics(intentEn, resolvedMode),
   ]);
-  logger.debug({ agent2a, agent2b }, 'Agent2: entity + semantics');
+  logger.debug({ entityInfo, semantics }, 'Extractors: done');
 
-  return sanitizeAndMerge(agent1, agent2a, agent2b, resolvedMode);
+  return sanitizeAndMerge(normalized, entityInfo, semantics, resolvedMode);
+}
+
+// ── Translation (reused by chunkService to normalize chunk text) ──────────────
+
+const TRANSLATE_PROMPT = `Translate the following text to English.
+Rules:
+- Preserve all proper nouns exactly as written: movie/anime/song titles, artist names, team names, brand/company names, university names, framework and tool names, place names
+- Output ONLY the translated English text — no explanation, no quotes, no extra text
+- If the input is already in English, output it unchanged`;
+
+/** Translate free text to English for embedding. Falls back to the original on failure. */
+async function translateToEnglish(text) {
+  if (!text?.trim()) return text;
+  try {
+    const result = await callOllama(text, TRANSLATE_PROMPT, 0);
+    return result.trim() || text;
+  } catch (err) {
+    logger.warn({ err }, 'translateToEnglish failed — using original text');
+    return text;
+  }
 }
 
 // ── Embedding ─────────────────────────────────────────────────────────────────
@@ -434,4 +435,4 @@ function generateFallbackTips(result, mode) {
   return 'Kujira đã tìm kiếm dựa trên thông tin bạn cung cấp rồi! Thêm địa điểm hoặc mô tả thêm để kết quả chính xác hơn nhé~ 💕';
 }
 
-module.exports = { extractSearchCriteria, embedText };
+module.exports = { extractSearchCriteria, embedText, translateToEnglish };

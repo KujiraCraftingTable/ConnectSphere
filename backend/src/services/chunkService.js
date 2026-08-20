@@ -15,7 +15,7 @@
  */
 
 const { query } = require('../config/db');
-const { embedText } = require('./aiService');
+const { embedText, translateToEnglish } = require('./aiService');
 const { exactMatch } = require('./entityLookupService');
 const logger = require('../utils/logger');
 
@@ -92,15 +92,17 @@ async function buildProfileChunk(userId) {
   const profile = rows[0];
   if (!profile) return false;
 
-  const [interests, skills] = await Promise.all([
+  // interests/skills canonicalize (đã tiếng Anh); bio là free-text VN → dịch EN
+  const [interests, skills, bioEn] = await Promise.all([
     canonicalizeAll(profile.interests),
     canonicalizeAll(profile.skills),
+    translateToEnglish(profile.bio),
   ]);
 
   const parts = [];
   if (interests.length)     parts.push(`Interests: ${interests.join(', ')}`);
   if (skills.length)        parts.push(`Skills: ${skills.join(', ')}`);
-  if (profile.bio)          parts.push(`Bio: ${profile.bio}`);
+  if (bioEn)                parts.push(`Bio: ${bioEn}`);
   if (profile.job_title)    parts.push(`Job: ${profile.job_title}`);
   if (profile.company)      parts.push(`Company: ${profile.company}`);
   if (profile.location)     parts.push(`Location: ${profile.location}`);
@@ -144,12 +146,16 @@ async function buildPostChunk(postId) {
     return false;
   }
 
-  const tags = await canonicalizeAll(post.tags);
+  // Free-text VN (content + article title) → dịch EN; tags canonicalize (đã EN)
+  const naturalText = [post.content, post.article_title].filter(Boolean).join('. ');
+  const [contentEn, tags] = await Promise.all([
+    translateToEnglish(naturalText),
+    canonicalizeAll(post.tags),
+  ]);
 
   const parts = [];
-  if (post.content)       parts.push(`Content: ${post.content}`);
-  if (post.article_title) parts.push(`Article: ${post.article_title}`);
-  if (tags.length)        parts.push(`Topics: ${tags.join(', ')}`);
+  if (contentEn)   parts.push(`Content: ${contentEn}`);
+  if (tags.length) parts.push(`Topics: ${tags.join(', ')}`);
 
   const content = parts.join('\n');
   if (!content) return false; // image-only post: nothing embeddable

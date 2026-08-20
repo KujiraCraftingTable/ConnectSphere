@@ -13,3 +13,9 @@ skills-lock.json
 
 # User-uploaded media (dev)
 backend/uploads/
+
+# Redis runtime dump
+backend/dump.rdb
+
+# Generated embedding visualization artifacts (script is committed, outputs are not)
+backend/scripts/embedding-viz/

@@ -5,54 +5,69 @@ const {
   getUserContext,
   DATING_KEYWORDS,
 } = require('../models/searchModel');
+const { exactMatch, lookupEntity } = require('../services/entityLookupService');
 const { resolveVenueToCity } = require('../services/venueLocationService');
 const logger = require('../utils/logger');
 
-/**
- * Build entity and interest query vectors from extracted criteria in parallel.
- * Returns { entityVec, interestVec } — either may be null if criteria is absent.
- */
-async function buildQueryVectors(criteria) {
-  const entityText = criteria.entity_keywords?.length
-    ? criteria.entity_keywords.join(' ')
-    : null;
-
-  const interestTerms = [
-    ...(criteria.interests ?? []),
-    ...(criteria.skills   ?? []),
-  ];
-  const interestText = interestTerms.length ? interestTerms.join(', ') : null;
-
-  const [entityVec, interestVec] = await Promise.all([
-    entityText   ? embedText(entityText)   : Promise.resolve(null),
-    interestText ? embedText(interestText) : Promise.resolve(null),
-  ]);
-
-  return { entityVec, interestVec };
-}
+// Trọng số ưu tiên entity cụ thể so với ngữ nghĩa chung khi cả hai cùng có.
+const W_ENTITY  = 0.7;
+const W_GENERAL = 0.3;
 
 /**
- * Merge two result sets by user.id.
- * Users in both sets get combined_score = entity_score + interest_score.
- * Sorted by combined_score descending.
+ * Query Builder — biến specific entity thành 1 query vector (3 nhánh):
+ *   1. Entity có trong interest_entities (canonical_name / aliases) → embed canonical_name
+ *      (canonical được đính vào chunk text nên hai vế gặp nhau trong không gian vector)
+ *   2. Entity chưa có trong DB → embed thẳng entity text, đồng thời fire-and-forget
+ *      lookupEntity để Wikipedia/vector tự học, lần sau đã có canonical
+ * Trả về number[] hoặc null.
  */
-function mergeResults(setA, setB) {
-  const map = new Map();
+async function buildEntityVector(criteria) {
+  const name = criteria.entity_name;
+  if (!name) return null;
 
-  for (const user of setA) {
-    map.set(user.id, { ...user, combined_score: user.score });
-  }
-
-  for (const user of setB) {
-    if (map.has(user.id)) {
-      map.get(user.id).combined_score += user.score;
-    } else {
-      map.set(user.id, { ...user, combined_score: user.score });
+  // Nhánh 1 — Tier-1 exact match trên canonical name, rồi từng alias keyword
+  const candidates = [name, ...(criteria.entity_keywords ?? [])];
+  for (const term of candidates) {
+    const hit = await exactMatch(term, null);
+    if (hit) {
+      logger.debug({ term, canonical: hit.canonical_name }, 'QueryBuilder: entity → canonical');
+      return embedText(hit.canonical_name);
     }
   }
 
-  return Array.from(map.values())
-    .sort((a, b) => b.combined_score - a.combined_score);
+  // Nhánh 2 — chưa có trong DB: embed trực tiếp + tự học nền (không chặn search)
+  lookupEntity(name, criteria.entity_type || null)
+    .catch(err => logger.warn({ err, name }, 'QueryBuilder: background entity self-learn failed'));
+  logger.debug({ name }, 'QueryBuilder: entity not in DB → embed directly');
+  return embedText(name);
+}
+
+/** Ngữ nghĩa chung từ interests + skills (nhánh 3). Trả về number[] hoặc null. */
+async function buildGeneralVector(criteria) {
+  const terms = [...(criteria.interests ?? []), ...(criteria.skills ?? [])];
+  return terms.length ? embedText(terms.join(', ')) : null;
+}
+
+/**
+ * Merge 2 tập kết quả theo user.id với trọng số ưu tiên entity.
+ * score cuối = W_ENTITY×entity_score + W_GENERAL×general_score (thiếu vế nào = 0).
+ * Sắp giảm dần theo score.
+ */
+function mergeWeighted(entitySet, generalSet) {
+  const map = new Map();
+
+  for (const user of entitySet) {
+    map.set(user.id, { ...user, score: W_ENTITY * user.score });
+  }
+  for (const user of generalSet) {
+    if (map.has(user.id)) {
+      map.get(user.id).score += W_GENERAL * user.score;
+    } else {
+      map.set(user.id, { ...user, score: W_GENERAL * user.score });
+    }
+  }
+
+  return Array.from(map.values()).sort((a, b) => b.score - a.score);
 }
 
 // POST /api/search/ai  (auth required)
@@ -91,20 +106,23 @@ async function aiSearchHandler(req, res, next) {
       currentUserGender = ctx?.gender ?? null;
     }
 
-    // Step 2: Build query vectors from extracted criteria (parallel)
-    const { entityVec, interestVec } = await buildQueryVectors(criteria);
+    // Step 2: Query Builder — entity vector (nhánh 1/2) + general vector (nhánh 3), song song
+    const [entityVec, generalVec] = await Promise.all([
+      buildEntityVector(criteria),
+      buildGeneralVector(criteria),
+    ]);
 
-    // Step 2.5: Fallback — criteria yielded nothing, embed raw query
+    // Step 2.5: Fallback — criteria không ra vector nào, embed intent tiếng Anh đã normalize
     let fallbackVec = null;
-    if (!entityVec && !interestVec) {
-      fallbackVec = await embedText(userQuery.trim());
+    if (!entityVec && !generalVec) {
+      fallbackVec = await embedText(criteria.intent_en || userQuery.trim());
       if (!fallbackVec) {
         logSearch(userQuery.trim(), mode ?? null).catch(() => {});
         return res.json({ data: [], criteria, reasoning: criteria.reasoning, tips: criteria.tips });
       }
     }
 
-    // Step 3: Detect dating intent
+    // Step 3: Detect dating intent (heuristic fallback khi prompt không nói rõ giới)
     const hasDatingIntent = Array.isArray(criteria.bio_keywords) &&
       criteria.bio_keywords.some(kw => DATING_KEYWORDS.has(kw.toLowerCase?.() ?? kw));
 
@@ -112,6 +130,7 @@ async function aiSearchHandler(req, res, next) {
     const baseParams = {
       mode:             mode ?? criteria.mode,
       location:         criteria.location,
+      targetGender:     criteria.target_gender ?? null,
       hasDatingIntent,
       currentUserGender,
       searchCoords,
@@ -123,7 +142,7 @@ async function aiSearchHandler(req, res, next) {
     const hasInterestGroups = Array.isArray(criteria.interest_groups) &&
       criteria.interest_groups.length > 0;
 
-    // Step 5: Run searches in parallel, then merge
+    // Step 5: Run searches in parallel, then weighted-merge (ưu tiên entity)
     let users;
 
     if (fallbackVec) {
@@ -133,16 +152,16 @@ async function aiSearchHandler(req, res, next) {
         interestGroups: hasInterestGroups ? criteria.interest_groups : null,
       });
     } else {
-      const [entityResults, interestResults] = await Promise.all([
+      const [entityResults, generalResults] = await Promise.all([
         entityVec
           ? vectorSearch({ ...baseParams, queryVector: entityVec, interestGroups: null })
           : Promise.resolve([]),
-        interestVec
-          ? vectorSearch({ ...baseParams, queryVector: interestVec, interestGroups: hasInterestGroups ? criteria.interest_groups : null })
+        generalVec
+          ? vectorSearch({ ...baseParams, queryVector: generalVec, interestGroups: hasInterestGroups ? criteria.interest_groups : null })
           : Promise.resolve([]),
       ]);
 
-      users = mergeResults(entityResults, interestResults);
+      users = mergeWeighted(entityResults, generalResults);
     }
 
     logSearch(userQuery.trim(), mode ?? null).catch(err =>

@@ -39,6 +39,7 @@ async function vectorSearch({
   queryVector,
   mode           = null,
   location       = null,
+  targetGender   = null,
   hasDatingIntent = false,
   currentUserGender = null,
   searchCoords   = null,
@@ -104,11 +105,14 @@ async function vectorSearch({
     }
   }
 
-  if (hasDatingIntent && currentUserGender) {
-    const targetGender =
+  // Gender filter: người dùng nói rõ giới ("bạn nam/nữ") thắng heuristic hẹn hò.
+  if (targetGender) {
+    wheres.push(`u.gender = ${p(targetGender)}`);
+  } else if (hasDatingIntent && currentUserGender) {
+    const opposite =
       currentUserGender === 'male'   ? 'female' :
       currentUserGender === 'female' ? 'male'   : 'other';
-    wheres.push(`u.gender = ${p(targetGender)}`);
+    wheres.push(`u.gender = ${p(opposite)}`);
   }
 
   const userFilter = wheres.length ? `WHERE ${wheres.join(' AND ')}` : '';

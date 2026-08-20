@@ -102,6 +102,14 @@ start() {
   open -a TablePlus
   ok "TablePlus opened"
 
+  # 9. Minimize everything except Xcode
+  log "Minimizing background apps..."
+  sleep 1
+  osascript -e 'tell application "System Events" to set visible of process "Docker Desktop" to false' 2>/dev/null
+  osascript -e 'tell application "System Events" to set visible of process "Code" to false' 2>/dev/null
+  osascript -e 'tell application "System Events" to set visible of process "TablePlus" to false' 2>/dev/null
+  ok "Docker Desktop, VS Code, TablePlus minimized (Xcode stays visible)"
+
   echo ""
   echo "${GREEN}╔══════════════════════════════╗${NC}"
   echo "${GREEN}║   All services are running   ║${NC}"
@@ -130,6 +138,14 @@ stop() {
   # 2. Xcode
   log "Closing Xcode..."
   osascript -e 'tell application "Xcode" to quit' 2>/dev/null && ok "Xcode closed" || warn "Xcode was not running"
+
+  # 2b. VS Code
+  log "Closing VS Code..."
+  osascript -e 'tell application "Visual Studio Code" to quit' 2>/dev/null && ok "VS Code closed" || warn "VS Code was not running"
+
+  # 2c. TablePlus
+  log "Closing TablePlus..."
+  osascript -e 'tell application "TablePlus" to quit' 2>/dev/null && ok "TablePlus closed" || warn "TablePlus was not running"
 
   # 3. Backend
   log "Stopping backend..."
