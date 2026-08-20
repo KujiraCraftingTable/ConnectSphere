@@ -9,13 +9,13 @@ struct AISearchLoadingView: View {
     // Cycling messages (resolved lazily using bundle)
     private var messages: [String] {
         [
-            bundle.loc("Kujira đang đọc mô tả từ bạn iu"),
-            bundle.loc("Đang nỗ lực phân tích mô tả đây"),
-            bundle.loc("Danh sách, danh sách, lên danh sách"),
-            bundle.loc("Chút xíu nữa thôi"),
-            bundle.loc("Thật là nhiều người quá đi"),
-            bundle.loc("Thế giới thì xoay, mình thì bơi"),
-            bundle.loc("Chiều nay ăn gì giờ ta"),
+            bundle.loc("Kujira is reading your description~"),
+            bundle.loc("Analyzing your description"),
+            bundle.loc("Making a list, checking it twice"),
+            bundle.loc("Almost there"),
+            bundle.loc("There are so many people"),
+            bundle.loc("The world turns, we swim"),
+            bundle.loc("What to eat this afternoon"),
         ]
     }
     @State private var messageIndex = 0
@@ -23,6 +23,8 @@ struct AISearchLoadingView: View {
 
     // Orbiting dots
     @State private var orbitAngle: Double = 0
+
+    @State private var messageTimer: Timer?
 
     var body: some View {
         ZStack {
@@ -97,10 +99,15 @@ struct AISearchLoadingView: View {
             // Cycle messages every 2s
             cycleMessages()
         }
+        .onDisappear {
+            messageTimer?.invalidate()
+            messageTimer = nil
+        }
     }
 
     private func cycleMessages() {
-        Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { timer in
+        messageTimer?.invalidate()
+        messageTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { timer in
             withAnimation { messageOpacity = 0 }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                 messageIndex = (messageIndex + 1) % messages.count
