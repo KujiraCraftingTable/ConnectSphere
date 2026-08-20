@@ -16,7 +16,7 @@ async function openConversation(req, res, next) {
   }
 }
 
-// GET /api/messages/conversations?mode=friend
+// GET /api/messages/conversations?mode=hobby
 async function listConversations(req, res, next) {
   try {
     const { mode } = req.query;
@@ -46,13 +46,27 @@ async function listMessages(req, res, next) {
 // POST /api/messages/conversations/:id/messages
 async function sendMessage(req, res, next) {
   try {
-    const { content, message_type = 'text', media_url = null } = req.body;
+    const { content, message_type = 'text', media_url = null, reply_to_message_id = null } = req.body;
     const message = await messageService.sendMessage(
       req.params.id,
       req.userId,
-      { content, messageType: message_type, mediaUrl: media_url }
+      { content, messageType: message_type, mediaUrl: media_url, replyToMessageId: reply_to_message_id }
     );
     res.status(201).json({ data: message });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/messages/conversations/:id/messages/:messageId/reactions — body: { emoji }
+async function reactToMessage(req, res, next) {
+  try {
+    const { emoji } = req.body;
+    if (!emoji) return res.status(400).json({ status: 'error', code: 400, message: 'emoji is required' });
+    const reactions = await messageService.reactToMessage(
+      req.params.id, req.params.messageId, req.userId, emoji
+    );
+    res.json({ data: { reactions } });
   } catch (err) {
     next(err);
   }
@@ -78,7 +92,7 @@ async function markRead(req, res, next) {
   }
 }
 
-// GET /api/messages/unread?mode=friend
+// GET /api/messages/unread?mode=hobby
 async function unreadCount(req, res, next) {
   try {
     const { mode } = req.query;
@@ -90,4 +104,69 @@ async function unreadCount(req, res, next) {
   }
 }
 
-module.exports = { openConversation, listConversations, listMessages, sendMessage, recallMessage, markRead, unreadCount };
+// GET /api/messages/conversations/:id/settings
+async function getSettings(req, res, next) {
+  try {
+    const settings = await messageService.getSettings(req.params.id, req.userId);
+    res.json({ data: settings });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// PATCH /api/messages/conversations/:id/settings — theme and/or nickname (shared)
+async function updateSettings(req, res, next) {
+  try {
+    const { theme, nickname } = req.body;
+    const settings = await messageService.updateSettings(req.params.id, req.userId, { theme, nickname });
+    res.json({ data: settings });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// PUT /api/messages/conversations/:id/mute — { minutes }
+async function setMute(req, res, next) {
+  try {
+    const { minutes = null } = req.body;
+    const result = await messageService.setMute(req.params.id, req.userId, minutes);
+    res.json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/messages/conversations/:id/media
+async function listMedia(req, res, next) {
+  try {
+    const media = await messageService.getMedia(req.params.id, req.userId);
+    res.json({ data: media });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/messages/conversations/:id/messages/search?q=<keyword>
+async function searchMessages(req, res, next) {
+  try {
+    const results = await messageService.searchMessages(req.params.id, req.userId, req.query.q);
+    res.json({ data: results });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// DELETE /api/messages/conversations/:id/messages — clear on my side only
+async function clearConversation(req, res, next) {
+  try {
+    await messageService.clearConversation(req.params.id, req.userId);
+    res.json({ status: 'ok' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = {
+  openConversation, listConversations, listMessages, sendMessage, recallMessage, markRead, unreadCount,
+  getSettings, updateSettings, setMute, listMedia, searchMessages, clearConversation, reactToMessage,
+};

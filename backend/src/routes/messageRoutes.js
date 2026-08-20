@@ -50,9 +50,19 @@ router.use(authMiddleware);
 
 router.post  ('/conversations',             ctrl.openConversation);
 router.get   ('/conversations',             ctrl.listConversations);
+
+// Conversation settings (nickname/theme shared, mute personal), media & search
+router.get   ('/conversations/:id/settings', ctrl.getSettings);
+router.patch ('/conversations/:id/settings', ctrl.updateSettings);
+router.put   ('/conversations/:id/mute',     ctrl.setMute);
+router.get   ('/conversations/:id/media',    ctrl.listMedia);
+router.get   ('/conversations/:id/messages/search', ctrl.searchMessages);
+
 router.get   ('/conversations/:id/messages', ctrl.listMessages);
 router.post  ('/conversations/:id/messages', ctrl.sendMessage);
+router.delete('/conversations/:id/messages', ctrl.clearConversation);
 router.delete('/conversations/:id/messages/:messageId', ctrl.recallMessage);
+router.post  ('/conversations/:id/messages/:messageId/reactions', ctrl.reactToMessage);
 router.put   ('/conversations/:id/read',     ctrl.markRead);
 router.get   ('/unread',                     ctrl.unreadCount);
 
