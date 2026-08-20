@@ -6,12 +6,14 @@
  * POST /api/connections/accept           — chấp nhận    { connection_id }
  * POST /api/connections/decline          — từ chối      { connection_id }
  * POST /api/connections/cancel           — hủy request  { connection_id }
+ * POST /api/connections/remove           — gỡ kết nối accepted { connection_id }
  */
 
 const router = require('express').Router();
 const { query } = require('../config/db');
 const { authMiddleware } = require('./authRoutes');
 const { pushUserNotification, actorPayload } = require('../services/userNotifyService');
+const { personaExpr } = require('../utils/personaSql');
 const logger = require('../utils/logger');
 
 router.use(authMiddleware);
@@ -48,12 +50,12 @@ async function notifyConnection(recipientId, senderId, type, extraPayload = {}) 
 
 // ── GET /api/connections ──────────────────────────────────────────────────────
 // Danh sách kết nối của user hiện tại kèm thông tin người kia.
-// Query: ?mode=friend|colleague (mặc định friend)
+// Query: ?mode=hobby|work (mặc định hobby)
 //        ?status=accepted|pending_received|pending_sent (mặc định accepted)
 
 router.get('/', async (req, res, next) => {
   try {
-    const mode = ['friend', 'colleague'].includes(req.query.mode) ? req.query.mode : 'friend';
+    const mode = ['hobby', 'work'].includes(req.query.mode) ? req.query.mode : 'hobby';
     const status = ['accepted', 'pending_received', 'pending_sent'].includes(req.query.status)
       ? req.query.status : 'accepted';
 
@@ -71,9 +73,9 @@ router.get('/', async (req, res, next) => {
               json_build_object(
                 'id',           u.id,
                 'username',     u.username,
-                'display_name', u.display_name,
+                'display_name', ${personaExpr('display_name', 'c.mode')},
                 'avatar_color', u.avatar_color,
-                'avatar_url',   u.avatar_url,
+                'avatar_url',   ${personaExpr('avatar_url', 'c.mode')},
                 'job_title',    u.job_title,
                 'company',      u.company,
                 'location',     u.location
@@ -95,12 +97,12 @@ router.get('/', async (req, res, next) => {
 // ── GET /api/connections/status/:targetId ─────────────────────────────────────
 // Trả về: { status: 'none' | 'pending_sent' | 'pending_received' | 'accepted'
 //           | 'rejected' | 'blocked' | 'self', connection_id }
-// Trạng thái tính theo mode hiện tại (?mode=friend|colleague, mặc định friend).
+// Trạng thái tính theo mode hiện tại (?mode=hobby|work, mặc định hobby).
 
 router.get('/status/:targetId', async (req, res, next) => {
   try {
     const { targetId } = req.params;
-    const mode = ['friend', 'colleague'].includes(req.query.mode) ? req.query.mode : 'friend';
+    const mode = ['hobby', 'work'].includes(req.query.mode) ? req.query.mode : 'hobby';
 
     if (req.userId === targetId) return res.json({ status: 'self', connection_id: null });
 
@@ -125,9 +127,9 @@ router.get('/status/:targetId', async (req, res, next) => {
 
 router.post('/request', async (req, res, next) => {
   try {
-    const { addressee_id, mode = 'friend' } = req.body;
+    const { addressee_id, mode = 'hobby' } = req.body;
     if (!addressee_id) return res.status(400).json({ error: 'addressee_id required' });
-    if (!['friend', 'colleague'].includes(mode)) return res.status(400).json({ error: 'Invalid mode' });
+    if (!['hobby', 'work'].includes(mode)) return res.status(400).json({ error: 'Invalid mode' });
     if (req.userId === addressee_id) return res.status(400).json({ error: 'Cannot connect with yourself' });
 
     const { rows: [target] } = await query('SELECT id FROM users WHERE id = $1', [addressee_id]);
@@ -255,6 +257,38 @@ router.post('/cancel', async (req, res, next) => {
        WHERE id = $1 AND requester_id = $2 AND status = 'pending'`,
       [connection_id, req.userId]
     );
+    res.json({ status: 'none' });
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/connections/remove ──────────────────────────────────────────────
+// Body: { connection_id } — gỡ một kết nối đã accepted; cả requester lẫn addressee
+// đều gỡ được. Đảo ngược +1/+1 đã cộng lúc accept (không cho count xuống âm).
+
+router.post('/remove', async (req, res, next) => {
+  try {
+    const { connection_id } = req.body;
+    if (!connection_id) return res.status(400).json({ error: 'connection_id required' });
+
+    const { rows: [removed] } = await query(
+      `DELETE FROM connections
+       WHERE id = $1 AND status = 'accepted'
+         AND (requester_id = $2 OR addressee_id = $2)
+       RETURNING requester_id, addressee_id`,
+      [connection_id, req.userId]
+    );
+    if (!removed) {
+      return res.status(409).json({ error: 'Connection not found or not yours' });
+    }
+
+    await query(
+      `UPDATE users
+       SET follower_count  = GREATEST(follower_count  - 1, 0),
+           following_count = GREATEST(following_count - 1, 0)
+       WHERE id IN ($1, $2)`,
+      [removed.requester_id, removed.addressee_id]
+    );
+
     res.json({ status: 'none' });
   } catch (err) { next(err); }
 });

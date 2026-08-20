@@ -47,7 +47,7 @@ struct ProfileView: View {
                 CreatePostView(onPostCreated: {
                     // Reload profile sau khi đăng bài
                     if let userId = appState.currentUser?.id {
-                        Task { await viewModel.load(userId: userId) }
+                        Task { await viewModel.load(userId: userId, mode: appState.currentMode.rawValue) }
                     }
                 })
                 .environment(appState)
@@ -61,7 +61,7 @@ struct ProfileView: View {
             }
             .task {
                 if let userId = appState.currentUser?.id {
-                    await viewModel.load(userId: userId)
+                    await viewModel.load(userId: userId, mode: appState.currentMode.rawValue)
                 }
             }
         }
@@ -71,15 +71,8 @@ struct ProfileView: View {
 
     private var profileHeader: some View {
         ZStack(alignment: .bottomLeading) {
-            // Cover photo
-            Rectangle()
-                .fill(
-                    LinearGradient(
-                        colors: [themeManager.theme.primary.opacity(0.6), themeManager.theme.primary.opacity(0.2)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    )
-                )
-                .frame(height: 160)
+            // Cover photo — ảnh thật nếu có, fallback gradient
+            CoverPhotoView(coverUrl: user.coverUrl)
 
             // Avatar overlapping cover
             HStack(alignment: .bottom) {
@@ -90,7 +83,7 @@ struct ProfileView: View {
                 Spacer()
                 // Edit profile button
                 Button { showEditProfile = true } label: {
-                    Text("Chỉnh sửa hồ sơ", bundle: bundle)
+                    Text("Edit profile", bundle: bundle)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                         .padding(.horizontal, 16)
@@ -116,7 +109,7 @@ struct ProfileView: View {
                 .font(.system(size: 22, weight: .bold))
                 .foregroundColor(AppColors.textPrimary(colorScheme))
 
-            if appState.currentMode == .colleague,
+            if appState.currentMode == .work,
                let title = user.jobTitle, let company = user.company {
                 Text("\(title) · \(company)")
                     .font(.system(size: 15))
@@ -128,15 +121,14 @@ struct ProfileView: View {
             }
 
             HStack(spacing: 20) {
-                statItem(count: user.postCount, label: bundle.loc("Bài viết"))
-                // Bấm vào 2 stat kết nối để mở danh sách bạn bè + lời mời
+                statItem(count: user.postCount, label: bundle.loc("Posts"))
+                // Bấm vào stat kết nối để mở danh sách bạn bè + lời mời
                 NavigationLink {
                     ConnectionsListView()
                 } label: {
-                    HStack(spacing: 20) {
-                        statItem(count: user.followerCount, label: bundle.loc("Người theo dõi"))
-                        statItem(count: user.followingCount, label: bundle.loc("Đang theo dõi"))
-                    }
+                    statItem(count: user.connectionCount,
+                             label: appState.currentMode == .hobby
+                                 ? bundle.loc("Friends") : bundle.loc("Connections"))
                 }
                 .buttonStyle(.plain)
                 Spacer()
@@ -163,7 +155,7 @@ struct ProfileView: View {
 
     @ViewBuilder
     private var infoSection: some View {
-        if appState.currentMode == .colleague {
+        if appState.currentMode == .work {
             skillsSection
         } else {
             interestsSection
@@ -172,7 +164,7 @@ struct ProfileView: View {
 
     private var skillsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Kỹ năng", bundle: bundle)
+            Text("Skills", bundle: bundle)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             ScrollView(.horizontal, showsIndicators: false) {
@@ -198,7 +190,7 @@ struct ProfileView: View {
 
     private var interestsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Sở thích", bundle: bundle)
+            Text("Interests", bundle: bundle)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             ScrollView(.horizontal, showsIndicators: false) {
@@ -230,7 +222,7 @@ struct ProfileView: View {
         VStack(alignment: .leading, spacing: 8) {
             // Label kiểu Fandom — floating trên nền xám
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text("Bài viết", bundle: bundle)
+                Text("Posts", bundle: bundle)
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 if !viewModel.isLoading {

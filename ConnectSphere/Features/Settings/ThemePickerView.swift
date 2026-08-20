@@ -21,19 +21,19 @@ struct ThemePickerView: View {
                         .padding(.top, 8)
 
                     paletteSection(
-                        title: bundle.loc("Chế độ Bạn bè"),
-                        icon: "person.2.fill",
+                        title: bundle.loc("Hobby Mode"),
+                        icon: AppMode.hobby.glyph,
                         palettes: ThemePalette.socialPalettes,
                         activeId: themeManager.socialPaletteId,
-                        targetMode: .friend
+                        targetMode: .hobby
                     )
 
                     paletteSection(
-                        title: bundle.loc("Chế độ Đồng nghiệp"),
-                        icon: "briefcase.fill",
+                        title: bundle.loc("Work Mode"),
+                        icon: AppMode.work.glyph,
                         palettes: ThemePalette.workPalettes,
                         activeId: themeManager.workPaletteId,
-                        targetMode: .colleague
+                        targetMode: .work
                     )
 
                     Spacer(minLength: 20)
@@ -41,8 +41,13 @@ struct ThemePickerView: View {
                 .padding(.horizontal, 20)
             }
             .background(Color(.systemGroupedBackground))
-            .navigationTitle(bundle.loc("Tùy chỉnh giao diện"))
+            .navigationTitle(bundle.loc("Customize appearance"))
             .navigationBarTitleDisplayMode(.inline)
+            .onDisappear {
+                // Preview có thể đã đổi themeManager sang mode bị chặn switch
+                // (persona chưa setup) → rời màn sync lại theo mode thật của app
+                themeManager.switchMode(appState.currentMode)
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Xong") { dismiss() }
@@ -59,7 +64,7 @@ struct ThemePickerView: View {
         VStack(spacing: 0) {
             // Header label
             HStack {
-                Text("Xem trước", bundle: bundle)
+                Text("Preview", bundle: bundle)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.secondary)
                     .textCase(.uppercase)
@@ -67,9 +72,9 @@ struct ThemePickerView: View {
                 Spacer()
                 // Active mode badge
                 HStack(spacing: 4) {
-                    Image(systemName: themeManager.currentMode == .friend ? "person.2.fill" : "briefcase.fill")
+                    Image(systemName: themeManager.currentMode.glyph)
                         .font(.system(size: 10))
-                    Text(themeManager.currentMode == .friend ? bundle.loc("Chế độ Bạn bè") : bundle.loc("Chế độ Đồng nghiệp"))
+                    Text(themeManager.currentMode == .hobby ? bundle.loc("Hobby Mode") : bundle.loc("Work Mode"))
                         .font(.system(size: 11, weight: .semibold))
                 }
                 .foregroundColor(themeManager.theme.primary)
@@ -103,7 +108,7 @@ struct ThemePickerView: View {
                     }
 
                     // Tags
-                    let tags = themeManager.currentMode == .friend
+                    let tags = themeManager.currentMode == .hobby
                         ? previewUser.interests.prefix(3)
                         : previewUser.skills.prefix(3)
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -124,7 +129,7 @@ struct ThemePickerView: View {
                 Spacer()
 
                 // Connect button
-                Text("Kết nối", bundle: bundle)
+                Text("Connect", bundle: bundle)
                     .font(.system(size: 13, weight: .bold))
                     .foregroundColor(.white)
                     .padding(.horizontal, 14)
@@ -165,7 +170,7 @@ struct ThemePickerView: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 if targetMode == themeManager.currentMode {
-                    Text("Đang dùng", bundle: bundle)
+                    Text("Active", bundle: bundle)
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(themeManager.theme.primary)
                         .padding(.horizontal, 8)
@@ -203,8 +208,10 @@ struct ThemePickerView: View {
     ) -> some View {
         Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                // Switch to this mode so preview updates immediately
-                appState.currentMode = targetMode
+                // Switch to this mode so preview updates immediately.
+                // Mode chưa setup persona → requestModeSwitch chặn lại và hiện
+                // form tạo persona; theme của mode đó vẫn được lưu bình thường.
+                appState.requestModeSwitch(to: targetMode)
                 themeManager.switchMode(targetMode)
                 themeManager.selectPalette(id: palette.id)
             }
