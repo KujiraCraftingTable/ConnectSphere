@@ -17,6 +17,7 @@ struct UserProfileView: View {
     // Block state
     @State private var isBlocked = false
     @State private var showBlockConfirm = false
+    @State private var errorMessage: String?
     private let userRepo = UserRepository()
 
     init(userId: String, preloadedUser: UserProfile? = nil) {
@@ -51,13 +52,13 @@ struct UserProfileView: View {
                             Button {
                                 Task { await toggleBlock() }
                             } label: {
-                                Label(bundle.loc("Bỏ chặn"), systemImage: "person.crop.circle.badge.checkmark")
+                                Label(bundle.loc("Unblock"), systemImage: "person.crop.circle.badge.checkmark")
                             }
                         } else {
                             Button(role: .destructive) {
                                 showBlockConfirm = true
                             } label: {
-                                Label(bundle.loc("Chặn người dùng"), systemImage: "nosign")
+                                Label(bundle.loc("Block user"), systemImage: "nosign")
                             }
                         }
                     } label: {
@@ -69,16 +70,21 @@ struct UserProfileView: View {
             }
         }
         .confirmationDialog(
-            bundle.loc("Chặn người dùng này?"),
+            bundle.loc("Block this user?"),
             isPresented: $showBlockConfirm,
             titleVisibility: .visible
         ) {
-            Button(bundle.loc("Chặn"), role: .destructive) {
+            Button(bundle.loc("Block"), role: .destructive) {
                 Task { await toggleBlock() }
             }
-            Button(bundle.loc("Huỷ"), role: .cancel) {}
+            Button(bundle.loc("Cancel"), role: .cancel) {}
         } message: {
-            Text("Hai bạn sẽ không còn thấy bài viết của nhau, mọi kết nối sẽ bị gỡ và không thể nhắn tin cho nhau.", bundle: bundle)
+            Text("You two will no longer see each other's posts, all connections will be removed, and you won't be able to message each other.", bundle: bundle)
+        }
+        .alert(bundle.loc("Error"), isPresented: .constant(errorMessage != nil)) {
+            Button(bundle.loc("OK")) { errorMessage = nil }
+        } message: {
+            Text(errorMessage ?? "")
         }
         .navigationDestination(isPresented: $navigateToChat) {
             if let convId = chatConversationId, let user = user {
@@ -94,7 +100,7 @@ struct UserProfileView: View {
             }
         }
         .task {
-            await viewModel.load(userId: userId)
+            await viewModel.load(userId: userId, mode: appState.currentMode.rawValue)
             if userId != appState.currentUser?.id {
                 isBlocked = (try? await userRepo.fetchBlockStatus(userId: userId)) ?? false
             }
@@ -112,7 +118,8 @@ struct UserProfileView: View {
                 isBlocked = true
             }
         } catch {
-            // Giữ nguyên trạng thái; user có thể thử lại từ menu
+            // Giữ nguyên trạng thái; báo lỗi để user biết và thử lại từ menu
+            errorMessage = friendlyError(error)
         }
     }
 
@@ -120,12 +127,7 @@ struct UserProfileView: View {
 
     private func profileHeader(user: UserProfile) -> some View {
         ZStack(alignment: .bottomLeading) {
-            Rectangle()
-                .fill(LinearGradient(
-                    colors: [themeManager.theme.primary.opacity(0.6), themeManager.theme.primary.opacity(0.2)],
-                    startPoint: .topLeading, endPoint: .bottomTrailing
-                ))
-                .frame(height: 160)
+            CoverPhotoView(coverUrl: user.coverUrl)
 
             HStack(alignment: .bottom) {
                 AvatarView(user: user, size: 90)
@@ -134,18 +136,19 @@ struct UserProfileView: View {
                     .padding(.leading, 16)
                 Spacer()
                 if userId != appState.currentUser?.id {
-                    HStack(spacing: 8) {
+                    Group {
                         if isBlocked {
                             // Đã chặn → không kết nối/nhắn tin được nữa
-                            Text("Đã chặn", bundle: bundle)
+                            Text("Blocked", bundle: bundle)
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundColor(.red)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 5)
                                 .background(Capsule().fill(Color.red.opacity(0.12)))
                         } else {
-                            ConnectButton(targetUserId: userId)
-                            messageButton
+                            // Companion (nút Nhắn tin) tự xuống hàng riêng bên dưới
+                            // khi cần hiện đồng thời Accept + Decline.
+                            ConnectButton(targetUserId: userId) { AnyView(messageButton) }
                         }
                     }
                     .padding(.trailing, 16)
@@ -188,9 +191,10 @@ struct UserProfileView: View {
             }
 
             HStack(spacing: 20) {
-                statItem(count: user.postCount,      label: bundle.loc("Bài viết"))
-                statItem(count: user.followerCount,  label: bundle.loc("Người theo dõi"))
-                statItem(count: user.followingCount, label: bundle.loc("Đang theo dõi"))
+                statItem(count: user.postCount, label: bundle.loc("Posts"))
+                statItem(count: user.connectionCount,
+                         label: appState.currentMode == .hobby
+                             ? bundle.loc("Friends") : bundle.loc("Connections"))
                 Spacer()
             }
             .padding(.top, 4)
@@ -216,10 +220,10 @@ struct UserProfileView: View {
     @ViewBuilder
     private func infoSection(user: UserProfile) -> some View {
         if !user.skills.isEmpty {
-            chipSection(title: bundle.loc("Kỹ năng"), items: user.skills)
+            chipSection(title: bundle.loc("Skills"), items: user.skills)
         }
         if !user.interests.isEmpty {
-            chipSection(title: bundle.loc("Sở thích"), items: user.interests)
+            chipSection(title: bundle.loc("Interests"), items: user.interests)
         }
     }
 
@@ -259,8 +263,10 @@ struct UserProfileView: View {
                     Image(systemName: "message.fill")
                         .font(.system(size: 11, weight: .semibold))
                 }
-                Text("Nhắn tin", bundle: bundle)
+                Text("Message", bundle: bundle)
                     .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+                    .fixedSize()
             }
             .foregroundColor(.white)
             .padding(.horizontal, 14)
@@ -299,7 +305,7 @@ struct UserProfileView: View {
         VStack(alignment: .leading, spacing: 8) {
             // Label kiểu Fandom — floating trên nền xám
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text("Bài viết", bundle: bundle)
+                Text("Posts", bundle: bundle)
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 if !viewModel.isLoading {

@@ -12,6 +12,7 @@ struct ConnectionsListView: View {
     @State private var friends: [ConnectionItemDTO] = []
     @State private var isLoading = false
     @State private var processingIds: Set<String> = []
+    @State private var errorMessage: String?
 
     private let repository = ConnectionRepository()
 
@@ -19,7 +20,7 @@ struct ConnectionsListView: View {
         List {
             // ── Lời mời đã nhận ──────────────────────────────────────────────
             if !pendingRequests.isEmpty {
-                Section(bundle.loc("Lời mời kết nối")) {
+                Section(bundle.loc("Connection request")) {
                     ForEach(pendingRequests) { item in
                         HStack(spacing: 12) {
                             userRow(item.user)
@@ -51,9 +52,9 @@ struct ConnectionsListView: View {
             }
 
             // ── Đã kết nối ───────────────────────────────────────────────────
-            Section(bundle.loc("Bạn bè")) {
+            Section(bundle.loc("Friends")) {
                 if friends.isEmpty && !isLoading {
-                    Text("Chưa có kết nối nào — thử tìm kiếm và gửi lời mời nhé", bundle: bundle)
+                    Text("No connections yet — try searching and sending a request", bundle: bundle)
                         .font(.system(size: 14))
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 } else {
@@ -68,10 +69,15 @@ struct ConnectionsListView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .navigationTitle(bundle.loc("Kết nối"))
+        .navigationTitle(bundle.loc("Connect"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .refreshable { await load() }
+        .alert(bundle.loc("Error"), isPresented: .constant(errorMessage != nil)) {
+            Button(bundle.loc("OK")) { errorMessage = nil }
+        } message: {
+            Text(errorMessage ?? "")
+        }
     }
 
     // MARK: - Rows
@@ -119,7 +125,8 @@ struct ConnectionsListView: View {
             }
             await load()
         } catch {
-            // Giữ nguyên danh sách; user có thể thử lại
+            // Giữ nguyên danh sách; báo lỗi để user biết và thử lại
+            errorMessage = friendlyError(error)
         }
     }
 }

@@ -8,6 +8,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var showThemePicker = false
+    @State private var showEditProfile = false
     @AppStorage("searchRadiusKm") private var searchRadiusKm: Int = 0
 
     private let radiusOptions = [0, 1, 5, 10, 15, 20, 25, 30]
@@ -18,21 +19,21 @@ struct SettingsView: View {
             Section {
                 modeSwitchRow
             } header: {
-                Text("Chế độ đang dùng", bundle: bundle)
+                Text("Current mode", bundle: bundle)
             }
 
             // Theme
             Section {
                 themePickerRow
             } header: {
-                Text(String(format: bundle.loc("Giao diện · %@"), appState.currentMode == .friend ? bundle.loc("Chế độ Bạn bè") : bundle.loc("Chế độ Đồng nghiệp")))
+                Text(String(format: bundle.loc("Appearance · %@"), appState.currentMode == .hobby ? bundle.loc("Hobby Mode") : bundle.loc("Work Mode")))
             }
 
             // Language
             Section {
                 languagePickerRow
             } header: {
-                Text("Giao diện", bundle: bundle)
+                Text("Appearance", bundle: bundle)
             }
 
             // Appearance
@@ -44,28 +45,56 @@ struct SettingsView: View {
             Section {
                 radiusSliderRow
             } header: {
-                Text("Tìm kiếm", bundle: bundle)
+                Text("Search", bundle: bundle)
             } footer: {
                 Text(searchRadiusKm == 0
-                     ? bundle.loc("Không giới hạn khoảng cách khi tìm kiếm có địa điểm.")
-                     : String(format: bundle.loc("Kujira chỉ gợi ý người trong vòng %dkm khi bạn tìm kiếm có địa điểm."), searchRadiusKm))
+                     ? bundle.loc("No distance limit when searching with location.")
+                     : String(format: bundle.loc("Kujira only suggests people within %dkm when searching with location."), searchRadiusKm))
             }
 
             // Account
-            Section(bundle.loc("Tài khoản")) {
-                settingsRow(icon: "person.fill",    label: bundle.loc("Chỉnh sửa hồ sơ"),         color: themeManager.theme.primary)
-                settingsRow(icon: "bell.fill",      label: bundle.loc("Thông báo"),                color: Color(hex: "#FF6B35"))
-                settingsRow(icon: "lock.fill",      label: bundle.loc("Quyền riêng tư & Bảo mật"), color: Color(hex: "#4CAF50"))
-                settingsRow(icon: "bookmark.fill",  label: bundle.loc("Đã lưu"),                   color: Color(hex: "#9C27B0"))
+            Section(bundle.loc("Account")) {
+                Button { showEditProfile = true } label: {
+                    settingsRow(icon: "person.fill", label: bundle.loc("Edit profile"), color: themeManager.theme.primary)
+                }
+                NavigationLink {
+                    NotificationSettingsView()
+                        .environment(appState)
+                        .environment(themeManager)
+                } label: {
+                    settingsRow(icon: "bell.fill", label: bundle.loc("Notifications"), color: Color(hex: "#FF6B35"), showsChevron: false)
+                }
+                NavigationLink {
+                    PrivacySecurityView()
+                        .environment(appState)
+                        .environment(themeManager)
+                } label: {
+                    settingsRow(icon: "lock.fill", label: bundle.loc("Privacy & Security"), color: Color(hex: "#4CAF50"), showsChevron: false)
+                }
             }
 
             // About
-            Section(bundle.loc("Thông tin")) {
-                settingsRow(icon: "questionmark.circle.fill", label: bundle.loc("Trợ giúp & Hỗ trợ"), color: Color(hex: "#2196F3"))
-                settingsRow(icon: "doc.text.fill",            label: bundle.loc("Điều khoản dịch vụ"), color: Color(hex: "#607D8B"))
-                settingsRow(icon: "hand.raised.fill",         label: bundle.loc("Chính sách bảo mật"), color: Color(hex: "#607D8B"))
+            Section(bundle.loc("About")) {
+                NavigationLink {
+                    StaticInfoView(titleKey: "Help & Support", sections: StaticInfoView.helpSections)
+                        .environment(appState)
+                } label: {
+                    settingsRow(icon: "questionmark.circle.fill", label: bundle.loc("Help & Support"), color: Color(hex: "#2196F3"), showsChevron: false)
+                }
+                NavigationLink {
+                    StaticInfoView(titleKey: "Terms of Service", sections: StaticInfoView.termsSections)
+                        .environment(appState)
+                } label: {
+                    settingsRow(icon: "doc.text.fill", label: bundle.loc("Terms of Service"), color: Color(hex: "#607D8B"), showsChevron: false)
+                }
+                NavigationLink {
+                    StaticInfoView(titleKey: "Privacy Policy", sections: StaticInfoView.privacySections)
+                        .environment(appState)
+                } label: {
+                    settingsRow(icon: "hand.raised.fill", label: bundle.loc("Privacy Policy"), color: Color(hex: "#607D8B"), showsChevron: false)
+                }
                 HStack {
-                    settingsRow(icon: "info.circle.fill", label: bundle.loc("Phiên bản"), color: Color(hex: "#9E9E9E"))
+                    settingsRow(icon: "info.circle.fill", label: bundle.loc("Version"), color: Color(hex: "#9E9E9E"), showsChevron: false)
                     Spacer()
                     Text("1.0.0")
                         .font(.system(size: 14))
@@ -82,17 +111,22 @@ struct SettingsView: View {
                     HStack(spacing: 10) {
                         Image(systemName: "arrow.right.square.fill")
                             .foregroundColor(.red)
-                        Text("Đăng xuất", bundle: bundle)
+                        Text("Log out", bundle: bundle)
                             .foregroundColor(.red)
                     }
                 }
             }
         }
         .listStyle(.insetGrouped)
-        .navigationTitle(bundle.loc("Cài đặt"))
+        .navigationTitle(bundle.loc("Settings"))
         .navigationBarTitleDisplayMode(.large)
         .sheet(isPresented: $showThemePicker) {
             ThemePickerView()
+        }
+        .sheet(isPresented: $showEditProfile) {
+            EditProfileView()
+                .environment(appState)
+                .environment(themeManager)
         }
     }
 
@@ -100,8 +134,8 @@ struct SettingsView: View {
 
     private var modeSwitchRow: some View {
         HStack(spacing: 8) {
-            modePill(mode: .friend,    icon: "person.2.fill",  label: bundle.loc("Chế độ Bạn bè"))
-            modePill(mode: .colleague, icon: "briefcase.fill", label: bundle.loc("Chế độ Đồng nghiệp"))
+            modePill(mode: .hobby,    icon: AppMode.hobby.glyph,    label: bundle.loc("Hobby Mode"))
+            modePill(mode: .work, icon: AppMode.work.glyph, label: bundle.loc("Work Mode"))
         }
         .padding(.vertical, 4)
         .listRowBackground(Color.clear)
@@ -112,7 +146,8 @@ struct SettingsView: View {
         let isActive = appState.currentMode == mode
         let color    = themeManager.theme.primary
         return Button {
-            withAnimation(.spring(response: 0.3)) { appState.currentMode = mode }
+            // Chưa setup persona của mode đích → AppState hiện form tạo trước
+            withAnimation(.spring(response: 0.3)) { appState.requestModeSwitch(to: mode) }
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: icon).font(.system(size: 13))
@@ -141,7 +176,7 @@ struct SettingsView: View {
                     .font(.system(size: 14))
                     .foregroundColor(.white)
             }
-            Text("Ngôn ngữ", bundle: bundle)
+            Text("Language", bundle: bundle)
                 .font(.system(size: 16))
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             Spacer()
@@ -196,11 +231,11 @@ struct SettingsView: View {
             HStack {
                 Image(systemName: "location.circle.fill")
                     .foregroundColor(themeManager.theme.primary)
-                Text("Bán kính tìm kiếm", bundle: bundle)
+                Text("Search radius", bundle: bundle)
                     .font(.system(size: 16))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 Spacer()
-                Text(searchRadiusKm == 0 ? bundle.loc("Không giới hạn") : String(format: bundle.loc("%d km"), searchRadiusKm))
+                Text(searchRadiusKm == 0 ? bundle.loc("Unlimited") : String(format: bundle.loc("%d km"), searchRadiusKm))
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(themeManager.theme.primary)
             }
@@ -216,7 +251,7 @@ struct SettingsView: View {
             .tint(themeManager.theme.primary)
 
             HStack {
-                Text("Không\ngiới hạn", bundle: bundle)
+                Text("No\nlimit", bundle: bundle)
                     .font(.system(size: 10))
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .multilineTextAlignment(.center)
@@ -234,7 +269,7 @@ struct SettingsView: View {
 
     // MARK: Settings Row
 
-    private func settingsRow(icon: String, label: String, color: Color) -> some View {
+    private func settingsRow(icon: String, label: String, color: Color, showsChevron: Bool = true) -> some View {
         HStack(spacing: 12) {
             ZStack {
                 RoundedRectangle(cornerRadius: 7)
@@ -248,9 +283,12 @@ struct SettingsView: View {
                 .font(.system(size: 16))
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             Spacer()
-            Image(systemName: "chevron.right")
-                .font(.system(size: 13))
-                .foregroundColor(AppColors.textSecondary(colorScheme))
+            // NavigationLink trong List tự vẽ chevron nên row đó tắt chevron thủ công
+            if showsChevron {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13))
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
+            }
         }
     }
 }

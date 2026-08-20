@@ -34,8 +34,12 @@ class ProfileViewModel {
     func removePost(id: String) {
         let wasPresent = posts.contains { $0.id == id }
         posts.removeAll { $0.id == id }
-        if wasPresent {
-            user?.postCount = max((user?.postCount ?? 0) - 1, 0)
+        // Read postCount into a local BEFORE the `user?.postCount = ...` assignment:
+        // reading and writing `user?.postCount` in the same optional-chained
+        // assignment statement triggers a Swift exclusivity-access crash
+        // (overlapping getter/setter access on the @Observable `user` property).
+        if wasPresent, let currentCount = user?.postCount {
+            user?.postCount = max(currentCount - 1, 0)
         }
     }
 
@@ -45,11 +49,11 @@ class ProfileViewModel {
         }
     }
 
-    func load(userId: String) async {
+    func load(userId: String, mode: String? = nil) async {
         isLoading = true
         error = nil
         do {
-            async let userResult  = repository.fetchUser(userId: userId)
+            async let userResult  = repository.fetchUser(userId: userId, mode: mode)
             async let postsResult = repository.fetchPosts(authorId: userId)
             let (u, p) = try await (userResult, postsResult)
             user  = u
