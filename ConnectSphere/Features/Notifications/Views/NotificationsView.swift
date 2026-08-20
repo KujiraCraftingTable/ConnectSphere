@@ -37,10 +37,10 @@ struct NotificationsView: View {
         }
     }
 
-    /// Hoạt động trên bài viết (like/comment/reply) — bấm vào mở bài viết
+    /// Hoạt động trên bài viết (like/comment/reply/share) — bấm vào mở bài viết
     private var activityNotifications: [UserNotificationDTO] {
         notifications.filter {
-            ["post_liked", "post_commented", "comment_replied"].contains($0.type)
+            ["post_liked", "post_commented", "comment_replied", "post_shared"].contains($0.type)
         }
     }
 
@@ -49,7 +49,7 @@ struct NotificationsView: View {
             List {
                 // ── AI notifications (mode mismatch, etc.) ────────────────────
                 if !aiNotifications.isEmpty {
-                    Section(bundle.loc("Gợi ý từ AI")) {
+                    Section(bundle.loc("AI suggestions")) {
                         ForEach(aiNotifications) { notif in
                             ModeMismatchCard(notif: notif) { action in
                                 await handleResolve(notif: notif, action: action)
@@ -66,7 +66,7 @@ struct NotificationsView: View {
 
                 // ── Activity notifications (like / comment / reply) ──────────
                 if !activityNotifications.isEmpty {
-                    Section(bundle.loc("Hoạt động")) {
+                    Section(bundle.loc("Activity")) {
                         ForEach(activityNotifications) { notif in
                             Button {
                                 openPost(from: notif)
@@ -86,7 +86,7 @@ struct NotificationsView: View {
 
                 // ── Connection notifications ──────────────────────────────────
                 if !connectionNotifications.isEmpty {
-                    Section(bundle.loc("Kết nối")) {
+                    Section(bundle.loc("Connect")) {
                         ForEach(connectionNotifications) { notif in
                             Button {
                                 openProfile(from: notif)
@@ -110,7 +110,7 @@ struct NotificationsView: View {
                         Image(systemName: "bell.slash")
                             .font(.system(size: 40))
                             .foregroundColor(AppColors.textSecondary(colorScheme).opacity(0.4))
-                        Text("Chưa có thông báo nào", bundle: bundle)
+                        Text("No notifications yet", bundle: bundle)
                             .font(.system(size: 15))
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
@@ -122,7 +122,7 @@ struct NotificationsView: View {
             }
             .listStyle(.plain)
             .background(AppColors.base(colorScheme))
-            .navigationTitle(bundle.loc("Thông báo"))
+            .navigationTitle(bundle.loc("Notifications"))
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -211,27 +211,29 @@ struct ActorNotifRow: View {
     let notif: UserNotificationDTO
 
     private var senderName: String {
-        notif.payload.fromDisplayName ?? bundle.loc("Ai đó")
+        notif.payload.fromDisplayName ?? bundle.loc("Someone")
     }
 
     private var message: String {
         switch notif.type {
         case "connection_request":
-            return String(format: bundle.loc("%@ đã gửi cho bạn lời mời kết nối"), senderName)
+            return String(format: bundle.loc("%@ sent you a connection request"), senderName)
         case "connection_accepted":
-            return String(format: bundle.loc("%@ đã chấp nhận lời mời kết nối của bạn"), senderName)
+            return String(format: bundle.loc("%@ accepted your connection request"), senderName)
         case "post_liked":
-            return String(format: bundle.loc("%@ đã thích bài viết của bạn"), senderName)
+            return String(format: bundle.loc("%@ liked your post"), senderName)
         case "post_commented":
             if let excerpt = notif.payload.excerpt, !excerpt.isEmpty {
-                return String(format: bundle.loc("%@ đã bình luận: “%@”"), senderName, excerpt)
+                return String(format: bundle.loc("%@ commented: “%@”"), senderName, excerpt)
             }
-            return String(format: bundle.loc("%@ đã bình luận bài viết của bạn"), senderName)
+            return String(format: bundle.loc("%@ commented on your post"), senderName)
         case "comment_replied":
             if let excerpt = notif.payload.excerpt, !excerpt.isEmpty {
-                return String(format: bundle.loc("%@ đã trả lời bình luận của bạn: “%@”"), senderName, excerpt)
+                return String(format: bundle.loc("%@ replied to your comment: “%@”"), senderName, excerpt)
             }
-            return String(format: bundle.loc("%@ đã trả lời bình luận của bạn"), senderName)
+            return String(format: bundle.loc("%@ replied to your comment"), senderName)
+        case "post_shared":
+            return String(format: bundle.loc("%@ shared your post"), senderName)
         default:
             return senderName
         }
@@ -244,6 +246,7 @@ struct ActorNotifRow: View {
         case "post_liked":          return "hand.thumbsup.fill"
         case "post_commented":      return "bubble.left.fill"
         case "comment_replied":     return "arrowshape.turn.up.left.fill"
+        case "post_shared":         return "arrowshape.turn.up.right.fill"
         default:                    return "bell.fill"
         }
     }
@@ -326,7 +329,7 @@ struct ModeMismatchCard: View {
     @State private var isResolving = false
 
     private var suggestedLabel: String {
-        notif.payload.suggestedMode == "friend" ? "Bạn bè" : "Đồng nghiệp"
+        notif.payload.suggestedMode == "hobby" ? bundle.loc("Hobby") : bundle.loc("Work")
     }
 
     var body: some View {
@@ -336,7 +339,7 @@ struct ModeMismatchCard: View {
                 Image(systemName: "wand.and.stars")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.orange)
-                Text("Gợi ý AI", bundle: bundle)
+                Text("AI suggestion", bundle: bundle)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.orange)
                 Spacer()
@@ -349,14 +352,14 @@ struct ModeMismatchCard: View {
             }
 
             // Reason text
-            Text(notif.payload.reason ?? "Bài viết này có thể phù hợp hơn với chế độ \(suggestedLabel)")
+            Text(notif.payload.reason ?? String(format: bundle.loc("This post may fit %@ mode better"), suggestedLabel))
                 .font(.system(size: 15))
                 .foregroundColor(AppColors.textPrimary(colorScheme))
 
             // Action buttons (hidden after resolved)
             if notif.resolvedAt == nil && !isResolving {
                 HStack(spacing: 10) {
-                    Button(bundle.loc("Giữ nguyên")) {
+                    Button(bundle.loc("Keep")) {
                         showKeepConfirm = true
                     }
                     .font(.system(size: 14, weight: .medium))
@@ -367,7 +370,7 @@ struct ModeMismatchCard: View {
                         Capsule().stroke(AppColors.borderDefault(colorScheme), lineWidth: 1)
                     )
 
-                    Button(String(format: bundle.loc("Đổi sang %@"), suggestedLabel)) {
+                    Button(String(format: bundle.loc("Switch to %@"), suggestedLabel)) {
                         showSwitchConfirm = true
                     }
                     .font(.system(size: 14, weight: .semibold))
@@ -379,43 +382,43 @@ struct ModeMismatchCard: View {
             } else if isResolving {
                 ProgressView().scaleEffect(0.8)
             } else {
-                Text("Đã xử lý", bundle: bundle)
+                Text("Resolved", bundle: bundle)
                     .font(.system(size: 13))
                     .foregroundColor(AppColors.textTertiary(colorScheme))
             }
         }
         .padding(.vertical, 8)
         .confirmationDialog(
-            bundle.loc("Giữ nguyên mode hiện tại?"),
+            bundle.loc("Keep the current mode?"),
             isPresented: $showKeepConfirm,
             titleVisibility: .visible
         ) {
-            Button(bundle.loc("Giữ nguyên"), role: .destructive) {
+            Button(bundle.loc("Keep"), role: .destructive) {
                 Task {
                     isResolving = true
                     await onAction("keep")
                     isResolving = false
                 }
             }
-            Button(bundle.loc("Huỷ"), role: .cancel) {}
+            Button(bundle.loc("Cancel"), role: .cancel) {}
         } message: {
-            Text("Bài viết sẽ tiếp tục hiện ở chế độ hiện tại.", bundle: bundle)
+            Text("The post will stay in the current mode.", bundle: bundle)
         }
         .confirmationDialog(
-            String(format: bundle.loc("Đổi sang chế độ %@?"), suggestedLabel),
+            String(format: bundle.loc("Switch to %@ mode?"), suggestedLabel),
             isPresented: $showSwitchConfirm,
             titleVisibility: .visible
         ) {
-            Button(String(format: bundle.loc("Đổi sang %@"), suggestedLabel)) {
+            Button(String(format: bundle.loc("Switch to %@"), suggestedLabel)) {
                 Task {
                     isResolving = true
                     await onAction("switch")
                     isResolving = false
                 }
             }
-            Button(bundle.loc("Huỷ"), role: .cancel) {}
+            Button(bundle.loc("Cancel"), role: .cancel) {}
         } message: {
-            Text(String(format: bundle.loc("Bài viết sẽ được chuyển sang chế độ %@."), suggestedLabel))
+            Text(String(format: bundle.loc("The post will be moved to %@ mode."), suggestedLabel))
         }
     }
 }
