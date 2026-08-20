@@ -2,14 +2,18 @@ import SwiftUI
 
 struct PrivacyPickerSheet: View {
     @Binding var selected: PostPrivacy
+    /// Chế độ hiện tại — quyết định cách gọi mức "friends" (Bạn bè / Kết nối)
+    var mode: AppMode = .hobby
     @Environment(\.appBundle) var bundle
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) var colorScheme
 
+    private let options = PostPrivacy.allCases
+
     var body: some View {
         NavigationStack {
             List {
-                ForEach(PostPrivacy.allCases, id: \.self) { option in
+                ForEach(options, id: \.self) { option in
                     Button {
                         selected = option
                         dismiss()
@@ -29,10 +33,10 @@ struct PrivacyPickerSheet: View {
 
                             // Label + description
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(option.label)
+                                Text(option.label(for: mode))
                                     .font(.system(size: 15, weight: .medium))
                                     .foregroundColor(AppColors.textPrimary(colorScheme))
-                                Text(option.description)
+                                Text(option.description(for: mode))
                                     .font(.system(size: 13))
                                     .foregroundColor(AppColors.textSecondary(colorScheme))
                             }
@@ -51,11 +55,11 @@ struct PrivacyPickerSheet: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle(bundle.loc("Ai có thể xem?"))
+            .navigationTitle(bundle.loc("Who can see this?"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Xong") { dismiss() }
+                    Button(bundle.loc("Done")) { dismiss() }
                 }
             }
         }

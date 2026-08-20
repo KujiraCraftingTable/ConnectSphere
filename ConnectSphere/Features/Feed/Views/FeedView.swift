@@ -22,7 +22,7 @@ struct FeedView: View {
                         .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.06),
                                 radius: 4, x: 0, y: 2)
 
-                    if appState.currentMode == .friend {
+                    if appState.currentMode == .hobby {
                         StoriesRow()
                             .background(AppColors.surface(colorScheme))
                             .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -30,7 +30,7 @@ struct FeedView: View {
                                     radius: 4, x: 0, y: 2)
                     }
 
-                    feedScopePicker
+                    feedScopeRow
 
                     if viewModel.isLoading && viewModel.posts(for: appState.currentMode).isEmpty {
                         ProgressView()
@@ -40,9 +40,7 @@ struct FeedView: View {
                             Image(systemName: "person.2")
                                 .font(.system(size: 36))
                                 .foregroundColor(AppColors.textSecondary(colorScheme).opacity(0.4))
-                            Text(viewModel.feedScope == .connections
-                                 ? bundle.loc("Chưa có bài viết từ kết nối của bạn")
-                                 : bundle.loc("Chưa có bài viết nào"))
+                            Text(bundle.loc("No posts yet"))
                                 .font(.system(size: 14))
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
                         }
@@ -94,16 +92,21 @@ struct FeedView: View {
                     )) ?? 0
                 }
             }
+            .onChange(of: viewModel.feedScope) { _, _ in
+                withAnimation(.easeInOut(duration: 0.4)) {
+                    proxy.scrollTo("feedTop", anchor: .top)
+                }
+                Task {
+                    await viewModel.loadPosts(for: appState.currentMode)
+                }
+            }
             } // ScrollViewReader
             .toolbar {
-                ToolbarItem(placement: .principal) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     modeSwitchPill
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    HStack(spacing: 6) {
-                        chatIconButton
-                        navIconButton(icon: "magnifyingglass")
-                    }
+                    chatIconButton
                 }
             }
             .sheet(isPresented: $showCreatePost) {
@@ -122,39 +125,6 @@ struct FeedView: View {
                 WebSocketClient.shared.off("new_message", tag: "feedBadge")
             }
         }
-    }
-
-    // MARK: Feed scope picker (Tất cả / Kết nối)
-
-    private var feedScopePicker: some View {
-        HStack(spacing: 8) {
-            scopeChip(label: bundle.loc("Tất cả"), scope: .all)
-            scopeChip(label: bundle.loc("Kết nối"), scope: .connections)
-            Spacer()
-        }
-        .padding(.horizontal, 4)
-        .padding(.top, 2)
-    }
-
-    private func scopeChip(label: String, scope: FeedScope) -> some View {
-        let isSelected = viewModel.feedScope == scope
-        return Button {
-            Task { await viewModel.switchScope(scope, mode: appState.currentMode) }
-        } label: {
-            Text(label)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(isSelected ? .white : AppColors.textSecondary(colorScheme))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule().fill(
-                        isSelected
-                            ? AnyShapeStyle(themeManager.theme.primary)
-                            : AnyShapeStyle(AppColors.surface(colorScheme))
-                    )
-                )
-        }
-        .buttonStyle(.plain)
     }
 
     // MARK: Chat badge — connect socket, register real-time handler, fetch count
@@ -182,8 +152,8 @@ struct FeedView: View {
 
     private var modeSwitchPill: some View {
         HStack(spacing: 0) {
-            modePillButton(mode: .friend, icon: "person.2.fill", label: bundle.loc("Bạn bè"))
-            modePillButton(mode: .colleague, icon: "briefcase.fill", label: bundle.loc("Công việc"))
+            modePillButton(mode: .hobby, icon: AppMode.hobby.glyph, label: bundle.loc("Hobby"))
+            modePillButton(mode: .work, icon: AppMode.work.glyph, label: bundle.loc("Work"))
         }
         .background(AppColors.surface(colorScheme), in: Capsule())
         .padding(.vertical, 4)
@@ -193,7 +163,8 @@ struct FeedView: View {
         let isActive = appState.currentMode == mode
         return Button {
             withAnimation(.spring(response: 0.3)) {
-                appState.currentMode = mode
+                // Chưa setup persona của mode đích → AppState hiện form tạo trước
+                appState.requestModeSwitch(to: mode)
             }
         } label: {
             HStack(spacing: 4) {
@@ -208,55 +179,59 @@ struct FeedView: View {
         .buttonStyle(.plain)
     }
 
+    // MARK: Feed Scope Row ("For you" / "Connections")
+
+    private var feedScopeRow: some View {
+        HStack(spacing: 8) {
+            feedScopeButton(.forYou, label: bundle.loc("For you"))
+            feedScopeButton(.connections, label: bundle.loc("Connections"))
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 2)
+    }
+
+    private func feedScopeButton(_ scope: FeedScope, label: String) -> some View {
+        let isActive = viewModel.feedScope == scope
+        return Button {
+            guard viewModel.feedScope != scope else { return }
+            viewModel.feedScope = scope
+        } label: {
+            Text(label)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(isActive ? .white : AppColors.textSecondary(colorScheme))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .background(isActive ? themeManager.theme.primary : AppColors.surface(colorScheme), in: Capsule())
+                .overlay(
+                    Capsule().stroke(AppColors.borderDefault(colorScheme), lineWidth: isActive ? 0 : 1)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: Create Post Bar
 
     private var createPostBar: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                AvatarView(user: appState.currentUser ?? MockData.currentUser, size: 40)
+        HStack(spacing: 10) {
+            AvatarView(user: appState.currentUser ?? MockData.currentUser, size: 40)
 
-                Button { showCreatePost = true } label: {
-                    Text(appState.currentMode == .friend
-                         ? bundle.loc("Bạn đang nghĩ gì vậy?")
-                         : bundle.loc("Chia sẻ cập nhật chuyên nghiệp..."))
-                        .font(.system(size: 15))
-                        .foregroundColor(AppColors.textSecondary(colorScheme))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(
-                            Capsule().stroke(AppColors.borderDefault(colorScheme), lineWidth: 1)
-                        )
-                }
+            Button { showCreatePost = true } label: {
+                Text(appState.currentMode == .hobby
+                     ? bundle.loc("What's on your mind?")
+                     : bundle.loc("Share a professional update..."))
+                    .font(.system(size: 15))
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        Capsule().stroke(AppColors.borderDefault(colorScheme), lineWidth: 1)
+                    )
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 10)
-            .padding(.bottom, 8)
-
-            Divider()
-
-            HStack(spacing: 0) {
-                postTypeButton(icon: "video.fill", label: bundle.loc("Trực tiếp"), color: Color(hex: "#F02849"))
-                postTypeButton(icon: "photo.fill", label: bundle.loc("Ảnh"), color: Color(hex: "#45BD62"))
-                postTypeButton(
-                    icon: appState.currentMode == .friend ? "face.smiling" : "doc.text.fill",
-                    label: appState.currentMode == .friend ? bundle.loc("Cảm xúc") : bundle.loc("Bài viết"),
-                    color: Color(hex: "#F7B928")
-                )
-            }
-            .padding(.bottom, 6)
         }
-    }
-
-    private func postTypeButton(icon: String, label: String, color: Color) -> some View {
-        Button {} label: {
-            HStack(spacing: 6) {
-                Image(systemName: icon).foregroundColor(color).font(.system(size: 16))
-                Text(label).font(.system(size: 14, weight: .medium)).foregroundColor(AppColors.textSecondary(colorScheme))
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
     }
 
     private var chatIconButton: some View {
@@ -277,22 +252,6 @@ struct FeedView: View {
                         .background(Capsule().fill(Color.red))
                         .offset(x: 4, y: -4)
                 }
-            }
-        }
-    }
-
-    private func navIconButton(icon: String) -> some View {
-        Button {
-            if icon == "magnifyingglass" {
-                selectedTab = 1
-                appState.shouldFocusSearch = true
-            }
-        } label: {
-            ZStack {
-                Circle().fill(AppColors.elevated(colorScheme)).frame(width: 36, height: 36)
-                Image(systemName: icon)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(AppColors.textPrimary(colorScheme))
             }
         }
     }

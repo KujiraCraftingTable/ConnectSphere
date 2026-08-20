@@ -8,15 +8,13 @@ extension Notification.Name {
 enum PostPrivacy: String, CaseIterable {
     case publicAll  = "public"
     case friends    = "friends"
-    case specific   = "specific"
     case onlyMe     = "only_me"
 
     var label: String {
         switch self {
-        case .publicAll: return "Công khai"
-        case .friends:   return "Bạn bè"
-        case .specific:  return "Bạn bè cụ thể"
-        case .onlyMe:    return "Chỉ mình tôi"
+        case .publicAll: return Bundle.app.loc("Public")
+        case .friends:   return Bundle.app.loc("Friends")
+        case .onlyMe:    return Bundle.app.loc("Only me")
         }
     }
 
@@ -24,18 +22,35 @@ enum PostPrivacy: String, CaseIterable {
         switch self {
         case .publicAll: return "globe"
         case .friends:   return "person.2.fill"
-        case .specific:  return "person.badge.shield.checkmark"
         case .onlyMe:    return "lock.fill"
         }
     }
 
     var description: String {
         switch self {
-        case .publicAll: return "Tất cả mọi người đều thấy"
-        case .friends:   return "Chỉ bạn bè của bạn"
-        case .specific:  return "Chọn bạn bè cụ thể"
-        case .onlyMe:    return "Chỉ bạn mới thấy"
+        case .publicAll: return Bundle.app.loc("Everyone can see")
+        case .friends:   return Bundle.app.loc("Only your friends")
+        case .onlyMe:    return Bundle.app.loc("Only you can see")
         }
+    }
+
+    /// Nhãn phụ thuộc mode: mức "friends" gọi là "Bạn bè" ở chế độ bạn bè,
+    /// "Kết nối" ở chế độ công việc. Các mức khác giữ nguyên.
+    func label(for mode: AppMode) -> String {
+        if self == .friends {
+            return mode == .hobby ? Bundle.app.loc("Friends") : Bundle.app.loc("Connections")
+        }
+        return label
+    }
+
+    /// Mô tả phụ thuộc mode, đồng bộ cách gọi "bạn bè"/"kết nối".
+    func description(for mode: AppMode) -> String {
+        if self == .friends {
+            return mode == .hobby
+                ? Bundle.app.loc("Only your friends")
+                : Bundle.app.loc("Only your connections")
+        }
+        return description
     }
 }
 
@@ -62,7 +77,6 @@ struct Post: Identifiable {
     let id: String
     let author: UserProfile
     let content: String
-    var imagePlaceholderColor: String?
     let timestamp: Date
     let mode: AppMode
     var privacy: PostPrivacy = .publicAll

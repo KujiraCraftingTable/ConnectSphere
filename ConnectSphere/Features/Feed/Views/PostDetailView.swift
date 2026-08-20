@@ -28,7 +28,7 @@ struct PostDetailView: View {
                     Image(systemName: "doc.questionmark")
                         .font(.system(size: 40))
                         .foregroundColor(AppColors.textSecondary(colorScheme).opacity(0.4))
-                    Text("Bài viết không còn tồn tại hoặc bạn không có quyền xem", bundle: bundle)
+                    Text("This post no longer exists or you don't have permission to view it", bundle: bundle)
                         .font(.system(size: 15))
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                         .multilineTextAlignment(.center)
@@ -40,7 +40,7 @@ struct PostDetailView: View {
             }
         }
         .background(AppColors.base(colorScheme))
-        .navigationTitle(bundle.loc("Bài viết"))
+        .navigationTitle(bundle.loc("Posts"))
         .navigationBarTitleDisplayMode(.inline)
         .task {
             do { post = try await repository.fetchPost(id: postId) }

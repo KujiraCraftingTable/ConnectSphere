@@ -113,7 +113,7 @@ struct CommentSheet: View {
                     VStack(spacing: 12) {
                         Image(systemName: "bubble.left").font(.system(size: 40))
                             .foregroundColor(AppColors.textSecondary(colorScheme).opacity(0.4))
-                        Text("Chưa có bình luận nào", bundle: bundle)
+                        Text("No comments yet", bundle: bundle)
                             .font(.system(size: 15))
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
@@ -144,7 +144,7 @@ struct CommentSheet: View {
                         Image(systemName: "arrowshape.turn.up.left.fill")
                             .font(.system(size: 12))
                             .foregroundColor(themeManager.theme.primary)
-                        Text(String(format: bundle.loc("Đang trả lời %@"), replying.author.displayName))
+                        Text(String(format: bundle.loc("Replying to %@"), replying.author.displayName))
                             .font(.system(size: 13))
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                         Spacer()
@@ -167,7 +167,7 @@ struct CommentSheet: View {
                         AvatarView(user: me, size: 36)
                     }
 
-                    TextField(bundle.loc("Viết bình luận..."), text: $input, axis: .vertical)
+                    TextField(bundle.loc("Write a comment..."), text: $input, axis: .vertical)
                         .font(.system(size: 15))
                         .lineLimit(4)
                         .focused($focused)
@@ -196,7 +196,7 @@ struct CommentSheet: View {
                 .background(AppColors.surface(colorScheme))
             }
             .background(AppColors.base(colorScheme))
-            .navigationTitle(bundle.loc("Bình luận"))
+            .navigationTitle(bundle.loc("Comments"))
             .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.medium, .large])
@@ -281,7 +281,7 @@ struct CommentRow: View {
                     }
                     if let onReply {
                         Button(action: onReply) {
-                            Text("Trả lời", bundle: bundle)
+                            Text("Reply", bundle: bundle)
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
                         }
@@ -298,7 +298,7 @@ struct CommentRow: View {
         .contextMenu {
             if isOwn, let onDelete {
                 Button(role: .destructive, action: onDelete) {
-                    Label(bundle.loc("Xóa bình luận"), systemImage: "trash")
+                    Label(bundle.loc("Delete comment"), systemImage: "trash")
                 }
             }
         }

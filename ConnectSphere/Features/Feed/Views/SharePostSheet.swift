@@ -20,7 +20,7 @@ struct SharePostSheet: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 14) {
-                TextField(bundle.loc("Nói gì đó về bài viết này..."), text: $comment, axis: .vertical)
+                TextField(bundle.loc("Say something about this post..."), text: $comment, axis: .vertical)
                     .font(.system(size: 15))
                     .lineLimit(3...6)
                     .padding(12)
@@ -52,7 +52,7 @@ struct SharePostSheet: View {
                 )
 
                 if shareFailed {
-                    Text("Chia sẻ thất bại, thử lại nhé", bundle: bundle)
+                    Text("Couldn't share, please try again", bundle: bundle)
                         .font(.system(size: 13))
                         .foregroundColor(.red)
                 }
@@ -61,11 +61,11 @@ struct SharePostSheet: View {
             }
             .padding(16)
             .background(AppColors.surface(colorScheme))
-            .navigationTitle(bundle.loc("Chia sẻ bài viết"))
+            .navigationTitle(bundle.loc("Share post"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(bundle.loc("Huỷ")) { dismiss() }
+                    Button(bundle.loc("Cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
@@ -74,7 +74,7 @@ struct SharePostSheet: View {
                         if isSharing {
                             ProgressView().scaleEffect(0.8)
                         } else {
-                            Text("Chia sẻ", bundle: bundle).fontWeight(.semibold)
+                            Text("Share", bundle: bundle).fontWeight(.semibold)
                         }
                     }
                     .disabled(isSharing)

@@ -96,7 +96,7 @@ struct StoriesRow: View {
                 }
                 .offset(x: 2, y: 2)
             }
-            Text("Tin của bạn", bundle: bundle)
+            Text("Your story", bundle: bundle)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundColor(AppColors.textPrimary(colorScheme))
                 .lineLimit(1)

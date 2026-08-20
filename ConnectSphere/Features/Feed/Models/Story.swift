@@ -19,6 +19,23 @@ struct StoryDTO: Decodable, Identifiable {
     }
 }
 
+/// Một người đã xem story của mình (GET /stories/:id/viewers)
+struct StoryViewerDTO: Decodable, Identifiable {
+    let id: String
+    let displayName: String
+    let avatarColor: String?
+    let avatarUrl: String?
+    let viewedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case displayName = "display_name"
+        case avatarColor = "avatar_color"
+        case avatarUrl   = "avatar_url"
+        case viewedAt    = "viewed_at"
+    }
+}
+
 /// Stories của một người, dùng cho bubble + viewer
 struct StoryGroup: Identifiable {
     let author: UserProfile
