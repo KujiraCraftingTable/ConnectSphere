@@ -128,7 +128,7 @@ struct CommunityDetailView: View {
                 )
             }
         }
-        .alert(bundle.loc("Lỗi"), isPresented: .constant(viewModel.errorMessage != nil)) {
+        .alert(bundle.loc("Error"), isPresented: .constant(viewModel.errorMessage != nil)) {
             Button(bundle.loc("OK")) { viewModel.errorMessage = nil }
         } message: {
             Text(viewModel.errorMessage ?? "")
@@ -154,7 +154,7 @@ struct CommunityDetailView: View {
                         .font(.system(size: 20, weight: .bold))
                         .foregroundColor(.white)
                     if let count = viewModel.community?.memberCount {
-                        Text(String(format: bundle.loc("%lld thành viên"), count))
+                        Text(String(format: bundle.loc("%lld members"), count))
                             .font(.system(size: 13))
                             .foregroundColor(.white.opacity(0.8))
                     }
@@ -180,7 +180,7 @@ struct CommunityDetailView: View {
                 Task<Void, Never>(name: nil) { await viewModel.requestToJoin() }
             } label: {
                 joinButtonLabel(
-                    title: viewModel.community?.privacy == .private ? bundle.loc("Yêu cầu tham gia") : bundle.loc("Tham gia"),
+                    title: viewModel.community?.privacy == .private ? bundle.loc("Request to join") : bundle.loc("Join"),
                     bg: .white, fg: accentColor
                 )
             }
@@ -193,7 +193,7 @@ struct CommunityDetailView: View {
                 .padding(.vertical, 8)
 
         case .pending:
-            joinButtonLabel(title: bundle.loc("Đang chờ"), bg: .white.opacity(0.3), fg: .white)
+            joinButtonLabel(title: bundle.loc("Pending"), bg: .white.opacity(0.3), fg: .white)
                 .disabled(true)
 
         case .joined:
@@ -215,8 +215,8 @@ struct CommunityDetailView: View {
 
     private var tabBar: some View {
         HStack(spacing: 0) {
-            tabButton(title: bundle.loc("Bảng tin"),   index: 0)
-            tabButton(title: bundle.loc("Thành viên"), index: 1)
+            tabButton(title: bundle.loc("Feed"),   index: 0)
+            tabButton(title: bundle.loc("Members"), index: 1)
         }
         .background(AppColors.surface(colorScheme))
         .overlay(alignment: .bottom) {
@@ -292,11 +292,11 @@ struct CommunityDetailView: View {
             Image(systemName: "doc.text")
                 .font(.system(size: 40))
                 .foregroundColor(AppColors.textTertiary(colorScheme))
-            Text("Chưa có bài viết nào", bundle: bundle)
+            Text("No posts yet", bundle: bundle)
                 .font(.system(size: 16, weight: .medium))
                 .foregroundColor(AppColors.textSecondary(colorScheme))
             if viewModel.community?.isMember == true {
-                Text("Hãy là người đầu tiên đăng bài trong cộng đồng này!", bundle: bundle)
+                Text("Be the first to post in this community!", bundle: bundle)
                     .font(.system(size: 14))
                     .foregroundColor(AppColors.textTertiary(colorScheme))
             }
@@ -373,14 +373,14 @@ struct CommunityDetailView: View {
                 Button {
                     Task<Void, Never>(name: nil) { await viewModel.updateRole(userId: member.id, newRole: .moderator) }
                 } label: {
-                    Label(bundle.loc("Phong Điều hành viên"), systemImage: "person.badge.shield.checkmark")
+                    Label(bundle.loc("Promote to moderator"), systemImage: "person.badge.shield.checkmark")
                 }
             }
             if currentUserRole == .admin && member.role == .moderator {
                 Button {
                     Task<Void, Never>(name: nil) { await viewModel.updateRole(userId: member.id, newRole: .member) }
                 } label: {
-                    Label(bundle.loc("Xóa Điều hành viên"), systemImage: "person.badge.minus")
+                    Label(bundle.loc("Demote to member"), systemImage: "person.badge.minus")
                 }
             }
 
@@ -390,7 +390,7 @@ struct CommunityDetailView: View {
                 Button(role: .destructive) {
                     Task<Void, Never>(name: nil) { await viewModel.kickMember(member.id) }
                 } label: {
-                    Label(bundle.loc("Xóa khỏi cộng đồng"), systemImage: "person.crop.circle.badge.xmark")
+                    Label(bundle.loc("Remove from community"), systemImage: "person.crop.circle.badge.xmark")
                 }
             }
         }
@@ -402,7 +402,7 @@ struct CommunityDetailView: View {
                 reportTargetId  = member.id
                 showReportMember = true
             } label: {
-                Label("Báo cáo thành viên này", systemImage: "flag")
+                Label(bundle.loc("Report this member"), systemImage: "flag")
             }
         }
     }

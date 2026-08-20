@@ -48,7 +48,7 @@ struct DiscoverView: View {
         .appBackground()
         .task { await viewModel.fetchDiscover(type: selectedType) }
         .refreshable { await viewModel.fetchDiscover(type: selectedType) }
-        .alert(bundle.loc("Lỗi"), isPresented: .constant(viewModel.errorMessage != nil)) {
+        .alert(bundle.loc("Error"), isPresented: .constant(viewModel.errorMessage != nil)) {
             Button(bundle.loc("OK")) { viewModel.errorMessage = nil }
         } message: {
             Text(viewModel.errorMessage ?? "")
@@ -60,7 +60,7 @@ struct DiscoverView: View {
     private var categoryChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                filterChip(label: bundle.loc("Tất cả"), type: nil)
+                filterChip(label: bundle.loc("All"), type: nil)
                 ForEach(CommunityType.allCases, id: \.self) { t in
                     filterChip(label: t.label, type: t)
                 }
@@ -122,10 +122,10 @@ struct DiscoverView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 40))
                 .foregroundColor(AppColors.textTertiary(colorScheme))
-            Text("Chưa có gì để khám phá", bundle: bundle)
+            Text("Nothing to discover yet", bundle: bundle)
                 .font(.system(size: 16, weight: .medium))
                 .foregroundColor(AppColors.textSecondary(colorScheme))
-            Text("Hãy quay lại sau khi có thêm cộng đồng mới", bundle: bundle)
+            Text("Come back when there are more communities", bundle: bundle)
                 .font(.system(size: 14))
                 .foregroundColor(AppColors.textTertiary(colorScheme))
                 .multilineTextAlignment(.center)

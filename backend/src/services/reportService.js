@@ -39,8 +39,9 @@ async function submitReport(reporterId, { targetType, targetId, communityId, rea
   const report = await reportModel.createReport({ reporterId, targetType, targetId, communityId, reason, detail });
 
   // Auto-notify admins/mods when a target accumulates ≥5 pending reports
+  // (feed posts have no community_id and thus no community staff to notify)
   const count = await reportModel.countPendingReportsForTarget(targetType, targetId);
-  if (count >= AUTO_NOTIFY_THRESHOLD) {
+  if (communityId && count >= AUTO_NOTIFY_THRESHOLD) {
     const allMembers = await communityModel.getCommunityMembers(communityId, { limit: 500, offset: 0 });
     const staff = allMembers.filter(m => ['admin', 'moderator'].includes(m.role));
     for (const person of staff) {

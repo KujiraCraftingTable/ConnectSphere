@@ -17,7 +17,7 @@ struct CommunityCreatePostView: View {
                     // Community tag chip
                     HStack(spacing: 6) {
                         Text(community.iconEmoji)
-                        Text(String(format: bundle.loc("Đăng vào %@"), community.name))
+                        Text(String(format: bundle.loc("Post to %@"), community.name))
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
@@ -27,9 +27,9 @@ struct CommunityCreatePostView: View {
 
                     // Post type picker
                     Picker("Post type", selection: $viewModel.postType) {
-                        Text("Văn bản", bundle: bundle).tag(PostType.text)
-                        Text("Bình chọn", bundle: bundle).tag(PostType.poll)
-                        Text("Sự kiện", bundle: bundle).tag(PostType.event)
+                        Text("Text", bundle: bundle).tag(PostType.text)
+                        Text("Poll", bundle: bundle).tag(PostType.poll)
+                        Text("Event", bundle: bundle).tag(PostType.event)
                     }
                     .pickerStyle(.segmented)
                     .padding(.horizontal, 16)
@@ -106,15 +106,15 @@ struct CommunityCreatePostView: View {
                 }
             }
             .background(AppColors.base(colorScheme).ignoresSafeArea())
-            .navigationTitle(bundle.loc("Bài viết mới"))
+            .navigationTitle(bundle.loc("New post"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(bundle.loc("Hủy")) { dismiss() }
+                    Button(bundle.loc("Cancel")) { dismiss() }
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(bundle.loc("Đăng")) {
+                    Button(bundle.loc("Post")) {
                         Task<Void, Never>(name: nil) {
                             await viewModel.submitPost(
                                 communityId: community.id,
@@ -134,9 +134,9 @@ struct CommunityCreatePostView: View {
 
     private var placeholderText: String {
         switch viewModel.postType {
-        case .text:  return bundle.loc("Chia sẻ điều gì đó với cộng đồng…")
-        case .poll:  return bundle.loc("Bạn muốn hỏi điều gì?")
-        case .event: return bundle.loc("Mô tả sự kiện này…")
+        case .text:  return bundle.loc("Share something with the community…")
+        case .poll:  return bundle.loc("What do you want to ask?")
+        case .event: return bundle.loc("Describe this event…")
         }
     }
 }

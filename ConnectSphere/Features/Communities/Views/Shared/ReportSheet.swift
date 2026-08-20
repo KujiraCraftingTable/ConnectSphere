@@ -35,15 +35,15 @@ struct ReportSheet: View {
                 }
                 Spacer()
             }
-            .navigationTitle(bundle.loc(targetType == "post" ? "Báo cáo bài viết" : "Báo cáo thành viên"))
+            .navigationTitle(bundle.loc(targetType == "post" ? "Report post" : "Report member"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(bundle.loc("Hủy")) { dismiss() }
+                    Button(bundle.loc("Cancel")) { dismiss() }
                 }
                 if !submitted {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button(bundle.loc("Gửi báo cáo")) {
+                        Button(bundle.loc("Submit report")) {
                             Task<Void, Never>(name: nil) { await submit() }
                         }
                         .font(.system(size: 15, weight: .semibold))
@@ -59,7 +59,7 @@ struct ReportSheet: View {
 
     private var reasonList: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Tại sao bạn báo cáo nội dung này?", bundle: bundle)
+            Text("Why are you reporting this content?", bundle: bundle)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .padding(.horizontal, 20)
@@ -97,7 +97,7 @@ struct ReportSheet: View {
 
     private var detailField: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Chi tiết thêm (tùy chọn)", bundle: bundle)
+            Text("Additional details (optional)", bundle: bundle)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundColor(AppColors.textSecondary(colorScheme))
 
@@ -120,15 +120,15 @@ struct ReportSheet: View {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 56))
                 .foregroundColor(.green)
-            Text("Báo cáo đã được gửi", bundle: bundle)
+            Text("Report submitted", bundle: bundle)
                 .font(.system(size: 20, weight: .bold))
                 .foregroundColor(AppColors.textPrimary(colorScheme))
-            Text("Cảm ơn bạn. Quản trị viên sẽ xem xét báo cáo này sớm.", bundle: bundle)
+            Text("Thank you. An admin will review this report soon.", bundle: bundle)
                 .font(.system(size: 15))
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
-            Button(bundle.loc("Xong")) { dismiss() }
+            Button(bundle.loc("Done")) { dismiss() }
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(.white)
                 .padding(.horizontal, 40)
@@ -171,7 +171,7 @@ struct ReportSheet: View {
             submitted = true
         } catch {
             if case APIError.serverError(_, let msg) = error { errorMessage = msg }
-            else { errorMessage = bundle.loc("Không thể gửi báo cáo. Vui lòng thử lại.") }
+            else { errorMessage = bundle.loc("Could not submit report. Please try again.") }
         }
         isSubmitting = false
     }

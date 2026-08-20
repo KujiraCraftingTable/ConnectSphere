@@ -19,15 +19,17 @@ struct CommunityNotification: Identifiable, Decodable {
         case createdAt     = "created_at"
     }
 
-    /// Human-readable description of this notification
+    /// Human-readable description of this notification.
+    /// Dịch qua Bundle.app vì model không có @Environment(\.appBundle).
     var displayText: String {
+        let b = Bundle.app
         switch type {
-        case "new_post":      return "New post in \(communityName)"
-        case "pinned_post":   return "A post was pinned in \(communityName)"
-        case "join_request":  return "Someone wants to join \(communityName)"
-        case "join_approved": return "Your request to join \(communityName) was approved"
-        case "join_rejected": return "Your request to join \(communityName) was declined"
-        case "role_changed":  return "Your role in \(communityName) was updated"
+        case "new_post":      return String(format: b.loc("New post in %@"), communityName)
+        case "pinned_post":   return String(format: b.loc("A post was pinned in %@"), communityName)
+        case "join_request":  return String(format: b.loc("Someone wants to join %@"), communityName)
+        case "join_approved": return String(format: b.loc("Your request to join %@ was approved"), communityName)
+        case "join_rejected": return String(format: b.loc("Your request to join %@ was declined"), communityName)
+        case "role_changed":  return String(format: b.loc("Your role in %@ was updated"), communityName)
         default:              return communityName
         }
     }

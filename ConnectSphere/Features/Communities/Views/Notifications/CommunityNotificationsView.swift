@@ -1,12 +1,23 @@
 import SwiftUI
 
+/// Target điều hướng khi bấm một thông báo — mở community liên quan
+private struct CommunityNavTarget: Identifiable, Hashable {
+    let id: String
+}
+
 /// Displays community notifications for the current user.
-/// Navigates to the relevant community or post on tap.
+/// Navigates to the relevant community on tap.
 struct CommunityNotificationsView: View {
+    @Environment(AppState.self) var appState
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.appBundle) var bundle
     @State private var viewModel: NotificationsViewModel
+    @State private var detailTarget: CommunityNavTarget?
+
+    private let token: String
 
     init(token: String) {
+        self.token = token
         _viewModel = State(initialValue: NotificationsViewModel(token: token))
     }
 
@@ -21,25 +32,29 @@ struct CommunityNotificationsView: View {
                 notificationList
             }
         }
-        .navigationTitle("Community Notifications")
+        .navigationTitle(bundle.loc("Community Notifications"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 if viewModel.unreadCount > 0 {
-                    Button("Mark all read") {
+                    Button(bundle.loc("Mark all read")) {
                         Task<Void, Never>(name: nil) { await viewModel.markAllAsRead() }
                     }
                     .font(.system(size: 14))
                 }
             }
         }
+        .navigationDestination(item: $detailTarget) { target in
+            CommunityDetailView(communityId: target.id, token: token)
+                .environment(appState)
+        }
         .task {
             await viewModel.fetchNotifications(reset: true)
             await viewModel.fetchUnreadCount()
         }
         .refreshable { await viewModel.fetchNotifications(reset: true) }
-        .alert("Lỗi", isPresented: .constant(viewModel.errorMessage != nil)) {
-            Button("OK") { viewModel.errorMessage = nil }
+        .alert(bundle.loc("Error"), isPresented: .constant(viewModel.errorMessage != nil)) {
+            Button(bundle.loc("OK")) { viewModel.errorMessage = nil }
         } message: {
             Text(viewModel.errorMessage ?? "")
         }
@@ -48,16 +63,19 @@ struct CommunityNotificationsView: View {
     private var notificationList: some View {
         List {
             ForEach(viewModel.notifications) { notification in
-                notificationRow(notification)
-                    .listRowBackground(
-                        notification.isRead
-                            ? Color.clear
-                            : AppColors.elevated(colorScheme)
-                    )
-                    .onTapGesture {
-                        Task<Void, Never>(name: nil) { await viewModel.markAsRead(notification.id) }
-                    }
-                    .task { await loadMoreIfNeeded(notification) }
+                Button {
+                    Task<Void, Never>(name: nil) { await viewModel.markAsRead(notification.id) }
+                    detailTarget = CommunityNavTarget(id: notification.communityId)
+                } label: {
+                    notificationRow(notification)
+                }
+                .buttonStyle(.plain)
+                .listRowBackground(
+                    notification.isRead
+                        ? Color.clear
+                        : AppColors.elevated(colorScheme)
+                )
+                .task { await loadMoreIfNeeded(notification) }
             }
             if viewModel.isLoading {
                 ProgressView()
@@ -110,10 +128,10 @@ struct CommunityNotificationsView: View {
             Image(systemName: "bell.slash")
                 .font(.system(size: 40))
                 .foregroundColor(AppColors.textTertiary(colorScheme))
-            Text("No notifications yet")
+            Text("No notifications yet", bundle: bundle)
                 .font(.system(size: 16, weight: .medium))
                 .foregroundColor(AppColors.textSecondary(colorScheme))
-            Text("Community activity will appear here")
+            Text("Community activity will appear here", bundle: bundle)
                 .font(.system(size: 14))
                 .foregroundColor(AppColors.textTertiary(colorScheme))
         }
