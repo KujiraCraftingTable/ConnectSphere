@@ -27,12 +27,4 @@ class DiscoverViewModel {
         }
         isLoading = false
     }
-
-    func refreshRecommendations() async {
-        do {
-            recommended = try await repository.fetchRecommendations(token: token)
-        } catch {
-            errorMessage = friendlyError(error)
-        }
-    }
 }

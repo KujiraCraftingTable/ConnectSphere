@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct CommunityPostCard: View {
+    @Environment(AppState.self) var appState
     @Environment(\.colorScheme) var colorScheme
     var post: CommunityPost
     let currentUserId: String
@@ -13,6 +14,36 @@ struct CommunityPostCard: View {
     let onUnpin: (() -> Void)?
 
     @State private var showReportSheet = false
+    @State private var showCommentSheet = false
+    @State private var isLiked: Bool
+    @State private var likeCount: Int
+    @State private var commentCount: Int
+    private let repository = CommunityRepository()
+
+    init(
+        post: CommunityPost,
+        currentUserId: String,
+        communityId: String,
+        token: String,
+        accentColor: Color,
+        currentUserRole: MemberRole?,
+        onDelete: (() -> Void)?,
+        onPin: (() -> Void)?,
+        onUnpin: (() -> Void)?
+    ) {
+        self.post            = post
+        self.currentUserId   = currentUserId
+        self.communityId     = communityId
+        self.token           = token
+        self.accentColor     = accentColor
+        self.currentUserRole = currentUserRole
+        self.onDelete        = onDelete
+        self.onPin           = onPin
+        self.onUnpin         = onUnpin
+        _isLiked      = State(initialValue: post.isLiked)
+        _likeCount    = State(initialValue: post.likeCount)
+        _commentCount = State(initialValue: post.commentCount)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -91,14 +122,26 @@ struct CommunityPostCard: View {
             Divider()
                 .background(AppColors.borderSubtle(colorScheme))
 
-            // Footer: like + comment counts
+            // Footer: like + comment buttons
             HStack(spacing: 20) {
-                Label("\(post.likeCount)", systemImage: "heart")
-                    .font(.system(size: 13))
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-                Label("\(post.commentCount)", systemImage: "bubble.right")
-                    .font(.system(size: 13))
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
+                Button {
+                    Task { await toggleLike() }
+                } label: {
+                    Label("\(likeCount)", systemImage: isLiked ? "heart.fill" : "heart")
+                        .font(.system(size: 13))
+                        .foregroundColor(isLiked ? .red : AppColors.textSecondary(colorScheme))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    showCommentSheet = true
+                } label: {
+                    Label("\(commentCount)", systemImage: "bubble.right")
+                        .font(.system(size: 13))
+                        .foregroundColor(AppColors.textSecondary(colorScheme))
+                }
+                .buttonStyle(.plain)
+
                 Spacer()
             }
             .padding(.horizontal, 14)
@@ -115,6 +158,23 @@ struct CommunityPostCard: View {
                 token:       token
             )
         }
+        .sheet(isPresented: $showCommentSheet) {
+            CommentSheet(postId: post.id) {
+                commentCount += 1
+            }
+            .environment(appState)
+        }
+    }
+
+    // MARK: - Actions
+
+    /// Toggle like cho bài viết cộng đồng; cập nhật lạc quan rồi đồng bộ theo response.
+    private func toggleLike() async {
+        isLiked.toggle()
+        likeCount += isLiked ? 1 : -1
+        guard let result = try? await repository.toggleLikePost(postId: post.id, token: token) else { return }
+        isLiked   = result.liked
+        likeCount = result.likeCount
     }
 
     // MARK: - Subviews

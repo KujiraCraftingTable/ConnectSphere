@@ -31,7 +31,7 @@ struct CommunityCard: View {
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                         .lineLimit(2)
                 }
-                Text(String(format: bundle.loc("%lld thành viên"), community.memberCount))
+                Text(String(format: bundle.loc("%lld members"), community.memberCount))
                     .font(.system(size: 12))
                     .foregroundColor(AppColors.textTertiary(colorScheme))
             }
@@ -57,7 +57,7 @@ struct CommunityCard: View {
 
     private var joinButton: some View {
         Button(action: onToggle) {
-            Text(community.isMember ? bundle.loc("Đã tham gia") : bundle.loc("Tham gia"))
+            Text(community.isMember ? bundle.loc("Joined") : bundle.loc("Join"))
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(community.isMember ? AppColors.textSecondary(colorScheme) : .white)
                 .padding(.horizontal, 14)

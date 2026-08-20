@@ -5,8 +5,8 @@ private enum CommunityTab: CaseIterable {
     case myCommunities, discover
     var label: String {
         switch self {
-        case .myCommunities: return "Cộng đồng của tôi"
-        case .discover:      return "Khám phá"
+        case .myCommunities: return "My communities"
+        case .discover:      return "Discover"
         }
     }
 }
@@ -22,9 +22,14 @@ struct CommunitiesView: View {
     @State private var searchText = ""
     @State private var selectedType: CommunityType? = nil
     @State private var showCreate = false
+    @State private var showNotifications = false
+    @State private var notifUnread = 0
+
+    /// Binding từ MainTabView — reset về root mỗi khi tab được chọn lại
+    @Binding var navPath: NavigationPath
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navPath) {
             VStack(spacing: 0) {
                 // Tab picker — pinned below navigation bar
                 Picker("", selection: $selectedTab) {
@@ -45,14 +50,33 @@ struct CommunitiesView: View {
                     myCommunitiesContent
                 case .discover:
                     DiscoverView(token: appState.authToken ?? "") { communityId in
-                        _ = communityId
+                        navPath.append(communityId)
                     }
                 }
             }
             .appBackground()
-            .navigationTitle(bundle.loc("Cộng đồng"))
+            .navigationTitle(bundle.loc("Community"))
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                // Chuông thông báo cộng đồng + badge unread
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button { showNotifications = true } label: {
+                        ZStack(alignment: .topTrailing) {
+                            Image(systemName: "bell")
+                                .font(.system(size: 17, weight: .medium))
+                                .foregroundColor(themeManager.theme.primary)
+                            if notifUnread > 0 {
+                                Text(notifUnread > 99 ? "99+" : "\(notifUnread)")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 1.5)
+                                    .background(Capsule().fill(Color.red))
+                                    .offset(x: 8, y: -6)
+                            }
+                        }
+                    }
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button { showCreate = true } label: {
                         Image(systemName: "plus.circle.fill")
@@ -61,7 +85,12 @@ struct CommunitiesView: View {
                     }
                 }
             }
-            .task { await viewModel.fetchInitial(token: appState.authToken ?? "") }
+            .task {
+                await viewModel.fetchInitial(token: appState.authToken ?? "")
+                await fetchNotifUnread()
+            }
+            // Badge chuông refresh mỗi lần màn này hiện lại (vd: pop từ màn thông báo)
+            .onAppear { Task { await fetchNotifUnread() } }
             .sheet(isPresented: $showCreate) {
                 CreateCommunityView(
                     existingCommunities: viewModel.myCommunities + viewModel.discoverCommunities
@@ -75,7 +104,11 @@ struct CommunitiesView: View {
                 CommunityDetailView(communityId: communityId, token: appState.authToken ?? "")
                     .environment(appState)
             }
-            .alert(bundle.loc("Lỗi"), isPresented: .constant(viewModel.errorMessage != nil)) {
+            .navigationDestination(isPresented: $showNotifications) {
+                CommunityNotificationsView(token: appState.authToken ?? "")
+                    .environment(appState)
+            }
+            .alert(bundle.loc("Error"), isPresented: .constant(viewModel.errorMessage != nil)) {
                 Button(bundle.loc("OK")) { viewModel.errorMessage = nil }
             } message: {
                 Text(viewModel.errorMessage ?? "")
@@ -102,7 +135,7 @@ struct CommunitiesView: View {
             }
             .padding(.bottom, 20)
         }
-        .searchable(text: $searchText, prompt: bundle.loc("Tìm cộng đồng"))
+        .searchable(text: $searchText, prompt: bundle.loc("Search communities"))
     }
 
     @ViewBuilder
@@ -115,7 +148,7 @@ struct CommunitiesView: View {
         typeSectionHeader(type.label, count: all.count)
 
         if visible.isEmpty {
-            Text(searchText.isEmpty ? bundle.loc("Chưa tham gia cộng đồng nào") : bundle.loc("Không tìm thấy kết quả"))
+            Text(searchText.isEmpty ? bundle.loc("You haven't joined any communities") : bundle.loc("No results found"))
                 .font(.system(size: 14))
                 .foregroundColor(AppColors.textTertiary(colorScheme))
                 .padding(.horizontal, 16)
@@ -138,7 +171,7 @@ struct CommunitiesView: View {
     private var filterChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                filterChip(label: bundle.loc("Tất cả"), type: nil)
+                filterChip(label: bundle.loc("All"), type: nil)
                 ForEach(CommunityType.allCases, id: \.self) { t in
                     filterChip(label: t.label, type: t)
                 }
@@ -175,5 +208,17 @@ struct CommunitiesView: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 4)
+    }
+
+    /// Đếm noti cộng đồng chưa đọc cho badge chuông trên toolbar
+    private func fetchNotifUnread() async {
+        guard let token = appState.authToken else { return }
+        if let res = try? await NetworkClient.shared.fetch(
+            DataResponse<UnreadCountResponse>.self,
+            path: "/notifications/unread-count",
+            token: token
+        ) {
+            notifUnread = res.data.count
+        }
     }
 }

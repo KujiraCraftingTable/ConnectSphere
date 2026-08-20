@@ -68,9 +68,9 @@ struct CreateCommunityView: View {
     private var nameError: String? {
         guard showValidation else { return nil }
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty   { return bundle.loc("Vui lòng nhập tên cộng đồng") }
-        if trimmed.count < 3 { return bundle.loc("Tên phải có ít nhất 3 ký tự") }
-        if trimmed.count > 100 { return bundle.loc("Tên không được vượt quá 100 ký tự") }
+        if trimmed.isEmpty   { return bundle.loc("Please enter a community name") }
+        if trimmed.count < 3 { return bundle.loc("Name must be at least 3 characters") }
+        if trimmed.count > 100 { return bundle.loc("Name must not exceed 100 characters") }
         return nil
     }
 
@@ -91,7 +91,7 @@ struct CreateCommunityView: View {
                             Text(selectedEmoji).font(.system(size: 22))
                         }
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(name.isEmpty ? bundle.loc("Tên cộng đồng") : name)
+                            Text(name.isEmpty ? bundle.loc("Community name") : name)
                                 .font(.system(size: 15, weight: .semibold))
                                 .foregroundColor(name.isEmpty
                                     ? AppColors.textTertiary(colorScheme)
@@ -106,8 +106,8 @@ struct CreateCommunityView: View {
                     .surfaceBackground()
                     .clipShape(RoundedRectangle(cornerRadius: 14))
 
-                    formSection(title: bundle.loc("Tên")) {
-                        TextField(bundle.loc("3–100 ký tự"), text: $name)
+                    formSection(title: bundle.loc("Name")) {
+                        TextField(bundle.loc("3–100 characters"), text: $name)
                             .font(.system(size: 15))
                             .padding(12)
                             .background(AppColors.surface(colorScheme))
@@ -142,7 +142,7 @@ struct CreateCommunityView: View {
                     .animation(.easeInOut(duration: 0.2), value: nameError != nil)
                     .animation(.easeInOut(duration: 0.2), value: isDuplicateName)
 
-                    formSection(title: bundle.loc("Mô tả (tùy chọn)")) {
+                    formSection(title: bundle.loc("Description (optional)")) {
                         TextEditor(text: $description)
                             .font(.system(size: 15))
                             .scrollContentBackground(.hidden)
@@ -157,7 +157,7 @@ struct CreateCommunityView: View {
                     }
 
                     // Type picker
-                    formSection(title: bundle.loc("Loại")) {
+                    formSection(title: bundle.loc("Type")) {
                         HStack(spacing: 0) {
                             ForEach(CommunityType.allCases, id: \.self) { t in
                                 Button { type = t } label: {
@@ -188,10 +188,10 @@ struct CreateCommunityView: View {
                     }
 
                     // Privacy picker
-                    formSection(title: bundle.loc("Quyền riêng tư")) {
+                    formSection(title: bundle.loc("Privacy")) {
                         HStack(spacing: 0) {
-                            privacyTab(.public,  label: bundle.loc("Công khai"), icon: "globe")
-                            privacyTab(.private, label: bundle.loc("Riêng tư"),  icon: "lock.fill")
+                            privacyTab(.public,  label: bundle.loc("Public"), icon: "globe")
+                            privacyTab(.private, label: bundle.loc("Private"),  icon: "lock.fill")
                         }
                         .padding(4)
                         .background(AppColors.surface(colorScheme))
@@ -200,7 +200,7 @@ struct CreateCommunityView: View {
                     }
 
                     // Emoji picker
-                    formSection(title: bundle.loc("Biểu tượng")) {
+                    formSection(title: bundle.loc("Icon")) {
                         LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 10), spacing: 8) {
                             ForEach(currentEmojiSet, id: \.self) { emoji in
                                 emojiCell(emoji)
@@ -214,7 +214,7 @@ struct CreateCommunityView: View {
                         // "+" row — left-aligned, mirrors "Màu tùy chỉnh" below
                         if showCustomEmojiInput {
                             HStack(spacing: 10) {
-                                TextField(bundle.loc("Gõ hoặc dán emoji…"), text: $customEmojiDraft)
+                                TextField(bundle.loc("Type or paste an emoji…"), text: $customEmojiDraft)
                                     .focused($emojiInputFocused)
                                     .font(.system(size: 22))
                                     .multilineTextAlignment(.center)
@@ -230,11 +230,11 @@ struct CreateCommunityView: View {
                                         showCustomEmojiInput = false
                                         customEmojiDraft     = ""
                                     }
-                                Text("Gõ hoặc dán bất kỳ emoji nào", bundle: bundle)
+                                Text("Type or paste any emoji", bundle: bundle)
                                     .font(.system(size: 13))
                                     .foregroundColor(AppColors.textTertiary(colorScheme))
                                 Spacer()
-                                Button(bundle.loc("Hủy")) {
+                                Button(bundle.loc("Cancel")) {
                                     showCustomEmojiInput = false
                                     customEmojiDraft     = ""
                                 }
@@ -249,7 +249,7 @@ struct CreateCommunityView: View {
                             } label: {
                                 HStack(spacing: 6) {
                                     Image(systemName: "plus.circle")
-                                    Text("Thêm emoji", bundle: bundle)
+                                    Text("Add emoji", bundle: bundle)
                                 }
                                 .font(.system(size: 13))
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
@@ -260,7 +260,7 @@ struct CreateCommunityView: View {
                     }
 
                     // Color picker
-                    formSection(title: bundle.loc("Màu bìa")) {
+                    formSection(title: bundle.loc("Cover color")) {
                         LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 10), spacing: 10) {
                             ForEach(colorPreset, id: \.self) { hex in
                                 Button {
@@ -281,7 +281,7 @@ struct CreateCommunityView: View {
                             get: { Color(hex: selectedColor) },
                             set: { selectedColor = $0.toHex() ?? selectedColor }
                         ), supportsOpacity: false) {
-                            Text("Màu tùy chỉnh", bundle: bundle)
+                            Text("Custom color", bundle: bundle)
                                 .font(.system(size: 13))
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
                         }
@@ -298,18 +298,18 @@ struct CreateCommunityView: View {
                 .padding(16)
             }
             .appBackground()
-            .navigationTitle(bundle.loc("Tạo cộng đồng"))
+            .navigationTitle(bundle.loc("Create community"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(bundle.loc("Hủy")) { dismiss() }
+                    Button(bundle.loc("Cancel")) { dismiss() }
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     if isCreating {
                         ProgressView().tint(themeManager.theme.primary)
                     } else {
-                        Button(bundle.loc("Tạo")) {
+                        Button(bundle.loc("Create")) {
                             guard canCreate else { showValidation = true; return }
                             Task<Void, Never>(name: nil) { await create() }
                         }
@@ -388,7 +388,7 @@ struct CreateCommunityView: View {
             dismiss()
         } catch {
             if case APIError.serverError(_, let msg) = error { errorMessage = msg }
-            else { errorMessage = bundle.loc("Không thể tạo cộng đồng. Vui lòng thử lại.") }
+            else { errorMessage = bundle.loc("Could not create community. Please try again.") }
         }
         isCreating = false
     }
