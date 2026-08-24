@@ -1,7 +1,33 @@
 import Foundation
 
 enum MessageType: String, Decodable {
-    case text, image, video
+    case text, image, video, meeting
+}
+
+/// RSVP status for a meeting proposal — local to Chat (mirrors the shape of
+/// Communities' `RsvpStatus` in `CommunityPost.swift`, but declared separately
+/// since that one is anchored to community events/posts, not messages).
+enum MeetingRsvpStatus: String, Codable {
+    case going
+    case maybe
+    case notGoing = "not_going"
+
+    /// English fallback / localization key — same values as `RsvpStatus.label`.
+    var label: String {
+        switch self {
+        case .going:    return "Going"
+        case .maybe:    return "Maybe"
+        case .notGoing: return "Can't go"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .going:    return "checkmark.circle.fill"
+        case .maybe:    return "questionmark.circle.fill"
+        case .notGoing: return "xmark.circle.fill"
+        }
+    }
 }
 
 enum MessageStatus: String, Decodable {
@@ -40,6 +66,56 @@ struct RepliedMessage: Decodable, Equatable {
     }
 }
 
+/// Meeting/appointment proposal embedded in a `.meeting` message — mirrors
+/// Communities' `EventData` shape (title/location/starts_at/ends_at + RSVP),
+/// but anchored to a chat message instead of a community post. `rsvps` is a
+/// status → user-ids map, the exact same convention as `Message.reactions`
+/// (see `backend/src/models/messageModel.js`'s `MESSAGE_EMBED_SELECT`), so the
+/// client derives counts and "my response" locally without a per-user query.
+struct MeetingProposal: Decodable, Equatable {
+    let id: String
+    let title: String
+    let location: String?
+    let startsAt: Date
+    let endsAt: Date?
+    /// "active" | "cancelled"
+    var status: String
+    /// rsvp status ("going"/"maybe"/"not_going") → user ids who responded with it
+    var rsvps: [String: [String]]
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, location, status, rsvps
+        case startsAt = "starts_at"
+        case endsAt   = "ends_at"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        title = try c.decode(String.self, forKey: .title)
+        location = try c.decodeIfPresent(String.self, forKey: .location)
+        startsAt = try c.decode(Date.self, forKey: .startsAt)
+        endsAt = try c.decodeIfPresent(Date.self, forKey: .endsAt)
+        status = try c.decode(String.self, forKey: .status)
+        rsvps = try c.decodeIfPresent([String: [String]].self, forKey: .rsvps) ?? [:]
+    }
+
+    var isCancelled: Bool { status == "cancelled" }
+
+    /// Number of RSVPs for a given status.
+    func count(for status: MeetingRsvpStatus) -> Int {
+        rsvps[status.rawValue]?.count ?? 0
+    }
+
+    /// The given user's RSVP status on this proposal, if any.
+    func myResponse(userId: String) -> MeetingRsvpStatus? {
+        for (statusKey, userIds) in rsvps where userIds.contains(userId) {
+            return MeetingRsvpStatus(rawValue: statusKey)
+        }
+        return nil
+    }
+}
+
 struct Message: Identifiable, Decodable, Equatable {
     let id: String
     let conversationId: String
@@ -53,6 +129,8 @@ struct Message: Identifiable, Decodable, Equatable {
     var repliedMessage: RepliedMessage?
     /// emoji → user ids who reacted with it
     var reactions: [String: [String]]
+    /// Present only when `messageType == .meeting` — the proposal's details/RSVP state.
+    var meetingProposal: MeetingProposal?
     /// Optional vì response insert không trả field này — nil nghĩa là chưa thu hồi
     private var deletedFlag: Bool?
 
@@ -75,6 +153,7 @@ struct Message: Identifiable, Decodable, Equatable {
         case deletedFlag      = "is_deleted"
         case replyToMessageId = "reply_to_message_id"
         case repliedMessage   = "replied_message"
+        case meetingProposal  = "meeting_proposal"
     }
 
     init(from decoder: Decoder) throws {
@@ -91,6 +170,7 @@ struct Message: Identifiable, Decodable, Equatable {
         repliedMessage = try c.decodeIfPresent(RepliedMessage.self, forKey: .repliedMessage)
         reactions = try c.decodeIfPresent([String: [String]].self, forKey: .reactions) ?? [:]
         deletedFlag = try c.decodeIfPresent(Bool.self, forKey: .deletedFlag)
+        meetingProposal = try c.decodeIfPresent(MeetingProposal.self, forKey: .meetingProposal)
     }
 
     /// True when this message was sent by the given user.

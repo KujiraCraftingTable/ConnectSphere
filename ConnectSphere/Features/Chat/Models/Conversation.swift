@@ -43,13 +43,17 @@ struct Conversation: Identifiable, Decodable, Equatable {
 
     /// Formatted preview text for the conversation list row.
     func previewText(currentUserId: String) -> String {
-        guard let content = lastMessageContent else { return "No messages yet" }
         let isOwn = lastMessageSenderId == currentUserId
         let prefix = isOwn ? "You: " : ""
         switch lastMessageType {
-        case "image": return "\(prefix)📷 Photo"
-        case "video": return "\(prefix)🎥 Video"
-        default:      return "\(prefix)\(content)"
+        case "image":   return "\(prefix)📷 Photo"
+        case "video":   return "\(prefix)🎥 Video"
+        // Meeting proposals carry no text content, so this must be checked before
+        // the nil-content guard below (which would otherwise show "No messages yet").
+        case "meeting": return "\(prefix)📅 Meeting proposal"
+        default:
+            guard let content = lastMessageContent else { return "No messages yet" }
+            return "\(prefix)\(content)"
         }
     }
 }

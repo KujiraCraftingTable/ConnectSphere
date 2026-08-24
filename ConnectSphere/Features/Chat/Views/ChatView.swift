@@ -24,6 +24,15 @@ struct ChatView: View {
     @State private var appearedMessageIDs: Set<String> = []
     @State private var showChatSettings = false
     @State private var mediaViewerItem: ChatMediaViewerItem?
+    // Meeting proposal composer (new proposal or reschedule, reusing CreateEventSheet)
+    @State private var showMeetingComposer = false
+    @State private var meetingTitle = ""
+    @State private var meetingLocation = ""
+    @State private var meetingStartsAt = Date().addingTimeInterval(3600)
+    @State private var meetingEndsAt: Date? = nil
+    @State private var meetingShowEndDate = false
+    /// Non-nil while rescheduling an existing proposal — the id of the message being edited.
+    @State private var editingMeetingMessageId: String?
     // Jump-to-message từ kết quả tìm kiếm (và từ tap vào quoted preview của reply)
     @State private var pendingScrollTarget: String?
     @State private var highlightedMessageId: String?
@@ -162,6 +171,116 @@ struct ChatView: View {
         .fullScreenCover(item: $mediaViewerItem) { item in
             ChatMediaViewerView(items: [item])
         }
+        .sheet(isPresented: $showMeetingComposer) {
+            meetingComposerSheet
+        }
+    }
+
+    // MARK: - Meeting proposal composer
+
+    /// Hosts the reused `CreateEventSheet` fields for both "new proposal" and
+    /// "reschedule" — `editingMeetingMessageId` tracks which mode is active.
+    private var meetingComposerSheet: some View {
+        NavigationStack {
+            ScrollView {
+                CreateEventSheet(
+                    title: $meetingTitle,
+                    location: $meetingLocation,
+                    startsAt: $meetingStartsAt,
+                    endsAt: $meetingEndsAt,
+                    showEndDate: $meetingShowEndDate
+                )
+            }
+            .background(AppColors.base(colorScheme).ignoresSafeArea())
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        showMeetingComposer = false
+                        resetMeetingComposer()
+                    } label: {
+                        Text("Cancel", bundle: bundle)
+                    }
+                }
+                ToolbarItem(placement: .principal) {
+                    if editingMeetingMessageId == nil {
+                        Text("New meeting", bundle: bundle)
+                            .font(.system(size: 17, weight: .semibold))
+                    } else {
+                        Text("Reschedule meeting", bundle: bundle)
+                            .font(.system(size: 17, weight: .semibold))
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        submitMeetingComposer()
+                    } label: {
+                        if editingMeetingMessageId == nil {
+                            Text("Propose", bundle: bundle)
+                        } else {
+                            Text("Save", bundle: bundle)
+                        }
+                    }
+                    .disabled(meetingTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+    }
+
+    /// Resets the composer's fields back to defaults (new-proposal mode).
+    private func resetMeetingComposer() {
+        meetingTitle = ""
+        meetingLocation = ""
+        meetingStartsAt = Date().addingTimeInterval(3600)
+        meetingEndsAt = nil
+        meetingShowEndDate = false
+        editingMeetingMessageId = nil
+    }
+
+    /// Pre-fills the composer from an existing proposal and opens it in reschedule mode.
+    private func openMeetingEditor(for message: Message) {
+        guard let proposal = message.meetingProposal else { return }
+        editingMeetingMessageId = message.id
+        meetingTitle = proposal.title
+        meetingLocation = proposal.location ?? ""
+        meetingStartsAt = proposal.startsAt
+        if let endsAt = proposal.endsAt {
+            meetingEndsAt = endsAt
+            meetingShowEndDate = true
+        } else {
+            meetingEndsAt = nil
+            meetingShowEndDate = false
+        }
+        showMeetingComposer = true
+    }
+
+    /// Sends a new proposal, or applies a reschedule when `editingMeetingMessageId` is set.
+    private func submitMeetingComposer() {
+        let title = meetingTitle
+        let location = meetingLocation.trimmingCharacters(in: .whitespacesAndNewlines)
+        let startsAt = meetingStartsAt
+        let endsAt = meetingShowEndDate ? meetingEndsAt : nil
+        let editingId = editingMeetingMessageId
+        showMeetingComposer = false
+        resetMeetingComposer()
+        Task {
+            if let editingId {
+                await viewModel.rescheduleMeeting(
+                    messageId: editingId,
+                    title: title,
+                    location: location.isEmpty ? nil : location,
+                    startsAt: startsAt,
+                    endsAt: endsAt
+                )
+            } else {
+                await viewModel.sendMeetingProposal(
+                    title: title,
+                    location: location.isEmpty ? nil : location,
+                    startsAt: startsAt,
+                    endsAt: endsAt
+                )
+            }
+        }
     }
 
     // MARK: - Message list
@@ -193,9 +312,19 @@ struct ChatView: View {
                         ForEach(viewModel.messages) { message in
                             let isOwn = message.isOwn(userId: appState.currentUser?.id ?? "")
                             MessageBubble(message: message, isOwn: isOwn, palette: chatPalette,
+                                          currentUserId: appState.currentUser?.id ?? "",
                                           onMediaTap: openMediaViewer,
                                           onReplyPreviewTap: { messageId in
                                               Task { await jumpToMessage(messageId) }
+                                          },
+                                          onMeetingRespond: { msg, status in
+                                              Task { await viewModel.respondToMeeting(messageId: msg.id, status: status) }
+                                          },
+                                          onMeetingEdit: { msg in
+                                              openMeetingEditor(for: msg)
+                                          },
+                                          onMeetingCancel: { msg in
+                                              Task { await viewModel.cancelMeeting(messageId: msg.id) }
                                           })
                                 .modifier(MessageAppearModifier(
                                     id: message.id,
@@ -343,6 +472,16 @@ struct ChatView: View {
                         .padding(.bottom, 6)
                 }
 
+                Button {
+                    resetMeetingComposer()
+                    showMeetingComposer = true
+                } label: {
+                    Image(systemName: "calendar.badge.plus")
+                        .font(.system(size: 22))
+                        .foregroundColor(chatPalette.primary)
+                        .padding(.bottom, 6)
+                }
+
                 TextField("", text: $inputText, prompt: Text("Message...", bundle: bundle), axis: .vertical)
                     .font(.system(size: 15))
                     .lineLimit(1...5)
@@ -379,9 +518,10 @@ struct ChatView: View {
         let senderName = isOwnReply ? bundle.loc("You") : headerName
         let preview: String = {
             switch message.messageType {
-            case .text:  return message.content ?? ""
-            case .image: return bundle.loc("Photo")
-            case .video: return bundle.loc("Video")
+            case .text:    return message.content ?? ""
+            case .image:   return bundle.loc("Photo")
+            case .video:   return bundle.loc("Video")
+            case .meeting: return bundle.loc("Meeting")
             }
         }()
 

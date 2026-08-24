@@ -436,4 +436,19 @@
 "Cover photo" = "Ảnh bìa";
 "Couldn't upload cover photo, please try again" = "Chưa tải được ảnh bìa, thử lại nhé";
 "Viewers" = "Người xem";
+
+/* Chat meeting proposals */
+"Meeting" = "Cuộc hẹn";
+"New meeting" = "Cuộc hẹn mới";
+"Reschedule meeting" = "Đổi lịch hẹn";
+"Propose" = "Đề xuất";
+"Reschedule" = "Đổi lịch";
+"Cancel meeting" = "Huỷ cuộc hẹn";
+"Cancel meeting proposal?" = "Huỷ đề xuất cuộc hẹn?";
+"Keep it" = "Giữ lại";
+"Cancelled" = "Đã huỷ";
+"Going" = "Tham gia";
+"Maybe" = "Có thể";
+"Can't go" = "Không thể";
+"%d going" = "%d người tham gia";
 "No views yet" = "Chưa có ai xem";
