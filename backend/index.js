@@ -108,12 +108,29 @@ io.on('connection', (socket) => {
   });
 
   // Client sends a message via socket
-  socket.on('send_message', async ({ conversationId, content, messageType = 'text', mediaUrl = null, replyToMessageId = null }, ack) => {
+  socket.on('send_message', async ({ conversationId, content, messageType = 'text', mediaUrl = null, replyToMessageId = null, meetingProposal = null }, ack) => {
     try {
       const allowed = await messageModel.isParticipant(conversationId, socket.userId);
       if (!allowed) return ack?.({ error: 'Not a participant' });
 
       if (messageType === 'text' && !content?.trim()) return ack?.({ error: 'Content required' });
+
+      // 'meeting' messages need the same title/startsAt validation the REST
+      // path enforces — don't let the socket path skip it.
+      let validatedMeeting = null;
+      if (messageType === 'meeting') {
+        if (!meetingProposal?.title?.trim()) return ack?.({ error: 'Meeting title is required' });
+        if (!meetingProposal?.startsAt) return ack?.({ error: 'Meeting start time is required' });
+        const startsAt = new Date(meetingProposal.startsAt);
+        if (isNaN(startsAt.getTime())) return ack?.({ error: 'Invalid meeting start time' });
+        if (startsAt <= new Date()) return ack?.({ error: 'Meeting start time must be in the future' });
+        validatedMeeting = {
+          title: meetingProposal.title.trim(),
+          location: meetingProposal.location?.trim() || null,
+          startsAt: meetingProposal.startsAt,
+          endsAt: meetingProposal.endsAt || null,
+        };
+      }
 
       // Reply target must exist in this same conversation
       let replyTo = null;
@@ -122,12 +139,19 @@ io.on('connection', (socket) => {
         if (target && target.conversation_id === conversationId) replyTo = replyToMessageId;
       }
 
-      const message = await messageModel.insertMessage(conversationId, socket.userId, {
-        content: content?.trim() || null,
+      // messages.content_or_media requires content OR media_url — a 'meeting'
+      // message has neither by default, so fall back to the proposal title.
+      let message = await messageModel.insertMessage(conversationId, socket.userId, {
+        content: content?.trim() || (validatedMeeting ? validatedMeeting.title : null),
         messageType,
         mediaUrl,
         replyToMessageId: replyTo,
       });
+
+      if (validatedMeeting) {
+        await messageModel.createMeetingProposal(message.id, validatedMeeting);
+        message = await messageModel.getMessageById(message.id);
+      }
 
       // Broadcast to everyone in the room (including sender for confirmation)
       io.to(conversationId).emit('new_message', message);
@@ -166,6 +190,110 @@ io.on('connection', (socket) => {
     } catch (err) {
       logger.error({ err }, 'react_message error');
       ack?.({ error: 'Failed to react to message' });
+    }
+  });
+
+  // Reschedule a meeting proposal — only the proposer, and only while active.
+  // Clears prior RSVPs (handled by the model call).
+  socket.on('update_meeting_proposal', async ({ conversationId, messageId, title, location, startsAt, endsAt }, ack) => {
+    try {
+      const allowed = await messageModel.isParticipant(conversationId, socket.userId);
+      if (!allowed) return ack?.({ error: 'Not a participant' });
+
+      const proposal = await messageModel.getProposalByMessageId(messageId);
+      if (!proposal || proposal.conversation_id !== conversationId || proposal.message_type !== 'meeting' || !proposal.id) {
+        return ack?.({ error: 'Meeting proposal not found' });
+      }
+      if (socket.userId !== proposal.sender_id) return ack?.({ error: 'Only the proposer can reschedule this meeting' });
+      if (proposal.status !== 'active') return ack?.({ error: 'Cannot reschedule a cancelled meeting' });
+
+      if (!title?.trim()) return ack?.({ error: 'Meeting title is required' });
+      if (!startsAt) return ack?.({ error: 'Meeting start time is required' });
+      const parsedStart = new Date(startsAt);
+      if (isNaN(parsedStart.getTime())) return ack?.({ error: 'Invalid meeting start time' });
+      if (parsedStart <= new Date()) return ack?.({ error: 'Meeting start time must be in the future' });
+
+      await messageModel.updateMeetingProposal(proposal.id, {
+        title: title.trim(),
+        location: location?.trim() || null,
+        startsAt,
+        endsAt: endsAt || null,
+      });
+
+      const message = await messageModel.getMessageById(messageId);
+      const payload = { conversation_id: conversationId, message_id: messageId, meeting_proposal: message.meeting_proposal };
+
+      io.to(conversationId).emit('meeting_proposal_updated', payload);
+      const participants = await messageModel.getParticipants(conversationId).catch(() => []);
+      participants.forEach((uid) => io.to(`user:${uid}`).emit('meeting_proposal_updated', payload));
+
+      ack?.({ data: message.meeting_proposal });
+    } catch (err) {
+      logger.error({ err }, 'update_meeting_proposal error');
+      ack?.({ error: 'Failed to reschedule meeting' });
+    }
+  });
+
+  // Cancel a meeting proposal — only the proposer, and only while active.
+  // Broadcasts the same 'meeting_proposal_updated' event as reschedule; the
+  // payload's status field ('cancelled') is what distinguishes it client-side.
+  socket.on('cancel_meeting_proposal', async ({ conversationId, messageId }, ack) => {
+    try {
+      const allowed = await messageModel.isParticipant(conversationId, socket.userId);
+      if (!allowed) return ack?.({ error: 'Not a participant' });
+
+      const proposal = await messageModel.getProposalByMessageId(messageId);
+      if (!proposal || proposal.conversation_id !== conversationId || proposal.message_type !== 'meeting' || !proposal.id) {
+        return ack?.({ error: 'Meeting proposal not found' });
+      }
+      if (socket.userId !== proposal.sender_id) return ack?.({ error: 'Only the proposer can cancel this meeting' });
+      if (proposal.status !== 'active') return ack?.({ error: 'Meeting is already cancelled' });
+
+      await messageModel.cancelMeetingProposal(proposal.id);
+
+      const message = await messageModel.getMessageById(messageId);
+      const payload = { conversation_id: conversationId, message_id: messageId, meeting_proposal: message.meeting_proposal };
+
+      io.to(conversationId).emit('meeting_proposal_updated', payload);
+      const participants = await messageModel.getParticipants(conversationId).catch(() => []);
+      participants.forEach((uid) => io.to(`user:${uid}`).emit('meeting_proposal_updated', payload));
+
+      ack?.({ data: message.meeting_proposal });
+    } catch (err) {
+      logger.error({ err }, 'cancel_meeting_proposal error');
+      ack?.({ error: 'Failed to cancel meeting' });
+    }
+  });
+
+  // RSVP to a meeting proposal — any participant (including the proposer),
+  // and only while active.
+  socket.on('respond_meeting', async ({ conversationId, messageId, status }, ack) => {
+    try {
+      const allowed = await messageModel.isParticipant(conversationId, socket.userId);
+      if (!allowed) return ack?.({ error: 'Not a participant' });
+      if (!messageModel.ALLOWED_MEETING_RSVP_STATUS.includes(status)) {
+        return ack?.({ error: 'Status must be going, maybe, or not_going' });
+      }
+
+      const proposal = await messageModel.getProposalByMessageId(messageId);
+      if (!proposal || proposal.conversation_id !== conversationId || proposal.message_type !== 'meeting' || !proposal.id) {
+        return ack?.({ error: 'Meeting proposal not found' });
+      }
+      if (proposal.status !== 'active') return ack?.({ error: 'Cannot respond to a cancelled meeting' });
+
+      await messageModel.setMeetingRsvp(proposal.id, socket.userId, status);
+
+      const message = await messageModel.getMessageById(messageId);
+      const payload = { conversation_id: conversationId, message_id: messageId, meeting_proposal: message.meeting_proposal };
+
+      io.to(conversationId).emit('meeting_response_updated', payload);
+      const participants = await messageModel.getParticipants(conversationId).catch(() => []);
+      participants.forEach((uid) => io.to(`user:${uid}`).emit('meeting_response_updated', payload));
+
+      ack?.({ data: message.meeting_proposal });
+    } catch (err) {
+      logger.error({ err }, 'respond_meeting error');
+      ack?.({ error: 'Failed to respond to meeting' });
     }
   });
 

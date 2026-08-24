@@ -44,13 +44,21 @@ async function listMessages(req, res, next) {
 }
 
 // POST /api/messages/conversations/:id/messages
+// For message_type: "meeting", body also carries meeting_proposal:
+//   { title, location, starts_at, ends_at }
 async function sendMessage(req, res, next) {
   try {
-    const { content, message_type = 'text', media_url = null, reply_to_message_id = null } = req.body;
+    const { content, message_type = 'text', media_url = null, reply_to_message_id = null, meeting_proposal = null } = req.body;
+    const meetingProposal = meeting_proposal ? {
+      title:    meeting_proposal.title,
+      location: meeting_proposal.location,
+      startsAt: meeting_proposal.starts_at,
+      endsAt:   meeting_proposal.ends_at,
+    } : null;
     const message = await messageService.sendMessage(
       req.params.id,
       req.userId,
-      { content, messageType: message_type, mediaUrl: media_url, replyToMessageId: reply_to_message_id }
+      { content, messageType: message_type, mediaUrl: media_url, replyToMessageId: reply_to_message_id, meetingProposal }
     );
     res.status(201).json({ data: message });
   } catch (err) {
@@ -67,6 +75,42 @@ async function reactToMessage(req, res, next) {
       req.params.id, req.params.messageId, req.userId, emoji
     );
     res.json({ data: { reactions } });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// PATCH /api/messages/conversations/:id/messages/:messageId/meeting-proposal — reschedule
+async function updateMeetingProposal(req, res, next) {
+  try {
+    const { title, location, starts_at, ends_at } = req.body;
+    const proposal = await messageService.updateMeetingProposal(
+      req.params.id, req.params.messageId, req.userId,
+      { title, location, startsAt: starts_at, endsAt: ends_at }
+    );
+    res.json({ data: proposal });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/messages/conversations/:id/messages/:messageId/meeting-proposal/cancel
+async function cancelMeetingProposal(req, res, next) {
+  try {
+    const proposal = await messageService.cancelMeetingProposal(req.params.id, req.params.messageId, req.userId);
+    res.json({ data: proposal });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/messages/conversations/:id/messages/:messageId/meeting-response — body: { status }
+async function respondToMeeting(req, res, next) {
+  try {
+    const { status } = req.body;
+    if (!status) return res.status(400).json({ status: 'error', code: 400, message: 'status is required' });
+    const proposal = await messageService.respondToMeeting(req.params.id, req.params.messageId, req.userId, status);
+    res.json({ data: proposal });
   } catch (err) {
     next(err);
   }
@@ -169,4 +213,5 @@ async function clearConversation(req, res, next) {
 module.exports = {
   openConversation, listConversations, listMessages, sendMessage, recallMessage, markRead, unreadCount,
   getSettings, updateSettings, setMute, listMedia, searchMessages, clearConversation, reactToMessage,
+  updateMeetingProposal, cancelMeetingProposal, respondToMeeting,
 };

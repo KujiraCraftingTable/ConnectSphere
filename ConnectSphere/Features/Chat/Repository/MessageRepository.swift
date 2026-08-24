@@ -155,6 +155,100 @@ struct MessageRepository {
         return response.data.reactions
     }
 
+    // MARK: - Meeting proposals
+
+    /// Propose a meeting inside the conversation (REST fallback for socket
+    /// `send_message` with message_type "meeting"). Returns the created message
+    /// with its embedded `meeting_proposal`. Server expects the proposal fields
+    /// nested under `meeting_proposal` (see `messageController.sendMessage`).
+    func sendMeetingProposal(
+        conversationId: String,
+        title: String,
+        location: String?,
+        startsAt: Date,
+        endsAt: Date?,
+        token: String
+    ) async throws -> Message {
+        let iso = ISO8601DateFormatter()
+        var proposalDict: [String: Any] = [
+            "title": title,
+            "starts_at": iso.string(from: startsAt)
+        ]
+        if let location, !location.isEmpty { proposalDict["location"] = location }
+        if let endsAt { proposalDict["ends_at"] = iso.string(from: endsAt) }
+        let dict: [String: Any] = [
+            "message_type": "meeting",
+            "meeting_proposal": proposalDict
+        ]
+        let body = try JSONSerialization.data(withJSONObject: dict)
+        let response = try await client.fetch(
+            DataResponse<Message>.self,
+            path: "/messages/conversations/\(conversationId)/messages",
+            method: "POST",
+            token: token,
+            bodyData: body
+        )
+        return response.data
+    }
+
+    /// Reschedule an existing meeting proposal. Only the proposer may call this;
+    /// the server clears prior RSVPs so participants re-respond to the new time.
+    /// Server returns just the updated proposal (not the whole message).
+    func updateMeetingProposal(
+        conversationId: String,
+        messageId: String,
+        title: String,
+        location: String?,
+        startsAt: Date,
+        endsAt: Date?,
+        token: String
+    ) async throws -> MeetingProposal {
+        let iso = ISO8601DateFormatter()
+        let dict: [String: Any] = [
+            "title": title,
+            "starts_at": iso.string(from: startsAt),
+            "location": (location?.isEmpty == false) ? location! : NSNull(),
+            "ends_at": endsAt.map { iso.string(from: $0) } ?? NSNull()
+        ]
+        let body = try JSONSerialization.data(withJSONObject: dict)
+        let response = try await client.fetch(
+            DataResponse<MeetingProposal>.self,
+            path: "/messages/conversations/\(conversationId)/messages/\(messageId)/meeting-proposal",
+            method: "PATCH",
+            token: token,
+            bodyData: body
+        )
+        return response.data
+    }
+
+    /// Cancel a meeting proposal. Only the proposer may call this. Server
+    /// returns just the updated proposal (not the whole message).
+    func cancelMeetingProposal(conversationId: String, messageId: String, token: String) async throws -> MeetingProposal {
+        let response = try await client.fetch(
+            DataResponse<MeetingProposal>.self,
+            path: "/messages/conversations/\(conversationId)/messages/\(messageId)/meeting-proposal/cancel",
+            method: "POST",
+            token: token
+        )
+        return response.data
+    }
+
+    /// RSVP to a meeting proposal ("going" | "maybe" | "not_going"). Server
+    /// returns just the updated proposal (not the whole message).
+    @discardableResult
+    func respondToMeeting(conversationId: String, messageId: String, status: String, token: String) async throws -> MeetingProposal {
+        struct Body: Encodable { let status: String }
+        let body = try JSONEncoder().encode(Body(status: status))
+        let response = try await client.fetch(
+            DataResponse<MeetingProposal>.self,
+            path: "/messages/conversations/\(conversationId)/messages/\(messageId)/meeting-response",
+            method: "POST",
+            token: token,
+            bodyData: body
+        )
+        return response.data
+    }
+
     // MARK: - Read receipt
 
     /// Mark all messages in a conversation as read (REST call; socket also handles this).

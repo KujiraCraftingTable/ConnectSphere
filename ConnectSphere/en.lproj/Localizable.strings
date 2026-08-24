@@ -436,4 +436,19 @@
 "Cover photo" = "Cover photo";
 "Couldn't upload cover photo, please try again" = "Couldn't upload cover photo, please try again";
 "Viewers" = "Viewers";
+
+/* Chat meeting proposals */
+"Meeting" = "Meeting";
+"New meeting" = "New meeting";
+"Reschedule meeting" = "Reschedule meeting";
+"Propose" = "Propose";
+"Reschedule" = "Reschedule";
+"Cancel meeting" = "Cancel meeting";
+"Cancel meeting proposal?" = "Cancel meeting proposal?";
+"Keep it" = "Keep it";
+"Cancelled" = "Cancelled";
+"Going" = "Going";
+"Maybe" = "Maybe";
+"Can't go" = "Can't go";
+"%d going" = "%d going";
 "No views yet" = "No views yet";

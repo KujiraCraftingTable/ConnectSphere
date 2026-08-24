@@ -48,8 +48,38 @@ async function resolveReplyTarget(conversationId, replyToMessageId) {
   return replyToMessageId;
 }
 
+// A 'meeting' message's proposal fields must be present and starts_at must be
+// a real, future timestamp — same validation shape as postService.createEventPost.
+function validateMeetingProposal(meetingProposal) {
+  if (!meetingProposal?.title?.trim()) clientError('Meeting title is required');
+  if (!meetingProposal?.startsAt)      clientError('Meeting start time is required');
+
+  const startsAt = new Date(meetingProposal.startsAt);
+  if (isNaN(startsAt.getTime())) clientError('Invalid meeting start time');
+  if (startsAt <= new Date())    clientError('Meeting start time must be in the future');
+
+  return {
+    title:    meetingProposal.title.trim(),
+    location: meetingProposal.location?.trim() || null,
+    startsAt: meetingProposal.startsAt,
+    endsAt:   meetingProposal.endsAt || null,
+  };
+}
+
+// A meeting-related action is addressed by messageId; resolve it to its
+// proposal + conversation/sender, 404ing if the message isn't a meeting
+// proposal in this conversation. Mirrors resolveReplyTarget's "verify target
+// belongs to this conversation" pattern.
+async function resolveMeetingProposal(conversationId, messageId) {
+  const proposal = await messageModel.getProposalByMessageId(messageId);
+  if (!proposal || proposal.conversation_id !== conversationId || proposal.message_type !== 'meeting' || !proposal.id) {
+    clientError('Meeting proposal not found', 404);
+  }
+  return proposal;
+}
+
 // Send a message; verify participant and validate content
-async function sendMessage(conversationId, senderId, { content, messageType = 'text', mediaUrl = null, replyToMessageId = null }) {
+async function sendMessage(conversationId, senderId, { content, messageType = 'text', mediaUrl = null, replyToMessageId = null, meetingProposal = null }) {
   const allowed = await messageModel.isParticipant(conversationId, senderId);
   if (!allowed) clientError('Conversation not found', 404);
 
@@ -57,14 +87,27 @@ async function sendMessage(conversationId, senderId, { content, messageType = 't
   if (['image', 'video'].includes(messageType) && !mediaUrl) clientError('Media URL is required');
   if (content && content.length > 2000) clientError('Message is too long');
 
+  let validatedMeeting = null;
+  if (messageType === 'meeting') validatedMeeting = validateMeetingProposal(meetingProposal);
+
   const replyTo = await resolveReplyTarget(conversationId, replyToMessageId);
 
-  const message = await messageModel.insertMessage(conversationId, senderId, {
-    content: content?.trim() || null,
+  // messages.content_or_media requires content OR media_url — a 'meeting'
+  // message has neither by default, so fall back to the proposal title as
+  // the stored content (also gives a sensible "last message" preview).
+  let message = await messageModel.insertMessage(conversationId, senderId, {
+    content: content?.trim() || (validatedMeeting ? validatedMeeting.title : null),
     messageType,
     mediaUrl,
     replyToMessageId: replyTo,
   });
+
+  if (validatedMeeting) {
+    await messageModel.createMeetingProposal(message.id, validatedMeeting);
+    // Insert-then-refetch (same pattern as reply preview) so the returned
+    // row already carries the embedded proposal.
+    message = await messageModel.getMessageById(message.id);
+  }
 
   // Tin gửi qua REST cũng phải phát realtime như tin gửi qua socket
   emitToRoom(conversationId, 'new_message', message);
@@ -209,6 +252,70 @@ async function reactToMessage(conversationId, messageId, userId, emoji) {
   return reactions;
 }
 
+// Reschedule a meeting proposal — only the proposer may do this, and only
+// while it's still active. Clears prior RSVPs (handled by the model call)
+// since a response to the old time shouldn't carry over to the new one.
+async function updateMeetingProposal(conversationId, messageId, userId, { title, location, startsAt, endsAt }) {
+  const allowed = await messageModel.isParticipant(conversationId, userId);
+  if (!allowed) clientError('Conversation not found', 404);
+
+  const proposal = await resolveMeetingProposal(conversationId, messageId);
+  if (userId !== proposal.sender_id) clientError('Only the proposer can reschedule this meeting', 403);
+  if (proposal.status !== 'active') clientError('Cannot reschedule a cancelled meeting', 409);
+
+  const validated = validateMeetingProposal({ title, location, startsAt, endsAt });
+  await messageModel.updateMeetingProposal(proposal.id, validated);
+
+  const message = await messageModel.getMessageById(messageId);
+  const payload = { conversation_id: conversationId, message_id: messageId, meeting_proposal: message.meeting_proposal };
+  emitToRoom(conversationId, 'meeting_proposal_updated', payload);
+  const participants = await messageModel.getParticipants(conversationId).catch(() => []);
+  participants.forEach((uid) => emitToUser(uid, 'meeting_proposal_updated', payload));
+
+  return message.meeting_proposal;
+}
+
+// Cancel a meeting proposal — only the proposer, and only while active.
+async function cancelMeetingProposal(conversationId, messageId, userId) {
+  const allowed = await messageModel.isParticipant(conversationId, userId);
+  if (!allowed) clientError('Conversation not found', 404);
+
+  const proposal = await resolveMeetingProposal(conversationId, messageId);
+  if (userId !== proposal.sender_id) clientError('Only the proposer can cancel this meeting', 403);
+  if (proposal.status !== 'active') clientError('Meeting is already cancelled', 409);
+
+  await messageModel.cancelMeetingProposal(proposal.id);
+
+  const message = await messageModel.getMessageById(messageId);
+  const payload = { conversation_id: conversationId, message_id: messageId, meeting_proposal: message.meeting_proposal };
+  emitToRoom(conversationId, 'meeting_proposal_updated', payload);
+  const participants = await messageModel.getParticipants(conversationId).catch(() => []);
+  participants.forEach((uid) => emitToUser(uid, 'meeting_proposal_updated', payload));
+
+  return message.meeting_proposal;
+}
+
+// RSVP to a meeting proposal — any participant (including the proposer),
+// while it's still active. Mirrors reactToMessage's shape exactly.
+async function respondToMeeting(conversationId, messageId, userId, status) {
+  const allowed = await messageModel.isParticipant(conversationId, userId);
+  if (!allowed) clientError('Conversation not found', 404);
+  if (!messageModel.ALLOWED_MEETING_RSVP_STATUS.includes(status)) clientError('Status must be going, maybe, or not_going');
+
+  const proposal = await resolveMeetingProposal(conversationId, messageId);
+  if (proposal.status !== 'active') clientError('Cannot respond to a cancelled meeting', 409);
+
+  await messageModel.setMeetingRsvp(proposal.id, userId, status);
+
+  const message = await messageModel.getMessageById(messageId);
+  const payload = { conversation_id: conversationId, message_id: messageId, meeting_proposal: message.meeting_proposal };
+  emitToRoom(conversationId, 'meeting_response_updated', payload);
+  const participants = await messageModel.getParticipants(conversationId).catch(() => []);
+  participants.forEach((uid) => emitToUser(uid, 'meeting_response_updated', payload));
+
+  return message.meeting_proposal;
+}
+
 module.exports = {
   getOrCreateConversation,
   getConversations,
@@ -224,4 +331,7 @@ module.exports = {
   searchMessages,
   clearConversation,
   reactToMessage,
+  updateMeetingProposal,
+  cancelMeetingProposal,
+  respondToMeeting,
 };

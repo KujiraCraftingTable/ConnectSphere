@@ -4,12 +4,22 @@ struct MessageBubble: View {
     let message: Message
     let isOwn: Bool
     let palette: ThemePalette
+    /// Needed to derive "my RSVP" from a meeting proposal's status→user-ids map
+    /// (same convention as `Message.myReaction(userId:)`).
+    var currentUserId: String = ""
     /// Bấm vào ảnh/video trong bubble — parent mở viewer fullscreen
     var onMediaTap: ((Message) -> Void)? = nil
     /// Bấm vào phần preview trích dẫn — parent nhảy tới tin nhắn gốc (jump-to-message)
     var onReplyPreviewTap: ((String) -> Void)? = nil
+    /// RSVP tapped on a meeting proposal card
+    var onMeetingRespond: ((Message, MeetingRsvpStatus) -> Void)? = nil
+    /// "Reschedule" chosen from the proposer's menu — parent opens the composer pre-filled
+    var onMeetingEdit: ((Message) -> Void)? = nil
+    /// "Cancel meeting" confirmed from the proposer's menu
+    var onMeetingCancel: ((Message) -> Void)? = nil
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.appBundle) var bundle
+    @State private var showCancelConfirm = false
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 6) {
@@ -30,6 +40,21 @@ struct MessageBubble: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 2)
+        .confirmationDialog(
+            Text("Cancel meeting proposal?", bundle: bundle),
+            isPresented: $showCancelConfirm,
+            titleVisibility: .visible
+        ) {
+            Button(role: .destructive) {
+                onMeetingCancel?(message)
+            } label: {
+                Text("Cancel meeting", bundle: bundle)
+            }
+            Button(role: .cancel) {
+            } label: {
+                Text("Keep it", bundle: bundle)
+            }
+        }
     }
 
     // MARK: - Quoted reply preview
@@ -145,7 +170,129 @@ struct MessageBubble: View {
 
         case .video:
             videoBubble
+
+        case .meeting:
+            if let proposal = message.meetingProposal {
+                meetingProposalCard(proposal)
+            }
         }
+    }
+
+    // MARK: - Meeting proposal card
+
+    /// Card shown for `.meeting` messages: calendar icon, title, formatted date,
+    /// optional location, a 3-button RSVP strip (going count), and — for the
+    /// proposer only — a menu to reschedule/cancel. Cancelled proposals render
+    /// muted/struck-through with RSVP disabled.
+    private func meetingProposalCard(_ proposal: MeetingProposal) -> some View {
+        let cancelled = proposal.isCancelled
+        let iconColor = cancelled ? AppColors.textTertiary(colorScheme) : palette.primary
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(iconColor)
+                    .frame(width: 32, height: 32)
+                    .background(iconColor.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(proposal.title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .strikethrough(cancelled)
+                        .foregroundColor(cancelled ? AppColors.textTertiary(colorScheme) : AppColors.textPrimary(colorScheme))
+                    Text(formattedMeetingDate(proposal.startsAt))
+                        .font(.system(size: 13))
+                        .foregroundColor(AppColors.textSecondary(colorScheme))
+                }
+
+                Spacer(minLength: 4)
+
+                if isOwn && !cancelled {
+                    Menu {
+                        Button {
+                            onMeetingEdit?(message)
+                        } label: {
+                            Label(bundle.loc("Reschedule"), systemImage: "pencil")
+                        }
+                        Button(role: .destructive) {
+                            showCancelConfirm = true
+                        } label: {
+                            Label(bundle.loc("Cancel meeting"), systemImage: "xmark.circle")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(AppColors.textSecondary(colorScheme))
+                            .padding(6)
+                    }
+                }
+            }
+
+            if let location = proposal.location, !location.isEmpty {
+                Label(location, systemImage: "mappin.circle")
+                    .font(.system(size: 13))
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
+            }
+
+            if cancelled {
+                Text("Cancelled", bundle: bundle)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.red)
+            } else {
+                HStack(spacing: 8) {
+                    ForEach([MeetingRsvpStatus.going, .maybe, .notGoing], id: \.self) { status in
+                        meetingRsvpButton(status, proposal: proposal)
+                    }
+                    Spacer()
+                    Text(String(format: bundle.loc("%d going"), proposal.count(for: .going)))
+                        .font(.system(size: 12))
+                        .foregroundColor(AppColors.textTertiary(colorScheme))
+                }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: 260, alignment: .leading)
+        .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 14))
+        .opacity(cancelled ? 0.65 : 1)
+    }
+
+    private func meetingRsvpButton(_ status: MeetingRsvpStatus, proposal: MeetingProposal) -> some View {
+        let isActive = proposal.myResponse(userId: currentUserId) == status
+        return Button {
+            onMeetingRespond?(message, status)
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: status.icon)
+                    .font(.system(size: 12))
+                meetingRsvpLabel(status)
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .foregroundColor(isActive ? .white : AppColors.textSecondary(colorScheme))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(isActive ? palette.primary : AppColors.base(colorScheme))
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func meetingRsvpLabel(_ status: MeetingRsvpStatus) -> Text {
+        switch status {
+        case .going:    return Text("Going", bundle: bundle)
+        case .maybe:    return Text("Maybe", bundle: bundle)
+        case .notGoing: return Text("Can't go", bundle: bundle)
+        }
+    }
+
+    /// Short formatted date: "Sat, Jun 7 · 7:00 PM" — same format as EventPostCard.
+    private func formattedMeetingDate(_ date: Date) -> String {
+        let df = DateFormatter()
+        df.dateFormat = "EEE, MMM d"
+        let tf = DateFormatter()
+        tf.dateFormat = "h:mm a"
+        return "\(df.string(from: date)) · \(tf.string(from: date))"
     }
 
     /// Bubble video: nền tối + nút play, bấm mở viewer fullscreen

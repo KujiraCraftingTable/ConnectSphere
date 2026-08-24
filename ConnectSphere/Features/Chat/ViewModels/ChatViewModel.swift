@@ -162,6 +162,123 @@ class ChatViewModel {
         }
     }
 
+    // MARK: - Meeting proposals
+
+    /// Propose a meeting (title/location/starts_at/ends_at) in this conversation.
+    /// Prefers the socket (server fans out `new_message` to both sides, same as
+    /// text/media); falls back to REST when disconnected, appending the result
+    /// locally since no broadcast will arrive to add this bubble.
+    func sendMeetingProposal(title: String, location: String?, startsAt: Date, endsAt: Date?) async {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else { return }
+        isSending = true
+        defer { isSending = false }
+
+        if ws.connectionState == .connected {
+            let iso = ISO8601DateFormatter()
+            var proposalPayload: [String: Any] = [
+                "title": trimmedTitle,
+                "startsAt": iso.string(from: startsAt)
+            ]
+            if let location, !location.isEmpty { proposalPayload["location"] = location }
+            if let endsAt { proposalPayload["endsAt"] = iso.string(from: endsAt) }
+            ws.emit("send_message", [
+                "conversationId": conversationId,
+                "messageType": "meeting",
+                "meetingProposal": proposalPayload
+            ])
+        } else {
+            do {
+                let msg = try await repository.sendMeetingProposal(
+                    conversationId: conversationId, title: trimmedTitle, location: location,
+                    startsAt: startsAt, endsAt: endsAt, token: token
+                )
+                messages.append(msg)
+            } catch {
+                self.error = "Failed to send meeting proposal"
+            }
+        }
+    }
+
+    /// Reschedule an existing meeting proposal (proposer only — the server clears
+    /// prior RSVPs). Prefers the socket (server fans out `meeting_proposal_updated`
+    /// to both sides); falls back to REST when disconnected, applying the result
+    /// locally since no broadcast will arrive for this bubble.
+    func rescheduleMeeting(messageId: String, title: String, location: String?, startsAt: Date, endsAt: Date?) async {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else { return }
+
+        if ws.connectionState == .connected {
+            let iso = ISO8601DateFormatter()
+            var payload: [String: Any] = [
+                "conversationId": conversationId,
+                "messageId": messageId,
+                "title": trimmedTitle,
+                "startsAt": iso.string(from: startsAt)
+            ]
+            payload["location"] = (location?.isEmpty == false) ? location! : NSNull()
+            payload["endsAt"] = endsAt.map { iso.string(from: $0) } ?? NSNull()
+            ws.emit("update_meeting_proposal", payload)
+        } else {
+            do {
+                let proposal = try await repository.updateMeetingProposal(
+                    conversationId: conversationId, messageId: messageId, title: trimmedTitle,
+                    location: location, startsAt: startsAt, endsAt: endsAt, token: token
+                )
+                if let i = messages.firstIndex(where: { $0.id == messageId }) {
+                    messages[i].meetingProposal = proposal
+                }
+            } catch {
+                self.error = "Could not reschedule meeting"
+            }
+        }
+    }
+
+    /// Cancel a meeting proposal (proposer only). Socket-first with REST fallback,
+    /// same pattern as `rescheduleMeeting`.
+    func cancelMeeting(messageId: String) async {
+        if ws.connectionState == .connected {
+            ws.emit("cancel_meeting_proposal", [
+                "conversationId": conversationId,
+                "messageId": messageId
+            ])
+        } else {
+            do {
+                let proposal = try await repository.cancelMeetingProposal(
+                    conversationId: conversationId, messageId: messageId, token: token
+                )
+                if let i = messages.firstIndex(where: { $0.id == messageId }) {
+                    messages[i].meetingProposal = proposal
+                }
+            } catch {
+                self.error = "Could not cancel meeting"
+            }
+        }
+    }
+
+    /// RSVP to a meeting proposal. Socket-first with REST fallback, mirroring
+    /// `sendReaction`'s exact branching.
+    func respondToMeeting(messageId: String, status: MeetingRsvpStatus) async {
+        if ws.connectionState == .connected {
+            ws.emit("respond_meeting", [
+                "conversationId": conversationId,
+                "messageId": messageId,
+                "status": status.rawValue
+            ])
+        } else {
+            do {
+                let proposal = try await repository.respondToMeeting(
+                    conversationId: conversationId, messageId: messageId, status: status.rawValue, token: token
+                )
+                if let i = messages.firstIndex(where: { $0.id == messageId }) {
+                    messages[i].meetingProposal = proposal
+                }
+            } catch {
+                self.error = "Could not respond to meeting"
+            }
+        }
+    }
+
     // MARK: - WebSocket setup
 
     func joinConversation() {
@@ -218,6 +335,32 @@ class ChatViewModel {
             self.messages[i].reactions = reactions
         }
 
+        // A meeting proposal was rescheduled or cancelled (proposer-only actions);
+        // apply whatever the server sends — a reschedule's response already
+        // reflects cleared RSVP counts/userResponse, so no extra clearing needed.
+        ws.on("meeting_proposal_updated", tag: "chat") { [weak self] payload in
+            guard let self,
+                  let dict = payload as? [String: Any],
+                  let convId = dict["conversation_id"] as? String,
+                  convId == self.conversationId,
+                  let messageId = dict["message_id"] as? String,
+                  let i = self.messages.firstIndex(where: { $0.id == messageId }),
+                  let proposal = self.decodeMeetingProposal(dict) else { return }
+            self.messages[i].meetingProposal = proposal
+        }
+
+        // Someone RSVPed to a meeting proposal (going/maybe/not_going)
+        ws.on("meeting_response_updated", tag: "chat") { [weak self] payload in
+            guard let self,
+                  let dict = payload as? [String: Any],
+                  let convId = dict["conversation_id"] as? String,
+                  convId == self.conversationId,
+                  let messageId = dict["message_id"] as? String,
+                  let i = self.messages.firstIndex(where: { $0.id == messageId }),
+                  let proposal = self.decodeMeetingProposal(dict) else { return }
+            self.messages[i].meetingProposal = proposal
+        }
+
         // Shared settings (theme/nickname) changed by either participant
         ws.on("conversation_settings_updated", tag: "chat") { [weak self] payload in
             guard let self,
@@ -239,6 +382,8 @@ class ChatViewModel {
         ws.off("messages_read", tag: "chat")
         ws.off("message_deleted", tag: "chat")
         ws.off("reaction_updated", tag: "chat")
+        ws.off("meeting_proposal_updated", tag: "chat")
+        ws.off("meeting_response_updated", tag: "chat")
         ws.off("conversation_settings_updated", tag: "chat")
     }
 
@@ -317,5 +462,15 @@ class ChatViewModel {
     private func decodeMessage(_ payload: Any) -> Message? {
         guard let json = try? JSONSerialization.data(withJSONObject: payload) else { return nil }
         return try? JSONDecoder.makeISO8601().decode(Message.self, from: json)
+    }
+
+    /// Decodes a meeting proposal from a `meeting_proposal_updated`/`meeting_response_updated`
+    /// socket payload — accepts either a nested `meeting_proposal` dict (mirroring the REST
+    /// embed shape used elsewhere) or the proposal's fields flattened at the payload's top
+    /// level, to tolerate whichever broadcast shape the backend ends up sending.
+    private func decodeMeetingProposal(_ dict: [String: Any]) -> MeetingProposal? {
+        let proposalDict = (dict["meeting_proposal"] as? [String: Any]) ?? dict
+        guard let json = try? JSONSerialization.data(withJSONObject: proposalDict) else { return nil }
+        return try? JSONDecoder.makeISO8601().decode(MeetingProposal.self, from: json)
     }
 }

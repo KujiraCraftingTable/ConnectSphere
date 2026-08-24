@@ -4,13 +4,21 @@ const { personaExpr } = require('../utils/personaSql');
 // Fixed reaction set — kept small on purpose (Messenger-style quick react bar)
 const ALLOWED_REACTION_EMOJI = ['❤️', '👍', '😂', '😮', '😢', '🔥'];
 
+// Fixed RSVP set for meeting proposals — mirrors community_events' going/maybe/not_going
+const ALLOWED_MEETING_RSVP_STATUS = ['going', 'maybe', 'not_going'];
+
 // Shared SELECT fragment: embeds the quoted-message preview (sender name +
-// truncated content) and a per-message reaction summary ({ emoji: [user_id] }).
+// truncated content), a per-message reaction summary ({ emoji: [user_id] }),
+// and — for meeting proposals — the proposal itself with a per-status RSVP
+// summary ({ going: [user_id], maybe: [...], not_going: [...] }), same
+// map-of-user-ids convention as reactions so the client derives "my status"
+// and counts without needing a requesting-user-scoped query.
 // Requires the query to alias the messages row as `m` and join:
 //   JOIN conversations c ON c.id = m.conversation_id
 //   LEFT JOIN messages rm ON rm.id = m.reply_to_message_id
 //   LEFT JOIN users    ru ON ru.id = rm.sender_id
-const REPLY_AND_REACTIONS_SELECT = `
+//   LEFT JOIN message_meeting_proposals mp ON mp.message_id = m.id
+const MESSAGE_EMBED_SELECT = `
        CASE WHEN rm.id IS NOT NULL THEN
          jsonb_build_object(
            'id', rm.id,
@@ -37,7 +45,28 @@ const REPLY_AND_REACTIONS_SELECT = `
            WHERE message_id = m.id
            GROUP BY emoji
          ) agg
-       ), '{}'::jsonb) AS reactions`;
+       ), '{}'::jsonb) AS reactions,
+       CASE WHEN mp.id IS NOT NULL THEN
+         jsonb_build_object(
+           'id', mp.id,
+           'title', mp.title,
+           'location', mp.location,
+           'starts_at', mp.starts_at,
+           'ends_at', mp.ends_at,
+           'status', mp.status,
+           'created_at', mp.created_at,
+           'updated_at', mp.updated_at,
+           'rsvps', COALESCE((
+             SELECT jsonb_object_agg(agg.status, agg.user_ids)
+             FROM (
+               SELECT status, jsonb_agg(user_id) AS user_ids
+               FROM message_meeting_rsvps
+               WHERE proposal_id = mp.id
+               GROUP BY status
+             ) agg
+           ), '{}'::jsonb)
+         )
+       ELSE NULL END AS meeting_proposal`;
 
 // Find existing 1-on-1 conversation between two users for a given mode
 async function findConversation(userA, userB, mode) {
@@ -135,11 +164,12 @@ async function listMessages(conversationId, userId, { limit = 30, before = null 
             CASE WHEN m.deleted_at IS NULL THEN m.media_url ELSE NULL END AS media_url,
             m.status, m.created_at, m.reply_to_message_id,
             (m.deleted_at IS NOT NULL) AS is_deleted,
-${REPLY_AND_REACTIONS_SELECT}
+${MESSAGE_EMBED_SELECT}
      FROM messages m
      JOIN conversations c ON c.id = m.conversation_id
      LEFT JOIN messages rm ON rm.id = m.reply_to_message_id
      LEFT JOIN users    ru ON ru.id = rm.sender_id
+     LEFT JOIN message_meeting_proposals mp ON mp.message_id = m.id
      WHERE m.conversation_id = $1
        AND m.created_at > COALESCE(
          (SELECT cleared_at FROM conversation_participants
@@ -182,11 +212,12 @@ async function getMessageById(messageId) {
             CASE WHEN m.deleted_at IS NULL THEN m.media_url ELSE NULL END AS media_url,
             m.status, m.created_at, m.reply_to_message_id,
             (m.deleted_at IS NOT NULL) AS is_deleted,
-${REPLY_AND_REACTIONS_SELECT}
+${MESSAGE_EMBED_SELECT}
      FROM messages m
      JOIN conversations c ON c.id = m.conversation_id
      LEFT JOIN messages rm ON rm.id = m.reply_to_message_id
      LEFT JOIN users    ru ON ru.id = rm.sender_id
+     LEFT JOIN message_meeting_proposals mp ON mp.message_id = m.id
      WHERE m.id = $1`,
     [messageId]
   );
@@ -359,11 +390,12 @@ async function searchMessages(conversationId, userId, term) {
     `SELECT m.id, m.conversation_id, m.sender_id, m.content,
             m.message_type, m.media_url, m.status, m.created_at, m.reply_to_message_id,
             (m.deleted_at IS NOT NULL) AS is_deleted,
-${REPLY_AND_REACTIONS_SELECT}
+${MESSAGE_EMBED_SELECT}
      FROM messages m
      JOIN conversations c ON c.id = m.conversation_id
      LEFT JOIN messages rm ON rm.id = m.reply_to_message_id
      LEFT JOIN users    ru ON ru.id = rm.sender_id
+     LEFT JOIN message_meeting_proposals mp ON mp.message_id = m.id
      WHERE m.conversation_id = $1
        AND m.deleted_at IS NULL
        AND m.message_type = 'text'
@@ -424,8 +456,90 @@ async function getReactions(messageId) {
   return summary;
 }
 
+// ── Meeting proposals ───────────────────────────────────────────────────────
+
+// Create a proposal row for a just-inserted 'meeting' message
+async function createMeetingProposal(messageId, { title, location, startsAt, endsAt }) {
+  const { rows } = await query(
+    `INSERT INTO message_meeting_proposals (message_id, title, location, starts_at, ends_at)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING *`,
+    [messageId, title, location || null, startsAt, endsAt || null]
+  );
+  return rows[0];
+}
+
+// Reschedule: update the proposal's fields and clear all existing RSVPs —
+// a response to the old time shouldn't silently carry over to the new one.
+async function updateMeetingProposal(proposalId, { title, location, startsAt, endsAt }) {
+  const { rows } = await query(
+    `UPDATE message_meeting_proposals
+     SET title = $2, location = $3, starts_at = $4, ends_at = $5, updated_at = NOW()
+     WHERE id = $1
+     RETURNING *`,
+    [proposalId, title, location || null, startsAt, endsAt || null]
+  );
+
+  await query(`DELETE FROM message_meeting_rsvps WHERE proposal_id = $1`, [proposalId]);
+
+  return rows[0];
+}
+
+// Cancel a proposal (soft — status flag, message bubble stays in place)
+async function cancelMeetingProposal(proposalId) {
+  const { rows } = await query(
+    `UPDATE message_meeting_proposals SET status = 'cancelled', updated_at = NOW()
+     WHERE id = $1
+     RETURNING *`,
+    [proposalId]
+  );
+  return rows[0];
+}
+
+// Upsert a participant's RSVP (going/maybe/not_going) for a proposal
+async function setMeetingRsvp(proposalId, userId, status) {
+  await query(
+    `INSERT INTO message_meeting_rsvps (proposal_id, user_id, status)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (proposal_id, user_id)
+     DO UPDATE SET status = $3, responded_at = NOW()`,
+    [proposalId, userId, status]
+  );
+}
+
+// Fetch a proposal alongside its message's conversation/sender/type, for the
+// service layer's ownership/conversation-membership/active-status checks —
+// mirrors the "get message + its conversation/sender" shape getMessageBasic
+// already provides for the reply pattern.
+async function getProposalWithMessageMeta(proposalId) {
+  const { rows } = await query(
+    `SELECT mp.id, mp.status, mp.title, mp.location, mp.starts_at, mp.ends_at,
+            m.id AS message_id, m.conversation_id, m.sender_id, m.message_type
+     FROM message_meeting_proposals mp
+     JOIN messages m ON m.id = mp.message_id
+     WHERE mp.id = $1`,
+    [proposalId]
+  );
+  return rows[0] || null;
+}
+
+// Same lookup, keyed by message_id — used when the caller only has the
+// message id (e.g. the REST/socket routes address proposals via :messageId).
+async function getProposalByMessageId(messageId) {
+  const { rows } = await query(
+    `SELECT mp.id, mp.status, mp.title, mp.location, mp.starts_at, mp.ends_at,
+            m.id AS message_id, m.conversation_id, m.sender_id, m.message_type
+     FROM messages m
+     LEFT JOIN message_meeting_proposals mp ON mp.message_id = m.id
+     WHERE m.id = $1`,
+    [messageId]
+  );
+  return rows[0] || null;
+}
+
 module.exports = {
   ALLOWED_REACTION_EMOJI,
+  ALLOWED_MEETING_RSVP_STATUS,
   findConversation,
   createConversation,
   listConversations,
@@ -447,4 +561,10 @@ module.exports = {
   searchMessages,
   setReaction,
   getReactions,
+  createMeetingProposal,
+  updateMeetingProposal,
+  cancelMeetingProposal,
+  setMeetingRsvp,
+  getProposalWithMessageMeta,
+  getProposalByMessageId,
 };

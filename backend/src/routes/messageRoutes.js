@@ -63,6 +63,9 @@ router.post  ('/conversations/:id/messages', ctrl.sendMessage);
 router.delete('/conversations/:id/messages', ctrl.clearConversation);
 router.delete('/conversations/:id/messages/:messageId', ctrl.recallMessage);
 router.post  ('/conversations/:id/messages/:messageId/reactions', ctrl.reactToMessage);
+router.patch ('/conversations/:id/messages/:messageId/meeting-proposal',        ctrl.updateMeetingProposal);
+router.post  ('/conversations/:id/messages/:messageId/meeting-proposal/cancel', ctrl.cancelMeetingProposal);
+router.post  ('/conversations/:id/messages/:messageId/meeting-response',        ctrl.respondToMeeting);
 router.put   ('/conversations/:id/read',     ctrl.markRead);
 router.get   ('/unread',                     ctrl.unreadCount);
 
