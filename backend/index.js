@@ -520,7 +520,23 @@ app.use('/uploads/messages', (req, res, next) => {
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ── Health check ──────────────────────────────────────────────────────────────
-app.get('/health', (req, res) => res.json({ status: 'ok', env: NODE_ENV }));
+// Always 200 (liveness — the Docker healthcheck relies on that); `checks`
+// reports the reachability of each dependency for an operator.
+const IORedis = require('ioredis');
+app.get('/health', async (req, res) => {
+  const checks = { db: false, redis: false, ollama: false };
+  const redisPing = (async () => {
+    const c = new IORedis({ ...require('./src/config/redis'), lazyConnect: true, maxRetriesPerRequest: 1 });
+    try { checks.redis = (await c.ping()) === 'PONG'; } finally { c.disconnect(); }
+  })();
+  await Promise.allSettled([
+    query('SELECT 1').then(() => { checks.db = true; }),
+    redisPing,
+    fetch(`${env.ollama.url}/api/tags`, { signal: AbortSignal.timeout(1500) })
+      .then((r) => { checks.ollama = r.ok; }),
+  ]);
+  res.json({ status: 'ok', env: NODE_ENV, checks });
+});
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/api/auth',          require('./src/routes/authRoutes').router);

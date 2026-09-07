@@ -762,3 +762,5 @@
 "Log out of ConnectSphere?" = "Log out of ConnectSphere?";
 "Unsend this message?" = "Unsend this message?";
 "This removes it for everyone in the conversation." = "This removes it for everyone in the conversation.";
+
+"e.g. %@" = "e.g. %@";

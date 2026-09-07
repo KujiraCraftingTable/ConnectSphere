@@ -762,3 +762,5 @@
 "Log out of ConnectSphere?" = "Đăng xuất khỏi ConnectSphere?";
 "Unsend this message?" = "Thu hồi tin nhắn này?";
 "This removes it for everyone in the conversation." = "Thao tác này gỡ tin nhắn với tất cả mọi người trong cuộc trò chuyện.";
+
+"e.g. %@" = "ví dụ: %@";

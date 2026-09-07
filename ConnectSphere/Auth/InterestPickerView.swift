@@ -150,7 +150,7 @@ struct InterestPickerView: View {
             }
             .padding(.top, 8)
 
-            TextField("e.g. \(subItemPlaceholder(pendingCategory))", text: $subItemInput)
+            TextField(String(format: bundle.loc("e.g. %@"), subItemPlaceholder(pendingCategory)), text: $subItemInput)
                 .font(.system(size: 16))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 13)

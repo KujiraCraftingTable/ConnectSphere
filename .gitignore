@@ -5,15 +5,10 @@
 xcuserdata/
 *.xcuserstate
 
-# Claude Code tooling & internal docs (not published)
+# Claude Code / agent tooling (not part of the project)
 .claude/
 .agents/
 .worktreeinclude
-CLAUDE.md
-AGENTS.md
-KNOWN_GAPS.md
-AI_SEARCH_OVERVIEW.md
-dev.sh
 
 # Agent / tooling runtime
 .Rhistory
