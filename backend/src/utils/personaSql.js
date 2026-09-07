@@ -1,15 +1,16 @@
 // ─── Persona SQL helpers ──────────────────────────────────────────────────────
-// Mỗi account có 2 danh tính hiển thị độc lập theo mode (cột hobby_*/work_*
-// trên bảng users). modeRef là biểu thức SQL cho mode: tham số ('$2'), cột
-// ('p.mode', 'c.mode') hoặc literal ("'hobby'") — KHÔNG bao giờ là input thô
-// của client (mode luôn được validate 'hobby'/'work' ở controller trước).
+// Each account has 2 independent display identities per mode (hobby_*/work_*
+// columns on the users table). modeRef is the SQL expression for the mode: a
+// parameter ('$2'), a column ('p.mode', 'c.mode'), or a literal ("'hobby'") —
+// NEVER raw client input (mode is always validated as 'hobby'/'work' in the
+// controller first).
 //
-//  • personaExpr(field): biểu thức lấy 1 field theo mode. display_name có
-//    COALESCE về cột gốc (tên không bao giờ trống); bio/avatar/cover KHÔNG
-//    fallback — NULL = persona chưa đặt field đó → client hiển thị mặc định,
-//    tránh lộ ảnh/bio của persona mode kia.
-//  • personaCols: bộ 4 cột danh tính (AS display_name/bio/avatar_url/cover_url)
-//  • personaSetupClause: user đã setup persona của mode chưa (= có display_name)
+//  • personaExpr(field): expression that picks one field by mode. display_name
+//    has a COALESCE to the base column (name is never empty); bio/avatar/cover
+//    have NO fallback — NULL = the persona hasn't set that field → the client
+//    shows a default, so it never leaks that field from the other mode's persona.
+//  • personaCols: the 4 identity columns (AS display_name/bio/avatar_url/cover_url)
+//  • personaSetupClause: whether the user has set up that mode's persona yet (= has a display_name)
 
 const personaExpr = (field, modeRef, alias = 'u') => {
   const expr = `CASE WHEN ${modeRef} = 'work' THEN ${alias}.work_${field} ELSE ${alias}.hobby_${field} END`;

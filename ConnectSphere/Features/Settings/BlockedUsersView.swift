@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Danh sách user mình đang chặn, kèm nút bỏ chặn tại chỗ.
+/// List of users the current user has blocked, with an inline unblock button.
 struct BlockedUsersView: View {
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
@@ -73,8 +73,8 @@ struct BlockedUsersView: View {
         .padding(.vertical, 4)
     }
 
-    /// Avatar ảnh thật nếu có, fallback chữ cái đầu (giống AvatarView
-    /// nhưng nhận BlockedUserDTO thay vì UserProfile).
+    /// Real image if available, falling back to the first letter (same idea as AvatarView
+    /// but takes a BlockedUserDTO instead of a UserProfile).
     private func avatar(_ user: BlockedUserDTO) -> some View {
         ZStack {
             Circle().fill(Color(hex: user.avatarColor ?? "#7F5AF0"))
@@ -123,7 +123,7 @@ struct BlockedUsersView: View {
             try await userRepo.unblockUser(userId: user.id)
             withAnimation { blockedUsers.removeAll { $0.id == user.id } }
         } catch {
-            // Giữ nguyên row; user có thể thử lại
+            // Leave the row as-is; the user can try again
         }
     }
 }

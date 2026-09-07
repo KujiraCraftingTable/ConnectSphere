@@ -12,18 +12,21 @@ struct ProfileRepository {
         return response.data.toUserProfile()
     }
 
-    func fetchPosts(authorId: String, limit: Int = 20, offset: Int = 0) async throws -> [Post] {
+    /// mode = server-side filter ("hobby"/"work") — `ProfileViewModel` passes
+    /// the active mode so pagination offsets stay correct against one mode's
+    /// post count, reloading on mode switch rather than re-filtering client-side.
+    func fetchPosts(authorId: String, mode: String? = nil, limit: Int = 20, offset: Int = 0) async throws -> [Post] {
         let response = try await client.fetch(
             PaginatedResponse<PostDTO>.self,
-            from: .listPosts(authorId: authorId, limit: limit, offset: offset)
+            from: .listPosts(mode: mode, authorId: authorId, limit: limit, offset: offset)
         )
         return response.data.map { $0.toPost() }
     }
 
-    /// Partial update — field nil sẽ không được gửi lên (JSONEncoder bỏ qua nil),
-    /// backend chỉ ghi những field có mặt trong body.
-    /// mode = persona đang sửa (display_name/bio/avatar/cover ghi vào persona đó);
-    /// không gửi thì backend fallback về default_mode của user.
+    /// Partial update — a nil field is not sent (JSONEncoder skips nils),
+    /// so the backend only writes the fields present in the body.
+    /// mode = the persona being edited (display_name/bio/avatar/cover are written to that persona);
+    /// if omitted, the backend falls back to the user's default_mode.
     struct ProfileUpdate: Encodable {
         var mode: String?         = nil
         var display_name: String? = nil
@@ -37,7 +40,7 @@ struct ProfileRepository {
         var cover_url: String?    = nil
         var interests: [String]?  = nil
         var skills: [String]?     = nil
-        var email: String?        = nil   // "" = gỡ email khỏi tài khoản
+        var email: String?        = nil   // "" = remove email from the account
     }
 
     func updateProfile(_ update: ProfileUpdate) async throws -> UserProfile {
@@ -54,9 +57,9 @@ struct ProfileRepository {
         return response.data.toUserProfile()
     }
 
-    /// Tạo persona cho mode thứ 2 (lần đầu switch sang mode chưa setup).
-    /// Work kèm job_title/company/skills; hobby kèm interests. Backend trả 409
-    /// nếu persona đã tồn tại (sửa qua updateProfile thay vì tạo lại).
+    /// Creates a persona for the second mode (first switch into a mode that hasn't been set up yet).
+    /// Work includes job_title/company/skills; hobby includes interests. Backend returns 409
+    /// if the persona already exists (edit via updateProfile instead of recreating it).
     struct PersonaCreate: Encodable {
         let mode: String
         let display_name: String
@@ -81,8 +84,28 @@ struct ProfileRepository {
         return response.data.toUserProfile()
     }
 
-    /// Soft-delete tài khoản của chính mình. Xác nhận bằng mật khẩu,
-    /// hoặc confirmation = "DELETE" với tài khoản Google chưa có mật khẩu.
+    /// Persists which mode the app should open in after login. Fire-and-forget
+    /// from `AppState.requestModeSwitch` — the switch is already reflected
+    /// locally, so this is a background sync rather than something the UI
+    /// waits on. Separate from `updateProfile`, whose own `mode` field means
+    /// "which persona to edit," not "change my default."
+    func updateDefaultMode(_ mode: AppMode) async throws {
+        guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
+            throw APIError.serverError(statusCode: 401, message: "Not authenticated")
+        }
+        struct Body: Encodable { let mode: String }
+        struct OKResponse: Decodable { let status: String }
+        _ = try await client.fetch(
+            OKResponse.self,
+            path: "/users/me/default-mode",
+            method: "PATCH",
+            token: token,
+            bodyData: NetworkClient.encode(Body(mode: mode.rawValue))
+        )
+    }
+
+    /// Soft-deletes the current user's own account. Confirmed with a password,
+    /// or confirmation = "DELETE" for a Google account that has no password set.
     func deleteAccount(password: String?, confirmation: String?) async throws {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")

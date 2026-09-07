@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// Form tạo persona cho mode thứ 2 — hiện khi user lần đầu switch sang mode
-/// chưa setup (appState.pendingPersonaMode). Cùng account nhưng danh tính
-/// hiển thị độc lập: work cần display name + chức danh/công ty/skills;
-/// hobby cần display name + interests. Hủy = ở lại mode cũ.
+/// Form for creating a persona for the second mode — shown when the user first
+/// switches into a mode that isn't set up yet (appState.pendingPersonaMode).
+/// Same account but an independent display identity: work needs display name +
+/// job title/company/skills; hobby needs display name + interests. Cancel = stay in the old mode.
 struct PersonaSetupView: View {
     let mode: AppMode
     @Environment(AppState.self) var appState
@@ -104,7 +104,7 @@ struct PersonaSetupView: View {
         .interactiveDismissDisabled(isSaving)
     }
 
-    // MARK: Header — giải thích vì sao cần form này
+    // MARK: Header — explains why this form is needed
 
     private var header: some View {
         VStack(spacing: 12) {

@@ -1,5 +1,6 @@
 /* Localizable.strings (Vietnamese) — English key -> Vietnamese. Auto-generated. */
 
+"🎂 It's %@'s birthday today!" = "🎂 Hôm nay là sinh nhật của %@!";
 "%@ accepted your connection request" = "%@ đã chấp nhận lời mời kết nối của bạn";
 "%@ commented on your post" = "%@ đã bình luận bài viết của bạn";
 "%@ commented: “%@”" = "%@ đã bình luận: “%@”";
@@ -49,7 +50,13 @@
 "By creating an account, you agree to our **Terms of Service** and **Privacy Policy**." = "Khi tạo tài khoản, bạn đồng ý với **Điều khoản dịch vụ** và **Chính sách bảo mật** của chúng tôi.";
 "Cancel" = "Hủy";
 "Check your connection and try again" = "Kiểm tra kết nối mạng rồi thử lại nha";
+"What is \"%@\"?" = "\"%@\" là ở đâu vậy?";
+"e.g. Landmark 81" = "ví dụ: Landmark 81";
+"Search again" = "Tìm lại";
+"Thanks — we couldn't confirm that one either, so it's been flagged for review." = "Cảm ơn bạn — tụi mình vẫn chưa xác định được chỗ đó, đã ghi nhận để kiểm tra lại nhé!";
 "Couldn't load results" = "Không tải được kết quả";
+"Couldn't tell which city \"%@\" is in — add a province to narrow it down." = "Không xác định được \"%@\" ở thành phố nào — thêm tên tỉnh/thành để tìm chuẩn hơn nhé!";
+"Couldn't pick out anything specific to search for — try naming an interest, skill, or place." = "Chưa rõ bạn muốn tìm gì cụ thể — thử nêu một sở thích, kỹ năng hoặc địa điểm nhé!";
 "Come back when there are more communities" = "Hãy quay lại sau khi có thêm cộng đồng mới";
 "Comments" = "Bình luận";
 "Community" = "Cộng đồng";
@@ -65,7 +72,7 @@
 "Connection request" = "Lời mời kết nối";
 "Connections" = "Kết nối";
 "Continue" = "Tiếp tục";
-"Continue with Google" = "Continue with Google";
+"Continue with Google" = "Tiếp tục với Google";
 "Conversation settings" = "Cài đặt cuộc trò chuyện";
 "Could not create community. Please try again." = "Không thể tạo cộng đồng. Vui lòng thử lại.";
 "Could not get Google token" = "Không lấy được Google token";
@@ -86,6 +93,7 @@
 "Date of birth: %@" = "Ngày sinh: %@";
 "Decline" = "Từ chối";
 "Delete comment" = "Xóa bình luận";
+"Edit comment" = "Sửa bình luận";
 "Describe this event…" = "Mô tả sự kiện này…";
 "Description (optional)" = "Mô tả (tùy chọn)";
 "Didn't receive the code?" = "Chưa nhận được mã?";
@@ -132,6 +140,7 @@
 "Job title" = "Chức danh";
 "Job title (iOS Developer...)" = "Chức danh (iOS Developer...)";
 "Join" = "Tham gia";
+"Join %@ on ConnectSphere" = "Tham gia %@ trên ConnectSphere";
 "Joined" = "Đã tham gia";
 "just now" = "vừa xong";
 "Just now" = "Vừa xong";
@@ -304,6 +313,7 @@
 "You can set up Work Mode later, or " = "Bạn có thể thiết lập Chế độ Công việc sau, hoặc ";
 "You haven't joined any communities" = "Chưa tham gia cộng đồng nào";
 "You two will no longer see each other's posts, all connections will be removed, and you won't be able to message each other." = "Hai bạn sẽ không còn thấy bài viết của nhau, mọi kết nối sẽ bị gỡ và không thể nhắn tin cho nhau.";
+"You've blocked this user" = "Bạn đã chặn người dùng này";
 "You're connected — say hello 👋" = "Bạn đã kết nối với tài khoản này, hãy gửi lời chào 👋";
 "You're not connected with this user" = "Bạn chưa kết nối với tài khoản này";
 "Your interests" = "Sở thích của bạn";
@@ -398,7 +408,9 @@
 "Delete post" = "Xoá bài viết";
 "Hide post" = "Ẩn bài viết";
 "Delete post?" = "Xoá bài viết?";
-"This post will be permanently deleted." = "Bài viết sẽ bị xoá và không thể khôi phục.";
+"This post won't be shown in the app. You can restore it from Recently Deleted within 30 days." = "Bài viết sẽ không còn hiển thị trong ứng dụng. Bạn có thể khôi phục từ mục Đã xoá gần đây trong vòng 30 ngày.";
+"Delete comment?" = "Xoá bình luận?";
+"This comment won't be shown in the app. You can restore it from Recently Deleted within 30 days." = "Bình luận sẽ không còn hiển thị trong ứng dụng. Bạn có thể khôi phục từ mục Đã xoá gần đây trong vòng 30 ngày.";
 
 /* Group-B password management */
 "Change password" = "Đổi mật khẩu";
@@ -451,4 +463,297 @@
 "Maybe" = "Có thể";
 "Can't go" = "Không thể";
 "%d going" = "%d người tham gia";
+
+/* Meeting proposal card (Phase 4) — reminder indicator shown instead of RSVP
+   buttons for a 1:1 proposal */
+"Reminder: %@" = "Nhắc nhở: %@";
+
+/* Meeting proposal composer (Phase 3) */
+"Meeting Details" = "Chi tiết cuộc hẹn";
+"Title" = "Tiêu đề";
+"Meeting title" = "Tiêu đề cuộc hẹn";
+"%d/%d characters" = "%d/%d ký tự";
+"Search for a location" = "Tìm địa điểm";
+"Starts at" = "Bắt đầu lúc";
+"Ends at" = "Kết thúc lúc";
+"Add end time" = "Thêm thời gian kết thúc";
+"Reminder" = "Nhắc nhở";
+"On the day" = "Ngay trong ngày";
+"1 day before" = "Trước 1 ngày";
+"2 days before" = "Trước 2 ngày";
+"1 week before" = "Trước 1 tuần";
 "No views yet" = "Chưa có ai xem";
+
+/* Chat read/delivered receipts (group bubble status) */
+"Read %d/%d" = "Đã đọc %d/%d";
+
+/* Pinned messages */
+"Pinned messages" = "Tin nhắn đã ghim";
+"Pin" = "Ghim";
+"Unpin" = "Bỏ ghim";
+"Pin message" = "Ghim tin nhắn";
+"Unpin this message?" = "Bỏ ghim tin nhắn này?";
+"It will be removed from the pinned list." = "Tin nhắn sẽ được xoá khỏi danh sách đã ghim.";
+"%d pinned messages" = "%d tin nhắn đã ghim";
+"No pinned messages yet" = "Chưa có tin nhắn nào được ghim";
+"Pinned by %@" = "Ghim bởi %@";
+"Expires %@" = "Hết hạn %@";
+"Default auto-delete time" = "Thời gian tự xoá mặc định";
+"1 week" = "1 tuần";
+"1 month" = "1 tháng";
+"1 year" = "1 năm";
+"Custom date" = "Ngày tuỳ chỉnh";
+"Never" = "Không bao giờ";
+
+/* Group chat */
+"New group" = "Nhóm mới";
+"Next" = "Tiếp theo";
+"Select members" = "Chọn thành viên";
+"%d members selected" = "Đã chọn %d thành viên";
+"Group photo" = "Ảnh nhóm";
+"Group name" = "Tên nhóm";
+"Group name (optional)" = "Tên nhóm (không bắt buộc)";
+"Group" = "Nhóm";
+"%d members" = "%d thành viên";
+"Participants" = "Thành viên";
+"Owner" = "Chủ nhóm";
+"Make owner" = "Đặt làm chủ nhóm";
+"Make owner?" = "Đặt làm chủ nhóm?";
+"Remove from group" = "Xoá khỏi nhóm";
+"Leave" = "Rời khỏi";
+"Leave group" = "Rời nhóm";
+"Leave this group?" = "Rời khỏi nhóm này?";
+"Leave the group" = "Rời khỏi nhóm";
+"Stay" = "Ở lại";
+"You're no longer in this group" = "Bạn không còn ở trong nhóm này";
+"Blocked members in this group" = "Có thành viên bạn đã chặn trong nhóm này";
+
+/* Onboarding — persona setup */
+"Set up your Hobby profile" = "Thiết lập hồ sơ Sở thích";
+"Set up your Work profile" = "Thiết lập hồ sơ Công việc";
+"Start" = "Bắt đầu";
+"Couldn't save, please try again" = "Không thể lưu, vui lòng thử lại";
+
+/* AI Assistant */
+"Assistant" = "Trợ lý";
+"AI Assistant" = "Trợ lý AI";
+"Ask the assistant..." = "Hỏi trợ lý...";
+"Ask me to change a setting or find something in the app." = "Hãy nhờ tôi đổi một cài đặt hoặc tìm thứ gì đó trong ứng dụng.";
+"Switch to dark mode" = "Chuyển sang chế độ tối";
+"How do I change my password?" = "Làm sao để đổi mật khẩu?";
+"Go to settings" = "Đi đến cài đặt";
+"Take me there" = "Đưa tôi đến đó";
+"Yes, log out" = "Đồng ý, đăng xuất";
+"Done — theme switched to %@." = "Xong — đã chuyển giao diện sang %@.";
+"Done — language switched to %@." = "Xong — đã chuyển ngôn ngữ sang %@.";
+"You're already in %@." = "Bạn đang ở %@ rồi.";
+"Done — switched to %@." = "Xong — đã chuyển sang %@.";
+"You haven't set up your %@ yet — open Settings and tap that mode to create it first." = "Bạn chưa thiết lập %@ — hãy mở Cài đặt và chạm vào chế độ đó để tạo trước.";
+"Taking you to %@." = "Đang đưa bạn đến %@.";
+"Taking you to Settings." = "Đang đưa bạn đến Cài đặt.";
+"Are you sure you want to log out?" = "Bạn có chắc muốn đăng xuất không?";
+"You've been logged out." = "Bạn đã đăng xuất.";
+"Okay, staying logged in." = "Được rồi, vẫn giữ đăng nhập.";
+"I didn't quite catch that. Try asking about theme, language, mode, or where to find something — for example: %@." = "Tôi chưa hiểu rõ ý bạn. Hãy thử hỏi về giao diện, ngôn ngữ, chế độ, hoặc cách tìm một tính năng nào đó — ví dụ: %@.";
+"You can change your password from Settings → Privacy & Security → Change password." = "Bạn có thể đổi mật khẩu từ Cài đặt → Quyền riêng tư & Bảo mật → Đổi mật khẩu.";
+"To block someone, open their profile and choose Block from the menu. You can manage or unblock people anytime from Settings → Privacy & Security → Blocked users." = "Để chặn ai đó, mở hồ sơ của họ và chọn Chặn từ menu. Bạn có thể quản lý hoặc bỏ chặn bất cứ lúc nào từ Cài đặt → Quyền riêng tư & Bảo mật → Người dùng đã chặn.";
+"You can delete your account from Settings → Privacy & Security → Delete account. This can't be undone." = "Bạn có thể xoá tài khoản từ Cài đặt → Quyền riêng tư & Bảo mật → Xoá tài khoản. Hành động này không thể hoàn tác.";
+"Open a conversation from Home → Messages, tap the chat name at the top, then turn on Mute notifications." = "Mở một cuộc trò chuyện từ Trang chủ → Tin nhắn, chạm vào tên đoạn chat ở trên cùng, rồi bật Tắt thông báo.";
+"Open the group chat from Home → Messages, tap the group name at the top, then choose Rename group." = "Mở nhóm chat từ Trang chủ → Tin nhắn, chạm vào tên nhóm ở trên cùng, rồi chọn Đổi tên nhóm.";
+"You can edit your profile from the Profile tab — tap Edit profile — or from Settings → Edit profile." = "Bạn có thể chỉnh sửa hồ sơ từ tab Hồ sơ — chạm vào Chỉnh sửa hồ sơ — hoặc từ Cài đặt → Chỉnh sửa hồ sơ.";
+"Manage notification sounds from Settings → Notifications → Message sounds." = "Quản lý âm thanh thông báo từ Cài đặt → Thông báo → Âm thanh tin nhắn.";
+"Manage privacy and security options from Settings → Privacy & Security." = "Quản lý các tuỳ chọn quyền riêng tư và bảo mật từ Cài đặt → Quyền riêng tư & Bảo mật.";
+
+// MARK: - Hashtags / AI-tag visibility (CreatePostView, HashtagInputView)
+"Add a hashtag (#topic)" = "Thêm hashtag (#chủ_đề)";
+"Maximum of %d hashtags reached" = "Đã đạt tối đa %d hashtag";
+"Show AI-generated tags" = "Hiện tag do AI tạo";
+"AI tags stay hidden unless you turn this on for this post." = "Tag do AI tạo sẽ bị ẩn trừ khi bạn bật tuỳ chọn này cho bài viết.";
+
+// MARK: - Delete recovery (Undo toast, Recently Deleted screen)
+"Undo" = "Hoàn tác";
+"Post deleted" = "Đã xoá bài viết";
+"Comment deleted" = "Đã xoá bình luận";
+"Recently Deleted" = "Mới xoá gần đây";
+"Restore" = "Khôi phục";
+"No recently deleted posts" = "Không có bài viết nào vừa xoá";
+"No recently deleted comments" = "Không có bình luận nào vừa xoá";
+"No saved posts" = "Không có bài viết đã lưu";
+"Deleted posts and comments are kept for 30 days, then removed permanently." = "Bài viết và bình luận đã xoá được giữ lại 30 ngày, sau đó sẽ bị xoá vĩnh viễn.";
+"Restore this post?" = "Khôi phục bài viết này?";
+"Restore this comment?" = "Khôi phục bình luận này?";
+"It will be shown in the app again." = "Nó sẽ hiển thị lại trong ứng dụng.";
+"Photo post" = "Bài viết có ảnh";
+"Link post" = "Bài viết có liên kết";
+"Could not restore this post. Please try again." = "Không thể khôi phục bài viết này. Vui lòng thử lại.";
+"Could not restore this comment. Please try again." = "Không thể khôi phục bình luận này. Vui lòng thử lại.";
+
+// MARK: - Voice messages (chat)
+"Voice message" = "Tin nhắn thoại";
+"Microphone access needed" = "Cần quyền truy cập micro";
+"Please allow microphone access in Settings to send voice messages." = "Vui lòng cho phép truy cập micro trong Cài đặt để gửi tin nhắn thoại.";
+"Open Settings" = "Mở Cài đặt";
+
+// MARK: - Unified notifications inbox
+"Read all" = "Đọc tất cả";
+"Unread" = "Chưa đọc";
+"Nothing unread" = "Không có thông báo chưa đọc";
+"Mark read" = "Đánh dấu đã đọc";
+"Mark unread" = "Đánh dấu chưa đọc";
+"a community" = "một cộng đồng";
+"Group chat" = "Nhóm trò chuyện";
+"%@ and %d others" = "%@ và %d người khác";
+"%@ liked your comment" = "%@ đã thích bình luận của bạn";
+"%@ sent you a message" = "%@ đã gửi cho bạn một tin nhắn";
+"%@ · %d new messages" = "%@ · %d tin nhắn mới";
+"%@ proposed a meeting: %@" = "%@ đã đề xuất một cuộc hẹn: %@";
+"%@ rescheduled the meeting" = "%@ đã dời lịch cuộc hẹn";
+"%@ cancelled the meeting" = "%@ đã hủy cuộc hẹn";
+"%@ responded to your meeting" = "%@ đã phản hồi cuộc hẹn của bạn";
+"%@ reacted %@ to your message" = "%@ đã bày tỏ cảm xúc %@ với tin nhắn của bạn";
+"%@ added you to a group chat" = "%@ đã thêm bạn vào nhóm trò chuyện";
+"%@ removed you from a group chat" = "%@ đã xóa bạn khỏi nhóm trò chuyện";
+"%d new posts in %@" = "%d bài viết mới trong %@";
+"%@ wants to join %@" = "%@ muốn tham gia %@";
+"You were approved to join %@" = "Bạn đã được duyệt tham gia %@";
+"Your role in %@ changed" = "Vai trò của bạn trong %@ đã thay đổi";
+"Content in %@ needs review" = "Nội dung trong %@ cần được xem xét";
+"Your post in %@ was removed by a moderator" = "Bài viết của bạn trong %@ đã bị quản trị viên gỡ";
+
+// MARK: - Assistant confirmation (low-confidence match)
+"Clear" = "Xóa";
+"Yes" = "Có";
+"No" = "Không";
+"Did you want me to %@?" = "Bạn có muốn tôi %@ không?";
+"Okay, I won't change anything." = "Được, tôi sẽ không thay đổi gì.";
+"switch the theme to %@" = "chuyển giao diện sang %@";
+"switch the language to %@" = "chuyển ngôn ngữ sang %@";
+"switch to %@" = "chuyển sang %@";
+"open %@" = "mở %@";
+"open Settings" = "mở Cài đặt";
+
+// MARK: - Localization sweep (Community type/role/report labels)
+"Fandom" = "Fandom";
+"Admin" = "Quản trị viên";
+"Mod" = "Điều hành viên";
+"Member" = "Thành viên";
+"Spam" = "Spam";
+"Harassment" = "Quấy rối";
+"Hate speech" = "Ngôn từ thù ghét";
+"Misinformation" = "Thông tin sai lệch";
+"Off topic" = "Lạc chủ đề";
+
+// MARK: - Create community duplicate-name warnings (fandom, casual tone)
+"Oops, there's already a community with this name! 😄 Try something even cooler~" = "Ủa, đã có cộng đồng tên này rồi nè! 😄 Thử đặt tên khác xịn hơn đi~";
+"Name taken! ✨ Your community deserves something more unique!" = "Trùng tên rồi bạn ơi! ✨ Cộng đồng của bạn xứng đáng có cái tên độc đáo hơn kia!";
+"Uh oh! Someone already snagged this name 🎉 Get a little more creative!" = "Oops! Ai đó đã 'chiếm' tên này rồi 🎉 Sáng tạo thêm chút nữa nhé!";
+"This name's already claimed~ 🌟 You can definitely think of something cooler!" = "Tên này đã có chủ rồi~ 🌟 Bạn chắc chắn có thể nghĩ ra cái tên cool hơn mà!";
+"Exact match! 😆 Make your community stand out with its own name!" = "Giống y chang rồi! 😆 Hãy làm cho cộng đồng của bạn nổi bật với tên riêng nhé!";
+
+// MARK: - Create community duplicate-name warnings (work, formal tone)
+"This community name already exists. Please choose a different name to continue." = "Tên cộng đồng này đã tồn tại. Vui lòng chọn tên khác để tiếp tục.";
+"A community with this name already exists in the system. Please use a distinct identifier." = "Đã có cộng đồng mang tên này trong hệ thống. Đề nghị sử dụng tên định danh riêng biệt.";
+"This name matches an existing community. Please adjust it to ensure uniqueness." = "Tên trùng với cộng đồng hiện có. Vui lòng điều chỉnh để đảm bảo tính duy nhất.";
+"A community with this name has already been created. Please choose another name." = "Cộng đồng với tên này đã được tạo trước đó. Vui lòng chọn một tên khác.";
+"Invalid name: already exists in the system. Please enter a different name." = "Tên không hợp lệ: đã tồn tại trong hệ thống. Vui lòng nhập tên khác.";
+
+// MARK: - Join requests / moderation / analytics (Community admin)
+"Approve" = "Chấp nhận";
+"Join Requests" = "Yêu cầu tham gia";
+"No pending requests" = "Không có yêu cầu nào đang chờ";
+"Join requests will appear here" = "Yêu cầu tham gia sẽ hiện ở đây";
+"Pending (%d)" = "Đang chờ (%d)";
+"Moderation Queue" = "Hàng đợi kiểm duyệt";
+"No pending reports" = "Không có báo cáo đang chờ";
+"No resolved reports" = "Không có báo cáo đã xử lý";
+"Dismissed" = "Đã bỏ qua";
+"Remove" = "Xoá";
+"Ban" = "Cấm";
+"Dismiss" = "Bỏ qua";
+"Reported post" = "Bài viết bị báo cáo";
+"Reported member" = "Thành viên bị báo cáo";
+"7 days" = "7 ngày";
+"30 days" = "30 ngày";
+"90 days" = "90 ngày";
+"Total Members" = "Tổng thành viên";
+"Total Posts" = "Tổng bài viết";
+"Analytics" = "Phân tích";
+"Top Posts This Period" = "Bài viết nổi bật trong kỳ";
+"No data yet for this period" = "Chưa có dữ liệu cho khoảng thời gian này";
+
+// MARK: - Community discovery
+"Recommended For You" = "Gợi ý cho bạn";
+"Join some communities to get personalised recommendations" = "Tham gia một số cộng đồng để nhận gợi ý phù hợp với bạn";
+"Trending Now" = "Đang thịnh hành";
+
+// MARK: - Community event/poll composer
+"Event Details" = "Chi tiết sự kiện";
+"Event title" = "Tên sự kiện";
+"Optional" = "Tuỳ chọn";
+"Poll Options" = "Lựa chọn bình chọn";
+"Option %d" = "Lựa chọn %d";
+"Add option" = "Thêm lựa chọn";
+"Poll end date" = "Ngày kết thúc bình chọn";
+"%d going" = "%d tham gia";
+"%d vote" = "%d lượt bình chọn";
+"%d votes" = "%d lượt bình chọn";
+"Ends %@" = "Kết thúc %@";
+
+// MARK: - Community post card
+"Pinned" = "Đã ghim";
+"Unpin post" = "Bỏ ghim bài viết";
+"Pin post" = "Ghim bài viết";
+
+// MARK: - Onboarding / persona / chat gaps (already wrapped in code, key was missing)
+"Checking availability..." = "Đang kiểm tra...";
+"Username available" = "Tên người dùng khả dụng";
+"This mode has its own separate identity — name, avatar and bio won't be shared with the other mode" = "Chế độ này có danh tính riêng biệt — tên, ảnh đại diện và tiểu sử sẽ không dùng chung với chế độ còn lại";
+"No connections available to add" = "Không có kết nối nào để thêm";
+"Someone you've blocked (or who has blocked you) is in this group." = "Có người bạn đã chặn (hoặc đã chặn bạn) trong nhóm này.";
+"Say hello to the group 👋" = "Chào hỏi mọi người trong nhóm nào 👋";
+"You will no longer be the owner of this group." = "Bạn sẽ không còn là chủ nhóm này nữa.";
+
+// MARK: - Conversation list preview text
+"You: " = "Bạn: ";
+"No messages yet" = "Chưa có tin nhắn nào";
+"Meeting proposal" = "Đề xuất cuộc hẹn";
+
+// MARK: - Generic API error mapper + ViewModel error literals
+"Connection error. Check your network." = "Lỗi kết nối. Vui lòng kiểm tra mạng của bạn.";
+"Request timed out. Please try again." = "Yêu cầu đã hết thời gian chờ. Vui lòng thử lại.";
+"Something went wrong." = "Đã có lỗi xảy ra.";
+"Could not load messages" = "Không thể tải tin nhắn";
+"Could not load older messages" = "Không thể tải tin nhắn cũ hơn";
+"Failed to send message" = "Gửi tin nhắn thất bại";
+"Failed to upload media" = "Tải lên tệp thất bại";
+"Failed to send meeting proposal" = "Gửi đề xuất cuộc hẹn thất bại";
+"Could not reschedule meeting" = "Không thể dời lịch cuộc hẹn";
+"Could not cancel meeting" = "Không thể hủy cuộc hẹn";
+"Could not respond to meeting" = "Không thể phản hồi cuộc hẹn";
+"Could not recall message" = "Không thể thu hồi tin nhắn";
+"Could not react to message" = "Không thể bày tỏ cảm xúc với tin nhắn";
+"Could not pin message" = "Không thể ghim tin nhắn";
+"Could not unpin message" = "Không thể bỏ ghim tin nhắn";
+"Could not load settings" = "Không thể tải cài đặt";
+"Could not update nickname" = "Không thể cập nhật biệt danh";
+"Could not update theme" = "Không thể cập nhật giao diện";
+"Could not update notifications" = "Không thể cập nhật thông báo";
+"Could not rename group" = "Không thể đổi tên nhóm";
+"Could not update group photo" = "Không thể cập nhật ảnh nhóm";
+"Could not load media" = "Không thể tải tệp phương tiện";
+"Search failed" = "Tìm kiếm thất bại";
+"Could not load pinned messages" = "Không thể tải tin nhắn đã ghim";
+"Could not delete messages" = "Không thể xoá tin nhắn";
+"Could not load conversations" = "Không thể tải cuộc trò chuyện";
+"Could not load connections" = "Không thể tải danh sách kết nối";
+"Could not delete post." = "Không thể xoá bài viết.";
+"Could not post. Please try again." = "Không thể đăng bài. Vui lòng thử lại.";
+
+// MARK: - AppearanceMode (folded from a bespoke label(for:) mechanism)
+"System" = "Hệ thống";
+"Light" = "Sáng";
+"Dark" = "Tối";
+
+// MARK: - Community: private / locked states
+"This community is private. Request to join to see its posts." = "Cộng đồng này ở chế độ riêng tư. Hãy gửi yêu cầu tham gia để xem bài viết.";
+"Members of a private community are only visible to its members." = "Danh sách thành viên của cộng đồng riêng tư chỉ hiển thị với thành viên.";

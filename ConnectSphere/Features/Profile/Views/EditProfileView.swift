@@ -1,8 +1,8 @@
 import SwiftUI
 import PhotosUI
 
-/// Sheet chỉnh sửa hồ sơ — tên, bio, công việc, địa điểm và ảnh đại diện.
-/// Lưu qua PATCH /api/users/me rồi cập nhật lại appState.currentUser.
+/// Profile-editing sheet — name, bio, job, location, and profile picture.
+/// Saves via PATCH /api/users/me, then updates appState.currentUser.
 struct EditProfileView: View {
     @Environment(AppState.self) var appState
     @Environment(ThemeManager.self) var themeManager
@@ -18,10 +18,10 @@ struct EditProfileView: View {
     @State private var company     = ""
     @State private var location    = ""
     @State private var email       = ""
-    @State private var dob         = ""             // "yyyy-MM-dd", giống format OnboardingView dùng
+    @State private var dob         = ""             // "yyyy-MM-dd", same format OnboardingView uses
     @State private var dobVisibility = "private"
-    @State private var selectedInterests: [InterestItem] = []   // picker như onboarding
-    @State private var skills      = ""                          // text phẩy như onboarding
+    @State private var selectedInterests: [InterestItem] = []   // picker, same as onboarding
+    @State private var skills      = ""                          // comma-separated text, same as onboarding
 
     @State private var pickerItem: PhotosPickerItem?
     @State private var pickedImage: UIImage?
@@ -31,7 +31,7 @@ struct EditProfileView: View {
     @State private var errorMessage: String?
 
     private let profileRepo = ProfileRepository()
-    private let postRepo    = PostRepository()   // dùng chung endpoint upload ảnh
+    private let postRepo    = PostRepository()   // reuses the image-upload endpoint
 
     var body: some View {
         NavigationStack {
@@ -76,7 +76,7 @@ struct EditProfileView: View {
                     .listRowBackground(Color.clear)
                 }
 
-                // ── Thông tin cơ bản ─────────────────────────────────────────
+                // ── Basic info ─────────────────────────────────────────
                 Section(bundle.loc("About")) {
                     TextField(bundle.loc("Display name"), text: $displayName)
                     TextField(bundle.loc("About yourself"), text: $bio, axis: .vertical)
@@ -99,7 +99,7 @@ struct EditProfileView: View {
                     .padding(.vertical, 4)
                 }
 
-                // ── Sở thích / Kỹ năng — theo mode hiện tại, giống onboarding ─
+                // ── Interests / Skills — based on the current mode, same as onboarding ─
                 if appState.currentMode == .hobby {
                     Section(bundle.loc("Interests")) {
                         InterestPickerView(selectedInterests: $selectedInterests, colorScheme: colorScheme)
@@ -206,12 +206,12 @@ struct EditProfileView: View {
         location    = user.location ?? ""
         email       = user.email ?? ""
         skills      = user.skills.joined(separator: ", ")
-        // dob backend trả về có thể là "yyyy-MM-dd" hoặc full ISO timestamp (Postgres DATE
-        // qua JSON) — 10 ký tự đầu luôn là yyyy-MM-dd trong cả 2 trường hợp.
-        // Tài khoản có từ trước feature này có thể chưa có dob → để trống, không crash.
+        // The dob the backend returns can be either "yyyy-MM-dd" or a full ISO timestamp
+        // (Postgres DATE serialized to JSON) — the first 10 characters are always yyyy-MM-dd either way.
+        // Accounts predating this feature may not have a dob yet → leave it blank, don't crash.
         dob             = String((user.dob ?? "").prefix(10))
         dobVisibility   = user.dobVisibility ?? "private"
-        // Parse ngược displayText "Anime · Dandadan" → category + rawInput
+        // Reverse-parse displayText "Anime · Dandadan" → category + rawInput
         selectedInterests = user.interests.map { text in
             let parts = text.components(separatedBy: " · ")
             return InterestItem(
@@ -234,7 +234,7 @@ struct EditProfileView: View {
         errorMessage = nil
         defer { isSaving = false }
 
-        // Upload avatar + cover mới trước (nếu có), lấy URL để PATCH cùng các field khác
+        // Upload the new avatar + cover first (if any), get their URLs to PATCH alongside the other fields
         var avatarUrl: String? = nil
         if let pickedImage,
            let data = pickedImage.jpegData(compressionQuality: 0.8) {
@@ -255,15 +255,15 @@ struct EditProfileView: View {
             }
         }
 
-        // Gửi cả 2 mảng (giá trị đã load sẵn nên phần không sửa giữ nguyên);
-        // backend thay toàn bộ user_interests/user_skills rồi re-embed profile chunk
+        // Send both arrays in full (values were pre-loaded, so untouched entries are preserved);
+        // the backend replaces user_interests/user_skills wholesale, then re-embeds the profile chunk
         let skillsArray = skills
             .components(separatedBy: ",")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
 
         let update = ProfileRepository.ProfileUpdate(
-            mode:         appState.currentMode.rawValue,  // sửa persona của mode đang đứng
+            mode:         appState.currentMode.rawValue,  // edits the persona for the current mode
             display_name: displayName.trimmingCharacters(in: .whitespaces),
             bio:          bio.trimmingCharacters(in: .whitespaces),
             location:     location.trimmingCharacters(in: .whitespaces),

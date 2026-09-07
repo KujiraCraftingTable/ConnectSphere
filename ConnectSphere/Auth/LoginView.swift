@@ -206,7 +206,7 @@ struct LoginView: View {
         }
     }
 
-    /// Map HTTP status từ server sang thông báo đã localize.
+    /// Maps an HTTP status from the server to a localized message.
     private func loginErrorMessage(_ error: Error) -> String {
         if let networkMessage = networkErrorMessage(error) { return networkMessage }
         switch (error as NSError).code {
@@ -216,8 +216,9 @@ struct LoginView: View {
         }
     }
 
-    /// Request không tới được server (sai IP/mất mạng/server chưa chạy) → message riêng,
-    /// tránh hiển thị lỗi hệ thống thô hoặc câu chung chung dễ hiểu nhầm là sai mật khẩu.
+    /// The request never reached the server (wrong IP/no network/server not running) → a
+    /// dedicated message, to avoid showing a raw system error or a generic message that could
+    /// be mistaken for a wrong password.
     private func networkErrorMessage(_ error: Error) -> String? {
         (error as NSError).domain == NSURLErrorDomain
             ? bundle.loc("Cannot reach the server, please check your connection")
@@ -256,8 +257,8 @@ struct LoginView: View {
                 } catch {
                     await MainActor.run {
                         isLoading = false
-                        // Server trả lỗi (vd "Invalid Google token") thì hiển thị nguyên văn;
-                        // còn lỗi không kết nối được thì map sang message mạng đã localize.
+                        // If the server returns an error (e.g. "Invalid Google token"), show it
+                        // verbatim; a connection failure gets mapped to the localized network message.
                         triggerError(networkErrorMessage(error) ?? error.localizedDescription)
                     }
                 }

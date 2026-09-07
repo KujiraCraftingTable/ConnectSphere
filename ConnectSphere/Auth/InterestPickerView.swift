@@ -5,7 +5,7 @@ import SwiftUI
 struct InterestItem: Identifiable, Hashable {
     let id = UUID()
     let category: String
-    let rawInput: String      // specific sub-item, empty nếu chỉ chọn category
+    let rawInput: String      // specific sub-item, empty if only the category was picked
 
     var displayText: String {
         rawInput.isEmpty ? category : "\(category) · \(rawInput)"
@@ -20,10 +20,10 @@ private let popularCategories: [String] = [
     "Music", "Anime", "Movies", "Gaming", "Books",
 ]
 
-// Categories cho phép nhập sub-item cụ thể
+// Categories that allow entering a specific sub-item
 private let categoriesWithSubItem = Set(["Anime", "Movies", "Gaming", "Music", "Books"])
 
-// Icon cho mỗi category
+// Icon for each category
 private let categoryIcons: [String: String] = [
     "Coffee":      "cup.and.saucer.fill",
     "Travel":      "airplane",
@@ -44,8 +44,8 @@ private let categoryIcons: [String: String] = [
 
 struct InterestPickerView: View {
     @Binding var selectedInterests: [InterestItem]
-    // Màn auth nền sáng cố định nên mặc định .light; nhúng vào Form (EditProfile)
-    // thì truyền colorScheme thật để chip không lệch màu ở dark mode.
+    // The auth screen background is fixed light, so this defaults to .light; when embedded
+    // in a Form (EditProfile), pass the real colorScheme so chips don't look off in dark mode.
     var colorScheme: ColorScheme = .light
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
@@ -194,7 +194,7 @@ struct InterestPickerView: View {
     // MARK: Helpers
 
     private func handleTap(_ category: String) {
-        // Toggle: nếu đã có category này (no sub-item) thì remove
+        // Toggle: if this category is already selected (no sub-item), remove it
         if let idx = selectedInterests.firstIndex(where: { $0.category == category && $0.rawInput.isEmpty }) {
             selectedInterests.remove(at: idx)
             return

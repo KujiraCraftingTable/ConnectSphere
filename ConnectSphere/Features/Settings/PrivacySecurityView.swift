@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Màn Quyền riêng tư & Bảo mật. Hiện quản lý danh sách chặn;
-/// đổi mật khẩu sẽ bổ sung khi có luồng quên/đổi mật khẩu đầy đủ.
+/// Privacy & Security screen. Currently manages the blocked-users list;
+/// password change will be added once the full forgot/change-password flow exists.
 struct PrivacySecurityView: View {
     @Environment(AppState.self) var appState
     @Environment(ThemeManager.self) var themeManager
@@ -15,7 +15,7 @@ struct PrivacySecurityView: View {
 
     var body: some View {
         List {
-            // Bảo mật tài khoản
+            // Account security
             Section {
                 Button { showChangePassword = true } label: {
                     HStack(spacing: 12) {
@@ -66,7 +66,7 @@ struct PrivacySecurityView: View {
                 Text("People you block can't see your posts or message you.", bundle: bundle)
             }
 
-            // Vùng nguy hiểm
+            // Danger zone
             Section {
                 Button(role: .destructive) { showDeleteAccount = true } label: {
                     HStack(spacing: 12) {
@@ -98,6 +98,26 @@ struct PrivacySecurityView: View {
         .sheet(isPresented: $showDeleteAccount) {
             DeleteAccountView()
                 .environment(appState)
+        }
+        .task { consumePendingAssistantSheet() }
+        .onChange(of: appState.pendingAssistantSheet) { _, _ in
+            consumePendingAssistantSheet()
+        }
+    }
+
+    /// Opens Change Password / Delete Account when the AI assistant's
+    /// guidance action landed here — mirrors the consume-then-clear pattern
+    /// `pendingDeepLink`/`pendingAssistantNavigation` use elsewhere.
+    private func consumePendingAssistantSheet() {
+        switch appState.pendingAssistantSheet {
+        case .changePassword:
+            appState.pendingAssistantSheet = nil
+            showChangePassword = true
+        case .deleteAccount:
+            appState.pendingAssistantSheet = nil
+            showDeleteAccount = true
+        case .editProfile, nil:
+            break
         }
     }
 }

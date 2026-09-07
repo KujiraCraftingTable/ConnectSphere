@@ -2,8 +2,8 @@ const { query } = require('../config/db');
 const { personaCols, personaSetupClause, personaExpr } = require('../utils/personaSql');
 
 // Base SELECT used by both findAll and findById.
-// modeRef (vd '$2') → danh tính (display_name/bio/avatar_url/cover_url) resolve
-// từ persona của mode đó; không có modeRef → cột gốc (bề mặt không gắn mode).
+// modeRef (e.g. '$2') → identity (display_name/bio/avatar_url/cover_url) resolves
+// from that mode's persona; no modeRef → the legacy columns (mode-agnostic surfaces).
 const userSelect = (modeRef = null) => `
   SELECT
     u.id, u.username,
@@ -23,7 +23,7 @@ const userSelect = (modeRef = null) => `
   LEFT JOIN user_skills    us ON us.user_id = u.id
 `;
 
-// Loại user đã chặn/bị chặn (2 chiều) khỏi kết quả, tính theo viewer
+// Excludes users who are blocked/blocking (both directions) from results, relative to the viewer
 const notBlockedClause = (viewerRef, targetCol = 'u.id') => `
   NOT EXISTS (
     SELECT 1 FROM user_blocks ub
@@ -32,9 +32,9 @@ const notBlockedClause = (viewerRef, targetCol = 'u.id') => `
   )
 `;
 
-// Loại user đã kết nối (accepted, 2 chiều) với viewer khỏi kết quả search —
-// đã là bạn/đồng nghiệp thì không cần hiện lại để "kết nối" nữa.
-// modeRef (nếu có) giới hạn theo mode connection tương ứng.
+// Excludes users already connected (accepted, both directions) with the viewer from
+// search results — no need to show someone again to "connect" once they already are.
+// modeRef (if given) scopes this to the matching connection mode.
 const notConnectedClause = (viewerRef, modeRef, targetCol = 'u.id') => `
   NOT EXISTS (
     SELECT 1 FROM connections c
@@ -47,8 +47,8 @@ const notConnectedClause = (viewerRef, modeRef, targetCol = 'u.id') => `
   )
 `;
 
-// Số bạn/kết nối chung giữa viewer và target trong mode — giao (INTERSECT) hai
-// tập "đối tác accepted" của mỗi bên. modeRef (nếu có) giới hạn theo mode.
+// Number of mutual friends/connections between viewer and target in the mode — the
+// INTERSECT of each side's set of "accepted counterparts". modeRef (if given) scopes it to the mode.
 const mutualCountSelect = (viewerRef, modeRef, targetCol) => `(
   SELECT COUNT(*)::int FROM (
     SELECT CASE WHEN c.requester_id = ${viewerRef}::uuid THEN c.addressee_id ELSE c.requester_id END
@@ -79,18 +79,18 @@ async function findAll({ mode, search, viewerId = null, limit = 20, offset = 0 }
   if (mode) {
     params.push(mode);
     modeIdx = params.length;
-    // Chỉ hiện user đã setup persona của mode này — chưa setup = vô hình ở mode đó
+    // Only show users who've set up the persona for this mode — not set up = invisible in that mode
     where += ` AND ${personaSetupClause(`$${modeIdx}`)}`;
   }
-  // Ẩn người đã kết nối (accepted) với viewer trong mode hiện tại
+  // Hide people already connected (accepted) with the viewer in the current mode
   if (viewerIdx) {
     where += ` AND ${notConnectedClause(`$${viewerIdx}`, modeIdx ? `$${modeIdx}` : null)}`;
   }
   if (search) {
     params.push(`%${search}%`);
     const n = params.length;
-    // Tìm trên danh tính persona của mode đang xem; field riêng của mode nào
-    // chỉ match khi đang ở mode đó (interests = hobby, skills/job/company = work)
+    // Search against the persona identity for the mode being viewed; mode-specific
+    // fields only match while in that mode (interests = hobby, skills/job/company = work)
     const nameExpr = modeIdx ? personaExpr('display_name', `$${modeIdx}`) : 'u.display_name';
     const bioExpr  = modeIdx ? personaExpr('bio', `$${modeIdx}`)          : 'u.bio';
     const modeScoped = modeIdx
@@ -114,7 +114,7 @@ async function findAll({ mode, search, viewerId = null, limit = 20, offset = 0 }
   }
 
   params.push(limit, offset);
-  // Bọc thành subquery để tính mutual_count trên đúng trang kết quả (sau LIMIT)
+  // Wrapped in a subquery so mutual_count is computed on the correct result page (after LIMIT)
   const mutualSelect = viewerIdx
     ? mutualCountSelect(`$${viewerIdx}`, modeIdx ? `$${modeIdx}` : null, 'base.id')
     : '0';
@@ -148,10 +148,10 @@ async function countAll({ mode, search, viewerId = null }) {
   if (mode) {
     params.push(mode);
     modeIdx = params.length;
-    // Chỉ đếm user đã setup persona của mode này (khớp filter của findAll)
+    // Only count users who've set up the persona for this mode (matches findAll's filter)
     where += ` AND ${personaSetupClause(`$${modeIdx}`, 'users')}`;
   }
-  // Ẩn người đã kết nối (accepted) với viewer trong mode hiện tại
+  // Hide people already connected (accepted) with the viewer in the current mode
   if (viewerIdx) {
     where += ` AND ${notConnectedClause(`$${viewerIdx}`, modeIdx ? `$${modeIdx}` : null, 'users.id')}`;
   }
@@ -181,7 +181,7 @@ async function countAll({ mode, search, viewerId = null }) {
   return parseInt(rows[0].count, 10);
 }
 
-// mode (nếu có) → danh tính theo persona của mode + connection_count trong mode đó
+// mode (if given) → identity via that mode's persona + connection_count within that mode
 async function findById(id, mode = null) {
   const params = [id];
   let connCountSelect = '0';
@@ -195,7 +195,7 @@ async function findById(id, mode = null) {
         AND (c.requester_id = base.id OR c.addressee_id = base.id)
     )`;
   }
-  // Bọc userSelect thành subquery để thêm cột connection_count vào SELECT ngoài
+  // Wrap userSelect in a subquery so connection_count can be added to the outer SELECT
   const sql = `
     SELECT base.*, ${connCountSelect} AS connection_count
     FROM (${userSelect(modeRef)} WHERE u.id = $1 GROUP BY u.id) base
@@ -204,21 +204,31 @@ async function findById(id, mode = null) {
   return rows[0] || null;
 }
 
-// Cột được phép sửa qua PATCH /api/users/me — whitelist để không cho
-// client sửa username/counter qua endpoint này (email sửa riêng ở controller
-// vì cần normalize + check unique).
-// 4 field danh tính thuộc persona → ghi vào cột của mode đang sửa.
+// Columns allowed to be edited via PATCH /api/users/me — a whitelist so the
+// client can't edit username/counters through this endpoint (email is handled
+// separately in the controller since it needs normalize + uniqueness checks).
+// The 4 persona identity fields are written to the column for the mode being edited.
 const PERSONA_COLUMNS = ['display_name', 'bio', 'avatar_url', 'cover_url'];
 const EDITABLE_COLUMNS = [
   'display_name', 'bio', 'location', 'job_title', 'company',
   'avatar_url', 'cover_url', 'dob', 'gender', 'dob_visibility',
 ];
 
-// Update hồ sơ theo kiểu partial: chỉ ghi các field client gửi lên.
-// mode: persona đang sửa — field danh tính ghi vào <mode>_*; nếu mode trùng
-// default_mode thì đồng bộ luôn cột gốc (bề mặt không gắn mode như community
-// vẫn hiển thị danh tính chính). interests/skills (nếu gửi) thay toàn bộ.
+// Partial profile update: only writes the fields the client sent.
+// mode: the persona being edited — identity fields are written to <mode>_*; if
+// mode matches default_mode, the legacy columns are synced too (mode-agnostic
+// surfaces like community still show the primary identity). interests/skills
+// (if sent) are fully replaced.
 async function updateProfile(userId, fields, { interests = null, skills = null, mode = null } = {}) {
+  // mode is spliced into a column identifier below (`${mode}_${col}`), so it
+  // must be validated here rather than trusted from the caller — every other
+  // site that does this same splice (usersController.js, authRoutes.js)
+  // validates independently; this function should too, not rely solely on
+  // updateMe (its one current caller) having already checked.
+  if (mode && !['hobby', 'work'].includes(mode)) {
+    throw new Error(`updateProfile: invalid mode "${mode}"`);
+  }
+
   const sets   = [];
   const params = [userId];
 
@@ -242,8 +252,8 @@ async function updateProfile(userId, fields, { interests = null, skills = null, 
     }
   }
 
-  // dob vừa đổi (kể cả xoá về NULL) → tính lại age ngay trong cùng câu UPDATE,
-  // không đợi tới lần chạy ageJob kế tiếp (xem backend/src/jobs/ageJob.js)
+  // dob just changed (including being cleared to NULL) → recompute age right in the
+  // same UPDATE statement, instead of waiting for the next ageJob run (see backend/src/jobs/ageJob.js)
   if (dobParamIdx !== null) {
     sets.push(`age = EXTRACT(YEAR FROM AGE($${dobParamIdx}::date))::int`);
   }
@@ -284,8 +294,8 @@ async function updateProfile(userId, fields, { interests = null, skills = null, 
 
 // ── Block ─────────────────────────────────────────────────────────────────────
 
-// Chặn user: ghi user_blocks + gỡ mọi connection giữa 2 người
-// (connection accepted bị gỡ thì trừ lại follower/following cả 2 phía).
+// Block a user: write to user_blocks + remove any connection between the two
+// (removing an accepted connection also decrements follower/following on both sides).
 async function blockUser(blockerId, blockedId) {
   await query(
     `INSERT INTO user_blocks (blocker_id, blocked_id)
@@ -311,7 +321,7 @@ async function blockUser(blockerId, blockedId) {
     );
   }
 
-  // Gỡ nốt các request pending/rejected còn lại
+  // Also remove any remaining pending/rejected requests
   await query(
     `DELETE FROM connections
      WHERE (requester_id = $1 AND addressee_id = $2)
@@ -320,12 +330,12 @@ async function blockUser(blockerId, blockedId) {
   );
 }
 
-// Soft delete tài khoản: gỡ mọi liên kết xã hội + scrub PII trên row users.
-// Posts/comments/messages GIỮ NGUYÊN — JOIN users sẽ tự hiện "Deleted User".
-// Chunks embedding bị xoá nên user + bài của họ biến khỏi search/feed gợi ý.
+// Soft delete an account: remove all social links + scrub PII on the users row.
+// Posts/comments/messages are KEPT AS-IS — the JOIN to users will naturally show "Deleted User".
+// Embedding chunks are deleted so the user + their posts disappear from search/feed recommendations.
 async function softDeleteAccount(userId) {
-  // 1. Kết nối accepted: xoá + trừ follower/following của đối phương
-  //    (một cặp có thể có 2 connection theo 2 mode → GROUP BY đếm đúng)
+  // 1. Accepted connections: delete + decrement follower/following on the other side
+  //    (a pair could have 2 connections across 2 modes → GROUP BY counts them correctly)
   await query(
     `WITH gone AS (
        DELETE FROM connections
@@ -339,11 +349,41 @@ async function softDeleteAccount(userId) {
      WHERE users.id = g.other_id`,
     [userId]
   );
-  // 2. Request pending còn lại
+  // 2. Any remaining pending requests
   await query(
     'DELETE FROM connections WHERE requester_id = $1 OR addressee_id = $1', [userId]
   );
-  // 3. Rời mọi community + trừ member_count
+  // 3. Hand off any community where this user is the sole admin — promote the
+  //    most senior other member (moderators first, then earliest join) so the
+  //    community isn't orphaned. Communities with no other members are left to
+  //    empty out in the next step; nobody is locked out of anything.
+  await query(
+    `WITH sole_admin AS (
+       SELECT cm.community_id
+       FROM community_members cm
+       WHERE cm.user_id = $1 AND cm.role = 'admin'
+         AND NOT EXISTS (
+           SELECT 1 FROM community_members o
+           WHERE o.community_id = cm.community_id
+             AND o.user_id <> $1 AND o.role = 'admin'
+         )
+     ),
+     successor AS (
+       SELECT DISTINCT ON (m.community_id) m.community_id, m.user_id
+       FROM community_members m
+       JOIN sole_admin s ON s.community_id = m.community_id
+       WHERE m.user_id <> $1
+       ORDER BY m.community_id,
+                CASE m.role WHEN 'moderator' THEN 0 ELSE 1 END,
+                m.joined_at ASC
+     )
+     UPDATE community_members cm
+     SET role = 'admin'
+     FROM successor su
+     WHERE cm.community_id = su.community_id AND cm.user_id = su.user_id`,
+    [userId]
+  );
+  // 4. Leave every community + decrement member_count
   await query(
     `WITH gone AS (
        DELETE FROM community_members WHERE user_id = $1 RETURNING community_id
@@ -352,7 +392,7 @@ async function softDeleteAccount(userId) {
      WHERE id IN (SELECT community_id FROM gone)`,
     [userId]
   );
-  // 4. Dọn dữ liệu cá nhân còn lại
+  // 5. Clean up remaining personal data
   await query('DELETE FROM user_embedding_chunks WHERE user_id = $1', [userId]);
   await query('DELETE FROM user_interests  WHERE user_id = $1', [userId]);
   await query('DELETE FROM user_skills     WHERE user_id = $1', [userId]);
@@ -361,8 +401,8 @@ async function softDeleteAccount(userId) {
   await query('DELETE FROM password_resets WHERE user_id = $1', [userId]);
   await query('DELETE FROM user_notifications WHERE user_id = $1', [userId]);
 
-  // 5. Scrub PII cuối cùng — username đổi để giải phóng tên cũ,
-  //    password_hash/google_id/email NULL để không còn đường đăng nhập
+  // 6. Final PII scrub — username changed to free up the old handle,
+  //    password_hash/google_id/email set to NULL so there's no login path left
   await query(
     `UPDATE users SET
        username      = 'deleted_' || SUBSTRING(REPLACE(id::text, '-', ''), 1, 12),
@@ -401,7 +441,7 @@ async function unblockUser(blockerId, blockedId) {
   );
 }
 
-// Mình đã chặn target chưa?
+// Have we blocked the target?
 async function hasBlocked(blockerId, blockedId) {
   const { rows } = await query(
     `SELECT 1 FROM user_blocks WHERE blocker_id = $1 AND blocked_id = $2`,
@@ -410,7 +450,7 @@ async function hasBlocked(blockerId, blockedId) {
   return rows.length > 0;
 }
 
-// Danh sách user mình đang chặn (màn Blocked users trong Settings)
+// List of users we're blocking (the Blocked users screen in Settings)
 async function listBlocked(blockerId) {
   const { rows } = await query(
     `SELECT u.id, u.display_name, u.avatar_color, u.avatar_url,
@@ -424,7 +464,7 @@ async function listBlocked(blockerId) {
   return rows;
 }
 
-// Có block theo chiều bất kỳ giữa 2 user không?
+// Is there a block in either direction between the two users?
 async function isBlockedEitherWay(userA, userB) {
   const { rows } = await query(
     `SELECT 1 FROM user_blocks

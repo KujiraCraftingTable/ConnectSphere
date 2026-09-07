@@ -90,9 +90,8 @@ struct UserProfileView: View {
             if let convId = chatConversationId, let user = user {
                 ChatView(
                     conversationId: convId,
-                    otherUserId: userId,
-                    otherUserName: user.name,
-                    otherUserAvatarColor: user.avatarColor,
+                    peer: .direct(otherUserId: userId, name: user.name,
+                                  avatarColor: user.avatarColor, avatarUrl: user.avatarUrl),
                     otherUserLocation: user.location,
                     currentUserId: appState.currentUser?.id ?? "",
                     token: appState.authToken ?? ""
@@ -105,9 +104,12 @@ struct UserProfileView: View {
                 isBlocked = (try? await userRepo.fetchBlockStatus(userId: userId)) ?? false
             }
         }
+        .onChange(of: appState.currentMode) { _, newMode in
+            Task { await viewModel.load(userId: userId, mode: newMode.rawValue) }
+        }
     }
 
-    /// Chặn / bỏ chặn user đang xem
+    /// Blocks / unblocks the user currently being viewed
     private func toggleBlock() async {
         do {
             if isBlocked {
@@ -117,8 +119,13 @@ struct UserProfileView: View {
                 try await userRepo.blockUser(userId: userId)
                 isBlocked = true
             }
+            // Any open ChatView for this user (e.g. blocking from the profile
+            // while its chat is already open elsewhere) refreshes live.
+            NotificationCenter.default.post(
+                name: .userBlockStatusChanged, object: nil, userInfo: ["userId": userId]
+            )
         } catch {
-            // Giữ nguyên trạng thái; báo lỗi để user biết và thử lại từ menu
+            // Leave the state as-is; surface the error so the user knows to retry from the menu
             errorMessage = friendlyError(error)
         }
     }
@@ -138,7 +145,7 @@ struct UserProfileView: View {
                 if userId != appState.currentUser?.id {
                     Group {
                         if isBlocked {
-                            // Đã chặn → không kết nối/nhắn tin được nữa
+                            // Blocked → can no longer connect/message this user
                             Text("Blocked", bundle: bundle)
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundColor(.red)
@@ -146,8 +153,8 @@ struct UserProfileView: View {
                                 .padding(.vertical, 5)
                                 .background(Capsule().fill(Color.red.opacity(0.12)))
                         } else {
-                            // Companion (nút Nhắn tin) tự xuống hàng riêng bên dưới
-                            // khi cần hiện đồng thời Accept + Decline.
+                            // The companion (Message button) wraps to its own row below
+                            // when Accept + Decline both need to be shown at the same time.
                             ConnectButton(targetUserId: userId) { AnyView(messageButton) }
                         }
                     }
@@ -298,21 +305,17 @@ struct UserProfileView: View {
 
     @ViewBuilder
     private var postsSection: some View {
-        let posts = Array(viewModel.posts
-            .filter { $0.mode == appState.currentMode }
-            .prefix(5))
-
         VStack(alignment: .leading, spacing: 8) {
-            // Label kiểu Fandom — floating trên nền xám
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text("Posts", bundle: bundle)
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 if !viewModel.isLoading {
-                    Text("\(posts.count)")
+                    Text("\(viewModel.posts.count)")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
+                Spacer()
             }
             .padding(.horizontal, 16)
             .padding(.top, 4)
@@ -320,8 +323,8 @@ struct UserProfileView: View {
             if viewModel.isLoading && viewModel.posts.isEmpty {
                 ProgressView().padding(.top, 20).frame(maxWidth: .infinity)
             } else {
-                VStack(spacing: 5) {
-                    ForEach(posts) { post in
+                LazyVStack(spacing: 5) {
+                    ForEach(viewModel.posts) { post in
                         PostCard(
                             post: post,
                             onPostDeleted: { viewModel.removePost(id: post.id) },
@@ -331,6 +334,17 @@ struct UserProfileView: View {
                         .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.06),
                                 radius: 4, x: 0, y: 2)
                         .padding(.horizontal, 10)
+                        .onAppear {
+                            if post.id == viewModel.posts.last?.id {
+                                Task {
+                                    await viewModel.loadMorePosts(userId: userId, mode: appState.currentMode.rawValue)
+                                }
+                            }
+                        }
+                    }
+
+                    if viewModel.isLoadingMore {
+                        ProgressView().padding(.vertical, 12)
                     }
                 }
             }

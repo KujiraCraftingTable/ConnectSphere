@@ -16,28 +16,29 @@ struct UserProfile: Identifiable {
     var interests: [String]
     var location: String?
     var gender: String?
-    // Trạng thái setup persona theo mode — quyết định user có "tồn tại" ở mode
-    // đó không (chưa setup = ẩn khỏi search/feed của mode, switch mode bị chặn
-    // bằng form tạo persona)
+    // Per-mode persona setup status — determines whether the user "exists" in
+    // that mode (not set up = hidden from that mode's search/feed, switching
+    // to that mode is blocked and the persona creation form is shown instead)
     var hobbySetup: Bool = false
     var workSetup: Bool = false
-    // Field riêng của chính chủ (server chỉ trả trong /auth/me và PATCH /users/me)
+    // Self-only field (server only returns this in /auth/me and PATCH /users/me)
     var email: String? = nil
-    /// Đã có mật khẩu chưa (tài khoản Google thuần = false) — chọn luồng đổi/đặt mật khẩu
+    /// Whether a password has been set yet (Google-only accounts = false) — decides which
+    /// flow to show (set password vs. change password)
     var hasPassword: Bool = false
-    // Tuổi hiển thị — có ở cả public lẫn self view, server null khi dob_visibility = private
+    // Displayed age — present in both public and self views, null from server when dob_visibility = private
     var age: Int? = nil
-    // Field riêng của chính chủ (server chỉ trả trong /auth/me và PATCH /users/me),
-    // giống email/hasPassword ở trên
+    // Self-only field (server only returns this in /auth/me and PATCH /users/me),
+    // same as email/hasPassword above
     var dob: String? = nil
     var dobVisibility: String? = nil
     // Stats
     var followerCount: Int
     var followingCount: Int
     var postCount: Int
-    // Số kết nối accepted theo mode đang xem (backend trả kèm khi fetch profile)
+    // Number of accepted connections for the mode currently being viewed (backend includes this when fetching a profile)
     var connectionCount: Int = 0
-    // Số bạn/kết nối chung với người đang xem (backend trả kèm trong search/list)
+    // Number of mutual friends/connections with the viewer (backend includes this in search/list results)
     var mutualCount: Int = 0
     // AI search score — nil for regular search results
     var score: Double?

@@ -16,8 +16,8 @@ extension EnvironmentValues {
 }
 
 extension Bundle {
-    /// Bundle theo ngôn ngữ app đang chọn (đọc UserDefaults) — dùng ở nơi
-    /// không có @Environment(\.appBundle), vd Date extension / ViewModel / push.
+    /// Bundle for the app's currently selected language (reads UserDefaults) — used where
+    /// @Environment(\.appBundle) isn't available, e.g. Date extension / ViewModel / push.
     static var app: Bundle {
         let code = UserDefaults.standard.string(forKey: "appLanguage")
             ?? Locale.current.language.languageCode?.identifier ?? "en"

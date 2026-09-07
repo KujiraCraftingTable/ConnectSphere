@@ -1,5 +1,6 @@
 /* Localizable.strings (English) — English keys, identity. Auto-generated. */
 
+"🎂 It's %@'s birthday today!" = "🎂 It's %@'s birthday today!";
 "%@ accepted your connection request" = "%@ accepted your connection request";
 "%@ commented on your post" = "%@ commented on your post";
 "%@ commented: “%@”" = "%@ commented: “%@”";
@@ -49,7 +50,13 @@
 "By creating an account, you agree to our **Terms of Service** and **Privacy Policy**." = "By creating an account, you agree to our **Terms of Service** and **Privacy Policy**.";
 "Cancel" = "Cancel";
 "Check your connection and try again" = "Check your connection and try again";
+"What is \"%@\"?" = "What is \"%@\"?";
+"e.g. Landmark 81" = "e.g. Landmark 81";
+"Search again" = "Search again";
+"Thanks — we couldn't confirm that one either, so it's been flagged for review." = "Thanks — we couldn't confirm that one either, so it's been flagged for review.";
 "Couldn't load results" = "Couldn't load results";
+"Couldn't tell which city \"%@\" is in — add a province to narrow it down." = "Couldn't tell which city \"%@\" is in — add a province to narrow it down.";
+"Couldn't pick out anything specific to search for — try naming an interest, skill, or place." = "Couldn't pick out anything specific to search for — try naming an interest, skill, or place.";
 "Come back when there are more communities" = "Come back when there are more communities";
 "Comments" = "Comments";
 "Community" = "Community";
@@ -86,6 +93,7 @@
 "Date of birth: %@" = "Date of birth: %@";
 "Decline" = "Decline";
 "Delete comment" = "Delete comment";
+"Edit comment" = "Edit comment";
 "Describe this event…" = "Describe this event…";
 "Description (optional)" = "Description (optional)";
 "Didn't receive the code?" = "Didn't receive the code?";
@@ -132,6 +140,7 @@
 "Job title" = "Job title";
 "Job title (iOS Developer...)" = "Job title (iOS Developer...)";
 "Join" = "Join";
+"Join %@ on ConnectSphere" = "Join %@ on ConnectSphere";
 "Joined" = "Joined";
 "just now" = "just now";
 "Just now" = "Just now";
@@ -304,6 +313,7 @@
 "You can set up Work Mode later, or " = "You can set up Work Mode later, or ";
 "You haven't joined any communities" = "You haven't joined any communities";
 "You two will no longer see each other's posts, all connections will be removed, and you won't be able to message each other." = "You two will no longer see each other's posts, all connections will be removed, and you won't be able to message each other.";
+"You've blocked this user" = "You've blocked this user";
 "You're connected — say hello 👋" = "You're connected — say hello 👋";
 "You're not connected with this user" = "You're not connected with this user";
 "Your interests" = "Your interests";
@@ -398,7 +408,9 @@
 "Delete post" = "Delete post";
 "Hide post" = "Hide post";
 "Delete post?" = "Delete post?";
-"This post will be permanently deleted." = "This post will be permanently deleted.";
+"This post won't be shown in the app. You can restore it from Recently Deleted within 30 days." = "This post won't be shown in the app. You can restore it from Recently Deleted within 30 days.";
+"Delete comment?" = "Delete comment?";
+"This comment won't be shown in the app. You can restore it from Recently Deleted within 30 days." = "This comment won't be shown in the app. You can restore it from Recently Deleted within 30 days.";
 
 /* Group-B password management */
 "Change password" = "Change password";
@@ -451,4 +463,297 @@
 "Maybe" = "Maybe";
 "Can't go" = "Can't go";
 "%d going" = "%d going";
+
+/* Meeting proposal card (Phase 4) — reminder indicator shown instead of RSVP
+   buttons for a 1:1 proposal */
+"Reminder: %@" = "Reminder: %@";
+
+/* Meeting proposal composer (Phase 3) */
+"Meeting Details" = "Meeting Details";
+"Title" = "Title";
+"Meeting title" = "Meeting title";
+"%d/%d characters" = "%d/%d characters";
+"Search for a location" = "Search for a location";
+"Starts at" = "Starts at";
+"Ends at" = "Ends at";
+"Add end time" = "Add end time";
+"Reminder" = "Reminder";
+"On the day" = "On the day";
+"1 day before" = "1 day before";
+"2 days before" = "2 days before";
+"1 week before" = "1 week before";
 "No views yet" = "No views yet";
+
+/* Chat read/delivered receipts (group bubble status) */
+"Read %d/%d" = "Read %d/%d";
+
+/* Pinned messages */
+"Pinned messages" = "Pinned messages";
+"Pin" = "Pin";
+"Unpin" = "Unpin";
+"Pin message" = "Pin message";
+"Unpin this message?" = "Unpin this message?";
+"It will be removed from the pinned list." = "It will be removed from the pinned list.";
+"%d pinned messages" = "%d pinned messages";
+"No pinned messages yet" = "No pinned messages yet";
+"Pinned by %@" = "Pinned by %@";
+"Expires %@" = "Expires %@";
+"Default auto-delete time" = "Default auto-delete time";
+"1 week" = "1 week";
+"1 month" = "1 month";
+"1 year" = "1 year";
+"Custom date" = "Custom date";
+"Never" = "Never";
+
+/* Group chat */
+"New group" = "New group";
+"Next" = "Next";
+"Select members" = "Select members";
+"%d members selected" = "%d members selected";
+"Group photo" = "Group photo";
+"Group name" = "Group name";
+"Group name (optional)" = "Group name (optional)";
+"Group" = "Group";
+"%d members" = "%d members";
+"Participants" = "Participants";
+"Owner" = "Owner";
+"Make owner" = "Make owner";
+"Make owner?" = "Make owner?";
+"Remove from group" = "Remove from group";
+"Leave" = "Leave";
+"Leave group" = "Leave group";
+"Leave this group?" = "Leave this group?";
+"Leave the group" = "Leave the group";
+"Stay" = "Stay";
+"You're no longer in this group" = "You're no longer in this group";
+"Blocked members in this group" = "Blocked members in this group";
+
+/* Onboarding — persona setup */
+"Set up your Hobby profile" = "Set up your Hobby profile";
+"Set up your Work profile" = "Set up your Work profile";
+"Start" = "Start";
+"Couldn't save, please try again" = "Couldn't save, please try again";
+
+/* AI Assistant */
+"Assistant" = "Assistant";
+"AI Assistant" = "AI Assistant";
+"Ask the assistant..." = "Ask the assistant...";
+"Ask me to change a setting or find something in the app." = "Ask me to change a setting or find something in the app.";
+"Switch to dark mode" = "Switch to dark mode";
+"How do I change my password?" = "How do I change my password?";
+"Go to settings" = "Go to settings";
+"Take me there" = "Take me there";
+"Yes, log out" = "Yes, log out";
+"Done — theme switched to %@." = "Done — theme switched to %@.";
+"Done — language switched to %@." = "Done — language switched to %@.";
+"You're already in %@." = "You're already in %@.";
+"Done — switched to %@." = "Done — switched to %@.";
+"You haven't set up your %@ yet — open Settings and tap that mode to create it first." = "You haven't set up your %@ yet — open Settings and tap that mode to create it first.";
+"Taking you to %@." = "Taking you to %@.";
+"Taking you to Settings." = "Taking you to Settings.";
+"Are you sure you want to log out?" = "Are you sure you want to log out?";
+"You've been logged out." = "You've been logged out.";
+"Okay, staying logged in." = "Okay, staying logged in.";
+"I didn't quite catch that. Try asking about theme, language, mode, or where to find something — for example: %@." = "I didn't quite catch that. Try asking about theme, language, mode, or where to find something — for example: %@.";
+"You can change your password from Settings → Privacy & Security → Change password." = "You can change your password from Settings → Privacy & Security → Change password.";
+"To block someone, open their profile and choose Block from the menu. You can manage or unblock people anytime from Settings → Privacy & Security → Blocked users." = "To block someone, open their profile and choose Block from the menu. You can manage or unblock people anytime from Settings → Privacy & Security → Blocked users.";
+"You can delete your account from Settings → Privacy & Security → Delete account. This can't be undone." = "You can delete your account from Settings → Privacy & Security → Delete account. This can't be undone.";
+"Open a conversation from Home → Messages, tap the chat name at the top, then turn on Mute notifications." = "Open a conversation from Home → Messages, tap the chat name at the top, then turn on Mute notifications.";
+"Open the group chat from Home → Messages, tap the group name at the top, then choose Rename group." = "Open the group chat from Home → Messages, tap the group name at the top, then choose Rename group.";
+"You can edit your profile from the Profile tab — tap Edit profile — or from Settings → Edit profile." = "You can edit your profile from the Profile tab — tap Edit profile — or from Settings → Edit profile.";
+"Manage notification sounds from Settings → Notifications → Message sounds." = "Manage notification sounds from Settings → Notifications → Message sounds.";
+"Manage privacy and security options from Settings → Privacy & Security." = "Manage privacy and security options from Settings → Privacy & Security.";
+
+// MARK: - Hashtags / AI-tag visibility (CreatePostView, HashtagInputView)
+"Add a hashtag (#topic)" = "Add a hashtag (#topic)";
+"Maximum of %d hashtags reached" = "Maximum of %d hashtags reached";
+"Show AI-generated tags" = "Show AI-generated tags";
+"AI tags stay hidden unless you turn this on for this post." = "AI tags stay hidden unless you turn this on for this post.";
+
+// MARK: - Delete recovery (Undo toast, Recently Deleted screen)
+"Undo" = "Undo";
+"Post deleted" = "Post deleted";
+"Comment deleted" = "Comment deleted";
+"Recently Deleted" = "Recently Deleted";
+"Restore" = "Restore";
+"No recently deleted posts" = "No recently deleted posts";
+"No recently deleted comments" = "No recently deleted comments";
+"No saved posts" = "No saved posts";
+"Deleted posts and comments are kept for 30 days, then removed permanently." = "Deleted posts and comments are kept for 30 days, then removed permanently.";
+"Restore this post?" = "Restore this post?";
+"Restore this comment?" = "Restore this comment?";
+"It will be shown in the app again." = "It will be shown in the app again.";
+"Photo post" = "Photo post";
+"Link post" = "Link post";
+"Could not restore this post. Please try again." = "Could not restore this post. Please try again.";
+"Could not restore this comment. Please try again." = "Could not restore this comment. Please try again.";
+
+// MARK: - Voice messages (chat)
+"Voice message" = "Voice message";
+"Microphone access needed" = "Microphone access needed";
+"Please allow microphone access in Settings to send voice messages." = "Please allow microphone access in Settings to send voice messages.";
+"Open Settings" = "Open Settings";
+
+// MARK: - Unified notifications inbox
+"Read all" = "Read all";
+"Unread" = "Unread";
+"Nothing unread" = "Nothing unread";
+"Mark read" = "Mark read";
+"Mark unread" = "Mark unread";
+"a community" = "a community";
+"Group chat" = "Group chat";
+"%@ and %d others" = "%@ and %d others";
+"%@ liked your comment" = "%@ liked your comment";
+"%@ sent you a message" = "%@ sent you a message";
+"%@ · %d new messages" = "%@ · %d new messages";
+"%@ proposed a meeting: %@" = "%@ proposed a meeting: %@";
+"%@ rescheduled the meeting" = "%@ rescheduled the meeting";
+"%@ cancelled the meeting" = "%@ cancelled the meeting";
+"%@ responded to your meeting" = "%@ responded to your meeting";
+"%@ reacted %@ to your message" = "%@ reacted %@ to your message";
+"%@ added you to a group chat" = "%@ added you to a group chat";
+"%@ removed you from a group chat" = "%@ removed you from a group chat";
+"%d new posts in %@" = "%d new posts in %@";
+"%@ wants to join %@" = "%@ wants to join %@";
+"You were approved to join %@" = "You were approved to join %@";
+"Your role in %@ changed" = "Your role in %@ changed";
+"Content in %@ needs review" = "Content in %@ needs review";
+"Your post in %@ was removed by a moderator" = "Your post in %@ was removed by a moderator";
+
+// MARK: - Assistant confirmation (low-confidence match)
+"Clear" = "Clear";
+"Yes" = "Yes";
+"No" = "No";
+"Did you want me to %@?" = "Did you want me to %@?";
+"Okay, I won't change anything." = "Okay, I won't change anything.";
+"switch the theme to %@" = "switch the theme to %@";
+"switch the language to %@" = "switch the language to %@";
+"switch to %@" = "switch to %@";
+"open %@" = "open %@";
+"open Settings" = "open Settings";
+
+// MARK: - Localization sweep (Community type/role/report labels)
+"Fandom" = "Fandom";
+"Admin" = "Admin";
+"Mod" = "Mod";
+"Member" = "Member";
+"Spam" = "Spam";
+"Harassment" = "Harassment";
+"Hate speech" = "Hate speech";
+"Misinformation" = "Misinformation";
+"Off topic" = "Off topic";
+
+// MARK: - Create community duplicate-name warnings (fandom, casual tone)
+"Oops, there's already a community with this name! 😄 Try something even cooler~" = "Oops, there's already a community with this name! 😄 Try something even cooler~";
+"Name taken! ✨ Your community deserves something more unique!" = "Name taken! ✨ Your community deserves something more unique!";
+"Uh oh! Someone already snagged this name 🎉 Get a little more creative!" = "Uh oh! Someone already snagged this name 🎉 Get a little more creative!";
+"This name's already claimed~ 🌟 You can definitely think of something cooler!" = "This name's already claimed~ 🌟 You can definitely think of something cooler!";
+"Exact match! 😆 Make your community stand out with its own name!" = "Exact match! 😆 Make your community stand out with its own name!";
+
+// MARK: - Create community duplicate-name warnings (work, formal tone)
+"This community name already exists. Please choose a different name to continue." = "This community name already exists. Please choose a different name to continue.";
+"A community with this name already exists in the system. Please use a distinct identifier." = "A community with this name already exists in the system. Please use a distinct identifier.";
+"This name matches an existing community. Please adjust it to ensure uniqueness." = "This name matches an existing community. Please adjust it to ensure uniqueness.";
+"A community with this name has already been created. Please choose another name." = "A community with this name has already been created. Please choose another name.";
+"Invalid name: already exists in the system. Please enter a different name." = "Invalid name: already exists in the system. Please enter a different name.";
+
+// MARK: - Join requests / moderation / analytics (Community admin)
+"Approve" = "Approve";
+"Join Requests" = "Join Requests";
+"No pending requests" = "No pending requests";
+"Join requests will appear here" = "Join requests will appear here";
+"Pending (%d)" = "Pending (%d)";
+"Moderation Queue" = "Moderation Queue";
+"No pending reports" = "No pending reports";
+"No resolved reports" = "No resolved reports";
+"Dismissed" = "Dismissed";
+"Remove" = "Remove";
+"Ban" = "Ban";
+"Dismiss" = "Dismiss";
+"Reported post" = "Reported post";
+"Reported member" = "Reported member";
+"7 days" = "7 days";
+"30 days" = "30 days";
+"90 days" = "90 days";
+"Total Members" = "Total Members";
+"Total Posts" = "Total Posts";
+"Analytics" = "Analytics";
+"Top Posts This Period" = "Top Posts This Period";
+"No data yet for this period" = "No data yet for this period";
+
+// MARK: - Community discovery
+"Recommended For You" = "Recommended For You";
+"Join some communities to get personalised recommendations" = "Join some communities to get personalised recommendations";
+"Trending Now" = "Trending Now";
+
+// MARK: - Community event/poll composer
+"Event Details" = "Event Details";
+"Event title" = "Event title";
+"Optional" = "Optional";
+"Poll Options" = "Poll Options";
+"Option %d" = "Option %d";
+"Add option" = "Add option";
+"Poll end date" = "Poll end date";
+"%d going" = "%d going";
+"%d vote" = "%d vote";
+"%d votes" = "%d votes";
+"Ends %@" = "Ends %@";
+
+// MARK: - Community post card
+"Pinned" = "Pinned";
+"Unpin post" = "Unpin post";
+"Pin post" = "Pin post";
+
+// MARK: - Onboarding / persona / chat gaps (already wrapped in code, key was missing)
+"Checking availability..." = "Checking availability...";
+"Username available" = "Username available";
+"This mode has its own separate identity — name, avatar and bio won't be shared with the other mode" = "This mode has its own separate identity — name, avatar and bio won't be shared with the other mode";
+"No connections available to add" = "No connections available to add";
+"Someone you've blocked (or who has blocked you) is in this group." = "Someone you've blocked (or who has blocked you) is in this group.";
+"Say hello to the group 👋" = "Say hello to the group 👋";
+"You will no longer be the owner of this group." = "You will no longer be the owner of this group.";
+
+// MARK: - Conversation list preview text
+"You: " = "You: ";
+"No messages yet" = "No messages yet";
+"Meeting proposal" = "Meeting proposal";
+
+// MARK: - Generic API error mapper + ViewModel error literals
+"Connection error. Check your network." = "Connection error. Check your network.";
+"Request timed out. Please try again." = "Request timed out. Please try again.";
+"Something went wrong." = "Something went wrong.";
+"Could not load messages" = "Could not load messages";
+"Could not load older messages" = "Could not load older messages";
+"Failed to send message" = "Failed to send message";
+"Failed to upload media" = "Failed to upload media";
+"Failed to send meeting proposal" = "Failed to send meeting proposal";
+"Could not reschedule meeting" = "Could not reschedule meeting";
+"Could not cancel meeting" = "Could not cancel meeting";
+"Could not respond to meeting" = "Could not respond to meeting";
+"Could not recall message" = "Could not recall message";
+"Could not react to message" = "Could not react to message";
+"Could not pin message" = "Could not pin message";
+"Could not unpin message" = "Could not unpin message";
+"Could not load settings" = "Could not load settings";
+"Could not update nickname" = "Could not update nickname";
+"Could not update theme" = "Could not update theme";
+"Could not update notifications" = "Could not update notifications";
+"Could not rename group" = "Could not rename group";
+"Could not update group photo" = "Could not update group photo";
+"Could not load media" = "Could not load media";
+"Search failed" = "Search failed";
+"Could not load pinned messages" = "Could not load pinned messages";
+"Could not delete messages" = "Could not delete messages";
+"Could not load conversations" = "Could not load conversations";
+"Could not load connections" = "Could not load connections";
+"Could not delete post." = "Could not delete post.";
+"Could not post. Please try again." = "Could not post. Please try again.";
+
+// MARK: - AppearanceMode (folded from a bespoke label(for:) mechanism)
+"System" = "System";
+"Light" = "Light";
+"Dark" = "Dark";
+
+// MARK: - Community: private / locked states
+"This community is private. Request to join to see its posts." = "This community is private. Request to join to see its posts.";
+"Members of a private community are only visible to its members." = "Members of a private community are only visible to its members.";

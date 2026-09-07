@@ -5,11 +5,11 @@
  * POST /api/auth/login           — verify username + password → return JWT
  * POST /api/auth/google          — verify Google ID token → return JWT
  * GET  /api/auth/me               — return current user from JWT
- * GET  /api/auth/check-username   — realtime check trong lúc onboarding (?username=...)
+ * GET  /api/auth/check-username   — realtime check while typing a username during onboarding (?username=...)
  * POST /api/auth/setup            — complete onboarding (username, displayName, dob, mode, interests, skills)
- * POST /api/auth/change-password  — đổi mật khẩu (tài khoản Google: đặt lần đầu, không cần mật khẩu cũ)
- * POST /api/auth/forgot-password  — phát OTP 6 số qua email (dev: log console)
- * POST /api/auth/reset-password   — đặt lại mật khẩu bằng OTP
+ * POST /api/auth/change-password  — change password (Google-only account: set for the first time, no current password needed)
+ * POST /api/auth/forgot-password  — issue a 6-digit OTP via email (dev: logged to console)
+ * POST /api/auth/reset-password   — reset password using the OTP
  * POST /api/auth/logout           — (stateless JWT — client just deletes token)
  */
 
@@ -26,10 +26,10 @@ const { enqueueProfileEmbed } = require('../queues/embedQueue');
 const { sendPasswordResetOTP } = require('../services/mailerService');
 
 const BCRYPT_ROUNDS   = 12;
-const USERNAME_REGEX  = /^[a-z0-9_]{3,30}$/;  // khớp filter bên iOS onboarding
+const USERNAME_REGEX  = /^[a-z0-9_]{3,30}$/;  // matches the filter on the iOS onboarding side
 const MIN_PASSWORD_LEN = 8;
 
-// Chặt hơn limiter global (1000/15m): chống brute-force password
+// Tighter than the global limiter (1000/15m): guards against password brute-forcing
 const passwordAuthLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
@@ -45,9 +45,10 @@ function signToken(userId) {
 }
 
 async function getUserById(id) {
-  // Danh tính top-level (display_name/bio/avatar/cover) resolve theo persona
-  // của default_mode — mode app sẽ mở sau login. Kèm cờ setup của cả 2 persona
-  // để client biết khi nào cần chặn switch mode bằng form tạo persona.
+  // Top-level identity (display_name/bio/avatar/cover) resolves from the
+  // default_mode persona — the mode the app will open in after login. Also
+  // includes a setup flag for both personas so the client knows when it
+  // needs to block a mode switch behind the persona-creation form.
   const { rows } = await query(
     `SELECT u.*,
             ${personaExpr('display_name', 'u.default_mode')} AS display_name,
@@ -73,7 +74,7 @@ async function getUserById(id) {
   );
   const user = rows[0] || null;
   if (user) {
-    // Không bao giờ trả hash mật khẩu / google id về client
+    // Never return the password hash / google id to the client
     delete user.password_hash;
     delete user.google_id;
   }
@@ -95,8 +96,9 @@ async function authMiddleware(req, res, next) {
   }
 
   try {
-    // Token của tài khoản đã soft-delete mất giá trị ngay dù chưa hết hạn.
-    // Message dùng chung với token hỏng để không lộ trạng thái tài khoản.
+    // A soft-deleted account's token becomes invalid immediately, even if it
+    // hasn't expired yet. Uses the same error message as an invalid token so
+    // the account's status isn't leaked.
     const { rows: [u] } = await query(
       'SELECT deleted_at FROM users WHERE id = $1', [payload.sub]
     );
@@ -111,8 +113,8 @@ async function authMiddleware(req, res, next) {
 }
 
 // ── POST /api/auth/register ───────────────────────────────────────────────────
-// Tạo tài khoản tối thiểu (username + password); phần hồ sơ còn lại do onboarding
-// (POST /auth/setup) lo — giống hệt user Google mới.
+// Creates a minimal account (username + password); the rest of the profile
+// is handled by onboarding (POST /auth/setup) — exactly like a new Google user.
 
 router.post('/register', passwordAuthLimiter, async (req, res, next) => {
   try {
@@ -132,7 +134,7 @@ router.post('/register', passwordAuthLimiter, async (req, res, next) => {
     if (existing) return res.status(409).json({ error: 'Username already taken' });
 
     const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
-    // display_name tạm = username (NOT NULL) — user đổi ở bước onboarding
+    // Temporary display_name = username (NOT NULL) — the user changes it during onboarding
     const { rows: [user] } = await query(
       `INSERT INTO users (username, password_hash, display_name, is_setup)
        VALUES ($1, $2, $1, FALSE)
@@ -163,8 +165,8 @@ router.post('/login', passwordAuthLimiter, async (req, res, next) => {
       'SELECT id, password_hash, is_setup FROM users WHERE username = $1', [username]
     );
 
-    // Tài khoản Google (password_hash rỗng/NULL) không login bằng password được.
-    // Trả cùng message với sai password để không lộ username nào tồn tại.
+    // A Google account (empty/NULL password_hash) can't log in with a password.
+    // Returns the same message as a wrong password so we don't leak which usernames exist.
     if (!user || !user.password_hash || user.password_hash === 'SEED_DATA') {
       return res.status(401).json({ error: 'Invalid username or password' });
     }
@@ -175,7 +177,7 @@ router.post('/login', passwordAuthLimiter, async (req, res, next) => {
     const token   = signToken(user.id);
     const profile = await getUserById(user.id);
 
-    // Đăng ký xong nhưng thoát trước khi onboarding → login lại vẫn vào onboarding
+    // Registered but exited before onboarding → logging back in still lands in onboarding
     res.json({ token, user: profile, is_new_user: !user.is_setup });
   } catch (err) { next(err); }
 });
@@ -187,7 +189,7 @@ router.post('/google', async (req, res, next) => {
     const { id_token } = req.body;
     if (!id_token) return res.status(400).json({ error: 'id_token is required' });
 
-    // Verify với Google tokeninfo endpoint
+    // Verify against Google's tokeninfo endpoint
     const googleRes = await fetch(
       `https://oauth2.googleapis.com/tokeninfo?id_token=${id_token}`,
       { signal: AbortSignal.timeout(10_000) }
@@ -199,10 +201,10 @@ router.post('/google', async (req, res, next) => {
 
     const gData = await googleRes.json();
 
-    // Kiểm tra aud (client ID) nếu đã config
+    // Check aud (client ID) if it's configured
     if (env.google.clientId && gData.aud !== env.google.clientId) {
       logger.warn({ aud: gData.aud }, 'Google token aud mismatch');
-      // Trong dev: chỉ warn, không block
+      // In dev: just warn, don't block
     }
 
     const googleId = gData.sub;
@@ -214,7 +216,7 @@ router.post('/google', async (req, res, next) => {
       return res.status(401).json({ error: 'Missing Google user info' });
     }
 
-    // Tìm user theo google_id
+    // Look up the user by google_id
     let { rows: [user] } = await query(
       'SELECT id, is_setup FROM users WHERE google_id = $1',
       [googleId]
@@ -223,18 +225,18 @@ router.post('/google', async (req, res, next) => {
     let isNewUser = false;
 
     if (!user) {
-      // Thử tìm theo email (user đã có acc từ trước)
+      // Try looking up by email (user already had an account before)
       const { rows: [existing] } = await query(
         'SELECT id, is_setup FROM users WHERE email = $1',
         [email]
       );
 
       if (existing) {
-        // Link Google account vào user cũ
+        // Link the Google account to the existing user
         await query('UPDATE users SET google_id = $1 WHERE id = $2', [googleId, existing.id]);
         user = existing;
       } else {
-        // Tạo user mới (chưa setup)
+        // Create a new user (not yet set up)
         const username = `user_${googleId.slice(-8)}`;
         const { rows: [newUser] } = await query(
           `INSERT INTO users (google_id, email, display_name, username, password_hash, avatar_color, is_setup)
@@ -269,8 +271,8 @@ router.get('/me', authMiddleware, async (req, res, next) => {
 });
 
 // ── GET /api/auth/check-username ──────────────────────────────────────────────
-// Realtime availability check gọi trong lúc gõ username ở bước onboarding.
-// Trả về { available: boolean } — loại trừ chính user hiện tại (đổi lại username cũ vẫn hợp lệ).
+// Realtime availability check called while typing a username during onboarding.
+// Returns { available: boolean } — excludes the current user themself (so keeping your old username still counts as valid).
 
 router.get('/check-username', authMiddleware, async (req, res, next) => {
   try {
@@ -300,15 +302,15 @@ router.post('/setup', authMiddleware, async (req, res, next) => {
     if (!display_name?.trim()) return res.status(400).json({ error: 'display_name is required' });
     if (!location?.trim())     return res.status(400).json({ error: 'location is required' });
 
-    // Bắt buộc birthday (mở khoá age-range filter cho AI search) — không giới
-    // hạn tuổi tối thiểu, chỉ cần tồn tại và là ngày hợp lệ trong quá khứ.
+    // Birthday is required (it unlocks the age-range filter for AI search) —
+    // there's no minimum age limit, it just needs to exist and be a valid past date.
     if (!dob?.trim()) return res.status(400).json({ error: 'dob is required' });
     const dobDate = new Date(dob);
     if (Number.isNaN(dobDate.getTime()) || dobDate.getTime() >= Date.now()) {
       return res.status(400).json({ error: 'dob must be a valid past date' });
     }
 
-    // dob_visibility: mặc định private (an toàn) nếu client không gửi
+    // dob_visibility: defaults to private (safe default) if the client doesn't send it
     const dobVisibility = dob_visibility === undefined ? 'private' : dob_visibility;
     if (!['private', 'public'].includes(dobVisibility)) {
       return res.status(400).json({ error: 'dob_visibility must be private or public' });
@@ -321,9 +323,10 @@ router.post('/setup', authMiddleware, async (req, res, next) => {
     );
     if (existing) return res.status(409).json({ error: 'Username already taken' });
 
-    // Update user profile — danh tính onboarding ghi vào persona của mode đã
-    // chọn (persona mode kia để trống, lần đầu switch sẽ được hỏi form riêng);
-    // cột gốc display_name/bio giữ bản sao làm fallback cho bề mặt không gắn mode.
+    // Update user profile — the onboarding identity is written to the persona
+    // of the chosen mode (the other mode's persona is left empty; the first
+    // switch to it will prompt a separate creation form); the base
+    // display_name/bio columns keep a copy as a fallback for mode-agnostic surfaces.
     const mode = ['hobby', 'work'].includes(default_mode) ? default_mode : 'hobby';
     await query(
       `UPDATE users SET
@@ -377,7 +380,7 @@ router.post('/setup', authMiddleware, async (req, res, next) => {
       }
     }
 
-    // Onboarding xong → build profile chunk lần đầu (queue có retry)
+    // Onboarding done → build the profile chunk for the first time (queue retries on failure)
     enqueueProfileEmbed(req.userId)
       .catch((err) => logger.warn({ err, userId: req.userId }, 'setup: enqueue profile embed failed'));
 
@@ -387,8 +390,8 @@ router.post('/setup', authMiddleware, async (req, res, next) => {
 });
 
 // ── POST /api/auth/change-password ────────────────────────────────────────────
-// Đổi mật khẩu khi đã đăng nhập. Tài khoản Google thuần (chưa có mật khẩu)
-// được đặt mật khẩu lần đầu mà không cần current_password.
+// Changes the password while logged in. A pure Google account (no password yet)
+// gets its password set for the first time without needing current_password.
 
 router.post('/change-password', authMiddleware, passwordAuthLimiter, async (req, res, next) => {
   try {
@@ -422,9 +425,10 @@ router.post('/change-password', authMiddleware, passwordAuthLimiter, async (req,
 });
 
 // ── POST /api/auth/forgot-password ────────────────────────────────────────────
-// Nhận username hoặc email. LUÔN trả câu trả lời chung chung để không lộ
-// tài khoản nào tồn tại / có email. OTP 6 số hash bcrypt, hết hạn 10 phút,
-// mã mới phát ra vô hiệu mọi mã cũ chưa dùng.
+// Accepts either a username or an email. ALWAYS returns a generic response
+// so we never leak which account exists / has an email. The 6-digit OTP is
+// bcrypt-hashed and expires in 10 minutes; issuing a new code invalidates any
+// previous unused code.
 
 const OTP_TTL_MINUTES = 10;
 
@@ -462,8 +466,8 @@ router.post('/forgot-password', passwordAuthLimiter, async (req, res, next) => {
 });
 
 // ── POST /api/auth/reset-password ─────────────────────────────────────────────
-// Đặt lại mật khẩu bằng OTP. Mọi nhánh sai (user không tồn tại / mã sai /
-// mã hết hạn) trả cùng một message để không lộ thông tin.
+// Resets the password using the OTP. Every failure branch (user doesn't exist /
+// wrong code / expired code) returns the same message so no information is leaked.
 
 router.post('/reset-password', passwordAuthLimiter, async (req, res, next) => {
   try {

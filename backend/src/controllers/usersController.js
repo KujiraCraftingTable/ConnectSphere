@@ -10,7 +10,7 @@ async function listUsers(req, res, next) {
     const { mode, search, limit = '20', offset = '0' } = req.query;
     const filters = {
       mode, search,
-      viewerId: req.userId,   // loại user đã chặn/bị chặn khỏi kết quả
+      viewerId: req.userId,   // excludes blocked/blocking users from the results
       limit:  parseInt(limit, 10),
       offset: parseInt(offset, 10),
     };
@@ -32,15 +32,15 @@ async function listUsers(req, res, next) {
 // GET /api/users/:id
 async function getUser(req, res, next) {
   try {
-    // Người đã chặn mình thì mình không xem được hồ sơ của họ.
-    // (Chiều ngược lại vẫn xem được để còn bấm "Bỏ chặn".)
+    // If they've blocked us, we can't view their profile.
+    // (The reverse direction is still viewable, so we can still tap "Unblock".)
     if (await userModel.hasBlocked(req.params.id, req.userId)) {
       const err = new Error('User not found');
       err.status = 404;
       return next(err);
     }
 
-    // mode (hobby/work) → trả kèm connection_count theo mode đó
+    // mode (hobby/work) → also return connection_count for that mode
     const mode = ['hobby', 'work'].includes(req.query.mode) ? req.query.mode : null;
     const user = await userModel.findById(req.params.id, mode);
     if (!user) {
@@ -54,7 +54,7 @@ async function getUser(req, res, next) {
   }
 }
 
-// POST /api/users/:id/block — chặn user (gỡ luôn mọi connection giữa 2 bên)
+// POST /api/users/:id/block — block a user (also removes any connection between the two)
 async function blockUser(req, res, next) {
   try {
     const targetId = req.params.id;
@@ -75,7 +75,7 @@ async function blockUser(req, res, next) {
   }
 }
 
-// DELETE /api/users/:id/block — bỏ chặn
+// DELETE /api/users/:id/block — unblock
 async function unblockUser(req, res, next) {
   try {
     await userModel.unblockUser(req.userId, req.params.id);
@@ -85,17 +85,21 @@ async function unblockUser(req, res, next) {
   }
 }
 
-// GET /api/users/:id/blocked — mình có đang chặn user này không
+// GET /api/users/:id/blocked — whether we're blocking this user (+ either direction,
+// used to hide/disable the chat input when we're blocked even though we're not the blocker)
 async function blockStatus(req, res, next) {
   try {
-    const blocked = await userModel.hasBlocked(req.userId, req.params.id);
-    res.json({ blocked });
+    const [blocked, blockedEitherWay] = await Promise.all([
+      userModel.hasBlocked(req.userId, req.params.id),
+      userModel.isBlockedEitherWay(req.userId, req.params.id),
+    ]);
+    res.json({ blocked, blockedEitherWay });
   } catch (err) {
     next(err);
   }
 }
 
-// GET /api/users/blocked — danh sách user mình đang chặn
+// GET /api/users/blocked — list of users we're blocking
 async function listBlocked(req, res, next) {
   try {
     const rows = await userModel.listBlocked(req.userId);
@@ -105,7 +109,7 @@ async function listBlocked(req, res, next) {
   }
 }
 
-// PATCH /api/users/me — sửa hồ sơ của chính user trong JWT (partial update)
+// PATCH /api/users/me — edit the JWT user's own profile (partial update)
 async function updateMe(req, res, next) {
   try {
     const {
@@ -114,8 +118,8 @@ async function updateMe(req, res, next) {
       interests, skills, email,
     } = req.body;
 
-    // Persona đang sửa: ?mode= hoặc body.mode; không gửi → default_mode của user
-    // (client cũ chưa biết persona vẫn sửa đúng danh tính chính).
+    // Persona being edited: ?mode= or body.mode; not sent → the user's default_mode
+    // (older clients that don't know about personas still edit the right identity).
     let mode = req.query.mode || req.body.mode;
     if (!['hobby', 'work'].includes(mode)) {
       const { rows: [me] } = await query(
@@ -137,8 +141,8 @@ async function updateMe(req, res, next) {
       return res.status(400).json({ error: 'dob_visibility must be private or public' });
     }
 
-    // Email xử lý riêng (không qua whitelist updateProfile): normalize + check unique.
-    // Chuỗi rỗng = gỡ email khỏi tài khoản.
+    // Email is handled separately (not through the updateProfile whitelist): normalize + check unique.
+    // Empty string = remove the email from the account.
     if (email !== undefined) {
       const normalized = email?.trim().toLowerCase() || null;
       if (normalized && !/^\S+@\S+\.\S+$/.test(normalized)) {
@@ -173,13 +177,13 @@ async function updateMe(req, res, next) {
       mode,
     });
 
-    // Profile đổi → rebuild profile chunk (queue có retry, không block response)
+    // Profile changed → rebuild the profile chunk (queue has retry, doesn't block the response)
     enqueueProfileEmbed(req.userId)
       .catch((err) => logger.warn({ err, userId: req.userId }, 'updateMe: enqueue profile embed failed'));
 
-    // Response của chính chủ mang thêm email + has_password + dob/dob_visibility/age
-    // thật (findById là profile công khai nên age đã bị gate theo dob_visibility,
-    // và không chứa dob/email/has_password ở dạng thô)
+    // The owner's own response includes the real email + has_password + dob/dob_visibility/age
+    // (findById is the public profile, so age there is already gated by dob_visibility,
+    // and it doesn't include raw dob/email/has_password)
     const { rows: [priv] } = await query(
       `SELECT email, dob, dob_visibility, age,
               (password_hash IS NOT NULL AND password_hash <> ''
@@ -202,9 +206,9 @@ async function updateMe(req, res, next) {
   }
 }
 
-// POST /api/users/me/personas — tạo persona cho mode thứ 2 (lần đầu switch).
+// POST /api/users/me/personas — create the persona for the second mode (first-time switch).
 // Body: { mode, display_name*, bio?, job_title?/company?/skills? (work) | interests? (hobby) }
-// Persona đã tồn tại → 409 (sửa qua PATCH /users/me?mode=...).
+// Persona already exists → 409 (edit via PATCH /users/me?mode=...).
 async function createPersona(req, res, next) {
   try {
     const { mode, display_name, bio, job_title, company, skills, interests } = req.body;
@@ -230,7 +234,7 @@ async function createPersona(req, res, next) {
       return res.status(409).json({ error: 'Persona already set up' });
     }
 
-    // mode đã validate 'hobby'/'work' → an toàn để ghép tên cột
+    // mode is already validated as 'hobby'/'work' → safe to interpolate into the column name
     const params = [req.userId, display_name.trim(), bio?.trim() || null];
     let extraSets = '';
     if (mode === 'work') {
@@ -247,7 +251,7 @@ async function createPersona(req, res, next) {
       params
     );
 
-    // Danh sách riêng của mode: work = skills, hobby = interests (thay toàn bộ)
+    // Mode-specific list: work = skills, hobby = interests (full replace)
     const list  = mode === 'work' ? skills : interests;
     const table = mode === 'work' ? 'user_skills' : 'user_interests';
     const col   = mode === 'work' ? 'skill' : 'interest';
@@ -263,7 +267,7 @@ async function createPersona(req, res, next) {
       }
     }
 
-    // Persona mới → rebuild profile chunk cho search/feed
+    // New persona → rebuild the profile chunk for search/feed
     enqueueProfileEmbed(req.userId)
       .catch((err) => logger.warn({ err, userId: req.userId }, 'createPersona: enqueue embed failed'));
 
@@ -274,9 +278,9 @@ async function createPersona(req, res, next) {
   }
 }
 
-// DELETE /api/users/me — soft delete: xác nhận bằng mật khẩu (tài khoản Google
-// chưa có mật khẩu thì gõ "DELETE"), sau đó scrub PII + gỡ liên kết xã hội.
-// Nội dung đã đăng giữ nguyên, hiển thị dưới tên "Deleted User".
+// DELETE /api/users/me — soft delete: confirm with password (Google accounts
+// without a password type "DELETE" instead), then scrub PII + remove social links.
+// Previously posted content is kept as-is, shown under the name "Deleted User".
 async function deleteMe(req, res, next) {
   try {
     const { password, confirmation } = req.body || {};
@@ -307,7 +311,34 @@ async function deleteMe(req, res, next) {
   }
 }
 
+/**
+ * PATCH /users/me/default-mode — Body: { mode: 'hobby' | 'work' }
+ *
+ * Persists which mode the app opens in after login. Separate from `updateMe`,
+ * whose own `mode` field means "which persona to edit," not "set my default" —
+ * conflating the two would make `updateMe` ambiguous about which one a caller
+ * meant. Before this endpoint existed, the client's mode switch only ever
+ * mutated in-memory state and silently reverted on the next cold launch,
+ * because default_mode was otherwise set once, only at registration.
+ */
+async function updateDefaultMode(req, res, next) {
+  try {
+    const { mode } = req.body;
+    if (!['hobby', 'work'].includes(mode)) {
+      return res.status(400).json({ error: 'mode must be hobby or work' });
+    }
+
+    await query(
+      'UPDATE users SET default_mode = $1, updated_at = NOW() WHERE id = $2',
+      [mode, req.userId]
+    );
+    res.json({ status: 'ok' });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
-  listUsers, getUser, updateMe, createPersona,
+  listUsers, getUser, updateMe, createPersona, updateDefaultMode,
   blockUser, unblockUser, blockStatus, listBlocked, deleteMe,
 };
