@@ -19,9 +19,11 @@ function isPrivateIp(ip) {
   if (parts.length !== 4 || parts.some(Number.isNaN)) return true; // can't parse → block it
   const [a, b] = parts;
   return a === 0 || a === 10 || a === 127
-    || (a === 169 && b === 254)
-    || (a === 172 && b >= 16 && b <= 31)
-    || (a === 192 && b === 168);
+    || (a === 169 && b === 254)               // link-local / cloud metadata
+    || (a === 172 && b >= 16 && b <= 31)      // private
+    || (a === 192 && b === 168)               // private
+    || (a === 100 && b >= 64 && b <= 127)     // CGNAT (100.64.0.0/10)
+    || a >= 224;                              // multicast + reserved (224.0.0.0/3)
 }
 
 // Throws if the hostname is an internal address or resolves to an internal IP
@@ -117,16 +119,36 @@ function parseMeta(html) {
   };
 }
 
-async function fetchOGTags(url) {
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; ConnectSphere/1.0; +https://connectsphere.app)',
-      'Accept': 'text/html,application/xhtml+xml',
-      'Accept-Language': 'en-US,en;q=0.9',
-    },
-    signal: AbortSignal.timeout(8_000),
-    redirect: 'follow',
-  });
+const MAX_REDIRECTS = 4;
+
+async function fetchOGTags(startUrl) {
+  // Follow redirects manually so assertPublicHost() runs on EVERY hop — a
+  // public URL that 3xx-redirects to http://169.254.169.254/ (or any private
+  // range) would otherwise sail straight through with redirect: 'follow'.
+  let url = startUrl;
+  let res;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    const parsed = new URL(url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Blocked redirect scheme');
+    await assertPublicHost(parsed.hostname);
+
+    res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; ConnectSphere/1.0; +https://connectsphere.app)',
+        'Accept': 'text/html,application/xhtml+xml',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+      signal: AbortSignal.timeout(8_000),
+      redirect: 'manual',
+    });
+
+    if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
+      if (hop === MAX_REDIRECTS) throw new Error('Too many redirects');
+      url = new URL(res.headers.get('location'), url).toString();
+      continue;
+    }
+    break;
+  }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
   // Read at most 150KB — enough for most pages

@@ -23,8 +23,14 @@ const app    = express();
 const server = http.createServer(app);
 
 // ── Socket.IO ─────────────────────────────────────────────────────────────────
+// Native app clients send no Origin header, so CORS never applies to them.
+// Default to `false` (no cross-origin browser access); set CORS_ORIGINS
+// (comma-separated) to allowlist specific web origins.
+const corsOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
+  : false;
 const io = new Server(server, {
-  cors: { origin: '*' },
+  cors: { origin: corsOrigins },
 });
 
 // Lets services/controllers emit via utils/realtime
@@ -496,6 +502,21 @@ app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 1000, standardHeaders: true, 
 app.use(express.json());
 
 // ── Static files (uploaded media) ─────────────────────────────────────────────
+// DM media (photos + voice notes under /uploads/messages/) is private — require
+// a valid JWT. The token comes via ?token= because <img>/AsyncImage can't set
+// an Authorization header; a bearer header is also accepted. Avatars and
+// post/story images stay public.
+app.use('/uploads/messages', (req, res, next) => {
+  const bearer = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const token  = (typeof req.query.token === 'string' && req.query.token) || bearer;
+  if (!token) return res.status(401).json({ error: 'Authentication required' });
+  try {
+    jwt.verify(token, env.jwt.secret);
+    next();
+  } catch {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+});
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ── Health check ──────────────────────────────────────────────────────────────

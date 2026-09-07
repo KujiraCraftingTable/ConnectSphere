@@ -201,15 +201,31 @@ router.post('/google', async (req, res, next) => {
 
     const gData = await googleRes.json();
 
-    // Check aud (client ID) if it's configured
-    if (env.google.clientId && gData.aud !== env.google.clientId) {
-      logger.warn({ aud: gData.aud }, 'Google token aud mismatch');
-      // In dev: just warn, don't block
+    // Enforce the token audience. Without this, an ID token minted for ANY
+    // Google OAuth client is accepted and linked to the matching email →
+    // account takeover. Require GOOGLE_CLIENT_ID to be configured (except in a
+    // local dev run, where we warn loudly instead of hard-failing).
+    if (env.google.clientId) {
+      if (gData.aud !== env.google.clientId) {
+        logger.warn({ aud: gData.aud }, 'Google token aud mismatch — rejected');
+        return res.status(401).json({ error: 'Invalid Google token' });
+      }
+    } else if (env.NODE_ENV === 'production') {
+      logger.error('GOOGLE_CLIENT_ID is not set — refusing Google sign-in in production');
+      return res.status(503).json({ error: 'Google sign-in is not configured' });
+    } else {
+      logger.warn('GOOGLE_CLIENT_ID not set — skipping aud check (dev only)');
+    }
+
+    // Reject unverified emails: an attacker could otherwise attach an
+    // unverified Google identity carrying someone else's address.
+    if (gData.email_verified === 'false' || gData.email_verified === false) {
+      return res.status(401).json({ error: 'Google email is not verified' });
     }
 
     const googleId = gData.sub;
     const email    = gData.email;
-    const name     = gData.name || email.split('@')[0];
+    const name     = gData.name || (email ? email.split('@')[0] : null);
     const picture  = gData.picture || null;
 
     if (!googleId || !email) {

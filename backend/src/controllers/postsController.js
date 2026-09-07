@@ -113,6 +113,9 @@ async function createPost(req, res, next) {
     if (!hasContent && !hasLink && !imageUrls) {
       return res.status(400).json({ error: 'content, link_url or image_urls is required' });
     }
+    if (typeof content === 'string' && content.length > 2000) {
+      return res.status(400).json({ error: 'content must be at most 2000 characters' });
+    }
     if (!['hobby', 'work'].includes(mode))
       return res.status(400).json({ error: 'mode must be hobby or work' });
 

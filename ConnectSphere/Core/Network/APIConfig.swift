@@ -17,4 +17,19 @@ enum APIConfig {
     }()
 
     static let baseURL = "\(serverBase)/api"
+
+    /// Builds an absolute URL for uploaded media. Message media
+    /// (`/uploads/messages/*`) is auth-gated on the server; `AsyncImage` can't
+    /// send an Authorization header, so the JWT rides along as `?token=`.
+    /// Everything else (avatars, post/story images) is returned as-is.
+    static func mediaURL(_ path: String) -> URL? {
+        let full = serverBase + path
+        guard path.contains("/messages/"),
+              let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey),
+              var comps = URLComponents(string: full) else {
+            return URL(string: full)
+        }
+        comps.queryItems = (comps.queryItems ?? []) + [URLQueryItem(name: "token", value: token)]
+        return comps.url
+    }
 }

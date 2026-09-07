@@ -3,16 +3,32 @@ const REQUIRED = [
   'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD',
 ];
 
+// Values that are placeholders, not real secrets — anyone running with one of
+// these can forge a token for any user, so production must not boot with them.
+const WEAK_JWT_SECRETS = new Set([
+  'dev_secret',
+  'change-me-generate-with-openssl-rand-hex-32',
+]);
+
 function validateEnv() {
   const missing = REQUIRED.filter((key) => !process.env[key]);
   if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
 
-  // Production không được chạy với secret mặc định của dev
-  if (process.env.NODE_ENV === 'production' &&
-      (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'dev_secret')) {
-    throw new Error('JWT_SECRET must be set to a strong value in production');
+  const jwtSecret = process.env.JWT_SECRET;
+  const weakJwt = !jwtSecret || WEAK_JWT_SECRETS.has(jwtSecret);
+  if (process.env.NODE_ENV === 'production') {
+    if (weakJwt) {
+      throw new Error('JWT_SECRET must be set to a strong, unique value in production');
+    }
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      // eslint-disable-next-line no-console
+      console.warn('[env] GOOGLE_CLIENT_ID is not set — Google sign-in will be refused');
+    }
+  } else if (weakJwt) {
+    // eslint-disable-next-line no-console
+    console.warn('[env] JWT_SECRET is unset or a placeholder — fine for local dev, never deploy like this');
   }
 }
 

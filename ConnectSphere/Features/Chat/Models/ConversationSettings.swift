@@ -167,9 +167,9 @@ struct ChatMediaItem: Identifiable, Decodable {
         case createdAt   = "created_at"
     }
 
-    /// Absolute URL for loading the media.
+    /// Absolute URL for loading the media (auth token appended for message media).
     func absoluteMediaURL() -> URL? {
-        URL(string: APIConfig.serverBase + mediaUrl)
+        APIConfig.mediaURL(mediaUrl)
     }
 }
 
