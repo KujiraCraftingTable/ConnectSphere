@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// "Mini CV" cho kết quả AI search — thay user card thường khi search bằng Kujira.
-/// Phần 1: avatar tròn + tên + bio (fallback khi trống) + badge % phù hợp góc phải.
-/// Phần 2: tối đa 5 bullet "vì sao khớp" — format từ match_evidence backend trả sẵn,
-/// không gọi thêm LLM ở client.
+/// "Mini CV" for AI search results — replaces the regular user card when searching with Kujira.
+/// Part 1: round avatar + name + bio (fallback when empty) + match % badge on the right.
+/// Part 2: up to 5 "why it matched" bullets — formatted from the match_evidence the backend
+/// already returns, no extra LLM call on the client.
 struct MiniCVCard: View {
     @Environment(AppState.self) var appState
     @Environment(ThemeManager.self) var themeManager
@@ -12,12 +12,12 @@ struct MiniCVCard: View {
     let user: UserProfile
     let evidence: [MatchEvidenceDTO]
 
-    /// Bullet hiển thị: bỏ loại "profile" vì bio đã nằm ngay phần 1 của card.
+    /// Bullets to display: drop the "profile" type since the bio already appears in part 1 of the card.
     private var displayEvidence: [MatchEvidenceDTO] {
         evidence.filter { $0.type != "profile" }
     }
 
-    /// % phù hợp = similarity của chunk khớp nhất (tính cả profile chunk dù không hiện bullet).
+    /// Match % = similarity of the best-matching chunk (includes the profile chunk even though it has no bullet).
     private var matchPercent: Int? {
         guard let best = evidence.compactMap({ $0.similarity }).max() else { return nil }
         return Int((best * 100).rounded())
@@ -27,7 +27,7 @@ struct MiniCVCard: View {
         NavigationLink(destination: UserProfileView(userId: user.id, preloadedUser: user)
             .environment(appState)) {
             VStack(alignment: .leading, spacing: 12) {
-                // ── Phần 1: avatar + tên + bio + badge % ──
+                // ── Part 1: avatar + name + bio + % badge ──
                 HStack(alignment: .top, spacing: 12) {
                     AvatarView(user: user, size: 64)
 
@@ -41,7 +41,7 @@ struct MiniCVCard: View {
                                 .italic()
                                 .foregroundColor(AppColors.textSecondary(colorScheme).opacity(0.8))
                         } else {
-                            // Bio dài thì xuống dòng đủ, không cắt "…"
+                            // Long bio wraps to as many lines as needed, not truncated with "…"
                             Text(user.bio)
                                 .font(.system(size: 13))
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
@@ -62,7 +62,7 @@ struct MiniCVCard: View {
                     }
                 }
 
-                // ── Phần 2: lý do khớp ──
+                // ── Part 2: match reasons ──
                 if !displayEvidence.isEmpty {
                     Divider()
 
@@ -92,7 +92,7 @@ struct MiniCVCard: View {
         .buttonStyle(.plain)
     }
 
-    /// Icon theo loại evidence: hồ sơ / bài viết / cộng đồng.
+    /// Icon based on evidence type: profile / post / community.
     private func icon(for item: MatchEvidenceDTO) -> String {
         switch item.type {
         case "post":      return "text.bubble"
@@ -101,8 +101,8 @@ struct MiniCVCard: View {
         }
     }
 
-    /// Format một evidence thành câu lý do đã localize (template thuần, không LLM).
-    /// % không nằm trong câu nữa — đã dời lên badge góc phải của card.
+    /// Format one evidence item into a localized reason sentence (pure template, no LLM).
+    /// The % is no longer part of the sentence — it's been moved to the badge on the card's right side.
     private func reasonText(for item: MatchEvidenceDTO) -> String {
         let terms = item.matchedTerms.prefix(2).joined(separator: ", ")
 
@@ -111,7 +111,7 @@ struct MiniCVCard: View {
             let count = item.postCount ?? 1
             if count > 1 { return multiPostText(for: item, count: count, terms: terms) }
 
-            // 1 bài — format đơn lẻ kèm "bao lâu trước"
+            // Single post — single-item format with "how long ago"
             let when = item.latestPostAt?.timeAgoString
             if let topic = item.topic, !topic.isEmpty {
                 if let when {
@@ -132,8 +132,8 @@ struct MiniCVCard: View {
         }
     }
 
-    /// Nhiều bài cùng topic đã gộp: "Có N bài viết về X trong 7 ngày qua".
-    /// Cụm thời gian tính từ bài CŨ NHẤT trong nhóm để câu nói đúng sự thật.
+    /// Multiple posts on the same topic, merged: "N posts about X in the last 7 days".
+    /// The time window is computed from the OLDEST post in the group so the sentence stays accurate.
     private func multiPostText(for item: MatchEvidenceDTO, count: Int, terms: String) -> String {
         enum Window { case week, month, none }
         let window: Window = {

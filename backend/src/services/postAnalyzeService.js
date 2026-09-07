@@ -1,14 +1,14 @@
 /**
  * postAnalyzeService.js
  *
- * Dùng LLM để phân tích nội dung bài viết:
- * → trả về { suggestedMode: "hobby" | "work" | "neutral", confidence, reason }
+ * Uses an LLM to analyze post content:
+ * → returns { suggestedMode: "hobby" | "work" | "neutral", confidence, reason }
  */
 
 const { ollama } = require('../config/env');
 const logger = require('../utils/logger');
 
-// ── Keyword fast-path (không cần LLM) ────────────────────────────────────────
+// ── Keyword fast-path (no LLM needed) ─────────────────────────────────────────
 
 const COLLEAGUE_KEYWORDS = [
   'sprint', 'deadline', 'deploy', 'merge', 'pull request', 'code review',
@@ -41,7 +41,7 @@ function keywordCheck(content) {
     if (lower.includes(kw)) hobbyScore++;
   }
 
-  // Chỉ kết luận khi có sự chênh lệch rõ ràng
+  // Only conclude when there's a clear enough gap
   if (workScore >= 2 && workScore > hobbyScore * 2) {
     return { suggestedMode: 'work', confidence: 0.85, reason: 'Nội dung liên quan đến công việc', fast: true };
   }
@@ -49,7 +49,7 @@ function keywordCheck(content) {
     return { suggestedMode: 'hobby', confidence: 0.85, reason: 'Nội dung mang tính cá nhân/giải trí', fast: true };
   }
 
-  return null; // không rõ → gọi LLM
+  return null; // unclear → call the LLM
 }
 
 const SYSTEM_PROMPT = `You analyze social media post content and classify it as "hobby" (personal/entertainment/lifestyle/hobbies) or "work" (professional/work/career/skills/business) or "neutral".
@@ -64,7 +64,7 @@ Examples:
 "Trời hôm nay đẹp quá" → {"suggestedMode":"neutral","confidence":0.8,"reason":"Không rõ ngữ cảnh"}`;
 
 async function analyzePostContent(content) {
-  // Fast-path: keyword check trước, không cần gọi LLM
+  // Fast-path: keyword check first, no need to call the LLM
   const fast = keywordCheck(content);
   if (fast) {
     logger.debug({ fast }, 'Post analyze: keyword fast-path');

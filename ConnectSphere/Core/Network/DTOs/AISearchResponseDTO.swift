@@ -4,7 +4,7 @@ struct AISearchCriteriaDTO: Decodable {
     let entity_type:        String?
     let entity_name:        String?
     let entity_keywords:    [String]
-    let interests:          [String]   // flattened từ interest_groups [[String]]
+    let interests:          [String]   // flattened from interest_groups [[String]]
     let skills:             [String]
     let bio_keywords:       [String]
     let job_title_keywords: [String]
@@ -31,8 +31,8 @@ struct AISearchCriteriaDTO: Decodable {
     }
 }
 
-/// Một "lý do khớp" trong mini CV — backend build sẵn từ chunk/community, không gọi LLM.
-/// Post đã được backend gộp theo topic: postCount bài, mốc thời gian mới/cũ nhất.
+/// A "match reason" in the mini CV — pre-built by the backend from a chunk/community, no LLM call.
+/// Posts are already grouped by topic on the backend: postCount posts, newest/oldest timestamps.
 struct MatchEvidenceDTO: Decodable, Hashable {
     let type:           String     // "profile" | "post" | "community"
     let topic:          String?
@@ -65,7 +65,7 @@ struct MatchEvidenceDTO: Decodable, Hashable {
     }
 }
 
-/// Một ứng viên canonical cho keyword vùng xám (0.6–0.8): "ý bạn là …?"
+/// A canonical candidate for a gray-zone keyword (0.6–0.8): "did you mean …?"
 struct EntityCandidateDTO: Decodable, Identifiable {
     let entity_id:      String
     let canonical_name: String
@@ -78,25 +78,31 @@ struct EntitySuggestionDTO: Decodable, Identifiable {
     var id: String { keyword }
 }
 
+/// Something in the query the AI couldn't understand or apply (e.g. a venue it
+/// couldn't place). Backend sends a stable `code` plus optional `value` rather
+/// than prose, so the text is localized here in the app, not hardcoded server-side.
+struct SearchWarningDTO: Decodable {
+    let code:  String
+    let value: String?
+}
+
 struct AISearchResponseDTO: Decodable {
     let data:      [UserDTO]
     let criteria:  AISearchCriteriaDTO
-    let reasoning: String
-    let tips:      String
     let entity_suggestions: [EntitySuggestionDTO]
+    let warnings:  [SearchWarningDTO]
 
     private enum CodingKeys: String, CodingKey {
-        case data, criteria, reasoning, tips, entity_suggestions
+        case data, criteria, entity_suggestions, warnings
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         data      = try c.decode([UserDTO].self, forKey: .data)
         criteria  = try c.decode(AISearchCriteriaDTO.self, forKey: .criteria)
-        reasoning = (try? c.decode(String.self, forKey: .reasoning)) ?? ""
-        tips      = (try? c.decode(String.self, forKey: .tips)) ?? ""
-        // Field mới — backend cũ hoặc response rỗng vẫn decode được
+        // New field — still decodes fine against an older backend or an empty response
         entity_suggestions = (try? c.decode([EntitySuggestionDTO].self, forKey: .entity_suggestions)) ?? []
+        warnings           = (try? c.decode([SearchWarningDTO].self, forKey: .warnings)) ?? []
     }
 }
 

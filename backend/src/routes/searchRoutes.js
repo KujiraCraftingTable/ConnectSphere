@@ -4,7 +4,7 @@ const { aiSearchHandler } = require('../controllers/searchController');
 const { lookupEntity }    = require('../services/entityLookupService');
 const { getSuggestions }  = require('../services/suggestionService');
 
-// Toàn bộ search routes yêu cầu JWT
+// All search routes require a JWT
 router.use(authMiddleware);
 
 router.post('/ai', aiSearchHandler);

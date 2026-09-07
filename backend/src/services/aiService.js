@@ -9,165 +9,81 @@ const WORK_TYPES = new Set([
   'company','university','industry','programming_language','framework','tool','certification','job_role','professional_field','startup',
 ]);
 
-// ── Query Understanding prompts ─────────────────────────────────────────────────────────────
-
-const NORMALIZER_PROMPT = `You are the query normalizer for a social network people-search.
-Given a raw search query in any language, return JSON with exactly these 6 fields:
-{
-  "intent_en": "...",
-  "mode": "hobby" | "work" | null,
-  "has_entity": true | false,
-  "target_gender": "male" | "female" | null,
-  "target_age_min": <int> | null,
-  "target_age_max": <int> | null
-}
-
-intent_en: the core search intent, translated to English.
-- Preserve all proper nouns exactly as written: movie/anime/song titles, artist names, team names, brand/company names, university names, framework and tool names, place names
-- Remove greetings ("Hey Kujira", "hello"), filler phrases ("help me", "I want to", "can you"), and emotional noise ("I'm so sad", "it's raining today")
-- Keep only what describes WHO the user wants to find
-mode: "hobby" if looking for friends or social connections. "work" if looking for work or study partners. null if unclear.
-has_entity: true if the query mentions a specific named entity — a movie, anime, song, artist, sports team, company, university, framework, tool, or certification name.
-target_gender: only when the user EXPLICITLY asks for a gender ("bạn nam", "bạn gái", "female friend", "a guy who..."). Otherwise null — never guess from context.
-target_age_min / target_age_max: only when the user EXPLICITLY states an age or age range. "20-30" → min:20,max:30. "over 25"/"trên 25" → min:25,max:null. "under 30"/"dưới 30" → min:null,max:30. A single exact age ("25 years old"/"25 tuổi"/"around 25") → a small fuzzy range of ±2 years, i.e. min:23,max:27. Otherwise both null — never guess from context.
-
-Return only valid JSON, no explanation.
-
-Examples:
-"Ê Kujira, tìm giúp mình 1 bạn nam thích đá banh, đặc biệt là fan của Ronaldo" → {"intent_en": "find male friend who likes football, especially a fan of Ronaldo", "mode": "hobby", "has_entity": true, "target_gender": "male", "target_age_min": null, "target_age_max": null}
-"tìm bạn nữ xem Kimetsu no Yaiba" → {"intent_en": "find female friend who watches Kimetsu no Yaiba", "mode": "hobby", "has_entity": true, "target_gender": "female", "target_age_min": null, "target_age_max": null}
-"help me find an RMIT student studying React" → {"intent_en": "find RMIT student studying React", "mode": "work", "has_entity": true, "target_gender": null, "target_age_min": null, "target_age_max": null}
-"hôm nay buồn quá, muốn tìm người đi du lịch cùng" → {"intent_en": "find someone to travel with", "mode": "hobby", "has_entity": false, "target_gender": null, "target_age_min": null, "target_age_max": null}
-"find iOS developer in Ho Chi Minh" → {"intent_en": "find iOS developer in Ho Chi Minh", "mode": "work", "has_entity": false, "target_gender": null, "target_age_min": null, "target_age_max": null}
-"the guy should be 20-30" → {"intent_en": "find a guy aged 20-30", "mode": null, "has_entity": false, "target_gender": "male", "target_age_min": 20, "target_age_max": 30}
-"tìm bạn nữ trên 25 tuổi" → {"intent_en": "find female friend over 25 years old", "mode": "hobby", "has_entity": false, "target_gender": "female", "target_age_min": 25, "target_age_max": null}
-"someone around 25 who likes coffee" → {"intent_en": "find someone around 25 years old who likes coffee", "mode": "hobby", "has_entity": false, "target_gender": null, "target_age_min": 23, "target_age_max": 27}`;
-
-const ENTITY_EXTRACTOR_PROMPT = `You are an entity classifier for a social network search.
-Given a search query, identify the specific named entity and return JSON:
-{
-  "entity_type": "anime"|"manga"|"movie"|"tv_show"|"book"|"game"|"music"|"podcast"|"celebrity"|"art"|"food"|"sport"|"company"|"university"|"industry"|"programming_language"|"framework"|"tool"|"certification"|"job_role"|"professional_field"|"startup",
-  "entity_name": "canonical English name",
-  "entity_keywords": ["keyword1", "keyword2", ...]
-}
-
-entity_keywords: include original name + common aliases + abbreviations, all lowercase.
-If no specific entity found, return {"entity_type": null, "entity_name": null, "entity_keywords": []}.
-Return only valid JSON, no explanation.
-
-Examples:
-"find female friend who watches Kimetsu no Yaiba" → {"entity_type": "anime", "entity_name": "Kimetsu no Yaiba", "entity_keywords": ["kimetsu no yaiba", "demon slayer", "kny"]}
-"find RMIT student studying React" → {"entity_type": "framework", "entity_name": "React", "entity_keywords": ["react", "reactjs", "react.js"]}
-"want to discuss Taylor Swift music" → {"entity_type": "music", "entity_name": "Taylor Swift", "entity_keywords": ["taylor swift", "taylorswift", "swiftie"]}
-"find someone who likes One Piece" → {"entity_type": "anime", "entity_name": "One Piece", "entity_keywords": ["one piece", "onepiece", "op"]}
-"find Google engineer" → {"entity_type": "company", "entity_name": "Google", "entity_keywords": ["google", "alphabet"]}
-"find someone to travel with" → {"entity_type": null, "entity_name": null, "entity_keywords": []}`;
+// ── Query Understanding — one combined prompt ────────────────────────────────
+// Deliberately ONE prompt, not three. Ollama caches the prompt prefix per slot,
+// so rotating several system prompts through one slot made every call a cache
+// miss — measured at 7.35s of pure prompt re-reading across the old 3-call
+// pipeline, vs 0.05s once a single prompt stays resident.
 
 const LOCATION_LIST = '"Ho Chi Minh"|"Hanoi"|"Da Nang"|"Hai Phong"|"Can Tho"|"Hue"|"Tuyen Quang"|"Lao Cai"|"Thai Nguyen"|"Phu Tho"|"Bac Ninh"|"Hung Yen"|"Ninh Binh"|"Quang Tri"|"Quang Ngai"|"Gia Lai"|"Khanh Hoa"|"Lam Dong"|"Dak Lak"|"Dong Nai"|"Tay Ninh"|"Vinh Long"|"Dong Thap"|"Ca Mau"|"An Giang"|"Lai Chau"|"Dien Bien"|"Son La"|"Lang Son"|"Quang Ninh"|"Thanh Hoa"|"Nghe An"|"Ha Tinh"|"Cao Bang"';
 
-const EXTRACTOR_HOBBY_PROMPT = `You are a semantic extractor for a social friend-search query.
-Extract criteria and return JSON:
-{
-  "interest_groups": [],
-  "bio_keywords": [],
-  "location": null,
-  "place_name": null
-}
+const ANALYZER_PROMPT = `You are a query analyzer for a social network people-search.
+Analyze the search query (any language) and return JSON.
 
-interest_groups: 2D array. Each inner array = one interest concept + synonyms (base-form nouns/verbs only, no adjectives, no emotion words).
-  AND between groups (user must match ALL). OR within each group (any keyword matches).
-  CORRECT: [["cook","cooking","food"],["travel","hiking","adventure"]]
-  WRONG:   [["cook","travel"]] — never mix different concepts into one group
+intent_en: the core search intent translated to English. Preserve proper nouns exactly (anime/movie/song titles, artist names, team names, brands, companies, universities, frameworks, tools, places). Remove greetings, filler ("help me", "I want to"), and emotional noise. Keep only what describes WHO the user wants to find.
+mode: "hobby" if looking for friends or social connections, "work" if looking for work or study partners, null if unclear.
+target_gender: "male" or "female" ONLY when explicitly asked ("bạn nam", "female friend"). Never guess from context.
+target_age_min / target_age_max: ALWAYS set these when the query mentions any age — never skip them. "20-30" -> min 20, max 30. "over 25"/"trên 25"/"trên 25 tuổi" -> min 25, max null. "under 30"/"dưới 30" -> min null, max 30. A single age ("25 tuổi", "around 25") -> a ±2 range, min 23 max 27. Only omit when no age is mentioned at all.
+entity_type: type of the specific named entity, one of: anime, manga, movie, tv_show, book, game, music, podcast, celebrity, art, food, sport, company, university, industry, programming_language, framework, tool, certification, job_role, professional_field, startup. null if the query names no specific entity.
+entity_name: canonical English name of that entity. null if none.
+interest_groups: 2D array for hobbies/lifestyle. Each inner array is ONE concept plus its synonyms, base-form nouns/verbs only, no adjectives or emotion words. AND between groups, OR within a group. CORRECT: [["cook","cooking","food"],["travel","hiking"]]. WRONG: [["cook","travel"]] — never mix concepts.
+skills: work or study skills only (iOS, React, Python, Accounting, Marketing). Never put these in interest_groups.
+bio_keywords: words describing the person type (student, freelancer, senior, teacher).
+job_title_keywords: job or role titles (developer, designer, accountant).
+location: exact match from this list only — ${LOCATION_LIST} — null if not mentioned.
+place_name: a specific venue name when the city is unknown (e.g. "CGV Go Vap"). null if not mentioned.
 
-bio_keywords: words describing the person type (e.g. "student", "freelancer", "teacher")
-location: exact match from this list only — ${LOCATION_LIST} — null if not mentioned
-place_name: specific venue name when city is unknown (e.g. "CGV Go Vap", "Highlands Le Loi") — null if not mentioned
+For a hobby-mode query leave skills and job_title_keywords empty. For a work-mode query leave interest_groups empty.
 
-Think step by step: identify each concept in the query, classify it (interest group / bio keyword / location / place name), group synonyms together. Write your reasoning first, then output the JSON.
+Omit any field that is null or empty — do not emit null or [] values. Output compact JSON on one line, no explanation.
 
-Example 1:
-Input: "find someone who paints and teaches kids on weekends near CGV Go Vap"
-Reasoning:
-- "paints" → creative hobby → interest group: ["paint","draw","art","sketch"]
-- "teaches kids" → recurring activity → interest group: ["teaching","tutor","kids"]
-- "on weekends" → time context → ignore
-- "near CGV Go Vap" → specific venue, city unknown → place_name
-Output: {"interest_groups": [["paint","draw","art","sketch"],["teaching","tutor","kids"]], "bio_keywords": [], "location": null, "place_name": "CGV Go Vap"}
+Example: "tìm bạn nữ xem Kimetsu no Yaiba ở Hà Nội"
+{"intent_en":"find female friend who watches Kimetsu no Yaiba in Hanoi","mode":"hobby","target_gender":"female","entity_type":"anime","entity_name":"Kimetsu no Yaiba","interest_groups":[["anime","manga"]],"location":"Hanoi"}
 
-Example 2:
-Input: "find student friend in Hanoi who likes anime and coffee"
-Reasoning:
-- "student" → describes the person type → bio_keywords
-- "Hanoi" → Vietnamese city in location list → location
-- "anime" → distinct hobby, separate concept → interest group: ["anime","manga"]
-- "coffee" → distinct lifestyle, separate concept → interest group: ["coffee","cafe"]
-Output: {"interest_groups": [["anime","manga"],["coffee","cafe"]], "bio_keywords": ["student"], "location": "Hanoi", "place_name": null}`;
+Example: "find senior iOS developer who knows React in Ho Chi Minh"
+{"intent_en":"find senior iOS developer who knows React in Ho Chi Minh","mode":"work","entity_type":"framework","entity_name":"React","skills":["iOS","Swift","React"],"bio_keywords":["senior"],"job_title_keywords":["developer"],"location":"Ho Chi Minh"}
 
-const EXTRACTOR_WORK_PROMPT = `You are a semantic extractor for a professional colleague-search query.
-Extract criteria and return JSON:
-{
-  "skills": [],
-  "bio_keywords": [],
-  "job_title_keywords": [],
-  "location": null,
-  "place_name": null
-}
+Example: "tìm bạn nam trên 25 tuổi thích đá banh gần CGV Go Vap"
+{"intent_en":"find male friend over 25 years old who likes football near CGV Go Vap","mode":"hobby","target_gender":"male","target_age_min":25,"interest_groups":[["football","soccer"]],"place_name":"CGV Go Vap"}`;
 
-skills: work or study skills only (e.g. "iOS", "React", "Python", "Accounting", "Marketing", "Teaching")
-bio_keywords: words describing the person type (e.g. "student", "freelancer", "senior")
-job_title_keywords: job or role titles (e.g. "developer", "designer", "accountant")
-location: exact match from this list only — ${LOCATION_LIST} — null if not mentioned
-place_name: specific venue name when city is unknown — null if not mentioned
 
-Think step by step: identify each concept in the query, classify it (skill / bio keyword / job title / location), then extract. Write your reasoning first, then output the JSON.
+// ── JSON schema (Ollama `format`) ───────────────────────────────────────────
+// Constrains decoding to schema-valid tokens instead of prompting for JSON and
+// parsing free text. Only intent_en/mode are required — everything else is
+// omittable, which keeps the generated output (and therefore latency) small.
+// entity_keywords is deliberately absent: buildEntityVector already resolves
+// aliases through the interest_entities table, so making the model spell them
+// out cost tokens for no gain.
 
-Example 1:
-Input: "find senior iOS developer who also knows React and has fintech experience in Ho Chi Minh"
-Reasoning:
-- "senior" → experience level, describes the person → bio_keywords
-- "iOS developer" → platform + role → skills: ["iOS","Swift"], job_title_keywords: ["developer"]
-- "React" → framework → skills: ["React","JavaScript"]
-- "fintech" → industry domain → skills: ["Fintech"]
-- "Ho Chi Minh" → Vietnamese city in location list → location
-Output: {"skills": ["iOS","Swift","React","JavaScript","Fintech"], "bio_keywords": ["senior"], "job_title_keywords": ["developer"], "location": "Ho Chi Minh", "place_name": null}
+const ANALYZER_SCHEMA = {
+  type: 'object',
+  properties: {
+    intent_en:          { type: 'string' },
+    mode:               { type: ['string', 'null'], enum: ['hobby', 'work', null] },
+    target_gender:      { type: ['string', 'null'], enum: ['male', 'female', null] },
+    target_age_min:     { type: ['integer', 'null'] },
+    target_age_max:     { type: ['integer', 'null'] },
+    entity_type:        { type: ['string', 'null'], enum: [...ENTERTAINMENT_TYPES, ...WORK_TYPES, null] },
+    entity_name:        { type: ['string', 'null'] },
+    interest_groups:    { type: 'array', items: { type: 'array', items: { type: 'string' } } },
+    skills:             { type: 'array', items: { type: 'string' } },
+    bio_keywords:       { type: 'array', items: { type: 'string' } },
+    job_title_keywords: { type: 'array', items: { type: 'string' } },
+    location:           { type: ['string', 'null'] },
+    place_name:         { type: ['string', 'null'] },
+  },
+  required: ['intent_en', 'mode'],
+};
 
-Example 2:
-Input: "find accounting student who knows Excel and teaches part-time"
-Reasoning:
-- "accounting student" → field of study + person type → skills: ["Accounting"], bio_keywords: ["student"]
-- "Excel" → tool skill → skills: ["Excel"]
-- "teaches part-time" → secondary role → job_title_keywords: ["teacher"], bio_keywords: ["part-time"]
-Output: {"skills": ["Accounting","Excel","Teaching"], "bio_keywords": ["student","part-time"], "job_title_keywords": ["teacher","accountant"], "location": null, "place_name": null}`;
-
-const EXTRACTOR_GENERAL_PROMPT = `You are a semantic extractor for a social search query.
-Extract criteria and return JSON:
-{
-  "interest_groups": [],
-  "skills": [],
-  "bio_keywords": [],
-  "job_title_keywords": [],
-  "location": null,
-  "place_name": null
-}
-
-interest_groups: 2D array for hobbies/lifestyle (base-form nouns/verbs only, no adjectives).
-  CORRECT: [["cook","cooking","food"],["travel","hiking","adventure"]]
-  WRONG:   [["cook","travel"]] — never mix different concepts
-skills: work/study skills only (iOS, React, Accounting...). Never put in interest_groups.
-bio_keywords: words describing the person type
-job_title_keywords: job or role titles
-location: exact match from this list only — ${LOCATION_LIST} — null if not mentioned
-place_name: specific venue name when city is unknown — null if not mentioned
-
-Return only valid JSON, no explanation.
-
-Examples:
-"find someone who likes cooking and knows React" → {"interest_groups": [["cook","cooking","food"]], "skills": ["React"], "bio_keywords": [], "job_title_keywords": [], "location": null, "place_name": null}
-"find iOS developer in Hanoi who loves anime" → {"interest_groups": [["anime","manga"]], "skills": ["iOS", "Swift"], "bio_keywords": [], "job_title_keywords": ["developer"], "location": "Hanoi", "place_name": null}`;
 
 // ── Low-level helpers ─────────────────────────────────────────────────────────
 
-async function callOllama(userQuery, systemPrompt, temperature = 0.1) {
+// keep_alive keeps the model resident between requests — without it, Ollama's
+// server default unloads an idle model after 5 minutes, and the next call pays
+// a multi-second reload tax. Both models this app uses fit in memory at once.
+const KEEP_ALIVE = '30m';
+
+async function callOllama(userQuery, systemPrompt, temperature = 0.1, schema = null) {
   const body = {
     model: ollama.model,
     messages: [
@@ -176,7 +92,9 @@ async function callOllama(userQuery, systemPrompt, temperature = 0.1) {
     ],
     options: { temperature },
     stream: false,
+    keep_alive: KEEP_ALIVE,
   };
+  if (schema) body.format = schema;
 
   const response = await fetch(`${ollama.url}/api/chat`, {
     method: 'POST',
@@ -194,8 +112,8 @@ async function callOllama(userQuery, systemPrompt, temperature = 0.1) {
 }
 
 /** Strip markdown fences and parse the JSON object in LLM output.
- *  Anchors to after "Output:" when present so CoT reasoning text
- *  containing stray { } characters does not confuse the parser. */
+ *  Kept as a defensive fallback: the schema `format` should already guarantee
+ *  clean JSON, but this costs nothing and covers a malformed response. */
 function parseRawJSON(raw) {
   const cleaned = raw
     .replace(/```json\s*/gi, '')
@@ -231,11 +149,11 @@ const cleanKeywords = (arr) =>
         .filter(k => k && !CJK_RE.test(k) && !INVALID_ADJECTIVES.has(k.toLowerCase()))
     : [];
 
-// ── Normalizer — translate + denoise + classify (one LLM call) ────────────────
+// ── Query analysis — one LLM call ─────────────────────────────────────────────
 
-/** Sanitize a raw target age (min/max) pair from the Normalizer: must be integers
- *  in [0,120] with min <= max, otherwise null out the offending value(s) rather
- *  than throwing — matches the file's fail-safe-to-null pattern. */
+/** Sanitize a raw target age (min/max) pair: must be integers in [0,120] with
+ *  min <= max, otherwise null out the offending value(s) rather than throwing —
+ *  matches the file's fail-safe-to-null pattern. */
 function sanitizeAgeRange(rawMin, rawMax) {
   const clean = (v) => {
     const n = Number.isInteger(v) ? v : (typeof v === 'string' ? parseInt(v, 10) : NaN);
@@ -247,11 +165,11 @@ function sanitizeAgeRange(rawMin, rawMax) {
   return { target_age_min: min, target_age_max: max };
 }
 
-/** Translate to English, strip noise, detect mode/entity/target gender/target age.
- *  Falls back to safe defaults on failure. */
-async function normalizeAndClassify(query) {
+/** Translate, denoise, and extract every search criterion in a single call.
+ *  Falls back to safe defaults on failure, same as the stages it replaces. */
+async function analyzeQuery(query) {
   try {
-    const raw  = await callOllama(query, NORMALIZER_PROMPT);
+    const raw  = await callOllama(query, ANALYZER_PROMPT, 0.1, ANALYZER_SCHEMA);
     const json = parseRawJSON(raw);
     const { target_age_min, target_age_max } = sanitizeAgeRange(json.target_age_min, json.target_age_max);
     return {
@@ -259,55 +177,50 @@ async function normalizeAndClassify(query) {
         ? json.intent_en.trim()
         : query,
       mode:          ['hobby', 'work'].includes(json.mode) ? json.mode : null,
-      has_entity:    !!json.has_entity,
       target_gender: ['male', 'female'].includes(json.target_gender) ? json.target_gender : null,
       target_age_min,
       target_age_max,
+      entity_type:   json.entity_type || null,
+      entity_name:   json.entity_name || null,
+      semantics: {
+        interest_groups:    json.interest_groups,
+        skills:             json.skills,
+        bio_keywords:       json.bio_keywords,
+        job_title_keywords: json.job_title_keywords,
+        location:           json.location,
+        place_name:         json.place_name,
+      },
     };
   } catch (err) {
-    logger.warn({ err }, 'Normalizer failed — using defaults');
-    return { intent_en: query, mode: null, has_entity: true, target_gender: null, target_age_min: null, target_age_max: null };
-  }
-}
-
-// ── Entity Extractor ───────────────────────────────────────────────
-
-/** Classify the named entity in the query. Returns null on failure. */
-async function extractEntity(cleanedQuery) {
-  try {
-    const raw  = await callOllama(cleanedQuery, ENTITY_EXTRACTOR_PROMPT);
-    const json = parseRawJSON(raw);
+    logger.warn({ err }, 'Query analyzer failed — using defaults');
     return {
-      entity_type:     json.entity_type     || null,
-      entity_name:     json.entity_name     || null,
-      entity_keywords: cleanKeywords(json.entity_keywords),
+      intent_en: query, mode: null, target_gender: null,
+      target_age_min: null, target_age_max: null,
+      entity_type: null, entity_name: null, semantics: {},
     };
-  } catch (err) {
-    logger.warn({ err }, 'Entity extractor failed');
-    return null;
-  }
-}
-
-// ── Semantic Extractor ──────────────────────────────────────────────
-
-/** Extract interests, skills, location, and bio signals. Returns {} on failure. */
-async function extractSemantics(cleanedQuery, mode) {
-  const prompt =
-    mode === 'hobby'    ? EXTRACTOR_HOBBY_PROMPT :
-    mode === 'work' ? EXTRACTOR_WORK_PROMPT :
-                           EXTRACTOR_GENERAL_PROMPT;
-  try {
-    const raw = await callOllama(cleanedQuery, prompt);
-    return parseRawJSON(raw);
-  } catch (err) {
-    logger.warn({ err }, 'Semantic extractor failed');
-    return {};
   }
 }
 
 // ── Merge + Sanitize ──────────────────────────────────────────────────────────
 
-/** Merge normalizer + extractor outputs, apply mode safety net, and generate tips. */
+// Province names the `location` hard filter can actually match, parsed from the
+// same LOCATION_LIST the prompt shows the model.
+const VALID_LOCATIONS = new Set(
+  LOCATION_LIST.split('|').map(s => s.replace(/"/g, '').trim().toLowerCase())
+);
+
+/** Keep `location` only when it names a province the filter can match; anything
+ *  else (usually a venue) becomes `place_name` for the geocoder to resolve. */
+function reconcileLocation(location, placeName) {
+  const loc = typeof location === 'string' ? location.trim() : '';
+  const place = typeof placeName === 'string' ? placeName.trim() : '';
+  if (loc && !VALID_LOCATIONS.has(loc.toLowerCase())) {
+    return { location: null, place_name: place || loc };
+  }
+  return { location: loc || null, place_name: place || null };
+}
+
+/** Merge the analyzer's output into the criteria shape, applying the mode safety net. */
 function sanitizeAndMerge(normalized, entityInfo, semantics, mode) {
   const rawGroups = Array.isArray(semantics.interest_groups) ? semantics.interest_groups : [];
   const interest_groups = rawGroups
@@ -329,11 +242,13 @@ function sanitizeAndMerge(normalized, entityInfo, semantics, mode) {
     skills:             cleanKeywords(semantics.skills),
     bio_keywords:       cleanKeywords(semantics.bio_keywords),
     job_title_keywords: cleanKeywords(semantics.job_title_keywords),
-    location:           semantics.location   || null,
-    place_name:         semantics.place_name || null,
+    // The model is told to only use names from LOCATION_LIST, but it sometimes
+    // puts a venue there anyway ("CGV Go Vap"). location feeds a `u.location
+    // ILIKE` hard filter, so an off-list value silently matches nobody —
+    // reclassify it as place_name, which is exactly the field for "a venue whose
+    // city we don't know yet" and which the geocoder then resolves.
+    ...reconcileLocation(semantics.location, semantics.place_name),
     mode,
-    reasoning:          '',
-    tips:               '',
   };
 
   // Safety net: strip fields that don't belong to the active mode
@@ -357,31 +272,22 @@ function sanitizeAndMerge(normalized, entityInfo, semantics, mode) {
     }
   }
 
-  result.tips = generateFallbackTips(result, mode);
   return result;
 }
 
 // ── Main entry point ──────────────────────────────────────────────────────────
 
 async function extractSearchCriteria(userQuery, mode = null) {
-  // Stage 1 — Normalizer: translate + denoise + classify (one call)
-  const normalized = await normalizeAndClassify(userQuery.trim());
-  logger.debug({ normalized }, 'Normalizer: done');
+  const start = Date.now();
+  const analyzed = await analyzeQuery(userQuery.trim());
+  logger.info({ durationMs: Date.now() - start, analyzed }, 'AI search: query analysis done');
 
-  const intentEn     = normalized.intent_en;
-  const resolvedMode = mode ?? normalized.mode;
+  const resolvedMode = mode ?? analyzed.mode;
+  const entityInfo = analyzed.entity_name || analyzed.entity_type
+    ? { entity_type: analyzed.entity_type, entity_name: analyzed.entity_name, entity_keywords: [] }
+    : null;
 
-  // Stage 2 — Extractors: entity + semantics in parallel on the English intent
-  // entity extractor only runs when the Normalizer detected a named entity
-  const [entityInfo, semantics] = await Promise.all([
-    normalized.has_entity
-      ? extractEntity(intentEn)
-      : Promise.resolve(null),
-    extractSemantics(intentEn, resolvedMode),
-  ]);
-  logger.debug({ entityInfo, semantics }, 'Extractors: done');
-
-  return sanitizeAndMerge(normalized, entityInfo, semantics, resolvedMode);
+  return sanitizeAndMerge(analyzed, entityInfo, analyzed.semantics, resolvedMode);
 }
 
 // ── Translation (reused by chunkService to normalize chunk text) ──────────────
@@ -412,7 +318,7 @@ async function embedText(text) {
     const response = await fetch(`${ollama.url}/api/embeddings`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ model: 'mxbai-embed-large', prompt: text }),
+      body:    JSON.stringify({ model: 'mxbai-embed-large', prompt: text, keep_alive: KEEP_ALIVE }),
       signal:  AbortSignal.timeout(15_000),
     });
     if (!response.ok) throw new Error(`Embed error: ${response.status}`);
@@ -423,41 +329,4 @@ async function embedText(text) {
     return null;
   }
 }
-
-// ── Tips generator (programmatic — no LLM) ───────────────────────────────────
-
-function generateFallbackTips(result, mode) {
-  const hasInterests = result.interests.length > 0;
-  const hasSkills    = result.skills.length > 0;
-  const hasEntity    = !!result.entity_name;
-  const hasLocation  = !!result.location;
-  const hasBio       = result.bio_keywords.length > 0;
-
-  const filledCount = [hasInterests || hasSkills, hasEntity, hasLocation, hasBio].filter(Boolean).length;
-
-  if (mode === 'hobby') {
-    if (filledCount === 0) return 'Ôi, Kujira chưa hiểu rõ bạn muốn tìm ai rồi! 🥺 Thêm sở thích cụ thể (anime, café, du lịch...) hoặc khu vực bạn ở để Kujira tìm chuẩn hơn nhé~ ✨';
-    if (filledCount >= 3) return 'Wow, bạn mô tả rõ quá luôn! 🌟 Kujira đã tìm được những người phù hợp nhất rồi đây~ 🎊';
-    const missing = [];
-    if (!hasLocation) missing.push('địa điểm của bạn 📍');
-    if (!hasEntity && !hasInterests) missing.push('sở thích cụ thể 🎯');
-    if (!hasBio) missing.push('thêm mô tả về bản thân 💬');
-    return `Đang đi đúng hướng rồi nè! 🎉 Thêm ${missing.slice(0, 2).join(' hoặc ')} để Kujira tìm được bạn phù hợp hơn cho bạn nhé! 💕`;
-  }
-
-  if (mode === 'work') {
-    if (filledCount === 0) return 'Kujira chưa đủ thông tin để tìm chính xác đâu! 💼 Thêm kỹ năng, lĩnh vực hoặc địa điểm để Kujira giúp tốt hơn nhé!';
-    if (filledCount >= 3) return 'Xịn quá! 🎯 Kujira đã tối ưu kết quả theo yêu cầu của bạn rồi đây~ ✅';
-    const missing = [];
-    if (!hasLocation) missing.push('địa điểm 📌');
-    if (!hasSkills) missing.push('kỹ năng cụ thể 💡');
-    if (!hasBio) missing.push('mô tả thêm 📝');
-    return `Ổn rồi đó! Thêm ${missing.slice(0, 2).join(' hoặc ')} để Kujira tìm được người phù hợp hơn cho bạn nha. 🎯`;
-  }
-
-  if (filledCount === 0) return 'Kujira chưa rõ bạn muốn tìm ai~ 🐳 Thêm sở thích, kỹ năng hoặc địa điểm cụ thể để Kujira tìm chuẩn hơn nhé!';
-  if (filledCount >= 3) return 'Thông tin rất đầy đủ! 🌟 Kujira đã tìm được những người phù hợp nhất cho bạn rồi~ 🎊';
-  return 'Kujira đã tìm kiếm dựa trên thông tin bạn cung cấp rồi! Thêm địa điểm hoặc mô tả thêm để kết quả chính xác hơn nhé~ 💕';
-}
-
 module.exports = { extractSearchCriteria, embedText, translateToEnglish };

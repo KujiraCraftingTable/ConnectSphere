@@ -5,8 +5,8 @@ const { authMiddleware } = require('./authRoutes');
 const logger = require('../utils/logger');
 
 // ── SSRF guard ────────────────────────────────────────────────────────────────
-// Server fetch URL do client gửi → phải chặn địa chỉ nội bộ (localhost,
-// private ranges, link-local/metadata) trước khi fetch.
+// The server fetches a URL sent by the client → must block internal addresses
+// (localhost, private ranges, link-local/metadata) before fetching.
 
 function isPrivateIp(ip) {
   if (ip.includes(':')) {
@@ -16,7 +16,7 @@ function isPrivateIp(ip) {
       || v6.startsWith('fe80') || v6.startsWith('fc') || v6.startsWith('fd');
   }
   const parts = ip.split('.').map(Number);
-  if (parts.length !== 4 || parts.some(Number.isNaN)) return true; // không parse được → chặn
+  if (parts.length !== 4 || parts.some(Number.isNaN)) return true; // can't parse → block it
   const [a, b] = parts;
   return a === 0 || a === 10 || a === 127
     || (a === 169 && b === 254)
@@ -24,7 +24,7 @@ function isPrivateIp(ip) {
     || (a === 192 && b === 168);
 }
 
-// Throws nếu hostname là địa chỉ nội bộ hoặc resolve ra IP nội bộ
+// Throws if the hostname is an internal address or resolves to an internal IP
 async function assertPublicHost(hostname) {
   const host = hostname.toLowerCase();
   if (host === 'localhost' || host.endsWith('.local') || host.endsWith('.internal')) {
@@ -38,7 +38,7 @@ async function assertPublicHost(hostname) {
   if (isPrivateIp(address)) throw new Error('Blocked host');
 }
 
-// ── oEmbed providers (nhanh và chính xác hơn OG parsing) ─────────────────────
+// ── oEmbed providers (faster and more accurate than OG parsing) ─────────────────────
 
 const OEMBED_PROVIDERS = [
   {
@@ -88,16 +88,16 @@ async function fetchOEmbed(url) {
   }
 }
 
-// ── OG tag parsing (fallback cho các trang thông thường) ──────────────────────
+// ── OG tag parsing (fallback for ordinary pages) ──────────────────────
 
 function parseMeta(html) {
-  // Match cả 2 thứ tự: property="og:x" content="..." VÀ content="..." property="og:x"
+  // Match both orderings: property="og:x" content="..." AND content="..." property="og:x"
   function getOG(property) {
     const p = property.replace(':', ':');
-    // Thứ tự 1: property trước content
+    // Order 1: property before content
     let m = html.match(new RegExp(`property=["']${p}["'][^>]*content=["']([^"']+)["']`, 'i'));
     if (m) return m[1];
-    // Thứ tự 2: content trước property
+    // Order 2: content before property
     m = html.match(new RegExp(`content=["']([^"']+)["'][^>]*property=["']${p}["']`, 'i'));
     return m ? m[1] : null;
   }
@@ -129,7 +129,7 @@ async function fetchOGTags(url) {
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-  // Đọc tối đa 150KB — đủ cho hầu hết trang
+  // Read at most 150KB — enough for most pages
   const buffer = await res.arrayBuffer();
   const html   = Buffer.from(buffer).slice(0, 150_000).toString('utf-8');
   return parseMeta(html);
@@ -154,14 +154,14 @@ router.post('/', authMiddleware, async (req, res) => {
   catch { return res.status(400).json({ error: 'URL not allowed' }); }
 
   try {
-    // 1. Thử oEmbed trước (YouTube, Vimeo, Spotify...)
+    // 1. Try oEmbed first (YouTube, Vimeo, Spotify...)
     const oembed = await fetchOEmbed(url);
 
     let meta;
     if (oembed) {
       meta = oembed;
     } else {
-      // 2. Fallback: parse OG tags từ HTML
+      // 2. Fallback: parse OG tags from the HTML
       meta = await fetchOGTags(url);
     }
 
@@ -174,7 +174,7 @@ router.post('/', authMiddleware, async (req, res) => {
     });
   } catch (err) {
     logger.warn({ err, url }, 'Link preview failed');
-    // Trả về metadata tối thiểu thay vì lỗi
+    // Return minimal metadata instead of an error
     res.json({
       url,
       title:       parsed.hostname,

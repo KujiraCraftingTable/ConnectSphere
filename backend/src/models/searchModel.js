@@ -1,5 +1,6 @@
 const { query } = require('../config/db');
 const { personaCols, personaSetupClause } = require('../utils/personaSql');
+const logger = require('../utils/logger');
 
 const DATING_KEYWORDS = new Set([
   'hẹn hò', 'dating', 'người yêu', 'partner', 'bạn đời',
@@ -8,12 +9,12 @@ const DATING_KEYWORDS = new Set([
 ]);
 
 // ── Retrieval tuning knobs ────────────────────────────────────────────────────
-const CHUNK_POOL_SIZE = 200;  // top-k chunk lấy từ HNSW trước khi group theo user
-const W_MAX           = 0.7;  // trọng số chunk khớp nhất
-const W_AVG           = 0.3;  // trọng số "điểm chuyên cần" — avg top-3 chunk (÷3 cố định)
-const W_RETRIEVAL     = 0.85; // rerank: phần điểm retrieval
-const W_PERSONAL      = 0.15; // rerank: phần cá nhân hóa (profile chunk similarity)
-const EVIDENCE_PER_USER = 5;  // số "lý do khớp" tối đa mỗi user (mini CV) — cap ở controller
+const CHUNK_POOL_SIZE = 200;  // top-k chunks pulled from HNSW before grouping by user
+const W_MAX           = 0.7;  // weight for the best-matching chunk
+const W_AVG           = 0.3;  // weight for the "consistency score" — avg of top-3 chunks (fixed ÷3)
+const W_RETRIEVAL     = 0.85; // rerank: retrieval score portion
+const W_PERSONAL      = 0.15; // rerank: personalization portion (profile chunk similarity)
+const EVIDENCE_PER_USER = 5;  // max "match reasons" per user (mini CV) — capped again at the controller
 
 /** Fetch gender and location of a user — used for contextual search filtering. */
 async function getUserContext(userId) {
@@ -30,10 +31,10 @@ async function getUserContext(userId) {
  * Pipeline (per approved design):
  *   1. Top-k nearest chunks to queryVector (HNSW), filtered by chunk threshold
  *   2. Group chunks by user → retrieval_score = W_MAX×max + W_AVG×(sum top-3 / 3)
- *      (chia cố định cho 3: khớp ở nhiều nguồn mới được trọn phần này)
+ *      (fixed divide by 3: only matching across multiple sources earns this full share)
  *   3. Hard filters at user level (mode, location, gender, radius, blocks…)
  *   4. Personalization rerank: score = W_RETRIEVAL×retrieval + W_PERSONAL×sim(
- *      profile chunk của người tìm, profile chunk ứng viên) — bỏ qua nếu thiếu
+ *      searcher's profile chunk, candidate's profile chunk) — skipped when missing
  *
  * interestGroups: [[String]] — each inner array is OR'd, outer arrays are AND'd.
  */
@@ -56,23 +57,23 @@ async function vectorSearch({
   const p = (val) => { params.push(val); return `$${params.length}`; };
 
   const vecRef      = p(`[${queryVector.join(',')}]`);
-  const searcherRef = p(excludeUserId); // NULL → personalization tự tắt
+  const searcherRef = p(excludeUserId); // NULL → personalization automatically turns off
 
   const wheres = [];
 
-  // Chỉ trả user đã setup persona của mode đang tìm — chưa setup = vô hình
+  // Only return users who've set up the persona for the mode being searched — not set up = invisible
   const modeRef = mode ? p(mode) : null;
   if (modeRef) wheres.push(personaSetupClause(modeRef));
   if (excludeUserId) {
     wheres.push(`u.id != ${searcherRef}::uuid`);
-    // Loại user đã chặn/bị chặn (2 chiều) so với người tìm
+    // Excludes users who are blocked/blocking (both directions) relative to the searcher
     wheres.push(`NOT EXISTS (
       SELECT 1 FROM user_blocks ub
       WHERE (ub.blocker_id = ${searcherRef}::uuid AND ub.blocked_id = u.id)
          OR (ub.blocker_id = u.id AND ub.blocked_id = ${searcherRef}::uuid)
     )`);
-    // Loại người đã kết nối (accepted) với người tìm trong mode hiện tại —
-    // đã là bạn/đồng nghiệp thì không cần gợi ý lại
+    // Excludes people already connected (accepted) with the searcher in the current mode —
+    // no need to suggest someone who's already a friend/colleague
     wheres.push(`NOT EXISTS (
       SELECT 1 FROM connections c
       WHERE c.status = 'accepted'
@@ -85,9 +86,9 @@ async function vectorSearch({
   }
 
   if (location) {
-    // Chuẩn hóa 2 phía: bỏ "city"/"province", bỏ dấu cách, lowercase — để
-    // "Ho Chi Minh City" (criteria/seed) khớp "Ho Chi Minh" (app), "Ha Noi City"
-    // khớp "Hanoi". SQL và JS chuẩn hóa giống hệt nhau.
+    // Normalize both sides: strip "city"/"province", strip spaces, lowercase — so
+    // "Ho Chi Minh City" (criteria/seed) matches "Ho Chi Minh" (app), and "Ha Noi City"
+    // matches "Hanoi". SQL and JS normalize identically.
     const sqlNorm = (col) =>
       `REPLACE(REPLACE(REPLACE(LOWER(${col}), ' city', ''), ' province', ''), ' ', '')`;
     const jsNorm = (s) =>
@@ -129,7 +130,7 @@ async function vectorSearch({
     }
   }
 
-  // Gender filter: người dùng nói rõ giới ("bạn nam/nữ") thắng heuristic hẹn hò.
+  // Gender filter: an explicit gender from the user ("male/female friend") beats the dating heuristic.
   if (targetGender) {
     wheres.push(`u.gender = ${p(targetGender)}`);
   } else if (hasDatingIntent && currentUserGender) {
@@ -149,8 +150,8 @@ async function vectorSearch({
 
   const userFilter = wheres.length ? `WHERE ${wheres.join(' AND ')}` : '';
 
-  // Số bạn/kết nối chung với người tìm (INTERSECT hai tập đối tác accepted theo
-  // mode) — 0 khi không biết người tìm là ai
+  // Number of mutual friends/connections with the searcher (INTERSECT the two sets
+  // of accepted counterparts for the mode) — 0 when the searcher is unknown
   let mutualSelect = '0';
   if (excludeUserId) {
     const modeRef = mode ? p(mode) : null;
@@ -173,7 +174,7 @@ async function vectorSearch({
 
   const sql = `
     WITH chunk_pool AS (
-      -- HNSW scan: k chunk gần nhất, chưa lọc threshold để index được dùng tối đa
+      -- HNSW scan: k nearest chunks, no threshold filter yet so the index gets used to the fullest
       SELECT c.user_id, c.source_type, c.source_id, c.topic, c.content,
              (1 - (c.embedding <=> ${vecRef}::vector))::float AS sim
       FROM user_embedding_chunks c
@@ -194,9 +195,9 @@ async function vectorSearch({
       GROUP BY user_id
     ),
     evidence AS (
-      -- "Lý do khớp" (mini CV): profile chunk giữ từng chunk; post GỘP theo topic
-      -- → 1 entry kèm số bài thật + mốc thời gian. Post chỉ tính khi còn
-      -- 'posted' và public (không lộ bài private).
+      -- "Match reasons" (mini CV): profile chunks are kept individually; posts are
+      -- GROUPED by topic → 1 entry with the real post count + timestamps. A post only
+      -- counts while it's still 'posted' and public (never leaks a private post).
       SELECT user_id, jsonb_agg(ev ORDER BY sim DESC) AS match_evidence
       FROM (
         SELECT h.user_id, h.sim,
@@ -227,7 +228,7 @@ async function vectorSearch({
       GROUP BY user_id
     ),
     personal AS (
-      -- similarity giữa profile chunk của người tìm và của từng ứng viên
+      -- similarity between the searcher's profile chunk and each candidate's
       SELECT pc.user_id,
              (1 - (pc.embedding <=> (
                 SELECT embedding FROM user_embedding_chunks
@@ -265,7 +266,9 @@ async function vectorSearch({
     LIMIT 20
   `;
 
+  const dbStart = Date.now();
   const { rows } = await query(sql, params);
+  logger.info({ durationMs: Date.now() - dbStart, resultCount: rows.length }, 'AI search: vectorSearch done');
   return rows;
 }
 

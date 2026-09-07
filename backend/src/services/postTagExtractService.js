@@ -141,12 +141,12 @@ async function expandTags(rawTags) {
   return [...allTags].filter(Boolean);
 }
 
-/** Bulk-insert tags into post_tags, ignoring duplicates. */
+/** Bulk-insert AI-extracted tags into post_tags, ignoring duplicates. */
 async function savePostTags(postId, tags) {
   if (!tags.length) return;
   await query(
-    `INSERT INTO post_tags (post_id, tag)
-     SELECT $1, UNNEST($2::text[])
+    `INSERT INTO post_tags (post_id, tag, source)
+     SELECT $1, UNNEST($2::text[]), 'ai'
      ON CONFLICT (post_id, tag) DO NOTHING`,
     [postId, tags]
   );

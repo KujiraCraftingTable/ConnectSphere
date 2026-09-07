@@ -78,9 +78,10 @@ async function upsertChunk({ userId, sourceType, sourceId, chunkIndex = 0, topic
 
 /** Build (or rebuild) the profile chunk for a user. Returns true on success. */
 async function buildProfileChunk(userId) {
-  // Bio lấy theo persona (hobby_bio/work_bio) — chunk gộp cả 2 để bio của
-  // persona nào cũng search được; hard filter theo mode nằm ở tầng user
-  // (personaSetupClause trong vectorSearch) nên không lộ user sang mode chưa setup.
+  // Bio is pulled per persona (hobby_bio/work_bio) — the chunk merges both so
+  // either persona's bio is searchable; the hard filter by mode lives at the
+  // user layer (personaSetupClause in vectorSearch), so this never leaks a user
+  // into a mode they haven't set up.
   const { rows } = await query(
     `SELECT u.hobby_bio, u.work_bio, u.job_title, u.company, u.location,
             COALESCE(json_agg(DISTINCT ui.interest) FILTER (WHERE ui.interest IS NOT NULL), '[]') AS interests,
@@ -95,7 +96,7 @@ async function buildProfileChunk(userId) {
   const profile = rows[0];
   if (!profile) return false;
 
-  // interests/skills canonicalize (đã tiếng Anh); bio là free-text VN → dịch EN
+  // interests/skills are canonicalized (already English); bio is free-text VN → translate to EN
   const [interests, skills, hobbyBioEn, workBioEn] = await Promise.all([
     canonicalizeAll(profile.interests),
     canonicalizeAll(profile.skills),
@@ -151,7 +152,7 @@ async function buildPostChunk(postId) {
     return false;
   }
 
-  // Free-text VN (content + article title) → dịch EN; tags canonicalize (đã EN)
+  // Free-text VN (content + article title) → translate to EN; tags are canonicalized (already EN)
   const naturalText = [post.content, post.article_title].filter(Boolean).join('. ');
   const [contentEn, tags] = await Promise.all([
     translateToEnglish(naturalText),

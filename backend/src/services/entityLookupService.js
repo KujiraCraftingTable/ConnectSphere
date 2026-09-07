@@ -19,8 +19,8 @@ const { ollama } = require('../config/env');
 const logger = require('../utils/logger');
 const { isProperNoun, searchWikipedia, parseWikiData } = require('./wikipediaService');
 const EMBED_MODEL             = 'mxbai-embed-large';
-const HIGH_CONFIDENCE_THRESHOLD = 0.8;  // ≥ ngưỡng này: tự tin, auto-save alias
-const SUGGEST_THRESHOLD         = 0.6;  // [0.6, 0.8): vùng xám, gợi ý cho user confirm
+const HIGH_CONFIDENCE_THRESHOLD = 0.8;  // ≥ this threshold: confident, auto-save alias
+const SUGGEST_THRESHOLD         = 0.6;  // [0.6, 0.8): gray zone, suggest and ask user to confirm
 
 // ─── Tier 1: Exact match ──────────────────────────────────────────────────────
 
@@ -58,7 +58,7 @@ async function embedText(text) {
 }
 
 /**
- * Top-k entity candidates by cosine similarity — pure read, KHÔNG side-effect.
+ * Top-k entity candidates by cosine similarity — pure read, NO side effects.
  * Returns [{ entity_id, canonical_name, category, similarity }] sorted desc.
  */
 async function findEntityCandidates(text, category = null, limit = 3) {
@@ -86,7 +86,7 @@ async function findEntityCandidates(text, category = null, limit = 3) {
   return rows.map((r) => ({ ...r, similarity: parseFloat(r.similarity) }));
 }
 
-/** Append keyword vào aliases của một entity (idempotent). Returns entity hoặc null. */
+/** Append keyword to an entity's aliases (idempotent). Returns the entity or null. */
 async function saveAlias(keyword, entityId) {
   const alias = keyword?.trim();
   if (!alias) return null;
@@ -111,10 +111,10 @@ async function saveAlias(keyword, entityId) {
 // ─── Main lookup ──────────────────────────────────────────────────────────────
 
 /**
- * Lookup entity cho một interest input.
+ * Lookup an entity for an interest input.
  *
- * @param {string} text         - Input của user, e.g. "KNY", "demon slayer"
- * @param {string} [category]   - Gợi ý category nếu đã biết, e.g. "Anime"
+ * @param {string} text         - User input, e.g. "KNY", "demon slayer"
+ * @param {string} [category]   - Suggested category if already known, e.g. "Anime"
  * @returns {{ entity_id, canonical_name, category, confidence }}
  */
 async function lookupEntity(text, category = null) {
@@ -134,12 +134,12 @@ async function lookupEntity(text, category = null) {
     };
   }
 
-  // Tier 2 — Vector similarity. Chỉ auto-match + auto-save khi TỰ TIN (≥ 0.8).
-  // Vùng xám (0.6–0.8) KHÔNG tự quyết ở đây — search path sẽ hỏi user confirm.
+  // Tier 2 — Vector similarity. Only auto-match + auto-save when CONFIDENT (≥ 0.8).
+  // The gray zone (0.6–0.8) is NOT decided here — the search path will ask the user to confirm.
   const [top] = await findEntityCandidates(text, category, 1);
   if (top && top.similarity >= HIGH_CONFIDENCE_THRESHOLD) {
     logger.debug({ text, match: top.canonical_name, sim: top.similarity }, 'Tier 2 confident match');
-    // Save alias fire-and-forget — không block response, lỗi chỉ log warn
+    // Save alias fire-and-forget — doesn't block the response, errors just log a warning
     saveAlias(text, top.entity_id)
       .catch((err) => logger.warn({ err, text }, 'saveAlias failed after vector match'));
     return {
@@ -190,7 +190,7 @@ async function lookupEntity(text, category = null) {
     }
   }
 
-  // Không tìm ra gì
+  // Nothing found
   return { entity_id: null, canonical_name: null, category: null, confidence: 'none' };
 }
 

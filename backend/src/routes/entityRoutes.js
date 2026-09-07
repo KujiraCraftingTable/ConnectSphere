@@ -6,7 +6,7 @@ const logger = require('../utils/logger');
 router.use(authMiddleware);
 
 // POST /api/entities/alias  { keyword, entity_id }
-// User xác nhận "keyword vừa search thuộc canonical này" → lưu alias để Tier-1 bắt lần sau.
+// User confirms "the keyword just searched belongs to this canonical entity" → save the alias so Tier-1 catches it next time.
 router.post('/alias', async (req, res, next) => {
   try {
     const { keyword, entity_id } = req.body;
