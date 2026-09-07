@@ -1,6 +1,6 @@
 /**
- * Interactive search test — ConnectSphere
- * Usage: node test/search.test.js
+ * Interactive search harness — ConnectSphere (manual dev tool, not a unit test)
+ * Usage: node scripts/manual-search-check.js   (needs the server running on :3000)
  */
 
 const readline = require('readline');
