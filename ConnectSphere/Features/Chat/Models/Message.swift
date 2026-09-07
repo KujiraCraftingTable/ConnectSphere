@@ -317,10 +317,11 @@ struct Message: Identifiable, Decodable, Equatable {
     /// True when this message was sent by the given user.
     func isOwn(userId: String) -> Bool { senderId == userId }
 
-    /// Absolute media URL for displaying images/videos.
+    /// Absolute media URL for displaying images/videos. Message media is
+    /// auth-gated server-side; APIConfig.mediaURL appends the JWT for it.
     func absoluteMediaURL() -> URL? {
         guard let path = mediaUrl else { return nil }
-        return URL(string: APIConfig.serverBase + path)
+        return APIConfig.mediaURL(path)
     }
 
     /// The current user's own reaction emoji on this message, if any — used to
