@@ -20,7 +20,7 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
-      - run: npm test
+      - run: node --test --experimental-test-coverage test/unit/**/*.test.js
 
   ios:
     name: iOS build + unit tests
@@ -34,4 +34,5 @@ jobs:
             -scheme ConnectSphere \
             -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
             -only-testing:ConnectSphereTests \
+            -enableCodeCoverage YES \
             CODE_SIGNING_ALLOWED=NO
