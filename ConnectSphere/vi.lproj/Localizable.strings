@@ -757,3 +757,8 @@
 // MARK: - Community: private / locked states
 "This community is private. Request to join to see its posts." = "Cộng đồng này ở chế độ riêng tư. Hãy gửi yêu cầu tham gia để xem bài viết.";
 "Members of a private community are only visible to its members." = "Danh sách thành viên của cộng đồng riêng tư chỉ hiển thị với thành viên.";
+
+// MARK: - Destructive-action confirmations (Phase 5)
+"Log out of ConnectSphere?" = "Đăng xuất khỏi ConnectSphere?";
+"Unsend this message?" = "Thu hồi tin nhắn này?";
+"This removes it for everyone in the conversation." = "Thao tác này gỡ tin nhắn với tất cả mọi người trong cuộc trò chuyện.";

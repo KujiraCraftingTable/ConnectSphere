@@ -757,3 +757,8 @@
 // MARK: - Community: private / locked states
 "This community is private. Request to join to see its posts." = "This community is private. Request to join to see its posts.";
 "Members of a private community are only visible to its members." = "Members of a private community are only visible to its members.";
+
+// MARK: - Destructive-action confirmations (Phase 5)
+"Log out of ConnectSphere?" = "Log out of ConnectSphere?";
+"Unsend this message?" = "Unsend this message?";
+"This removes it for everyone in the conversation." = "This removes it for everyone in the conversation.";

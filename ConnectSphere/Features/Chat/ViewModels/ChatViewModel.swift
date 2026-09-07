@@ -107,8 +107,15 @@ class ChatViewModel {
         }
     }
 
+    private var isLoadingOlder = false
+
     func loadOlderMessages() async {
-        guard hasMoreMessages, let oldest = messages.first else { return }
+        // One page at a time — a fast scroll-to-top fires this repeatedly, and
+        // without the guard every call reads the same `oldest` and prepends a
+        // duplicate page.
+        guard !isLoadingOlder, hasMoreMessages, let oldest = messages.first else { return }
+        isLoadingOlder = true
+        defer { isLoadingOlder = false }
         do {
             let older = try await repository.fetchMessages(
                 conversationId: conversationId,
@@ -116,10 +123,12 @@ class ChatViewModel {
                 before: oldest.createdAt,
                 token: token
             )
-            messages = older.reversed() + messages
+            let existingIds = Set(messages.map(\.id))
+            let fresh = older.reversed().filter { !existingIds.contains($0.id) }
+            messages = fresh + messages
             hasMoreMessages = older.count == 30
         } catch {
-            self.error = Bundle.app.loc("Could not load older messages")
+            self.error = friendlyError(error)
         }
     }
 
@@ -585,7 +594,13 @@ class ChatViewModel {
                   let dict = payload as? [String: Any],
                   let convId = dict["conversation_id"] as? String,
                   convId == self.conversationId else { return }
-            self.chatThemeId = dict["theme"] as? String
+            // Only touch the theme when the broadcast actually carries one — a
+            // nickname-only update omits "theme", and blindly assigning
+            // `dict["theme"] as? String` (nil) wiped the other participant's
+            // chat theme.
+            if dict.keys.contains("theme") {
+                self.chatThemeId = dict["theme"] as? String
+            }
             if !self.isGroup, let targetId = dict["nickname_target_id"] as? String, targetId == self.otherUserId {
                 self.otherNickname = dict["nickname"] as? String
             }

@@ -491,17 +491,19 @@ struct PostCard: View {
             HStack(spacing: 16) {
                 Button {
                     Task {
-                        guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else { return }
+                        // Optimistic toggle, then reconcile with the server —
+                        // and roll back (like the Save button below) if it fails.
+                        let wasLiked = isLiked
+                        let wasCount = likeCount
                         isLiked   = !isLiked
                         likeCount += isLiked ? 1 : -1
-                        guard let url = URL(string: APIConfig.baseURL + "/posts/\(post.id)/like") else { return }
-                        var req = URLRequest(url: url)
-                        req.httpMethod = "POST"
-                        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-                        if let (data, _) = try? await URLSession.shared.data(for: req),
-                           let res = try? JSONDecoder().decode(LikeResponse.self, from: data) {
+                        do {
+                            let res = try await repository.toggleLike(postId: post.id)
                             isLiked   = res.liked
                             likeCount = res.likeCount
+                        } catch {
+                            isLiked   = wasLiked
+                            likeCount = wasCount
                         }
                     }
                 } label: {

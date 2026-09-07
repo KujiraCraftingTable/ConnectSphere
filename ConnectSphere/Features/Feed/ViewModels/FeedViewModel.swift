@@ -122,6 +122,14 @@ class FeedViewModel {
     }
 
     func removePost(id: String) {
+        // Keep the connections-scope page offset in step with a local removal,
+        // otherwise the next fetched page skips a row.
+        if friendPosts.contains(where: { $0.id == id }), let o = connectionsOffset[.hobby], o > 0 {
+            connectionsOffset[.hobby] = o - 1
+        }
+        if colleaguePosts.contains(where: { $0.id == id }), let o = connectionsOffset[.work], o > 0 {
+            connectionsOffset[.work] = o - 1
+        }
         friendPosts.removeAll   { $0.id == id }
         colleaguePosts.removeAll { $0.id == id }
     }
@@ -131,6 +139,8 @@ class FeedViewModel {
     /// waiting on (or having to notice) a background reload — de-dupes
     /// defensively in case a reload already picked it up first.
     func prependPost(_ post: Post, for mode: AppMode) {
+        let list = mode == .hobby ? friendPosts : colleaguePosts
+        let wasAlreadyPresent = list.contains { $0.id == post.id }
         if mode == .hobby {
             friendPosts.removeAll { $0.id == post.id }
             friendPosts.insert(post, at: 0)
@@ -138,6 +148,8 @@ class FeedViewModel {
             colleaguePosts.removeAll { $0.id == post.id }
             colleaguePosts.insert(post, at: 0)
         }
+        // A genuinely new row shifts the connections window by one.
+        if !wasAlreadyPresent, let o = connectionsOffset[mode] { connectionsOffset[mode] = o + 1 }
     }
 
     func updatePost(_ updated: Post) {
