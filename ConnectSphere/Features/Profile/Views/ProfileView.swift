@@ -1,5 +1,20 @@
 import SwiftUI
 
+/// Push-able destinations on `ProfileView`'s `NavigationStack`, addressable by
+/// the AI assistant's navigation actions (`MainTabView
+/// .consumePendingAssistantNavigation`) via the same `navPath.append`/
+/// `navigationDestination(for:)` mechanism the community deep link already
+/// uses. These are purely additive alongside the existing manual-tap
+/// `NavigationLink`s in `SettingsView`/`PrivacySecurityView` (e.g. Blocked
+/// Users is still also reachable by tapping through Privacy & Security as
+/// before) — both push mechanisms coexist safely on the same stack.
+enum ProfileRoute: Hashable {
+    case settings
+    case privacySecurity
+    case blockedUsers
+    case notificationSettings
+}
+
 struct ProfileView: View {
     @Environment(AppState.self) var appState
     @Environment(ThemeManager.self) var themeManager
@@ -9,7 +24,7 @@ struct ProfileView: View {
     @State private var showCreatePost = false
     @State private var showEditProfile = false
 
-    /// Binding từ MainTabView — reset về root mỗi khi tab được chọn lại
+    /// Binding from MainTabView — resets to root whenever the tab is reselected
     @Binding var navPath: NavigationPath
 
     private var user: UserProfile {
@@ -37,15 +52,27 @@ struct ProfileView: View {
                         Button { showCreatePost = true } label: {
                             navIconButton(icon: "plus.square")
                         }
-                        NavigationLink(destination: SettingsView().environment(appState)) {
+                        Button { navPath.append(ProfileRoute.settings) } label: {
                             navIconButton(icon: "line.3.horizontal")
                         }
                     }
                 }
             }
+            .navigationDestination(for: ProfileRoute.self) { route in
+                switch route {
+                case .settings:
+                    SettingsView().environment(appState).environment(themeManager)
+                case .privacySecurity:
+                    PrivacySecurityView().environment(appState).environment(themeManager)
+                case .blockedUsers:
+                    BlockedUsersView().environment(appState).environment(themeManager)
+                case .notificationSettings:
+                    NotificationSettingsView().environment(appState).environment(themeManager)
+                }
+            }
             .sheet(isPresented: $showCreatePost) {
-                CreatePostView(onPostCreated: {
-                    // Reload profile sau khi đăng bài
+                CreatePostView(onPostCreated: { _ in
+                    // Reload the profile after posting
                     if let userId = appState.currentUser?.id {
                         Task { await viewModel.load(userId: userId, mode: appState.currentMode.rawValue) }
                     }
@@ -63,15 +90,33 @@ struct ProfileView: View {
                 if let userId = appState.currentUser?.id {
                     await viewModel.load(userId: userId, mode: appState.currentMode.rawValue)
                 }
+                consumePendingAssistantSheet()
+            }
+            .onChange(of: appState.pendingAssistantSheet) { _, _ in
+                consumePendingAssistantSheet()
+            }
+            .onChange(of: appState.currentMode) { _, newMode in
+                if let userId = appState.currentUser?.id {
+                    Task { await viewModel.load(userId: userId, mode: newMode.rawValue) }
+                }
             }
         }
+    }
+
+    /// Opens Edit Profile when the AI assistant's "edit profile" guidance
+    /// action landed here — mirrors the consume-then-clear pattern
+    /// `pendingDeepLink`/`pendingAssistantNavigation` use elsewhere.
+    private func consumePendingAssistantSheet() {
+        guard appState.pendingAssistantSheet == .editProfile else { return }
+        appState.pendingAssistantSheet = nil
+        showEditProfile = true
     }
 
     // MARK: Profile Header (cover + avatar)
 
     private var profileHeader: some View {
         ZStack(alignment: .bottomLeading) {
-            // Cover photo — ảnh thật nếu có, fallback gradient
+            // Cover photo — real image if available, otherwise fall back to a gradient
             CoverPhotoView(coverUrl: user.coverUrl)
 
             // Avatar overlapping cover
@@ -122,7 +167,7 @@ struct ProfileView: View {
 
             HStack(spacing: 20) {
                 statItem(count: user.postCount, label: bundle.loc("Posts"))
-                // Bấm vào stat kết nối để mở danh sách bạn bè + lời mời
+                // Tapping the connections stat opens the friends list + pending requests
                 NavigationLink {
                     ConnectionsListView()
                 } label: {
@@ -215,21 +260,17 @@ struct ProfileView: View {
 
     @ViewBuilder
     private var postsSection: some View {
-        let filteredPosts = Array(viewModel.posts
-            .filter { $0.mode == appState.currentMode }
-            .prefix(3))
-
         VStack(alignment: .leading, spacing: 8) {
-            // Label kiểu Fandom — floating trên nền xám
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text("Posts", bundle: bundle)
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 if !viewModel.isLoading {
-                    Text("\(filteredPosts.count)")
+                    Text("\(viewModel.posts.count)")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
+                Spacer()
             }
             .padding(.horizontal, 16)
             .padding(.top, 4)
@@ -237,8 +278,8 @@ struct ProfileView: View {
             if viewModel.isLoading && viewModel.posts.isEmpty {
                 ProgressView().padding(.top, 20).frame(maxWidth: .infinity)
             } else {
-                VStack(spacing: 5) {
-                    ForEach(filteredPosts) { post in
+                LazyVStack(spacing: 5) {
+                    ForEach(viewModel.posts) { post in
                         PostCard(
                             post: post,
                             disableSelfNavigation: true,
@@ -249,6 +290,17 @@ struct ProfileView: View {
                         .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.06),
                                 radius: 4, x: 0, y: 2)
                         .padding(.horizontal, 10)
+                        .onAppear {
+                            if post.id == viewModel.posts.last?.id {
+                                Task {
+                                    await viewModel.loadMorePosts(userId: user.id, mode: appState.currentMode.rawValue)
+                                }
+                            }
+                        }
+                    }
+
+                    if viewModel.isLoadingMore {
+                        ProgressView().padding(.vertical, 12)
                     }
                 }
             }

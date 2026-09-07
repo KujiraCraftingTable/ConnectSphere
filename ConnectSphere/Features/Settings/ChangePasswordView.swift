@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Đổi mật khẩu (đã có mật khẩu) hoặc đặt mật khẩu lần đầu (tài khoản Google).
-/// Mở từ Privacy & Security.
+/// Changes an existing password, or sets one for the first time (Google account).
+/// Opened from Privacy & Security.
 struct ChangePasswordView: View {
     @Environment(AppState.self) var appState
     @Environment(ThemeManager.self) var themeManager
@@ -94,7 +94,7 @@ struct ChangePasswordView: View {
                 currentPassword: hasPassword ? currentPassword : nil,
                 newPassword: newPassword
             )
-            // Tài khoản Google vừa đặt mật khẩu lần đầu → cập nhật trạng thái local
+            // Google account just set a password for the first time → update local state
             appState.currentUser?.hasPassword = true
             showSuccess = true
         } catch {

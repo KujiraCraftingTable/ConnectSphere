@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Đăng ký tài khoản bằng username + password (POST /auth/register).
-/// Chỉ tạo tài khoản tối thiểu — hồ sơ (tên hiển thị, mode, sở thích, bio…)
-/// do OnboardingView lo ngay sau đó, giống hệt user Google mới.
+/// Registers an account with username + password (POST /auth/register).
+/// This only creates the bare-minimum account — the profile (display name, mode,
+/// interests, bio…) is handled by OnboardingView right after, just like a new Google user.
 struct RegisterView: View {
     @Environment(AppState.self) var appState
     @Environment(ThemeManager.self) var themeManager
@@ -33,7 +33,7 @@ struct RegisterView: View {
                                 placeholder: bundle.loc("Username"),
                                 text: Binding(
                                     get: { username },
-                                    // Cùng filter với bước onboarding: chữ thường, số, gạch dưới
+                                    // Same filter as the onboarding step: lowercase letters, digits, underscore
                                     set: { username = $0.lowercased().filter { $0.isLetter || $0.isNumber || $0 == "_" } }
                                 )
                             )
@@ -129,7 +129,7 @@ struct RegisterView: View {
         showError = false
         Task {
             do {
-                // Thành công → finishLogin đặt needsOnboarding=true, root view tự vào onboarding
+                // On success → finishLogin sets needsOnboarding=true, root view auto-navigates into onboarding
                 try await appState.registerWithPassword(username: name, password: password)
             } catch {
                 await MainActor.run {
@@ -140,8 +140,9 @@ struct RegisterView: View {
         }
     }
 
-    /// Map HTTP status từ server sang thông báo đã localize.
-    /// Lỗi mạng (không tới được server) tách riêng để không hiểu nhầm là lỗi dữ liệu nhập.
+    /// Maps an HTTP status from the server to a localized message.
+    /// Network errors (couldn't reach the server) are handled separately so they aren't
+    /// mistaken for a validation error.
     private func registerErrorMessage(_ error: Error) -> String {
         let nsError = error as NSError
         if nsError.domain == NSURLErrorDomain {

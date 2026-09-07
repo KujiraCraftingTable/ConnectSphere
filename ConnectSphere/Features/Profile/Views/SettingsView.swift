@@ -13,18 +13,20 @@ struct SettingsView: View {
 
     private let radiusOptions = [0, 1, 5, 10, 15, 20, 25, 30]
 
+    /// Read from the bundle rather than hardcoded, so it can't silently go
+    /// stale on the next release.
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
+    }
+
     var body: some View {
         List {
-            // Mode Switch
-            Section {
-                modeSwitchRow
-            } header: {
-                Text("Current mode", bundle: bundle)
-            }
-
-            // Theme
+            // Appearance: theme picker + System/Light/Dark, one section, one
+            // header — previously split across two sections that both ended
+            // up headed "Appearance".
             Section {
                 themePickerRow
+                appearancePicker
             } header: {
                 Text(String(format: bundle.loc("Appearance · %@"), appState.currentMode == .hobby ? bundle.loc("Hobby Mode") : bundle.loc("Work Mode")))
             }
@@ -33,12 +35,7 @@ struct SettingsView: View {
             Section {
                 languagePickerRow
             } header: {
-                Text("Appearance", bundle: bundle)
-            }
-
-            // Appearance
-            Section {
-                appearancePicker
+                Text("Language", bundle: bundle)
             }
 
             // Search
@@ -71,6 +68,18 @@ struct SettingsView: View {
                 } label: {
                     settingsRow(icon: "lock.fill", label: bundle.loc("Privacy & Security"), color: Color(hex: "#4CAF50"), showsChevron: false)
                 }
+                NavigationLink {
+                    RecentlyDeletedView()
+                        .environment(themeManager)
+                } label: {
+                    settingsRow(icon: "trash.fill", label: bundle.loc("Recently Deleted"), color: Color(hex: "#8E8E93"), showsChevron: false)
+                }
+                NavigationLink {
+                    SavedPostsView()
+                        .environment(themeManager)
+                } label: {
+                    settingsRow(icon: "bookmark.fill", label: bundle.loc("Saved"), color: Color(hex: "#795548"), showsChevron: false)
+                }
             }
 
             // About
@@ -96,7 +105,7 @@ struct SettingsView: View {
                 HStack {
                     settingsRow(icon: "info.circle.fill", label: bundle.loc("Version"), color: Color(hex: "#9E9E9E"), showsChevron: false)
                     Spacer()
-                    Text("1.0.0")
+                    Text(appVersion)
                         .font(.system(size: 14))
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
@@ -130,40 +139,6 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: Mode Switch
-
-    private var modeSwitchRow: some View {
-        HStack(spacing: 8) {
-            modePill(mode: .hobby,    icon: AppMode.hobby.glyph,    label: bundle.loc("Hobby Mode"))
-            modePill(mode: .work, icon: AppMode.work.glyph, label: bundle.loc("Work Mode"))
-        }
-        .padding(.vertical, 4)
-        .listRowBackground(Color.clear)
-        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
-    }
-
-    private func modePill(mode: AppMode, icon: String, label: String) -> some View {
-        let isActive = appState.currentMode == mode
-        let color    = themeManager.theme.primary
-        return Button {
-            // Chưa setup persona của mode đích → AppState hiện form tạo trước
-            withAnimation(.spring(response: 0.3)) { appState.requestModeSwitch(to: mode) }
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: icon).font(.system(size: 13))
-                Text(label).font(.system(size: 13, weight: .semibold))
-            }
-            .foregroundColor(isActive ? .white : color)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(isActive ? color : color.opacity(0.1))
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
     // MARK: Language Picker Row
 
     private var languagePickerRow: some View {
@@ -195,7 +170,7 @@ struct SettingsView: View {
     private var appearancePicker: some View {
         Picker("", selection: Bindable(appState).appearanceMode) {
             ForEach(AppearanceMode.allCases, id: \.self) { mode in
-                Text(mode.label(for: appState.appLanguage)).tag(mode)
+                Text(bundle.loc(mode.label)).tag(mode)
             }
         }
         .pickerStyle(.segmented)
@@ -283,7 +258,7 @@ struct SettingsView: View {
                 .font(.system(size: 16))
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             Spacer()
-            // NavigationLink trong List tự vẽ chevron nên row đó tắt chevron thủ công
+            // NavigationLink inside a List draws its own chevron, so that row disables this manual one
             if showsChevron {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13))

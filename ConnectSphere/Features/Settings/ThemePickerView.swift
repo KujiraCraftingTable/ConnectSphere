@@ -44,13 +44,13 @@ struct ThemePickerView: View {
             .navigationTitle(bundle.loc("Customize appearance"))
             .navigationBarTitleDisplayMode(.inline)
             .onDisappear {
-                // Preview có thể đã đổi themeManager sang mode bị chặn switch
-                // (persona chưa setup) → rời màn sync lại theo mode thật của app
+                // The preview may have switched themeManager to a mode whose switch is blocked
+                // (persona not set up yet) → leaving this screen re-syncs it to the app's real mode
                 themeManager.switchMode(appState.currentMode)
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Xong") { dismiss() }
+                    Button(bundle.loc("Done")) { dismiss() }
                         .fontWeight(.semibold)
                         .foregroundColor(themeManager.theme.primary)
                 }
@@ -209,8 +209,8 @@ struct ThemePickerView: View {
         Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                 // Switch to this mode so preview updates immediately.
-                // Mode chưa setup persona → requestModeSwitch chặn lại và hiện
-                // form tạo persona; theme của mode đó vẫn được lưu bình thường.
+                // If the mode's persona isn't set up yet, requestModeSwitch blocks the switch and shows
+                // the persona-creation form instead; that mode's theme is still saved normally.
                 appState.requestModeSwitch(to: targetMode)
                 themeManager.switchMode(targetMode)
                 themeManager.selectPalette(id: palette.id)

@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Danh sách kết nối của mình: lời mời đang chờ (accept/decline tại chỗ)
-/// và những người đã kết nối (bấm vào mở hồ sơ).
+/// The current user's connections: pending requests (accept/decline inline)
+/// and already-connected people (tap to open their profile).
 struct ConnectionsListView: View {
     @Environment(AppState.self) var appState
     @Environment(ThemeManager.self) var themeManager
@@ -18,7 +18,7 @@ struct ConnectionsListView: View {
 
     var body: some View {
         List {
-            // ── Lời mời đã nhận ──────────────────────────────────────────────
+            // ── Received requests ──────────────────────────────────────────────
             if !pendingRequests.isEmpty {
                 Section(bundle.loc("Connection request")) {
                     ForEach(pendingRequests) { item in
@@ -51,7 +51,7 @@ struct ConnectionsListView: View {
                 }
             }
 
-            // ── Đã kết nối ───────────────────────────────────────────────────
+            // ── Connected ───────────────────────────────────────────────────
             Section(bundle.loc("Friends")) {
                 if friends.isEmpty && !isLoading {
                     Text("No connections yet — try searching and sending a request", bundle: bundle)
@@ -125,7 +125,7 @@ struct ConnectionsListView: View {
             }
             await load()
         } catch {
-            // Giữ nguyên danh sách; báo lỗi để user biết và thử lại
+            // Leave the list as-is; surface the error so the user knows to retry
             errorMessage = friendlyError(error)
         }
     }

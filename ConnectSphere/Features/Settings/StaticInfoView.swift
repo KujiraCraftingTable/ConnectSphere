@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Một đề mục trong trang nội dung tĩnh, tự dịch theo AppLanguage
-/// (nội dung dài nên không đưa vào .strings).
+/// A section in a static content page, self-translated based on AppLanguage
+/// (the content is long, so it isn't placed in .strings).
 struct StaticInfoSection: Identifiable {
     let id = UUID()
     let headingEN: String
@@ -13,13 +13,13 @@ struct StaticInfoSection: Identifiable {
     func body(for lang: AppLanguage) -> String { lang == .vietnamese ? bodyVI : bodyEN }
 }
 
-/// Trang nội dung tĩnh dùng chung cho Trợ giúp / Điều khoản / Quyền riêng tư.
+/// Static content page shared by Help / Terms / Privacy.
 struct StaticInfoView: View {
     @Environment(AppState.self) var appState
     @Environment(\.appBundle) var bundle
     @Environment(\.colorScheme) var colorScheme
 
-    /// Key localize của tiêu đề (đã có sẵn trong Localizable.strings)
+    /// Localization key for the title (already present in Localizable.strings)
     let titleKey: String
     let sections: [StaticInfoSection]
 
@@ -48,7 +48,7 @@ struct StaticInfoView: View {
     }
 }
 
-// MARK: - Nội dung 3 trang (generic cho bản đồ án)
+// MARK: - Content for the 3 pages (generic for the course project)
 
 extension StaticInfoView {
     static let helpSections: [StaticInfoSection] = [

@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Quên mật khẩu — 2 bước trong một sheet:
-/// (1) nhập username/email để nhận mã, (2) nhập OTP 6 số + mật khẩu mới.
-/// Môi trường dev chưa có SMTP nên OTP được in ra log server.
+/// Forgot password — 2 steps in a single sheet:
+/// (1) enter username/email to receive a code, (2) enter the 6-digit OTP + new password.
+/// The dev environment has no SMTP set up yet, so the OTP is printed to the server log.
 struct ForgotPasswordView: View {
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle

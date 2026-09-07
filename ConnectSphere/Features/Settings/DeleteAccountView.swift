@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Xoá (soft-delete) tài khoản — mở từ Privacy & Security.
-/// Xác nhận bằng mật khẩu; tài khoản Google chưa có mật khẩu thì gõ "DELETE".
-/// Thành công → logout về màn đăng nhập.
+/// Deletes (soft-deletes) the account — opened from Privacy & Security.
+/// Confirmed with a password; for a Google account with no password, type "DELETE" instead.
+/// On success → logs out to the sign-in screen.
 struct DeleteAccountView: View {
     @Environment(AppState.self) var appState
     @Environment(\.appBundle) var bundle
@@ -104,7 +104,7 @@ struct DeleteAccountView: View {
                 password: hasPassword ? password : nil,
                 confirmation: hasPassword ? nil : confirmationText
             )
-            // Tài khoản đã vô hiệu — token không còn giá trị, về màn đăng nhập
+            // Account is now disabled — the token is no longer valid, so go back to sign-in
             appState.logout()
         } catch {
             errorMessage = (error as NSError).code == 401

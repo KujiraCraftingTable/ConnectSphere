@@ -10,8 +10,8 @@ struct OnboardingView: View {
     @State private var selectedInterests: [InterestItem] = []
     @State private var showProvincePicker = false
 
-    // Realtime username availability (chỉ check username — display_name không cần vì
-    // nhiều người có thể trùng tên, chỉ username mới cần duy nhất).
+    // Realtime username availability (only checks username — display_name doesn't need it
+    // since many people can share the same name, only username needs to be unique).
     @State private var usernameAvailability: UsernameAvailability = .idle
     @State private var usernameCheckTask: Task<Void, Never>?
 
@@ -206,7 +206,7 @@ struct OnboardingView: View {
                     )
                 }
 
-                // Ai được xem tuổi — mặc định Private, không ảnh hưởng search theo tuổi
+                // Who can see the age — defaults to Private, doesn't affect age-based search
                 DobVisibilityToggle(visibility: $form.dob_visibility, accentColor: Color(hex: "#1877F2"))
             }
 
@@ -224,7 +224,7 @@ struct OnboardingView: View {
         }
     }
 
-    /// Trạng thái availability hiển thị ngay dưới ô username: đang kiểm tra / đã trùng / còn trống.
+    /// Availability status shown right below the username field: checking / taken / available.
     @ViewBuilder
     private var usernameStatusView: some View {
         switch usernameAvailability {
@@ -258,7 +258,7 @@ struct OnboardingView: View {
         }
     }
 
-    /// Debounce 500ms rồi gọi API check-username; huỷ lần gõ trước đó nếu còn đang chạy.
+    /// Debounces for 500ms then calls the check-username API; cancels the previous run if still in flight.
     private func scheduleUsernameCheck(_ username: String) {
         usernameCheckTask?.cancel()
         guard username.count >= 3 else {
