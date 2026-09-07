@@ -4,13 +4,14 @@ import SwiftUI
 /// Lets the user enter 2–6 options and an optional end date.
 struct CreatePollSheet: View {
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.appBundle) var bundle
     @Binding var options: [String]
     @Binding var endsAt: Date?
     @Binding var showEndDate: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionLabel("Poll Options")
+            sectionLabel(bundle.loc("Poll Options"))
 
             ForEach(options.indices, id: \.self) { i in
                 HStack(spacing: 8) {
@@ -19,7 +20,7 @@ struct CreatePollSheet: View {
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                         .frame(width: 22, alignment: .trailing)
 
-                    TextField("Option \(i + 1)", text: $options[i])
+                    TextField(String(format: bundle.loc("Option %d"), i + 1), text: $options[i])
                         .font(.system(size: 15))
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                         .padding(.horizontal, 12)
@@ -44,7 +45,7 @@ struct CreatePollSheet: View {
                 Button {
                     options.append("")
                 } label: {
-                    Label("Add option", systemImage: "plus.circle")
+                    Label(bundle.loc("Add option"), systemImage: "plus.circle")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
@@ -56,7 +57,7 @@ struct CreatePollSheet: View {
 
             // Optional end date toggle
             Toggle(isOn: $showEndDate) {
-                Label("Poll end date", systemImage: "clock")
+                Label(bundle.loc("Poll end date"), systemImage: "clock")
                     .font(.system(size: 14))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
             }
@@ -64,7 +65,7 @@ struct CreatePollSheet: View {
 
             if showEndDate {
                 DatePicker(
-                    "Ends at",
+                    bundle.loc("Ends at"),
                     selection: Binding(
                         get:  { endsAt ?? Date().addingTimeInterval(86400) },
                         set:  { endsAt = $0 }

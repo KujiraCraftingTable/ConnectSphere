@@ -14,16 +14,18 @@ struct CommunityDTO: Decodable {
     let postCount: Int
     let isMember: Bool
     let role: String?
+    let joinRequestStatus: String?
     let createdAt: Date
 
     enum CodingKeys: String, CodingKey {
         case id, name, description, type, privacy, role
-        case iconEmoji   = "icon_emoji"
-        case coverColor  = "cover_color"
-        case memberCount = "member_count"
-        case postCount   = "post_count"
-        case isMember    = "is_member"
-        case createdAt   = "created_at"
+        case iconEmoji          = "icon_emoji"
+        case coverColor         = "cover_color"
+        case memberCount        = "member_count"
+        case postCount          = "post_count"
+        case isMember           = "is_member"
+        case joinRequestStatus  = "join_request_status"
+        case createdAt          = "created_at"
     }
 
     init(from decoder: Decoder) throws {
@@ -39,6 +41,7 @@ struct CommunityDTO: Decodable {
         postCount   = try c.decode(Int.self, forKey: .postCount)
         isMember    = try c.decodeIfPresent(Bool.self, forKey: .isMember) ?? false
         role        = try c.decodeIfPresent(String.self, forKey: .role)
+        joinRequestStatus = try c.decodeIfPresent(String.self, forKey: .joinRequestStatus)
         createdAt   = try c.decode(Date.self, forKey: .createdAt)
     }
 
@@ -55,6 +58,7 @@ struct CommunityDTO: Decodable {
             postCount:   postCount,
             isMember:    isMemberOverride ?? isMember,
             role:        role.flatMap { MemberRole(rawValue: $0) },
+            joinRequestStatus: joinRequestStatus,
             createdAt:   createdAt
         )
     }
@@ -109,9 +113,16 @@ struct CommunityPostDTO: Decodable {
     let community: CommunityRefDTO?
     let pollData: PollDataDTO?
     let eventData: EventDataDTO?
+    // Parity fields — same shape as Feed's PostDTO now that
+    // getPostsByCommunity reuses the shared buildPostSelect fragment.
+    let imageUrl: String?
+    let imageUrls: [String]?
+    let linkUrl: String?
+    let articleTitle: String?
+    let tags: [String]?
 
     enum CodingKeys: String, CodingKey {
-        case id, content, author, community
+        case id, content, author, community, tags
         case postType     = "post_type"
         case isPinned     = "is_pinned"
         case likeCount    = "like_count"
@@ -120,6 +131,10 @@ struct CommunityPostDTO: Decodable {
         case createdAt    = "created_at"
         case pollData     = "poll_data"
         case eventData    = "event_data"
+        case imageUrl     = "image_url"
+        case imageUrls    = "image_urls"
+        case linkUrl      = "link_url"
+        case articleTitle = "article_title"
     }
 
     init(from decoder: Decoder) throws {
@@ -136,6 +151,11 @@ struct CommunityPostDTO: Decodable {
         community    = try c.decodeIfPresent(CommunityRefDTO.self, forKey: .community)
         pollData     = try c.decodeIfPresent(PollDataDTO.self, forKey: .pollData)
         eventData    = try c.decodeIfPresent(EventDataDTO.self, forKey: .eventData)
+        imageUrl     = try c.decodeIfPresent(String.self, forKey: .imageUrl)
+        imageUrls    = try c.decodeIfPresent([String].self, forKey: .imageUrls)
+        linkUrl      = try c.decodeIfPresent(String.self, forKey: .linkUrl)
+        articleTitle = try c.decodeIfPresent(String.self, forKey: .articleTitle)
+        tags         = try c.decodeIfPresent([String].self, forKey: .tags)
     }
 
     func toCommunityPost() -> CommunityPost {
@@ -151,7 +171,12 @@ struct CommunityPostDTO: Decodable {
             isLiked:      isLiked,
             createdAt:    createdAt,
             pollData:     pollData?.toPollData(),
-            eventData:    eventData?.toEventData()
+            eventData:    eventData?.toEventData(),
+            linkUrl:      linkUrl,
+            imageUrl:     imageUrl,
+            imageUrls:    imageUrls ?? [],
+            articleTitle: articleTitle,
+            tags:         tags ?? []
         )
     }
 }
@@ -161,15 +186,23 @@ struct CommunityPostAuthorDTO: Decodable {
     let username: String
     let displayName: String
     let avatarColor: String
+    let avatarUrl: String?
+    let jobTitle: String?
+    let company: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, username
+        case id, username, company
         case displayName = "display_name"
         case avatarColor = "avatar_color"
+        case avatarUrl   = "avatar_url"
+        case jobTitle    = "job_title"
     }
 
     func toAuthor() -> CommunityPostAuthor {
-        CommunityPostAuthor(id: id, username: username, displayName: displayName, avatarColor: avatarColor)
+        CommunityPostAuthor(
+            id: id, username: username, displayName: displayName, avatarColor: avatarColor,
+            avatarUrl: avatarUrl, jobTitle: jobTitle, company: company
+        )
     }
 }
 

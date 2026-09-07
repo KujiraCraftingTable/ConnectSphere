@@ -4,6 +4,7 @@ import Charts
 /// Full analytics dashboard for community admins
 struct CommunityAnalyticsView: View {
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.appBundle) var bundle
     @State private var viewModel: AnalyticsViewModel
     @State private var showMembers = true    // chart toggle
 
@@ -23,9 +24,9 @@ struct CommunityAnalyticsView: View {
             VStack(spacing: 16) {
                 // Period selector
                 Picker("Period", selection: $viewModel.selectedPeriod) {
-                    Text("7 days").tag(7)
-                    Text("30 days").tag(30)
-                    Text("90 days").tag(90)
+                    Text("7 days", bundle: bundle).tag(7)
+                    Text("30 days", bundle: bundle).tag(30)
+                    Text("90 days", bundle: bundle).tag(90)
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal, 16)
@@ -36,14 +37,14 @@ struct CommunityAnalyticsView: View {
                     // Stat cards grid
                     LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
                         StatSummaryCard(
-                            title:      "Total Members",
+                            title:      bundle.loc("Total Members"),
                             value:      analytics.totalMembers.formatted(),
                             growthRate: analytics.memberGrowthRate,
                             icon:       "person.3.fill",
                             accentColor: accent
                         )
                         StatSummaryCard(
-                            title:      "Total Posts",
+                            title:      bundle.loc("Total Posts"),
                             value:      analytics.totalPosts.formatted(),
                             growthRate: analytics.postGrowthRate,
                             icon:       "doc.text.fill",
@@ -73,7 +74,7 @@ struct CommunityAnalyticsView: View {
             .padding(.vertical, 16)
         }
         .appBackground()
-        .navigationTitle("Analytics")
+        .navigationTitle(bundle.loc("Analytics"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await viewModel.fetchAnalytics(communityId: communityId) }
         .onChange(of: viewModel.selectedPeriod) { _, _ in
@@ -83,7 +84,7 @@ struct CommunityAnalyticsView: View {
 
     private func topPostsSection(_ posts: [AnalyticsPost]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Top Posts This Period")
+            Text("Top Posts This Period", bundle: bundle)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundColor(AppColors.textPrimary(colorScheme))
                 .padding(.horizontal, 16)

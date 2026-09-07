@@ -7,6 +7,11 @@ class CommunitiesViewModel {
     var myCommunities: [Community] = []
     var isLoading = false
     var errorMessage: String?
+    /// Separate loading / error state for the "My communities" tab — it must not
+    /// borrow `isLoading` (that tracks Discover) and must not swallow failures,
+    /// or the tab silently shows "you haven't joined any communities".
+    var isLoadingMine = false
+    var myError: String?
 
     private let repository = CommunityRepository()
     private var token: String = ""
@@ -40,11 +45,14 @@ class CommunitiesViewModel {
     }
 
     func loadMyCommunities() async {
+        isLoadingMine = true
+        myError = nil
         do {
             myCommunities = try await repository.fetchMyCommunities(token: token)
         } catch {
-            // Silent — section stays empty
+            myError = friendlyError(error)
         }
+        isLoadingMine = false
     }
 
     func join(_ community: Community) async {

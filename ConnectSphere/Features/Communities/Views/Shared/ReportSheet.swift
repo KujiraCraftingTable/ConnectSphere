@@ -71,7 +71,7 @@ struct ReportSheet: View {
                     selectedReason = reason
                 } label: {
                     HStack {
-                        Text(reason.displayName)
+                        Text(bundle.loc(reason.displayName))
                             .font(.system(size: 16))
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                         Spacer()

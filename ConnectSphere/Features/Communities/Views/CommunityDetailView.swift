@@ -15,10 +15,10 @@ struct CommunityDetailView: View {
 
     let communityId: String
 
-    init(communityId: String, token: String) {
+    init(communityId: String, token: String, currentUserId: String) {
         self.communityId = communityId
         _viewModel = State(initialValue: CommunityDetailViewModel(
-            communityId: communityId, token: token
+            communityId: communityId, token: token, currentUserId: currentUserId
         ))
     }
 
@@ -34,6 +34,13 @@ struct CommunityDetailView: View {
 
     private var isStaff: Bool {
         currentUserRole == .admin || currentUserRole == .moderator
+    }
+
+    /// A private community the viewer hasn't joined — the posts and members
+    /// endpoints are 403-gated server-side, so show a "request to join" prompt
+    /// rather than the misleading "No posts yet" / empty roster.
+    private var isPrivateLockedOut: Bool {
+        viewModel.community?.privacy == .private && viewModel.community?.isMember == false
     }
 
     // MARK: - Body
@@ -55,6 +62,19 @@ struct CommunityDetailView: View {
         .appBackground()
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            // Share link — available to any viewer (member or not), not staff-gated.
+            if let shareURL = URL(string: "connectsphere://community/\(communityId)") {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    ShareLink(
+                        item: shareURL,
+                        subject: Text(viewModel.community?.name ?? bundle.loc("Community")),
+                        message: Text(String(format: bundle.loc("Join %@ on ConnectSphere"), viewModel.community?.name ?? bundle.loc("Community")))
+                    ) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 17))
+                    }
+                }
+            }
             if isStaff {
                 // Moderation queue (admin/mod)
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -84,7 +104,9 @@ struct CommunityDetailView: View {
             }
         }
         .task { await viewModel.fetchAll() }
-        .refreshable { await viewModel.fetchPosts(reset: true) }
+        .refreshable { await viewModel.fetchAll() }
+        .onAppear { viewModel.joinCommunityRoom() }
+        .onDisappear { viewModel.leaveCommunityRoom() }
         .overlay(alignment: .bottomTrailing) {
             if viewModel.community?.isMember == true {
                 createPostFAB
@@ -249,7 +271,9 @@ struct CommunityDetailView: View {
 
     @ViewBuilder
     private var feedContent: some View {
-        if viewModel.isLoadingPosts && viewModel.posts.isEmpty {
+        if isPrivateLockedOut {
+            privateLockedNotice(bundle.loc("This community is private. Request to join to see its posts."))
+        } else if viewModel.isLoadingPosts && viewModel.posts.isEmpty {
             ProgressView()
                 .padding(.top, 40)
                 .frame(maxWidth: .infinity)
@@ -305,11 +329,28 @@ struct CommunityDetailView: View {
         .frame(maxWidth: .infinity)
     }
 
+    private func privateLockedNotice(_ message: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 40))
+                .foregroundColor(AppColors.textTertiary(colorScheme))
+            Text(message)
+                .font(.system(size: 15))
+                .multilineTextAlignment(.center)
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+                .padding(.horizontal, 32)
+        }
+        .padding(.top, 60)
+        .frame(maxWidth: .infinity)
+    }
+
     // MARK: - Members
 
     @ViewBuilder
     private var membersContent: some View {
-        if viewModel.isLoadingMembers {
+        if isPrivateLockedOut {
+            privateLockedNotice(bundle.loc("Members of a private community are only visible to its members."))
+        } else if viewModel.isLoadingMembers {
             ProgressView().padding(.top, 40).frame(maxWidth: .infinity)
         } else {
             LazyVStack(spacing: 0) {
@@ -346,7 +387,7 @@ struct CommunityDetailView: View {
             }
             Spacer()
             if member.role != .member {
-                Text(member.role.label)
+                Text(bundle.loc(member.role.label))
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(accentColor)
                     .padding(.horizontal, 8)

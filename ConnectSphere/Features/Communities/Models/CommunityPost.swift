@@ -63,6 +63,7 @@ enum RsvpStatus: String, Codable {
     case maybe    = "maybe"
     case notGoing = "not_going"
 
+    /// Localization key — callers must wrap this in `bundle.loc(...)`.
     var label: String {
         switch self {
         case .going:    return "Going"
@@ -86,15 +87,33 @@ struct CommunityPost: Identifiable {
     let id: String
     let content: String
     let postType: PostType
-    let isPinned: Bool
+    var isPinned: Bool
     let author: CommunityPostAuthor
-    let community: CommunityRef?
+    /// `var` (not `let`) so `CommunityDetailViewModel.decodePost(_:)` can fill
+    /// this in for realtime-arriving posts, whose socket payload doesn't
+    /// include the joined community object `GET /communities/:id/posts` adds.
+    var community: CommunityRef?
     var likeCount: Int
     var commentCount: Int
     var isLiked: Bool
     let createdAt: Date
     var pollData: PollData?
     var eventData: EventData?
+    /// Parity fields with Feed's `Post` — populated once `getPostsByCommunity`
+    /// (backend) started reusing the shared `buildPostSelect` fragment.
+    var linkUrl: String? = nil
+    var imageUrl: String? = nil
+    var imageUrls: [String] = []
+    var articleTitle: String? = nil
+    var tags: [String] = []
+
+    /// Images to render in the grid — same rule as `Post.displayImageUrls`: prefer
+    /// the new array; posts with a link preview don't count (that image belongs to the link card).
+    var displayImageUrls: [String] {
+        if !imageUrls.isEmpty { return imageUrls }
+        if linkUrl == nil, let imageUrl { return [imageUrl] }
+        return []
+    }
 }
 
 struct CommunityPostAuthor: Decodable {
@@ -102,11 +121,16 @@ struct CommunityPostAuthor: Decodable {
     let username: String
     let displayName: String
     let avatarColor: String
+    var avatarUrl: String? = nil
+    var jobTitle: String? = nil
+    var company: String? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, username
+        case id, username, company
         case displayName = "display_name"
         case avatarColor = "avatar_color"
+        case avatarUrl   = "avatar_url"
+        case jobTitle    = "job_title"
     }
 }
 

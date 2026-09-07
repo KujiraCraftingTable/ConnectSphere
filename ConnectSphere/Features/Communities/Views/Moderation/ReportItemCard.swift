@@ -3,6 +3,7 @@ import SwiftUI
 /// Card displaying one report item in the moderation queue
 struct ReportItemCard: View {
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.appBundle) var bundle
     let item: ModerationItem
     let isPending: Bool
     let coverColor: String
@@ -19,7 +20,7 @@ struct ReportItemCard: View {
                 typeIcon
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
-                        Text(reasonLabel)
+                        Text(bundle.loc(reasonLabel))
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                         statusBadge
@@ -69,7 +70,7 @@ struct ReportItemCard: View {
     }
 
     private var statusBadge: some View {
-        Text(item.status.capitalized)
+        Text(statusLabel)
             .font(.system(size: 10, weight: .semibold))
             .foregroundColor(statusColor)
             .padding(.horizontal, 6)
@@ -87,10 +88,19 @@ struct ReportItemCard: View {
         }
     }
 
+    private var statusLabel: String {
+        switch item.status {
+        case "pending":   return bundle.loc("Pending")
+        case "resolved":  return bundle.loc("Resolved")
+        case "dismissed": return bundle.loc("Dismissed")
+        default:          return item.status.capitalized
+        }
+    }
+
     @ViewBuilder
     private var targetPreview: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Reported \(item.targetType)")
+            Text(bundle.loc(item.targetType == "post" ? "Reported post" : "Reported member"))
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(AppColors.textTertiary(colorScheme))
 
@@ -134,11 +144,11 @@ struct ReportItemCard: View {
     private var actionButtons: some View {
         HStack(spacing: 8) {
             if item.targetType == "post" {
-                actionBtn(label: "Remove", icon: "trash", color: .red, action: onRemove)
+                actionBtn(label: bundle.loc("Remove"), icon: "trash", color: .red, action: onRemove)
             } else {
-                actionBtn(label: "Ban",    icon: "person.crop.circle.badge.xmark", color: .red, action: onBan)
+                actionBtn(label: bundle.loc("Ban"),    icon: "person.crop.circle.badge.xmark", color: .red, action: onBan)
             }
-            actionBtn(label: "Dismiss", icon: "xmark", color: .gray, action: onDismiss)
+            actionBtn(label: bundle.loc("Dismiss"), icon: "xmark", color: .gray, action: onDismiss)
             Spacer()
         }
     }

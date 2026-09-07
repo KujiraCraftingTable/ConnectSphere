@@ -4,6 +4,7 @@ import SwiftUI
 /// Captures title, optional location, starts_at, and optional ends_at.
 struct CreateEventSheet: View {
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.appBundle) var bundle
     @Binding var title: String
     @Binding var location: String
     @Binding var startsAt: Date
@@ -12,18 +13,18 @@ struct CreateEventSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionLabel("Event Details")
+            sectionLabel(bundle.loc("Event Details"))
 
             // Title
-            fieldRow(label: "Title *") {
-                TextField("Event title", text: $title)
+            fieldRow(label: bundle.loc("Title") + " *") {
+                TextField(bundle.loc("Event title"), text: $title)
                     .font(.system(size: 15))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
             }
 
             // Location
-            fieldRow(label: "Location") {
-                TextField("Optional", text: $location)
+            fieldRow(label: bundle.loc("Location")) {
+                TextField(bundle.loc("Optional"), text: $location)
                     .font(.system(size: 15))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
             }
@@ -32,7 +33,7 @@ struct CreateEventSheet: View {
 
             // Start date/time
             DatePicker(
-                "Starts at *",
+                bundle.loc("Starts at") + " *",
                 selection: $startsAt,
                 in: Date()...,
                 displayedComponents: [.date, .hourAndMinute]
@@ -43,7 +44,7 @@ struct CreateEventSheet: View {
 
             // Optional end time
             Toggle(isOn: $showEndDate) {
-                Label("Add end time", systemImage: "clock.badge.checkmark")
+                Label(bundle.loc("Add end time"), systemImage: "clock.badge.checkmark")
                     .font(.system(size: 14))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
             }
@@ -51,7 +52,7 @@ struct CreateEventSheet: View {
 
             if showEndDate {
                 DatePicker(
-                    "Ends at",
+                    bundle.loc("Ends at"),
                     selection: Binding(
                         get:  { endsAt ?? startsAt.addingTimeInterval(3600) },
                         set:  { endsAt = $0 }

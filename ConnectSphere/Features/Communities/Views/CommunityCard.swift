@@ -46,7 +46,7 @@ struct CommunityCard: View {
     }
 
     private var typeBadge: some View {
-        Text(community.type.label)
+        Text(bundle.loc(community.type.label))
             .font(.system(size: 11, weight: .medium))
             .foregroundColor(Color(hex: community.coverColor))
             .padding(.horizontal, 6)

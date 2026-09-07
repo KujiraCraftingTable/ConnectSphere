@@ -22,10 +22,8 @@ struct CommunitiesView: View {
     @State private var searchText = ""
     @State private var selectedType: CommunityType? = nil
     @State private var showCreate = false
-    @State private var showNotifications = false
-    @State private var notifUnread = 0
 
-    /// Binding từ MainTabView — reset về root mỗi khi tab được chọn lại
+    /// Binding from MainTabView — resets to root whenever the tab is re-selected
     @Binding var navPath: NavigationPath
 
     var body: some View {
@@ -58,25 +56,6 @@ struct CommunitiesView: View {
             .navigationTitle(bundle.loc("Community"))
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
-                // Chuông thông báo cộng đồng + badge unread
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button { showNotifications = true } label: {
-                        ZStack(alignment: .topTrailing) {
-                            Image(systemName: "bell")
-                                .font(.system(size: 17, weight: .medium))
-                                .foregroundColor(themeManager.theme.primary)
-                            if notifUnread > 0 {
-                                Text(notifUnread > 99 ? "99+" : "\(notifUnread)")
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 4)
-                                    .padding(.vertical, 1.5)
-                                    .background(Capsule().fill(Color.red))
-                                    .offset(x: 8, y: -6)
-                            }
-                        }
-                    }
-                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button { showCreate = true } label: {
                         Image(systemName: "plus.circle.fill")
@@ -87,10 +66,7 @@ struct CommunitiesView: View {
             }
             .task {
                 await viewModel.fetchInitial(token: appState.authToken ?? "")
-                await fetchNotifUnread()
             }
-            // Badge chuông refresh mỗi lần màn này hiện lại (vd: pop từ màn thông báo)
-            .onAppear { Task { await fetchNotifUnread() } }
             .sheet(isPresented: $showCreate) {
                 CreateCommunityView(
                     existingCommunities: viewModel.myCommunities + viewModel.discoverCommunities
@@ -101,11 +77,10 @@ struct CommunitiesView: View {
                 .environment(themeManager)
             }
             .navigationDestination(for: String.self) { communityId in
-                CommunityDetailView(communityId: communityId, token: appState.authToken ?? "")
-                    .environment(appState)
-            }
-            .navigationDestination(isPresented: $showNotifications) {
-                CommunityNotificationsView(token: appState.authToken ?? "")
+                CommunityDetailView(
+                    communityId: communityId, token: appState.authToken ?? "",
+                    currentUserId: appState.currentUser?.id ?? ""
+                )
                     .environment(appState)
             }
             .alert(bundle.loc("Error"), isPresented: .constant(viewModel.errorMessage != nil)) {
@@ -121,21 +96,49 @@ struct CommunitiesView: View {
     private var myCommunitiesContent: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
-                filterChips.padding(.horizontal, 16).padding(.top, 5)
+                if viewModel.isLoadingMine && viewModel.myCommunities.isEmpty {
+                    ProgressView()
+                        .padding(.top, 60)
+                        .frame(maxWidth: .infinity)
+                } else if let myError = viewModel.myError, viewModel.myCommunities.isEmpty {
+                    myCommunitiesError(myError)
+                } else {
+                    filterChips.padding(.horizontal, 16).padding(.top, 5)
 
-                switch selectedType {
-                case nil:
-                    typeSection(.fandom)
-                    typeSection(.work)
-                case .fandom:
-                    typeSection(.fandom)
-                case .work:
-                    typeSection(.work)
+                    switch selectedType {
+                    case nil:
+                        typeSection(.fandom)
+                        typeSection(.work)
+                    case .fandom:
+                        typeSection(.fandom)
+                    case .work:
+                        typeSection(.work)
+                    }
                 }
             }
             .padding(.bottom, 20)
         }
         .searchable(text: $searchText, prompt: bundle.loc("Search communities"))
+    }
+
+    private func myCommunitiesError(_ message: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "wifi.exclamationmark")
+                .font(.system(size: 36))
+                .foregroundColor(AppColors.textTertiary(colorScheme))
+            Text(message)
+                .font(.system(size: 14))
+                .multilineTextAlignment(.center)
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+                .padding(.horizontal, 32)
+            Button(bundle.loc("Retry")) {
+                Task<Void, Never>(name: nil) { await viewModel.loadMyCommunities() }
+            }
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundColor(themeManager.theme.primary)
+        }
+        .padding(.top, 60)
+        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder
@@ -145,7 +148,7 @@ struct CommunitiesView: View {
             ? all
             : all.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
 
-        typeSectionHeader(type.label, count: all.count)
+        typeSectionHeader(bundle.loc(type.label), count: all.count)
 
         if visible.isEmpty {
             Text(searchText.isEmpty ? bundle.loc("You haven't joined any communities") : bundle.loc("No results found"))
@@ -173,7 +176,7 @@ struct CommunitiesView: View {
             HStack(spacing: 8) {
                 filterChip(label: bundle.loc("All"), type: nil)
                 ForEach(CommunityType.allCases, id: \.self) { t in
-                    filterChip(label: t.label, type: t)
+                    filterChip(label: bundle.loc(t.label), type: t)
                 }
             }
         }
@@ -210,15 +213,4 @@ struct CommunitiesView: View {
         .padding(.top, 4)
     }
 
-    /// Đếm noti cộng đồng chưa đọc cho badge chuông trên toolbar
-    private func fetchNotifUnread() async {
-        guard let token = appState.authToken else { return }
-        if let res = try? await NetworkClient.shared.fetch(
-            DataResponse<UnreadCountResponse>.self,
-            path: "/notifications/unread-count",
-            token: token
-        ) {
-            notifUnread = res.data.count
-        }
-    }
 }

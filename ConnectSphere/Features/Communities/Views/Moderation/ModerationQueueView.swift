@@ -3,6 +3,7 @@ import SwiftUI
 /// Moderation queue for admin/moderators — shows pending and resolved reports
 struct ModerationQueueView: View {
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.appBundle) var bundle
     @State private var viewModel: ModerationViewModel
     @State private var selectedTab = 0
 
@@ -17,8 +18,8 @@ struct ModerationQueueView: View {
         VStack(spacing: 0) {
             // Tab picker: Pending | Resolved
             Picker("", selection: $selectedTab) {
-                Text("Pending (\(viewModel.pendingCount))").tag(0)
-                Text("Resolved").tag(1)
+                Text(String(format: bundle.loc("Pending (%d)"), viewModel.pendingCount)).tag(0)
+                Text("Resolved", bundle: bundle).tag(1)
             }
             .pickerStyle(.segmented)
             .padding(12)
@@ -48,7 +49,7 @@ struct ModerationQueueView: View {
                 }
             }
         }
-        .navigationTitle("Moderation Queue")
+        .navigationTitle(bundle.loc("Moderation Queue"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await viewModel.fetchQueue(status: "pending") }
         .onChange(of: selectedTab) { _, newTab in
@@ -56,8 +57,8 @@ struct ModerationQueueView: View {
                 await viewModel.fetchQueue(status: newTab == 0 ? "pending" : "resolved")
             }
         }
-        .alert("Lỗi", isPresented: .constant(viewModel.errorMessage != nil)) {
-            Button("OK") { viewModel.errorMessage = nil }
+        .alert(bundle.loc("Error"), isPresented: .constant(viewModel.errorMessage != nil)) {
+            Button(bundle.loc("OK")) { viewModel.errorMessage = nil }
         } message: {
             Text(viewModel.errorMessage ?? "")
         }
@@ -68,7 +69,7 @@ struct ModerationQueueView: View {
             Image(systemName: "checkmark.shield")
                 .font(.system(size: 40))
                 .foregroundColor(AppColors.textTertiary(colorScheme))
-            Text(selectedTab == 0 ? "No pending reports" : "No resolved reports")
+            Text(selectedTab == 0 ? bundle.loc("No pending reports") : bundle.loc("No resolved reports"))
                 .font(.system(size: 16, weight: .medium))
                 .foregroundColor(AppColors.textSecondary(colorScheme))
         }
