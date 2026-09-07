@@ -139,7 +139,7 @@ struct CreatePostViewModelTests {
             privacy: .publicAll,
             authToken: nil,
             selectedMedia: [],
-            onSuccess: { succeeded = true }
+            onSuccess: { _ in succeeded = true }
         )
 
         // The empty-content guard returns before any Task is spawned, so this
@@ -158,7 +158,7 @@ struct CreatePostViewModelTests {
             privacy: .publicAll,
             authToken: nil,
             selectedMedia: [],
-            onSuccess: { succeeded = true }
+            onSuccess: { _ in succeeded = true }
         )
 
         #expect(succeeded == false)

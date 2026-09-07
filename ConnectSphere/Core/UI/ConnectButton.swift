@@ -3,15 +3,15 @@ import Combine
 import Observation
 
 enum ConnectionStatus {
-    case none           // chưa kết nối
-    case pendingSent    // mình đã gửi, chờ họ accept
-    case pendingReceived // họ gửi cho mình, chờ mình accept
-    case accepted       // đã kết nối
-    case `self`         // chính mình
+    case none           // not connected
+    case pendingSent    // we sent the request, waiting for them to accept
+    case pendingReceived // they sent it to us, waiting for us to accept
+    case accepted       // connected
+    case `self`         // this is our own profile
 }
 
-/// Button hiển thị trạng thái kết nối + xử lý gửi/hủy/chấp nhận/từ chối request.
-/// Mọi request đều gắn Bearer token — backend xác định danh tính từ JWT.
+/// Button that displays connection status + handles sending/canceling/accepting/declining a request.
+/// Every request carries a Bearer token — the backend determines identity from the JWT.
 @MainActor
 @Observable
 class ConnectViewModel {
@@ -82,7 +82,7 @@ class ConnectViewModel {
         }
     }
 
-    /// Chấp nhận lời mời đang chờ (mình là addressee)
+    /// Accepts the pending request (we're the addressee)
     func accept() async {
         guard let token = authToken(), let connId = connectionId else { return }
         isLoading = true
@@ -100,7 +100,7 @@ class ConnectViewModel {
         }
     }
 
-    /// Từ chối lời mời đang chờ (mình là addressee)
+    /// Declines the pending request (we're the addressee)
     func decline() async {
         guard let token = authToken(), let connId = connectionId else { return }
         isLoading = true
@@ -119,7 +119,7 @@ class ConnectViewModel {
         }
     }
 
-    /// Hủy request mình đã gửi
+    /// Cancels the request we sent
     func cancel() async {
         guard let token = authToken(), let connId = connectionId else { status = .none; return }
         isLoading = true
@@ -138,7 +138,7 @@ class ConnectViewModel {
         }
     }
 
-    /// Gỡ kết nối đã accepted (cả 2 phía đều gỡ được)
+    /// Removes an accepted connection (either side can remove it)
     func remove() async {
         guard let token = authToken(), let connId = connectionId else { return }
         isLoading = true
@@ -167,20 +167,20 @@ struct ConnectButton: View {
     @State private var showDisconnectConfirm = false
 
     let targetUserId: String
-    var compact: Bool = false   // true = hiện kế bên tên, nhỏ hơn
+    var compact: Bool = false   // true = shown next to the name, smaller
 
-    /// Nội dung phụ hiển thị cùng lúc (vd: nút Nhắn tin ở profile header).
-    /// Khi trạng thái cần 2 nút Accept/Decline, companion được đặt lên trên và
-    /// 2 nút đó xuống hàng riêng bên dưới để tránh chen chúc/xuống dòng chữ.
+    /// Secondary content shown alongside (e.g. the Message button in the profile header).
+    /// When the status needs 2 buttons (Accept/Decline), the companion is placed above and
+    /// those 2 buttons go on their own row below, to avoid crowding/text wrapping.
     var companion: (() -> AnyView)? = nil
 
-    /// Nhãn nút gửi lời mời theo mode: sở thích = "Kết bạn", công việc = "Kết nối"
+    /// Send-request button label per mode: hobby = "Add friend", work = "Connect"
     private var connectLabel: String {
         appState.currentMode == .hobby ? bundle.loc("Add friend") : bundle.loc("Connect")
     }
 
-    /// Chiều rộng tối thiểu cho các chip trạng thái đơn (Kết bạn/Đã gửi/Đã kết nối)
-    /// để chúng đồng nhất kích thước. Chỉ áp ở dạng đầy đủ (không compact).
+    /// Minimum width for the single-status chips (Add friend/Sent/Connected)
+    /// so they're all the same size. Only applied in the full (non-compact) form.
     private var singleChipMinWidth: CGFloat? { compact ? nil : 112 }
 
     var body: some View {
@@ -198,8 +198,8 @@ struct ConnectButton: View {
                     }
                 }
             case .pendingReceived:
-                // Họ đã gửi lời mời cho mình → chấp nhận hoặc từ chối.
-                // Companion (nếu có) nằm hàng trên, 2 nút này luôn cùng 1 hàng riêng bên dưới.
+                // They sent us the request → accept or decline it.
+                // The companion (if any) sits on the row above, these 2 buttons always share their own row below.
                 let acceptDecline = HStack(spacing: 6) {
                     actionChip(label: bundle.loc("Accept"), icon: "checkmark",
                                color: themeManager.theme.primary) {
@@ -247,8 +247,8 @@ struct ConnectButton: View {
         }
     }
 
-    /// Đặt companion (nếu có) cạnh chip trạng thái, cùng 1 hàng — dùng cho các
-    /// trạng thái chỉ có 1 chip (connected/sent/none), không cần xuống hàng riêng.
+    /// Places the companion (if any) next to the status chip, on the same row — used for
+    /// statuses with only a single chip (connected/sent/none), which don't need their own row.
     @ViewBuilder
     private func withCompanion<C: View>(@ViewBuilder _ chip: () -> C) -> some View {
         if let companion {
@@ -258,8 +258,8 @@ struct ConnectButton: View {
         }
     }
 
-    // Kiểu nút "Friends" của Facebook: nền xám đặc + chữ đậm (tương phản tốt),
-    // bấm vào để hỏi xác nhận gỡ kết nối.
+    // Facebook-style "Friends" button: solid gray background + bold text (good contrast),
+    // tapping it asks for confirmation before removing the connection.
     private var connectedChip: some View {
         Button {
             showDisconnectConfirm = true
@@ -296,8 +296,8 @@ struct ConnectButton: View {
         }
     }
 
-    // minWidth: chiều rộng tối thiểu để các trạng thái đơn (Kết bạn / Đã gửi)
-    // có cùng kích thước dù nội dung khác nhau — canh theo nút rộng nhất.
+    // minWidth: minimum width so the single-status states (Add friend / Sent)
+    // are the same size despite different content — sized to the widest button.
     private func actionChip(label: String, icon: String, color: Color,
                              minWidth: CGFloat? = nil,
                              action: @escaping () -> Void) -> some View {

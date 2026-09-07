@@ -12,16 +12,36 @@ import GoogleSignIn
 struct ConnectSphereApp: App {
     @State private var appState     = AppState()
     @State private var themeManager = ThemeManager()
+    /// Shared "Undo" toast presenter for the delete-recovery flow — see
+    /// `UndoToastView.swift`. Rendered by `MainTabView`'s overlay.
+    @State private var toastPresenter = UndoToastPresenter()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(appState)
                 .environment(themeManager)
+                .environment(toastPresenter)
                 .environment(\.appBundle, appState.bundle)
                 .preferredColorScheme(appState.appearanceMode.colorScheme)
                 .onOpenURL { url in
-                    GIDSignIn.sharedInstance.handle(url)
+                    // connectsphere://community/<id> — community share link (Phase 5).
+                    // Google Sign-In uses its own reversed-client-id scheme, so branching
+                    // on scheme keeps the two flows from ever colliding.
+                    if url.scheme == "connectsphere", url.host == "community" {
+                        if let communityId = url.pathComponents.first(where: { $0 != "/" }) {
+                            appState.pendingDeepLink = .community(id: communityId)
+                        } else {
+                            // Matched our own scheme but the id is missing/malformed
+                            // (a hand-crafted or corrupted link) — a connectsphere://
+                            // URL is never a Sign-In callback, so falling through to
+                            // GIDSignIn would silently do nothing. Land on the
+                            // Communities tab instead of dropping the tap entirely.
+                            appState.pendingAssistantNavigation = .tab(2)
+                        }
+                    } else {
+                        GIDSignIn.sharedInstance.handle(url)
+                    }
                 }
                 // Keep themeManager.currentMode in sync with the authoritative app mode.
                 .onChange(of: appState.currentMode) { _, newMode in
@@ -37,7 +57,7 @@ struct RootView: View {
     var body: some View {
         Group {
             if appState.isCheckingAuth {
-                // Splash screen trong khi kiểm tra Keychain
+                // Splash screen while checking the Keychain
                 ZStack {
                     AppGradient.background.ignoresSafeArea()
                     VStack(spacing: 16) {

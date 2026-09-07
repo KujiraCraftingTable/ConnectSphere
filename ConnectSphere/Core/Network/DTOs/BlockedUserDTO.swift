@@ -1,6 +1,6 @@
 import Foundation
 
-/// Một dòng trong danh sách "Người đã chặn" (GET /users/blocked)
+/// A row in the "Blocked Users" list (GET /users/blocked)
 struct BlockedUserDTO: Decodable, Identifiable {
     let id: String
     let displayName: String
