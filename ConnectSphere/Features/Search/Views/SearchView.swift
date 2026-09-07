@@ -7,11 +7,13 @@ struct SearchView: View {
     @State private var viewModel = SearchViewModel()
     @Environment(\.colorScheme) var colorScheme
     @State private var searchText = ""
+    /// What the user types when telling us what an unrecognized place actually is.
+    @State private var clarifyText = ""
     @State private var showAISearch = false
     @State private var isSearchPresented = false
     @State private var isResettingSearch = false
 
-    /// Binding từ MainTabView — reset về root mỗi khi tab được chọn lại
+    /// Binding from MainTabView — resets to root whenever the tab is re-selected
     @Binding var navPath: NavigationPath
 
     var body: some View {
@@ -23,9 +25,10 @@ struct SearchView: View {
                         .onTapGesture { showAISearch = true }
                     Divider()
 
-                    // AI tips box — ẩn khi Kujira empty state đang hiển thị
-                    if !viewModel.aiTips.isEmpty && !(viewModel.results.isEmpty && !viewModel.lastAIPrompt.isEmpty) {
-                        aiTipsBox(viewModel.aiTips)
+                    // Warning: parts of the prompt the AI didn't understand / couldn't apply.
+                    // Only shown when there's an actual specific error — not a generic suggestion.
+                    if !viewModel.searchWarnings.isEmpty {
+                        searchWarningsBox(viewModel.searchWarnings)
                     }
 
                     // AI keywords box — visible after AI search, scrolls with content
@@ -33,7 +36,7 @@ struct SearchView: View {
                         aiKeywordsBadge(criteria)
                     }
 
-                    // Gợi ý alias vùng xám — "ý bạn là …?" để user confirm
+                    // Gray alias suggestion area — "did you mean …?" for the user to confirm
                     if !viewModel.entitySuggestions.isEmpty {
                         entitySuggestionsBox
                     }
@@ -44,9 +47,9 @@ struct SearchView: View {
                         } else if viewModel.error != nil {
                             networkErrorState
                         } else {
-                            // aiReasoning từ backend luôn là "" — không dùng được để nhận biết
-                            // AI search đã chạy. Dùng lastAIPrompt (đã có kết quả, không rỗng)
-                            // thay thế, chỉ khi có results để tránh trùng với empty/retry state.
+                            // lastAIPrompt marks "an AI search has run" — gated on
+                            // having results so this doesn't collide with the
+                            // empty/retry states below.
                             if !searchText.isEmpty || (!viewModel.lastAIPrompt.isEmpty && !viewModel.results.isEmpty) {
                                 Text(String(format: bundle.loc("%d results"), viewModel.results.count))
                                     .font(.system(size: 13))
@@ -63,7 +66,7 @@ struct SearchView: View {
                                 }
                             } else {
                                 ForEach(viewModel.results) { user in
-                                    // Kết quả AI search → mini CV kèm lý do khớp; search thường giữ card cũ
+                                    // AI search results → mini CV with match reasons; regular search keeps the old card
                                     if !viewModel.lastAIPrompt.isEmpty {
                                         MiniCVCard(user: user, evidence: viewModel.matchEvidence[user.id] ?? [])
                                     } else if appState.currentMode == .hobby {
@@ -100,10 +103,10 @@ struct SearchView: View {
                 }
             }
             .onChange(of: appState.shouldResetSearch) { _, newValue in
-                // Bấm lại tab "Tìm kiếm" khi đang active → về trạng thái duyệt
-                // mặc định, xóa mọi search/AI search state đã tích lũy trước đó
+                // Re-tapping the "Search" tab while already active → return to the default
+                // browse state, clearing all accumulated search/AI search state
                 guard newValue else { return }
-                isResettingSearch = true   // chặn onChange(searchText) gọi search() dư thừa
+                isResettingSearch = true   // prevent onChange(searchText) from triggering a redundant search()
                 searchText = ""
                 isSearchPresented = false
                 Task { await viewModel.loadAll(mode: appState.currentMode) }
@@ -119,17 +122,17 @@ struct SearchView: View {
                 Task { await viewModel.loadAll(mode: mode) }
             }
             .onChange(of: showAISearch) { isPresented in
-                // Khi sheet đóng sau AI search → clear search bar (không trigger regular search)
+                // When the sheet closes after an AI search → clear the search bar (without triggering a regular search)
                 if !isPresented && !viewModel.lastAIPrompt.isEmpty {
                     isResettingSearch = true
                     searchText = ""
                 }
             }
             .task {
-                // .task re-run khi view "reappear" (vd. pop từ profile được push).
-                // Nếu đây là do bấm lại tab Search (shouldResetSearch = true) →
-                // reset hẳn ngay tại đây, không đợi onChange (có thể miss vì view
-                // đang bị che bởi profile pushed lúc flag được set).
+                // .task re-runs when the view "reappears" (e.g. popping back from a pushed profile).
+                // If this is because the Search tab was re-tapped (shouldResetSearch = true) →
+                // reset fully right here rather than waiting on onChange (which could be missed
+                // because the view is covered by the pushed profile when the flag was set).
                 if appState.shouldResetSearch {
                     appState.shouldResetSearch = false
                     isResettingSearch = true
@@ -139,7 +142,7 @@ struct SearchView: View {
                     await viewModel.loadAll(mode: appState.currentMode)
                     return
                 }
-                // Chỉ load lần đầu — tránh reset AI results khi back từ profile bằng vuốt/nút back
+                // Only load on the first pass — avoids resetting AI results when backing out of a profile via swipe/back button
                 guard viewModel.results.isEmpty else { return }
                 viewModel.currentUserId = appState.currentUser?.id
                 await viewModel.loadAll(mode: appState.currentMode)
@@ -152,7 +155,7 @@ struct SearchView: View {
     }
 
     private func aiKeywordsBadge(_ criteria: AISearchCriteriaDTO) -> some View {
-        // Gom tất cả keywords từ criteria
+        // Gather all keywords from criteria
         let keywords: [(label: String, values: [String])] = [
             (bundle.loc("Interests"),  criteria.interests),
             (bundle.loc("Skills"),   criteria.skills),
@@ -203,7 +206,7 @@ struct SearchView: View {
         .padding(.top, 8)
     }
 
-    // MARK: Entity alias suggestions ("ý bạn là …?")
+    // MARK: Entity alias suggestions ("did you mean …?")
 
     private var entitySuggestionsBox: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -248,26 +251,113 @@ struct SearchView: View {
         .padding(.top, 8)
     }
 
-    // MARK: AI Tips Box
+    // MARK: Search Warnings
 
-    private func aiTipsBox(_ tips: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(themeManager.theme.primary)
-                .padding(.top, 1)
-            Text(tips)
-                .font(.system(size: 13))
-                .foregroundColor(AppColors.textPrimary(colorScheme))
-                .fixedSize(horizontal: false, vertical: true)
+    /// Renders only concrete "I couldn't understand / couldn't apply this" notices.
+    /// Text is localized here from the backend's stable `code`, so the same warning
+    /// reads correctly in both EN and VI.
+    private func warningText(_ warning: SearchWarningDTO) -> String? {
+        switch warning.code {
+        case "venue_unresolved":
+            guard let place = warning.value, !place.isEmpty else { return nil }
+            return String(format: bundle.loc("Couldn't tell which city \"%@\" is in — add a province to narrow it down."), place)
+        case "query_unclear":
+            return bundle.loc("Couldn't pick out anything specific to search for — try naming an interest, skill, or place.")
+        default:
+            return nil   // unknown code from a newer backend — stay silent
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(themeManager.theme.primary.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .padding(.horizontal, 12)
-        .padding(.top, 8)
+    }
+
+    /// The one unresolved place in this batch, if any — it's what the clarify
+    /// field teaches the app about.
+    private var unresolvedPlace: String? {
+        viewModel.searchWarnings
+            .first { $0.code == "venue_unresolved" && !($0.value ?? "").isEmpty }?
+            .value
+    }
+
+    private func searchWarningsBox(_ warnings: [SearchWarningDTO]) -> some View {
+        let messages = warnings.compactMap(warningText)
+        return Group {
+            if !messages.isEmpty {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.orange)
+                        .padding(.top, 1)
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(messages, id: \.self) { message in
+                            Text(message)
+                                .font(.system(size: 13))
+                                .foregroundColor(AppColors.textPrimary(colorScheme))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        // Teach-the-app row: only for a place we couldn't locate,
+                        // and only while it's still worth asking.
+                        if let place = unresolvedPlace {
+                            if viewModel.clarifyUnconfirmed {
+                                Text("Thanks — we couldn't confirm that one either, so it's been flagged for review.", bundle: bundle)
+                                    .font(.system(size: 12))
+                                    .foregroundColor(AppColors.textSecondary(colorScheme))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            } else {
+                                clarifyRow(for: place)
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.orange.opacity(0.10))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .padding(.horizontal, 12)
+                .padding(.top, 8)
+            }
+        }
+    }
+
+    private func clarifyRow(for place: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(String(format: bundle.loc("What is \"%@\"?"), place))
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(AppColors.textPrimary(colorScheme))
+
+            HStack(spacing: 8) {
+                TextField(bundle.loc("e.g. Landmark 81"), text: $clarifyText)
+                    .font(.system(size: 13))
+                    .textFieldStyle(.plain)
+                    .autocorrectionDisabled()
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(AppColors.surface(colorScheme))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .onSubmit { submitClarification(for: place) }
+
+                Button { submitClarification(for: place) } label: {
+                    if viewModel.isClarifying {
+                        ProgressView().scaleEffect(0.7)
+                    } else {
+                        Text("Search again", bundle: bundle)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(Capsule().fill(themeManager.theme.primary))
+                    }
+                }
+                .buttonStyle(.plain)
+                .disabled(viewModel.isClarifying ||
+                          clarifyText.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+    }
+
+    private func submitClarification(for place: String) {
+        let answer = clarifyText
+        clarifyText = ""
+        Task { await viewModel.clarifyLocation(alias: place, canonical: answer) }
     }
 
     // MARK: AI Search Banner
@@ -293,7 +383,7 @@ struct SearchView: View {
         .frame(maxWidth: .infinity)
     }
 
-    // Lỗi mạng/server khi tải danh sách — không giữ list cũ, cho user thử lại
+    // Network/server error while loading the list — don't keep the old list, let the user retry
     private var networkErrorState: some View {
         VStack(spacing: 16) {
             Text("🐳")
@@ -396,7 +486,7 @@ struct AISearchSheet: View {
 
     private var isPromptEmpty: Bool { prompt.trimmingCharacters(in: .whitespaces).isEmpty }
 
-    // MARK: Hero header — mascot Kujira + lời chào
+    // MARK: Hero header — mascot Kujira + greeting
 
     private var heroHeader: some View {
         VStack(spacing: 12) {
@@ -416,7 +506,7 @@ struct AISearchSheet: View {
         .padding(.top, 4)
     }
 
-    // MARK: Ô nhập mô tả — nền như post card, cao vừa phải, viền sáng khi focus
+    // MARK: Description input field — background like a post card, moderate height, bright border when focused
 
     private var promptInput: some View {
         ZStack(alignment: .topLeading) {
@@ -447,7 +537,7 @@ struct AISearchSheet: View {
         .animation(.easeInOut(duration: 0.15), value: isPromptFocused)
     }
 
-    // MARK: Gợi ý xu hướng — pill bấm để điền nhanh
+    // MARK: Trending suggestions — tappable pills for quick-fill
 
     private var trendingSection: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -485,7 +575,7 @@ struct AISearchSheet: View {
         }
     }
 
-    // MARK: Nút tìm — ghim đáy, tự nổi trên bàn phím
+    // MARK: Search button — pinned to the bottom, floats above the keyboard
 
     private var searchButtonBar: some View {
         Button {
