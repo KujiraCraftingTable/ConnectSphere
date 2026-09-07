@@ -1,6 +1,6 @@
 import Foundation
 
-/// Một story 24h (backend trả flat list, client group theo author)
+/// A 24h story (backend returns a flat list, client groups by author)
 struct StoryDTO: Decodable, Identifiable {
     let id: String
     let authorId: String
@@ -19,7 +19,7 @@ struct StoryDTO: Decodable, Identifiable {
     }
 }
 
-/// Một người đã xem story của mình (GET /stories/:id/viewers)
+/// Someone who has viewed one of the current user's stories (GET /stories/:id/viewers)
 struct StoryViewerDTO: Decodable, Identifiable {
     let id: String
     let displayName: String
@@ -36,7 +36,7 @@ struct StoryViewerDTO: Decodable, Identifiable {
     }
 }
 
-/// Stories của một người, dùng cho bubble + viewer
+/// One person's stories, used for the bubble + viewer
 struct StoryGroup: Identifiable {
     let author: UserProfile
     let stories: [StoryDTO]
@@ -45,8 +45,8 @@ struct StoryGroup: Identifiable {
     var hasUnseen: Bool { stories.contains { !$0.viewed } }
 }
 
-/// Group flat list theo author, giữ nguyên thứ tự server trả về
-/// (story của mình đứng đầu).
+/// Groups the flat list by author, preserving the order the server returns
+/// (the current user's own story comes first).
 func groupStories(_ stories: [StoryDTO]) -> [StoryGroup] {
     var order: [String] = []
     var byAuthor: [String: [StoryDTO]] = [:]

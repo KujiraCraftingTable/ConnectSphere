@@ -18,8 +18,8 @@ struct PostRepository {
         return response.data.map { $0.toPost() }
     }
 
-    /// Personalized newsfeed (recommendations) — phân trang bằng keyset cursor.
-    /// Trả về (posts, nextCursor); nextCursor = nil nghĩa là hết trang.
+    /// Personalized newsfeed (recommendations) — paginated with a keyset cursor.
+    /// Returns (posts, nextCursor); nextCursor = nil means there's no more page.
     func fetchRecommendedFeed(mode: AppMode, cursor: String?, limit: Int = 20) async throws -> (posts: [Post], nextCursor: String?) {
         let response = try await client.fetch(
             CursorResponse<PostDTO>.self,
@@ -28,7 +28,7 @@ struct PostRepository {
         return (response.data.map { $0.toPost() }, response.nextCursor)
     }
 
-    /// Lấy một bài viết theo id (dùng cho màn hình mở từ notification)
+    /// Fetches a single post by id (used for the screen opened from a notification)
     func fetchPost(id: String) async throws -> Post {
         let response = try await client.fetch(
             SingleResponse<PostDTO>.self,
@@ -37,16 +37,20 @@ struct PostRepository {
         return response.data.toPost()
     }
 
-    /// Bài viết theo hashtag (browse tag)
-    func fetchPostsByTag(_ tag: String, limit: Int = 50, offset: Int = 0) async throws -> [Post] {
+    /// Posts by hashtag (browse tag) — mode-scoped like every other post-list
+    /// surface (main Feed, connections scope), so a tag chip tapped in Hobby mode
+    /// doesn't pull in Work-mode posts sharing the same tag, and vice versa. The
+    /// backend's `mode` filter on `GET /api/posts` already supports combining with
+    /// `tag`; this was simply never passed from here before.
+    func fetchPostsByTag(_ tag: String, mode: AppMode, limit: Int = 50, offset: Int = 0) async throws -> [Post] {
         let response = try await client.fetch(
             PaginatedResponse<PostDTO>.self,
-            from: .listPosts(tag: tag, limit: limit, offset: offset)
+            from: .listPosts(mode: mode.rawValue, tag: tag, limit: limit, offset: offset)
         )
         return response.data.map { $0.toPost() }
     }
 
-    /// Share/repost một bài viết; trả về bài share mới
+    /// Shares/reposts a post; returns the new shared post
     func sharePost(postId: String, content: String, mode: AppMode) async throws -> Post {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")
@@ -79,8 +83,23 @@ struct PostRepository {
         )
     }
 
+    /// Prefix-match hashtag suggestions for `HashtagInputView`'s debounced dropdown.
+    /// `prefix` must be non-empty — the backend returns 400 if it's empty, so the caller
+    /// (HashtagInputView) blocks the call itself when the text field is empty.
+    func suggestTags(prefix: String, limit: Int = 8) async throws -> [TagSuggestionDTO] {
+        let response = try await client.fetch(
+            DataListResponse<TagSuggestionDTO>.self,
+            from: .suggestTags(prefix: prefix, limit: limit)
+        )
+        return response.data
+    }
+
     /// Creates a post and returns the new post's ID.
-    /// Backend lấy author từ JWT nên không gửi author_id nữa.
+    /// The backend derives the author from the JWT, so author_id is no longer sent.
+    /// `hashtags`/`showAiTags` mirror the backend's optional create-post fields
+    /// (default `[]`/`false` server-side) — hashtags are user-typed tags saved
+    /// synchronously with `source = 'user'`; showAiTags controls whether this
+    /// post's async-extracted AI tags become visible once extraction finishes.
     func createPost(
         content: String,
         mode: AppMode,
@@ -88,36 +107,43 @@ struct PostRepository {
         imageUrl: String? = nil,
         imageUrls: [String] = [],
         linkUrl: String? = nil,
-        articleTitle: String? = nil
-    ) async throws -> String {
+        articleTitle: String? = nil,
+        hashtags: [String] = [],
+        showAiTags: Bool = false
+    ) async throws -> Post {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")
         }
 
         var body: [String: Any] = [
-            "content": content,
-            "mode":    mode.rawValue,
-            "privacy": privacy.rawValue,
+            "content":      content,
+            "mode":         mode.rawValue,
+            "privacy":      privacy.rawValue,
+            "show_ai_tags": showAiTags,
         ]
         if let img = imageUrl      { body["image_url"]     = img }
         if !imageUrls.isEmpty      { body["image_urls"]    = imageUrls }
         if let lnk = linkUrl       { body["link_url"]      = lnk }
         if let ttl = articleTitle  { body["article_title"] = ttl }
+        if !hashtags.isEmpty       { body["hashtags"]      = hashtags }
 
         let bodyData = try? JSONSerialization.data(withJSONObject: body)
 
-        struct CreatePostResponse: Decodable { struct PostIdOnly: Decodable { let id: String }; let data: PostIdOnly }
+        // Decode the FULL post (same `PostDTO` shape `fetchPost(id:)` uses),
+        // not just its id — the create response already carries everything
+        // needed to render the post immediately, so the caller can insert it
+        // straight into the feed instead of waiting on a separate reload.
         let response = try await client.fetch(
-            CreatePostResponse.self,
+            SingleResponse<PostDTO>.self,
             path: "/posts",
             method: "POST",
             token: token,
             bodyData: bodyData
         )
-        return response.data.id
+        return response.data.toPost()
     }
 
-    /// Soft-delete bài viết — backend set state = 'deleted', bài sẽ ẩn khỏi feed
+    /// Soft-deletes a post — backend sets state = 'deleted', hiding the post from the feed
     func deletePost(postId: String) async throws {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")
@@ -131,7 +157,110 @@ struct PostRepository {
         )
     }
 
-    /// Ẩn bài viết khỏi feed của riêng mình (persist server-side, bài của người khác)
+    /// Restore a soft-deleted post of your own — backend flips status back to
+    /// 'posted' and clears deleted_at; 403 if you're not the author, 404 if it
+    /// doesn't exist or isn't currently deleted. Used by the Undo toast and by
+    /// "Recently Deleted"'s Restore button.
+    func restorePost(postId: String) async throws -> Post {
+        guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
+            throw APIError.serverError(statusCode: 401, message: "Not authenticated")
+        }
+        struct RestoreResponse: Decodable { let data: PostDTO }
+        let response = try await client.fetch(
+            RestoreResponse.self,
+            path: "/posts/\(postId)/restore",
+            method: "POST",
+            token: token
+        )
+        return response.data.toPost()
+    }
+
+    /// Your own soft-deleted posts, newest deleted_at first — feeds the Posts
+    /// section of "Recently Deleted". Response shape has no `total` field
+    /// (unlike `PaginatedResponse`), hence the dedicated inline decoder.
+    func fetchDeletedPosts(limit: Int = 30, offset: Int = 0) async throws -> [Post] {
+        guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
+            throw APIError.serverError(statusCode: 401, message: "Not authenticated")
+        }
+        struct DeletedPostsResponse: Decodable { let data: [PostDTO] }
+        let response = try await client.fetch(
+            DeletedPostsResponse.self,
+            path: "/posts/deleted",
+            method: "GET",
+            token: token,
+            queryItems: [
+                .init(name: "limit",  value: "\(limit)"),
+                .init(name: "offset", value: "\(offset)"),
+            ]
+        )
+        return response.data.map { $0.toPost() }
+    }
+
+    /// Restore a soft-deleted comment. Note: authorization here is the
+    /// COMMENT's own author, not the post's author — different from
+    /// `restorePost` above, per the backend's restore-comment endpoint.
+    func restoreComment(postId: String, commentId: String) async throws {
+        guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
+            throw APIError.serverError(statusCode: 401, message: "Not authenticated")
+        }
+        struct RestoreCommentResponse: Decodable {
+            let data: CommentDTO
+            let commentCount: Int
+            enum CodingKeys: String, CodingKey {
+                case data
+                case commentCount = "comment_count"
+            }
+        }
+        _ = try await client.fetch(
+            RestoreCommentResponse.self,
+            path: "/posts/\(postId)/comments/\(commentId)/restore",
+            method: "POST",
+            token: token
+        )
+    }
+
+    /// Edit the content of your own comment. Note: authorization here is the
+    /// COMMENT's own author only — NOT the post's author (unlike delete,
+    /// which also allows the post owner to moderate) — per the backend's
+    /// edit-comment endpoint. 403 if you're not the comment's author, 404 if
+    /// it doesn't exist or is soft-deleted.
+    func updateComment(postId: String, commentId: String, content: String) async throws -> CommentDTO {
+        guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
+            throw APIError.serverError(statusCode: 401, message: "Not authenticated")
+        }
+        struct UpdateCommentResponse: Decodable { let data: CommentDTO }
+        let bodyData = try? JSONSerialization.data(withJSONObject: ["content": content])
+        let response = try await client.fetch(
+            UpdateCommentResponse.self,
+            path: "/posts/\(postId)/comments/\(commentId)",
+            method: "PATCH",
+            token: token,
+            bodyData: bodyData
+        )
+        return response.data
+    }
+
+    /// Your own soft-deleted comments across all posts, newest deleted_at
+    /// first — feeds the Comments section of "Recently Deleted".
+    func fetchDeletedComments(limit: Int = 30, offset: Int = 0) async throws -> [DeletedComment] {
+        guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
+            throw APIError.serverError(statusCode: 401, message: "Not authenticated")
+        }
+        struct DeletedCommentsResponse: Decodable { let data: [DeletedComment] }
+        let response = try await client.fetch(
+            DeletedCommentsResponse.self,
+            path: "/posts/comments/deleted",
+            method: "GET",
+            token: token,
+            queryItems: [
+                .init(name: "limit",  value: "\(limit)"),
+                .init(name: "offset", value: "\(offset)"),
+            ]
+        )
+        return response.data
+    }
+
+    /// Hides a post from your own feed (persisted server-side; someone else's post)
     func hidePost(postId: String) async throws {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")
@@ -145,11 +274,62 @@ struct PostRepository {
         )
     }
 
-    /// Báo cáo bài viết vi phạm (spam, quấy rối, ...).
-    /// Backend endpoint /posts/:id/report được dựng chung cho bài trong community lẫn
-    /// bài Feed thường; service so khớp `community_id` của bài với `communityId` gửi lên
-    /// bằng strict equality, nên phải gửi tường minh `communityId: null` (không phải bỏ
-    /// field) để khớp với bài Feed — vốn luôn có community_id = NULL ở DB.
+    /// Saves (bookmarks) a post to view again later.
+    func savePost(postId: String) async throws {
+        guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
+            throw APIError.serverError(statusCode: 401, message: "Not authenticated")
+        }
+        struct SaveResponse: Decodable { let saved: Bool }
+        _ = try await client.fetch(
+            SaveResponse.self,
+            path: "/posts/\(postId)/save",
+            method: "POST",
+            token: token
+        )
+    }
+
+    /// Unsaves a previously bookmarked post.
+    func unsavePost(postId: String) async throws {
+        guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
+            throw APIError.serverError(statusCode: 401, message: "Not authenticated")
+        }
+        struct SaveResponse: Decodable { let saved: Bool }
+        _ = try await client.fetch(
+            SaveResponse.self,
+            path: "/posts/\(postId)/save",
+            method: "DELETE",
+            token: token
+        )
+    }
+
+    /// This user's saved posts, most recently saved first. Response shape
+    /// mirrors fetchDeletedPosts's own dedicated inline decoder (no `total`
+    /// field, unlike `PaginatedResponse`). No pagination UI for v1 — a single
+    /// fetch covers the whole list.
+    func fetchSavedPosts(limit: Int = 30, offset: Int = 0) async throws -> [Post] {
+        guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
+            throw APIError.serverError(statusCode: 401, message: "Not authenticated")
+        }
+        struct SavedPostsResponse: Decodable { let data: [PostDTO] }
+        let response = try await client.fetch(
+            SavedPostsResponse.self,
+            path: "/posts/saved",
+            method: "GET",
+            token: token,
+            queryItems: [
+                .init(name: "limit",  value: "\(limit)"),
+                .init(name: "offset", value: "\(offset)"),
+            ]
+        )
+        return response.data.map { $0.toPost() }
+    }
+
+    /// Reports a post for a violation (spam, harassment, etc.).
+    /// The backend endpoint /posts/:id/report is shared between community posts and
+    /// regular Feed posts; the service matches the post's `community_id` against the
+    /// `communityId` sent up using strict equality, so `communityId: null` must be sent
+    /// explicitly (not omitted) to match Feed posts — which always have community_id =
+    /// NULL in the DB.
     func reportPost(postId: String, reason: ReportReason, detail: String? = nil) async throws {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")
@@ -169,7 +349,7 @@ struct PostRepository {
         )
     }
 
-    /// Cập nhật nội dung, privacy, ảnh của bài viết; trả về Post đã được cập nhật
+    /// Updates a post's content, privacy, and images; returns the updated Post
     func updatePost(
         postId: String,
         content: String,
@@ -223,8 +403,8 @@ struct PostRepository {
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.httpBody = body
 
-        // Response có cả field số (size) nên phải decode bằng struct,
-        // không dùng [String: String] — trước đây decode fail làm ảnh bị rớt.
+        // The response also has a numeric field (size), so it must be decoded with a
+        // struct, not [String: String] — previously a decode failure dropped the image.
         struct UploadResponse: Decodable { let url: String }
 
         guard let (responseData, response) = try? await URLSession.shared.data(for: request),
@@ -236,7 +416,7 @@ struct PostRepository {
         return "\(APIConfig.serverBase)\(parsed.url)"
     }
 
-    /// Upload video post (mp4/mov) qua cùng endpoint /uploads; trả URL tuyệt đối
+    /// Uploads a video post (mp4/mov) through the same /uploads endpoint; returns an absolute URL
     func uploadVideo(fileURL: URL) async throws -> String? {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else { return nil }
         guard let videoData = try? Data(contentsOf: fileURL) else { return nil }

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Sheet chia sẻ (repost) một bài viết về tường của mình, kèm lời nhắn tùy chọn.
+/// Sheet for sharing (reposting) a post to your own wall, with an optional message.
 struct SharePostSheet: View {
     @Environment(AppState.self) var appState
     @Environment(ThemeManager.self) var themeManager
@@ -27,7 +27,7 @@ struct SharePostSheet: View {
                     .background(AppColors.base(colorScheme))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
 
-                // Preview bài gốc (rút gọn)
+                // Preview of the original post (condensed)
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 8) {
                         AvatarView(user: post.sharedPost?.author ?? post.author, size: 28)
@@ -90,7 +90,7 @@ struct SharePostSheet: View {
         shareFailed = false
         defer { isSharing = false }
         do {
-            // Backend tự trỏ về bài gốc nếu post này cũng là một bài share
+            // Backend automatically points to the original post if this post is itself a share
             _ = try await repository.sharePost(
                 postId: post.id,
                 content: comment.trimmingCharacters(in: .whitespaces),

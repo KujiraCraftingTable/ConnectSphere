@@ -8,19 +8,19 @@ class CommentViewModel {
     var comments: [CommentDTO] = []
     var isLoading  = false
     var isSending  = false
-    /// Comment gốc đang được trả lời (nil = comment thường)
+    /// Root comment currently being replied to (nil = a plain comment)
     var replyingTo: CommentDTO? = nil
 
     private func authToken() -> String? {
         KeychainHelper.load(forKey: KeychainHelper.tokenKey)
     }
 
-    /// Comment gốc, theo thứ tự thời gian
+    /// Root comments, in chronological order
     var parents: [CommentDTO] {
         comments.filter { $0.parentCommentId == nil }
     }
 
-    /// Replies của một comment gốc
+    /// Replies to a given root comment
     func replies(for parentId: String) -> [CommentDTO] {
         comments.filter { $0.parentCommentId == parentId }
     }
@@ -56,12 +56,12 @@ class CommentViewModel {
               http.statusCode == 201 else { return false }
 
         replyingTo = nil
-        // Reload toàn bộ comments để đảm bảo sync chính xác
+        // Reload the whole comment list to guarantee an accurate sync
         await load(postId: postId)
         return true
     }
 
-    /// Xóa comment của mình (hoặc trên bài của mình) — backend soft-delete cả replies
+    /// Deletes one of your own comments (or one on your own post) — backend soft-deletes replies too
     func deleteComment(postId: String, commentId: String) async {
         guard let token = authToken() else { return }
         struct Empty: Decodable { let status: String? }
@@ -74,7 +74,21 @@ class CommentViewModel {
         await load(postId: postId)
     }
 
-    /// Toggle like một comment; cập nhật tại chỗ từ response
+    /// Edits the content of one of your own comments. Same approach as
+    /// addComment/deleteComment: reload the whole comment list on success
+    /// (simpler than patching it in place).
+    func updateComment(postId: String, commentId: String, content: String) async -> Bool {
+        let trimmed = content.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return false }
+        let repository = PostRepository()
+        guard (try? await repository.updateComment(postId: postId, commentId: commentId, content: trimmed)) != nil else {
+            return false
+        }
+        await load(postId: postId)
+        return true
+    }
+
+    /// Toggles a like on a comment; updates in place from the response
     func toggleLike(postId: String, commentId: String) async {
         guard let token = authToken() else { return }
         guard let res = try? await NetworkClient.shared.fetch(
@@ -99,6 +113,19 @@ struct CommentSheet: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var input = ""
     @FocusState private var focused: Bool
+    /// Local Undo-toast presenter — CommentSheet is a `.sheet`, presented above
+    /// `MainTabView`'s app-wide toast overlay, so it can't reuse that one and
+    /// owns its own instance instead (see `UndoToastView.swift`).
+    @State private var toastPresenter = UndoToastPresenter()
+    /// Comment (or reply) awaiting delete confirmation — tracks the specific
+    /// id since this is a list, not a single toggle, mirroring
+    /// `ChatPinnedMessagesView.swift`'s `pendingUnpin` pattern.
+    @State private var pendingDeleteCommentId: String? = nil
+    /// Comment (or reply) currently being edited inline — id of the row whose
+    /// static text is swapped for an editable field, plus the in-progress text.
+    @State private var editingCommentId: String? = nil
+    @State private var editingText: String = ""
+    private let repository = PostRepository()
 
     let postId: String
     var onCommentAdded: (() -> Void)?
@@ -199,37 +226,94 @@ struct CommentSheet: View {
             .navigationTitle(bundle.loc("Comments"))
             .navigationBarTitleDisplayMode(.inline)
         }
+        .undoToastOverlay(toastPresenter)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .task { await viewModel.load(postId: postId) }
         .onAppear { focused = true }
+        .alert(
+            bundle.loc("Delete comment?"),
+            isPresented: Binding(
+                get: { pendingDeleteCommentId != nil },
+                set: { if !$0 { pendingDeleteCommentId = nil } }
+            )
+        ) {
+            Button(bundle.loc("Delete"), role: .destructive) {
+                if let id = pendingDeleteCommentId {
+                    pendingDeleteCommentId = nil
+                    Task { await handleDeleteComment(commentId: id) }
+                }
+            }
+            Button(bundle.loc("Cancel"), role: .cancel) {}
+        } message: {
+            Text("This comment won't be shown in the app. You can restore it from Recently Deleted within 30 days.", bundle: bundle)
+        }
     }
 
-    // MARK: - Comment block (gốc + replies thụt lề)
+    // MARK: - Delete comment (with Undo toast)
+
+    /// Deletes the comment then shows an Undo toast; tapping Undo calls restore
+    /// then reloads the whole comment list — the same approach `addComment`/
+    /// `deleteComment` already use (full reload to guarantee sync), simpler
+    /// than patching it in place.
+    private func handleDeleteComment(commentId: String) async {
+        await viewModel.deleteComment(postId: postId, commentId: commentId)
+        toastPresenter.show(message: bundle.loc("Comment deleted")) {
+            Task {
+                try? await repository.restoreComment(postId: postId, commentId: commentId)
+                await viewModel.load(postId: postId)
+            }
+        }
+    }
+
+    // MARK: - Comment block (root + indented replies)
 
     @ViewBuilder
     private func commentBlock(_ comment: CommentDTO) -> some View {
         CommentRow(
             comment: comment,
             isOwn: comment.author.id == appState.currentUser?.id,
+            isEditing: editingCommentId == comment.id,
+            editingText: $editingText,
             onLike:   { Task { await viewModel.toggleLike(postId: postId, commentId: comment.id) } },
             onReply:  {
                 viewModel.replyingTo = comment
                 focused = true
             },
-            onDelete: { Task { await viewModel.deleteComment(postId: postId, commentId: comment.id) } }
+            onDelete: { pendingDeleteCommentId = comment.id },
+            onEdit: { beginEditing(comment) },
+            onSaveEdit: { Task { await saveEdit(commentId: comment.id) } },
+            onCancelEdit: { editingCommentId = nil }
         )
 
         ForEach(viewModel.replies(for: comment.id)) { reply in
             CommentRow(
                 comment: reply,
                 isOwn: reply.author.id == appState.currentUser?.id,
+                isEditing: editingCommentId == reply.id,
+                editingText: $editingText,
                 onLike:   { Task { await viewModel.toggleLike(postId: postId, commentId: reply.id) } },
-                onReply:  nil,   // chỉ reply 1 tầng
-                onDelete: { Task { await viewModel.deleteComment(postId: postId, commentId: reply.id) } }
+                onReply:  nil,   // only one level of replies
+                onDelete: { pendingDeleteCommentId = reply.id },
+                onEdit: { beginEditing(reply) },
+                onSaveEdit: { Task { await saveEdit(commentId: reply.id) } },
+                onCancelEdit: { editingCommentId = nil }
             )
             .padding(.leading, 44)
         }
+    }
+
+    // MARK: - Edit comment (inline)
+
+    private func beginEditing(_ comment: CommentDTO) {
+        editingCommentId = comment.id
+        editingText = comment.content
+    }
+
+    private func saveEdit(commentId: String) async {
+        let text = editingText
+        let ok = await viewModel.updateComment(postId: postId, commentId: commentId, content: text)
+        if ok { editingCommentId = nil }
     }
 }
 
@@ -242,9 +326,17 @@ struct CommentRow: View {
 
     let comment: CommentDTO
     var isOwn: Bool = false
+    /// True while this specific row is the one being edited inline.
+    var isEditing: Bool = false
+    /// Shared editing-text binding, owned by `CommentSheet` — only meaningful
+    /// while `isEditing` is true.
+    var editingText: Binding<String> = .constant("")
     var onLike:   (() -> Void)? = nil
     var onReply:  (() -> Void)? = nil
     var onDelete: (() -> Void)? = nil
+    var onEdit:   (() -> Void)? = nil
+    var onSaveEdit:   (() -> Void)? = nil
+    var onCancelEdit: (() -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -259,10 +351,15 @@ struct CommentRow: View {
                         .font(.system(size: 12))
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
-                Text(comment.content)
-                    .font(.system(size: 14))
-                    .foregroundColor(AppColors.textPrimary(colorScheme))
-                    .fixedSize(horizontal: false, vertical: true)
+
+                if isEditing {
+                    editRow
+                } else {
+                    Text(comment.content)
+                        .font(.system(size: 14))
+                        .foregroundColor(AppColors.textPrimary(colorScheme))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 // Action row: like + reply
                 HStack(spacing: 16) {
@@ -296,10 +393,42 @@ struct CommentRow: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .contextMenu {
+            if isOwn, let onEdit {
+                Button(action: onEdit) {
+                    Label(bundle.loc("Edit comment"), systemImage: "pencil")
+                }
+            }
             if isOwn, let onDelete {
                 Button(role: .destructive, action: onDelete) {
                     Label(bundle.loc("Delete comment"), systemImage: "trash")
                 }
+            }
+        }
+    }
+
+    /// Compact inline edit UI — replaces the static content `Text` while
+    /// `isEditing` is true. Single-line-ish; not a full-screen composer.
+    private var editRow: some View {
+        HStack(spacing: 8) {
+            TextField(bundle.loc("Write a comment..."), text: editingText, axis: .vertical)
+                .font(.system(size: 14))
+                .lineLimit(4)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(AppColors.base(colorScheme))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+
+            Button(action: { onSaveEdit?() }) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 20))
+                    .foregroundColor(themeManager.theme.primary)
+            }
+            .disabled(editingText.wrappedValue.trimmingCharacters(in: .whitespaces).isEmpty)
+
+            Button(action: { onCancelEdit?() }) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 20))
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
             }
         }
     }

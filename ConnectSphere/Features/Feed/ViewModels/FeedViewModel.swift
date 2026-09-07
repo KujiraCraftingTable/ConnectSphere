@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// Nguồn dữ liệu của feed: gợi ý cá nhân hoá (mặc định) hoặc chỉ bài của connections.
+/// The feed's data source: personalized recommendations (default) or connections-only posts.
 enum FeedScope: String {
     case forYou
     case connections
@@ -15,16 +15,16 @@ class FeedViewModel {
     var isLoading = false
     var isLoadingMore = false
     var error: String?
-    /// Nguồn feed hiện tại — đổi giá trị này rồi gọi loadPosts(for:) để chuyển nguồn dữ liệu
+    /// The current feed source — change this value then call loadPosts(for:) to switch data sources
     var feedScope: FeedScope = .forYou
 
     private let repository = PostRepository()
     private let pageSize = 20
     private var loadedModes: Set<AppMode> = []
     private var hasMore: [AppMode: Bool] = [:]
-    /// Cursor trang kế cho scope .forYou (personalized feed); nil = còn từ đầu
+    /// Next-page cursor for the .forYou scope (personalized feed); nil = start from the beginning
     private var nextCursor: [AppMode: String?] = [:]
-    /// Offset trang kế cho scope .connections (phân trang kiểu offset, không có cursor)
+    /// Next-page offset for the .connections scope (offset-style pagination, no cursor)
     private var connectionsOffset: [AppMode: Int] = [:]
     nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
 
@@ -41,6 +41,12 @@ class FeedViewModel {
             guard let post = note.userInfo?["post"] as? Post else { return }
             self?.updatePost(post)
         })
+        observers.append(NotificationCenter.default.addObserver(
+            forName: .postRestored, object: nil, queue: .main
+        ) { [weak self] note in
+            guard let post = note.userInfo?["post"] as? Post else { return }
+            self?.restorePost(post)
+        })
     }
 
     deinit {
@@ -56,7 +62,7 @@ class FeedViewModel {
         await loadPosts(for: mode)
     }
 
-    /// Tải trang đầu (reset phân trang) — nguồn dữ liệu phụ thuộc feedScope hiện tại.
+    /// Loads the first page (resets pagination) — the data source depends on the current feedScope.
     func loadPosts(for mode: AppMode) async {
         isLoading = true
         error = nil
@@ -84,7 +90,7 @@ class FeedViewModel {
         isLoading = false
     }
 
-    /// Tải trang tiếp theo khi cuộn tới cuối danh sách
+    /// Loads the next page when the user scrolls to the end of the list
     func loadMorePosts(for mode: AppMode) async {
         guard !isLoadingMore, hasMore[mode] == true else { return }
         isLoadingMore = true
@@ -99,7 +105,7 @@ class FeedViewModel {
                 )
                 nextCursor[mode] = page.nextCursor
                 hasMore[mode]    = page.nextCursor != nil
-                // Tránh trùng khi có bài mới chen vào giữa 2 lần fetch
+                // Avoid duplicates when a new post slips in between two fetches
                 appendPosts(page.posts.filter { !existingIds.contains($0.id) }, for: mode)
             case .connections:
                 let offset = connectionsOffset[mode] ?? 0
@@ -111,7 +117,7 @@ class FeedViewModel {
                 appendPosts(fetched.filter { !existingIds.contains($0.id) }, for: mode)
             }
         } catch {
-            // Cuộn tiếp sẽ retry — không hiện lỗi chặn feed
+            // Scrolling further will retry — don't show an error that blocks the feed
         }
     }
 
@@ -120,12 +126,46 @@ class FeedViewModel {
         colleaguePosts.removeAll { $0.id == id }
     }
 
+    /// Insert a freshly-created post at the top of its mode's list right
+    /// after posting, so the user sees confirmation immediately instead of
+    /// waiting on (or having to notice) a background reload — de-dupes
+    /// defensively in case a reload already picked it up first.
+    func prependPost(_ post: Post, for mode: AppMode) {
+        if mode == .hobby {
+            friendPosts.removeAll { $0.id == post.id }
+            friendPosts.insert(post, at: 0)
+        } else {
+            colleaguePosts.removeAll { $0.id == post.id }
+            colleaguePosts.insert(post, at: 0)
+        }
+    }
+
     func updatePost(_ updated: Post) {
         if let i = friendPosts.firstIndex(where: { $0.id == updated.id }) {
             friendPosts[i] = updated
         }
         if let i = colleaguePosts.firstIndex(where: { $0.id == updated.id }) {
             colleaguePosts[i] = updated
+        }
+    }
+
+    /// Re-inserts a post restored via the Undo toast or the Recently Deleted
+    /// screen — unlike `updatePost`, it inserts at the top when the post
+    /// isn't currently in the list (it was just removed by `.postDeleted`),
+    /// and patches it in place if a reload already picked it back up first.
+    func restorePost(_ post: Post) {
+        if post.mode == .hobby {
+            if let i = friendPosts.firstIndex(where: { $0.id == post.id }) {
+                friendPosts[i] = post
+            } else {
+                friendPosts.insert(post, at: 0)
+            }
+        } else {
+            if let i = colleaguePosts.firstIndex(where: { $0.id == post.id }) {
+                colleaguePosts[i] = post
+            } else {
+                colleaguePosts.insert(post, at: 0)
+            }
         }
     }
 

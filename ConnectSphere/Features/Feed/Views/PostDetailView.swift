@@ -1,16 +1,20 @@
 import SwiftUI
 
-/// Màn hình xem một bài viết — mở từ notification (like/comment/reply).
-/// Fetch bài theo id rồi render bằng PostCard sẵn có.
+/// Screen for viewing a single post — opened from a notification (like/comment/reply).
+/// Fetches the post by id then renders it with the existing PostCard.
 struct PostDetailView: View {
     @Environment(\.appBundle) var bundle
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) var dismiss
 
     let postId: String
+    /// When the post was opened from a comment notification, the comment sheet
+    /// is presented automatically so the user lands on what they were told about.
+    var scrollToCommentId: String? = nil
 
     @State private var post: Post?
     @State private var loadFailed = false
+    @State private var showComments = false
 
     private let repository = PostRepository()
 
@@ -42,9 +46,15 @@ struct PostDetailView: View {
         .background(AppColors.base(colorScheme))
         .navigationTitle(bundle.loc("Posts"))
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showComments) {
+            CommentSheet(postId: postId)
+        }
         .task {
             do { post = try await repository.fetchPost(id: postId) }
             catch { loadFailed = true }
+            // Only after the post resolves, so the sheet never opens over an
+            // error state.
+            if scrollToCommentId != nil && post != nil { showComments = true }
         }
     }
 }

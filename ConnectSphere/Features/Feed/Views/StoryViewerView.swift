@@ -1,9 +1,9 @@
 import SwiftUI
 import Combine
 
-/// Xem stories của một người — full screen, thanh progress từng tin,
-/// tự chuyển sau 5 giây, chạm trái/phải để lùi/tới.
-/// Story của chính mình có thêm nút xoá + danh sách người xem.
+/// Views one person's stories — full screen, a progress bar per story,
+/// auto-advances after 5 seconds, tap left/right to go back/forward.
+/// Your own story additionally has a delete button + list of viewers.
 struct StoryViewerView: View {
     @Environment(AppState.self) var appState
     @Environment(\.appBundle) var bundle
@@ -12,10 +12,10 @@ struct StoryViewerView: View {
     let group: StoryGroup
     var onClose: (() -> Void)? = nil
 
-    /// Bản sao cục bộ để xoá story tại chỗ mà không đụng group (let)
+    /// Local copy so a story can be deleted in place without touching group (a let)
     @State private var stories: [StoryDTO]
     @State private var currentIndex = 0
-    @State private var progress: Double = 0   // 0...1 của story hiện tại
+    @State private var progress: Double = 0   // 0...1 of the current story
 
     // Own-story features
     @State private var viewers: [StoryViewerDTO] = []
@@ -36,7 +36,7 @@ struct StoryViewerView: View {
 
     private var isOwn: Bool { group.author.id == appState.currentUser?.id }
 
-    /// Timer dừng khi đang mở sheet người xem / dialog xoá
+    /// Timer pauses while the viewers sheet / delete dialog is open
     private var isPaused: Bool { showViewers || showDeleteConfirm || isDeleting }
 
     private var currentStory: StoryDTO? {
@@ -47,7 +47,7 @@ struct StoryViewerView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            // Ảnh story hiện tại
+            // Current story's image
             if let story = currentStory, let url = URL(string: story.imageUrl) {
                 AsyncImage(url: url) { phase in
                     if let image = phase.image {
@@ -59,7 +59,7 @@ struct StoryViewerView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
-            // Vùng chạm: trái = lùi, phải = tới
+            // Tap zones: left = back, right = forward
             HStack(spacing: 0) {
                 Rectangle().fill(Color.clear)
                     .contentShape(Rectangle())
@@ -125,7 +125,7 @@ struct StoryViewerView: View {
 
                 Spacer()
 
-                // Own story: hàng người xem ở đáy
+                // Own story: viewers row at the bottom
                 if isOwn {
                     Button {
                         showViewers = true
@@ -238,7 +238,7 @@ struct StoryViewerView: View {
 
     // MARK: - Own-story actions
 
-    /// Xoá story đang hiển thị; hết story thì đóng viewer
+    /// Deletes the currently displayed story; closes the viewer when no stories remain
     private func deleteCurrentStory() async {
         guard let story = currentStory, !isDeleting else { return }
         isDeleting = true
@@ -256,11 +256,11 @@ struct StoryViewerView: View {
                 loadViewers()
             }
         } catch {
-            // Giữ nguyên story; user có thể thử lại
+            // Leave the story as-is; the user can retry
         }
     }
 
-    /// Lấy danh sách người xem cho story hiện tại (chỉ story của mình)
+    /// Fetches the viewer list for the current story (only works for your own story)
     private func loadViewers() {
         guard isOwn, let story = currentStory else { return }
         Task {

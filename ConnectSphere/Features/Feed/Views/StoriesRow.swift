@@ -1,8 +1,8 @@
 import SwiftUI
 import PhotosUI
 
-/// Hàng stories thật: tin của mình + tin từ connections (24h).
-/// Bấm bubble mở StoryViewerView; nút + để đăng tin mới.
+/// The real stories row: your own story + stories from connections (24h).
+/// Tapping a bubble opens StoryViewerView; the + button posts a new story.
 struct StoriesRow: View {
     @Environment(AppState.self) var appState
     @Environment(ThemeManager.self) var themeManager
@@ -15,7 +15,7 @@ struct StoriesRow: View {
     @State private var isPosting = false
 
     private let storyRepo = StoryRepository()
-    private let postRepo  = PostRepository()   // dùng chung endpoint upload ảnh
+    private let postRepo  = PostRepository()   // reuses the shared image upload endpoint
 
     private var myGroup: StoryGroup? {
         groups.first { $0.author.id == appState.currentUser?.id }
@@ -48,7 +48,7 @@ struct StoriesRow: View {
         }
         .fullScreenCover(item: $selectedGroup) { group in
             StoryViewerView(group: group) {
-                // Reload để cập nhật ring đã xem sau khi đóng viewer
+                // Reload to update the seen-state ring after closing the viewer
                 Task { await load() }
             }
         }
@@ -56,7 +56,7 @@ struct StoriesRow: View {
 
     // MARK: - Bubbles
 
-    /// Bubble "Tin của bạn": bấm avatar mở tin của mình (nếu có), nút + đăng tin mới
+    /// "Your story" bubble: tapping the avatar opens your own story (if any), + posts a new one
     private var myStoryBubble: some View {
         VStack(spacing: 5) {
             ZStack(alignment: .bottomTrailing) {

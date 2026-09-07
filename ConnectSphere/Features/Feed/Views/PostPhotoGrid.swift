@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Quy ước media trong image_urls: đuôi .mp4/.mov = video, còn lại là ảnh
-/// (backend upload chỉ cho phép 2 đuôi video này).
+/// Convention for media in image_urls: .mp4/.mov extension = video, everything else is an image
+/// (backend upload only allows these two video extensions).
 fileprivate extension String {
     var isVideoURL: Bool {
         let ext = URL(string: self)?.pathExtension.lowercased() ?? ""
@@ -9,13 +9,13 @@ fileprivate extension String {
     }
 }
 
-/// Lưới media kiểu Facebook cho bài viết nhiều ảnh/video:
-/// 1 media = full width · 2 = chia đôi · 3 = 1 lớn + 2 nhỏ · 4 = lưới 2×2
-/// 5+ = lưới 2×2 với overlay "+N" ở ô cuối. Bấm mở viewer lướt ngang
-/// (ảnh zoom được, video phát bằng AVPlayer).
+/// Facebook-style media grid for posts with multiple images/videos:
+/// 1 media = full width · 2 = split in half · 3 = 1 large + 2 small · 4 = 2×2 grid
+/// 5+ = 2×2 grid with a "+N" overlay on the last tile. Tapping opens a swipeable
+/// viewer (images zoom, video plays via AVPlayer).
 struct PostPhotoGrid: View {
     let urls: [String]
-    /// Chiều cao tổng của lưới (bài share nhúng dùng giá trị nhỏ hơn)
+    /// Total height of the grid (embedded shared posts use a smaller value)
     var gridHeight: CGFloat = 300
 
     @State private var viewerTarget: ViewerTarget?
@@ -67,7 +67,7 @@ struct PostPhotoGrid: View {
         }
     }
 
-    /// Items cho viewer dùng chung của app (ảnh zoom, video AVPlayer)
+    /// Items for the app's shared viewer (image zoom, video AVPlayer)
     private var viewerItems: [ChatMediaViewerItem] {
         urls.enumerated().compactMap { index, urlString in
             guard let url = URL(string: urlString) else { return nil }
@@ -79,7 +79,7 @@ struct PostPhotoGrid: View {
 
     // MARK: - Tile
 
-    /// Một ô media; video = nền tối + nút play; overflow > 0 → phủ lớp tối "+N"
+    /// A single media tile; video = dark background + play button; overflow > 0 → dark "+N" overlay
     private func tile(_ index: Int, height: CGFloat, overflow: Int = 0) -> some View {
         Button {
             viewerTarget = ViewerTarget(index: index)
