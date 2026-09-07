@@ -11,6 +11,9 @@ const assert = require('node:assert/strict');
 const dbConfig = require('../../../src/config/db');
 let queryImpl = async () => ({ rows: [] });
 mock.method(dbConfig, 'query', (...args) => queryImpl(...args));
+// withTransaction just runs the callback against the same mocked query, so a
+// test asserting on issued SQL sees the in-transaction statements too.
+mock.method(dbConfig, 'withTransaction', (fn) => fn({ query: (...args) => queryImpl(...args) }));
 
 const userModel = require('../../../src/models/userModel');
 

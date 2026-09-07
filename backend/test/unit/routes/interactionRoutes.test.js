@@ -15,6 +15,7 @@ const assert = require('node:assert/strict');
 const dbConfig = require('../../../src/config/db');
 let queryImpl = async () => ({ rows: [] });
 mock.method(dbConfig, 'query', (...args) => queryImpl(...args));
+mock.method(dbConfig, 'withTransaction', (fn) => fn({ query: (...args) => queryImpl(...args) }));
 
 const postModel = require('../../../src/models/postModel');
 

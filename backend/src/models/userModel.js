@@ -1,4 +1,4 @@
-const { query } = require('../config/db');
+const { query, withTransaction } = require('../config/db');
 const { personaCols, personaSetupClause, personaExpr } = require('../utils/personaSql');
 
 // Base SELECT used by both findAll and findById.
@@ -258,36 +258,41 @@ async function updateProfile(userId, fields, { interests = null, skills = null, 
     sets.push(`age = EXTRACT(YEAR FROM AGE($${dobParamIdx}::date))::int`);
   }
 
-  if (sets.length > 0) {
-    await query(
-      `UPDATE users SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $1`,
-      params
-    );
-  }
+  // One transaction: the profile UPDATE plus the interests/skills replace must
+  // be all-or-nothing — a failure after the DELETE previously wiped the lists.
+  // The per-row INSERT loop is collapsed into a single UNNEST insert.
+  await withTransaction(async (client) => {
+    if (sets.length > 0) {
+      await client.query(
+        `UPDATE users SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $1`,
+        params
+      );
+    }
 
-  if (Array.isArray(interests)) {
-    await query('DELETE FROM user_interests WHERE user_id = $1', [userId]);
-    for (const interest of interests) {
-      if (interest?.trim()) {
-        await query(
-          'INSERT INTO user_interests (user_id, interest) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-          [userId, interest.trim()]
+    if (Array.isArray(interests)) {
+      const clean = [...new Set(interests.map((i) => i?.trim()).filter(Boolean))];
+      await client.query('DELETE FROM user_interests WHERE user_id = $1', [userId]);
+      if (clean.length) {
+        await client.query(
+          `INSERT INTO user_interests (user_id, interest)
+           SELECT $1, unnest($2::text[]) ON CONFLICT DO NOTHING`,
+          [userId, clean]
         );
       }
     }
-  }
 
-  if (Array.isArray(skills)) {
-    await query('DELETE FROM user_skills WHERE user_id = $1', [userId]);
-    for (const skill of skills) {
-      if (skill?.trim()) {
-        await query(
-          'INSERT INTO user_skills (user_id, skill) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-          [userId, skill.trim()]
+    if (Array.isArray(skills)) {
+      const clean = [...new Set(skills.map((s) => s?.trim()).filter(Boolean))];
+      await client.query('DELETE FROM user_skills WHERE user_id = $1', [userId]);
+      if (clean.length) {
+        await client.query(
+          `INSERT INTO user_skills (user_id, skill)
+           SELECT $1, unnest($2::text[]) ON CONFLICT DO NOTHING`,
+          [userId, clean]
         );
       }
     }
-  }
+  });
 
   return findById(userId, mode);
 }
@@ -297,43 +302,50 @@ async function updateProfile(userId, fields, { interests = null, skills = null, 
 // Block a user: write to user_blocks + remove any connection between the two
 // (removing an accepted connection also decrements follower/following on both sides).
 async function blockUser(blockerId, blockedId) {
-  await query(
-    `INSERT INTO user_blocks (blocker_id, blocked_id)
-     VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-    [blockerId, blockedId]
-  );
-
-  const { rows: accepted } = await query(
-    `DELETE FROM connections
-     WHERE status = 'accepted'
-       AND ((requester_id = $1 AND addressee_id = $2)
-         OR (requester_id = $2 AND addressee_id = $1))
-     RETURNING id`,
-    [blockerId, blockedId]
-  );
-  if (accepted.length > 0) {
-    await query(
-      `UPDATE users
-       SET follower_count  = GREATEST(follower_count  - $3, 0),
-           following_count = GREATEST(following_count - $3, 0)
-       WHERE id IN ($1, $2)`,
-      [blockerId, blockedId, accepted.length]
+  await withTransaction(async (client) => {
+    await client.query(
+      `INSERT INTO user_blocks (blocker_id, blocked_id)
+       VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [blockerId, blockedId]
     );
-  }
 
-  // Also remove any remaining pending/rejected requests
-  await query(
-    `DELETE FROM connections
-     WHERE (requester_id = $1 AND addressee_id = $2)
-        OR (requester_id = $2 AND addressee_id = $1)`,
-    [blockerId, blockedId]
-  );
+    const { rows: accepted } = await client.query(
+      `DELETE FROM connections
+       WHERE status = 'accepted'
+         AND ((requester_id = $1 AND addressee_id = $2)
+           OR (requester_id = $2 AND addressee_id = $1))
+       RETURNING id`,
+      [blockerId, blockedId]
+    );
+    if (accepted.length > 0) {
+      await client.query(
+        `UPDATE users
+         SET follower_count  = GREATEST(follower_count  - $3, 0),
+             following_count = GREATEST(following_count - $3, 0)
+         WHERE id IN ($1, $2)`,
+        [blockerId, blockedId, accepted.length]
+      );
+    }
+
+    // Also remove any remaining pending/rejected requests
+    await client.query(
+      `DELETE FROM connections
+       WHERE (requester_id = $1 AND addressee_id = $2)
+          OR (requester_id = $2 AND addressee_id = $1)`,
+      [blockerId, blockedId]
+    );
+  });
 }
 
 // Soft delete an account: remove all social links + scrub PII on the users row.
 // Posts/comments/messages are KEPT AS-IS — the JOIN to users will naturally show "Deleted User".
 // Embedding chunks are deleted so the user + their posts disappear from search/feed recommendations.
 async function softDeleteAccount(userId) {
+ // All ~13 writes below run in one transaction — a crash partway through
+ // previously left a half-deleted account (social graph gone, but username /
+ // email / password_hash still live and the account fully usable).
+ await withTransaction(async (client) => {
+  const query = client.query.bind(client);
   // 1. Accepted connections: delete + decrement follower/following on the other side
   //    (a pair could have 2 connections across 2 modes → GROUP BY counts them correctly)
   await query(
@@ -432,6 +444,7 @@ async function softDeleteAccount(userId) {
      WHERE id = $1`,
     [userId]
   );
+ });
 }
 
 async function unblockUser(blockerId, blockedId) {

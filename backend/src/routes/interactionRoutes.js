@@ -14,7 +14,7 @@
  */
 
 const router = require('express').Router({ mergeParams: true });
-const { query } = require('../config/db');
+const { query, withTransaction } = require('../config/db');
 const postModel = require('../models/postModel');
 const {
   pushUserNotification, actorPayload, hasPendingDuplicate,
@@ -46,28 +46,30 @@ router.post('/like', async (req, res, next) => {
     const post = await fetchVisiblePostMeta(postId, userId);
     if (!post) return res.status(404).json({ error: 'Post not found' });
 
-    // INSERT first — ON CONFLICT tells us whether it was already liked without
-    // racing between the check step and the write step.
-    const inserted = await query(
-      `INSERT INTO post_likes (post_id, user_id) VALUES ($1, $2)
-       ON CONFLICT DO NOTHING
-       RETURNING 1`,
-      [postId, userId]
-    );
+    // The like/unlike row change and the like_count adjustment must land
+    // together — a crash between them permanently desyncs the counter.
+    const liked = await withTransaction(async (client) => {
+      // INSERT first — ON CONFLICT tells us whether it was already liked without
+      // racing between the check step and the write step.
+      const inserted = await client.query(
+        `INSERT INTO post_likes (post_id, user_id) VALUES ($1, $2)
+         ON CONFLICT DO NOTHING
+         RETURNING 1`,
+        [postId, userId]
+      );
 
-    let liked;
-    if (inserted.rows.length > 0) {
-      await query('UPDATE posts SET like_count = like_count + 1 WHERE id = $1', [postId]);
-      liked = true;
-    } else {
-      const del = await query(
+      if (inserted.rows.length > 0) {
+        await client.query('UPDATE posts SET like_count = like_count + 1 WHERE id = $1', [postId]);
+        return true;
+      }
+      const del = await client.query(
         'DELETE FROM post_likes WHERE post_id = $1 AND user_id = $2', [postId, userId]
       );
       if (del.rowCount > 0) {
-        await query('UPDATE posts SET like_count = GREATEST(like_count - 1, 0) WHERE id = $1', [postId]);
+        await client.query('UPDATE posts SET like_count = GREATEST(like_count - 1, 0) WHERE id = $1', [postId]);
       }
-      liked = false;
-    }
+      return false;
+    });
 
     const { rows: [row] } = await query('SELECT like_count FROM posts WHERE id = $1', [postId]);
     res.json({ liked, like_count: row.like_count });
@@ -167,17 +169,19 @@ router.post('/comments', async (req, res, next) => {
       }
     }
 
-    const { rows: [comment] } = await query(
-      `INSERT INTO comments (post_id, author_id, content, parent_comment_id)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, content, created_at, parent_comment_id, like_count`,
-      [postId, req.userId, content.trim(), parent_comment_id]
-    );
-
-    const { rows: [{ comment_count: commentCount }] } = await query(
-      'UPDATE posts SET comment_count = comment_count + 1 WHERE id = $1 RETURNING comment_count',
-      [postId]
-    );
+    const { comment, commentCount } = await withTransaction(async (client) => {
+      const { rows: [c] } = await client.query(
+        `INSERT INTO comments (post_id, author_id, content, parent_comment_id)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, content, created_at, parent_comment_id, like_count`,
+        [postId, req.userId, content.trim(), parent_comment_id]
+      );
+      const { rows: [{ comment_count: cc }] } = await client.query(
+        'UPDATE posts SET comment_count = comment_count + 1 WHERE id = $1 RETURNING comment_count',
+        [postId]
+      );
+      return { comment: c, commentCount: cc };
+    });
 
     // Commenter's identity resolved for the post's mode (post.mode from fetchVisiblePostMeta)
     const { rows: [author] } = await query(
@@ -254,15 +258,18 @@ router.delete('/comments/:commentId', async (req, res, next) => {
       return res.status(403).json({ error: 'Not allowed to delete this comment' });
     }
 
-    const { rowCount } = await query(
-      `UPDATE comments SET status = 'deleted', deleted_at = NOW()
-       WHERE (id = $1 OR parent_comment_id = $1) AND status = 'posted'`,
-      [commentId]
-    );
-    await query(
-      'UPDATE posts SET comment_count = GREATEST(comment_count - $2, 0) WHERE id = $1',
-      [postId, rowCount]
-    );
+    const rowCount = await withTransaction(async (client) => {
+      const del = await client.query(
+        `UPDATE comments SET status = 'deleted', deleted_at = NOW()
+         WHERE (id = $1 OR parent_comment_id = $1) AND status = 'posted'`,
+        [commentId]
+      );
+      await client.query(
+        'UPDATE posts SET comment_count = GREATEST(comment_count - $2, 0) WHERE id = $1',
+        [postId, del.rowCount]
+      );
+      return del.rowCount;
+    });
 
     res.json({ status: 'ok', removed: rowCount });
   } catch (err) { next(err); }

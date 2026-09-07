@@ -10,7 +10,7 @@
  */
 
 const router = require('express').Router();
-const { query } = require('../config/db');
+const { query, withTransaction } = require('../config/db');
 const { authMiddleware } = require('./authRoutes');
 const { pushUserNotification, actorPayload } = require('../services/userNotifyService');
 const { personaExpr } = require('../utils/personaSql');
@@ -199,25 +199,30 @@ router.post('/accept', async (req, res, next) => {
     const { connection_id } = req.body;
     if (!connection_id) return res.status(400).json({ error: 'connection_id required' });
 
-    // Conditional UPDATE on status='pending' → a repeated call won't bump the count again
-    const { rows: [conn] } = await query(
-      `UPDATE connections
-       SET status = 'accepted', updated_at = NOW()
-       WHERE id = $1 AND addressee_id = $2 AND status = 'pending'
-       RETURNING id, requester_id, addressee_id, mode`,
-      [connection_id, req.userId]
-    );
+    // The status flip and the follower/following bump must land together — if
+    // the count write failed, a retry hit the now-'accepted' row (409) and the
+    // counts stayed wrong forever. Conditional on status='pending' so a repeat
+    // still can't double-count.
+    const conn = await withTransaction(async (client) => {
+      const { rows: [c] } = await client.query(
+        `UPDATE connections
+         SET status = 'accepted', updated_at = NOW()
+         WHERE id = $1 AND addressee_id = $2 AND status = 'pending'
+         RETURNING id, requester_id, addressee_id, mode`,
+        [connection_id, req.userId]
+      );
+      if (!c) return null;
+      await client.query(
+        `UPDATE users
+         SET follower_count = follower_count + 1, following_count = following_count + 1
+         WHERE id IN ($1, $2)`,
+        [c.requester_id, c.addressee_id]
+      );
+      return c;
+    });
     if (!conn) {
       return res.status(409).json({ error: 'Request not found, not yours, or already handled' });
     }
-
-    // A connection is a mutual relationship: both sides get +1 follower and +1 following
-    await query(
-      `UPDATE users
-       SET follower_count = follower_count + 1, following_count = following_count + 1
-       WHERE id IN ($1, $2)`,
-      [conn.requester_id, conn.addressee_id]
-    );
 
     await notifyConnection(conn.requester_id, req.userId, 'connection_accepted', { mode: conn.mode });
 
@@ -271,24 +276,27 @@ router.post('/remove', async (req, res, next) => {
     const { connection_id } = req.body;
     if (!connection_id) return res.status(400).json({ error: 'connection_id required' });
 
-    const { rows: [removed] } = await query(
-      `DELETE FROM connections
-       WHERE id = $1 AND status = 'accepted'
-         AND (requester_id = $2 OR addressee_id = $2)
-       RETURNING requester_id, addressee_id`,
-      [connection_id, req.userId]
-    );
+    const removed = await withTransaction(async (client) => {
+      const { rows: [r] } = await client.query(
+        `DELETE FROM connections
+         WHERE id = $1 AND status = 'accepted'
+           AND (requester_id = $2 OR addressee_id = $2)
+         RETURNING requester_id, addressee_id`,
+        [connection_id, req.userId]
+      );
+      if (!r) return null;
+      await client.query(
+        `UPDATE users
+         SET follower_count  = GREATEST(follower_count  - 1, 0),
+             following_count = GREATEST(following_count - 1, 0)
+         WHERE id IN ($1, $2)`,
+        [r.requester_id, r.addressee_id]
+      );
+      return r;
+    });
     if (!removed) {
       return res.status(409).json({ error: 'Connection not found or not yours' });
     }
-
-    await query(
-      `UPDATE users
-       SET follower_count  = GREATEST(follower_count  - 1, 0),
-           following_count = GREATEST(following_count - 1, 0)
-       WHERE id IN ($1, $2)`,
-      [removed.requester_id, removed.addressee_id]
-    );
 
     res.json({ status: 'none' });
   } catch (err) { next(err); }

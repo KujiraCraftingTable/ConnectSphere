@@ -9,7 +9,7 @@ const jwt        = require('jsonwebtoken');
 const path       = require('path');
 
 const { validateEnv, PORT, NODE_ENV } = require('./src/config/env');
-const { connectDB, query } = require('./src/config/db');
+const { connectDB, query, pool } = require('./src/config/db');
 const errorHandler     = require('./src/middlewares/errorHandler');
 const logger           = require('./src/utils/logger');
 const messageModel     = require('./src/models/messageModel');
@@ -581,11 +581,36 @@ async function start() {
   startChunkSweepJob();
   logger.info('Tag extraction + chunk embedding workers started');
 
-  process.on('SIGTERM', async () => {
-    await tagWorker.close();
-    await embedWorker.close();
-    logger.info('Workers closed');
-  });
+  let shuttingDown = false;
+  async function gracefulShutdown(signal) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    logger.info({ signal }, 'Shutting down…');
+
+    // Stop accepting new HTTP connections; let in-flight requests drain.
+    server.close(() => logger.info('HTTP server closed'));
+    io.close();
+
+    // Hard exit if the drain takes too long (Docker sends SIGKILL at 10s).
+    const forceExit = setTimeout(() => {
+      logger.warn('Graceful shutdown timed out — forcing exit');
+      process.exit(1);
+    }, 8_000);
+    forceExit.unref();
+
+    try {
+      await Promise.allSettled([tagWorker.close(), embedWorker.close()]);
+      await pool.end();
+      logger.info('Workers + DB pool closed');
+      clearTimeout(forceExit);
+      process.exit(0);
+    } catch (err) {
+      logger.error({ err }, 'Error during shutdown');
+      process.exit(1);
+    }
+  }
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
 }
 
 start().catch((err) => {
