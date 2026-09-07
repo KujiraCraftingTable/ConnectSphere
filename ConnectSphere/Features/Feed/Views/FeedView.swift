@@ -35,6 +35,22 @@ struct FeedView: View {
                     if viewModel.isLoading && viewModel.posts(for: appState.currentMode).isEmpty {
                         ProgressView()
                             .padding(.top, 40)
+                    } else if let error = viewModel.error, viewModel.posts(for: appState.currentMode).isEmpty {
+                        VStack(spacing: 10) {
+                            Image(systemName: "wifi.exclamationmark")
+                                .font(.system(size: 36))
+                                .foregroundColor(AppColors.textTertiary(colorScheme))
+                            Text(error)
+                                .font(.system(size: 14))
+                                .multilineTextAlignment(.center)
+                                .foregroundColor(AppColors.textSecondary(colorScheme))
+                                .padding(.horizontal, 32)
+                            Button(bundle.loc("Retry")) {
+                                Task { await viewModel.loadPosts(for: appState.currentMode) }
+                            }
+                            .font(.system(size: 14, weight: .semibold))
+                        }
+                        .padding(.top, 40)
                     } else if viewModel.posts(for: appState.currentMode).isEmpty {
                         VStack(spacing: 10) {
                             Image(systemName: "person.2")
@@ -79,6 +95,9 @@ struct FeedView: View {
             }
             .background(AppColors.base(colorScheme))
             .navigationBarTitleDisplayMode(.inline)
+            .refreshable {
+                await viewModel.loadPosts(for: appState.currentMode)
+            }
             .task {
                 await viewModel.loadPostsIfNeeded(for: appState.currentMode)
             }

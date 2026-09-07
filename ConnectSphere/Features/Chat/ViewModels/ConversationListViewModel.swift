@@ -34,7 +34,7 @@ class ConversationListViewModel {
             async let unread = repository.fetchUnreadCount(mode: mode, token: token)
             (conversations, unreadCount) = try await (convs, unread)
         } catch {
-            self.error = Bundle.app.loc("Could not load conversations")
+            self.error = friendlyError(error)
         }
     }
 

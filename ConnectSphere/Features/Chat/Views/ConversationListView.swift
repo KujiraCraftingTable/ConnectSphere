@@ -35,6 +35,23 @@ struct ConversationListView: View {
                 if viewModel.isLoading && viewModel.conversations.isEmpty {
                     ProgressView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let error = viewModel.error, viewModel.conversations.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "wifi.exclamationmark")
+                            .font(.system(size: 38))
+                            .foregroundColor(AppColors.textTertiary(colorScheme))
+                        Text(error)
+                            .font(.system(size: 14))
+                            .multilineTextAlignment(.center)
+                            .foregroundColor(AppColors.textSecondary(colorScheme))
+                            .padding(.horizontal, 32)
+                        Button(bundle.loc("Retry")) {
+                            Task { await viewModel.load(mode: appState.currentMode.rawValue,
+                                                        token: appState.authToken ?? "") }
+                        }
+                        .font(.system(size: 14, weight: .semibold))
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if viewModel.conversations.isEmpty {
                     emptyState
                 } else {

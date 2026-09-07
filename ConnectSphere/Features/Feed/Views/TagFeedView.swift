@@ -14,6 +14,7 @@ struct TagFeedView: View {
     @State private var posts: [Post] = []
     @State private var isLoading = false
     @State private var isLoadingMore = false
+    @State private var loadError: String?
     @State private var offset = 0
     @State private var hasMore = true
 
@@ -25,6 +26,20 @@ struct TagFeedView: View {
             LazyVStack(spacing: 5) {
                 if isLoading && posts.isEmpty {
                     ProgressView().padding(.top, 60)
+                } else if let loadError, posts.isEmpty {
+                    VStack(spacing: 10) {
+                        Image(systemName: "wifi.exclamationmark")
+                            .font(.system(size: 36))
+                            .foregroundColor(AppColors.textTertiary(colorScheme))
+                        Text(loadError)
+                            .font(.system(size: 14))
+                            .multilineTextAlignment(.center)
+                            .foregroundColor(AppColors.textSecondary(colorScheme))
+                            .padding(.horizontal, 32)
+                        Button(bundle.loc("Retry")) { Task { await load() } }
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                    .padding(.top, 60)
                 } else if posts.isEmpty {
                     VStack(spacing: 10) {
                         Image(systemName: "number")
@@ -75,13 +90,18 @@ struct TagFeedView: View {
     /// Loads the first page (resets pagination)
     private func load() async {
         isLoading = true
+        loadError = nil
         defer { isLoading = false }
         offset = 0
         hasMore = true
-        let fetched = (try? await repository.fetchPostsByTag(tag, mode: mode, limit: pageSize, offset: 0)) ?? []
-        posts = fetched
-        offset = fetched.count
-        hasMore = fetched.count == pageSize
+        do {
+            let fetched = try await repository.fetchPostsByTag(tag, mode: mode, limit: pageSize, offset: 0)
+            posts = fetched
+            offset = fetched.count
+            hasMore = fetched.count == pageSize
+        } catch {
+            loadError = friendlyError(error)
+        }
     }
 
     /// Loads the next page when the user scrolls to the end of the list

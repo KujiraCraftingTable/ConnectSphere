@@ -85,7 +85,7 @@ class FeedViewModel {
             }
             loadedModes.insert(mode)
         } catch {
-            self.error = error.localizedDescription
+            self.error = friendlyError(error)
         }
         isLoading = false
     }
