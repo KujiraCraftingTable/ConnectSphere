@@ -15,4 +15,13 @@ struct BlockedUserDTO: Decodable, Identifiable {
         case avatarUrl   = "avatar_url"
         case blockedAt   = "blocked_at"
     }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id          = try c.decode(String.self, forKey: .id)
+        displayName = try c.decodeIfPresent(String.self, forKey: .displayName) ?? "Deleted User"
+        avatarColor = try c.decodeIfPresent(String.self, forKey: .avatarColor)
+        avatarUrl   = try c.decodeIfPresent(String.self, forKey: .avatarUrl)
+        blockedAt   = try c.decode(Date.self, forKey: .blockedAt)
+    }
 }

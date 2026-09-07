@@ -59,6 +59,38 @@ struct AuthUserDTO: Decodable {
         case workSetup      = "work_setup"
     }
 
+    // A pre-onboarding /auth/me (or a Google first-login) can omit half of
+    // these. Decode leniently so login / auto-login never fails outright — a
+    // missing displayName/defaultMode/counts just gets a sensible default.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id             = try c.decode(String.self, forKey: .id)
+        username       = try c.decodeIfPresent(String.self, forKey: .username) ?? ""
+        displayName    = try c.decodeIfPresent(String.self, forKey: .displayName) ?? ""
+        bio            = try c.decodeIfPresent(String.self, forKey: .bio)
+        avatarColor    = try c.decodeIfPresent(String.self, forKey: .avatarColor) ?? "#7F5AF0"
+        avatarUrl      = try c.decodeIfPresent(String.self, forKey: .avatarUrl)
+        coverUrl       = try c.decodeIfPresent(String.self, forKey: .coverUrl)
+        jobTitle       = try c.decodeIfPresent(String.self, forKey: .jobTitle)
+        company        = try c.decodeIfPresent(String.self, forKey: .company)
+        location       = try c.decodeIfPresent(String.self, forKey: .location)
+        gender         = try c.decodeIfPresent(String.self, forKey: .gender)
+        email          = try c.decodeIfPresent(String.self, forKey: .email)
+        hasPassword    = try c.decodeIfPresent(Bool.self, forKey: .hasPassword)
+        age            = try c.decodeIfPresent(Int.self, forKey: .age)
+        dob            = try c.decodeIfPresent(String.self, forKey: .dob)
+        dobVisibility  = try c.decodeIfPresent(String.self, forKey: .dobVisibility)
+        defaultMode    = try c.decodeIfPresent(String.self, forKey: .defaultMode) ?? "hobby"
+        followerCount  = try c.decodeIfPresent(Int.self, forKey: .followerCount) ?? 0
+        followingCount = try c.decodeIfPresent(Int.self, forKey: .followingCount) ?? 0
+        postCount      = try c.decodeIfPresent(Int.self, forKey: .postCount) ?? 0
+        isSetup        = try c.decodeIfPresent(Bool.self, forKey: .isSetup) ?? false
+        hobbySetup     = try c.decodeIfPresent(Bool.self, forKey: .hobbySetup)
+        workSetup      = try c.decodeIfPresent(Bool.self, forKey: .workSetup)
+        interests      = try c.decodeIfPresent([String].self, forKey: .interests) ?? []
+        skills         = try c.decodeIfPresent([String].self, forKey: .skills) ?? []
+    }
+
     func toUserProfile() -> UserProfile {
         UserProfile(
             id: id, name: displayName, username: username,
