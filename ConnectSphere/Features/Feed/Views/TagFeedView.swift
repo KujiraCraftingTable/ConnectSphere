@@ -1,11 +1,15 @@
 import SwiftUI
 
-/// Duyệt bài viết theo hashtag — mở khi bấm vào tag chip trên PostCard.
+/// Browse posts by hashtag — opened by tapping a tag chip on PostCard.
 struct TagFeedView: View {
     @Environment(\.appBundle) var bundle
     @Environment(\.colorScheme) var colorScheme
 
     let tag: String
+    /// Scopes tag browsing to the mode the tag chip was tapped from — matches
+    /// every other post-list surface (main Feed, connections scope) being
+    /// mode-scoped, instead of mixing hobby and work posts together.
+    let mode: AppMode
 
     @State private var posts: [Post] = []
     @State private var isLoading = false
@@ -46,7 +50,7 @@ struct TagFeedView: View {
                         .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.06),
                                 radius: 4, x: 0, y: 2)
                         .onAppear {
-                            // Cuộn tới bài cuối → tải trang tiếp theo
+                            // Scrolled to the last post → load the next page
                             if post.id == posts.last?.id {
                                 Task { await loadMore() }
                             }
@@ -68,24 +72,24 @@ struct TagFeedView: View {
         .refreshable { await load() }
     }
 
-    /// Tải trang đầu (reset phân trang)
+    /// Loads the first page (resets pagination)
     private func load() async {
         isLoading = true
         defer { isLoading = false }
         offset = 0
         hasMore = true
-        let fetched = (try? await repository.fetchPostsByTag(tag, limit: pageSize, offset: 0)) ?? []
+        let fetched = (try? await repository.fetchPostsByTag(tag, mode: mode, limit: pageSize, offset: 0)) ?? []
         posts = fetched
         offset = fetched.count
         hasMore = fetched.count == pageSize
     }
 
-    /// Tải trang tiếp theo khi cuộn tới cuối danh sách
+    /// Loads the next page when the user scrolls to the end of the list
     private func loadMore() async {
         guard !isLoadingMore, hasMore else { return }
         isLoadingMore = true
         defer { isLoadingMore = false }
-        let fetched = (try? await repository.fetchPostsByTag(tag, limit: pageSize, offset: offset)) ?? []
+        let fetched = (try? await repository.fetchPostsByTag(tag, mode: mode, limit: pageSize, offset: offset)) ?? []
         let existingIds = Set(posts.map(\.id))
         posts += fetched.filter { !existingIds.contains($0.id) }
         offset += fetched.count

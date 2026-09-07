@@ -57,8 +57,12 @@ struct FeedView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                             .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.06),
                                     radius: 4, x: 0, y: 2)
+                            // Makes a just-created post visibly slide/fade in at
+                            // the top instead of silently popping into place —
+                            // the "yes, this actually posted" confirmation.
+                            .transition(.move(edge: .top).combined(with: .opacity))
                             .onAppear {
-                                // Cuộn tới bài cuối → tải trang tiếp theo
+                                // Scrolled to the last post → load the next page
                                 if post.id == posts.last?.id {
                                     Task { await viewModel.loadMorePosts(for: appState.currentMode) }
                                 }
@@ -100,6 +104,28 @@ struct FeedView: View {
                     await viewModel.loadPosts(for: appState.currentMode)
                 }
             }
+            // Inside `ScrollViewReader`'s scope so `proxy` is reachable —
+            // posting used to only trigger a silent background reload, which
+            // left the new post above the fold (or racing a reload the user
+            // never saw finish) and was the whole reason this felt broken:
+            // no confirmation short of leaving the feed to check Profile.
+            // Now the post is inserted immediately (no network round-trip to
+            // even see it) and the feed animates back to the top to show it.
+            .sheet(isPresented: $showCreatePost) {
+                CreatePostView(onPostCreated: { post in
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        // Use the post's OWN mode (as the server actually recorded it),
+                        // not appState.currentMode re-read at completion time — the two
+                        // could in principle diverge if the mode changed while the
+                        // composer sheet was open.
+                        viewModel.prependPost(post, for: post.mode)
+                    }
+                    withAnimation(.easeInOut(duration: 0.4)) {
+                        proxy.scrollTo("feedTop", anchor: .top)
+                    }
+                })
+                .environment(appState)
+            }
             } // ScrollViewReader
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -108,12 +134,6 @@ struct FeedView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     chatIconButton
                 }
-            }
-            .sheet(isPresented: $showCreatePost) {
-                CreatePostView(onPostCreated: {
-                    Task { await viewModel.loadPosts(for: appState.currentMode) }
-                })
-                .environment(appState)
             }
             .navigationDestination(isPresented: $showMessages) {
                 ConversationListView()
@@ -163,7 +183,7 @@ struct FeedView: View {
         let isActive = appState.currentMode == mode
         return Button {
             withAnimation(.spring(response: 0.3)) {
-                // Chưa setup persona của mode đích → AppState hiện form tạo trước
+                // The target mode's persona isn't set up yet → AppState shows the creation form first
                 appState.requestModeSwitch(to: mode)
             }
         } label: {

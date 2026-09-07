@@ -2,7 +2,7 @@ import SwiftUI
 
 struct PrivacyPickerSheet: View {
     @Binding var selected: PostPrivacy
-    /// Chế độ hiện tại — quyết định cách gọi mức "friends" (Bạn bè / Kết nối)
+    /// Current mode — determines the wording for the "friends" level (Friends / Connections)
     var mode: AppMode = .hobby
     @Environment(\.appBundle) var bundle
     @Environment(\.dismiss) private var dismiss

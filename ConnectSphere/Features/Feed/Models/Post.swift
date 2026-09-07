@@ -3,6 +3,22 @@ import Foundation
 extension Notification.Name {
     static let postDeleted = Notification.Name("postDeleted")
     static let postUpdated = Notification.Name("postUpdated")
+    /// A soft-deleted post was restored (Undo toast or Recently Deleted screen).
+    /// userInfo["post"] carries the restored `Post`. Deliberately separate from
+    /// `.postUpdated` — that notification's observers only patch an EXISTING
+    /// list entry (`FeedViewModel.updatePost`/`ProfileViewModel.updatePost`
+    /// both use `firstIndex(where:)` with no insert fallback), but a restored
+    /// post was just removed from those lists and needs to be re-inserted.
+    static let postRestored = Notification.Name("postRestored")
+    /// A new post was successfully created, from ANY composer entry point
+    /// (Feed's, Profile's own, etc.). userInfo["post"] carries the created
+    /// `Post`. Feed/Community view models already learn about their own new
+    /// post directly via the composer's success callback (no round-trip
+    /// needed), but `AppState.currentUser.postCount` and a `ProfileViewModel`
+    /// that ISN'T the one that created the post (e.g. still alive in memory
+    /// after switching tabs from Home, where post creation happens) have no
+    /// other way to learn the count went up — this closes that gap.
+    static let postCreated = Notification.Name("postCreated")
 }
 
 enum PostPrivacy: String, CaseIterable {
@@ -34,8 +50,8 @@ enum PostPrivacy: String, CaseIterable {
         }
     }
 
-    /// Nhãn phụ thuộc mode: mức "friends" gọi là "Bạn bè" ở chế độ bạn bè,
-    /// "Kết nối" ở chế độ công việc. Các mức khác giữ nguyên.
+    /// Mode-dependent label: the "friends" level is called "Friends" in hobby
+    /// mode, "Connections" in work mode. Other levels are unchanged.
     func label(for mode: AppMode) -> String {
         if self == .friends {
             return mode == .hobby ? Bundle.app.loc("Friends") : Bundle.app.loc("Connections")
@@ -43,7 +59,7 @@ enum PostPrivacy: String, CaseIterable {
         return label
     }
 
-    /// Mô tả phụ thuộc mode, đồng bộ cách gọi "bạn bè"/"kết nối".
+    /// Mode-dependent description, kept in sync with the "friends"/"connections" wording.
     func description(for mode: AppMode) -> String {
         if self == .friends {
             return mode == .hobby
@@ -54,7 +70,7 @@ enum PostPrivacy: String, CaseIterable {
     }
 }
 
-/// Bản rút gọn của bài gốc được nhúng trong một bài share
+/// Condensed version of the original post embedded in a shared post
 struct SharedPostPreview {
     let id: String
     let author: UserProfile
@@ -65,7 +81,7 @@ struct SharedPostPreview {
     let articleTitle: String?
     let timestamp: Date
 
-    /// Ảnh để render lưới: ưu tiên mảng mới, fallback ảnh đơn của bài cũ
+    /// Images to render the grid: prefer the new array, fall back to the old post's single image
     var displayImageUrls: [String] {
         if !imageUrls.isEmpty { return imageUrls }
         if linkUrl == nil, let imageUrl { return [imageUrl] }
@@ -80,21 +96,29 @@ struct Post: Identifiable {
     let timestamp: Date
     let mode: AppMode
     var privacy: PostPrivacy = .publicAll
-    var linkUrl: String?         // URL gốc cho link preview
-    var imageUrl: String?        // thumbnail URL (từ link preview hoặc upload) — legacy, = ảnh đầu
-    var imageUrls: [String] = [] // mảng ảnh upload, có thứ tự
+    var linkUrl: String?         // original URL for the link preview
+    var imageUrl: String?        // thumbnail URL (from link preview or upload) — legacy, = first image
+    var imageUrls: [String] = [] // uploaded image array, ordered
     var likeCount: Int
     var commentCount: Int
     var shareCount: Int
     var isLiked: Bool = false
+    var isSaved: Bool = false
     var articleTitle: String?
     var tags: [String]
-    /// non-nil = đây là bài share; sharedPost nil khi bài gốc đã bị xóa
+    /// non-nil = this is a shared post; sharedPost is nil when the original post has been deleted
     var sharedPostId: String? = nil
     var sharedPost: SharedPostPreview? = nil
+    /// Poll/event posts on the Feed reuse the same community-agnostic
+    /// PostType/PollData/EventData types from Communities (see
+    /// CommunityPost.swift) — a Feed post and a community post render polls
+    /// and events identically, just via a different card entry point.
+    var postType: PostType = .text
+    var pollData: PollData? = nil
+    var eventData: EventData? = nil
 
-    /// Ảnh để render lưới: ưu tiên mảng mới, fallback ảnh đơn của bài cũ.
-    /// Bài có link preview không tính (ảnh đó thuộc link card).
+    /// Images to render the grid: prefer the new array, fall back to the old post's single image.
+    /// Posts with a link preview don't count (that image belongs to the link card).
     var displayImageUrls: [String] {
         if !imageUrls.isEmpty { return imageUrls }
         if linkUrl == nil, let imageUrl { return [imageUrl] }

@@ -1,10 +1,10 @@
 const { query } = require('../config/db');
 const { personaExpr } = require('../utils/personaSql');
 
-// Shared SELECT for post rows. `viewerRef` là placeholder SQL (vd '$1') chứa
-// UUID của viewer (hoặc NULL) — luôn parameterized, không bao giờ nội suy chuỗi.
-// Danh tính tác giả resolve theo persona của MODE BÀI VIẾT (p.mode/sp.mode) —
-// bài hobby hiện tên hobby, bài work hiện tên work.
+// Shared SELECT for post rows. `viewerRef` is a SQL placeholder (e.g. '$1') holding
+// the viewer's UUID (or NULL) — always parameterized, never string-interpolated.
+// Author identity resolves according to the POST'S OWN MODE persona (p.mode/sp.mode) —
+// a hobby post shows the hobby display name, a work post shows the work display name.
 const buildPostSelect = (viewerRef) => `
   SELECT
     p.id, p.content, p.mode, p.privacy, p.image_urls[1] AS image_url, p.image_urls, p.article_title, p.link_url,
@@ -14,6 +14,10 @@ const buildPostSelect = (viewerRef) => `
       SELECT 1 FROM post_likes pl
       WHERE pl.post_id = p.id AND pl.user_id = ${viewerRef}::uuid
     ) AS is_liked,
+    EXISTS(
+      SELECT 1 FROM saved_posts sp2
+      WHERE sp2.post_id = p.id AND sp2.user_id = ${viewerRef}::uuid
+    ) AS is_saved,
     CASE WHEN p.shared_post_id IS NOT NULL THEN (
       SELECT json_build_object(
         'id',            sp.id,
@@ -35,7 +39,12 @@ const buildPostSelect = (viewerRef) => `
       JOIN users su ON su.id = sp.author_id
       WHERE sp.id = p.shared_post_id AND sp.status = 'posted'
     ) ELSE NULL END AS shared_post,
-    COALESCE(json_agg(DISTINCT pt.tag) FILTER (WHERE pt.tag IS NOT NULL), '[]') AS tags,
+    -- Visibility-aware: user-typed hashtags always show; AI-extracted tags
+    -- only show when the author opted in via posts.show_ai_tags at creation
+    -- time. A hidden AI tag never reaches the API response at all.
+    COALESCE(json_agg(DISTINCT pt.tag) FILTER (
+      WHERE pt.tag IS NOT NULL AND (pt.source = 'user' OR p.show_ai_tags)
+    ), '[]') AS tags,
     json_build_object(
       'id',           u.id,
       'username',     u.username,
@@ -88,8 +97,8 @@ const buildPostSelect = (viewerRef) => `
   LEFT JOIN post_tags pt ON pt.post_id = p.id
 `;
 
-// Quyền xem post: public, bài của chính mình, hoặc 'friends' khi hai bên đã
-// accepted connection. 'only_me' chỉ tác giả thấy.
+// Post view permission: public, your own post, or 'friends' when both sides have
+// an accepted connection. 'only_me' is visible to the author only.
 const privacyClause = (viewerRef) => `
   (
     p.privacy = 'public'
@@ -103,7 +112,29 @@ const privacyClause = (viewerRef) => `
   )
 `;
 
-// Loại bài của user đã chặn/bị chặn (2 chiều) so với viewer
+// View permission for posts BELONGING to a community: Feed posts (community_id IS
+// NULL) always pass, untouched by this logic. A community post is only viewable
+// when that community is public, the viewer is a member, or the viewer is the
+// post's own author. Needs a separate clause because community posts are always
+// created with privacy='public' (privacyClause alone isn't enough to block a
+// private community) — actual visibility is governed by the community's privacy +
+// membership, not by posts.privacy.
+const communityVisibilityClause = (viewerRef) => `
+  (
+    p.community_id IS NULL
+    OR p.author_id = ${viewerRef}::uuid
+    OR EXISTS (
+      SELECT 1 FROM communities co
+      WHERE co.id = p.community_id AND co.privacy = 'public'
+    )
+    OR EXISTS (
+      SELECT 1 FROM community_members cm
+      WHERE cm.community_id = p.community_id AND cm.user_id = ${viewerRef}::uuid
+    )
+  )
+`;
+
+// Excludes posts from users who are blocked/blocking (both directions) relative to the viewer
 const notBlockedClause = (viewerRef) => `
   NOT EXISTS (
     SELECT 1 FROM user_blocks ub
@@ -112,8 +143,8 @@ const notBlockedClause = (viewerRef) => `
   )
 `;
 
-// Loại bài mà viewer đã bấm "Ẩn bài viết" (chỉ áp cho các query dạng danh sách;
-// findById giữ nguyên để share embed / notification vẫn mở được bài)
+// Excludes posts the viewer has tapped "Hide post" on (only applied to list-style
+// queries; findById leaves it unfiltered so a share embed / notification can still open the post)
 const notHiddenClause = (viewerRef) => `
   NOT EXISTS (
     SELECT 1 FROM hidden_posts hp
@@ -121,7 +152,7 @@ const notHiddenClause = (viewerRef) => `
   )
 `;
 
-// Chỉ hiện bài của chính mình + của những người đã accepted connection
+// Only show posts by yourself + by people with an accepted connection
 const connectionsOnlyClause = (viewerRef) => `
   (
     p.author_id = ${viewerRef}::uuid
@@ -155,6 +186,7 @@ async function findAll({ mode, authorId, viewerId = null, tag = null, limit = 20
     where += ` AND EXISTS (
       SELECT 1 FROM post_tags ptf
       WHERE ptf.post_id = p.id AND LOWER(ptf.tag) = LOWER($${params.length})
+        AND (ptf.source = 'user' OR p.show_ai_tags)
     )`;
   }
 
@@ -192,6 +224,7 @@ async function countAll({ mode, authorId, viewerId = null, tag = null, connectio
     where += ` AND EXISTS (
       SELECT 1 FROM post_tags ptf
       WHERE ptf.post_id = p.id AND LOWER(ptf.tag) = LOWER($${params.length})
+        AND (ptf.source = 'user' OR p.show_ai_tags)
     )`;
   }
 
@@ -204,121 +237,154 @@ async function findById(id, viewerId = null) {
     ${buildPostSelect('$2')}
     WHERE p.id = $1 AND p.status = 'posted'
       AND ${privacyClause('$2')} AND ${notBlockedClause('$2')}
+      AND ${communityVisibilityClause('$2')}
     GROUP BY p.id, u.id
   `;
   const { rows } = await query(sql, [id, viewerId]);
   return rows[0] || null;
 }
 
-async function create({ authorId, content, mode, privacy = 'public', imageUrl = null, imageUrls = null, linkUrl = null, articleTitle = null, sharedPostId = null }) {
+// Sanitize user-typed hashtags before insert: trim, drop empties, cap to the
+// post_tags.tag column's 100-char limit, dedupe case-insensitively (first
+// occurrence's casing wins) — mirrors the UNIQUE(post_id, tag) constraint's
+// exact-match semantics while still preventing "Coffee" + "coffee" both
+// landing on the same post as visually-duplicate chips.
+const MAX_HASHTAGS_PER_POST = 10;
+
+function sanitizeHashtags(hashtags) {
+  if (!Array.isArray(hashtags)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const raw of hashtags) {
+    if (out.length >= MAX_HASHTAGS_PER_POST) break;
+    if (typeof raw !== 'string') continue;
+    // Strip ALL whitespace, not just leading/trailing — a hashtag is a single
+    // token by definition, and the client only guards this client-side
+    // (space commits/ends a token), so the server must not trust that.
+    const trimmed = raw.replace(/\s+/g, '').slice(0, 100);
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(trimmed);
+  }
+  return out;
+}
+
+async function create({ authorId, content, mode, privacy = 'public', imageUrl = null, imageUrls = null, linkUrl = null, articleTitle = null, sharedPostId = null, hashtags = [], showAiTags = false }) {
   const validPrivacy = ['public', 'friends', 'only_me'].includes(privacy)
     ? privacy : 'public';
-  // Client cũ gửi image_url đơn lẻ → gói vào mảng; DB chỉ còn image_urls
+  // Older clients send a single image_url → wrap it into an array; the DB only keeps image_urls
   const urls = Array.isArray(imageUrls) && imageUrls.length > 0
     ? imageUrls
     : (imageUrl ? [imageUrl] : null);
   const { rows } = await query(
-    `INSERT INTO posts (author_id, content, mode, privacy, image_urls, link_url, article_title, shared_post_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `INSERT INTO posts (author_id, content, mode, privacy, image_urls, link_url, article_title, shared_post_id, show_ai_tags)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING id`,
-    [authorId, content ?? '', mode, validPrivacy, urls, linkUrl, articleTitle, sharedPostId]
+    [authorId, content ?? '', mode, validPrivacy, urls, linkUrl, articleTitle, sharedPostId, !!showAiTags]
   );
   // Increment post_count on user
   await query(
     `UPDATE users SET post_count = post_count + 1 WHERE id = $1`,
     [authorId]
   );
+
+  // User-typed hashtags must be reliably saved (unlike AI tags, which are
+  // best-effort) — insert synchronously, awaited, as part of creation.
+  const cleanTags = sanitizeHashtags(hashtags);
+  if (cleanTags.length) {
+    await query(
+      `INSERT INTO post_tags (post_id, tag, source)
+       SELECT $1, UNNEST($2::text[]), 'user'
+       ON CONFLICT (post_id, tag) DO NOTHING`,
+      [rows[0].id, cleanTags]
+    );
+  }
+
   return findById(rows[0].id, authorId);
 }
 
-// Insert a community post; postType defaults to 'text' — backward compatible
-async function createCommunityPost({ content, authorId, communityId, postType = 'text' }) {
+// Insert a community post; postType defaults to 'text' — backward compatible.
+// image_urls/link_url/article_title accepted for parity with Feed's create()
+// (same shape, cap-10 filtering already applied by the caller — see
+// utils/postInput.js's normalizeImageUrls). mode is derived from the
+// community's own type (work → work, anything else → hobby) instead of being
+// hardcoded, so persona resolution matches the community's context; falls
+// back to 'hobby' if communityId doesn't resolve (defensive — every real
+// caller always passes a valid community id).
+// `mode`/`privacy` are optional overrides — when omitted (the community
+// route's existing behavior), mode still derives from the community's type
+// and privacy still defaults to 'public', unchanged. Feed callers (no
+// communityId) pass these explicitly so a Feed poll/event honors the
+// composer's actual mode/privacy choice instead of silently falling back.
+async function createCommunityPost({
+  content, authorId, communityId, postType = 'text',
+  imageUrls = null, linkUrl = null, articleTitle = null,
+  hashtags = [], showAiTags = false, mode = null, privacy = null,
+}) {
   const { rows } = await query(
-    `INSERT INTO posts (author_id, content, mode, privacy, community_id, post_type)
-     VALUES ($1, $2, 'hobby', 'public', $3, $4)
+    `INSERT INTO posts (author_id, content, mode, privacy, community_id, post_type, image_urls, link_url, article_title, show_ai_tags)
+     VALUES (
+       $1, $2,
+       COALESCE($9, (SELECT CASE WHEN type = 'work' THEN 'work' ELSE 'hobby' END
+                 FROM communities WHERE id = $3), 'hobby'),
+       COALESCE($10, 'public'), $3, $4, $5, $6, $7, $8
+     )
      RETURNING id`,
-    [authorId, content, communityId, postType]
+    [authorId, content ?? '', communityId, postType, imageUrls, linkUrl, articleTitle, !!showAiTags, mode, privacy]
   );
+
+  // User-typed hashtags must be reliably saved (unlike AI tags, which are
+  // best-effort) — insert synchronously, awaited, as part of creation.
+  // Mirrors Feed's create() exactly (same sanitize helper, same conflict rule).
+  const cleanTags = sanitizeHashtags(hashtags);
+  if (cleanTags.length) {
+    await query(
+      `INSERT INTO post_tags (post_id, tag, source)
+       SELECT $1, UNNEST($2::text[]), 'user'
+       ON CONFLICT (post_id, tag) DO NOTHING`,
+      [rows[0].id, cleanTags]
+    );
+  }
+
   return findById(rows[0].id, authorId);
 }
 
 // Posts belonging to a community — pinned post first, then newest first.
-// Includes post_type, is_pinned, and inline poll/event data in a single query.
-async function getPostsByCommunity(communityId, { limit = 20, offset = 0, requestingUserId = null } = {}) {
-  const params = [communityId, limit, offset];
-
-  let isLikedExpr  = 'false AS is_liked';
-  let userRsvpExpr = 'NULL::VARCHAR';
-  let userVoteExpr = 'NULL::TEXT';
-
-  if (requestingUserId) {
-    params.push(requestingUserId);
-    const idx = params.length; // e.g. $4
-    isLikedExpr  = `EXISTS(
-      SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = $${idx}
-    ) AS is_liked`;
-    userRsvpExpr = `(SELECT er.status FROM event_rsvps er
-                     WHERE er.event_id = ce.id AND er.user_id = $${idx})`;
-    userVoteExpr = `(SELECT pv.poll_option_id::TEXT
-                     FROM poll_votes pv
-                     JOIN poll_options po2 ON po2.id = pv.poll_option_id
-                     WHERE po2.post_id = p.id AND pv.user_id = $${idx})`;
+// Built on the shared buildPostSelect fragment (same one Feed uses) so
+// community posts automatically get every column Feed posts get (images,
+// link preview, tags, persona-aware author) with no column drift going
+// forward. The community's own extras (embedded `community` object) that
+// buildPostSelect doesn't carry are merged in via an outer wrapper query —
+// post_type/is_pinned/pinned_at/event_data/poll_data already come from
+// buildPostSelect itself, so nothing else needs preserving separately.
+async function getPostsByCommunity(communityId, { limit = 20, offset = 0, requestingUserId = null, tag = null } = {}) {
+  const params = [requestingUserId, communityId];
+  // Same visibility-aware EXISTS subquery as findAll/countAll's `tag` filter —
+  // a hidden AI tag can never surface a community post via ?tag=.
+  let tagClause = '';
+  if (tag) {
+    params.push(tag);
+    tagClause = ` AND EXISTS (
+      SELECT 1 FROM post_tags ptf
+      WHERE ptf.post_id = p.id AND LOWER(ptf.tag) = LOWER($${params.length})
+        AND (ptf.source = 'user' OR p.show_ai_tags)
+    )`;
   }
-
+  params.push(limit, offset);
   const sql = `
-    SELECT
-      p.id, p.content, p.like_count, p.comment_count, p.created_at,
-      p.post_type, p.is_pinned, p.pinned_at,
-      ${isLikedExpr},
-      json_build_object(
-        'id',           u.id,
-        'username',     u.username,
-        'display_name', u.display_name,
-        'avatar_color', u.avatar_color,
-        'avatar_url',   u.avatar_url
-      ) AS author,
-      json_build_object(
-        'id',         c.id,
-        'name',       c.name,
-        'icon_emoji', c.icon_emoji
-      ) AS community,
-      CASE WHEN p.post_type = 'event' THEN
-        json_build_object(
-          'id',         ce.id,
-          'title',      ce.title,
-          'location',   ce.location,
-          'starts_at',  ce.starts_at,
-          'ends_at',    ce.ends_at,
-          'rsvp_count', ce.rsvp_count,
-          'user_rsvp',  ${userRsvpExpr}
-        )
-      ELSE NULL END AS event_data,
-      CASE WHEN p.post_type = 'poll' THEN
-        json_build_object(
-          'options', (
-            SELECT json_agg(
-              json_build_object(
-                'id',         po.id,
-                'text',       po.text,
-                'vote_count', po.vote_count,
-                'position',   po.position,
-                'ends_at',    po.ends_at
-              ) ORDER BY po.position
-            )
-            FROM poll_options po WHERE po.post_id = p.id
-          ),
-          'user_vote', ${userVoteExpr}
-        )
-      ELSE NULL END AS poll_data
-    FROM posts p
-    JOIN users u ON u.id = p.author_id
-    LEFT JOIN communities c ON c.id = p.community_id
-    LEFT JOIN community_events ce ON ce.post_id = p.id
-    WHERE p.community_id = $1 AND p.status = 'posted'
-    ORDER BY p.is_pinned DESC, p.created_at DESC
-    LIMIT $2 OFFSET $3
+    SELECT sub.*,
+      (SELECT json_build_object('id', co.id, 'name', co.name, 'icon_emoji', co.icon_emoji)
+       FROM communities co WHERE co.id = $2) AS community
+    FROM (
+      ${buildPostSelect('$1')}
+      WHERE p.community_id = $2 AND p.status = 'posted'${tagClause}
+      GROUP BY p.id, u.id
+    ) sub
+    ORDER BY sub.is_pinned DESC, sub.created_at DESC
+    LIMIT $${params.length - 1} OFFSET $${params.length}
   `;
-
   const { rows } = await query(sql, params);
   return rows;
 }
@@ -332,22 +398,19 @@ async function findPostMeta(postId) {
   return rows[0] || null;
 }
 
-// Hard-delete a post; returns { id, author_id, community_id } for counter cleanup
-async function deletePost(postId) {
-  const { rows } = await query(
-    `DELETE FROM posts WHERE id = $1 RETURNING id, author_id, community_id`,
-    [postId]
-  );
-  return rows[0] || null;
-}
-
-// Soft-delete: chỉ set status = 'deleted', không xóa row khỏi DB.
-// Đồng thời trừ post_count trên users để số bài viết hiển thị đúng.
+// Soft-delete: only sets status = 'deleted', doesn't remove the row from the DB.
+// deleted_at records the deletion time — used to sort "Recently Deleted" by recency
+// and as the reference point for the purge job (auto hard-delete after 30 days, see postPurgeJob.js).
+// Also decrements post_count on users so the displayed post count stays accurate.
+// Returns community_id (or null) so a caller can symmetrically adjust
+// communities.post_count — the caller owns that decrement, this function does not
+// (postService.deletePost already does it via findPostMeta; doing it here too
+// would double-count).
 async function softDeletePost(postId) {
   const { rows } = await query(
-    `UPDATE posts SET status = 'deleted', updated_at = NOW()
+    `UPDATE posts SET status = 'deleted', deleted_at = NOW(), updated_at = NOW()
      WHERE id = $1
-     RETURNING id, author_id`,
+     RETURNING id, author_id, community_id`,
     [postId]
   );
   if (rows[0]) {
@@ -359,18 +422,112 @@ async function softDeletePost(postId) {
   return rows[0] || null;
 }
 
-// Cập nhật nội dung bài viết; trả về post đầy đủ sau khi update
-async function updatePost(postId, { content, privacy, imageUrl, imageUrls, linkUrl, articleTitle }) {
+// Restore a soft-deleted post — author-only (does NOT extend to community
+// staff, unlike delete's own authorization; a staff member can remove content
+// but recovering your own deleted post is a personal action, kept simple per
+// plan). Only succeeds if the post is currently 'deleted'; flips status back
+// to 'posted' and clears deleted_at. Re-increments post_count (undoes
+// softDeletePost's decrement) and, if the post belongs to a community,
+// returns community_id so the caller can symmetrically re-increment
+// communities.post_count too (mirrors deletePost's own decrement there).
+// Returns the full post shape via findById (same embed every other
+// post-returning endpoint uses) or null if nothing matched (wrong owner,
+// post doesn't exist, or post isn't currently deleted).
+async function restorePost(postId, requesterId) {
+  const { rows } = await query(
+    `UPDATE posts SET status = 'posted', deleted_at = NULL, updated_at = NOW()
+     WHERE id = $1 AND author_id = $2 AND status = 'deleted'
+     RETURNING id, author_id, community_id`,
+    [postId, requesterId]
+  );
+  const restored = rows[0];
+  if (!restored) return null;
+
+  await query(
+    `UPDATE users SET post_count = post_count + 1 WHERE id = $1`,
+    [restored.author_id]
+  );
+
+  return findById(restored.id, requesterId);
+}
+
+// The current user's own soft-deleted posts, newest deleted_at first — built
+// on the shared buildPostSelect fragment so a "Recently Deleted" list gets
+// the exact same shape (tags, author, images, etc.) as every other post list.
+async function listDeletedPosts(userId, { limit = 20, offset = 0 } = {}) {
+  const params = [userId, limit, offset];
+  const sql = `
+    ${buildPostSelect('$1')}
+    WHERE p.author_id = $1 AND p.status = 'deleted'
+    GROUP BY p.id, u.id
+    ORDER BY MAX(p.deleted_at) DESC
+    LIMIT $2 OFFSET $3
+  `;
+  const { rows } = await query(sql, params);
+  return rows;
+}
+
+// The current user's saved (bookmarked) posts, newest saved first — built on
+// the shared buildPostSelect fragment for the same-shape guarantee as every
+// other post list. Unlike listDeletedPosts (author-only, no privacy filter
+// needed), this MUST reuse the same privacyClause/notBlockedClause helpers
+// findAll applies — a saved post whose author later restricted privacy or
+// blocked the viewer must not leak into this list.
+async function listSavedPosts(userId, { limit = 20, offset = 0 } = {}) {
+  const params = [userId, limit, offset];
+  const sql = `
+    ${buildPostSelect('$1')}
+    JOIN saved_posts sap ON sap.post_id = p.id AND sap.user_id = $1
+    WHERE p.status = 'posted' AND ${privacyClause('$1')} AND ${notBlockedClause('$1')}
+    GROUP BY p.id, u.id, sap.created_at
+    ORDER BY sap.created_at DESC
+    LIMIT $2 OFFSET $3
+  `;
+  const { rows } = await query(sql, params);
+  return rows;
+}
+
+// Update a post's content; returns the full post after the update.
+// `contentProvided` distinguishes "content field omitted from the request" (keep
+// the existing caption — the CASE below falls through to `content`) from
+// "content field explicitly sent, possibly as an empty string" (write it as-is,
+// including clearing the caption to '') — a plain COALESCE($2, content) used to
+// collapse both cases together because an intentionally-cleared caption trims to
+// '' which COALESCE treats the same as "not provided", so a cleared caption was
+// silently reverted to the old one. Returns:
+//   - the updated post row (success)
+//   - null if the post doesn't exist / isn't 'posted'
+//   - the string 'empty' if applying this edit would leave the post with no
+//     content, no images, and no link — same content_or_media invariant enforced
+//     at creation time (see createPost's `hasContent`/`hasLink`/imageUrls check).
+async function updatePost(postId, { content, contentProvided = false, privacy, imageUrl, imageUrls, linkUrl, articleTitle }) {
   const validPrivacy = ['public', 'friends', 'only_me'].includes(privacy)
     ? privacy : null;
-  // Client cũ gửi image_url đơn lẻ → gói vào mảng; DB chỉ còn image_urls
+  // Older clients send a single image_url → wrap it into an array; the DB only keeps image_urls
   const urls = Array.isArray(imageUrls) && imageUrls.length > 0
     ? imageUrls
     : (imageUrl ? [imageUrl] : null);
 
+  // image_urls/link_url are always fully overwritten by the caller (no
+  // "omitted" case for them, unlike content) — only content needs the row's
+  // current value to evaluate the post-update invariant below.
+  const { rows: existingRows } = await query(
+    `SELECT content FROM posts WHERE id = $1 AND status = 'posted'`,
+    [postId]
+  );
+  if (!existingRows[0]) return null;
+
+  const finalContent = contentProvided ? content : existingRows[0].content;
+  const hasContent = !!(finalContent && finalContent.trim());
+  const hasImages  = Array.isArray(urls) && urls.length > 0;
+  const hasLink    = !!linkUrl;
+  if (!hasContent && !hasImages && !hasLink) {
+    return 'empty';
+  }
+
   const { rows } = await query(
     `UPDATE posts SET
-       content       = COALESCE($2, content),
+       content       = CASE WHEN $7 THEN $2 ELSE content END,
        privacy       = COALESCE($3, privacy),
        image_urls    = $4,
        link_url      = $5,
@@ -378,7 +535,7 @@ async function updatePost(postId, { content, privacy, imageUrl, imageUrls, linkU
        updated_at    = NOW()
      WHERE id = $1 AND status = 'posted'
      RETURNING id, author_id`,
-    [postId, content ?? null, validPrivacy, urls, linkUrl ?? null, articleTitle ?? null]
+    [postId, contentProvided ? content : null, validPrivacy, urls, linkUrl ?? null, articleTitle ?? null, contentProvided]
   );
   if (!rows[0]) return null;
   return findById(rows[0].id, rows[0].author_id);
@@ -387,5 +544,7 @@ async function updatePost(postId, { content, privacy, imageUrl, imageUrls, linkU
 module.exports = {
   findAll, countAll, findById, create,
   createCommunityPost, getPostsByCommunity,
-  findPostMeta, deletePost, softDeletePost, updatePost,
+  findPostMeta, softDeletePost, updatePost,
+  restorePost, listDeletedPosts, listSavedPosts,
+  sanitizeHashtags,
 };

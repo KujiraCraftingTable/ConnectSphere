@@ -37,7 +37,7 @@ struct PostAuthorDTO: Decodable {
     }
 }
 
-/// Bài gốc nhúng trong bài share (backend trả lồng trong shared_post)
+/// The original post embedded in a shared post (backend nests it under shared_post)
 struct SharedPostDTO: Decodable {
     let id: String
     let content: String?
@@ -81,6 +81,7 @@ struct PostDTO: Decodable {
     let articleTitle: String?
     let linkUrl: String?
     let isLiked: Bool
+    let isSaved: Bool
     let likeCount: Int
     let commentCount: Int
     let shareCount: Int
@@ -89,6 +90,9 @@ struct PostDTO: Decodable {
     let author: PostAuthorDTO
     let sharedPostId: String?
     let sharedPost: SharedPostDTO?
+    let postType: String
+    let pollData: PollDataDTO?
+    let eventData: EventDataDTO?
 
     enum CodingKeys: String, CodingKey {
         case id, content, mode, privacy, tags, author
@@ -97,12 +101,45 @@ struct PostDTO: Decodable {
         case articleTitle  = "article_title"
         case linkUrl       = "link_url"
         case isLiked       = "is_liked"
+        case isSaved       = "is_saved"
         case likeCount     = "like_count"
         case commentCount  = "comment_count"
         case shareCount    = "share_count"
         case createdAt     = "created_at"
         case sharedPostId  = "shared_post_id"
         case sharedPost    = "shared_post"
+        case postType      = "post_type"
+        case pollData      = "poll_data"
+        case eventData     = "event_data"
+    }
+
+    // Custom init (instead of synthesized) so isSaved/postType/pollData/
+    // eventData all get backward-compat defaults via decodeIfPresent —
+    // mirrors CommunityPostDTO's existing pattern, so responses from before
+    // the backend added these fields still decode.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id            = try c.decode(String.self, forKey: .id)
+        content       = try c.decode(String.self, forKey: .content)
+        mode          = try c.decode(String.self, forKey: .mode)
+        privacy       = try c.decode(String.self, forKey: .privacy)
+        imageUrl      = try c.decodeIfPresent(String.self, forKey: .imageUrl)
+        imageUrls     = try c.decodeIfPresent([String].self, forKey: .imageUrls)
+        articleTitle  = try c.decodeIfPresent(String.self, forKey: .articleTitle)
+        linkUrl       = try c.decodeIfPresent(String.self, forKey: .linkUrl)
+        isLiked       = try c.decodeIfPresent(Bool.self, forKey: .isLiked) ?? false
+        isSaved       = try c.decodeIfPresent(Bool.self, forKey: .isSaved) ?? false
+        likeCount     = try c.decode(Int.self, forKey: .likeCount)
+        commentCount  = try c.decode(Int.self, forKey: .commentCount)
+        shareCount    = try c.decode(Int.self, forKey: .shareCount)
+        createdAt     = try c.decode(Date.self, forKey: .createdAt)
+        tags          = try c.decodeIfPresent([String].self, forKey: .tags) ?? []
+        author        = try c.decode(PostAuthorDTO.self, forKey: .author)
+        sharedPostId  = try c.decodeIfPresent(String.self, forKey: .sharedPostId)
+        sharedPost    = try c.decodeIfPresent(SharedPostDTO.self, forKey: .sharedPost)
+        postType      = try c.decodeIfPresent(String.self, forKey: .postType) ?? "text"
+        pollData      = try c.decodeIfPresent(PollDataDTO.self, forKey: .pollData)
+        eventData     = try c.decodeIfPresent(EventDataDTO.self, forKey: .eventData)
     }
 
     func toPost() -> Post {
@@ -120,10 +157,14 @@ struct PostDTO: Decodable {
             commentCount:           commentCount,
             shareCount:             shareCount,
             isLiked:                isLiked,
+            isSaved:                isSaved,
             articleTitle:           articleTitle,
             tags:                   tags,
             sharedPostId:           sharedPostId,
-            sharedPost:             sharedPost?.toPreview()
+            sharedPost:             sharedPost?.toPreview(),
+            postType:               PostType(rawValue: postType) ?? .text,
+            pollData:               pollData?.toPollData(),
+            eventData:              eventData?.toEventData()
         )
     }
 }

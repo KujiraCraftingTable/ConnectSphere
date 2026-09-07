@@ -4,18 +4,18 @@ import SwiftUI
 import UserNotifications
 import AVFoundation
 
-/// Media đã chọn cho bài viết: ảnh (upload jpeg) hoặc video (upload file mp4/mov)
+/// Media picked for a post: image (upload as jpeg) or video (upload as mp4/mov file)
 struct PickedPostMedia: Identifiable {
     let id = UUID()
-    let image: UIImage?     // ảnh gốc (nil nếu là video)
-    let videoURL: URL?      // file video tạm trong sandbox (nil nếu là ảnh)
-    let thumbnail: UIImage? // khung hình đầu của video cho preview
+    let image: UIImage?     // original image (nil if this is a video)
+    let videoURL: URL?      // temp video file in the sandbox (nil if this is an image)
+    let thumbnail: UIImage? // video's first frame, for preview
 
     var isVideo: Bool { videoURL != nil }
     var previewImage: UIImage? { image ?? thumbnail }
 }
 
-/// Copy file video từ PhotosPicker ra temp dir để upload multipart
+/// Copies a video file from PhotosPicker into a temp dir for multipart upload
 private struct PostMediaFileTransferable: Transferable {
     let url: URL
 
@@ -66,8 +66,8 @@ class CreatePostViewModel {
 
     // MARK: - Media upload
 
-    /// Ảnh → decode UIImage; video → copy ra temp file + sinh thumbnail.
-    /// Item không đọc được thì bỏ qua im lặng.
+    /// Image → decode to UIImage; video → copy to a temp file + generate a thumbnail.
+    /// An item that fails to load is silently skipped.
     func loadSelectedMedia(_ items: [PhotosPickerItem]) async -> [PickedPostMedia] {
         var result: [PickedPostMedia] = []
         for item in items {
@@ -87,7 +87,7 @@ class CreatePostViewModel {
         return try? await repository.uploadImage(data)
     }
 
-    /// Upload lần lượt toàn bộ media đã chọn; item lỗi bị bỏ qua, giữ đúng thứ tự
+    /// Uploads all selected media in order; a failed item is skipped, order is preserved
     func uploadMedia(_ media: [PickedPostMedia]) async -> [String] {
         isUploadingMedia = true
         defer { isUploadingMedia = false }
@@ -104,7 +104,7 @@ class CreatePostViewModel {
         return urls
     }
 
-    /// Khung hình đầu tiên của video làm thumbnail preview trong composer
+    /// The video's first frame, used as the thumbnail preview in the composer
     nonisolated private static func videoThumbnail(for url: URL) async -> UIImage? {
         let asset = AVURLAsset(url: url)
         let generator = AVAssetImageGenerator(asset: asset)
@@ -119,7 +119,7 @@ class CreatePostViewModel {
 
     // MARK: - Submit
 
-    /// Cập nhật bài viết đã có.
+    /// Updates an existing post.
     func updatePost(
         postId: String,
         content: String,
@@ -134,7 +134,7 @@ class CreatePostViewModel {
             isPosting = true
             defer { isPosting = false }
 
-            // Chọn media mới → thay toàn bộ; không chọn → giữ media cũ
+            // New media selected → replace all of it; none selected → keep the old media
             let imageUrls: [String]
             if !selectedMedia.isEmpty {
                 imageUrls = await uploadMedia(selectedMedia)
@@ -142,7 +142,7 @@ class CreatePostViewModel {
                 imageUrls = existingImageUrls
             }
 
-            // Link post: thumbnail của link đi qua image_url như cũ
+            // Link post: the link's thumbnail still goes through image_url, as before
             let imageUrl = capturedPreview?.image
 
             let updatedPost = try? await repository.updatePost(
@@ -160,15 +160,23 @@ class CreatePostViewModel {
         }
     }
 
-    /// Post bài ngay lập tức, không chờ AI. Sau khi đăng xong, background task
-    /// sẽ đợi 10 giây rồi kiểm tra xem backend có tạo notification mode mismatch không.
+    /// Posts immediately, without waiting on AI. Passes the newly created post (in full)
+    /// to the caller via `onSuccess` so it can be inserted straight at the top of the
+    /// feed — no need to wait for a separate reload to see your own post. After posting,
+    /// a background task waits 10 seconds then checks whether the backend created a mode
+    /// mismatch notification. If `showAiTags` is on, another background task waits ~15
+    /// seconds then refetches the post to pick up AI tags (if extraction has finished)
+    /// and fires `.postUpdated` so FeedViewModel/ProfileViewModel can patch that post
+    /// in whatever list they're currently displaying.
     func submitPost(
         content: String,
         mode: AppMode,
         privacy: PostPrivacy,
         authToken: String?,
         selectedMedia: [PickedPostMedia],
-        onSuccess: @escaping () -> Void
+        hashtags: [String] = [],
+        showAiTags: Bool = false,
+        onSuccess: @escaping (Post) -> Void
     ) {
         var finalContent = content.trimmingCharacters(in: .whitespaces)
         let capturedPreview = linkPreview
@@ -190,30 +198,44 @@ class CreatePostViewModel {
             isPosting = true
             defer { isPosting = false }
 
-            // Upload TOÀN BỘ media đã chọn (ảnh + video);
-            // link post không kèm media thì thumbnail của link đi qua image_url
+            // Upload ALL selected media (images + video);
+            // for a link post with no media, the link's thumbnail goes through image_url
             let imageUrls = selectedMedia.isEmpty ? [] : await uploadMedia(selectedMedia)
             let imageUrl: String? = selectedMedia.isEmpty ? capturedPreview?.image : nil
 
-            guard let postId = try? await repository.createPost(
+            guard let post = try? await repository.createPost(
                 content: finalContent.isEmpty ? " " : finalContent,
                 mode: mode,
                 privacy: privacy,
                 imageUrl: imageUrl,
                 imageUrls: imageUrls,
                 linkUrl: capturedPreview?.url,
-                articleTitle: capturedPreview?.title
+                articleTitle: capturedPreview?.title,
+                hashtags: hashtags,
+                showAiTags: showAiTags
             ) else {
                 return
             }
+            let postId = post.id
 
-            onSuccess()
+            onSuccess(post)
 
-            // Background: check mismatch notification sau 10 giây
+            // Background: check the mismatch notification after 10 seconds
             if let token = authToken {
                 Task.detached(priority: .background) {
                     try? await Task.sleep(nanoseconds: 10_000_000_000)
                     await self.checkAndNotifyMismatch(postId: postId, token: token)
+                }
+            }
+
+            // Background: if the user turned on "show AI tags", wait 15 seconds
+            // (best-effort, no retry) then refetch the post to pick up AI tags if
+            // extraction has finished. When showAiTags == false, AI tags will never
+            // show up through any endpoint — there's nothing to wait for.
+            if showAiTags {
+                Task.detached(priority: .background) {
+                    try? await Task.sleep(nanoseconds: 15_000_000_000)
+                    await self.refetchAndBroadcastTags(postId: postId)
                 }
             }
         }
@@ -221,9 +243,24 @@ class CreatePostViewModel {
 
     // MARK: - Private
 
-    /// Fetch notification từ backend; nếu có mismatch thì hiện iOS local notification banner.
+    /// Refetches a single post after "show AI tags" is turned on and fires
+    /// `.postUpdated` — FeedViewModel/ProfileViewModel already have an observer for
+    /// this notification (the exact same mechanism CreatePostView's saveEdit() uses),
+    /// so the post currently on screen (if still there) updates its tag chips on its
+    /// own, with no separate callback needed.
+    /// Internal (not `private`) — `PostComposerViewModel` calls this directly
+    /// through `mediaHelper` to reuse this exact logic for community/Feed posts
+    /// (poll, event, text), avoiding a duplicated debounce/refetch elsewhere.
+    /// `CommunityDetailViewModel`/`FeedViewModel` observe `.postUpdated` themselves
+    /// to patch `tags` into whatever `posts` they're currently displaying.
+    func refetchAndBroadcastTags(postId: String) async {
+        guard let post = try? await repository.fetchPost(id: postId) else { return }
+        NotificationCenter.default.post(name: .postUpdated, object: nil, userInfo: ["post": post])
+    }
+
+    /// Fetches the notification from the backend; if there's a mismatch, shows an iOS local notification banner.
     private func checkAndNotifyMismatch(postId: String, token: String) async {
-        // Tôn trọng toggle "AI post suggestions" trong Notification settings
+        // Respect the "AI post suggestions" toggle in Notification settings
         let aiNotifsEnabled = (UserDefaults.standard.object(forKey: "aiSuggestionNotifsEnabled") as? Bool) ?? true
         guard aiNotifsEnabled else { return }
         guard let notif = try? await notifRepository.fetchMismatchFor(postId: postId, token: token) else { return }

@@ -5,8 +5,10 @@ struct PostCard: View {
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
     @Environment(\.colorScheme) var colorScheme
+    @Environment(UndoToastPresenter.self) var toastPresenter
     @Environment(\.openURL) private var openURL
     @State private var isLiked:      Bool
+    @State private var isSaved:      Bool
     @State private var likeCount:    Int
     @State private var commentCount: Int
     @State private var shareCount:   Int
@@ -16,7 +18,7 @@ struct PostCard: View {
     // Action states
     @State private var showDeleteAlert = false
     @State private var showEditSheet   = false
-    @State private var isHidden        = false   // ẩn bài người khác cục bộ
+    @State private var isHidden        = false   // locally hides someone else's post
     @State private var showReportDialog  = false
     @State private var showReportResult  = false
     @State private var reportResultMessage = ""
@@ -25,9 +27,9 @@ struct PostCard: View {
     var disableSelfNavigation: Bool = false
     var onOwnAvatarTapped: (() -> Void)? = nil
     var onCommentAdded: (() -> Void)? = nil
-    /// Gọi khi người dùng xoá bài của chính mình thành công
+    /// Called when the user successfully deletes their own post
     var onPostDeleted: (() -> Void)? = nil
-    /// Gọi khi người dùng lưu chỉnh sửa bài viết thành công
+    /// Called when the user successfully saves an edit to the post
     var onPostUpdated: ((Post) -> Void)? = nil
 
     @State private var shakeAmount: CGFloat = 0
@@ -48,6 +50,7 @@ struct PostCard: View {
         self.onPostDeleted = onPostDeleted
         self.onPostUpdated = onPostUpdated
         _isLiked      = State(initialValue: post.isLiked)
+        _isSaved      = State(initialValue: post.isSaved)
         _likeCount    = State(initialValue: post.likeCount)
         _commentCount = State(initialValue: post.commentCount)
         _shareCount   = State(initialValue: post.shareCount)
@@ -64,7 +67,7 @@ struct PostCard: View {
         VStack(alignment: .leading, spacing: 0) {
             postHeader
 
-            // Content — chỉ hiện nếu có text thật
+            // Content — only shown if there's actual text
             if !post.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(linkifiedContent)
                     .font(.system(size: 15))
@@ -77,30 +80,54 @@ struct PostCard: View {
                     .padding(.top, 10)
             }
 
-            // Hashtag chips — bấm vào mở TagFeedView duyệt theo tag
+            // Hashtag chips — tapping one opens TagFeedView to browse by tag
             if !post.tags.isEmpty {
                 hashtagRow
                     .padding(.horizontal, 12)
                     .padding(.top, 10)
             }
 
-            // Link preview card (nếu có link_url)
+            // Link preview card (if there's a link_url)
             if let linkUrl = post.linkUrl, let url = URL(string: linkUrl) {
                 linkPreviewCard(url: url)
                     .padding(.horizontal, 12)
                     .padding(.top, 10)
             }
-            // Ảnh upload thật — lưới kiểu Facebook, hỗ trợ nhiều ảnh
+            // Real uploaded images — Facebook-style grid, supports multiple images
             else if !post.displayImageUrls.isEmpty {
                 PostPhotoGrid(urls: post.displayImageUrls)
                     .padding(.top, 10)
             }
 
-            // Bài gốc được nhúng (nếu đây là bài share)
+            // Embedded original post (if this is a shared post)
             if post.sharedPostId != nil {
                 sharedPostEmbed
                     .padding(.horizontal, 12)
                     .padding(.top, 10)
+            }
+
+            // Poll or Event inline body — same PollPostCard/EventPostCard used by
+            // CommunityPostCard, drop-in reusable since both view models are
+            // fully post-id/event-id generic (no community coupling).
+            switch post.postType {
+            case .poll:
+                if let pollData = post.pollData {
+                    PollPostCard(
+                        vm: PollViewModel(postId: post.id, pollData: pollData, token: appState.authToken ?? ""),
+                        accentColor: themeManager.theme.primary
+                    )
+                    .padding(.top, 10)
+                }
+            case .event:
+                if let eventData = post.eventData {
+                    EventPostCard(
+                        vm: EventViewModel(eventData: eventData, token: appState.authToken ?? ""),
+                        accentColor: themeManager.theme.primary
+                    )
+                    .padding(.top, 10)
+                }
+            case .text:
+                EmptyView()
             }
 
             postStats
@@ -118,7 +145,7 @@ struct PostCard: View {
             }
             .environment(appState)
         }
-        // Edit sheet — tái sử dụng CreatePostView với editingPost
+        // Edit sheet — reuses CreatePostView with editingPost
         .sheet(isPresented: $showEditSheet) {
             CreatePostView(editingPost: post, onPostUpdated: { updatedPost in
                 onPostUpdated?(updatedPost)
@@ -141,7 +168,7 @@ struct PostCard: View {
             }
             Button(bundle.loc("Cancel"), role: .cancel) {}
         } message: {
-            Text("This post will be permanently deleted.", bundle: bundle)
+            Text("This post won't be shown in the app. You can restore it from Recently Deleted within 30 days.", bundle: bundle)
         }
         // Report reason picker
         .confirmationDialog(
@@ -164,7 +191,7 @@ struct PostCard: View {
 
     // MARK: Report
 
-    /// Gửi báo cáo bài viết với lý do được chọn
+    /// Submits a post report with the selected reason
     private func handleReportPost(reason: ReportReason) async {
         do {
             try await repository.reportPost(postId: post.id, reason: reason)
@@ -180,7 +207,10 @@ struct PostCard: View {
 
     // MARK: Delete
 
-    /// Gọi API soft-delete rồi thông báo cho parent feed xoá card này
+    /// Calls the soft-delete API then notifies the parent feed to remove this card —
+    /// while also showing an Undo toast, letting the user restore it within a few
+    /// seconds before the post truly "disappears" from reach (it's still in Recently
+    /// Deleted for 30 days).
     private func handleDeletePost() async {
         do {
             try await repository.deletePost(postId: post.id)
@@ -189,6 +219,18 @@ struct PostCard: View {
                 "authorId": post.author.id
             ])
             onPostDeleted?()
+
+            let deletedPostId = post.id
+            toastPresenter.show(message: bundle.loc("Post deleted")) {
+                Task {
+                    let restoreRepository = PostRepository()
+                    if let restored = try? await restoreRepository.restorePost(postId: deletedPostId) {
+                        NotificationCenter.default.post(name: .postRestored, object: nil, userInfo: [
+                            "post": restored
+                        ])
+                    }
+                }
+            }
         } catch {
             #if DEBUG
             print("[PostCard] deletePost error: \(error)")
@@ -285,7 +327,7 @@ struct PostCard: View {
 
     private var postHeader: some View {
         HStack(alignment: .top, spacing: 10) {
-            // Avatar → shake (profile bản thân) | tab Profile (feed bản thân) | UserProfileView (người khác)
+            // Avatar → shake (own profile) | Profile tab (own feed) | UserProfileView (someone else)
             let isSelf = post.author.id == appState.currentUser?.id
             if disableSelfNavigation && isSelf {
                 Button { triggerShake() } label: {
@@ -320,7 +362,7 @@ struct PostCard: View {
                     }
                     .buttonStyle(.plain)
 
-                    // Chỉ hiện Connect nếu không phải chính mình
+                    // Only show Connect if this isn't the current user
                     if post.author.id != appState.currentUser?.id {
                         ConnectButton(targetUserId: post.author.id, compact: true)
                     }
@@ -352,7 +394,7 @@ struct PostCard: View {
                         Label(bundle.loc("Edit post"), systemImage: "pencil")
                     }
                     Button(role: .destructive) {
-                        // Delay để menu dismiss xong trước khi alert xuất hiện (SwiftUI timing bug)
+                        // Delay so the menu finishes dismissing before the alert appears (SwiftUI timing bug)
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                             showDeleteAlert = true
                         }
@@ -361,7 +403,7 @@ struct PostCard: View {
                     }
                 } else {
                     Button {
-                        // Ẩn ngay trên UI, đồng thời persist để reload không hiện lại
+                        // Hide immediately in the UI, and also persist so a reload doesn't bring it back
                         withAnimation { isHidden = true }
                         Task { try? await repository.hidePost(postId: post.id) }
                     } label: {
@@ -387,12 +429,12 @@ struct PostCard: View {
 
     // MARK: Hashtag Chips
 
-    /// Danh sách hashtag của bài viết — bấm vào 1 chip mở TagFeedView duyệt theo tag đó
+    /// List of the post's hashtags — tapping a chip opens TagFeedView to browse that tag
     private var hashtagRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
                 ForEach(post.tags, id: \.self) { tag in
-                    NavigationLink(destination: TagFeedView(tag: tag)) {
+                    NavigationLink(destination: TagFeedView(tag: tag, mode: appState.currentMode)) {
                         Text("#\(tag)")
                             .font(.system(size: 12, weight: .medium))
                             .foregroundColor(themeManager.theme.primary)
@@ -477,11 +519,32 @@ struct PostCard: View {
 
             Spacer()
 
-            // Share — bottom right
-            Button { showShareSheet = true } label: {
-                Image(systemName: "arrowshape.turn.up.right")
-                    .font(.system(size: 20))
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
+            // Save + Share — bottom right
+            HStack(spacing: 16) {
+                Button {
+                    Task {
+                        isSaved.toggle()
+                        do {
+                            if isSaved { try await repository.savePost(postId: post.id) }
+                            else       { try await repository.unsavePost(postId: post.id) }
+                            var updated = post
+                            updated.isSaved = isSaved
+                            NotificationCenter.default.post(name: .postUpdated, object: nil, userInfo: ["post": updated])
+                        } catch {
+                            isSaved.toggle() // revert on failure
+                        }
+                    }
+                } label: {
+                    Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                        .font(.system(size: 20))
+                        .foregroundColor(isSaved ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
+                }
+
+                Button { showShareSheet = true } label: {
+                    Image(systemName: "arrowshape.turn.up.right")
+                        .font(.system(size: 20))
+                        .foregroundColor(AppColors.textSecondary(colorScheme))
+                }
             }
         }
         .padding(.horizontal, 14)
@@ -490,7 +553,7 @@ struct PostCard: View {
 
     // MARK: Shared post embed
 
-    /// Card bài gốc nhúng trong bài share; bài gốc đã xóa → placeholder
+    /// Card for the original post embedded in a shared post; deleted original → placeholder
     @ViewBuilder
     private var sharedPostEmbed: some View {
         Group {

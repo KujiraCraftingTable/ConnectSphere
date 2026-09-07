@@ -1,14 +1,15 @@
 const postModel = require('../models/postModel');
+const postService = require('../services/postService');
 const { analyzePostContent } = require('../services/postAnalyzeService');
 const { tagQueue }         = require('../queues/tagQueue');
 const { enqueuePostEmbed } = require('../queues/embedQueue');
 const { deletePostChunks } = require('../services/chunkService');
-const userNotifModel = require('../models/userNotificationModel');
 const { pushUserNotification, actorPayload } = require('../services/userNotifyService');
+const { normalizeImageUrls } = require('../utils/postInput');
 const { query } = require('../config/db');
 const logger = require('../utils/logger');
 
-// GET /api/posts  (auth required — viewer là user trong JWT)
+// GET /api/posts  (auth required — viewer is the user from the JWT)
 async function listPosts(req, res, next) {
   try {
     const { mode, author_id, filter, tag, limit = '20', offset = '0' } = req.query;
@@ -63,7 +64,7 @@ async function analyzePost(req, res, next) {
 
     const result = await analyzePostContent(content.trim());
 
-    // Chỉ cảnh báo khi confident + mismatch với currentMode
+    // Only warn when confident + mismatched against currentMode
     const isMismatch =
       result.confidence >= 0.75 &&
       result.suggestedMode !== 'neutral' &&
@@ -76,22 +77,37 @@ async function analyzePost(req, res, next) {
   }
 }
 
-// POST /api/posts  (auth required — author là user trong JWT)
-// Body: { content, mode, privacy?, image_url?, link_url?, article_title? }
+// POST /api/posts  (auth required — author is the user from the JWT)
+// Body: { content, mode, privacy?, image_url?, link_url?, article_title?,
+//         hashtags?, show_ai_tags?, post_type? ('text' | 'poll' | 'event') }
+// Poll/event branches mirror communityController.createCommunityPost's
+// dispatch pattern, but always pass communityId: null — these are Feed
+// posts, so postService.createPollPost/createEventPost skip every
+// community-only side effect (membership check, post_count, notifications,
+// realtime room broadcast) for them.
 async function createPost(req, res, next) {
   try {
-    const { content, mode, privacy = 'public' } = req.body;
+    const { content, mode, privacy = 'public', post_type = 'text', options, endsAt, eventData } = req.body;
+    const hashtags   = Array.isArray(req.body.hashtags) ? req.body.hashtags : [];
+    const showAiTags = !!req.body.show_ai_tags;
 
-    // Nhiều ảnh: mảng URL có thứ tự, cap 10 ảnh/bài
-    let imageUrls = null;
-    if (Array.isArray(req.body.image_urls)) {
-      imageUrls = req.body.image_urls
-        .filter((u) => typeof u === 'string' && u.trim())
-        .slice(0, 10);
-      if (imageUrls.length === 0) imageUrls = null;
+    if (post_type === 'poll') {
+      const post = await postService.createPollPost(req.userId, null, {
+        content, options, endsAt, mode, privacy, hashtags, showAiTags,
+      });
+      return res.status(201).json({ data: post });
+    }
+    if (post_type === 'event') {
+      const post = await postService.createEventPost(req.userId, null, {
+        content, eventData, mode, privacy, hashtags, showAiTags,
+      });
+      return res.status(201).json({ data: post });
     }
 
-    // Content có thể rỗng nếu post có link hoặc ảnh
+    // Multiple images: ordered array of URLs, capped at 10 images per post
+    const imageUrls = normalizeImageUrls(req.body.image_urls);
+
+    // Content can be empty if the post has a link or images
     const hasContent = content?.trim();
     const hasLink    = req.body.link_url;
     if (!hasContent && !hasLink && !imageUrls) {
@@ -109,6 +125,8 @@ async function createPost(req, res, next) {
       imageUrls,
       linkUrl:      req.body.link_url      || null,
       articleTitle: req.body.article_title || null,
+      hashtags:     Array.isArray(req.body.hashtags) ? req.body.hashtags : [],
+      showAiTags:   !!req.body.show_ai_tags,
     });
 
     // Respond immediately — no blocking on AI
@@ -152,7 +170,10 @@ async function runModeCheck(postId, authorId, postedMode, content) {
 
   if (!isMismatch) return;
 
-  await userNotifModel.createNotification({
+  // Routed through pushUserNotification so it emits the 'notification' socket
+  // event like every other type — writing the row directly meant this one
+  // never arrived in realtime.
+  await pushUserNotification({
     userId:  authorId,
     type:    'mode_mismatch',
     postId,
@@ -166,7 +187,7 @@ async function runModeCheck(postId, authorId, postedMode, content) {
 }
 
 // POST /api/posts/:id/share  (auth required)
-// Body: { content?, mode, privacy? } — tạo bài repost nhúng bài gốc
+// Body: { content?, mode, privacy? } — creates a repost embedding the original post
 async function sharePost(req, res, next) {
   try {
     const { content, mode, privacy = 'public' } = req.body;
@@ -174,7 +195,7 @@ async function sharePost(req, res, next) {
       return res.status(400).json({ error: 'mode must be hobby or work' });
     }
 
-    // findById enforce privacy — chỉ share được bài mình có quyền xem
+    // findById enforces privacy — can only share a post you're allowed to view
     const original = await postModel.findById(req.params.id, req.userId);
     if (!original) {
       const err = new Error('Post not found');
@@ -182,7 +203,7 @@ async function sharePost(req, res, next) {
       return next(err);
     }
 
-    // Share một bài share → trỏ về bài gốc để không tạo chuỗi lồng nhau
+    // Sharing a share → point to the root post so we don't create nested chains
     const rootId = original.shared_post_id ?? original.id;
 
     const post = await postModel.create({
@@ -197,7 +218,7 @@ async function sharePost(req, res, next) {
 
     res.status(201).json({ data: post });
 
-    // Notification cho tác giả bài gốc — fire-and-forget
+    // Notification for the original post's author — fire-and-forget
     (async () => {
       const { rows: [root] } = await query('SELECT author_id FROM posts WHERE id = $1', [rootId]);
       if (root && root.author_id !== req.userId) {
@@ -215,29 +236,15 @@ async function sharePost(req, res, next) {
 }
 
 // DELETE /api/posts/:id  (auth required)
-// Soft-delete: set status = 'deleted' — bài viết ẩn khỏi feed nhưng vẫn còn trong DB
+// Soft-delete: set status = 'deleted' — the post is hidden from the feed but stays in the DB.
+// Authorization delegates to postService.deletePost — author-only for Feed
+// posts (community_id NULL), author-OR-community-staff (admin/moderator) for
+// community posts. Single source of truth, no separate community delete route.
 async function softDeletePost(req, res, next) {
   try {
-    const post = await postModel.findPostMeta(req.params.id);
-    if (!post) {
-      const err = new Error('Post not found');
-      err.status = 404;
-      return next(err);
-    }
-    if (post.author_id !== req.userId) {
-      const err = new Error('Forbidden');
-      err.status = 403;
-      return next(err);
-    }
+    await postService.deletePost(req.userId, req.params.id);
 
-    const deleted = await postModel.softDeletePost(req.params.id);
-    if (!deleted) {
-      const err = new Error('Post not found or already deleted');
-      err.status = 404;
-      return next(err);
-    }
-
-    // Bài đã ẩn thì chunk cũng phải biến mất khỏi search/feed
+    // Once a post is hidden, its chunks must also disappear from search/feed
     deletePostChunks(req.params.id)
       .catch((err) => logger.warn({ err, postId: req.params.id }, 'softDelete: chunk cleanup failed'));
 
@@ -247,8 +254,52 @@ async function softDeletePost(req, res, next) {
   }
 }
 
+// GET /api/posts/deleted  (auth required)
+// List of the current user's own soft-deleted posts, newest first — "Recently
+// Deleted" list. Same shape as every other post-returning endpoint (buildPostSelect).
+async function listDeletedPosts(req, res, next) {
+  try {
+    const limit  = Math.min(Math.max(parseInt(req.query.limit  || '20', 10) || 20, 1), 50);
+    const offset = Math.max(parseInt(req.query.offset || '0', 10) || 0, 0);
+
+    const posts = await postModel.listDeletedPosts(req.userId, { limit, offset });
+    res.json({ data: posts, pagination: { limit, offset } });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/posts/saved  (auth required)
+// List of the current user's own saved (bookmarked) posts, most recently saved first.
+// Same shape as every other post-returning endpoint (buildPostSelect); privacy/block
+// is re-filtered in postModel.listSavedPosts so a saved post whose author later
+// changes privacy or blocks the viewer won't leak through.
+async function listSavedPosts(req, res, next) {
+  try {
+    const limit  = Math.min(Math.max(parseInt(req.query.limit  || '20', 10) || 20, 1), 50);
+    const offset = Math.max(parseInt(req.query.offset || '0', 10) || 0, 0);
+
+    const posts = await postModel.listSavedPosts(req.userId, { limit, offset });
+    res.json({ data: posts, pagination: { limit, offset } });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/posts/:id/restore  (auth required)
+// Restore a soft-deleted post — author only (not extended to community
+// staff, see postService.restorePost). The inverse of softDeletePost.
+async function restorePost(req, res, next) {
+  try {
+    const post = await postService.restorePost(req.userId, req.params.id);
+    res.json({ data: post });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // PATCH /api/posts/:id  (auth required)
-// Cập nhật nội dung, privacy, ảnh của bài viết
+// Update a post's content, privacy, and images
 async function updatePost(req, res, next) {
   try {
     const post = await postModel.findPostMeta(req.params.id);
@@ -273,14 +324,30 @@ async function updatePost(req, res, next) {
       if (imageUrls.length === 0) imageUrls = null;
     }
 
+    // Distinguish "content field not sent at all" (leave the existing caption
+    // alone) from "content field explicitly sent as empty string" (the user
+    // deleted all their text and wants that saved) — a plain `content?.trim() ||
+    // null` collapses both cases to null, so postModel's COALESCE kept the OLD
+    // caption even when the user intentionally cleared it. contentProvided tells
+    // the model which behavior applies.
+    const contentProvided = req.body.content !== undefined;
+    const trimmedContent = contentProvided ? (content ?? '').trim() : null;
+
     const updated = await postModel.updatePost(req.params.id, {
-      content:      content?.trim()      || null,
-      privacy:      privacy              || null,
-      imageUrl:     image_url            || null,
+      content:          trimmedContent,
+      contentProvided,
+      privacy:          privacy              || null,
+      imageUrl:         image_url            || null,
       imageUrls,
-      linkUrl:      link_url             || null,
-      articleTitle: article_title        || null,
+      linkUrl:          link_url             || null,
+      articleTitle:     article_title        || null,
     });
+
+    if (updated === 'empty') {
+      const err = new Error('A post must have a caption, image, or link');
+      err.status = 400;
+      return next(err);
+    }
 
     if (!updated) {
       const err = new Error('Post not found or already deleted');
@@ -288,7 +355,7 @@ async function updatePost(req, res, next) {
       return next(err);
     }
 
-    // Nội dung đổi → re-embed chunk với text mới (tags giữ nguyên)
+    // Content changed → re-embed the chunk with the new text (tags stay unchanged)
     enqueuePostEmbed(req.params.id)
       .catch((err) => logger.warn({ err, postId: req.params.id }, 'updatePost: enqueue embed failed'));
 
@@ -298,4 +365,7 @@ async function updatePost(req, res, next) {
   }
 }
 
-module.exports = { listPosts, getPost, analyzePost, createPost, sharePost, softDeletePost, updatePost };
+module.exports = {
+  listPosts, getPost, analyzePost, createPost, sharePost, softDeletePost, updatePost,
+  listDeletedPosts, restorePost, listSavedPosts,
+};

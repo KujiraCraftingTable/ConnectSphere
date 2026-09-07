@@ -1,22 +1,22 @@
 const { query } = require('../config/db');
 const { personaExpr } = require('../utils/personaSql');
 
-// ─── Ranking knobs (chỉnh ở đây, không rải hằng số trong SQL) ─────────────────
-const W_SEMANTIC        = 0.50;  // trọng số độ hợp sở thích
-const W_RECENCY         = 0.35;  // trọng số độ mới
-const W_ENGAGEMENT      = 0.15;  // trọng số tương tác (like/comment)
-const CONNECTION_BOOST  = 0.15;  // cộng thẳng cho bài của người đã kết nối
-const DISCOVERY_THRESHOLD = 0.65; // ngưỡng semantic CHỈ áp cho bài người lạ
-const RECENCY_TAU_HOURS = 72;    // hằng số phân rã ~3 ngày
-const ENGAGEMENT_CAP    = 500;   // mức tương tác coi như "tối đa" để chuẩn hoá
+// ─── Ranking knobs (tune here, don't scatter constants through the SQL) ───────
+const W_SEMANTIC        = 0.50;  // weight for interest match
+const W_RECENCY         = 0.35;  // weight for recency
+const W_ENGAGEMENT      = 0.15;  // weight for engagement (like/comment)
+const CONNECTION_BOOST  = 0.15;  // flat bonus for posts from connections
+const DISCOVERY_THRESHOLD = 0.65; // semantic threshold applied ONLY to strangers' posts
+const RECENCY_TAU_HOURS = 72;    // decay constant, ~3 days
+const ENGAGEMENT_CAP    = 500;   // engagement level treated as the "max" for normalization
 
-// ─── Taste vector = hồ sơ + hành vi ───────────────────────────────────────────
-const W_PROFILE   = 0.6;  // trọng số các chunk hồ sơ
-const W_BEHAVIOR  = 0.4;  // trọng số chunk của các bài đã thích
-const RECENT_LIKES = 20;  // số bài đã thích gần nhất dùng để dựng taste
+// ─── Taste vector = profile + behavior ────────────────────────────────────────
+const W_PROFILE   = 0.6;  // weight for profile chunks
+const W_BEHAVIOR  = 0.4;  // weight for liked-post chunks
+const RECENT_LIKES = 20;  // number of most recent likes used to build the taste vector
 
 /** Encode (score, id) pair into a base64 cursor string.
- *  relaxed = true → các trang sau tiếp tục bỏ hard threshold (feed đã nới). */
+ *  relaxed = true → subsequent pages keep dropping the hard threshold (feed already relaxed). */
 function encodeCursor(score, id, relaxed = false) {
   return Buffer.from(JSON.stringify(
     relaxed ? { score, id, relaxed: true } : { score, id }
@@ -34,12 +34,12 @@ function decodeCursor(cursor) {
   }
 }
 
-/** Parse pgvector text literal '[a,b,...]' thành mảng số. */
+/** Parse a pgvector text literal '[a,b,...]' into a number array. */
 function parseVec(text) {
   return text.slice(1, -1).split(',').map(Number);
 }
 
-/** Trung bình cộng theo từng chiều của một danh sách vector. */
+/** Element-wise average across a list of vectors. */
 function meanVec(vectors) {
   const dim = vectors[0].length;
   const out = new Array(dim).fill(0);
@@ -48,7 +48,7 @@ function meanVec(vectors) {
   return out;
 }
 
-/** Chuẩn hoá L2 để cosine ổn định (vector 0 giữ nguyên). */
+/** L2-normalize for stable cosine similarity (the zero vector is left unchanged). */
 function normalize(v) {
   let norm = 0;
   for (const x of v) norm += x * x;
@@ -56,15 +56,15 @@ function normalize(v) {
   return norm === 0 ? v : v.map(x => x / norm);
 }
 
-/** Định dạng mảng số về literal pgvector '[a,b,...]'. */
+/** Format a number array back into a pgvector literal '[a,b,...]'. */
 function toVectorLiteral(v) {
   return `[${v.join(',')}]`;
 }
 
 /**
- * Dựng taste vector của viewer:
- *   taste = W_PROFILE × tb(profile chunks) + W_BEHAVIOR × tb(chunk bài đã thích),
- * rồi chuẩn hoá L2. Trả null khi user chưa có dữ liệu nào (cold start).
+ * Build the viewer's taste vector:
+ *   taste = W_PROFILE × avg(profile chunks) + W_BEHAVIOR × avg(liked-post chunks),
+ * then L2-normalize. Returns null when the user has no data at all (cold start).
  */
 async function buildTasteVector(userId) {
   const { rows: profileRows } = await query(
@@ -101,20 +101,20 @@ async function buildTasteVector(userId) {
 }
 
 /**
- * Personalized newsfeed từ user_embedding_chunks.
+ * Personalized newsfeed built from user_embedding_chunks.
  *
- * Hai "pool" gộp trong một truy vấn:
- *   • Bài của connection (accepted, đúng mode): LUÔN giữ, bỏ qua ngưỡng semantic.
- *   • Bài người lạ (discovery): chỉ giữ khi semantic ≥ DISCOVERY_THRESHOLD.
- * Xếp hạng blend: W_SEMANTIC×sim + W_RECENCY×decay + W_ENGAGEMENT×eng + boost.
- * Cold start (chưa có taste) → xếp thuần recency+engagement để không rỗng.
- * Bài của chính viewer bị loại (chỉ hiện ở profile). Keyset cursor (score, id).
+ * Two "pools" merged in a single query:
+ *   • Posts from connections (accepted, matching mode): ALWAYS kept, skips the semantic threshold.
+ *   • Posts from strangers (discovery): kept only when semantic ≥ DISCOVERY_THRESHOLD.
+ * Blended ranking: W_SEMANTIC×sim + W_RECENCY×decay + W_ENGAGEMENT×eng + boost.
+ * Cold start (no taste vector yet) → ranked purely by recency+engagement so it isn't empty.
+ * The viewer's own posts are excluded (they only show on the profile). Keyset cursor (score, id).
  */
 async function getRecommendedFeed(userId, { mode, cursor = null, limit = 20 } = {}) {
   const taste    = await buildTasteVector(userId);
   const hasTaste = taste !== null;
 
-  // $1 = viewer, $2 = mode, $3 = limit (+1 để biết còn trang sau)
+  // $1 = viewer, $2 = mode, $3 = limit (+1 so we know if there's another page)
   const params = [userId, mode, limit + 1];
 
   let semanticExpr = '0::float';
@@ -123,7 +123,7 @@ async function getRecommendedFeed(userId, { mode, cursor = null, limit = 20 } = 
     semanticExpr = `(1 - (c.embedding <=> $${params.length}::vector))::float`;
   }
 
-  // Keyset pagination trên (score DESC, id DESC)
+  // Keyset pagination on (score DESC, id DESC)
   const decoded    = cursor ? decodeCursor(cursor) : null;
   let cursorClause = '';
   if (decoded) {
@@ -134,8 +134,8 @@ async function getRecommendedFeed(userId, { mode, cursor = null, limit = 20 } = 
     cursorClause = `AND (score < $${scoreIdx} OR (score = $${scoreIdx} AND id < $${idIdx}::uuid))`;
   }
 
-  // Người lạ phải vượt ngưỡng; connection luôn giữ. Cold start: giữ tất cả.
-  // relaxed (từ cursor): trang đầu đã phải nới ngưỡng → các trang sau nới theo.
+  // Strangers must clear the threshold; connections are always kept. Cold start: keep everything.
+  // relaxed (from cursor): page one already had to relax the threshold → later pages relax too.
   let relaxed = decoded?.relaxed === true;
   const poolFilter = () => (hasTaste && !relaxed)
     ? `(is_connection OR semantic >= ${DISCOVERY_THRESHOLD})`
@@ -240,10 +240,10 @@ async function getRecommendedFeed(userId, { mode, cursor = null, limit = 20 } = 
 
   let { rows } = await query(buildSql(), params);
 
-  // Chống feed rỗng: user có taste nhưng không bài nào đạt ngưỡng discovery
-  // (thường là user mới — taste mỏng, chưa có connection) → chạy lại trang đầu
-  // bỏ hard threshold; semantic vẫn tham gia xếp hạng nên bài gần khẩu vị nhất
-  // vẫn lên trước. Cursor các trang sau mang cờ relaxed để giữ nhất quán.
+  // Guard against an empty feed: user has a taste vector but no post clears the discovery
+  // threshold (usually a new user — thin taste vector, no connections yet) → re-run page one
+  // dropping the hard threshold; semantic still factors into ranking, so posts closest to
+  // their taste still rank first. Later pages' cursors carry the relaxed flag for consistency.
   if (rows.length === 0 && hasTaste && !relaxed && !decoded) {
     relaxed = true;
     ({ rows } = await query(buildSql(), params));

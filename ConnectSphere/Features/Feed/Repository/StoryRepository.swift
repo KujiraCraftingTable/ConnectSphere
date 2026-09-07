@@ -1,6 +1,6 @@
 import Foundation
 
-/// API calls cho stories 24h.
+/// API calls for 24h stories.
 struct StoryRepository {
     private let client = NetworkClient.shared
 
@@ -14,7 +14,7 @@ struct StoryRepository {
         return token
     }
 
-    /// Story của mình + connections, chưa hết hạn
+    /// The current user's own stories + connections', not yet expired
     func fetchStories() async throws -> [StoryDTO] {
         let response = try await client.fetch(
             ListResponse.self,
@@ -24,7 +24,7 @@ struct StoryRepository {
         return response.data
     }
 
-    /// Đăng story mới từ URL ảnh đã upload
+    /// Posts a new story from an already-uploaded image URL
     func createStory(imageUrl: String) async throws {
         struct CreateResponse: Decodable { struct S: Decodable { let id: String }; let data: S }
         _ = try await client.fetch(
@@ -36,7 +36,7 @@ struct StoryRepository {
         )
     }
 
-    /// Đánh dấu đã xem
+    /// Marks the story as viewed
     func markViewed(storyId: String) async throws {
         _ = try await client.fetch(
             OkResponse.self,
@@ -46,7 +46,7 @@ struct StoryRepository {
         )
     }
 
-    /// Xoá story của mình (backend check author)
+    /// Deletes one of the current user's own stories (backend checks the author)
     func deleteStory(storyId: String) async throws {
         _ = try await client.fetch(
             OkResponse.self,
@@ -56,7 +56,7 @@ struct StoryRepository {
         )
     }
 
-    /// Danh sách người đã xem — chỉ gọi được với story của mình
+    /// List of people who have viewed the story — can only be called for the current user's own story
     func fetchViewers(storyId: String) async throws -> [StoryViewerDTO] {
         struct ViewersResponse: Decodable { let data: [StoryViewerDTO] }
         return try await client.fetch(

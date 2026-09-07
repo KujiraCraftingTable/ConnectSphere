@@ -11,27 +11,66 @@ struct CreatePostView: View {
     @State private var content = ""
     @State private var privacy: PostPrivacy = .publicAll
     @State private var showPrivacyPicker = false
-    /// Bỏ qua 1 lần detectAndFetchLink kế tiếp — dùng khi nạp content có sẵn
-    /// lúc vào Edit mode, vì content đã bị strip URL nên detect sẽ xóa nhầm linkPreview.
+
+    // Post type (Phase 2: Feed can now post polls/events, not just text) —
+    // hidden entirely in edit mode, which only supports editing text posts.
+    @State private var postType: PostType = .text
+    @State private var composerViewModel = PostComposerViewModel()
+    /// Skips the next single detectAndFetchLink call — used when loading existing content
+    /// on entering Edit mode, since the content had its URL stripped already, so detecting
+    /// again would wrongly clear linkPreview.
     @State private var suppressNextLinkDetect = false
 
     // Media
     @State private var selectedItems: [PhotosPickerItem] = []
     @State private var selectedMedia: [PickedPostMedia] = []
 
+    // Hashtags + AI-tag visibility — create mode only (PATCH /posts/:id doesn't
+    // accept these fields yet). `showAiTags` is a plain, non-persisted @State so
+    // the toggle always resets to off whenever the composer opens fresh.
+    @State private var hashtags: [String] = []
+    @State private var hashtagController = HashtagInputController()
+    @State private var showAiTags = false
+
     @State private var viewModel = CreatePostViewModel()
 
-    /// Khi được set, view hoạt động ở chế độ Edit thay vì Create
+    /// When set, the view operates in Edit mode instead of Create
     var editingPost: Post? = nil
-    var onPostCreated: (() -> Void)?
+    /// Called with the freshly-created post so the caller can insert it
+    /// straight into whatever list it's displaying, instead of the caller
+    /// having to reload from the server (and the user having to notice a
+    /// silent background refresh) to see their own post appear.
+    var onPostCreated: ((Post) -> Void)?
     var onPostUpdated: ((Post) -> Void)?
 
     private var isEditMode: Bool { editingPost != nil }
 
+    /// Edit mode only: does the post being edited ALREADY have media or a link that
+    /// hasn't been changed? `selectedMedia`/`linkPreview` only ever reflect NEWLY
+    /// picked media/a newly-detected link in this view — edit mode never seeds them
+    /// from the existing post (images stay server-side, referenced by URL, until the
+    /// user picks new ones), so without this a caption-less media/link post being
+    /// edited would look content-less and Save would be wrongly disabled forever.
+    private var editingPostHasExistingMediaOrLink: Bool {
+        guard isEditMode else { return false }
+        return !(editingPost?.displayImageUrls.isEmpty ?? true) || editingPost?.linkUrl != nil
+    }
+
     private var isPostDisabled: Bool {
-        // Cho phép đăng khi có text HOẶC có media (post chỉ ảnh/video không cần caption)
-        (content.trimmingCharacters(in: .whitespaces).isEmpty && selectedMedia.isEmpty)
-            || viewModel.isPosting
+        // Poll/event validity (min 2 options, event title + future start time)
+        // is delegated to composerViewModel.isValid — same rule the Community
+        // composer already enforces for identical post types.
+        guard postType == .text else {
+            return !composerViewModel.isValid || composerViewModel.isPosting
+        }
+        // Allow posting when there's text OR media/link (an image/video/link-only post
+        // doesn't need a caption) — in edit mode, media/link the post already has also
+        // counts, not just newly picked media or a newly detected link.
+        let hasContent = !content.trimmingCharacters(in: .whitespaces).isEmpty
+            || !selectedMedia.isEmpty
+            || viewModel.linkPreview != nil
+            || editingPostHasExistingMediaOrLink
+        return !hasContent || viewModel.isPosting
     }
 
     var body: some View {
@@ -70,8 +109,8 @@ struct CreatePostView: View {
 
                             Spacer()
 
-                            // Badge chế độ (chỉ icon) — sở thích vs công việc,
-                            // tách hẳn khỏi icon privacy để không gây nhầm.
+                            // Mode badge (icon only) — hobby vs work,
+                            // kept fully separate from the privacy icon to avoid confusion.
                             Image(systemName: appState.currentMode.glyph)
                                 .font(.system(size: 15, weight: .semibold))
                                 .foregroundColor(themeManager.theme.primary)
@@ -80,6 +119,19 @@ struct CreatePostView: View {
                         }
                         .padding(.horizontal, 16)
                         .padding(.top, 16)
+
+                        // ── Post type picker (create mode only — editing an
+                        // existing post never changes its type) ────────────────
+                        if !isEditMode {
+                            Picker("Post type", selection: $postType) {
+                                Text("Text", bundle: bundle).tag(PostType.text)
+                                Text("Poll", bundle: bundle).tag(PostType.poll)
+                                Text("Event", bundle: bundle).tag(PostType.event)
+                            }
+                            .pickerStyle(.segmented)
+                            .padding(.horizontal, 16)
+                            .onChange(of: postType) { _, new in composerViewModel.postType = new }
+                        }
 
                         // ── Row 2: Text box ────────────────────────────────────
                         ZStack(alignment: .topLeading) {
@@ -111,56 +163,96 @@ struct CreatePostView: View {
                         )
                         .padding(.horizontal, 16)
 
-                        // ── Media preview ──────────────────────────────────────
-                        if !selectedMedia.isEmpty {
-                            mediaPreview
+                        // ── Poll/Event inline sections — same @Binding-only
+                        // components CommunityCreatePostView uses, zero changes
+                        // needed since they're already post-type-agnostic. ─────
+                        if postType == .poll {
+                            CreatePollSheet(
+                                options:     $composerViewModel.pollOptions,
+                                endsAt:      $composerViewModel.pollEndsAt,
+                                showEndDate: $composerViewModel.showPollEndDate
+                            )
+                            .padding(.horizontal, 16)
+                            .padding(.top, 10)
+                        } else if postType == .event {
+                            CreateEventSheet(
+                                title:       $composerViewModel.eventTitle,
+                                location:    $composerViewModel.eventLocation,
+                                startsAt:    $composerViewModel.eventStartsAt,
+                                endsAt:      $composerViewModel.eventEndsAt,
+                                showEndDate: $composerViewModel.showEventEndDate
+                            )
+                            .padding(.horizontal, 16)
+                            .padding(.top, 10)
+                        }
+
+                        if postType == .text {
+                            // ── Media preview ────────────────────────────────
+                            if !selectedMedia.isEmpty {
+                                mediaPreview
+                                    .padding(.horizontal, 16)
+                            }
+
+                            // ── Link preview card ────────────────────────────
+                            if viewModel.isFetchingLink {
+                                HStack(spacing: 8) {
+                                    ProgressView().scaleEffect(0.8)
+                                    Text("Loading link preview...", bundle: bundle)
+                                        .font(.system(size: 13))
+                                        .foregroundColor(AppColors.textSecondary(colorScheme))
+                                }
+                                .padding(.horizontal, 16)
+                            } else if let preview = viewModel.linkPreview {
+                                linkPreviewCard(preview)
+                                    .padding(.horizontal, 16)
+                            }
+                        }
+
+                        // ── Hashtags + AI-tag visibility (create mode only — the
+                        // update-post endpoint doesn't accept these fields).
+                        // Applies to all post types — backend accepts hashtags/
+                        // show_ai_tags on text/poll/event alike. ────────────────
+                        if !isEditMode {
+                            HashtagInputView(hashtags: $hashtags, controller: hashtagController)
+                                .padding(.horizontal, 16)
+
+                            aiTagsToggle
                                 .padding(.horizontal, 16)
                         }
 
-                        // ── Link preview card ──────────────────────────────────
-                        if viewModel.isFetchingLink {
-                            HStack(spacing: 8) {
-                                ProgressView().scaleEffect(0.8)
-                                Text("Loading link preview...", bundle: bundle)
-                                    .font(.system(size: 13))
-                                    .foregroundColor(AppColors.textSecondary(colorScheme))
+                        // ── Photo/Video button (text posts only — backend only
+                        // accepts image_urls on post_type='text') ──────────────
+                        if postType == .text {
+                            PhotosPicker(
+                                selection: $selectedItems,
+                                maxSelectionCount: 10,
+                                matching: .any(of: [.images, .videos])
+                            ) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "photo.on.rectangle.angled")
+                                        .font(.system(size: 16, weight: .medium))
+                                        .foregroundColor(Color(hex: "#45BD62"))
+                                    Text("Photo / Video", bundle: bundle)
+                                        .font(.system(size: 15, weight: .medium))
+                                        .foregroundColor(AppColors.textPrimary(colorScheme))
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .fill(AppColors.surface(colorScheme))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 16)
+                                                .stroke(AppColors.borderDefault(colorScheme), lineWidth: 1)
+                                        )
+                                )
+                            }
+                            .onChange(of: selectedItems) { items in
+                                Task { selectedMedia = await viewModel.loadSelectedMedia(items) }
                             }
                             .padding(.horizontal, 16)
-                        } else if let preview = viewModel.linkPreview {
-                            linkPreviewCard(preview)
-                                .padding(.horizontal, 16)
+                            .padding(.bottom, 8)
                         }
-
-                        // ── Photo/Video button ─────────────────────────────────
-                        PhotosPicker(
-                            selection: $selectedItems,
-                            maxSelectionCount: 10,
-                            matching: .any(of: [.images, .videos])
-                        ) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "photo.on.rectangle.angled")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(Color(hex: "#45BD62"))
-                                Text("Photo / Video", bundle: bundle)
-                                    .font(.system(size: 15, weight: .medium))
-                                    .foregroundColor(AppColors.textPrimary(colorScheme))
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .fill(AppColors.surface(colorScheme))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 16)
-                                            .stroke(AppColors.borderDefault(colorScheme), lineWidth: 1)
-                                    )
-                            )
-                        }
-                        .onChange(of: selectedItems) { items in
-                            Task { selectedMedia = await viewModel.loadSelectedMedia(items) }
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 8)
                     }
                 }
 
@@ -226,11 +318,17 @@ struct CreatePostView: View {
                 }
             }
             .onChange(of: content) { _, newContent in
+                // Keep composerViewModel.content mirrored regardless of
+                // postType — it's the single field composerViewModel.isValid
+                // (poll/event validation) and submitPoll/submitEvent both read.
+                composerViewModel.content = newContent
                 if suppressNextLinkDetect {
                     suppressNextLinkDetect = false
                     return
                 }
-                viewModel.detectAndFetchLink(newContent)
+                if postType == .text {
+                    viewModel.detectAndFetchLink(newContent)
+                }
             }
             .sheet(isPresented: $showPrivacyPicker) {
                 PrivacyPickerSheet(selected: $privacy, mode: appState.currentMode)
@@ -243,18 +341,87 @@ struct CreatePostView: View {
     private func handlePost() {
         if isEditMode {
             saveEdit()
-        } else {
+        } else if postType == .text {
+            // Flush whatever's still typed-but-uncommitted in the hashtag field
+            // before reading `hashtags` — otherwise a hashtag typed right before
+            // tapping Post (no space/return/suggestion tap) is silently dropped.
+            hashtagController.commitPending(into: &hashtags)
             viewModel.submitPost(
                 content: content,
                 mode: appState.currentMode,
                 privacy: privacy,
                 authToken: appState.authToken,
-                selectedMedia: selectedMedia
-            ) {
-                onPostCreated?()
+                selectedMedia: selectedMedia,
+                hashtags: hashtags,
+                showAiTags: showAiTags
+            ) { post in
+                // Broadcast beyond just this composer's own caller — e.g.
+                // `AppState.currentUser.postCount` and a `ProfileViewModel`
+                // that's still alive in memory (Profile tab visited earlier,
+                // not recreated) have no other way to learn a new post exists
+                // when creation happens from a DIFFERENT screen (Home Feed).
+                NotificationCenter.default.post(name: .postCreated, object: nil, userInfo: ["post": post])
+                onPostCreated?(post)
+                dismiss()
+            }
+        } else {
+            handlePollOrEventPost()
+        }
+    }
+
+    /// Poll/event submission — routed through PostComposerViewModel with
+    /// `communityId: nil` so it posts straight to the Feed (`POST /posts`)
+    /// instead of a community. The response decodes as `CommunityPost`
+    /// (composer's shared decode path across Feed/Community); converted to a
+    /// Feed `Post` here since that's what this screen's callbacks expect —
+    /// the author is always the current user, so no round-trip needed for it.
+    private func handlePollOrEventPost() {
+        hashtagController.commitPending(into: &hashtags)
+        Task<Void, Never>(name: nil) {
+            await composerViewModel.submitPost(
+                communityId: nil,
+                token: appState.authToken ?? "",
+                mode: appState.currentMode,
+                privacy: privacy,
+                hashtags: hashtags,
+                showAiTags: showAiTags
+            ) { communityPost in
+                let post = feedPost(from: communityPost)
+                NotificationCenter.default.post(name: .postCreated, object: nil, userInfo: ["post": post])
+                onPostCreated?(post)
                 dismiss()
             }
         }
+    }
+
+    /// Adapts a `CommunityPost` (what PostComposerViewModel's shared submit
+    /// path returns) into a Feed `Post` for this screen's Post-typed
+    /// callbacks. mode/privacy come from local composer state (already known
+    /// — this IS what was just submitted), not decoded from the response.
+    private func feedPost(from communityPost: CommunityPost) -> Post {
+        Post(
+            id:            communityPost.id,
+            author:        appState.currentUser ?? MockData.currentUser,
+            content:       communityPost.content,
+            timestamp:     communityPost.createdAt,
+            mode:          appState.currentMode,
+            privacy:       privacy,
+            linkUrl:       communityPost.linkUrl,
+            imageUrl:      communityPost.imageUrl,
+            imageUrls:     communityPost.imageUrls,
+            likeCount:     communityPost.likeCount,
+            commentCount:  communityPost.commentCount,
+            shareCount:    0,
+            isLiked:       communityPost.isLiked,
+            isSaved:       false,
+            articleTitle:  communityPost.articleTitle,
+            tags:          communityPost.tags,
+            sharedPostId:  nil,
+            sharedPost:    nil,
+            postType:      communityPost.postType,
+            pollData:      communityPost.pollData,
+            eventData:     communityPost.eventData
+        )
     }
 
     private func saveEdit() {
@@ -269,6 +436,25 @@ struct CreatePostView: View {
             NotificationCenter.default.post(name: .postUpdated, object: nil, userInfo: ["post": updatedPost])
             onPostUpdated?(updatedPost)
             dismiss()
+        }
+    }
+
+    // MARK: - AI tags toggle
+
+    /// Always starts off each time the composer opens (not persisted as a preference) —
+    /// this post's AI tags only show up if the user actively turns it on for that specific post.
+    private var aiTagsToggle: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Toggle(isOn: $showAiTags) {
+                Text("Show AI-generated tags", bundle: bundle)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(AppColors.textPrimary(colorScheme))
+            }
+            .tint(themeManager.theme.primary)
+
+            Text("AI tags stay hidden unless you turn this on for this post.", bundle: bundle)
+                .font(.system(size: 12))
+                .foregroundColor(AppColors.textTertiary(colorScheme))
         }
     }
 
