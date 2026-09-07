@@ -1,14 +1,14 @@
 import SwiftUI
 
-/// Cài đặt thông báo trong app — chỉ gồm những tuỳ chọn có tác dụng thật.
-/// Push khi app đóng (APNs) sẽ bổ sung ở bản sau.
+/// In-app notification settings — only includes options that actually have an effect.
+/// Push notifications while the app is closed (APNs) will be added in a later build.
 struct NotificationSettingsView: View {
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
 
-    /// Đọc bởi ChatView.playMessageSound
+    /// Read by ChatView.playMessageSound
     @AppStorage("messageSoundEnabled") private var messageSoundEnabled = true
-    /// Đọc bởi CreatePostViewModel.checkAndNotifyMismatch
+    /// Read by CreatePostViewModel.checkAndNotifyMismatch
     @AppStorage("aiSuggestionNotifsEnabled") private var aiSuggestionNotifsEnabled = true
 
     var body: some View {

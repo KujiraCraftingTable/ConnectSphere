@@ -1,16 +1,86 @@
 import SwiftUI
 
+// MARK: - Navigation
+
+/// Where a tapped notification goes. Built from the backend's `destination`
+/// object rather than re-deriving it from `type`, so adding a notification type
+/// doesn't require a client change to route it.
+enum NotificationDestination: Identifiable, Hashable {
+    case post(id: String, commentId: String?)
+    case profile(userId: String)
+    case conversation(ChatRoute)
+    case conversationList
+    case community(id: String)
+
+    var id: String {
+        switch self {
+        case .post(let id, let commentId):  return "post:\(id):\(commentId ?? "")"
+        case .profile(let userId):          return "profile:\(userId)"
+        case .conversation(let route):      return "chat:\(route.conversationId)"
+        case .conversationList:             return "chats"
+        case .community(let id):            return "community:\(id)"
+        }
+    }
+
+    /// Resolve a notification to its destination, or nil when it doesn't
+    /// navigate (mode_mismatch is answered inline; an unknown type is inert).
+    static func resolve(_ notif: UserNotificationDTO) -> NotificationDestination? {
+        guard let dest = notif.destination else { return nil }
+
+        switch dest.kind {
+        case "post":
+            guard let postId = dest.postId else { return nil }
+            return .post(id: postId, commentId: dest.commentId)
+
+        case "profile":
+            guard let userId = dest.userId else { return nil }
+            return .profile(userId: userId)
+
+        case "conversation":
+            guard let conversationId = dest.conversationId,
+                  let peer = chatPeer(from: notif.payload) else { return nil }
+            return .conversation(ChatRoute(conversationId: conversationId, peer: peer, location: nil))
+
+        case "conversations":
+            return .conversationList
+
+        case "communityPost":
+            // The post is the more specific target when the row carries one.
+            if let postId = dest.postId { return .post(id: postId, commentId: nil) }
+            guard let communityId = dest.communityId else { return nil }
+            return .community(id: communityId)
+
+        case "community", "communityJoinRequests", "communityReports":
+            guard let communityId = dest.communityId else { return nil }
+            return .community(id: communityId)
+
+        default:
+            return nil
+        }
+    }
+
+    /// Build the chat peer straight from the notification payload — the
+    /// conversation card the backend embeds means no extra lookup is needed.
+    private static func chatPeer(from payload: UserNotificationPayloadDTO) -> ChatPeer? {
+        if payload.isGroup == true {
+            return .group(
+                name: payload.groupName ?? "",
+                avatarUrl: payload.groupAvatarUrl,
+                avatarColor: payload.groupAvatarColor,
+                memberCount: payload.memberCount ?? 0
+            )
+        }
+        guard let peerId = payload.peerUserId ?? payload.fromUserId else { return nil }
+        return .direct(
+            otherUserId: peerId,
+            name: payload.peerDisplayName ?? payload.fromDisplayName ?? "",
+            avatarColor: payload.peerAvatarColor ?? payload.fromAvatarColor ?? "#1877F2",
+            avatarUrl: payload.peerAvatarUrl ?? payload.fromAvatarUrl
+        )
+    }
+}
+
 // MARK: - NotificationsView
-
-/// Target điều hướng khi bấm vào một thông báo kết nối
-private struct ProfileNavTarget: Identifiable, Hashable {
-    let id: String
-}
-
-/// Target điều hướng khi bấm vào thông báo like/comment
-private struct PostNavTarget: Identifiable, Hashable {
-    let id: String
-}
 
 struct NotificationsView: View {
     @Environment(AppState.self) var appState
@@ -18,236 +88,356 @@ struct NotificationsView: View {
     @Environment(\.appBundle) var bundle
     @Environment(\.colorScheme) var colorScheme
 
-    @State private var notifications: [UserNotificationDTO] = []
-    @State private var isLoading = false
-    @State private var navTarget: ProfileNavTarget?
-    @State private var postNavTarget: PostNavTarget?
+    @State private var viewModel = NotificationsViewModel()
+    @State private var destination: NotificationDestination?
 
-    private let notifRepo = UserNotificationRepository()
-
-    /// Gợi ý AI (mode mismatch) — hiển thị card có nút xử lý
-    private var aiNotifications: [UserNotificationDTO] {
-        notifications.filter { $0.type == "mode_mismatch" }
-    }
-
-    /// Thông báo kết nối — bấm vào mở hồ sơ người gửi
-    private var connectionNotifications: [UserNotificationDTO] {
-        notifications.filter {
-            ["connection_request", "connection_accepted"].contains($0.type)
-        }
-    }
-
-    /// Hoạt động trên bài viết (like/comment/reply/share) — bấm vào mở bài viết
-    private var activityNotifications: [UserNotificationDTO] {
-        notifications.filter {
-            ["post_liked", "post_commented", "comment_replied", "post_shared"].contains($0.type)
-        }
-    }
+    private var token: String { appState.authToken ?? "" }
 
     var body: some View {
         NavigationStack {
-            List {
-                // ── AI notifications (mode mismatch, etc.) ────────────────────
-                if !aiNotifications.isEmpty {
-                    Section(bundle.loc("AI suggestions")) {
-                        ForEach(aiNotifications) { notif in
-                            ModeMismatchCard(notif: notif) { action in
-                                await handleResolve(notif: notif, action: action)
-                            }
+            VStack(spacing: 0) {
+                filterPicker
+
+                List {
+                    // A single time-ordered list. The previous version split
+                    // rows into three hardcoded type buckets, which silently
+                    // dropped any type not named in one of them.
+                    ForEach(viewModel.groups) { group in
+                        row(for: group)
                             .listRowBackground(
-                                notif.isRead
+                                group.isRead
                                     ? AppColors.surface(colorScheme)
-                                    : Color.orange.opacity(0.06)
+                                    : unreadTint(for: group)
                             )
                             .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
-                        }
-                    }
-                }
-
-                // ── Activity notifications (like / comment / reply) ──────────
-                if !activityNotifications.isEmpty {
-                    Section(bundle.loc("Activity")) {
-                        ForEach(activityNotifications) { notif in
-                            Button {
-                                openPost(from: notif)
-                            } label: {
-                                ActorNotifRow(notif: notif)
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                Button {
+                                    Task { await viewModel.toggleRead(group: group, token: token, appState: appState) }
+                                } label: {
+                                    Label(
+                                        group.isRead ? bundle.loc("Mark unread") : bundle.loc("Mark read"),
+                                        systemImage: group.isRead ? "envelope.badge" : "envelope.open"
+                                    )
+                                }
+                                .tint(themeManager.theme.primary)
                             }
-                            .buttonStyle(.plain)
-                            .listRowBackground(
-                                notif.isRead
-                                    ? AppColors.surface(colorScheme)
-                                    : themeManager.theme.primary.opacity(0.06)
-                            )
-                            .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
-                        }
-                    }
-                }
-
-                // ── Connection notifications ──────────────────────────────────
-                if !connectionNotifications.isEmpty {
-                    Section(bundle.loc("Connect")) {
-                        ForEach(connectionNotifications) { notif in
-                            Button {
-                                openProfile(from: notif)
-                            } label: {
-                                ActorNotifRow(notif: notif)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    Task { await viewModel.delete(group: group, token: token, appState: appState) }
+                                } label: {
+                                    Label(bundle.loc("Delete"), systemImage: "trash")
+                                }
                             }
-                            .buttonStyle(.plain)
-                            .listRowBackground(
-                                notif.isRead
-                                    ? AppColors.surface(colorScheme)
-                                    : themeManager.theme.primary.opacity(0.06)
-                            )
-                            .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
-                        }
+                            .task {
+                                await viewModel.loadMoreIfNeeded(currentGroup: group, token: token)
+                            }
                     }
-                }
 
-                if !isLoading && aiNotifications.isEmpty
-                    && connectionNotifications.isEmpty && activityNotifications.isEmpty {
-                    VStack(spacing: 12) {
-                        Image(systemName: "bell.slash")
-                            .font(.system(size: 40))
-                            .foregroundColor(AppColors.textSecondary(colorScheme).opacity(0.4))
-                        Text("No notifications yet", bundle: bundle)
-                            .font(.system(size: 15))
-                            .foregroundColor(AppColors.textSecondary(colorScheme))
+                    if viewModel.isLoadingMore {
+                        HStack {
+                            Spacer()
+                            ProgressView().padding(.vertical, 8)
+                            Spacer()
+                        }
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 80)
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
+
+                    if viewModel.isEmpty { emptyState }
                 }
+                .listStyle(.plain)
             }
-            .listStyle(.plain)
             .background(AppColors.base(colorScheme))
             .navigationTitle(bundle.loc("Notifications"))
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        Task { await markAllRead() }
-                    } label: {
-                        Image(systemName: "checkmark.circle")
-                            .font(.system(size: 18))
-                            .foregroundColor(themeManager.theme.primary)
+                    Button(bundle.loc("Read all")) {
+                        Task { await viewModel.markAllRead(token: token, appState: appState) }
                     }
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(themeManager.theme.primary)
+                    .disabled(viewModel.unreadCount == 0)
                 }
             }
-            .navigationDestination(item: $navTarget) { target in
-                UserProfileView(userId: target.id)
-            }
-            .navigationDestination(item: $postNavTarget) { target in
-                PostDetailView(postId: target.id)
+            .navigationDestination(item: $destination) { destination in
+                view(for: destination)
             }
             .task {
-                await loadNotifications()
-                // Refresh danh sách ngay khi có notification realtime
-                WebSocketClient.shared.on("notification", tag: "notificationsView") { _ in
-                    Task { @MainActor in await loadNotifications() }
-                }
+                await viewModel.load(token: token, appState: appState)
+                viewModel.startListening(token: token, appState: appState)
             }
-            .onDisappear {
-                WebSocketClient.shared.off("notification", tag: "notificationsView")
+            .onDisappear { viewModel.stopListening() }
+            .refreshable { await viewModel.load(token: token, appState: appState) }
+        }
+    }
+
+    // MARK: - Pieces
+
+    private var filterPicker: some View {
+        Picker("", selection: Binding(
+            get: { viewModel.filter },
+            set: { newValue in
+                Task { await viewModel.setFilter(newValue, token: token, appState: appState) }
             }
-            .refreshable { await loadNotifications() }
+        )) {
+            Text("All", bundle: bundle).tag(NotificationFilter.all)
+            Text("Unread", bundle: bundle).tag(NotificationFilter.unread)
+        }
+        .pickerStyle(.segmented)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8)
+    }
+
+    @ViewBuilder
+    private func row(for group: NotificationGroup) -> some View {
+        if group.representative.type == "mode_mismatch" {
+            ModeMismatchCard(notif: group.representative) { action in
+                await viewModel.resolve(
+                    notification: group.representative,
+                    action: action, token: token, appState: appState
+                )
+            }
+        } else {
+            Button {
+                open(group)
+            } label: {
+                ActorNotifRow(group: group)
+            }
+            .buttonStyle(.plain)
         }
     }
 
-    // MARK: - Private
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "bell.slash")
+                .font(.system(size: 40))
+                .foregroundColor(AppColors.textSecondary(colorScheme).opacity(0.4))
+            Text(
+                viewModel.filter == .unread ? "Nothing unread" : "No notifications yet",
+                bundle: bundle
+            )
+            .font(.system(size: 15))
+            .foregroundColor(AppColors.textSecondary(colorScheme))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 80)
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+    }
 
-    private func loadNotifications() async {
-        guard let token = appState.authToken else { return }
-        isLoading = true
-        defer { isLoading = false }
-        if let response = try? await notifRepo.fetchAll(token: token) {
-            notifications = response.data
+    private func unreadTint(for group: NotificationGroup) -> Color {
+        group.representative.type == "mode_mismatch"
+            ? Color.orange.opacity(0.06)
+            : themeManager.theme.primary.opacity(0.06)
+    }
+
+    @ViewBuilder
+    private func view(for destination: NotificationDestination) -> some View {
+        switch destination {
+        case .post(let id, let commentId):
+            PostDetailView(postId: id, scrollToCommentId: commentId)
+        case .profile(let userId):
+            UserProfileView(userId: userId)
+        case .conversation(let route):
+            ChatView(
+                conversationId: route.conversationId,
+                peer: route.peer,
+                otherUserLocation: route.location,
+                currentUserId: appState.currentUser?.id ?? "",
+                token: token
+            )
+        case .conversationList:
+            ConversationListView()
+        case .community(let id):
+            CommunityDetailView(
+                communityId: id,
+                token: token,
+                currentUserId: appState.currentUser?.id ?? ""
+            )
         }
     }
 
-    private func markAllRead() async {
-        guard let token = appState.authToken else { return }
-        try? await notifRepo.markAllRead(token: token)
-        await loadNotifications()
-    }
-
-    /// Đánh dấu đã đọc rồi mở hồ sơ người gửi lời mời
-    private func openProfile(from notif: UserNotificationDTO) {
-        guard let userId = notif.payload.fromUserId else { return }
-        markReadLocally(notif)
-        navTarget = ProfileNavTarget(id: userId)
-    }
-
-    /// Đánh dấu đã đọc rồi mở bài viết liên quan
-    private func openPost(from notif: UserNotificationDTO) {
-        guard let postId = notif.postId else { return }
-        markReadLocally(notif)
-        postNavTarget = PostNavTarget(id: postId)
-    }
-
-    private func markReadLocally(_ notif: UserNotificationDTO) {
-        if !notif.isRead, let token = appState.authToken {
-            Task { try? await notifRepo.markRead(notificationId: notif.id, token: token) }
+    /// Marks the whole group read, then navigates once.
+    private func open(_ group: NotificationGroup) {
+        Task { await viewModel.markRead(group: group, token: token, appState: appState) }
+        if let target = NotificationDestination.resolve(group.representative) {
+            destination = target
         }
-    }
-
-    private func handleResolve(notif: UserNotificationDTO, action: String) async {
-        guard let token = appState.authToken else { return }
-        try? await notifRepo.resolve(notificationId: notif.id, action: action, token: token)
-        await loadNotifications()
     }
 }
 
 // MARK: - ActorNotifRow
 
-/// Row dùng chung cho mọi notification "ai đó đã làm gì":
-/// kết nối, like, comment, reply. Icon và câu chữ đổi theo type.
+/// Shared row for every "someone did something" notification, across all three
+/// categories. A type without explicit wording falls back to a generic line
+/// rather than disappearing from the list.
 struct ActorNotifRow: View {
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
     @Environment(\.colorScheme) var colorScheme
 
-    let notif: UserNotificationDTO
+    let group: NotificationGroup
+
+    private var notif: UserNotificationDTO { group.representative }
 
     private var senderName: String {
         notif.payload.fromDisplayName ?? bundle.loc("Someone")
     }
 
+    /// "Anna", or "Anna and 2 others" once a group has several distinct actors.
+    private var actorLabel: String {
+        guard group.otherActorCount > 0 else { return senderName }
+        return String(format: bundle.loc("%@ and %d others"), senderName, group.otherActorCount)
+    }
+
+    private var communityLabel: String {
+        notif.communityName ?? notif.payload.communityName ?? bundle.loc("a community")
+    }
+
     private var message: String {
         switch notif.type {
+        // ── Connections ──────────────────────────────────────────────────
         case "connection_request":
             return String(format: bundle.loc("%@ sent you a connection request"), senderName)
         case "connection_accepted":
             return String(format: bundle.loc("%@ accepted your connection request"), senderName)
+        case "birthday":
+            return String(format: bundle.loc("🎂 It's %@'s birthday today!"), senderName)
+
+        // ── Post activity ────────────────────────────────────────────────
         case "post_liked":
-            return String(format: bundle.loc("%@ liked your post"), senderName)
+            return String(format: bundle.loc("%@ liked your post"), actorLabel)
         case "post_commented":
-            if let excerpt = notif.payload.excerpt, !excerpt.isEmpty {
+            if group.otherActorCount == 0, let excerpt = notif.payload.excerpt, !excerpt.isEmpty {
                 return String(format: bundle.loc("%@ commented: “%@”"), senderName, excerpt)
             }
-            return String(format: bundle.loc("%@ commented on your post"), senderName)
+            return String(format: bundle.loc("%@ commented on your post"), actorLabel)
         case "comment_replied":
-            if let excerpt = notif.payload.excerpt, !excerpt.isEmpty {
+            if group.otherActorCount == 0, let excerpt = notif.payload.excerpt, !excerpt.isEmpty {
                 return String(format: bundle.loc("%@ replied to your comment: “%@”"), senderName, excerpt)
             }
-            return String(format: bundle.loc("%@ replied to your comment"), senderName)
+            return String(format: bundle.loc("%@ replied to your comment"), actorLabel)
+        case "comment_liked":
+            return String(format: bundle.loc("%@ liked your comment"), actorLabel)
         case "post_shared":
-            return String(format: bundle.loc("%@ shared your post"), senderName)
+            return String(format: bundle.loc("%@ shared your post"), actorLabel)
+
+        // ── Chat ─────────────────────────────────────────────────────────
+        case "message":
+            return messageText
+        case "meeting_proposed":
+            return String(format: bundle.loc("%@ proposed a meeting: %@"),
+                          senderName, notif.payload.title ?? "")
+        case "meeting_updated":
+            if notif.payload.changeKind == "cancelled" {
+                return String(format: bundle.loc("%@ cancelled the meeting"), senderName)
+            }
+            return String(format: bundle.loc("%@ rescheduled the meeting"), senderName)
+        case "meeting_rsvp":
+            return String(format: bundle.loc("%@ responded to your meeting"), senderName)
+        case "meeting_reminder":
+            return String(format: bundle.loc("Reminder: %@"), notif.payload.title ?? "")
+        case "message_reaction":
+            return String(format: bundle.loc("%@ reacted %@ to your message"),
+                          senderName, notif.payload.emoji ?? "")
+        case "group_added":
+            return String(format: bundle.loc("%@ added you to a group chat"), senderName)
+        case "group_removed":
+            return String(format: bundle.loc("%@ removed you from a group chat"), senderName)
+
+        // ── Community ────────────────────────────────────────────────────
+        case "new_post":
+            return newPostText
+        case "pinned_post":
+            return String(format: bundle.loc("A post was pinned in %@"), communityLabel)
+        case "join_request":
+            return String(format: bundle.loc("%@ wants to join %@"), senderName, communityLabel)
+        case "join_approved":
+            return String(format: bundle.loc("You were approved to join %@"), communityLabel)
+        case "join_rejected":
+            return String(format: bundle.loc("Your request to join %@ was declined"), communityLabel)
+        case "role_changed":
+            return String(format: bundle.loc("Your role in %@ changed"), communityLabel)
+        case "new_report":
+            return String(format: bundle.loc("Content in %@ needs review"), communityLabel)
+        case "content_removed":
+            return String(format: bundle.loc("Your post in %@ was removed by a moderator"), communityLabel)
+
         default:
+            // Unknown type — show something rather than nothing.
             return senderName
         }
+    }
+
+    /// "Anna · 3 new messages", using the server's collapse count.
+    private var messageText: String {
+        let count = notif.eventCount
+        if count > 1 {
+            return String(format: bundle.loc("%@ · %d new messages"), chatTitle, count)
+        }
+        if let preview = notif.payload.preview, !preview.isEmpty {
+            return "\(chatTitle): \(preview)"
+        }
+        return String(format: bundle.loc("%@ sent you a message"), chatTitle)
+    }
+
+    private var chatTitle: String {
+        if notif.payload.isGroup == true {
+            return notif.payload.groupName ?? bundle.loc("Group chat")
+        }
+        return notif.payload.peerDisplayName ?? senderName
+    }
+
+    private var newPostText: String {
+        if group.eventCount > 1 {
+            return String(format: bundle.loc("%d new posts in %@"), group.eventCount, communityLabel)
+        }
+        return String(format: bundle.loc("New post in %@"), communityLabel)
     }
 
     private var badgeIcon: String {
         switch notif.type {
         case "connection_request":  return "person.badge.plus"
         case "connection_accepted": return "person.badge.shield.checkmark"
+        case "birthday":            return "gift.fill"
         case "post_liked":          return "hand.thumbsup.fill"
+        case "comment_liked":       return "hand.thumbsup.fill"
         case "post_commented":      return "bubble.left.fill"
         case "comment_replied":     return "arrowshape.turn.up.left.fill"
         case "post_shared":         return "arrowshape.turn.up.right.fill"
+        case "message":             return "message.fill"
+        case "message_reaction":    return "face.smiling.fill"
+        case "meeting_proposed",
+             "meeting_updated",
+             "meeting_rsvp",
+             "meeting_reminder":    return "calendar"
+        case "group_added":         return "person.3.fill"
+        case "group_removed":       return "person.badge.minus"
+        case "new_post":            return "doc.text.fill"
+        case "pinned_post":         return "pin.fill"
+        case "join_request":        return "person.badge.clock"
+        case "join_approved":       return "checkmark.seal.fill"
+        case "join_rejected":       return "xmark.seal.fill"
+        case "role_changed":        return "shield.lefthalf.filled"
+        case "new_report":          return "exclamationmark.triangle.fill"
+        case "content_removed":     return "trash.fill"
         default:                    return "bell.fill"
+        }
+    }
+
+    /// Avatar tile for the row. A community or group row shows its own
+    /// identity rather than a person's face.
+    private var avatarName: String {
+        switch notif.type {
+        case "message", "meeting_proposed", "meeting_updated",
+             "meeting_rsvp", "meeting_reminder", "group_added", "group_removed":
+            return chatTitle
+        case "new_post", "pinned_post", "join_approved", "join_rejected",
+             "role_changed", "new_report", "content_removed":
+            return communityLabel
+        default:
+            return senderName
         }
     }
 
@@ -270,16 +460,16 @@ struct ActorNotifRow: View {
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(notif.createdAt.timeAgoString)
+                Text(notif.sortDate.timeAgoString)
                     .font(.system(size: 13))
-                    .foregroundColor(notif.isRead
+                    .foregroundColor(group.isRead
                                      ? AppColors.textSecondary(colorScheme)
                                      : themeManager.theme.primary)
             }
 
             Spacer()
 
-            if !notif.isRead {
+            if !group.isRead {
                 Circle().fill(themeManager.theme.primary).frame(width: 10, height: 10)
             }
         }
@@ -288,7 +478,7 @@ struct ActorNotifRow: View {
 
     @ViewBuilder
     private var senderAvatar: some View {
-        if let urlString = notif.payload.fromAvatarUrl, let url = URL(string: urlString) {
+        if let urlString = avatarUrl, let url = URL(string: urlString) {
             AsyncImage(url: url) { phase in
                 if let image = phase.image {
                     image.resizable().scaledToFill()
@@ -303,12 +493,22 @@ struct ActorNotifRow: View {
         }
     }
 
+    private var avatarUrl: String? {
+        if notif.payload.isGroup == true { return notif.payload.groupAvatarUrl }
+        return notif.payload.peerAvatarUrl ?? notif.payload.fromAvatarUrl
+    }
+
+    private var avatarColor: String {
+        if notif.payload.isGroup == true { return notif.payload.groupAvatarColor ?? "#1877F2" }
+        return notif.payload.peerAvatarColor ?? notif.payload.fromAvatarColor ?? "#1877F2"
+    }
+
     private var initialCircle: some View {
         ZStack {
             Circle()
-                .fill(Color(hex: notif.payload.fromAvatarColor ?? "#1877F2"))
+                .fill(Color(hex: avatarColor))
                 .frame(width: 52, height: 52)
-            Text(String(senderName.prefix(1)).uppercased())
+            Text(String(avatarName.prefix(1)).uppercased())
                 .font(.system(size: 20, weight: .bold))
                 .foregroundColor(.white)
         }
