@@ -77,16 +77,19 @@ struct Conversation: Identifiable, Decodable, Equatable {
         mutedUntil = try c.decodeIfPresent(Date.self, forKey: .mutedUntil)
 
         if isGroup {
-            let name = try c.decode(String.self, forKey: .name)
+            let name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
             let avatarUrl = try c.decodeIfPresent(String.self, forKey: .avatarUrl)
             let avatarColor = try c.decodeIfPresent(String.self, forKey: .avatarColor)
             let memberCount = try c.decodeIfPresent(Int.self, forKey: .memberCount) ?? 0
             peer = .group(name: name, avatarUrl: avatarUrl, avatarColor: avatarColor, memberCount: memberCount)
         } else {
-            let otherUserId = try c.decode(String.self, forKey: .otherUserId)
-            let username = try c.decode(String.self, forKey: .otherUserUsername)
-            let name = try c.decode(String.self, forKey: .otherUserName)
-            let avatarColor = try c.decode(String.self, forKey: .otherUserAvatarColor)
+            // A 1:1 conversation whose peer deleted their account comes back with
+            // null identity fields — decode leniently so one such row never
+            // fails the whole conversation list.
+            let otherUserId = try c.decodeIfPresent(String.self, forKey: .otherUserId) ?? ""
+            let username = try c.decodeIfPresent(String.self, forKey: .otherUserUsername) ?? "deleted"
+            let name = try c.decodeIfPresent(String.self, forKey: .otherUserName) ?? "Deleted User"
+            let avatarColor = try c.decodeIfPresent(String.self, forKey: .otherUserAvatarColor) ?? "#9E9E9E"
             let avatarUrl = try c.decodeIfPresent(String.self, forKey: .otherUserAvatarUrl)
             let jobTitle = try c.decodeIfPresent(String.self, forKey: .otherUserJobTitle)
             let nickname = try c.decodeIfPresent(String.self, forKey: .otherUserNickname)

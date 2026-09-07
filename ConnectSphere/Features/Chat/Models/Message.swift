@@ -2,6 +2,15 @@ import Foundation
 
 enum MessageType: String, Decodable {
     case text, image, video, meeting, voice
+    /// Any type a newer server introduced (sticker, file, system…). Decoding
+    /// falls back here so an unknown message renders as plain text rather than
+    /// failing the whole history fetch.
+    case unknown
+
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = MessageType(rawValue: raw) ?? .unknown
+    }
 }
 
 /// RSVP status for a meeting proposal — local to Chat (mirrors the shape of
@@ -150,7 +159,7 @@ struct PinnedMessage: Identifiable, Decodable, Equatable {
     var preview: String {
         if isDeleted { return Bundle.app.loc("Message unsent") }
         switch messageType {
-        case .text:    return content ?? ""
+        case .text, .unknown: return content ?? ""
         case .image:   return "📷 " + Bundle.app.loc("Photo")
         case .video:   return "📹 " + Bundle.app.loc("Video")
         case .meeting: return "📅 " + Bundle.app.loc("Meeting")
@@ -298,7 +307,7 @@ struct Message: Identifiable, Decodable, Equatable {
         conversationId = try c.decode(String.self, forKey: .conversationId)
         senderId = try c.decode(String.self, forKey: .senderId)
         content = try c.decodeIfPresent(String.self, forKey: .content)
-        messageType = try c.decode(MessageType.self, forKey: .messageType)
+        messageType = try c.decodeIfPresent(MessageType.self, forKey: .messageType) ?? .text
         mediaUrl = try c.decodeIfPresent(String.self, forKey: .mediaUrl)
         // Default to [] for decode-safety — absent on some embed shapes
         // (e.g. a just-sent optimistic echo) rather than always present.

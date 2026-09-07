@@ -163,7 +163,7 @@ struct MessageBubble: View {
     @ViewBuilder
     private var normalBubbleContent: some View {
         switch message.messageType {
-        case .text:
+        case .text, .unknown:
             if let text = message.content {
                 Text(text)
                     .font(.system(size: 15))

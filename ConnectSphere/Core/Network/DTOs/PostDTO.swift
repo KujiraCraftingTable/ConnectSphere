@@ -17,6 +17,32 @@ struct PostAuthorDTO: Decodable {
         case jobTitle    = "job_title"
     }
 
+    // A post/comment by a deleted account comes back with null identity fields.
+    // Decode leniently so one such row never fails the whole list payload.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id          = try c.decodeIfPresent(String.self, forKey: .id) ?? ""
+        username    = try c.decodeIfPresent(String.self, forKey: .username) ?? "deleted"
+        displayName = try c.decodeIfPresent(String.self, forKey: .displayName) ?? "Deleted User"
+        avatarColor = try c.decodeIfPresent(String.self, forKey: .avatarColor) ?? "#9E9E9E"
+        avatarUrl   = try c.decodeIfPresent(String.self, forKey: .avatarUrl)
+        jobTitle    = try c.decodeIfPresent(String.self, forKey: .jobTitle)
+        company     = try c.decodeIfPresent(String.self, forKey: .company)
+    }
+
+    /// Fallback for a post/comment whose `author` object is entirely absent.
+    static let deleted = PostAuthorDTO(
+        id: "", username: "deleted", displayName: "Deleted User",
+        avatarColor: "#9E9E9E", avatarUrl: nil, jobTitle: nil, company: nil
+    )
+
+    private init(id: String, username: String, displayName: String, avatarColor: String,
+                 avatarUrl: String?, jobTitle: String?, company: String?) {
+        self.id = id; self.username = username; self.displayName = displayName
+        self.avatarColor = avatarColor; self.avatarUrl = avatarUrl
+        self.jobTitle = jobTitle; self.company = company
+    }
+
     func toUserProfile() -> UserProfile {
         UserProfile(
             id:             id,
@@ -55,6 +81,18 @@ struct SharedPostDTO: Decodable {
         case linkUrl      = "link_url"
         case articleTitle = "article_title"
         case createdAt    = "created_at"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id           = try c.decode(String.self, forKey: .id)
+        content      = try c.decodeIfPresent(String.self, forKey: .content)
+        imageUrl     = try c.decodeIfPresent(String.self, forKey: .imageUrl)
+        imageUrls    = try c.decodeIfPresent([String].self, forKey: .imageUrls)
+        linkUrl      = try c.decodeIfPresent(String.self, forKey: .linkUrl)
+        articleTitle = try c.decodeIfPresent(String.self, forKey: .articleTitle)
+        createdAt    = (try? c.decode(Date.self, forKey: .createdAt)) ?? Date()
+        author       = try c.decodeIfPresent(PostAuthorDTO.self, forKey: .author) ?? .deleted
     }
 
     func toPreview() -> SharedPostPreview {
@@ -120,21 +158,21 @@ struct PostDTO: Decodable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id            = try c.decode(String.self, forKey: .id)
-        content       = try c.decode(String.self, forKey: .content)
-        mode          = try c.decode(String.self, forKey: .mode)
-        privacy       = try c.decode(String.self, forKey: .privacy)
+        content       = try c.decodeIfPresent(String.self, forKey: .content) ?? ""
+        mode          = try c.decodeIfPresent(String.self, forKey: .mode) ?? "hobby"
+        privacy       = try c.decodeIfPresent(String.self, forKey: .privacy) ?? "public"
         imageUrl      = try c.decodeIfPresent(String.self, forKey: .imageUrl)
         imageUrls     = try c.decodeIfPresent([String].self, forKey: .imageUrls)
         articleTitle  = try c.decodeIfPresent(String.self, forKey: .articleTitle)
         linkUrl       = try c.decodeIfPresent(String.self, forKey: .linkUrl)
         isLiked       = try c.decodeIfPresent(Bool.self, forKey: .isLiked) ?? false
         isSaved       = try c.decodeIfPresent(Bool.self, forKey: .isSaved) ?? false
-        likeCount     = try c.decode(Int.self, forKey: .likeCount)
-        commentCount  = try c.decode(Int.self, forKey: .commentCount)
-        shareCount    = try c.decode(Int.self, forKey: .shareCount)
+        likeCount     = try c.decodeIfPresent(Int.self, forKey: .likeCount) ?? 0
+        commentCount  = try c.decodeIfPresent(Int.self, forKey: .commentCount) ?? 0
+        shareCount    = try c.decodeIfPresent(Int.self, forKey: .shareCount) ?? 0
         createdAt     = try c.decode(Date.self, forKey: .createdAt)
         tags          = try c.decodeIfPresent([String].self, forKey: .tags) ?? []
-        author        = try c.decode(PostAuthorDTO.self, forKey: .author)
+        author        = try c.decodeIfPresent(PostAuthorDTO.self, forKey: .author) ?? .deleted
         sharedPostId  = try c.decodeIfPresent(String.self, forKey: .sharedPostId)
         sharedPost    = try c.decodeIfPresent(SharedPostDTO.self, forKey: .sharedPost)
         postType      = try c.decodeIfPresent(String.self, forKey: .postType) ?? "text"

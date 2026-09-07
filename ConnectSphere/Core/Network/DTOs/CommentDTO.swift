@@ -12,6 +12,20 @@ struct CommentAuthorDTO: Decodable {
         case avatarUrl   = "avatar_url"
         case displayName = "display_name"
     }
+
+    // Comment by a deleted account → null identity fields; decode leniently.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id          = try c.decodeIfPresent(String.self, forKey: .id) ?? ""
+        displayName = try c.decodeIfPresent(String.self, forKey: .displayName) ?? "Deleted User"
+        avatarColor = try c.decodeIfPresent(String.self, forKey: .avatarColor) ?? "#9E9E9E"
+        avatarUrl   = try c.decodeIfPresent(String.self, forKey: .avatarUrl)
+    }
+
+    static let deleted = CommentAuthorDTO()
+    private init() {
+        id = ""; displayName = "Deleted User"; avatarColor = "#9E9E9E"; avatarUrl = nil
+    }
 }
 
 struct CommentDTO: Decodable, Identifiable {
@@ -29,6 +43,17 @@ struct CommentDTO: Decodable, Identifiable {
         case parentCommentId = "parent_comment_id"
         case likeCount       = "like_count"
         case isLiked         = "is_liked"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id              = try c.decode(String.self, forKey: .id)
+        content         = try c.decodeIfPresent(String.self, forKey: .content) ?? ""
+        createdAt       = try c.decode(Date.self, forKey: .createdAt)
+        parentCommentId = try c.decodeIfPresent(String.self, forKey: .parentCommentId)
+        likeCount       = try c.decodeIfPresent(Int.self, forKey: .likeCount) ?? 0
+        isLiked         = try c.decodeIfPresent(Bool.self, forKey: .isLiked) ?? false
+        author          = try c.decodeIfPresent(CommentAuthorDTO.self, forKey: .author) ?? .deleted
     }
 }
 

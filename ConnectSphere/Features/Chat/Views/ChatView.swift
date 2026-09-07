@@ -918,7 +918,7 @@ struct ChatView: View {
     private func replyingToBar(_ message: Message) -> some View {
         let preview: String = {
             switch message.messageType {
-            case .text:    return message.content ?? ""
+            case .text, .unknown: return message.content ?? ""
             case .image:   return bundle.loc("Photo")
             case .video:   return bundle.loc("Video")
             case .meeting: return bundle.loc("Meeting")
