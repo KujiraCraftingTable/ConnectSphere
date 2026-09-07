@@ -1,7 +1,7 @@
 import Foundation
 
-/// User info rút gọn trả về trong danh sách kết nối
-/// (không có counters/interests như UserDTO đầy đủ).
+/// Trimmed-down user info returned in the connections list
+/// (no counters/interests like the full UserDTO).
 struct ConnectionUserDTO: Decodable {
     let id: String
     let username: String
@@ -47,7 +47,7 @@ struct ConnectionItemDTO: Decodable, Identifiable {
     }
 }
 
-/// API calls cho danh sách kết nối + chấp nhận/từ chối lời mời.
+/// API calls for the connections list plus accepting/declining requests.
 struct ConnectionRepository {
     private let client = NetworkClient.shared
 

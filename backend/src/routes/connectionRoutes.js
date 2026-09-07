@@ -1,12 +1,12 @@
 /**
- * connectionRoutes.js  (toàn bộ yêu cầu JWT — danh tính lấy từ req.userId)
+ * connectionRoutes.js  (all routes require JWT — identity comes from req.userId)
  *
- * GET  /api/connections/status/:targetId — trạng thái kết nối với target
- * POST /api/connections/request          — gửi kết nối  { addressee_id, mode }
- * POST /api/connections/accept           — chấp nhận    { connection_id }
- * POST /api/connections/decline          — từ chối      { connection_id }
- * POST /api/connections/cancel           — hủy request  { connection_id }
- * POST /api/connections/remove           — gỡ kết nối accepted { connection_id }
+ * GET  /api/connections/status/:targetId — connection status with a target user
+ * POST /api/connections/request          — send a connection request { addressee_id, mode }
+ * POST /api/connections/accept           — accept   { connection_id }
+ * POST /api/connections/decline          — decline  { connection_id }
+ * POST /api/connections/cancel           — cancel a pending request { connection_id }
+ * POST /api/connections/remove           — remove an accepted connection { connection_id }
  */
 
 const router = require('express').Router();
@@ -18,7 +18,7 @@ const logger = require('../utils/logger');
 
 router.use(authMiddleware);
 
-// Tìm connection giữa 2 user theo mode, bất kể chiều gửi
+// Find the connection between 2 users for a given mode, regardless of who sent it
 async function findConnection(userA, userB, mode) {
   const { rows } = await query(
     `SELECT id, requester_id, addressee_id, status
@@ -33,14 +33,15 @@ async function findConnection(userA, userB, mode) {
   return rows[0] || null;
 }
 
-// Tạo user notification về kết nối (kèm push realtime qua socket);
-// lỗi notification không được làm fail request chính
+// Create a user notification about the connection (with a realtime push via socket);
+// a notification failure must not fail the main request
 async function notifyConnection(recipientId, senderId, type, extraPayload = {}) {
   try {
     const actor = await actorPayload(senderId);
     await pushUserNotification({
-      userId: recipientId,
+      userId:  recipientId,
       type,
+      actorId: senderId,
       payload: { ...actor, ...extraPayload },
     });
   } catch (err) {
@@ -49,9 +50,9 @@ async function notifyConnection(recipientId, senderId, type, extraPayload = {}) 
 }
 
 // ── GET /api/connections ──────────────────────────────────────────────────────
-// Danh sách kết nối của user hiện tại kèm thông tin người kia.
-// Query: ?mode=hobby|work (mặc định hobby)
-//        ?status=accepted|pending_received|pending_sent (mặc định accepted)
+// List of the current user's connections with info about the other person.
+// Query: ?mode=hobby|work (default hobby)
+//        ?status=accepted|pending_received|pending_sent (default accepted)
 
 router.get('/', async (req, res, next) => {
   try {
@@ -95,9 +96,9 @@ router.get('/', async (req, res, next) => {
 });
 
 // ── GET /api/connections/status/:targetId ─────────────────────────────────────
-// Trả về: { status: 'none' | 'pending_sent' | 'pending_received' | 'accepted'
+// Returns: { status: 'none' | 'pending_sent' | 'pending_received' | 'accepted'
 //           | 'rejected' | 'blocked' | 'self', connection_id }
-// Trạng thái tính theo mode hiện tại (?mode=hobby|work, mặc định hobby).
+// Status is computed for the given mode (?mode=hobby|work, default hobby).
 
 router.get('/status/:targetId', async (req, res, next) => {
   try {
@@ -123,7 +124,7 @@ router.get('/status/:targetId', async (req, res, next) => {
 });
 
 // ── POST /api/connections/request ─────────────────────────────────────────────
-// Body: { addressee_id, mode } — requester luôn là user trong JWT
+// Body: { addressee_id, mode } — requester is always the user from the JWT
 
 router.post('/request', async (req, res, next) => {
   try {
@@ -135,7 +136,7 @@ router.post('/request', async (req, res, next) => {
     const { rows: [target] } = await query('SELECT id FROM users WHERE id = $1', [addressee_id]);
     if (!target) return res.status(404).json({ error: 'User not found' });
 
-    // Không gửi được lời mời khi 2 bên có block (chiều bất kỳ)
+    // Can't send a request when the two sides have a block between them (either direction)
     const { rows: blocked } = await query(
       `SELECT 1 FROM user_blocks
        WHERE (blocker_id = $1 AND blocked_id = $2)
@@ -146,7 +147,7 @@ router.post('/request', async (req, res, next) => {
       return res.status(403).json({ error: 'Cannot send request to this user' });
     }
 
-    // Check cả 2 chiều để không tạo cặp request A→B và B→A song song
+    // Check both directions so we don't create a parallel A→B and B→A request pair
     const existing = await findConnection(req.userId, addressee_id, mode);
 
     if (existing) {
@@ -161,7 +162,7 @@ router.post('/request', async (req, res, next) => {
         case 'blocked':
           return res.status(403).json({ error: 'Cannot send request to this user' });
         case 'rejected': {
-          // Cho phép gửi lại: reset row cũ về pending với chiều gửi mới
+          // Allow re-sending: reset the old row to pending with the new sender direction
           const { rows: [updated] } = await query(
             `UPDATE connections
              SET requester_id = $1, addressee_id = $2, status = 'pending', updated_at = NOW()
@@ -191,14 +192,14 @@ router.post('/request', async (req, res, next) => {
 });
 
 // ── POST /api/connections/accept ──────────────────────────────────────────────
-// Body: { connection_id } — chỉ addressee của request đang pending mới accept được
+// Body: { connection_id } — only the addressee of a pending request can accept it
 
 router.post('/accept', async (req, res, next) => {
   try {
     const { connection_id } = req.body;
     if (!connection_id) return res.status(400).json({ error: 'connection_id required' });
 
-    // UPDATE có điều kiện status='pending' → gọi lặp không tăng count lần nữa
+    // Conditional UPDATE on status='pending' → a repeated call won't bump the count again
     const { rows: [conn] } = await query(
       `UPDATE connections
        SET status = 'accepted', updated_at = NOW()
@@ -210,7 +211,7 @@ router.post('/accept', async (req, res, next) => {
       return res.status(409).json({ error: 'Request not found, not yours, or already handled' });
     }
 
-    // Kết nối là quan hệ 2 chiều: cả hai bên +1 follower và +1 following
+    // A connection is a mutual relationship: both sides get +1 follower and +1 following
     await query(
       `UPDATE users
        SET follower_count = follower_count + 1, following_count = following_count + 1
@@ -225,7 +226,7 @@ router.post('/accept', async (req, res, next) => {
 });
 
 // ── POST /api/connections/decline ─────────────────────────────────────────────
-// Body: { connection_id } — chỉ addressee của request đang pending mới decline được
+// Body: { connection_id } — only the addressee of a pending request can decline it
 
 router.post('/decline', async (req, res, next) => {
   try {
@@ -245,7 +246,7 @@ router.post('/decline', async (req, res, next) => {
 });
 
 // ── POST /api/connections/cancel ──────────────────────────────────────────────
-// Body: { connection_id } — requester hủy request còn pending của chính mình
+// Body: { connection_id } — requester cancels their own still-pending request
 
 router.post('/cancel', async (req, res, next) => {
   try {
@@ -262,8 +263,8 @@ router.post('/cancel', async (req, res, next) => {
 });
 
 // ── POST /api/connections/remove ──────────────────────────────────────────────
-// Body: { connection_id } — gỡ một kết nối đã accepted; cả requester lẫn addressee
-// đều gỡ được. Đảo ngược +1/+1 đã cộng lúc accept (không cho count xuống âm).
+// Body: { connection_id } — removes an accepted connection; either the requester
+// or the addressee can remove it. Reverses the +1/+1 applied on accept (never lets the count go negative).
 
 router.post('/remove', async (req, res, next) => {
   try {
