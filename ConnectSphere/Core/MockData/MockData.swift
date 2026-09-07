@@ -4,15 +4,17 @@ struct MockData {
 
     // MARK: - Current User
 
+    /// Neutral placeholder used only as a last-resort fallback for a nil
+    /// `appState.currentUser` (which shouldn't happen while logged in). It must
+    /// carry NO real person's data — a nil user should never render as someone
+    /// specific.
     static let currentUser = UserProfile(
-        id: "f5828b20-753b-4967-b792-380f3c4b2f30",
-        name: "Trị Minh", username: "triminh",
-        avatarColor: "#1877F2", bio: "iOS Developer | Coffee lover ☕",
-        jobTitle: "iOS Developer", company: "ConnectSphere",
-        skills: ["Swift", "SwiftUI", "iOS", "Xcode"],
-        interests: ["Coffee", "Movies", "Tech", "Gaming"],
-        location: "Ho Chi Minh City",
-        followerCount: 128, followingCount: 89, postCount: 0
+        id: "", name: "You", username: "you",
+        avatarColor: "#9E9E9E", bio: "",
+        jobTitle: nil, company: nil,
+        skills: [], interests: [],
+        location: nil,
+        followerCount: 0, followingCount: 0, postCount: 0
     )
 
     // MARK: - Users
