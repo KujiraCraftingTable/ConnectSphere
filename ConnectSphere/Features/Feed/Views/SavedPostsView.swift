@@ -87,7 +87,12 @@ struct SavedPostsView: View {
 
     private func load() async {
         isLoading = true
-        savedPosts = (try? await repository.fetchSavedPosts()) ?? []
+        errorMessage = nil
+        do {
+            savedPosts = try await repository.fetchSavedPosts()
+        } catch {
+            errorMessage = friendlyError(error)
+        }
         isLoading = false
     }
 }

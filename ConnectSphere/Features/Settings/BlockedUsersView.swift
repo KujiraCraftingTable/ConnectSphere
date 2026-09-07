@@ -8,6 +8,7 @@ struct BlockedUsersView: View {
 
     @State private var blockedUsers: [BlockedUserDTO] = []
     @State private var isLoading = false
+    @State private var loadError: String?
     @State private var unblockingIds: Set<String> = []
 
     private let userRepo = UserRepository()
@@ -16,6 +17,8 @@ struct BlockedUsersView: View {
         Group {
             if isLoading && blockedUsers.isEmpty {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let loadError, blockedUsers.isEmpty {
+                errorState(loadError)
             } else if blockedUsers.isEmpty {
                 emptyState
             } else {
@@ -106,13 +109,32 @@ struct BlockedUsersView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    private func errorState(_ message: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "wifi.exclamationmark")
+                .font(.system(size: 38))
+                .foregroundColor(AppColors.textTertiary(colorScheme))
+            Text(message)
+                .font(.system(size: 14))
+                .multilineTextAlignment(.center)
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+                .padding(.horizontal, 32)
+            Button(bundle.loc("Retry")) { Task { await load() } }
+                .font(.system(size: 14, weight: .semibold))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     // MARK: - Data
 
     private func load() async {
         isLoading = true
+        loadError = nil
         defer { isLoading = false }
-        if let users = try? await userRepo.fetchBlockedUsers() {
-            blockedUsers = users
+        do {
+            blockedUsers = try await userRepo.fetchBlockedUsers()
+        } catch {
+            loadError = friendlyError(error)
         }
     }
 
