@@ -27,6 +27,15 @@ module.exports = {
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID || '',
   },
+  // SMTP for the forgot-password OTP. Unset user/pass → mailerService logs the
+  // OTP instead of sending (dev/CI). Vars match .env.example (SMTP_*/MAIL_FROM).
+  mail: {
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT || '587', 10),
+    user: process.env.SMTP_USER || '',
+    pass: process.env.SMTP_PASS || '',
+    from: process.env.MAIL_FROM || process.env.SMTP_USER || '',
+  },
   ollama: {
     url:   process.env.OLLAMA_URL   || 'http://localhost:11434',
     model: process.env.OLLAMA_MODEL || 'qwen2.5:7b-instruct-q4_k_m',

@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log*
+.env
+*.log
+.git
+.gitignore
+Dockerfile
+.dockerignore
+dump.rdb
+uploads
+coverage
+.DS_Store

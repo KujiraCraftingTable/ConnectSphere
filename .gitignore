@@ -5,10 +5,20 @@
 xcuserdata/
 *.xcuserstate
 
-# Agent / tooling runtime (không phải source của app)
-.claude/settings.local.json
+# Claude Code tooling & internal docs (not published)
+.claude/
+.agents/
+.worktreeinclude
+CLAUDE.md
+AGENTS.md
+KNOWN_GAPS.md
+AI_SEARCH_OVERVIEW.md
+dev.sh
+
+# Agent / tooling runtime
 .Rhistory
 data/
+memory/
 skills-lock.json
 
 # User-uploaded media (dev)

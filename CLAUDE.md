@@ -4,34 +4,9 @@ A native iOS social networking app (COMP1682 project) with a Node.js/Express bac
 Notable feature: an AI-powered semantic search over users/posts using a local LLM
 query pipeline and chunk-based pgvector embeddings — see `AI_SEARCH_OVERVIEW.md`.
 
-## Stack
-- **iOS**: SwiftUI, Core Data, MVVM-ish (`Core/` + `Features/`), localized EN/VI
-- **Backend**: Node.js + Express, Socket.io (realtime), BullMQ + Redis (jobs), JWT auth
-- **Database**: PostgreSQL + pgvector (HNSW cosine search for embeddings)
-
-## Structure
-```
-ConnectSphere/          # iOS app (SwiftUI)
-  Auth/                 # Login, Register, onboarding
-  Core/                 # Network, Data, Theme, Extensions, shared UI
-  Features/             # Feed, Chat, Communities, Search, Notifications, Profile, Settings
-backend/
-  src/
-    config/             # DB connection, env config
-    controllers/        # Route handler logic
-    middlewares/        # Auth, error handler, logging
-    models/             # PostgreSQL query models
-    routes/             # Express routers
-    services/           # Business logic layer
-    queues/ jobs/        # BullMQ background jobs
-    utils/              # Helpers, constants
-  migrations/           # SQL migrations (001–010)
-  scripts/              # Seeding, geocoding, embedding tooling
-```
-
 ## Running it
-- `./dev.sh start` — brings up Docker (Postgres), backend, and opens the Xcode project
-- `backend/`: `npm run dev` (nodemon), `npm run migrate`, `npm run seed`
+- `./dev.sh start` — Docker (`backend/docker-compose.yml`: Postgres + Redis + the backend container) + host Ollama + opens Xcode
+- Backend runs in a container in dev mode with hot reload; run migrations with `cd backend && docker compose exec backend npm run migrate`
 
 ## Known gaps
 Deliberately deferred scope (e.g. push notifications) is tracked in [`KNOWN_GAPS.md`](KNOWN_GAPS.md) — check it before assuming a missing feature is an oversight.

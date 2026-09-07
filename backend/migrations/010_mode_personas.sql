@@ -1,21 +1,21 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 010 — Mode personas: mỗi account có 2 "nhân cách" độc lập theo mode
+-- 010 — Mode personas: each account has 2 independent "personas" per mode
 --
--- Cùng account (id/username/password) nhưng danh tính hiển thị tách riêng
+-- Same account (id/username/password) but the display identity is split
 -- per mode: display_name, bio, avatar_url, cover_url.
---   • Quy ước "đã setup mode X" = X_display_name IS NOT NULL
---   • bio/avatar/cover optional — NULL = hiển thị mặc định (avatar chữ cái
---     đầu tên, cover/bio trống)
---   • location/gender/dob/email vẫn dùng chung (thông tin người thật)
---   • job_title/company (users) + user_skills/user_interests giữ nguyên —
---     vốn đã là dữ liệu riêng của work/hobby mode
---   • Cột gốc display_name/bio/avatar_url/cover_url giữ làm fallback cho
---     các bề mặt không gắn mode
+--   • Convention: "mode X is set up" = X_display_name IS NOT NULL
+--   • bio/avatar/cover are optional — NULL = show the default (initial-letter
+--     avatar, empty cover/bio)
+--   • location/gender/dob/email remain shared (real-person info)
+--   • job_title/company (users) + user_skills/user_interests are unchanged —
+--     they were already work/hobby-mode-specific data
+--   • The original display_name/bio/avatar_url/cover_url columns are kept as
+--     a fallback for surfaces that aren't mode-aware
 --
 -- Backfill (option A):
---   1. Persona của default_mode = data hiện tại
---   2. User có job_title/company → work persona coi như đã setup
---   3. Đối xứng: user có interests → hobby persona coi như đã setup
+--   1. The default_mode's persona = current data
+--   2. A user with job_title/company → work persona is considered already set up
+--   3. Symmetrically: a user with interests → hobby persona is considered already set up
 -- ─────────────────────────────────────────────────────────────────────────────
 
 ALTER TABLE users
@@ -28,7 +28,7 @@ ALTER TABLE users
   ADD COLUMN work_avatar_url    TEXT,
   ADD COLUMN work_cover_url     TEXT;
 
--- 1. Persona của default_mode nhận toàn bộ danh tính hiện tại
+-- 1. The default_mode's persona takes on the full current identity
 UPDATE users SET
   hobby_display_name = display_name,
   hobby_bio          = bio,
@@ -43,14 +43,14 @@ UPDATE users SET
   work_cover_url    = cover_url
 WHERE default_mode = 'work';
 
--- 2. Đã có dữ liệu work (job_title/company) → work persona coi như setup,
---    chỉ lấy tên; bio/avatar/cover để NULL → hiển thị mặc định
+-- 2. Already has work data (job_title/company) → work persona is treated as set up,
+--    only pull the name; bio/avatar/cover stay NULL → default is shown
 UPDATE users SET work_display_name = display_name
 WHERE work_display_name IS NULL
   AND (NULLIF(TRIM(job_title), '') IS NOT NULL
     OR NULLIF(TRIM(company),  '') IS NOT NULL);
 
--- 3. Đối xứng cho chiều ngược: đã có interests → hobby persona coi như setup
+-- 3. Symmetric case for the other direction: already has interests → hobby persona is treated as set up
 UPDATE users SET hobby_display_name = display_name
 WHERE hobby_display_name IS NULL
   AND EXISTS (SELECT 1 FROM user_interests ui WHERE ui.user_id = users.id);

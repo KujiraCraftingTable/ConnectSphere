@@ -1,7 +1,7 @@
 -- 006_password_resets.sql
--- OTP đặt lại mật khẩu (luồng "quên mật khẩu"):
--- mỗi dòng = một mã 6 số đã phát cho một user, lưu dạng bcrypt hash,
--- hết hạn sau 10 phút, dùng một lần (used_at đánh dấu đã dùng/vô hiệu).
+-- Password reset OTP (the "forgot password" flow):
+-- each row = a 6-digit code issued to a user, stored as a bcrypt hash,
+-- expires after 10 minutes, single-use (used_at marks it as used/invalidated).
 
 CREATE TABLE password_resets (
   id         UUID         PRIMARY KEY DEFAULT gen_random_uuid(),

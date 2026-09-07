@@ -1,14 +1,14 @@
-// Seed script — 40 user theo cụm test thiết kế (anime / coffee / sports / music
-// / react / data / cloud + filler), phục vụ verify search & feed chunk-based.
+// Seed script — 40 users across designed test clusters (anime / coffee / sports / music
+// / react / data / cloud + filler), for verifying search & the chunk-based feed.
 //
-// Bổ sung so với bản cũ: gender cố định theo persona, is_setup=TRUE, ward_id thật
-// từ vn_wards, tag cho cả hobby post, bio/post tiếng Việt (test dịch EN).
+// Additions over the old version: gender fixed per persona, is_setup=TRUE, real
+// ward_id from vn_wards, tags on hobby posts too, Vietnamese bio/post text (to test EN translation).
 //
-// Dùng:
-//   node scripts/seed.js                 → chỉ seed dữ liệu
-//   node scripts/seed.js --build-chunks  → seed xong build luôn chunk (cần Ollama)
+// Usage:
+//   node scripts/seed.js                 → seed data only
+//   node scripts/seed.js --build-chunks  → seed then also build chunks (needs Ollama)
 require('dotenv').config();
-process.env.LOG_LEVEL = process.env.LOG_LEVEL || 'warn'; // giảm noise khi build chunk
+process.env.LOG_LEVEL = process.env.LOG_LEVEL || 'warn'; // reduce noise while building chunks
 const { Pool } = require('pg');
 const env = require('../src/config/env');
 
@@ -93,7 +93,7 @@ const POST_POOLS = {
 };
 
 // ─── Cluster definitions ──────────────────────────────────────────────────────
-// core = luôn có; extra = bốc ngẫu nhiên thêm 1–2.  gender/location gán từng member.
+// core = always included; extra = randomly draw 1-2 more.  gender/location assigned per member.
 
 const CLUSTERS = [
   {
@@ -271,7 +271,7 @@ async function seedAll(client) {
           isWork ? pick(cluster.jobs) : null,
           isWork ? pick(cluster.companies) : null,
           cluster.mode, rnd(10, 2000), rnd(10, 500),
-          0, // post_count cập nhật sau
+          0, // post_count updated later
         ]
       );
       const userId = rows[0].id;
@@ -289,7 +289,7 @@ async function seedAll(client) {
         );
       }
 
-      // Posts: 3–4 bài trong đúng mode của cụm, kèm tag (POST_POOLS key = cluster.key)
+      // Posts: 3-4 posts in the cluster's mode, with tags (POST_POOLS key = cluster.key)
       const nPosts = rnd(3, 4);
       for (let p = 0; p < nPosts; p++) {
         const { text, tags } = POST_POOLS[cluster.key]();
@@ -310,7 +310,7 @@ async function seedAll(client) {
     }
   }
 
-  // Connections: mỗi user nối ~4 người cùng cụm + 1 ngẫu nhiên khác cụm
+  // Connections: each user connects to ~4 people in the same cluster + 1 random person from another cluster
   const allIds = seeded.map(s => s.id);
   let connCount = 0;
   for (const s of seeded) {

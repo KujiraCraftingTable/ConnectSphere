@@ -17,5 +17,55 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: connectsphere_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      target: dev
+    container_name: connectsphere_backend
+    restart: unless-stopped
+    init: true                      # SIGTERM reaches node → graceful worker shutdown in index.js fires
+    command: ["npm", "run", "dev", "--", "--legacy-watch"]   # poll for changes — Docker Desktop bind mounts don't deliver fs events on macOS
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env                        # JWT_SECRET, DB creds, SMTP, etc. (gitignored; teammates copy .env.example)
+    environment:                    # applied after env_file, so these win — the host-vs-container differences
+      NODE_ENV: development
+      DB_HOST: postgres
+      REDIS_HOST: redis
+      OLLAMA_URL: http://host.docker.internal:11434   # Ollama runs on the host, not in a container
+    extra_hosts:
+      - "host.docker.internal:host-gateway"           # harmless on macOS, required on Linux
+    volumes:
+      - .:/app                      # live source for nodemon hot reload
+      - /app/node_modules           # anonymous volume: keep the container's linux node_modules (bcrypt is a native addon)
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
 volumes:
   postgres_data:
+  redis_data:

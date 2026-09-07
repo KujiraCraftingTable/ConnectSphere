@@ -13,6 +13,8 @@ const { connectDB, query } = require('./src/config/db');
 const errorHandler     = require('./src/middlewares/errorHandler');
 const logger           = require('./src/utils/logger');
 const messageModel     = require('./src/models/messageModel');
+const messageService   = require('./src/services/messageService');
+const communityModel   = require('./src/models/communityModel');
 const env              = require('./src/config/env');
 
 validateEnv();
@@ -25,7 +27,7 @@ const io = new Server(server, {
   cors: { origin: '*' },
 });
 
-// Cho phép service/controller emit qua utils/realtime
+// Lets services/controllers emit via utils/realtime
 require('./src/utils/realtime').setIO(io);
 
 // Authenticate socket connections with JWT
@@ -42,14 +44,14 @@ io.use((socket, next) => {
 });
 
 // ── Presence (in-memory) ────────────────────────────────────────────────────
-// userId → số socket đang mở. User được coi là "online" khi count > 0.
+// userId → number of open sockets. A user is considered "online" when count > 0.
 const onlineCounts = new Map();
 
 function isOnline(userId) {
   return (onlineCounts.get(userId) || 0) > 0;
 }
 
-// Id các kết nối đã accepted của một user (mọi mode — presence không theo mode).
+// IDs of a user's accepted connections (all modes — presence isn't mode-scoped).
 async function acceptedConnectionIds(userId) {
   const { rows } = await query(
     `SELECT CASE WHEN requester_id = $1 THEN addressee_id ELSE requester_id END AS other_id
@@ -60,7 +62,7 @@ async function acceptedConnectionIds(userId) {
   return rows.map((r) => r.other_id);
 }
 
-// Báo cho tất cả kết nối của user biết user vừa online / offline.
+// Notify all of the user's connections that the user just went online / offline.
 async function broadcastPresence(userId, online) {
   try {
     const ids = await acceptedConnectionIds(userId);
@@ -70,7 +72,7 @@ async function broadcastPresence(userId, online) {
   }
 }
 
-// Gửi cho một socket snapshot các kết nối đang online của user đó.
+// Send a socket a snapshot of that user's currently online connections.
 async function sendPresenceSnapshot(socket) {
   try {
     const ids = await acceptedConnectionIds(socket.userId);
@@ -83,17 +85,17 @@ async function sendPresenceSnapshot(socket) {
 io.on('connection', (socket) => {
   logger.info({ userId: socket.userId }, 'Socket connected');
 
-  // Room riêng theo user — dùng để push notification & cập nhật
-  // danh sách hội thoại realtime dù user không mở đúng đoạn chat.
+  // Per-user room — used to push notifications & update the conversation
+  // list in realtime even when the user doesn't have that chat open.
   socket.join(`user:${socket.userId}`);
 
-  // ── Presence: đánh dấu online, báo kết nối, gửi snapshot ──
+  // ── Presence: mark online, notify connections, send snapshot ──
   const prevCount = onlineCounts.get(socket.userId) || 0;
   onlineCounts.set(socket.userId, prevCount + 1);
-  if (prevCount === 0) broadcastPresence(socket.userId, true); // 0 → 1: vừa online
+  if (prevCount === 0) broadcastPresence(socket.userId, true); // 0 → 1: just came online
   sendPresenceSnapshot(socket);
 
-  // Client chủ động xin lại snapshot (vd: quay lại tab Messages khi socket đã connect)
+  // Client proactively asks for a fresh snapshot (e.g. returning to the Messages tab while the socket is already connected)
   socket.on('get_presence', () => sendPresenceSnapshot(socket));
 
   // Client joins a conversation room to receive messages
@@ -107,29 +109,49 @@ io.on('connection', (socket) => {
     socket.leave(conversationId);
   });
 
+  // Client joins a community room to receive community events (new posts,
+  // live like/comment count updates). Membership-checked, mirrors
+  // join_conversation's shape. Room name is prefixed (`community:<id>`) so it
+  // can never collide with the bare conversation-id room namespace above.
+  // Unlike join_conversation this acks the result — callers (and the non-
+  // member rejection path) need a definite yes/no, not silent no-ops.
+  socket.on('join_community', async (communityId, ack) => {
+    try {
+      const membership = await communityModel.isMember(communityId, socket.userId).catch(() => null);
+      if (!membership) return ack?.({ error: 'Not a member of this community' });
+      socket.join(`community:${communityId}`);
+      ack?.({ data: { joined: true } });
+    } catch (err) {
+      logger.error({ err }, 'join_community error');
+      ack?.({ error: 'Failed to join community' });
+    }
+  });
+
+  // Client leaves a community room
+  socket.on('leave_community', (communityId, ack) => {
+    socket.leave(`community:${communityId}`);
+    ack?.({ data: { left: true } });
+  });
+
   // Client sends a message via socket
-  socket.on('send_message', async ({ conversationId, content, messageType = 'text', mediaUrl = null, replyToMessageId = null, meetingProposal = null }, ack) => {
+  socket.on('send_message', async ({ conversationId, content, messageType = 'text', mediaUrl = null, replyToMessageId = null, meetingProposal = null, voiceDurationSeconds = null, voiceWaveform = null }, ack) => {
     try {
       const allowed = await messageModel.isParticipant(conversationId, socket.userId);
       if (!allowed) return ack?.({ error: 'Not a participant' });
 
       if (messageType === 'text' && !content?.trim()) return ack?.({ error: 'Content required' });
 
-      // 'meeting' messages need the same title/startsAt validation the REST
-      // path enforces — don't let the socket path skip it.
+      // 'meeting' messages need the same title/startsAt/reminder validation
+      // the REST path enforces — call the one shared validator (messageService.
+      // validateMeetingProposal) instead of reimplementing it here, so the
+      // socket and REST paths can never drift apart.
       let validatedMeeting = null;
       if (messageType === 'meeting') {
-        if (!meetingProposal?.title?.trim()) return ack?.({ error: 'Meeting title is required' });
-        if (!meetingProposal?.startsAt) return ack?.({ error: 'Meeting start time is required' });
-        const startsAt = new Date(meetingProposal.startsAt);
-        if (isNaN(startsAt.getTime())) return ack?.({ error: 'Invalid meeting start time' });
-        if (startsAt <= new Date()) return ack?.({ error: 'Meeting start time must be in the future' });
-        validatedMeeting = {
-          title: meetingProposal.title.trim(),
-          location: meetingProposal.location?.trim() || null,
-          startsAt: meetingProposal.startsAt,
-          endsAt: meetingProposal.endsAt || null,
-        };
+        try {
+          validatedMeeting = messageService.validateMeetingProposal(meetingProposal);
+        } catch (err) {
+          return ack?.({ error: err.message });
+        }
       }
 
       // Reply target must exist in this same conversation
@@ -139,6 +161,14 @@ io.on('connection', (socket) => {
         if (target && target.conversation_id === conversationId) replyTo = replyToMessageId;
       }
 
+      // Block sending if the two sides have blocked each other (either
+      // direction) — no-op for groups (block is alert-only there), same as the REST path.
+      try {
+        await messageService.assertNotBlockedInConversation(conversationId, socket.userId);
+      } catch {
+        return ack?.({ error: 'Cannot message this user' });
+      }
+
       // messages.content_or_media requires content OR media_url — a 'meeting'
       // message has neither by default, so fall back to the proposal title.
       let message = await messageModel.insertMessage(conversationId, socket.userId, {
@@ -146,6 +176,8 @@ io.on('connection', (socket) => {
         messageType,
         mediaUrl,
         replyToMessageId: replyTo,
+        voiceDurationSeconds,
+        voiceWaveform,
       });
 
       if (validatedMeeting) {
@@ -156,11 +188,16 @@ io.on('connection', (socket) => {
       // Broadcast to everyone in the room (including sender for confirmation)
       io.to(conversationId).emit('new_message', message);
 
-      // Đồng thời emit tới user room của từng participant để danh sách
-      // hội thoại + badge cập nhật realtime kể cả khi chưa mở đoạn chat.
-      // Client dedupe theo message.id nên nhận trùng không sao.
+      // Also emit to each participant's user room so the conversation
+      // list + badge update in realtime even when that chat isn't open.
+      // The client dedupes by message.id, so a duplicate delivery is harmless.
       const participants = await messageModel.getParticipants(conversationId).catch(() => []);
       participants.forEach((uid) => io.to(`user:${uid}`).emit('new_message', message));
+
+      // Persist the inbox notification. This path inserts messages directly
+      // rather than going through messageService.sendMessage, so it has to
+      // raise the notification itself.
+      messageService.notifyNewMessage(conversationId, socket.userId, message);
 
       ack?.({ data: message });
     } catch (err) {
@@ -179,6 +216,13 @@ io.on('connection', (socket) => {
       const target = await messageModel.getMessageBasic(messageId);
       if (!target || target.conversation_id !== conversationId) return ack?.({ error: 'Message not found' });
 
+      // Block reacting if the two sides have blocked each other (either direction) — mirrors send_message's block check.
+      try {
+        await messageService.assertNotBlockedInConversation(conversationId, socket.userId);
+      } catch {
+        return ack?.({ error: 'Cannot message this user' });
+      }
+
       const reactions = await messageModel.setReaction(messageId, socket.userId, emoji);
       const payload = { conversation_id: conversationId, message_id: messageId, reactions };
 
@@ -195,7 +239,7 @@ io.on('connection', (socket) => {
 
   // Reschedule a meeting proposal — only the proposer, and only while active.
   // Clears prior RSVPs (handled by the model call).
-  socket.on('update_meeting_proposal', async ({ conversationId, messageId, title, location, startsAt, endsAt }, ack) => {
+  socket.on('update_meeting_proposal', async ({ conversationId, messageId, title, location, startsAt, endsAt, reminderOffset, reminderAt }, ack) => {
     try {
       const allowed = await messageModel.isParticipant(conversationId, socket.userId);
       if (!allowed) return ack?.({ error: 'Not a participant' });
@@ -207,18 +251,23 @@ io.on('connection', (socket) => {
       if (socket.userId !== proposal.sender_id) return ack?.({ error: 'Only the proposer can reschedule this meeting' });
       if (proposal.status !== 'active') return ack?.({ error: 'Cannot reschedule a cancelled meeting' });
 
-      if (!title?.trim()) return ack?.({ error: 'Meeting title is required' });
-      if (!startsAt) return ack?.({ error: 'Meeting start time is required' });
-      const parsedStart = new Date(startsAt);
-      if (isNaN(parsedStart.getTime())) return ack?.({ error: 'Invalid meeting start time' });
-      if (parsedStart <= new Date()) return ack?.({ error: 'Meeting start time must be in the future' });
+      // Block rescheduling if the two sides have blocked each other (either direction).
+      try {
+        await messageService.assertNotBlockedInConversation(conversationId, socket.userId);
+      } catch {
+        return ack?.({ error: 'Cannot message this user' });
+      }
 
-      await messageModel.updateMeetingProposal(proposal.id, {
-        title: title.trim(),
-        location: location?.trim() || null,
-        startsAt,
-        endsAt: endsAt || null,
-      });
+      // Same shared validator as send_message's meeting branch — see there
+      // for why this replaced the previous inline reimplementation.
+      let validated;
+      try {
+        validated = messageService.validateMeetingProposal({ title, location, startsAt, endsAt, reminderOffset, reminderAt });
+      } catch (err) {
+        return ack?.({ error: err.message });
+      }
+
+      await messageModel.updateMeetingProposal(proposal.id, validated);
 
       const message = await messageModel.getMessageById(messageId);
       const payload = { conversation_id: conversationId, message_id: messageId, meeting_proposal: message.meeting_proposal };
@@ -248,6 +297,13 @@ io.on('connection', (socket) => {
       }
       if (socket.userId !== proposal.sender_id) return ack?.({ error: 'Only the proposer can cancel this meeting' });
       if (proposal.status !== 'active') return ack?.({ error: 'Meeting is already cancelled' });
+
+      // Block cancelling if the two sides have blocked each other (either direction).
+      try {
+        await messageService.assertNotBlockedInConversation(conversationId, socket.userId);
+      } catch {
+        return ack?.({ error: 'Cannot message this user' });
+      }
 
       await messageModel.cancelMeetingProposal(proposal.id);
 
@@ -279,9 +335,27 @@ io.on('connection', (socket) => {
       if (!proposal || proposal.conversation_id !== conversationId || proposal.message_type !== 'meeting' || !proposal.id) {
         return ack?.({ error: 'Meeting proposal not found' });
       }
-      if (proposal.status !== 'active') return ack?.({ error: 'Cannot respond to a cancelled meeting' });
 
-      await messageModel.setMeetingRsvp(proposal.id, socket.userId, status);
+      // RSVP only applies to a group meeting — a 1:1 proposal is reminder-only
+      // (mirrors messageService.respondToMeeting's REST-path guard; the socket
+      // path must not be able to bypass it).
+      const conversation = await messageModel.getConversationById(conversationId);
+      if (!conversation || !conversation.is_group) {
+        return ack?.({ error: 'RSVP is not applicable to a 1:1 meeting' });
+      }
+
+      // Block RSVP-ing if the two sides have blocked each other (either direction).
+      try {
+        await messageService.assertNotBlockedInConversation(conversationId, socket.userId);
+      } catch {
+        return ack?.({ error: 'Cannot message this user' });
+      }
+
+      // "Still active" is enforced atomically inside the write itself (see
+      // messageModel.setMeetingRsvp) instead of the check above, closing the
+      // race where the proposal is cancelled/rescheduled moments earlier.
+      const rsvp = await messageModel.setMeetingRsvp(proposal.id, socket.userId, status);
+      if (!rsvp) return ack?.({ error: 'Cannot respond to a cancelled meeting' });
 
       const message = await messageModel.getMessageById(messageId);
       const payload = { conversation_id: conversationId, message_id: messageId, meeting_proposal: message.meeting_proposal };
@@ -298,15 +372,95 @@ io.on('connection', (socket) => {
   });
 
   // Client marks conversation as read
-  socket.on('mark_read', async ({ conversationId }) => {
+  socket.on('mark_read', async ({ conversationId }, ack) => {
     try {
       const allowed = await messageModel.isParticipant(conversationId, socket.userId);
-      if (!allowed) return;
+      if (!allowed) return ack?.({ error: 'Not a participant' });
       await messageModel.markRead(conversationId, socket.userId);
       // Notify the other participant that messages were read
       socket.to(conversationId).emit('messages_read', { conversationId, readBy: socket.userId });
+      ack?.({ data: { status: 'ok' } });
     } catch (err) {
       logger.error({ err }, 'mark_read error');
+      ack?.({ error: 'Failed to mark conversation as read' });
+    }
+  });
+
+  // Client marks a single message delivered — emitted by the recipient's
+  // client the instant it receives 'new_message' for someone else's message.
+  // Notifies only the sender's personal room (works even if they've left it).
+  socket.on('message_delivered', async ({ conversationId, messageId }, ack) => {
+    try {
+      const updated = await messageService.deliverMessage(conversationId, messageId, socket.userId);
+      if (updated) {
+        io.to(`user:${updated.sender_id}`).emit('message_delivered', { conversationId, messageId, userId: socket.userId });
+      }
+      ack?.({ data: updated });
+    } catch (err) {
+      if (err.status === 404) return ack?.({ error: 'Not a participant' });
+      logger.error({ err }, 'message_delivered error');
+      ack?.({ error: 'Failed to mark message delivered' });
+    }
+  });
+
+  // Client pins a message — any participant may pin, up to 10 per conversation.
+  // Mirrors react_message's exact shape: participant-check → validate →
+  // model write → dual-broadcast (room + per-participant fan-out) → ack.
+  // Calls messageModel directly (not messageService.pinMessage, which already
+  // broadcasts internally) to avoid emitting 'pin_added' twice.
+  socket.on('pin_message', async ({ conversationId, messageId, expiresAt = null }, ack) => {
+    try {
+      const allowed = await messageModel.isParticipant(conversationId, socket.userId);
+      if (!allowed) return ack?.({ error: 'Not a participant' });
+
+      const target = await messageModel.getMessageBasic(messageId);
+      if (!target || target.conversation_id !== conversationId) return ack?.({ error: 'Message not found' });
+
+      let validatedExpiresAt = null;
+      if (expiresAt !== undefined && expiresAt !== null) {
+        const parsed = new Date(expiresAt);
+        if (isNaN(parsed.getTime())) return ack?.({ error: 'Invalid expires_at' });
+        if (parsed <= new Date()) return ack?.({ error: 'expires_at must be in the future' });
+        validatedExpiresAt = expiresAt;
+      }
+
+      const pin = await messageModel.pinMessage(conversationId, messageId, socket.userId, validatedExpiresAt);
+      if (!pin) return ack?.({ error: `This conversation already has ${messageModel.MAX_PINS_PER_CONVERSATION} pinned messages` });
+
+      const pins = await messageModel.listPins(conversationId);
+      const payload = { conversation_id: conversationId, message_id: messageId, pins };
+
+      io.to(conversationId).emit('pin_added', payload);
+      const participants = await messageModel.getParticipants(conversationId).catch(() => []);
+      participants.forEach((uid) => io.to(`user:${uid}`).emit('pin_added', payload));
+
+      ack?.({ data: pin });
+    } catch (err) {
+      logger.error({ err }, 'pin_message error');
+      ack?.({ error: 'Failed to pin message' });
+    }
+  });
+
+  // Client unpins a message — any participant may unpin (mirrors reactions'
+  // low-friction, any-participant behavior — not owner/pinner-only).
+  socket.on('unpin_message', async ({ conversationId, messageId }, ack) => {
+    try {
+      const allowed = await messageModel.isParticipant(conversationId, socket.userId);
+      if (!allowed) return ack?.({ error: 'Not a participant' });
+
+      const unpinned = await messageModel.unpinMessage(conversationId, messageId);
+      if (!unpinned) return ack?.({ error: 'Pin not found' });
+
+      const payload = { conversation_id: conversationId, message_id: messageId };
+
+      io.to(conversationId).emit('pin_removed', payload);
+      const participants = await messageModel.getParticipants(conversationId).catch(() => []);
+      participants.forEach((uid) => io.to(`user:${uid}`).emit('pin_removed', payload));
+
+      ack?.({ data: { unpinned: true } });
+    } catch (err) {
+      logger.error({ err }, 'unpin_message error');
+      ack?.({ error: 'Failed to unpin message' });
     }
   });
 
@@ -318,11 +472,11 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     logger.info({ userId: socket.userId }, 'Socket disconnected');
 
-    // ── Presence: giảm đếm, khi hết socket thì báo offline ──
+    // ── Presence: decrement count, notify offline once no sockets remain ──
     const count = (onlineCounts.get(socket.userId) || 1) - 1;
     if (count <= 0) {
       onlineCounts.delete(socket.userId);
-      broadcastPresence(socket.userId, false); // 1 → 0: vừa offline
+      broadcastPresence(socket.userId, false); // 1 → 0: just went offline
     } else {
       onlineCounts.set(socket.userId, count);
     }
@@ -354,13 +508,16 @@ app.use('/api/users',         require('./src/routes/userRoutes'));
 app.use('/api/posts',         require('./src/routes/postRoutes'));
 app.use('/api/communities',   require('./src/routes/communityRoutes'));
 app.use('/api/events',        require('./src/routes/eventRoutes'));
+// One unified inbox behind both mounts; /api/user-notifications is a
+// deprecated alias kept so the shipped iOS build keeps working.
 app.use('/api/notifications',      require('./src/routes/notificationRoutes'));
-app.use('/api/user-notifications', require('./src/routes/userNotificationRoutes'));
+app.use('/api/user-notifications', require('./src/routes/notificationRoutes'));
 app.use('/api/search',        require('./src/routes/searchRoutes'));
 app.use('/api/entities',      require('./src/routes/entityRoutes'));
 app.use('/api/uploads',       require('./src/routes/uploadRoutes'));
 app.use('/api/link-preview',  require('./src/routes/linkPreviewRoutes'));
 app.use('/api/wards',         require('./src/routes/wardRoutes'));
+app.use('/api/locations',     require('./src/routes/locationRoutes'));
 app.use('/api/messages',      require('./src/routes/messageRoutes'));
 app.use('/api/feed',          require('./src/routes/feedRoutes'));
 app.use('/api/tags',          require('./src/routes/tagRoutes'));
@@ -381,6 +538,18 @@ async function start() {
 
   const { startAgeJob } = require('./src/jobs/ageJob');
   startAgeJob();
+
+  const { startBirthdayJob } = require('./src/jobs/birthdayJob');
+  startBirthdayJob();
+
+  const { startPinExpiryJob } = require('./src/jobs/pinExpiryJob');
+  startPinExpiryJob();
+
+  const { startMeetingReminderJob } = require('./src/jobs/meetingReminderJob');
+  startMeetingReminderJob();
+
+  const { startPostPurgeJob } = require('./src/jobs/postPurgeJob');
+  startPostPurgeJob();
 
   const { startTagWorker }     = require('./src/queues/tagQueue');
   const { startEmbedWorker }   = require('./src/queues/embedQueue');
