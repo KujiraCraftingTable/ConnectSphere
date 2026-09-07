@@ -349,10 +349,25 @@ struct ChatView: View {
                 Circle()
                     .fill(Color(hex: peer.avatarColor))
                     .frame(width: 34, height: 34)
-                Text(String(headerName.prefix(1)))
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.white)
+                if let urlString = peer.avatarUrl,
+                   let url = URL(string: urlString.hasPrefix("http") ? urlString : APIConfig.serverBase + urlString) {
+                    AsyncImage(url: url) { phase in
+                        if let image = phase.image {
+                            image.resizable().scaledToFill()
+                        } else {
+                            Text(String(headerName.prefix(1)))
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+                    }
+                } else {
+                    Text(String(headerName.prefix(1)))
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white)
+                }
             }
+            .frame(width: 34, height: 34)
+            .clipShape(Circle())
         }
     }
 

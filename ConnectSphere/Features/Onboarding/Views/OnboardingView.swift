@@ -29,14 +29,19 @@ struct OnboardingView: View {
                 // Progress bar
                 progressBar.padding(.horizontal, 24).padding(.top, 16)
 
-                // Step content
-                TabView(selection: $step) {
-                    step0.tag(0)
-                    step1.tag(1)
-                    step2.tag(2)
-                    step3.tag(3)
+                // Step content — a plain switch, not a swipeable TabView, so the
+                // user can't swipe past a step's required-field validation and
+                // submit an incomplete form. Navigation is Next/Back only.
+                Group {
+                    switch step {
+                    case 0:  step0
+                    case 1:  step1
+                    case 2:  step2
+                    default: step3
+                    }
                 }
-                .tabViewStyle(.page(indexDisplayMode: .never))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .transition(.opacity)
                 .animation(.easeInOut, value: step)
             }
         }
