@@ -10,8 +10,12 @@ function scheduleAgeRecomputeJob() {
   cron.schedule('10 0 * * *', async () => {
     logger.info('AgeJob: starting daily age recompute');
     try {
+      // Only touch rows whose stored age is actually stale — otherwise this
+      // rewrites every dob-bearing row daily for no reason (dead-tuple churn).
       await query(
-        `UPDATE users SET age = EXTRACT(YEAR FROM AGE(dob))::int WHERE dob IS NOT NULL`
+        `UPDATE users SET age = EXTRACT(YEAR FROM AGE(dob))::int
+         WHERE dob IS NOT NULL
+           AND age IS DISTINCT FROM EXTRACT(YEAR FROM AGE(dob))::int`
       );
       logger.info('AgeJob: daily age recompute completed');
     } catch (err) {

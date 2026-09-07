@@ -1,5 +1,6 @@
 const { query, pool } = require('../config/db');
 const { personaExpr } = require('../utils/personaSql');
+const { escapeLike } = require('../utils/sql');
 const userModel = require('./userModel');
 
 // Fixed reaction set — kept small on purpose (Messenger-style quick react bar)
@@ -788,6 +789,7 @@ async function listMedia(conversationId, userId) {
 
 // Case-insensitive substring search over a conversation's text messages
 async function searchMessages(conversationId, userId, term) {
+  term = escapeLike(term);
   const { rows } = await query(
     `SELECT m.id, m.conversation_id, m.sender_id, m.content,
             m.message_type, m.media_url, m.created_at, m.reply_to_message_id,

@@ -18,7 +18,12 @@ const RETRY_OPTS = {
   backoff: { type: 'exponential', delay: 5000 },
 };
 
-const embedQueue = new Queue(QUEUE_NAME, { connection: redisConnection });
+const embedQueue = new Queue(QUEUE_NAME, {
+  connection: redisConnection,
+  // Cap retained job records so Redis doesn't grow unbounded (dump.rdb was
+  // already ~9 MB of stale completed/failed jobs).
+  defaultJobOptions: { removeOnComplete: 200, removeOnFail: 500 },
+});
 
 /** Enqueue (re)building the chunk of one post. */
 function enqueuePostEmbed(postId) {

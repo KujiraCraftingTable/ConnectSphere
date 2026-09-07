@@ -14,7 +14,11 @@ const logger = require('../utils/logger');
 
 const QUEUE_NAME = 'tag-extraction';
 
-const tagQueue = new Queue(QUEUE_NAME, { connection: redisConnection });
+const tagQueue = new Queue(QUEUE_NAME, {
+  connection: redisConnection,
+  // Cap retained job records so Redis doesn't grow unbounded.
+  defaultJobOptions: { removeOnComplete: 200, removeOnFail: 500 },
+});
 
 /** Start the worker — call once at app startup. Returns the worker instance for graceful shutdown. */
 function startTagWorker() {

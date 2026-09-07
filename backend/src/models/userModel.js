@@ -1,5 +1,6 @@
 const { query, withTransaction } = require('../config/db');
 const { personaCols, personaSetupClause, personaExpr } = require('../utils/personaSql');
+const { escapeLike } = require('../utils/sql');
 
 // Base SELECT used by both findAll and findById.
 // modeRef (e.g. '$2') → identity (display_name/bio/avatar_url/cover_url) resolves
@@ -87,7 +88,7 @@ async function findAll({ mode, search, viewerId = null, limit = 20, offset = 0 }
     where += ` AND ${notConnectedClause(`$${viewerIdx}`, modeIdx ? `$${modeIdx}` : null)}`;
   }
   if (search) {
-    params.push(`%${search}%`);
+    params.push(`%${escapeLike(search)}%`);
     const n = params.length;
     // Search against the persona identity for the mode being viewed; mode-specific
     // fields only match while in that mode (interests = hobby, skills/job/company = work)
@@ -156,7 +157,7 @@ async function countAll({ mode, search, viewerId = null }) {
     where += ` AND ${notConnectedClause(`$${viewerIdx}`, modeIdx ? `$${modeIdx}` : null, 'users.id')}`;
   }
   if (search) {
-    params.push(`%${search}%`);
+    params.push(`%${escapeLike(search)}%`);
     const n = params.length;
     const nameExpr = modeIdx ? personaExpr('display_name', `$${modeIdx}`, 'users') : 'display_name';
     const bioExpr  = modeIdx ? personaExpr('bio', `$${modeIdx}`, 'users')          : 'bio';

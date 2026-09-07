@@ -572,6 +572,9 @@ async function start() {
   const { startPostPurgeJob } = require('./src/jobs/postPurgeJob');
   startPostPurgeJob();
 
+  const { startDataCleanupJob } = require('./src/jobs/dataCleanupJob');
+  startDataCleanupJob();
+
   const { startTagWorker }     = require('./src/queues/tagQueue');
   const { startEmbedWorker }   = require('./src/queues/embedQueue');
   const { startChunkSweepJob } = require('./src/jobs/chunkSweepJob');
