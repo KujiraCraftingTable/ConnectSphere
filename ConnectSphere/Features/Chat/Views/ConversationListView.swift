@@ -6,12 +6,26 @@ struct ConversationListView: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.appBundle) var bundle
 
+    /// Created and owned by `MainTabView` so the conversation survives this
+    /// sheet being dismissed. Optional because it is built in MainTabView's
+    /// `.task`, after first render.
+    @Environment(AssistantViewModel.self) private var assistantViewModel: AssistantViewModel?
+
     @State private var viewModel = ConversationListViewModel()
-    @State private var activeRoute: ActiveChatRoute?
+    @State private var activeRoute: ChatRoute?
+    @State private var showAssistantChat = false
+
+    // "New group" flow: pick members, then (optionally) name the group, then
+    // navigate straight into the freshly-created group's ChatView.
+    @State private var showGroupMemberPicker = false
+    @State private var pendingGroupMemberIds: Set<String> = []
+    @State private var showNewGroupDetails = false
+    @State private var isCreatingGroup = false
+    @State private var createGroupError: String?
 
     var body: some View {
         VStack(spacing: 0) {
-            // Hàng bạn bè đang active — bấm để nhảy thẳng vào hội thoại
+            // Active friends row — tap to jump straight into the conversation
             if !viewModel.activeConnections.isEmpty {
                 activeConnectionsBar
                 Divider()
@@ -29,15 +43,41 @@ struct ConversationListView: View {
             }
         }
         .background(AppColors.base(colorScheme))
+        // The AI assistant lives here and nowhere else — it is a
+        // messaging-adjacent helper, not an app-wide overlay. No bottom-bar
+        // padding is needed because this screen hides the tab bar below.
+        .overlay(alignment: .bottomTrailing) {
+            if assistantViewModel != nil {
+                AssistantLauncherButton { showAssistantChat = true }
+                    .padding(.trailing, 20)
+                    .padding(.bottom, 24)
+            }
+        }
+        .sheet(isPresented: $showAssistantChat) {
+            if let assistantViewModel {
+                AssistantChatView(
+                    appState: appState,
+                    themeManager: themeManager,
+                    viewModel: assistantViewModel
+                )
+                .environment(appState)
+                .environment(themeManager)
+            }
+        }
         .navigationTitle(bundle.loc("Messages"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button { showGroupMemberPicker = true } label: {
+                    Image(systemName: "person.3.fill")
+                }
+            }
+        }
         .navigationDestination(item: $activeRoute) { route in
             ChatView(
                 conversationId: route.conversationId,
-                otherUserId: route.userId,
-                otherUserName: route.name,
-                otherUserAvatarColor: route.avatarColor,
+                peer: route.peer,
                 otherUserLocation: route.location,
                 currentUserId: appState.currentUser?.id ?? "",
                 token: appState.authToken ?? ""
@@ -54,6 +94,57 @@ struct ConversationListView: View {
         }
         .onDisappear {
             viewModel.unregisterHandlers()
+        }
+        .sheet(isPresented: $showGroupMemberPicker) {
+            GroupMemberPickerView(
+                excludedUserIds: [],
+                remainingSlots: 99, // 100-member cap minus the creator
+                confirmTitle: bundle.loc("Next"),
+                onConfirm: { ids in
+                    pendingGroupMemberIds = ids
+                    showNewGroupDetails = true
+                }
+            )
+            .environment(appState)
+        }
+        .sheet(isPresented: $showNewGroupDetails) {
+            NewGroupDetailsSheet(
+                memberCount: pendingGroupMemberIds.count,
+                isCreating: isCreatingGroup,
+                onCreate: { name in
+                    Task { await createGroup(name: name) }
+                }
+            )
+        }
+        .alert(bundle.loc("Error"), isPresented: .constant(createGroupError != nil)) {
+            Button(bundle.loc("OK")) { createGroupError = nil }
+        } message: {
+            Text(createGroupError ?? "")
+        }
+    }
+
+    // MARK: - New group creation
+
+    private func createGroup(name: String) async {
+        guard let token = appState.authToken, !isCreatingGroup else { return }
+        isCreatingGroup = true
+        defer { isCreatingGroup = false }
+        let mode = appState.currentMode.rawValue
+        do {
+            let convId = try await viewModel.createGroup(
+                memberIds: Array(pendingGroupMemberIds), mode: mode,
+                name: name.isEmpty ? nil : name, token: token
+            )
+            showNewGroupDetails = false
+            pendingGroupMemberIds = []
+            activeRoute = ChatRoute(
+                conversationId: convId,
+                peer: .group(name: name.isEmpty ? bundle.loc("Group") : name, avatarUrl: nil, avatarColor: nil,
+                             memberCount: pendingGroupMemberIds.count + 1),
+                location: nil
+            )
+        } catch {
+            createGroupError = friendlyError(error)
         }
     }
 
@@ -76,7 +167,7 @@ struct ConversationListView: View {
                                         .font(.system(size: 22, weight: .bold))
                                         .foregroundColor(.white)
                                 }
-                                // Chấm xanh báo online
+                                // Green dot indicating online status
                                 Circle()
                                     .fill(Color.green)
                                     .frame(width: 14, height: 14)
@@ -99,7 +190,7 @@ struct ConversationListView: View {
         .background(AppColors.surface(colorScheme))
     }
 
-    /// Mở (hoặc tạo) hội thoại với một kết nối đang active, rồi điều hướng sang ChatView.
+    /// Open (or create) a conversation with an active connection, then navigate to ChatView.
     private func openActiveChat(_ conn: ConnectionItemDTO) {
         guard let token = appState.authToken else { return }
         let mode = appState.currentMode.rawValue
@@ -107,11 +198,10 @@ struct ConversationListView: View {
             guard let convId = try? await viewModel.openConversation(
                 with: conn.user.id, mode: mode, token: token
             ) else { return }
-            activeRoute = ActiveChatRoute(
+            activeRoute = ChatRoute(
                 conversationId: convId,
-                userId: conn.user.id,
-                name: conn.user.displayName,
-                avatarColor: conn.user.avatarColor,
+                peer: .direct(otherUserId: conn.user.id, name: conn.user.displayName,
+                              avatarColor: conn.user.avatarColor, avatarUrl: conn.user.avatarUrl),
                 location: conn.user.location
             )
         }
@@ -126,9 +216,7 @@ struct ConversationListView: View {
                     NavigationLink {
                         ChatView(
                             conversationId: conversation.id,
-                            otherUserId: conversation.otherUserId,
-                            otherUserName: conversation.displayName,
-                            otherUserAvatarColor: conversation.otherUserAvatarColor,
+                            peer: ChatPeer(conversation),
                             currentUserId: appState.currentUser?.id ?? "",
                             token: appState.authToken ?? ""
                         )
@@ -175,15 +263,7 @@ private struct ConversationRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Avatar
-            ZStack {
-                Circle()
-                    .fill(Color(hex: conversation.otherUserAvatarColor))
-                    .frame(width: 52, height: 52)
-                Text(String(conversation.displayName.prefix(1)))
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(.white)
-            }
+            avatar
 
             // Name + preview
             VStack(alignment: .leading, spacing: 3) {
@@ -203,6 +283,15 @@ private struct ConversationRow: View {
                 }
 
                 HStack {
+                    if conversation.isGroup {
+                        Text(String(format: bundle.loc("%d members"), conversation.memberCount))
+                            .font(.system(size: 12))
+                            .foregroundColor(AppColors.textTertiary(colorScheme))
+                        Text("·")
+                            .font(.system(size: 12))
+                            .foregroundColor(AppColors.textTertiary(colorScheme))
+                    }
+
                     Text(conversation.previewText(currentUserId: currentUserId))
                         .font(.system(size: 13))
                         .foregroundColor(conversation.hasUnread
@@ -227,16 +316,39 @@ private struct ConversationRow: View {
         .padding(.vertical, 10)
         .background(AppColors.surface(colorScheme))
     }
+
+    @ViewBuilder
+    private var avatar: some View {
+        if conversation.isGroup {
+            ZStack {
+                Circle()
+                    .fill(Color(hex: conversation.avatarColor))
+                    .frame(width: 52, height: 52)
+                Image(systemName: "person.3.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+        } else {
+            ZStack {
+                Circle()
+                    .fill(Color(hex: conversation.avatarColor))
+                    .frame(width: 52, height: 52)
+                Text(String(conversation.displayName.prefix(1)))
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(.white)
+            }
+        }
+    }
 }
 
-// MARK: - Active chat navigation route
+// MARK: - Chat navigation route
 
-/// Đích điều hướng khi bấm vào một bạn bè đang active trên hàng trên cùng.
-struct ActiveChatRoute: Identifiable, Hashable {
+/// Navigation target used by any flow that jumps straight into a
+/// conversation's `ChatView` from outside its row (active connections bar,
+/// freshly-created group).
+struct ChatRoute: Identifiable, Hashable {
     let conversationId: String
-    let userId: String
-    let name: String
-    let avatarColor: String
+    let peer: ChatPeer
     let location: String?
 
     var id: String { conversationId }

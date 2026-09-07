@@ -1,5 +1,14 @@
 import Foundation
 
+/// Posted after a successful "leave group" call so screens still open
+/// underneath the one that performed it (`ChatSettingsView`, `ChatView`) can
+/// navigate back out together — mirrors `UserRepository`'s
+/// `.userBlockStatusChanged` cross-screen sync pattern. `userInfo["conversationId"]`
+/// carries which conversation was left.
+extension Notification.Name {
+    static let userLeftGroupConversation = Notification.Name("MessageRepository.userLeftGroupConversation")
+}
+
 struct MessageRepository {
     private let client = NetworkClient.shared
 
@@ -33,6 +42,120 @@ struct MessageRepository {
         return response.data
     }
 
+    // MARK: - Group conversations
+
+    /// Create a new group conversation with the given members (and optional name).
+    /// Returns the new conversation's id. The create response's shape is narrower
+    /// than a list-endpoint `Conversation` row (no `updated_at`/last-message/
+    /// unread-count columns yet — it has `created_at` instead), so only the id
+    /// is decoded here rather than the full `Conversation` model.
+    func createGroup(memberIds: [String], mode: String, name: String?, token: String) async throws -> String {
+        struct Body: Encodable { let member_ids: [String]; let mode: String; let name: String? }
+        struct CreateResponse: Decodable { let id: String }
+        let body = try JSONEncoder().encode(Body(member_ids: memberIds, mode: mode, name: name))
+        let response = try await client.fetch(
+            DataResponse<CreateResponse>.self,
+            path: "/messages/conversations/group",
+            method: "POST",
+            token: token,
+            bodyData: body
+        )
+        return response.data.id
+    }
+
+    /// Add members to an existing group. Owner-only server-side (403 otherwise).
+    func addMembers(conversationId: String, memberIds: [String], token: String) async throws -> ConversationSettings {
+        struct Body: Encodable { let member_ids: [String] }
+        let body = try JSONEncoder().encode(Body(member_ids: memberIds))
+        let response = try await client.fetch(
+            DataResponse<ConversationSettings>.self,
+            path: "/messages/conversations/\(conversationId)/members",
+            method: "POST",
+            token: token,
+            bodyData: body
+        )
+        return response.data
+    }
+
+    /// Remove a member from a group. Owner-only server-side.
+    func removeMember(conversationId: String, userId: String, token: String) async throws -> ConversationSettings {
+        let response = try await client.fetch(
+            DataResponse<ConversationSettings>.self,
+            path: "/messages/conversations/\(conversationId)/members/\(userId)",
+            method: "DELETE",
+            token: token
+        )
+        return response.data
+    }
+
+    /// Promote another member to owner. Owner-only server-side; transfers away
+    /// the caller's own owner role.
+    func promoteOwner(conversationId: String, userId: String, token: String) async throws -> ConversationSettings {
+        let response = try await client.fetch(
+            DataResponse<ConversationSettings>.self,
+            path: "/messages/conversations/\(conversationId)/members/\(userId)/promote",
+            method: "POST",
+            token: token
+        )
+        return response.data
+    }
+
+    /// Update the group's name/photo. Owner-only server-side.
+    func updateGroup(
+        conversationId: String, name: String?, avatarUrl: String?, avatarColor: String?, token: String
+    ) async throws -> ConversationSettings {
+        var body: [String: Any] = [:]
+        if let name { body["name"] = name }
+        if let avatarUrl { body["avatar_url"] = avatarUrl }
+        if let avatarColor { body["avatar_color"] = avatarColor }
+        let bodyData = try JSONSerialization.data(withJSONObject: body)
+        let response = try await client.fetch(
+            DataResponse<ConversationSettings>.self,
+            path: "/messages/conversations/\(conversationId)/group",
+            method: "PATCH",
+            token: token,
+            bodyData: bodyData
+        )
+        return response.data
+    }
+
+    /// Leave a group conversation. Any member may call this.
+    func leaveGroup(conversationId: String, token: String) async throws {
+        _ = try await client.fetch(
+            OKResponse.self,
+            path: "/messages/conversations/\(conversationId)/leave",
+            method: "POST",
+            token: token
+        )
+    }
+
+    // MARK: - Block alert (groups only — 1:1 always returns shouldAlert: false)
+
+    /// Whether the current user should be alerted that someone they've blocked
+    /// (or who's blocked them) is in this group.
+    func fetchBlockAlertState(conversationId: String, token: String) async throws -> (shouldAlert: Bool, blockedUserIds: [String]) {
+        struct StateResponse: Decodable { let shouldAlert: Bool; let blockedUserIds: [String]? }
+        let response = try await client.fetch(
+            StateResponse.self,
+            path: "/messages/conversations/\(conversationId)/block-alert-state",
+            method: "GET",
+            token: token
+        )
+        return (response.shouldAlert, response.blockedUserIds ?? [])
+    }
+
+    /// Acknowledge the current blocked-set for this group so the alert doesn't
+    /// re-fire until it changes (e.g. a newly-added member is also blocked).
+    func acknowledgeBlockAlert(conversationId: String, token: String) async throws {
+        struct AckResult: Decodable { let acked: Bool }
+        _ = try await client.fetch(
+            DataResponse<AckResult>.self,
+            path: "/messages/conversations/\(conversationId)/block-alert-ack",
+            method: "POST",
+            token: token
+        )
+    }
+
     // MARK: - Messages
 
     /// Fetch messages for a conversation. Pass `before` ISO date for cursor pagination.
@@ -59,12 +182,17 @@ struct MessageRepository {
     }
 
     /// Send a message via REST (fallback when socket is unavailable).
+    /// `voiceDurationSeconds`/`voiceWaveform` are only ever set for `.voice`
+    /// messages, mirroring how `mediaUrl` is already optional for every
+    /// other type.
     func sendMessage(
         conversationId: String,
         content: String?,
         messageType: MessageType,
         mediaUrl: String? = nil,
         replyToMessageId: String? = nil,
+        voiceDurationSeconds: Int? = nil,
+        voiceWaveform: [Float]? = nil,
         token: String
     ) async throws -> Message {
         struct Body: Encodable {
@@ -72,12 +200,16 @@ struct MessageRepository {
             let message_type: String
             let media_url: String?
             let reply_to_message_id: String?
+            let voice_duration_seconds: Int?
+            let voice_waveform: [Float]?
         }
         let body = try JSONEncoder().encode(Body(
             content: content,
             message_type: messageType.rawValue,
             media_url: mediaUrl,
-            reply_to_message_id: replyToMessageId
+            reply_to_message_id: replyToMessageId,
+            voice_duration_seconds: voiceDurationSeconds,
+            voice_waveform: voiceWaveform
         ))
         let response = try await client.fetch(
             DataResponse<Message>.self,
@@ -98,7 +230,9 @@ struct MessageRepository {
 
         let data = try Data(contentsOf: fileURL)
         let ext  = fileURL.pathExtension.lowercased()
-        let mime = ["mp4", "mov"].contains(ext) ? "video/mp4" : "image/jpeg"
+        let mime = ["mp4", "mov"].contains(ext) ? "video/mp4"
+                 : ext == "m4a" ? "audio/m4a"
+                 : "image/jpeg"
 
         let boundary = UUID().uuidString
         var body = Data()
@@ -125,7 +259,7 @@ struct MessageRepository {
         return (decoded.data.url, msgType)
     }
 
-    /// Thu hồi tin nhắn của mình (soft delete cả 2 phía)
+    /// Recall one of my own messages (soft delete on both sides)
     func recallMessage(conversationId: String, messageId: String, token: String) async throws {
         _ = try await client.fetch(
             OKResponse.self,
@@ -161,18 +295,25 @@ struct MessageRepository {
     /// `send_message` with message_type "meeting"). Returns the created message
     /// with its embedded `meeting_proposal`. Server expects the proposal fields
     /// nested under `meeting_proposal` (see `messageController.sendMessage`).
+    /// `reminderOffset` is the raw preset key ("on_day"/"1_day_before"/
+    /// "2_days_before"/"1_week_before"); `reminderAt` is the absolute instant
+    /// computed client-side (see `MeetingReminderOffset.reminderDate(before:)`).
     func sendMeetingProposal(
         conversationId: String,
         title: String,
         location: String?,
         startsAt: Date,
         endsAt: Date?,
+        reminderOffset: String,
+        reminderAt: Date,
         token: String
     ) async throws -> Message {
         let iso = ISO8601DateFormatter()
         var proposalDict: [String: Any] = [
             "title": title,
-            "starts_at": iso.string(from: startsAt)
+            "starts_at": iso.string(from: startsAt),
+            "reminder_offset": reminderOffset,
+            "reminder_at": iso.string(from: reminderAt)
         ]
         if let location, !location.isEmpty { proposalDict["location"] = location }
         if let endsAt { proposalDict["ends_at"] = iso.string(from: endsAt) }
@@ -192,7 +333,8 @@ struct MessageRepository {
     }
 
     /// Reschedule an existing meeting proposal. Only the proposer may call this;
-    /// the server clears prior RSVPs so participants re-respond to the new time.
+    /// the server clears prior RSVPs (and resets `reminder_sent_at`) so
+    /// participants re-respond and the reminder re-arms against the new time.
     /// Server returns just the updated proposal (not the whole message).
     func updateMeetingProposal(
         conversationId: String,
@@ -201,6 +343,8 @@ struct MessageRepository {
         location: String?,
         startsAt: Date,
         endsAt: Date?,
+        reminderOffset: String,
+        reminderAt: Date,
         token: String
     ) async throws -> MeetingProposal {
         let iso = ISO8601DateFormatter()
@@ -208,7 +352,9 @@ struct MessageRepository {
             "title": title,
             "starts_at": iso.string(from: startsAt),
             "location": (location?.isEmpty == false) ? location! : NSNull(),
-            "ends_at": endsAt.map { iso.string(from: $0) } ?? NSNull()
+            "ends_at": endsAt.map { iso.string(from: $0) } ?? NSNull(),
+            "reminder_offset": reminderOffset,
+            "reminder_at": iso.string(from: reminderAt)
         ]
         let body = try JSONSerialization.data(withJSONObject: dict)
         let response = try await client.fetch(
@@ -249,6 +395,54 @@ struct MessageRepository {
         return response.data
     }
 
+    // MARK: - Pinned messages
+    // NOTE: response/body field names assumed per the Phase 4 plan's working
+    // shape (parallel backend task not landed at write time) — reconcile
+    // against the real controller once it lands. See `PinnedMessage`.
+
+    /// Fetch all pins for a conversation (server caps at 10, ordered newest-pinned first).
+    func fetchPins(conversationId: String, token: String) async throws -> [PinnedMessage] {
+        let response = try await client.fetch(
+            DataListResponse<PinnedMessage>.self,
+            path: "/messages/conversations/\(conversationId)/pins",
+            method: "GET",
+            token: token
+        )
+        return response.data
+    }
+
+    /// Pin a message (REST fallback for socket `pin_message`). `expiresAt`
+    /// nil means "never expires". 400s server-side once the conversation
+    /// already has 10 pins. The POST response is the raw `message_pins` row
+    /// (no joined sender_name/message_type/content), which doesn't satisfy
+    /// `PinnedMessage`'s required fields — don't try to decode it as one;
+    /// the caller should refetch via `fetchPins` for the properly-joined row.
+    func pinMessage(conversationId: String, messageId: String, expiresAt: Date?, token: String) async throws {
+        struct PinResult: Decodable { let id: String }
+        var body: [String: Any] = ["message_id": messageId]
+        if let expiresAt {
+            body["expires_at"] = ISO8601DateFormatter().string(from: expiresAt)
+        }
+        let bodyData = try JSONSerialization.data(withJSONObject: body)
+        _ = try await client.fetch(
+            DataResponse<PinResult>.self,
+            path: "/messages/conversations/\(conversationId)/pins",
+            method: "POST",
+            token: token,
+            bodyData: bodyData
+        )
+    }
+
+    /// Unpin a message. Any participant may call this (not owner-only).
+    func unpinMessage(conversationId: String, messageId: String, token: String) async throws {
+        _ = try await client.fetch(
+            OKResponse.self,
+            path: "/messages/conversations/\(conversationId)/pins/\(messageId)",
+            method: "DELETE",
+            token: token
+        )
+    }
+
     // MARK: - Read receipt
 
     /// Mark all messages in a conversation as read (REST call; socket also handles this).
@@ -256,6 +450,18 @@ struct MessageRepository {
         _ = try await client.fetch(
             OKResponse.self,
             path: "/messages/conversations/\(conversationId)/read",
+            method: "PUT",
+            token: token
+        )
+    }
+
+    /// Mark all sent messages in a conversation as delivered (REST catch-up for
+    /// messages that arrived while the recipient's socket was offline — the live
+    /// path is handled by the `message_delivered` socket event instead).
+    func markDelivered(conversationId: String, token: String) async throws {
+        _ = try await client.fetch(
+            OKResponse.self,
+            path: "/messages/conversations/\(conversationId)/delivered",
             method: "PUT",
             token: token
         )

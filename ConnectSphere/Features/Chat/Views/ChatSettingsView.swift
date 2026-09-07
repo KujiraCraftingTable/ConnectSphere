@@ -1,8 +1,11 @@
 import SwiftUI
 
 /// Settings screen for a single conversation, opened by tapping the header/avatar
-/// in `ChatView`. Lets the user set a shared nickname, open the other person's
-/// profile, change the shared chat theme, browse media, search, mute, and clear.
+/// in `ChatView`. 1:1: shared nickname, other person's profile, shared chat theme,
+/// media, search, mute, block, clear. Group: group name/photo (owner-only) +
+/// participants management, in place of the nickname/profile pills; block toggle
+/// is hidden (no single target — per-member block still reachable via each
+/// member's profile from `GroupParticipantsView`).
 struct ChatSettingsView: View {
     @Environment(AppState.self) var appState
     @Environment(ThemeManager.self) var themeManager
@@ -11,13 +14,14 @@ struct ChatSettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     let conversationId: String
-    let otherUserId: String
-    let fallbackName: String
-    let avatarColor: String
+    let peer: ChatPeer
     let token: String
     var onCleared: () -> Void = {}
-    /// Chọn một kết quả tìm kiếm — sheet tự đóng rồi báo ChatView nhảy tới tin nhắn
+    /// Selecting a search result — the sheet closes itself then tells ChatView to jump to the message
     var onJumpToMessage: (String) -> Void = { _ in }
+    /// Fires after a successful block/unblock so `ChatView` can react (disable input, show notice).
+    /// 1:1 only — the block row is hidden entirely for groups.
+    var onBlockStatusChanged: ((Bool) -> Void)? = nil
 
     @State private var viewModel: ChatSettingsViewModel
     @State private var showNicknameEditor = false
@@ -26,20 +30,59 @@ struct ChatSettingsView: View {
     @State private var showMuteOptions = false
     @State private var showDeleteWarning = false
 
-    init(conversationId: String, otherUserId: String, fallbackName: String,
-         avatarColor: String, token: String, onCleared: @escaping () -> Void = {},
-         onJumpToMessage: @escaping (String) -> Void = { _ in }) {
+    // Pin default auto-delete preference (client-side-only convenience —
+    // there's no server-side conversation-level default, `expires_at` is
+    // per-pin at pin time). Scoped per-conversation via a dynamic key set in `init`.
+    @AppStorage private var pinAutoDeleteRaw: String
+    @AppStorage private var pinAutoDeleteCustomDateRaw: Double
+    @State private var showPinAutoDeleteOptions = false
+    @State private var showPinCustomDatePicker = false
+    @State private var pinCustomDateDraft = Date()
+
+    // Group-only editors (owner-only actions)
+    @State private var showGroupNameEditor = false
+    @State private var groupNameDraft = ""
+    @State private var showGroupColorPicker = false
+    /// Removed symmetrically in `.onDisappear` — lets `GroupParticipantsView`
+    /// (pushed on top of this sheet) tell this screen to close itself too
+    /// once the current user leaves the group.
+    @State private var leftGroupObserver: NSObjectProtocol?
+
+    // Block state (1:1 only) — ported from `UserProfileView`'s existing block pattern
+    @State private var isBlocked = false
+    @State private var showBlockConfirm = false
+    @State private var blockErrorMessage: String?
+    private let userRepo = UserRepository()
+
+    private let groupColorSwatches = [
+        "#7F5AF0", "#2CB67D", "#FF8906", "#E53170", "#3DA9FC",
+        "#F25F4C", "#8A8F98", "#0F4C5C", "#EF7674", "#5C6BC0",
+    ]
+
+    init(conversationId: String, peer: ChatPeer, token: String,
+         onCleared: @escaping () -> Void = {},
+         onJumpToMessage: @escaping (String) -> Void = { _ in },
+         onBlockStatusChanged: ((Bool) -> Void)? = nil) {
         self.conversationId = conversationId
-        self.otherUserId = otherUserId
-        self.fallbackName = fallbackName
-        self.avatarColor = avatarColor
+        self.peer = peer
         self.token = token
         self.onCleared = onCleared
         self.onJumpToMessage = onJumpToMessage
+        self.onBlockStatusChanged = onBlockStatusChanged
         _viewModel = State(initialValue: ChatSettingsViewModel(conversationId: conversationId, token: token))
+        _pinAutoDeleteRaw = AppStorage(
+            wrappedValue: PinAutoDeleteOption.never.rawValue,
+            pinAutoDeleteStorageKey(conversationId: conversationId)
+        )
+        _pinAutoDeleteCustomDateRaw = AppStorage(
+            wrappedValue: 0,
+            pinAutoDeleteCustomDateStorageKey(conversationId: conversationId)
+        )
     }
 
-    private var displayName: String { viewModel.settings?.displayName ?? fallbackName }
+    private var isGroup: Bool { peer.isGroup }
+    private var displayName: String { viewModel.settings?.displayName ?? peer.name }
+    private var isOwner: Bool { viewModel.isOwner(currentUserId: appState.currentUser?.id ?? "") }
 
     /// Palette currently applied to this conversation (falls back to the global theme).
     private var currentPalette: ThemePalette {
@@ -57,7 +100,7 @@ struct ChatSettingsView: View {
                 .padding(.bottom, 32)
             }
             .background(AppColors.base(colorScheme))
-            .navigationTitle(bundle.loc("Chat settings"))
+            .navigationTitle(bundle.loc(isGroup ? "Group settings" : "Chat settings"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -66,13 +109,55 @@ struct ChatSettingsView: View {
                 }
             }
         }
-        .task { await viewModel.load() }
+        .task {
+            await viewModel.load()
+            if !isGroup, let otherId = peer.otherUserId {
+                isBlocked = (try? await userRepo.fetchBlockStatus(userId: otherId)) ?? false
+            }
+            // If I leave the group from the pushed `GroupParticipantsView`,
+            // close this sheet too instead of leaving it stranded underneath.
+            leftGroupObserver = NotificationCenter.default.addObserver(
+                forName: .userLeftGroupConversation, object: nil, queue: .main
+            ) { note in
+                guard let convId = note.userInfo?["conversationId"] as? String,
+                      convId == conversationId else { return }
+                dismiss()
+            }
+        }
+        .onDisappear {
+            if let leftGroupObserver {
+                NotificationCenter.default.removeObserver(leftGroupObserver)
+                self.leftGroupObserver = nil
+            }
+        }
+        .confirmationDialog(
+            bundle.loc("Block this user?"),
+            isPresented: $showBlockConfirm,
+            titleVisibility: .visible
+        ) {
+            Button(bundle.loc("Block"), role: .destructive) {
+                Task { await toggleBlock() }
+            }
+            Button(bundle.loc("Cancel"), role: .cancel) {}
+        } message: {
+            Text("You two will no longer see each other's posts, all connections will be removed, and you won't be able to message each other.", bundle: bundle)
+        }
+        .alert(bundle.loc("Error"), isPresented: .constant(blockErrorMessage != nil)) {
+            Button(bundle.loc("OK")) { blockErrorMessage = nil }
+        } message: {
+            Text(blockErrorMessage ?? "")
+        }
         .alert(bundle.loc("Nickname"), isPresented: $showNicknameEditor) {
             TextField(bundle.loc("Nickname"), text: $nicknameDraft)
             Button(bundle.loc("Save")) { Task { await viewModel.saveNickname(nicknameDraft) } }
             Button(bundle.loc("Cancel"), role: .cancel) {}
         } message: {
             Text("Set a nickname for this person. Both of you will see it.", bundle: bundle)
+        }
+        .alert(bundle.loc("Group name"), isPresented: $showGroupNameEditor) {
+            TextField(bundle.loc("Group name"), text: $groupNameDraft)
+            Button(bundle.loc("Save")) { Task { await viewModel.renameGroup(groupNameDraft) } }
+            Button(bundle.loc("Cancel"), role: .cancel) {}
         }
         .confirmationDialog(bundle.loc("Mute notifications"), isPresented: $showMuteOptions, titleVisibility: .visible) {
             Button(bundle.loc("For 5 minutes"))  { Task { await viewModel.setMute(minutes: 5) } }
@@ -97,50 +182,124 @@ struct ChatSettingsView: View {
         } message: {
             Text("This removes every message from your side only. The other person will still see them. This can't be undone.", bundle: bundle)
         }
+        .confirmationDialog(bundle.loc("Default auto-delete time"), isPresented: $showPinAutoDeleteOptions, titleVisibility: .visible) {
+            ForEach(PinAutoDeleteOption.allCases.filter { $0 != .custom }) { option in
+                Button(bundle.loc(option.label)) { pinAutoDeleteRaw = option.rawValue }
+            }
+            Button(bundle.loc("Custom date")) {
+                pinCustomDateDraft = pinAutoDeleteCustomDateRaw > 0
+                    ? Date(timeIntervalSince1970: pinAutoDeleteCustomDateRaw)
+                    : Date().addingTimeInterval(60 * 60 * 24 * 7)
+                showPinCustomDatePicker = true
+            }
+            Button(bundle.loc("Cancel"), role: .cancel) {}
+        }
         .sheet(isPresented: $showThemePicker) { themePickerSheet }
+        .sheet(isPresented: $showGroupColorPicker) { groupColorPickerSheet }
+        .sheet(isPresented: $showPinCustomDatePicker) { pinCustomDatePickerSheet }
     }
 
-    // MARK: - Header (avatar + nickname + profile)
+    // MARK: - Header (avatar + nickname/profile, or group name/photo/participants)
 
     private var header: some View {
         VStack(spacing: 12) {
-            ZStack {
-                Circle().fill(Color(hex: avatarColor)).frame(width: 84, height: 84)
-                Text(String(displayName.prefix(1)))
-                    .font(.system(size: 34, weight: .bold))
-                    .foregroundColor(.white)
-            }
+            avatarLarge
 
             VStack(spacing: 2) {
                 Text(displayName)
                     .font(.system(size: 20, weight: .bold))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
-                // When a nickname is set, show the real name underneath for context.
-                if let settings = viewModel.settings, settings.otherUserNickname != nil {
-                    Text(settings.otherUserName)
+                if isGroup {
+                    Text(String(format: bundle.loc("%d members"), viewModel.settings?.members.count ?? peer.memberCount ?? 0))
+                        .font(.system(size: 13))
+                        .foregroundColor(AppColors.textSecondary(colorScheme))
+                } else if let settings = viewModel.settings, settings.otherUserNickname != nil {
+                    // When a nickname is set, show the real name underneath for context.
+                    Text(settings.otherUserName ?? "")
                         .font(.system(size: 13))
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
             }
 
             HStack(spacing: 12) {
-                Button {
-                    nicknameDraft = viewModel.settings?.otherUserNickname ?? ""
-                    showNicknameEditor = true
-                } label: {
-                    pill(icon: "pencil", title: bundle.loc("Nickname"))
-                }
-                .buttonStyle(.plain)
+                if isGroup {
+                    if isOwner {
+                        Button {
+                            groupNameDraft = displayName
+                            showGroupNameEditor = true
+                        } label: {
+                            pill(icon: "pencil", title: bundle.loc("Group name"))
+                        }
+                        .buttonStyle(.plain)
 
-                NavigationLink {
-                    UserProfileView(userId: otherUserId).environment(appState)
-                } label: {
-                    pill(icon: "person.crop.circle", title: bundle.loc("Profile"))
+                        Button { showGroupColorPicker = true } label: {
+                            pill(icon: "photo", title: bundle.loc("Group photo"))
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    NavigationLink {
+                        GroupParticipantsView(conversationId: conversationId, token: token)
+                    } label: {
+                        pill(icon: "person.2", title: bundle.loc("Participants"))
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Button {
+                        nicknameDraft = viewModel.settings?.otherUserNickname ?? ""
+                        showNicknameEditor = true
+                    } label: {
+                        pill(icon: "pencil", title: bundle.loc("Nickname"))
+                    }
+                    .buttonStyle(.plain)
+
+                    NavigationLink {
+                        UserProfileView(userId: peer.otherUserId ?? "").environment(appState)
+                    } label: {
+                        pill(icon: "person.crop.circle", title: bundle.loc("Profile"))
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 16)
+    }
+
+    private var avatarLarge: some View {
+        Group {
+            if isGroup {
+                if let urlString = viewModel.settings?.groupAvatarUrl ?? peer.avatarUrl,
+                   let url = URL(string: APIConfig.serverBase + urlString) {
+                    AsyncImage(url: url) { phase in
+                        if let image = phase.image {
+                            image.resizable().scaledToFill()
+                        } else {
+                            groupPlaceholder
+                        }
+                    }
+                } else {
+                    groupPlaceholder
+                }
+            } else {
+                ZStack {
+                    Circle().fill(Color(hex: peer.avatarColor))
+                    Text(String(displayName.prefix(1)))
+                        .font(.system(size: 34, weight: .bold))
+                        .foregroundColor(.white)
+                }
+            }
+        }
+        .frame(width: 84, height: 84)
+        .clipShape(Circle())
+    }
+
+    private var groupPlaceholder: some View {
+        ZStack {
+            Circle().fill(Color(hex: viewModel.settings?.groupAvatarColor ?? peer.avatarColor))
+            Image(systemName: "person.3.fill")
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundColor(.white)
+        }
     }
 
     private func pill(icon: String, title: String) -> some View {
@@ -191,6 +350,26 @@ struct ChatSettingsView: View {
             .buttonStyle(.plain)
             divider
 
+            NavigationLink {
+                ChatPinnedMessagesView(viewModel: viewModel, onSelect: { message in
+                    dismiss()
+                    onJumpToMessage(message.id)
+                })
+            } label: {
+                SettingsRow(icon: "pin.fill", iconColor: themeManager.theme.primary,
+                            title: bundle.loc("Pinned messages"), colorScheme: colorScheme, showsChevron: true)
+            }
+            .buttonStyle(.plain)
+            divider
+
+            Button { showPinAutoDeleteOptions = true } label: {
+                SettingsRow(icon: "timer", iconColor: themeManager.theme.primary,
+                            title: bundle.loc("Default auto-delete time"), colorScheme: colorScheme,
+                            subtitle: pinAutoDeleteSubtitle)
+            }
+            .buttonStyle(.plain)
+            divider
+
             Button { showMuteOptions = true } label: {
                 SettingsRow(icon: viewModel.isMuted ? "bell.slash.fill" : "bell.fill",
                             iconColor: themeManager.theme.primary,
@@ -199,6 +378,26 @@ struct ChatSettingsView: View {
             }
             .buttonStyle(.plain)
             divider
+
+            // No single block target from this screen for groups — per-member
+            // block is still reachable via each member's profile in
+            // `GroupParticipantsView`, using `UserProfileView`'s block flow unchanged.
+            if !isGroup {
+                Button {
+                    if isBlocked {
+                        Task { await toggleBlock() }
+                    } else {
+                        showBlockConfirm = true
+                    }
+                } label: {
+                    SettingsRow(icon: isBlocked ? "person.crop.circle.badge.checkmark" : "nosign",
+                                iconColor: isBlocked ? themeManager.theme.primary : .red,
+                                title: bundle.loc(isBlocked ? "Unblock" : "Block user"),
+                                colorScheme: colorScheme, destructive: !isBlocked)
+                }
+                .buttonStyle(.plain)
+                divider
+            }
 
             Button { showDeleteWarning = true } label: {
                 SettingsRow(icon: "trash.fill", iconColor: .red,
@@ -214,6 +413,39 @@ struct ChatSettingsView: View {
 
     private var divider: some View {
         Divider().padding(.leading, 56)
+    }
+
+    /// Block / unblock the other person in the conversation — ported from
+    /// `UserProfileView.toggleBlock()`, notifies `ChatView` via `onBlockStatusChanged`.
+    /// 1:1 only.
+    private func toggleBlock() async {
+        guard let otherId = peer.otherUserId else { return }
+        do {
+            if isBlocked {
+                try await userRepo.unblockUser(userId: otherId)
+                isBlocked = false
+            } else {
+                try await userRepo.blockUser(userId: otherId)
+                isBlocked = true
+            }
+            onBlockStatusChanged?(isBlocked)
+            // Lets this conversation's own ChatView (and any other open ChatView
+            // for the same person) refresh its bidirectional block state live.
+            NotificationCenter.default.post(
+                name: .userBlockStatusChanged, object: nil, userInfo: ["userId": otherId]
+            )
+        } catch {
+            blockErrorMessage = friendlyError(error)
+        }
+    }
+
+    /// Subtitle under "Default auto-delete time" describing the current preference.
+    private var pinAutoDeleteSubtitle: String {
+        let option = PinAutoDeleteOption(rawValue: pinAutoDeleteRaw) ?? .never
+        if option == .custom, pinAutoDeleteCustomDateRaw > 0 {
+            return Date(timeIntervalSince1970: pinAutoDeleteCustomDateRaw).formatted(.dateTime.day().month().year())
+        }
+        return bundle.loc(option.label)
     }
 
     /// Subtitle under "Mute notifications" describing the current state.
@@ -281,7 +513,112 @@ struct ChatSettingsView: View {
                 .foregroundColor(AppColors.textSecondary(colorScheme))
         }
     }
+
+    // MARK: - Group photo (color swatch) picker
+    // No photo-upload flow exists for chat groups yet (only the media-message
+    // upload path exists), so "Group photo" exposes the same avatar_color
+    // fallback every `ConversationPeer`/`ChatPeer` already renders when a
+    // group has no `avatar_url` photo — mirrors the chat-theme swatch picker above.
+
+    private var groupColorPickerSheet: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 60), spacing: 16)], spacing: 16) {
+                    ForEach(groupColorSwatches, id: \.self) { hex in
+                        Button {
+                            Task { await viewModel.updateGroupColor(hex) }
+                            showGroupColorPicker = false
+                        } label: {
+                            Circle().fill(Color(hex: hex)).frame(width: 52, height: 52)
+                                .overlay(
+                                    Circle().stroke(
+                                        AppColors.textPrimary(colorScheme).opacity(
+                                            viewModel.settings?.groupAvatarColor == hex ? 0.9 : 0),
+                                        lineWidth: 3
+                                    )
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding()
+            }
+            .background(AppColors.base(colorScheme))
+            .navigationTitle(bundle.loc("Group photo"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(bundle.loc("Done")) { showGroupColorPicker = false }
+                        .foregroundColor(themeManager.theme.primary)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    // MARK: - Pin default auto-delete: custom date picker
+
+    private var pinCustomDatePickerSheet: some View {
+        NavigationStack {
+            Form {
+                DatePicker(bundle.loc("Custom date"), selection: $pinCustomDateDraft, in: Date()...,
+                           displayedComponents: [.date, .hourAndMinute])
+            }
+            .navigationTitle(bundle.loc("Custom date"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(bundle.loc("Done")) {
+                        pinAutoDeleteRaw = PinAutoDeleteOption.custom.rawValue
+                        pinAutoDeleteCustomDateRaw = pinCustomDateDraft.timeIntervalSince1970
+                        showPinCustomDatePicker = false
+                    }
+                    .foregroundColor(themeManager.theme.primary)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
 }
+
+// MARK: - Pin auto-delete preference (client-side-only convenience default)
+
+/// How long a newly-pinned message should stay pinned before auto-expiring —
+/// there is no conversation-level default server-side (`expires_at` is set
+/// per-pin at pin time); this only prefills the expiry sheet `ChatView` shows
+/// when pinning a message.
+enum PinAutoDeleteOption: String, CaseIterable, Identifiable {
+    case week, month, year, custom, never
+    var id: String { rawValue }
+
+    /// English fallback / localization key.
+    var label: String {
+        switch self {
+        case .week:   return "1 week"
+        case .month:  return "1 month"
+        case .year:   return "1 year"
+        case .custom: return "Custom date"
+        case .never:  return "Never"
+        }
+    }
+
+    /// Resolves this option to a concrete expiry date from `now`. `nil` means
+    /// "never expires"; `.custom` uses the caller-supplied date.
+    func expiryDate(from now: Date = Date(), customDate: Date? = nil) -> Date? {
+        switch self {
+        case .week:   return Calendar.current.date(byAdding: .day, value: 7, to: now)
+        case .month:  return Calendar.current.date(byAdding: .month, value: 1, to: now)
+        case .year:   return Calendar.current.date(byAdding: .year, value: 1, to: now)
+        case .custom: return customDate
+        case .never:  return nil
+        }
+    }
+}
+
+/// Namespaced `@AppStorage` keys for the per-conversation pin auto-delete
+/// default, so each conversation remembers its own preference independently.
+func pinAutoDeleteStorageKey(conversationId: String) -> String { "pinAutoDelete.\(conversationId)" }
+func pinAutoDeleteCustomDateStorageKey(conversationId: String) -> String { "pinAutoDeleteCustomDate.\(conversationId)" }
 
 // MARK: - Reusable settings row
 

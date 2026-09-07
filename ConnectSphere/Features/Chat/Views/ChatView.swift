@@ -10,9 +10,7 @@ struct ChatView: View {
     @Environment(\.appBundle) var bundle
 
     let conversationId: String
-    let otherUserId: String
-    let otherUserName: String
-    let otherUserAvatarColor: String
+    let peer: ChatPeer
     let otherUserLocation: String?
     private let token: String
 
@@ -24,40 +22,75 @@ struct ChatView: View {
     @State private var appearedMessageIDs: Set<String> = []
     @State private var showChatSettings = false
     @State private var mediaViewerItem: ChatMediaViewerItem?
-    // Meeting proposal composer (new proposal or reschedule, reusing CreateEventSheet)
+    // Whether either side has blocked the other — disables the input bar and
+    // shows an inline notice; set from Chat Settings' block toggle or fetched
+    // on load. 1:1 only — groups use `viewModel.blockAlertState` instead
+    // (alert-only, input bar stays enabled).
+    @State private var isBlocked = false
+    /// Token for the `.userBlockStatusChanged` observer registered in `.task`;
+    /// removed symmetrically in `.onDisappear`.
+    @State private var blockStatusObserver: NSObjectProtocol?
+    /// Token for the `.userLeftGroupConversation` observer (group only) —
+    /// catches "I left via `GroupParticipantsView`" deterministically on this
+    /// same device, independent of the `member_removed` socket broadcast's
+    /// exact targeting. Removed symmetrically in `.onDisappear`.
+    @State private var leftGroupObserver: NSObjectProtocol?
+    // Meeting proposal composer (new proposal or reschedule) — forked
+    // `MeetingProposalComposerView`, see its doc comment for why.
     @State private var showMeetingComposer = false
     @State private var meetingTitle = ""
     @State private var meetingLocation = ""
     @State private var meetingStartsAt = Date().addingTimeInterval(3600)
     @State private var meetingEndsAt: Date? = nil
     @State private var meetingShowEndDate = false
+    @State private var meetingReminderOffset: MeetingReminderOffset = .oneDayBefore
     /// Non-nil while rescheduling an existing proposal — the id of the message being edited.
     @State private var editingMeetingMessageId: String?
-    // Jump-to-message từ kết quả tìm kiếm (và từ tap vào quoted preview của reply)
+    // Jump-to-message from search results (and from tapping a reply's quoted preview)
     @State private var pendingScrollTarget: String?
     @State private var highlightedMessageId: String?
     @State private var isJumping = false
-    // Tin đang được trích dẫn để trả lời (Reply) — hiện thanh preview trên input bar
+    // The message currently being quoted for a reply — shows a preview bar above the input bar
     @State private var replyingTo: Message?
     @State private var connectVM = ConnectViewModel()
     @AppStorage("messageSoundEnabled") private var messageSoundEnabled = true
     private let bottomID = "chatBottom"
 
-    init(conversationId: String, otherUserId: String, otherUserName: String,
-         otherUserAvatarColor: String, otherUserLocation: String? = nil,
+    // Pin / unpin: lightweight expiry-confirmation sheet shown from the
+    // context menu, prefilled from the per-conversation default (settings'
+    // "Default auto-delete time" row) rather than silently applying it.
+    @State private var pinningMessage: Message?
+    @State private var pinExpiryChoice: PinAutoDeleteOption = .never
+    @State private var pinCustomDate = Date()
+    @AppStorage private var pinAutoDeleteRaw: String
+    @AppStorage private var pinAutoDeleteCustomDateRaw: Double
+    // Pinned-messages list, opened from the pinned-banner when there's more
+    // than one pin (a single pin jumps straight to it via `jumpToMessage`).
+    @State private var showPinnedList = false
+    @State private var pinsSettingsViewModel: ChatSettingsViewModel
+
+    init(conversationId: String, peer: ChatPeer, otherUserLocation: String? = nil,
          currentUserId: String, token: String) {
         self.conversationId = conversationId
-        self.otherUserId = otherUserId
-        self.otherUserName = otherUserName
-        self.otherUserAvatarColor = otherUserAvatarColor
+        self.peer = peer
         self.otherUserLocation = otherUserLocation
         self.token = token
         _viewModel = State(initialValue: ChatViewModel(
             conversationId: conversationId,
             currentUserId: currentUserId,
-            otherUserId: otherUserId,
+            isGroup: peer.isGroup,
+            otherUserId: peer.otherUserId,
             token: token
         ))
+        _pinsSettingsViewModel = State(initialValue: ChatSettingsViewModel(conversationId: conversationId, token: token))
+        _pinAutoDeleteRaw = AppStorage(
+            wrappedValue: PinAutoDeleteOption.never.rawValue,
+            pinAutoDeleteStorageKey(conversationId: conversationId)
+        )
+        _pinAutoDeleteCustomDateRaw = AppStorage(
+            wrappedValue: 0,
+            pinAutoDeleteCustomDateStorageKey(conversationId: conversationId)
+        )
     }
 
     /// Palette for this conversation: its shared theme if set, else the global theme.
@@ -65,19 +98,50 @@ struct ChatView: View {
         ThemePalette.byId(viewModel.chatThemeId) ?? themeManager.theme
     }
 
-    /// Name to show for the other person (shared nickname overrides real name).
+    /// Name to show in the header: shared nickname (1:1) or group name — live
+    /// value from settings once loaded, falling back to what the caller passed in.
     private var headerName: String {
-        viewModel.otherNickname ?? otherUserName
+        if viewModel.isGroup {
+            return viewModel.groupName ?? peer.name
+        }
+        return viewModel.otherNickname ?? peer.name
+    }
+
+    /// "N members" subtitle under the group's name — nil for 1:1.
+    private var groupMemberCountText: String? {
+        guard viewModel.isGroup else { return nil }
+        let count = viewModel.groupMembers.isEmpty ? (peer.memberCount ?? 0) : viewModel.groupMembers.count
+        guard count > 0 else { return nil }
+        return String(format: bundle.loc("%d members"), count)
+    }
+
+    /// Every other participant in this conversation (current user excluded) —
+    /// fed to `MessageBubble.otherParticipantIds` to derive delivered/read
+    /// status. A 1:1 chat yields exactly `[peer.otherUserId]`; a group yields
+    /// the live roster from `viewModel.groupMembers` (falls back to `[]`
+    /// before settings finish loading, which just renders the sent-only glyph
+    /// briefly — matches how `groupMemberCountText` already tolerates the
+    /// same not-yet-loaded window).
+    private var otherParticipantIds: [String] {
+        if viewModel.isGroup {
+            let me = appState.currentUser?.id ?? ""
+            return viewModel.groupMembers.map(\.id).filter { $0 != me }
+        }
+        return peer.otherUserId.map { [$0] } ?? []
     }
 
     var body: some View {
         VStack(spacing: 0) {
+            if !viewModel.pinnedMessages.isEmpty {
+                pinnedBanner
+                Divider()
+            }
             messageList
             Divider()
             inputBar
         }
-        // ignoresSafeArea (mặc định gồm cả .keyboard) để nền phủ ra sau bàn phím
-        // nổi của iOS 26 — không còn dải đen hệ thống giữa input bar và bàn phím
+        // ignoresSafeArea (which covers .keyboard by default) so the background extends behind
+        // iOS 26's floating keyboard — otherwise there's a system black bar between the input bar and the keyboard
         .background(AppColors.base(colorScheme).ignoresSafeArea())
         .navigationBarBackButtonHidden(true)
         .navigationBarTitleDisplayMode(.inline)
@@ -92,16 +156,23 @@ struct ChatView: View {
                 }
             }
 
-            // Tappable display name → chat settings
+            // Tappable display name (+ member count for groups) → chat settings
             ToolbarItem(placement: .principal) {
                 Button { showChatSettings = true } label: {
-                    HStack(spacing: 5) {
-                        Text(headerName)
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundColor(AppColors.textPrimary(colorScheme))
-                        if viewModel.isMuted {
-                            Image(systemName: "bell.slash.fill")
-                                .font(.system(size: 12))
+                    VStack(spacing: 1) {
+                        HStack(spacing: 5) {
+                            Text(headerName)
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(AppColors.textPrimary(colorScheme))
+                            if viewModel.isMuted {
+                                Image(systemName: "bell.slash.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(AppColors.textTertiary(colorScheme))
+                            }
+                        }
+                        if let subtitle = groupMemberCountText {
+                            Text(subtitle)
+                                .font(.system(size: 11))
                                 .foregroundColor(AppColors.textTertiary(colorScheme))
                         }
                     }
@@ -112,14 +183,7 @@ struct ChatView: View {
             // Avatar → chat settings
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button { showChatSettings = true } label: {
-                    ZStack {
-                        Circle()
-                            .fill(Color(hex: otherUserAvatarColor))
-                            .frame(width: 34, height: 34)
-                        Text(String(headerName.prefix(1)))
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(.white)
-                    }
+                    headerAvatar
                 }
                 .buttonStyle(.plain)
             }
@@ -127,9 +191,7 @@ struct ChatView: View {
         .sheet(isPresented: $showChatSettings) {
             ChatSettingsView(
                 conversationId: conversationId,
-                otherUserId: otherUserId,
-                fallbackName: otherUserName,
-                avatarColor: otherUserAvatarColor,
+                peer: peer,
                 token: token,
                 onCleared: {
                     viewModel.messages = []
@@ -138,6 +200,9 @@ struct ChatView: View {
                 },
                 onJumpToMessage: { messageId in
                     Task { await jumpToMessage(messageId) }
+                },
+                onBlockStatusChanged: { blocked in
+                    isBlocked = blocked
                 }
             )
             .environment(appState)
@@ -148,24 +213,61 @@ struct ChatView: View {
             // Existing history should appear without the send animation.
             appearedMessageIDs = Set(viewModel.messages.map(\.id))
             viewModel.markRead()
+            await viewModel.markConversationDelivered()
             await viewModel.loadSettings()
-            if let me = appState.currentUser?.id {
-                await connectVM.load(
-                    viewerId: me,
-                    targetId: otherUserId,
-                    mode: appState.currentMode.rawValue
-                )
+            await viewModel.loadPins()
+            if viewModel.isGroup {
+                // Groups are alert-only (Leave/Stay) — never disable the input bar.
+                await viewModel.checkBlockAlert()
+                leftGroupObserver = NotificationCenter.default.addObserver(
+                    forName: .userLeftGroupConversation, object: nil, queue: .main
+                ) { note in
+                    guard let convId = note.userInfo?["conversationId"] as? String,
+                          convId == conversationId else { return }
+                    viewModel.wasRemovedFromGroup = true
+                }
+            } else if let otherId = peer.otherUserId {
+                // A user may already be blocked via their profile before ever opening
+                // Chat Settings — fetch the current state so the input bar reflects it.
+                // Uses the bidirectional value: the input bar must stay disabled even
+                // when *they* blocked *me*, not just when I blocked them.
+                await refreshBlockedState()
+                if let me = appState.currentUser?.id {
+                    await connectVM.load(
+                        viewerId: me,
+                        targetId: otherId,
+                        mode: appState.currentMode.rawValue
+                    )
+                }
+                // Live cross-screen sync: a block/unblock from UserProfileView (or this
+                // conversation's own Chat Settings) for this same person refreshes the
+                // input bar without needing to reopen the chat.
+                blockStatusObserver = NotificationCenter.default.addObserver(
+                    forName: .userBlockStatusChanged, object: nil, queue: .main
+                ) { note in
+                    guard let changedUserId = note.userInfo?["userId"] as? String,
+                          changedUserId == otherId else { return }
+                    Task { await refreshBlockedState() }
+                }
             }
         }
         .onDisappear {
             viewModel.leaveConversation()
+            if let blockStatusObserver {
+                NotificationCenter.default.removeObserver(blockStatusObserver)
+                self.blockStatusObserver = nil
+            }
+            if let leftGroupObserver {
+                NotificationCenter.default.removeObserver(leftGroupObserver)
+                self.leftGroupObserver = nil
+            }
         }
         .onChange(of: pickerItems) { _, items in
             guard !items.isEmpty else { return }
             Task { await handlePickedMedia(items) }
         }
         .onChange(of: showChatSettings) { _, isShowing in
-            // Refresh mute/theme/nickname after closing the settings sheet.
+            // Refresh mute/theme/nickname/group info after closing the settings sheet.
             if !isShowing { Task { await viewModel.loadSettings() } }
         }
         .fullScreenCover(item: $mediaViewerItem) { item in
@@ -174,21 +276,133 @@ struct ChatView: View {
         .sheet(isPresented: $showMeetingComposer) {
             meetingComposerSheet
         }
+        .sheet(item: $pinningMessage) { message in
+            pinExpirySheet(for: message)
+        }
+        .sheet(isPresented: $showPinnedList) {
+            NavigationStack {
+                ChatPinnedMessagesView(viewModel: pinsSettingsViewModel, onSelect: { pin in
+                    showPinnedList = false
+                    Task { await jumpToMessage(pin.id) }
+                })
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(bundle.loc("Done")) { showPinnedList = false }
+                    }
+                }
+            }
+        }
+        // Surfaces both socket-ack rejections (send/react/reply/meeting actions)
+        // and REST-fallback failures — previously `viewModel.error` was set but
+        // never read anywhere, so every one of those failures was silent.
+        .alert(bundle.loc("Error"), isPresented: .constant(viewModel.error != nil)) {
+            Button(bundle.loc("OK")) { viewModel.error = nil }
+        } message: {
+            Text(viewModel.error ?? "")
+        }
+        // Group-only: someone I've blocked (or who's blocked me) is in this
+        // group. Alert-only per product decision — the input bar stays fully
+        // enabled either way; only Leave actually removes me from the group.
+        .alert(bundle.loc("Blocked members in this group"), isPresented: Binding(
+            get: { viewModel.blockAlertState != nil },
+            set: { if !$0 { viewModel.blockAlertState = nil } }
+        )) {
+            Button(bundle.loc("Leave the group"), role: .destructive) {
+                Task { await viewModel.leaveGroup() }
+            }
+            Button(bundle.loc("Stay")) {
+                Task { await viewModel.acknowledgeBlockAlert() }
+            }
+        } message: {
+            Text("Someone you've blocked (or who has blocked you) is in this group.", bundle: bundle)
+        }
+        // I left (or was removed from) this group — it's no longer accessible.
+        .alert(bundle.loc("You're no longer in this group"), isPresented: Binding(
+            get: { viewModel.wasRemovedFromGroup },
+            set: { _ in }
+        )) {
+            Button(bundle.loc("OK")) { dismiss() }
+        }
+    }
+
+    // MARK: - Header avatar
+
+    @ViewBuilder
+    private var headerAvatar: some View {
+        if viewModel.isGroup {
+            groupHeaderAvatar
+        } else {
+            ZStack {
+                Circle()
+                    .fill(Color(hex: peer.avatarColor))
+                    .frame(width: 34, height: 34)
+                Text(String(headerName.prefix(1)))
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.white)
+            }
+        }
+    }
+
+    /// Group photo if set, else a small overlapping avatar stack from the
+    /// first two members, else a plain group-icon placeholder before the
+    /// member roster has loaded.
+    private var groupHeaderAvatar: some View {
+        let urlString = viewModel.groupAvatarUrl ?? peer.avatarUrl
+        return Group {
+            if let urlString, let url = URL(string: APIConfig.serverBase + urlString) {
+                AsyncImage(url: url) { phase in
+                    if let image = phase.image {
+                        image.resizable().scaledToFill()
+                    } else {
+                        groupAvatarStack
+                    }
+                }
+            } else {
+                groupAvatarStack
+            }
+        }
+        .frame(width: 34, height: 34)
+        .clipShape(Circle())
+    }
+
+    private var groupAvatarStack: some View {
+        let members = Array(viewModel.groupMembers.prefix(2))
+        return ZStack {
+            if members.isEmpty {
+                Circle().fill(Color(hex: viewModel.groupAvatarColor ?? peer.avatarColor))
+                Image(systemName: "person.3.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.white)
+            } else {
+                ForEach(Array(members.enumerated()), id: \.element.id) { index, member in
+                    ZStack {
+                        Circle().fill(Color(hex: member.avatarColor))
+                        Text(String(member.displayName.prefix(1)))
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                    .frame(width: 22, height: 22)
+                    .overlay(Circle().stroke(AppColors.surface(colorScheme), lineWidth: 1.5))
+                    .offset(x: CGFloat(index) * 9 - 4, y: CGFloat(index) * 5 - 2)
+                }
+            }
+        }
     }
 
     // MARK: - Meeting proposal composer
 
-    /// Hosts the reused `CreateEventSheet` fields for both "new proposal" and
-    /// "reschedule" — `editingMeetingMessageId` tracks which mode is active.
+    /// Hosts `MeetingProposalComposerView`'s fields for both "new proposal"
+    /// and "reschedule" — `editingMeetingMessageId` tracks which mode is active.
     private var meetingComposerSheet: some View {
         NavigationStack {
             ScrollView {
-                CreateEventSheet(
+                MeetingProposalComposerView(
                     title: $meetingTitle,
                     location: $meetingLocation,
                     startsAt: $meetingStartsAt,
                     endsAt: $meetingEndsAt,
-                    showEndDate: $meetingShowEndDate
+                    showEndDate: $meetingShowEndDate,
+                    reminderOffset: $meetingReminderOffset
                 )
             }
             .background(AppColors.base(colorScheme).ignoresSafeArea())
@@ -234,6 +448,7 @@ struct ChatView: View {
         meetingStartsAt = Date().addingTimeInterval(3600)
         meetingEndsAt = nil
         meetingShowEndDate = false
+        meetingReminderOffset = .oneDayBefore
         editingMeetingMessageId = nil
     }
 
@@ -251,6 +466,7 @@ struct ChatView: View {
             meetingEndsAt = nil
             meetingShowEndDate = false
         }
+        meetingReminderOffset = proposal.reminderOffsetValue ?? .oneDayBefore
         showMeetingComposer = true
     }
 
@@ -260,6 +476,8 @@ struct ChatView: View {
         let location = meetingLocation.trimmingCharacters(in: .whitespacesAndNewlines)
         let startsAt = meetingStartsAt
         let endsAt = meetingShowEndDate ? meetingEndsAt : nil
+        let reminderOffset = meetingReminderOffset
+        let reminderAt = reminderOffset.reminderDate(before: startsAt)
         let editingId = editingMeetingMessageId
         showMeetingComposer = false
         resetMeetingComposer()
@@ -270,17 +488,112 @@ struct ChatView: View {
                     title: title,
                     location: location.isEmpty ? nil : location,
                     startsAt: startsAt,
-                    endsAt: endsAt
+                    endsAt: endsAt,
+                    reminderOffset: reminderOffset.rawValue,
+                    reminderAt: reminderAt
                 )
             } else {
                 await viewModel.sendMeetingProposal(
                     title: title,
                     location: location.isEmpty ? nil : location,
                     startsAt: startsAt,
-                    endsAt: endsAt
+                    endsAt: endsAt,
+                    reminderOffset: reminderOffset.rawValue,
+                    reminderAt: reminderAt
                 )
             }
         }
+    }
+
+    // MARK: - Pinned messages
+
+    /// Small banner shown above the thread whenever pins exist. With exactly
+    /// one pin it shows that pin's preview and tapping jumps straight to it
+    /// (same mechanism message search already uses); with more it shows a
+    /// count and opens the full pinned list in a sheet.
+    private var pinnedBanner: some View {
+        Button {
+            if viewModel.pinnedMessages.count == 1, let only = viewModel.pinnedMessages.first {
+                Task { await jumpToMessage(only.id) }
+            } else {
+                showPinnedList = true
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "pin.fill")
+                    .font(.system(size: 12))
+                    .foregroundColor(chatPalette.primary)
+                if viewModel.pinnedMessages.count == 1, let only = viewModel.pinnedMessages.first {
+                    Text(only.preview)
+                        .font(.system(size: 13))
+                        .foregroundColor(AppColors.textPrimary(colorScheme))
+                        .lineLimit(1)
+                } else {
+                    Text(String(format: bundle.loc("%d pinned messages"), viewModel.pinnedMessages.count))
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(AppColors.textPrimary(colorScheme))
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(AppColors.textTertiary(colorScheme))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(AppColors.elevated(colorScheme))
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Opens the pin-expiry confirmation sheet for `message`, prefilled from
+    /// the per-conversation default auto-delete preference — always shown
+    /// rather than silently applying a hidden default, so the user can see/
+    /// adjust the expiry before confirming.
+    private func beginPinning(_ message: Message) {
+        pinExpiryChoice = PinAutoDeleteOption(rawValue: pinAutoDeleteRaw) ?? .never
+        pinCustomDate = pinAutoDeleteCustomDateRaw > 0
+            ? Date(timeIntervalSince1970: pinAutoDeleteCustomDateRaw)
+            : Date().addingTimeInterval(60 * 60 * 24 * 7)
+        pinningMessage = message
+    }
+
+    /// Lightweight confirmation sheet for pinning `message`: pick an
+    /// auto-delete option (prefilled from the conversation's default), with a
+    /// date picker when "Custom date" is selected.
+    private func pinExpirySheet(for message: Message) -> some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Picker(bundle.loc("Default auto-delete time"), selection: $pinExpiryChoice) {
+                        ForEach(PinAutoDeleteOption.allCases) { option in
+                            Text(bundle.loc(option.label)).tag(option)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                }
+                if pinExpiryChoice == .custom {
+                    Section {
+                        DatePicker(bundle.loc("Custom date"), selection: $pinCustomDate, in: Date()...,
+                                   displayedComponents: [.date, .hourAndMinute])
+                    }
+                }
+            }
+            .navigationTitle(bundle.loc("Pin message"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(bundle.loc("Cancel")) { pinningMessage = nil }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(bundle.loc("Pin")) {
+                        let expiresAt = pinExpiryChoice.expiryDate(customDate: pinCustomDate)
+                        pinningMessage = nil
+                        Task { await viewModel.pinMessage(message.id, expiresAt: expiresAt) }
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 
     // MARK: - Message list
@@ -313,6 +626,8 @@ struct ChatView: View {
                             let isOwn = message.isOwn(userId: appState.currentUser?.id ?? "")
                             MessageBubble(message: message, isOwn: isOwn, palette: chatPalette,
                                           currentUserId: appState.currentUser?.id ?? "",
+                                          otherParticipantIds: otherParticipantIds,
+                                          isGroup: viewModel.isGroup,
                                           onMediaTap: openMediaViewer,
                                           onReplyPreviewTap: { messageId in
                                               Task { await jumpToMessage(messageId) }
@@ -331,7 +646,7 @@ struct ChatView: View {
                                     appearedIDs: $appearedMessageIDs,
                                     onAnimationFinished: { playMessageSound(isOwn: isOwn) }
                                 ))
-                                // Nháy nền khi được nhảy tới từ kết quả tìm kiếm
+                                // Flash the background when jumped to from a search result
                                 .background(
                                     RoundedRectangle(cornerRadius: 16)
                                         .fill(chatPalette.primary.opacity(
@@ -343,8 +658,12 @@ struct ChatView: View {
                                         // Quick-react row: long-press already opens this menu,
                                         // so the emoji row lives at the top of it.
                                         ControlGroup {
+                                            let myReaction = message.myReaction(userId: appState.currentUser?.id ?? "")
                                             ForEach(ReactionEmoji.allCases, id: \.rawValue) { r in
-                                                Button(r.rawValue) {
+                                                // Distinguish the current user's own reaction (if any)
+                                                // in the quick-react row, mirroring MessageBubble's
+                                                // highlighted pill for the same reaction.
+                                                Button(r.rawValue == myReaction ? "\(r.rawValue) ✓" : r.rawValue) {
                                                     Task { await viewModel.sendReaction(messageId: message.id, emoji: r.rawValue) }
                                                 }
                                             }
@@ -354,6 +673,20 @@ struct ChatView: View {
                                             replyingTo = message
                                         } label: {
                                             Label(bundle.loc("Reply"), systemImage: "arrowshape.turn.up.left")
+                                        }
+
+                                        if viewModel.pinnedMessageIds.contains(message.id) {
+                                            Button {
+                                                Task { await viewModel.unpinMessage(message.id) }
+                                            } label: {
+                                                Label(bundle.loc("Unpin"), systemImage: "pin.slash")
+                                            }
+                                        } else {
+                                            Button {
+                                                beginPinning(message)
+                                            } label: {
+                                                Label(bundle.loc("Pin"), systemImage: "pin")
+                                            }
                                         }
                                     }
                                     if isOwn && !message.isDeleted {
@@ -367,9 +700,17 @@ struct ChatView: View {
                         }
                     }
 
-                    if viewModel.isOtherTyping {
-                        TypingIndicatorBubble()
-                            .padding(.bottom, 4)
+                    if let summary = viewModel.typingSummary {
+                        VStack(alignment: .leading, spacing: 2) {
+                            if viewModel.isGroup {
+                                Text(summary)
+                                    .font(.system(size: 11))
+                                    .foregroundColor(AppColors.textTertiary(colorScheme))
+                                    .padding(.leading, 16)
+                            }
+                            TypingIndicatorBubble()
+                        }
+                        .padding(.bottom, 4)
                     }
 
                     Color.clear.frame(height: 1).id(bottomID)
@@ -377,11 +718,11 @@ struct ChatView: View {
                 .padding(.vertical, 8)
             }
             .onChange(of: viewModel.messages.count) { _, _ in
-                // Đang jump thì các trang cũ vừa load không được kéo xuống đáy
+                // While jumping, don't auto-scroll to bottom for the older pages that just loaded
                 guard !isJumping else { return }
                 scrollToBottom(proxy: proxy)
             }
-            .onChange(of: viewModel.isOtherTyping) { _, _ in scrollToBottom(proxy: proxy) }
+            .onChange(of: viewModel.typingSummary) { _, _ in scrollToBottom(proxy: proxy) }
             .onChange(of: pendingScrollTarget) { _, target in
                 guard let target else { return }
                 withAnimation(.easeInOut(duration: 0.25)) {
@@ -404,27 +745,36 @@ struct ChatView: View {
 
     @ViewBuilder
     private var emptyState: some View {
+        if viewModel.isGroup {
+            groupEmptyState
+        } else {
+            directEmptyState
+        }
+    }
+
+    @ViewBuilder
+    private var directEmptyState: some View {
         let isConnected = connectVM.status == .accepted
 
         VStack(spacing: 12) {
             Spacer().frame(height: 60)
 
-            // Avatar lớn
+            // Large avatar
             ZStack {
                 Circle()
-                    .fill(Color(hex: otherUserAvatarColor))
+                    .fill(Color(hex: peer.avatarColor))
                     .frame(width: 80, height: 80)
-                Text(String(otherUserName.prefix(1)))
+                Text(String(peer.name.prefix(1)))
                     .font(.system(size: 32, weight: .bold))
                     .foregroundColor(.white)
             }
 
             // Display name
-            Text(otherUserName)
+            Text(peer.name)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(AppColors.textPrimary(colorScheme))
 
-            // Trạng thái kết nối
+            // Connection status
             Text(isConnected
                  ? bundle.loc("You're connected — say hello 👋")
                  : bundle.loc("You're not connected with this user"))
@@ -448,10 +798,38 @@ struct ChatView: View {
         .padding(.bottom, 20)
     }
 
+    private var groupEmptyState: some View {
+        VStack(spacing: 12) {
+            Spacer().frame(height: 60)
+
+            groupAvatarStack
+                .frame(width: 80, height: 80)
+                .scaleEffect(1.4)
+
+            Text(headerName)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(AppColors.textPrimary(colorScheme))
+                .padding(.top, 10)
+
+            Text("Say hello to the group 👋", bundle: bundle)
+                .font(.system(size: 13))
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, 20)
+    }
+
     // MARK: - Input bar
 
     private var inputBar: some View {
-        VStack(spacing: 8) {
+        // Groups are alert-only (Leave/Stay) — the input bar always stays
+        // enabled there. The existing hard-block disabling/notice is 1:1 only.
+        let blocking = isBlocked && !viewModel.isGroup
+        return VStack(spacing: 8) {
+            if blocking {
+                blockedNotice
+            }
+
             // "Replying to X" preview — clearable with an X button
             if let replyingTo {
                 replyingToBar(replyingTo)
@@ -482,6 +860,20 @@ struct ChatView: View {
                         .padding(.bottom, 6)
                 }
 
+                VoiceRecorderControl(tint: chatPalette.primary) { fileURL, duration, waveform in
+                    let replyToId = replyingTo?.id
+                    replyingTo = nil
+                    Task {
+                        await viewModel.sendMedia(
+                            fileURL: fileURL,
+                            replyTo: replyToId,
+                            voiceDurationSeconds: duration,
+                            voiceWaveform: waveform
+                        )
+                        try? FileManager.default.removeItem(at: fileURL)
+                    }
+                }
+
                 TextField("", text: $inputText, prompt: Text("Message...", bundle: bundle), axis: .vertical)
                     .font(.system(size: 15))
                     .lineLimit(1...5)
@@ -504,24 +896,33 @@ struct ChatView: View {
                                          : AppColors.textTertiary(colorScheme))
                         .padding(.bottom, 2)
                 }
-                .disabled(!canSend || viewModel.isSending)
+                .disabled(!canSend || viewModel.isSending || blocking)
             }
+            .disabled(blocking)
+            .opacity(blocking ? 0.5 : 1)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(AppColors.surface(colorScheme))
     }
 
+    /// Short notice shown above the composer while either side has blocked the other. 1:1 only.
+    private var blockedNotice: some View {
+        Text("You've blocked this user", bundle: bundle)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundColor(AppColors.textSecondary(colorScheme))
+            .frame(maxWidth: .infinity, alignment: .center)
+    }
+
     /// "Replying to X" bar shown above the composer while `replyingTo` is set.
     private func replyingToBar(_ message: Message) -> some View {
-        let isOwnReply = message.isOwn(userId: appState.currentUser?.id ?? "")
-        let senderName = isOwnReply ? bundle.loc("You") : headerName
         let preview: String = {
             switch message.messageType {
             case .text:    return message.content ?? ""
             case .image:   return bundle.loc("Photo")
             case .video:   return bundle.loc("Video")
             case .meeting: return bundle.loc("Meeting")
+            case .voice:   return bundle.loc("Voice message")
             }
         }()
 
@@ -531,7 +932,7 @@ struct ChatView: View {
                 .frame(width: 3, height: 30)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(String(format: bundle.loc("Replying to %@"), senderName))
+                Text(String(format: bundle.loc("Replying to %@"), senderDisplayName(for: message)))
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(chatPalette.primary)
                 Text(preview)
@@ -553,6 +954,20 @@ struct ChatView: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    /// Resolves who to show in "Replying to X": for a group, the actual
+    /// sender of `message` (any member, not just "the other person") —
+    /// looked up via the loaded roster since `Message` only carries a
+    /// `senderId`, not a name. For 1:1, the only two possible senders are me
+    /// or the other person, so `peer.name` (or its live nickname) still applies.
+    private func senderDisplayName(for message: Message) -> String {
+        if message.isOwn(userId: appState.currentUser?.id ?? "") { return bundle.loc("You") }
+        if viewModel.isGroup {
+            return viewModel.groupMembers.first(where: { $0.id == message.senderId })?.displayName
+                ?? bundle.loc("Someone")
+        }
+        return headerName
     }
 
     /// Whether the send button should be active (text and/or media present).
@@ -626,14 +1041,24 @@ struct ChatView: View {
 
     // MARK: - Helpers
 
-    /// Nhảy tới một tin nhắn từ kết quả tìm kiếm: load lùi lịch sử tới khi
-    /// thấy tin (tối đa 10 trang), cuộn tới giữa màn hình và nháy highlight.
+    /// Re-fetches the bidirectional block state with the other 1:1 participant
+    /// and applies it to `isBlocked` — used on load and whenever
+    /// `.userBlockStatusChanged` fires for this person, so the input bar
+    /// reflects either direction of a block. 1:1 only.
+    private func refreshBlockedState() async {
+        guard let otherId = peer.otherUserId else { return }
+        let status = try? await UserRepository().fetchBlockStatusDetailed(userId: otherId)
+        isBlocked = status?.blockedEitherWay ?? isBlocked
+    }
+
+    /// Jump to a message from search results: load older history until the
+    /// message is found (up to 10 pages), scroll it to the middle of the screen and flash-highlight it.
     private func jumpToMessage(_ messageId: String) async {
         isJumping = true
-        // Chờ sheet cài đặt đóng xong để cuộn không bị nuốt animation
+        // Wait for the settings sheet to finish closing so the scroll doesn't get swallowed by its animation
         try? await Task.sleep(for: .milliseconds(300))
         let found = await viewModel.loadUntilFound(messageId: messageId)
-        // Trang cũ vừa load hiển thị ngay, không chạy animation "tin mới"
+        // The older pages that just loaded should appear immediately, without the "new message" animation
         appearedMessageIDs.formUnion(viewModel.messages.map(\.id))
         guard found else {
             isJumping = false
@@ -642,7 +1067,7 @@ struct ChatView: View {
         pendingScrollTarget = messageId
     }
 
-    /// Mở viewer fullscreen cho ảnh/video của một bubble.
+    /// Open the fullscreen viewer for a bubble's image/video.
     private func openMediaViewer(_ message: Message) {
         guard let url = message.absoluteMediaURL() else { return }
         mediaViewerItem = ChatMediaViewerItem(
