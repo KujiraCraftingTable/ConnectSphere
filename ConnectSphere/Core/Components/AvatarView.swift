@@ -7,7 +7,7 @@ struct AvatarView: View {
     var body: some View {
         Group {
             if let urlString = user.avatarUrl, let url = URL(string: urlString) {
-                // Avatar ảnh thật; trong lúc tải (hoặc lỗi) hiện chữ cái như cũ
+                // Real photo avatar; show the initials fallback while loading (or on error)
                 AsyncImage(url: url) { phase in
                     if let image = phase.image {
                         image.resizable().scaledToFill()

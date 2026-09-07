@@ -1,9 +1,9 @@
 /**
- * realtime.js — giữ tham chiếu Socket.IO instance để mọi module
- * (service/controller) emit được event mà không import vòng từ index.js.
+ * realtime.js — holds a reference to the Socket.IO instance so any module
+ * (service/controller) can emit events without a circular import from index.js.
  *
- * Mỗi user khi connect sẽ join room riêng `user:<id>` (xem index.js),
- * nhờ đó có thể push notification/badge realtime tới đúng người.
+ * Each user joins their own room `user:<id>` on connect (see index.js), which
+ * lets us push realtime notifications/badges to the right person.
  */
 
 let io = null;
@@ -12,12 +12,12 @@ function setIO(instance) {
   io = instance;
 }
 
-// Emit tới toàn bộ socket của một user (mọi thiết bị đang đăng nhập)
+// Emit to all sockets of a single user (every device currently logged in)
 function emitToUser(userId, event, payload) {
   if (io && userId) io.to(`user:${userId}`).emit(event, payload);
 }
 
-// Emit tới một room bất kỳ (vd: room hội thoại)
+// Emit to any given room (e.g. a conversation room)
 function emitToRoom(room, event, payload) {
   if (io && room) io.to(room).emit(event, payload);
 }

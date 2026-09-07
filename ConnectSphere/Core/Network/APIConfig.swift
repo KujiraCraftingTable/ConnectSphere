@@ -1,12 +1,12 @@
 import Foundation
 
 /// Single source of truth for all backend URLs.
-/// Base URL đọc từ Info.plist (key `APIBaseURL`) để đổi được theo môi trường
-/// (device thật/production) mà không sửa code; fallback localhost cho dev.
+/// The base URL is read from Info.plist (key `APIBaseURL`) so it can change per environment
+/// (real device/production) without touching code; falls back to localhost for dev.
 enum APIConfig {
     static let serverBase: String = {
-        // Simulator chạy chung máy với backend → luôn dùng localhost,
-        // tránh chết khi APIBaseURL trỏ IP LAN của mạng WiFi cũ.
+        // The simulator runs on the same machine as the backend → always use localhost,
+        // to avoid breaking when APIBaseURL points at a stale WiFi network's LAN IP.
         #if targetEnvironment(simulator)
         return "http://localhost:3000"
         #else

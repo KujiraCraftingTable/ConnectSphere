@@ -1,20 +1,37 @@
 /**
- * mailerService.js — gửi email cho luồng quên mật khẩu.
+ * mailerService.js — sends emails for the forgot-password flow.
  *
- * Môi trường dev chưa có SMTP: OTP được ghi ra log mức WARN để dễ thấy khi demo
- * (`[DEV MAIL] ...`). Khi có SMTP thật, thay thân hàm bằng nodemailer transport
- * và giữ nguyên chữ ký hàm — các caller không cần đổi.
+ * Uses SMTP via nodemailer (config: `mail` in `config/env.js`). When SMTP
+ * isn't configured (dev/CI without SMTP_USER/SMTP_PASS), the OTP is written
+ * to the log at WARN level instead of actually being sent (`[DEV MAIL] ...`),
+ * so local dev works without needing real credentials.
  */
+const nodemailer = require('nodemailer');
 const logger = require('../utils/logger');
+const { mail } = require('../config/env');
 
-// TODO: This is a dev-only stub — it only console/logger-logs the OTP and never
-// actually sends an email. There is no SMTP transport (e.g. nodemailer) wired up
-// and no SMTP env config (host/port/user/pass) read anywhere in this file. Real
-// users will NEVER receive their password-reset code until this is replaced with
-// a real SMTP (or transactional email provider) integration before production use.
-// Gửi mã OTP đặt lại mật khẩu tới email của user
+// Send a password-reset OTP code to the user's email
 async function sendPasswordResetOTP(email, otp) {
-  logger.warn({ email }, `[DEV MAIL] Password reset OTP for ${email}: ${otp}`);
+  if (!mail.user || !mail.pass) {
+    logger.warn({ email }, `[DEV MAIL] Password reset OTP for ${email}: ${otp}`);
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: mail.host,
+    port: mail.port,
+    secure: mail.port === 465,
+    auth: { user: mail.user, pass: mail.pass },
+  });
+
+  await transporter.sendMail({
+    from: mail.from,
+    to: email,
+    subject: 'Your ConnectSphere password reset code',
+    text: `Your password reset code is ${otp}. It expires in 10 minutes.`,
+    html: `<p>Your password reset code is <b>${otp}</b>. It expires in 10 minutes.</p>`,
+  });
+  logger.info({ email }, 'sendPasswordResetOTP: email sent');
 }
 
 module.exports = { sendPasswordResetOTP };

@@ -26,9 +26,9 @@ class AuthService {
         return try JSONDecoder.makeISO8601().decode(AuthResponse.self, from: data)
     }
 
-    /// Đọc message lỗi từ body server, chịu được cả 2 format:
-    /// route trả `{error}` và errorHandler trung tâm trả `{status, code, message}`
-    /// (decode [String: String] sẽ fail toàn bộ vì `code` là số → mất message thật).
+    /// Reads the error message from the server body, tolerating both formats:
+    /// a route returning `{error}` and the central errorHandler returning `{status, code, message}`
+    /// (decoding as [String: String] would fail entirely since `code` is a number → losing the real message).
     private static func serverErrorMessage(from data: Data) -> String {
         let dict = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
         return (dict?["error"] as? String) ?? (dict?["message"] as? String) ?? "Auth failed"
@@ -44,8 +44,8 @@ class AuthService {
         try await passwordAuth(path: "/auth/login", username: username, password: password)
     }
 
-    /// Gọi endpoint auth username/password; lỗi ném NSError với code = HTTP status
-    /// để caller map sang thông báo đã localize (409 trùng username, 401 sai pass…).
+    /// Calls the username/password auth endpoint; errors throw NSError with code = HTTP status
+    /// so the caller can map it to a localized message (409 duplicate username, 401 wrong password…).
     private func passwordAuth(path: String, username: String, password: String) async throws -> AuthResponse {
         guard let url = URL(string: APIConfig.baseURL + path) else { throw URLError(.badURL) }
         var req = URLRequest(url: url)
@@ -68,14 +68,14 @@ class AuthService {
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         let (data, resp) = try await URLSession.shared.data(for: req)
         guard let http = resp as? HTTPURLResponse else { throw URLError(.badServerResponse) }
-        // Phân biệt 401 (token hỏng thật) với lỗi khác (server sự cố) —
-        // caller chỉ được xoá token Keychain khi 401
+        // Distinguish 401 (genuinely invalid token) from other errors (server trouble) —
+        // the caller should only delete the Keychain token on a 401
         guard http.statusCode != 401 else { throw URLError(.userAuthenticationRequired) }
         guard http.statusCode == 200 else { throw URLError(.badServerResponse) }
         return try JSONDecoder.makeISO8601().decode(MeResponse.self, from: data).user
     }
 
-    /// Realtime check dùng ở bước onboarding — trả về true nếu username còn trống.
+    /// Realtime check used during the onboarding step — returns true if the username is still available.
     func checkUsernameAvailable(token: String, username: String) async throws -> Bool {
         var components = URLComponents(string: APIConfig.baseURL + "/auth/check-username")
         components?.queryItems = [URLQueryItem(name: "username", value: username)]
@@ -93,26 +93,26 @@ class AuthService {
 
     // MARK: - Password management
 
-    /// Đổi mật khẩu (tài khoản Google chưa có mật khẩu: đặt lần đầu, currentPassword = nil)
+    /// Changes the password (Google accounts have no password yet: first-time set, currentPassword = nil)
     func changePassword(token: String, currentPassword: String?, newPassword: String) async throws {
         var body = ["new_password": newPassword]
         if let currentPassword { body["current_password"] = currentPassword }
         try await postJSON(path: "/auth/change-password", body: body, token: token)
     }
 
-    /// Yêu cầu OTP đặt lại mật khẩu (gửi tới email của tài khoản nếu có)
+    /// Requests a password-reset OTP (sent to the account's email if one exists)
     func forgotPassword(identifier: String) async throws {
         try await postJSON(path: "/auth/forgot-password", body: ["identifier": identifier])
     }
 
-    /// Đặt lại mật khẩu bằng OTP nhận qua email
+    /// Resets the password using the OTP received via email
     func resetPassword(identifier: String, otp: String, newPassword: String) async throws {
         try await postJSON(path: "/auth/reset-password",
                            body: ["identifier": identifier, "otp": otp, "new_password": newPassword])
     }
 
-    /// POST JSON dùng chung cho nhóm endpoint auth phụ;
-    /// lỗi ném NSError với code = HTTP status để caller map sang message localize.
+    /// Shared POST JSON helper for the secondary auth endpoints;
+    /// errors throw NSError with code = HTTP status so the caller can map it to a localized message.
     private func postJSON(path: String, body: [String: String], token: String? = nil) async throws {
         guard let url = URL(string: APIConfig.baseURL + path) else { throw URLError(.badURL) }
         var req = URLRequest(url: url)

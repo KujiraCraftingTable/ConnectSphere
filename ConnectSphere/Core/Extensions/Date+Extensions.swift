@@ -1,7 +1,7 @@
 import Foundation
 
 extension Date {
-    /// Chuỗi "thời gian trước" đã localize qua .strings (English key + bản vi).
+    /// A "time ago" string localized through .strings (English key + Vietnamese translation).
     var timeAgoString: String {
         let b = Bundle.app
         let seconds = Int(-timeIntervalSinceNow)
@@ -13,8 +13,14 @@ extension Date {
         if days < 8        { return String(format: b.loc("%dd ago"), days) }
         if days < 15       { return b.loc("1w ago") }
 
-        // Ngày tuyệt đối: định dạng theo ngôn ngữ đang chọn
-        let isVi = (UserDefaults.standard.string(forKey: "appLanguage") ?? "vi") == "vi"
+        // Absolute date: formatted according to the currently selected language.
+        // Falls back to the device locale (not a hardcoded "vi") before the
+        // setting is first persisted — same convention as AppState.init() and
+        // Bundle.app, which both derive from Locale.current rather than
+        // assuming Vietnamese.
+        let savedLanguage = UserDefaults.standard.string(forKey: "appLanguage")
+            ?? Locale.current.language.languageCode?.identifier ?? "en"
+        let isVi = savedLanguage == "vi"
         return Self.shortDateFormatter(
             locale: isVi ? "vi_VN" : "en_US",
             format: isVi ? "dd/MM/yyyy" : "MM/dd/yyyy"

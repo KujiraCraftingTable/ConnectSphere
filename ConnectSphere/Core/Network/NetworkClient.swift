@@ -15,8 +15,8 @@ final class NetworkClient {
 
     // MARK: - Endpoint-based
 
-    /// Tự gắn Bearer token từ Keychain nếu có — backend giờ yêu cầu JWT
-    /// cho hầu hết endpoint và đọc danh tính từ token.
+    /// Automatically attaches the Bearer token from the Keychain if present — the backend now
+    /// requires a JWT for most endpoints and reads the caller's identity from it.
     func fetch<T: Decodable>(_ type: T.Type, from endpoint: Endpoint) async throws -> T {
         guard let url = endpoint.url else { throw APIError.invalidURL }
         var request = URLRequest(url: url, timeoutInterval: endpoint.timeoutInterval)

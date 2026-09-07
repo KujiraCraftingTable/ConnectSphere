@@ -1,8 +1,8 @@
 import Foundation
 
-/// Danh mục endpoint dùng qua NetworkClient.fetch(from:).
-/// Danh tính người gọi do backend đọc từ JWT (NetworkClient tự gắn Bearer),
-/// nên không endpoint nào nhận viewer/user id từ client nữa.
+/// Catalog of endpoints used through NetworkClient.fetch(from:).
+/// The caller's identity is read by the backend from the JWT (NetworkClient attaches the
+/// Bearer token automatically), so no endpoint accepts a viewer/user id from the client anymore.
 enum Endpoint {
     case listUsers(mode: String? = nil, search: String? = nil, limit: Int = 20, offset: Int = 0)
     case getUser(id: String, mode: String? = nil)
@@ -16,6 +16,8 @@ enum Endpoint {
     case linkPreview(url: String)
     case listComments(postId: String)
     case searchSuggestions(mode: String?)
+    /// Prefix-match hashtag suggestions while typing in `HashtagInputView` — GET /tags/suggest.
+    case suggestTags(prefix: String, limit: Int = 8)
 
     private static let baseURL = APIConfig.baseURL
 
@@ -68,6 +70,7 @@ enum Endpoint {
         case .listComments(let postId): return "/posts/\(postId)/comments"
         case .aiSearch:                 return "/search/ai"
         case .searchSuggestions:        return "/search/suggestions"
+        case .suggestTags:              return "/tags/suggest"
         case .listProvinces:            return "/wards/provinces"
         case .listWards:                return "/wards"
         }
@@ -96,6 +99,12 @@ enum Endpoint {
 
         case .listWards(let provinceCode):
             return [.init(name: "province_code", value: provinceCode)]
+
+        case .suggestTags(let prefix, let limit):
+            return [
+                .init(name: "prefix", value: prefix),
+                .init(name: "limit",  value: "\(limit)"),
+            ]
 
         case .listPosts(let mode, let authorId, let filter, let tag, let limit, let offset):
             var items: [URLQueryItem] = [

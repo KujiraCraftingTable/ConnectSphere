@@ -1,14 +1,14 @@
 import Foundation
 import Security
 
-/// Lưu/đọc/xóa giá trị từ iOS Keychain — persist qua restart và rebuild
+/// Saves/reads/deletes values from the iOS Keychain — persists across restarts and rebuilds
 enum KeychainHelper {
     private static let service = "com.connectsphere.app"
 
     static func save(_ value: String, forKey key: String) {
         guard let data = value.data(using: .utf8) else { return }
 
-        // Xóa entry cũ nếu có
+        // Remove any existing entry first
         delete(forKey: key)
 
         let query: [CFString: Any] = [

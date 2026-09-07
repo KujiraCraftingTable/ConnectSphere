@@ -5,8 +5,9 @@ const fs      = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const { authMiddleware } = require('./authRoutes');
 
-// Đuôi file suy ra từ MIME type đã whitelist — không tin đuôi trong tên file gốc
-// (chặn upload .html/.svg giả mạo mimetype rồi được serve từ /uploads).
+// File extension is derived from the whitelisted MIME type — never trust the
+// original filename's extension (blocks uploading a .html/.svg with a spoofed
+// mimetype that would then get served from /uploads).
 const EXT_BY_MIME = {
   'image/jpeg':      '.jpg',
   'image/png':       '.png',

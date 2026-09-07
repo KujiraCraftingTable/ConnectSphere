@@ -10,9 +10,9 @@ struct UserDTO: Decodable {
     let coverUrl: String?
     let location: String?
     let gender: String?
-    let email: String?        // chỉ có trong response của chính chủ (PATCH /users/me)
-    let hasPassword: Bool?    // như trên
-    let age: Int?              // tuổi hiển thị — server null khi dob_visibility = private
+    let email: String?        // only present in the owner's own response (PATCH /users/me)
+    let hasPassword: Bool?    // same as above
+    let age: Int?              // displayed age — the server returns null when dob_visibility = private
     let jobTitle: String?
     let company: String?
     let defaultMode: String?
@@ -21,12 +21,12 @@ struct UserDTO: Decodable {
     let followerCount: Int
     let followingCount: Int
     let postCount: Int
-    let connectionCount: Int?   // số kết nối accepted theo mode — chỉ có khi fetch profile
-    let mutualCount: Int?       // số bạn/kết nối chung với viewer — có trong search/list
+    let connectionCount: Int?   // number of accepted connections for the mode — only present when fetching a profile
+    let mutualCount: Int?       // number of mutual friends/connections with the viewer — present in search/list
     let interests: [String]
     let skills: [String]
     let score: Double?
-    let matchEvidence: [MatchEvidenceDTO]?   // chỉ có trong response AI search (mini CV)
+    let matchEvidence: [MatchEvidenceDTO]?   // only present in the AI search response (mini CV)
 
     enum CodingKeys: String, CodingKey {
         case id, username, bio, location, gender, email, company, interests, skills, score, age

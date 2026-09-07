@@ -13,8 +13,8 @@ struct PaginatedResponse<T: Decodable>: Decodable {
     }
 }
 
-/// Phân trang bằng keyset cursor (dùng cho personalized newsfeed).
-/// `nextCursor` = null nghĩa là hết trang.
+/// Keyset-cursor pagination (used for the personalized newsfeed).
+/// `nextCursor` = null means there are no more pages.
 struct CursorResponse<T: Decodable>: Decodable {
     let data: [T]
     let nextCursor: String?

@@ -14,23 +14,23 @@ const {
 const { resolveVenueToCity } = require('../services/venueLocationService');
 const logger = require('../utils/logger');
 
-// Trọng số ưu tiên entity cụ thể so với ngữ nghĩa chung khi cả hai cùng có.
+// Weights that prioritize the specific entity over general semantics when both are present.
 const W_ENTITY  = 0.7;
 const W_GENERAL = 0.3;
 
 /**
- * Query Builder — biến specific entity thành query vector (3 nhánh) + gợi ý alias.
- *   1. Exact match (canonical_name / aliases) → embed canonical_name (chắc chắn)
- *   2. Vector match ≥ 0.8 → embed canonical + auto-save alias nền (tự tin)
- *   3. Vùng xám 0.6–0.8 → embed THẲNG entity (an toàn) + trả suggestion để user confirm;
- *      < 0.6 → embed thẳng + fire-and-forget lookupEntity (Wikipedia tự học entity mới)
- * Trả về { vec: number[]|null, suggestion: {keyword, candidates[]}|null }.
+ * Query Builder — turns a specific entity into a query vector (3 branches) + an alias suggestion.
+ *   1. Exact match (canonical_name / aliases) → embed canonical_name (certain)
+ *   2. Vector match ≥ 0.8 → embed canonical + auto-save alias in the background (confident)
+ *   3. Grey zone 0.6–0.8 → embed the entity DIRECTLY (safe) + return a suggestion for the user to confirm;
+ *      < 0.6 → embed directly + fire-and-forget lookupEntity (Wikipedia self-learns the new entity)
+ * Returns { vec: number[]|null, suggestion: {keyword, candidates[]}|null }.
  */
 async function buildEntityVector(criteria) {
   const name = criteria.entity_name;
   if (!name) return { vec: null, suggestion: null };
 
-  // Nhánh 1 — Tier-1 exact match trên canonical name, rồi từng alias keyword
+  // Branch 1 — Tier-1 exact match on canonical name, then each alias keyword
   for (const term of [name, ...(criteria.entity_keywords ?? [])]) {
     const hit = await exactMatch(term, null);
     if (hit) {
@@ -39,23 +39,23 @@ async function buildEntityVector(criteria) {
     }
   }
 
-  // Chưa exact — xem ứng viên vector gần nhất
+  // No exact match — look at the nearest vector candidates
   const cands = await findEntityCandidates(name, criteria.entity_type || null, 3);
   const top = cands[0];
 
-  // Nhánh 2 — tự tin: embed canonical, alias auto-save do lookupEntity xử lý nền
+  // Branch 2 — confident: embed canonical, alias auto-save handled in the background by lookupEntity
   if (top && top.similarity >= HIGH_CONFIDENCE_THRESHOLD) {
     logger.debug({ name, canonical: top.canonical_name, sim: top.similarity }, 'QueryBuilder: confident vector → canonical');
     lookupEntity(name, criteria.entity_type || null).catch(() => {});
     return { vec: await embedText(top.canonical_name), suggestion: null };
   }
 
-  // Nhánh 3 — embed thẳng entity (an toàn, không đoán bừa canonical)
+  // Branch 3 — embed the entity directly (safe, no guessing at canonical)
   const vec = await embedText(name);
 
   const greyZone = cands.filter(c => c.similarity >= SUGGEST_THRESHOLD);
   if (greyZone.length) {
-    // Vùng xám: hỏi user "ý bạn là …?" — KHÔNG tự lưu alias
+    // Grey zone: ask the user "did you mean …?" — do NOT auto-save the alias
     logger.debug({ name, candidates: greyZone.map(c => c.canonical_name) }, 'QueryBuilder: grey-zone suggestion');
     return {
       vec,
@@ -66,23 +66,23 @@ async function buildEntityVector(criteria) {
     };
   }
 
-  // Không có ứng viên nào gần: entity có thể là proper noun mới → tự học nền qua Wikipedia
+  // No close candidates: the entity might be a new proper noun → self-learn in the background via Wikipedia
   lookupEntity(name, criteria.entity_type || null)
     .catch(err => logger.warn({ err, name }, 'QueryBuilder: background entity self-learn failed'));
   logger.debug({ name }, 'QueryBuilder: entity unknown → embed directly');
   return { vec, suggestion: null };
 }
 
-/** Ngữ nghĩa chung từ interests + skills (nhánh 3). Trả về number[] hoặc null. */
+/** General semantics from interests + skills (branch 3). Returns number[] or null. */
 async function buildGeneralVector(criteria) {
   const terms = [...(criteria.interests ?? []), ...(criteria.skills ?? [])];
   return terms.length ? embedText(terms.join(', ')) : null;
 }
 
 /**
- * Merge evidence của 2 lượt retrieval (giữ entry có similarity cao hơn),
- * sắp giảm dần, cắt còn EVIDENCE_PER_USER.
- * Key: profile là 1 entry/user; post đã gộp theo topic ở SQL nên key theo topic.
+ * Merge evidence from the two retrieval passes (keep the entry with the higher
+ * similarity), sort descending, trim to EVIDENCE_PER_USER.
+ * Key: profile is 1 entry/user; posts are already grouped by topic in SQL, so key by topic.
  */
 function evidenceKey(ev) {
   return ev.source_type === 'user_profile' ? 'profile' : `post|${ev.topic ?? ''}`;
@@ -101,9 +101,9 @@ function mergeEvidence(a, b) {
 }
 
 /**
- * Merge 2 tập kết quả theo user.id với trọng số ưu tiên entity.
- * score cuối = W_ENTITY×entity_score + W_GENERAL×general_score (thiếu vế nào = 0).
- * Sắp giảm dần theo score.
+ * Merge the two result sets by user.id with weights that prioritize entity matches.
+ * final score = W_ENTITY×entity_score + W_GENERAL×general_score (missing side = 0).
+ * Sorted descending by score.
  */
 function mergeWeighted(entitySet, generalSet) {
   const map = new Map();
@@ -125,8 +125,8 @@ function mergeWeighted(entitySet, generalSet) {
 }
 
 /**
- * Gom mọi keyword hiển thị được từ criteria — dùng để quét chunk content
- * tìm matched_terms và để match tên/tags community.
+ * Collect every displayable keyword from criteria — used to scan chunk content
+ * for matched_terms and to match community names/tags.
  */
 function collectCriteriaTerms(criteria) {
   const terms = new Set();
@@ -142,10 +142,10 @@ function collectCriteriaTerms(criteria) {
 }
 
 /**
- * Biến evidence thô (chunk + community) thành match_evidence gửi client:
- * quét content (bản EN) tìm matched_terms rồi BỎ content/chunk_id khỏi response,
- * map source_type → type gọn, chèn community, cắt còn EVIDENCE_PER_USER.
- * Mutate trực tiếp từng user trong mảng.
+ * Turns raw evidence (chunk + community) into the match_evidence sent to the client:
+ * scans content (the EN version) for matched_terms then STRIPS content/chunk_id from
+ * the response, maps source_type → a compact type, inserts community, trims to
+ * EVIDENCE_PER_USER. Mutates each user in the array directly.
  */
 function finalizeEvidence(users, terms, communityByUser) {
   for (const user of users) {
@@ -174,15 +174,40 @@ function finalizeEvidence(users, terms, communityByUser) {
       community_name: name,
     }));
 
-    // Chừa chỗ cho community (tối đa 2) nhưng chunk trúng vẫn đứng trước
+    // Reserve slots for community (max 2) but matched chunks still come first
     const chunkSlots = EVIDENCE_PER_USER - Math.min(commEv.length, 2);
     user.match_evidence = [...chunkEv.slice(0, chunkSlots), ...commEv]
       .slice(0, EVIDENCE_PER_USER);
   }
 }
 
+/**
+ * Geocode a venue/place name or city name into search coordinates. Returns a
+ * plain result rather than mutating `criteria` directly, so this can run
+ * concurrently with Query Builder below — its output (searchCoords / the
+ * resolved location) isn't actually consumed until baseParams, well after
+ * Query Builder already runs, so nothing requires it to block first.
+ */
+async function resolveGeocode(criteria, radiusKm) {
+  if (criteria.place_name && !criteria.location) {
+    const geocoded = await resolveVenueToCity(criteria.place_name);
+    if (geocoded) {
+      return { location: geocoded.provinceName, searchCoords: { lat: geocoded.lat, lng: geocoded.lng }, unresolvedPlace: null };
+    }
+    // Venue didn't resolve — the location filter silently doesn't apply, so the
+    // user needs telling; surfaced as a warning rather than failing the search.
+    logger.debug({ placeName: criteria.place_name }, 'Search: venue could not be geocoded');
+    return { location: null, searchCoords: null, unresolvedPlace: criteria.place_name };
+  }
+  if (criteria.location && radiusKm) {
+    const geocoded = await resolveVenueToCity(criteria.location);
+    if (geocoded) return { location: null, searchCoords: { lat: geocoded.lat, lng: geocoded.lng }, unresolvedPlace: null };
+  }
+  return { location: null, searchCoords: null, unresolvedPlace: null };
+}
+
 // POST /api/search/ai  (auth required)
-// Body: { query, mode?, radiusKm? } — người tìm luôn là user trong JWT
+// Body: { query, mode?, radiusKm? } — the searcher is always the user from the JWT
 async function aiSearchHandler(req, res, next) {
   try {
     const { query: userQuery, mode, radiusKm } = req.body;
@@ -195,47 +220,50 @@ async function aiSearchHandler(req, res, next) {
     // Step 1: LLM extracts hard filters + display criteria
     const criteria = await extractSearchCriteria(userQuery.trim(), mode ?? null);
 
-    // Step 1.5: Venue geocoding for location/radius filter
-    let searchCoords = null;
-    if (criteria.place_name && !criteria.location) {
-      const geocoded = await resolveVenueToCity(criteria.place_name);
-      if (geocoded) {
-        criteria.location = geocoded.provinceName;
-        searchCoords      = { lat: geocoded.lat, lng: geocoded.lng };
-      } else {
-        criteria.tips += ` 📍 Mình không xác định được "${criteria.place_name}" ở thành phố nào — thêm tên tỉnh/thành để tìm chuẩn hơn nhé!`;
-      }
-    } else if (criteria.location && radiusKm) {
-      const geocoded = await resolveVenueToCity(criteria.location);
-      if (geocoded) searchCoords = { lat: geocoded.lat, lng: geocoded.lng };
-    }
-
-    // Step 1.6: Fetch searcher's gender for dating intent filter
-    let currentUserGender = null;
-    if (currentUserId) {
-      const ctx = await getUserContext(currentUserId);
-      currentUserGender = ctx?.gender ?? null;
-    }
-
-    // Step 2: Query Builder — entity vector (+ alias suggestion) và general vector, song song
-    const [entityResult, generalVec] = await Promise.all([
+    // Step 2: Geocoding, searcher context, and Query Builder vectors — none of
+    // these depend on each other's output (they only converge below, in
+    // baseParams), so they run concurrently instead of one after another.
+    const parallelStart = Date.now();
+    const [geocodeResult, ctx, entityResult, generalVec] = await Promise.all([
+      resolveGeocode(criteria, radiusKm),
+      currentUserId ? getUserContext(currentUserId) : Promise.resolve(null),
       buildEntityVector(criteria),
       buildGeneralVector(criteria),
     ]);
+    logger.info({ durationMs: Date.now() - parallelStart }, 'AI search: geocode/context/QueryBuilder done');
+
+    let searchCoords = null;
+    if (geocodeResult.location)     criteria.location = geocodeResult.location;
+    if (geocodeResult.searchCoords) searchCoords = geocodeResult.searchCoords;
+
+    // Warnings = "part of your query couldn't be understood or applied". Only
+    // populated on a concrete failure, never generic advice — an empty array
+    // means the client shows nothing. Structured codes (not prose) so iOS
+    // renders them through its own EN/VI localization.
+    const warnings = [];
+    if (geocodeResult.unresolvedPlace) {
+      warnings.push({ code: 'venue_unresolved', value: geocodeResult.unresolvedPlace });
+    }
+
+    const currentUserGender = ctx?.gender ?? null;
+
     const entityVec         = entityResult.vec;
     const entitySuggestions = entityResult.suggestion ? [entityResult.suggestion] : [];
 
-    // Step 2.5: Fallback — criteria không ra vector nào, embed intent tiếng Anh đã normalize
+    // Step 2.5: Fallback — criteria produced no vector at all, embed the normalized English intent
     let fallbackVec = null;
     if (!entityVec && !generalVec) {
+      // Nothing concrete was extracted (no entity, no interests, no skills) —
+      // the search still runs on raw intent, but tell the user why it's vague.
+      warnings.push({ code: 'query_unclear', value: null });
       fallbackVec = await embedText(criteria.intent_en || userQuery.trim());
       if (!fallbackVec) {
         logSearch(userQuery.trim(), mode ?? null).catch(() => {});
-        return res.json({ data: [], criteria, reasoning: criteria.reasoning, tips: criteria.tips, entity_suggestions: entitySuggestions });
+        return res.json({ data: [], criteria, entity_suggestions: entitySuggestions, warnings });
       }
     }
 
-    // Step 3: Detect dating intent (heuristic fallback khi prompt không nói rõ giới)
+    // Step 3: Detect dating intent (heuristic fallback when the prompt doesn't specify gender)
     const hasDatingIntent = Array.isArray(criteria.bio_keywords) &&
       criteria.bio_keywords.some(kw => DATING_KEYWORDS.has(kw.toLowerCase?.() ?? kw));
 
@@ -251,13 +279,13 @@ async function aiSearchHandler(req, res, next) {
       searchCoords,
       radiusKm:         radiusKm ?? null,
       excludeUserId:    currentUserId ?? null,
-      threshold:        0.6, // threshold cấp chunk (thiết kế chunk-based)
+      threshold:        0.6, // chunk-level threshold (chunk-based design)
     };
 
     const hasInterestGroups = Array.isArray(criteria.interest_groups) &&
       criteria.interest_groups.length > 0;
 
-    // Step 5: Run searches in parallel, then weighted-merge (ưu tiên entity)
+    // Step 5: Run searches in parallel, then weighted-merge (prioritizing entity)
     let users;
 
     if (fallbackVec) {
@@ -279,7 +307,7 @@ async function aiSearchHandler(req, res, next) {
       users = mergeWeighted(entityResults, generalResults);
     }
 
-    // Step 6: Mini-CV evidence — matched terms trong chunk + community đã tham gia
+    // Step 6: Mini-CV evidence — matched terms within chunks + communities the user has joined
     const terms = collectCriteriaTerms(criteria);
     let communityByUser = new Map();
     try {
@@ -296,9 +324,8 @@ async function aiSearchHandler(req, res, next) {
     res.json({
       data:      users,
       criteria,
-      reasoning: criteria.reasoning,
-      tips:      criteria.tips,
-      entity_suggestions: entitySuggestions, // vùng xám: "ý bạn là …?" để user confirm
+      entity_suggestions: entitySuggestions, // grey zone: "did you mean …?" for the user to confirm
+      warnings,                              // only populated when the AI couldn't understand/apply some part of the query
     });
   } catch (err) {
     next(err);

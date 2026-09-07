@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Wraps chips tự động xuống dòng khi hết chỗ ngang
+/// Wraps chips onto a new line automatically when horizontal space runs out
 struct FlowLayout: Layout {
     var spacing: CGFloat = 8
 
@@ -24,9 +24,9 @@ struct FlowLayout: Layout {
         }
         widestRow = max(widestRow, x - spacing)
 
-        // KHÔNG trả .infinity: khi proposal.width nil (pass layout đầu), trả bề rộng
-        // nội dung thật — trả vô cực khiến parent collapse vùng chip về ~0 (chip
-        // "chìm" cho tới khi có tương tác buộc re-layout).
+        // DO NOT return .infinity: when proposal.width is nil (the first layout pass), return
+        // the actual content width — returning infinity makes the parent collapse the chip area
+        // to ~0 (chips "vanish" until some interaction forces a re-layout).
         let resolvedWidth = maxWidth.isFinite ? maxWidth : max(widestRow, 0)
         return CGSize(width: resolvedWidth, height: y + rowHeight)
     }

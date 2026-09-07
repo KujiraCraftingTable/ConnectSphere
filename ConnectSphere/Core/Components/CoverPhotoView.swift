@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Ảnh bìa hồ sơ: ảnh thật nếu user đã upload, fallback gradient theo theme
-/// (đúng giao diện cũ khi chưa có ảnh).
+/// Profile cover photo: the real photo if the user has uploaded one, otherwise a
+/// theme-based gradient fallback (matches the original look before a photo exists).
 struct CoverPhotoView: View {
     @Environment(ThemeManager.self) var themeManager
 

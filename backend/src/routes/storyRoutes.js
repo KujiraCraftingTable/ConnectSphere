@@ -1,10 +1,10 @@
 /**
  * storyRoutes.js — Stories 24h
- * POST   /api/stories           — đăng story  { image_url }
- * GET    /api/stories           — story của mình + của connections (chưa hết hạn)
- * POST   /api/stories/:id/view    — đánh dấu đã xem
- * GET    /api/stories/:id/viewers — danh sách người xem (chỉ tác giả)
- * DELETE /api/stories/:id         — xóa story của mình
+ * POST   /api/stories           — post a story  { image_url }
+ * GET    /api/stories           — your own stories + connections' stories (not yet expired)
+ * POST   /api/stories/:id/view    — mark as viewed
+ * GET    /api/stories/:id/viewers — list of viewers (author only)
+ * DELETE /api/stories/:id         — delete your own story
  */
 
 const router = require('express').Router();
@@ -34,8 +34,9 @@ router.post('/', async (req, res, next) => {
 });
 
 // ── GET /api/stories ──────────────────────────────────────────────────────────
-// Trả về flat list (client tự group theo author): story của mình đứng đầu,
-// chỉ lấy từ connections đã accepted, loại user block 2 chiều.
+// Returns a flat list (the client groups it by author itself): your own
+// stories come first, only pulls from accepted connections, and excludes
+// mutually blocked users.
 
 router.get('/', async (req, res, next) => {
   try {
@@ -96,8 +97,8 @@ router.post('/:id/view', async (req, res, next) => {
 });
 
 // ── GET /api/stories/:id/viewers ──────────────────────────────────────────────
-// Danh sách người đã xem — chỉ tác giả story mới xem được; loại lượt tự xem.
-// 404 cho cả "không tồn tại" lẫn "không phải của mình" để không lộ thông tin.
+// List of viewers — only the story's author can see it; excludes self-views.
+// 404 for both "doesn't exist" and "isn't yours" so no information is leaked.
 
 router.get('/:id/viewers', async (req, res, next) => {
   try {
