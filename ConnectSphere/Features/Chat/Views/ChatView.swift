@@ -52,6 +52,7 @@ struct ChatView: View {
     @State private var isJumping = false
     // The message currently being quoted for a reply — shows a preview bar above the input bar
     @State private var replyingTo: Message?
+    @State private var messageToRecall: Message?
     @State private var connectVM = ConnectViewModel()
     @AppStorage("messageSoundEnabled") private var messageSoundEnabled = true
     private let bottomID = "chatBottom"
@@ -299,6 +300,18 @@ struct ChatView: View {
             Button(bundle.loc("OK")) { viewModel.error = nil }
         } message: {
             Text(viewModel.error ?? "")
+        }
+        .confirmationDialog(bundle.loc("Unsend this message?"),
+                            isPresented: Binding(get: { messageToRecall != nil },
+                                                 set: { if !$0 { messageToRecall = nil } }),
+                            titleVisibility: .visible,
+                            presenting: messageToRecall) { message in
+            Button(bundle.loc("Unsend message"), role: .destructive) {
+                Task { await viewModel.recallMessage(message) }
+            }
+            Button(bundle.loc("Cancel"), role: .cancel) {}
+        } message: { _ in
+            Text(bundle.loc("This removes it for everyone in the conversation."))
         }
         // Group-only: someone I've blocked (or who's blocked me) is in this
         // group. Alert-only per product decision — the input bar stays fully
@@ -691,7 +704,7 @@ struct ChatView: View {
                                     }
                                     if isOwn && !message.isDeleted {
                                         Button(role: .destructive) {
-                                            Task { await viewModel.recallMessage(message) }
+                                            messageToRecall = message
                                         } label: {
                                             Label(bundle.loc("Unsend message"), systemImage: "arrow.uturn.backward")
                                         }

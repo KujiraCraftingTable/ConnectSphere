@@ -274,6 +274,20 @@ struct PostRepository {
         )
     }
 
+    /// Toggles the current user's like on a post; returns the server's
+    /// authoritative liked state + count so the caller can reconcile.
+    func toggleLike(postId: String) async throws -> LikeResponse {
+        guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
+            throw APIError.serverError(statusCode: 401, message: "Not authenticated")
+        }
+        return try await client.fetch(
+            LikeResponse.self,
+            path: "/posts/\(postId)/like",
+            method: "POST",
+            token: token
+        )
+    }
+
     /// Saves (bookmarks) a post to view again later.
     func savePost(postId: String) async throws {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {

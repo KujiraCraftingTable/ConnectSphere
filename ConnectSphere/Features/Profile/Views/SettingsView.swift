@@ -9,6 +9,7 @@ struct SettingsView: View {
 
     @State private var showThemePicker = false
     @State private var showEditProfile = false
+    @State private var showLogoutConfirm = false
     @AppStorage("searchRadiusKm") private var searchRadiusKm: Int = 0
 
     private let radiusOptions = [0, 1, 5, 10, 15, 20, 25, 30]
@@ -114,8 +115,7 @@ struct SettingsView: View {
             // Logout
             Section {
                 Button(role: .destructive) {
-                    appState.logout()
-                    dismiss()
+                    showLogoutConfirm = true
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: "arrow.right.square.fill")
@@ -125,6 +125,14 @@ struct SettingsView: View {
                     }
                 }
             }
+        }
+        .confirmationDialog(bundle.loc("Log out of ConnectSphere?"),
+                            isPresented: $showLogoutConfirm, titleVisibility: .visible) {
+            Button(bundle.loc("Log out"), role: .destructive) {
+                appState.logout()
+                dismiss()
+            }
+            Button(bundle.loc("Cancel"), role: .cancel) {}
         }
         .listStyle(.insetGrouped)
         .navigationTitle(bundle.loc("Settings"))
