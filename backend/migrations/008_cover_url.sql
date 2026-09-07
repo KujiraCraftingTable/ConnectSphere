@@ -1,5 +1,5 @@
 -- 008_cover_url.sql
--- Ảnh bìa hồ sơ: NULL → client hiển thị gradient mặc định theo theme.
+-- Profile cover photo: NULL → client shows a default theme-based gradient.
 
 ALTER TABLE users
   ADD COLUMN cover_url TEXT;

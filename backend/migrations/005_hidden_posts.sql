@@ -1,8 +1,8 @@
 -- 005_hidden_posts.sql
--- "Ẩn bài viết": mỗi dòng = một bài mà một user đã ẩn khỏi feed của họ.
--- Bài ẩn bị loại khỏi mọi danh sách (feed đề xuất, list posts, tag feed)
--- của riêng user đó, nhưng vẫn mở được trực tiếp qua PostDetail
--- (share embed, notification) để tránh gãy các đường dẫn tham chiếu.
+-- "Hide post": each row = one post that a user has hidden from their feed.
+-- A hidden post is excluded from all of that user's own listings (suggested
+-- feed, post lists, tag feed), but can still be opened directly via PostDetail
+-- (share embed, notification) so referenced links never break.
 
 CREATE TABLE hidden_posts (
   user_id    UUID        NOT NULL REFERENCES users (id) ON DELETE CASCADE,

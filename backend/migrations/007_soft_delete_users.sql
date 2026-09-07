@@ -1,8 +1,8 @@
 -- 007_soft_delete_users.sql
--- Soft delete tài khoản: deleted_at đánh dấu user đã xoá.
--- Row users được scrub PII tại chỗ (username → deleted_xxx, display_name →
--- 'Deleted User', email/google_id/password_hash → NULL...) nên mọi JOIN
--- hiển thị tên ẩn danh tự động; posts/messages giữ nguyên.
+-- Soft delete for accounts: deleted_at marks a user as deleted.
+-- The users row has its PII scrubbed in place (username → deleted_xxx, display_name →
+-- 'Deleted User', email/google_id/password_hash → NULL...), so every JOIN
+-- shows an anonymized name automatically; posts/messages are left untouched.
 
 ALTER TABLE users
   ADD COLUMN deleted_at TIMESTAMPTZ;

@@ -1,17 +1,17 @@
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 009 — Rename mode vocabulary: friend → hobby, colleague → work
 --
--- Đổi tận gốc vocabulary mode trên toàn DB cho khớp ngôn ngữ sản phẩm
--- (UI đã hiển thị Hobby/Work). Gồm 3 phần:
---   1. Rename cột theme:  friend_theme → hobby_theme, colleague_theme → work_theme
---   2. Update giá trị:    'friend' → 'hobby', 'colleague' → 'work'
---      trên users.default_mode + mode của connections/posts/conversations/
+-- Renames the mode vocabulary at the root across the whole DB to match the
+-- product language (the UI already shows Hobby/Work). Consists of 3 parts:
+--   1. Rename theme columns:  friend_theme → hobby_theme, colleague_theme → work_theme
+--   2. Update values:    'friend' → 'hobby', 'colleague' → 'work'
+--      on users.default_mode + the mode column of connections/posts/conversations/
 --      search_logs/suggestion_cache
---   3. Rebuild CHECK constraints với giá trị mới
+--   3. Rebuild CHECK constraints with the new values
 --
--- KHÔNG đụng posts.privacy ('public'/'friends'/'only_me') — 'friends' là mức
--- riêng tư "bạn bè", không phải mode.
--- Chạy trong 1 transaction (migrate.js tự bọc BEGIN/COMMIT).
+-- Does NOT touch posts.privacy ('public'/'friends'/'only_me') — 'friends' there
+-- is a privacy level, not a mode.
+-- Runs in a single transaction (migrate.js wraps BEGIN/COMMIT automatically).
 -- ─────────────────────────────────────────────────────────────────────────────
 
 -- 1. Theme columns
@@ -47,7 +47,7 @@ UPDATE conversations SET mode = 'work'  WHERE mode = 'colleague';
 ALTER TABLE conversations ADD CONSTRAINT conversations_mode_check
   CHECK (mode IN ('hobby', 'work'));
 
--- 2e. search_logs.mode / suggestion_cache.mode (không có CHECK, chỉ update data)
+-- 2e. search_logs.mode / suggestion_cache.mode (no CHECK, just update the data)
 UPDATE search_logs      SET mode = 'hobby' WHERE mode = 'friend';
 UPDATE search_logs      SET mode = 'work'  WHERE mode = 'colleague';
 UPDATE suggestion_cache SET mode = 'hobby' WHERE mode = 'friend';

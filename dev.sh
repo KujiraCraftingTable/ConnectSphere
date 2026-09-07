@@ -41,32 +41,7 @@ start() {
     ok "Docker is ready"
   fi
 
-  # 2. Docker Compose (PostgreSQL)
-  log "Starting PostgreSQL..."
-  cd "$BACKEND_DIR"
-  if docker compose ps | grep -q "running"; then
-    ok "PostgreSQL already running"
-  else
-    docker compose up -d > /dev/null 2>&1
-    sleep 2
-    ok "PostgreSQL started"
-  fi
-
-  # 3. Redis
-  log "Starting Redis..."
-  if redis-cli ping > /dev/null 2>&1; then
-    ok "Redis already running"
-  else
-    redis-server > /tmp/redis.log 2>&1 &
-    sleep 1
-    if redis-cli ping > /dev/null 2>&1; then
-      ok "Redis started (port 6379)"
-    else
-      err "Redis failed to start — check /tmp/redis.log"
-    fi
-  fi
-
-  # 4. Ollama server
+  # 2. Ollama server (stays on the host — Docker can't use the GPU on macOS)
   log "Starting Ollama server..."
   if pgrep -x "ollama" > /dev/null; then
     ok "Ollama already running"
@@ -76,33 +51,38 @@ start() {
     ok "Ollama server started (port 11434)"
   fi
 
-  # 5. Backend Node.js
-  log "Starting backend server..."
-  if pgrep -f "node index.js" > /dev/null; then
-    ok "Backend already running"
-  else
-    cd "$BACKEND_DIR"
-    npm run dev > /tmp/connectsphere-backend.log 2>&1 &
+  # 3. Docker services: PostgreSQL + Redis + backend
+  log "Starting Docker services (Postgres, Redis, backend)..."
+  cd "$BACKEND_DIR"
+  docker compose up -d --build > /dev/null 2>&1
+  echo "   Waiting for the backend to be healthy"
+  while [ "$(docker compose ps backend --format '{{.Health}}' 2>/dev/null)" != "healthy" ]; do
+    printf "."
     sleep 2
-    ok "Backend started (port 3000)"
-  fi
+  done
+  echo ""
+  ok "Postgres, Redis, backend running"
 
-  # 6. Xcode
+  # 4. Database migrations (run inside the backend container)
+  log "Running migrations..."
+  docker compose exec -T backend npm run migrate > /dev/null 2>&1 && ok "Migrations applied" || warn "Migration step reported an issue — check: docker compose logs backend"
+
+  # 5. Xcode
   log "Opening Xcode..."
   open "$XCODE_PROJECT"
   ok "Xcode opened"
 
-  # 7. VS Code
+  # 6. VS Code
   log "Opening VS Code..."
   open -a "Visual Studio Code" "$PROJECT_DIR"
   ok "VS Code opened"
 
-  # 8. TablePlus
+  # 7. TablePlus
   log "Opening TablePlus..."
   open -a TablePlus
   ok "TablePlus opened"
 
-  # 9. Minimize everything except Xcode
+  # 8. Minimize everything except Xcode
   log "Minimizing background apps..."
   sleep 1
   osascript -e 'tell application "System Events" to set visible of process "Docker Desktop" to false' 2>/dev/null
@@ -115,10 +95,10 @@ start() {
   echo "${GREEN}║   All services are running   ║${NC}"
   echo "${GREEN}╚══════════════════════════════╝${NC}"
   echo ""
-  echo "  Backend : http://localhost:3000"
-  echo "  Ollama  : http://localhost:11434"
-  echo "  Redis   : localhost:6379"
-  echo "  Logs    : tail -f /tmp/connectsphere-backend.log"
+  echo "  Backend : http://localhost:3000  (container: connectsphere_backend)"
+  echo "  Ollama  : http://localhost:11434 (host process)"
+  echo "  Redis   : localhost:6379         (container: connectsphere_redis)"
+  echo "  Logs    : cd backend && docker compose logs -f backend"
   echo ""
 }
 
@@ -147,13 +127,7 @@ stop() {
   log "Closing TablePlus..."
   osascript -e 'tell application "TablePlus" to quit' 2>/dev/null && ok "TablePlus closed" || warn "TablePlus was not running"
 
-  # 3. Backend
-  log "Stopping backend..."
-  if pkill -f "node index.js" 2>/dev/null; then ok "Backend stopped"
-  elif pkill -f "nodemon" 2>/dev/null;    then ok "Backend stopped"
-  else warn "Backend was not running"; fi
-
-  # 4. Ollama
+  # 3. Ollama (host process)
   log "Stopping Ollama..."
   if pkill -x "ollama" 2>/dev/null; then
     ok "Ollama stopped"
@@ -161,19 +135,10 @@ stop() {
     warn "Ollama was not running"
   fi
 
-  # 5. Redis
-  log "Stopping Redis..."
-  if redis-cli ping > /dev/null 2>&1; then
-    redis-cli shutdown nosave > /dev/null 2>&1
-    ok "Redis stopped"
-  else
-    warn "Redis was not running"
-  fi
-
-  # 7. Docker Compose (PostgreSQL)
-  log "Stopping PostgreSQL containers..."
+  # 4. Docker services: PostgreSQL + Redis + backend
+  log "Stopping Docker services (Postgres, Redis, backend)..."
   cd "$BACKEND_DIR"
-  docker compose down > /dev/null 2>&1 && ok "PostgreSQL stopped" || warn "PostgreSQL was not running"
+  docker compose down > /dev/null 2>&1 && ok "Docker services stopped" || warn "Docker services were not running"
 
   # 8. Docker Desktop — wait for containers to stop first
   log "Quitting Docker Desktop..."
