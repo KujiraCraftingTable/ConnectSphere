@@ -3,9 +3,12 @@
 # ConnectSphere dev workflow manager
 # Usage: ./dev.sh start | stop
 
-PROJECT_DIR="/Users/triminh/Desktop/COMP1682/ConnectSphere"
+# Derive the project root from this script's own location so it runs from any checkout.
+PROJECT_DIR="${0:A:h}"
 BACKEND_DIR="$PROJECT_DIR/backend"
 XCODE_PROJECT="$PROJECT_DIR/ConnectSphere.xcodeproj"
+
+OLLAMA_MODELS=("qwen2.5:7b-instruct-q4_k_m" "mxbai-embed-large")
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -50,6 +53,16 @@ start() {
     sleep 2
     ok "Ollama server started (port 11434)"
   fi
+
+  # 2b. Ensure the two models the AI pipeline needs are present
+  for model in "${OLLAMA_MODELS[@]}"; do
+    if ollama list 2>/dev/null | grep -q "${model%%:*}"; then
+      ok "Ollama model present: $model"
+    else
+      log "Pulling Ollama model $model (first run only, this is large)..."
+      ollama pull "$model" && ok "Pulled $model" || warn "Failed to pull $model — AI search will be degraded"
+    fi
+  done
 
   # 3. Docker services: PostgreSQL + Redis + backend
   log "Starting Docker services (Postgres, Redis, backend)..."

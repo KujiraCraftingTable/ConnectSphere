@@ -5,7 +5,7 @@ Notable feature: an AI-powered semantic search over users/posts using a local LL
 query pipeline and chunk-based pgvector embeddings — see `AI_SEARCH_OVERVIEW.md`.
 
 ## Stack
-- **iOS**: SwiftUI, Core Data, MVVM-ish (`Core/` + `Features/`), localized EN/VI
+- **iOS**: SwiftUI, @Observable view models, MVVM-ish (`Core/` + `Features/`), localized EN/VI
 - **Backend**: Node.js + Express, Socket.io (realtime), BullMQ + Redis (jobs), JWT auth
 - **Database**: PostgreSQL + pgvector (HNSW cosine search for embeddings)
 
@@ -25,7 +25,7 @@ backend/
     services/           # Business logic layer
     queues/ jobs/        # BullMQ background jobs
     utils/              # Helpers, constants
-  migrations/           # SQL migrations (001–010)
+  migrations/           # SQL migrations (001..027)
   scripts/              # Seeding, geocoding, embedding tooling
 ```
 

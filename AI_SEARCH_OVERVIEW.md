@@ -298,7 +298,7 @@ Core/Network/Endpoint.swift                      ← Định nghĩa endpoint .ai
 | Thành phần | Công nghệ |
 |---|---|
 | iOS frontend | SwiftUI, `@Observable` macro (iOS 17+), `async/await` |
-| Backend | Node.js 20+, Express 4 |
+| Backend | Node.js 22 (Docker), Express 4 |
 | Database | PostgreSQL 16 + `pgvector` (HNSW), schema baseline `001_init.sql` |
 | LLM runtime | Ollama (local) |
 | LLM model | `qwen2.5:7b-instruct-q4_k_m` — normalize/dịch/parse criteria + dịch chunk |
