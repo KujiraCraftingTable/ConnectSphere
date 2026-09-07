@@ -3,6 +3,7 @@ import SwiftUI
 /// Card body for poll-type posts. Shows options with progress bars and voting UI.
 struct PollPostCard: View {
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.appBundle) var bundle
     @State var vm: PollViewModel
 
     /// Accent color from the community cover
@@ -16,12 +17,18 @@ struct PollPostCard: View {
 
             // Footer: total votes + optional end date
             HStack {
-                Text("\(vm.pollData.totalVotes) vote\(vm.pollData.totalVotes == 1 ? "" : "s")")
+                Text(String(
+                    format: bundle.loc(vm.pollData.totalVotes == 1 ? "%d vote" : "%d votes"),
+                    vm.pollData.totalVotes
+                ))
                     .font(.system(size: 12))
                     .foregroundColor(AppColors.textTertiary(colorScheme))
                 Spacer()
                 if let endsAt = vm.pollData.options.first?.endsAt {
-                    Text("Ends \(endsAt.formatted(date: .abbreviated, time: .shortened))")
+                    Text(String(
+                        format: bundle.loc("Ends %@"),
+                        endsAt.formatted(date: .abbreviated, time: .shortened)
+                    ))
                         .font(.system(size: 12))
                         .foregroundColor(AppColors.textTertiary(colorScheme))
                 }

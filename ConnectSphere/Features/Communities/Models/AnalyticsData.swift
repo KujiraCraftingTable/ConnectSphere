@@ -37,16 +37,27 @@ struct DailySnapshot: Decodable {
         case activeMembers = "active_members"
     }
 
-    /// Display-friendly short label ("Jun 5")
+    /// Display-friendly short label ("Jun 5", or "5 thg 6" in Vietnamese) —
+    /// locale-aware rather than a fixed English month table, so the x-axis
+    /// follows the in-app language. Same "read the saved language, fall back
+    /// to the device locale" convention as `Bundle.app` and `AppState.init()`.
     var shortLabel: String {
-        let parts = snapshotDate.split(separator: "-")
-        guard parts.count == 3,
-              let month = Int(parts[1]),
-              let day   = Int(parts[2]) else { return snapshotDate }
-        let months = ["Jan","Feb","Mar","Apr","May","Jun",
-                      "Jul","Aug","Sep","Oct","Nov","Dec"]
-        return "\(months[month - 1]) \(day)"
+        guard let date = Self.inputFormatter.date(from: snapshotDate) else { return snapshotDate }
+
+        let languageCode = UserDefaults.standard.string(forKey: "appLanguage")
+            ?? Locale.current.language.languageCode?.identifier ?? "en"
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: languageCode)
+        formatter.setLocalizedDateFormatFromTemplate("MMMd")
+        return formatter.string(from: date)
     }
+
+    private static let inputFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
 }
 
 /// Minimal post data used in top-posts list within analytics

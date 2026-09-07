@@ -12,6 +12,10 @@ struct Community: Identifiable {
     var postCount: Int
     var isMember: Bool
     var role: MemberRole?
+    /// The viewer's own join-request status for this community, when they have
+    /// one: "pending" | "approved" | "rejected". nil if they never requested.
+    /// Only meaningful for a private community the viewer is not a member of.
+    var joinRequestStatus: String?
     let createdAt: Date
 }
 
@@ -19,10 +23,13 @@ enum CommunityType: String, CaseIterable {
     case fandom = "fandom"
     case work   = "work"
 
+    /// Localization key — callers must wrap this in `bundle.loc(...)`. Returning
+    /// a hardcoded translation here (as this used to for `.work`) meant the
+    /// label showed in the wrong language regardless of the app's setting.
     var label: String {
         switch self {
         case .fandom: return "Fandom"
-        case .work:   return "Công việc"
+        case .work:   return "Work"
         }
     }
 
@@ -44,6 +51,7 @@ enum MemberRole: String {
     case moderator = "moderator"
     case member    = "member"
 
+    /// Localization key — callers must wrap this in `bundle.loc(...)`.
     var label: String {
         switch self {
         case .admin:     return "Admin"

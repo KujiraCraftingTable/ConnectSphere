@@ -3,6 +3,7 @@ const postService       = require('../services/postService');
 const postModel         = require('../models/postModel');
 const communityModel    = require('../models/communityModel');
 const joinRequestModel  = require('../models/joinRequestModel');
+const { normalizeImageUrls } = require('../utils/postInput');
 
 // ── Phase 1 handlers ──────────────────────────────────────────────────────────
 
@@ -75,10 +76,10 @@ async function getCommunityMembers(req, res, next) {
   } catch (err) { next(err); }
 }
 
-// GET /api/communities/:id/posts?limit=&offset=
+// GET /api/communities/:id/posts?limit=&offset=&tag=
 async function getCommunityPosts(req, res, next) {
   try {
-    // Community private → chỉ member mới xem được bài viết
+    // Private community → only members can view posts
     const community = await communityService.getCommunityById(req.params.id, req.userId);
     if (community.privacy === 'private' && !community.is_member) {
       const err = new Error('You must be a member to view this community');
@@ -86,39 +87,51 @@ async function getCommunityPosts(req, res, next) {
       return next(err);
     }
 
-    const { limit = '20', offset = '0' } = req.query;
+    const { limit = '20', offset = '0', tag } = req.query;
     const posts = await postModel.getPostsByCommunity(req.params.id, {
       limit:            parseInt(limit,  10),
       offset:           parseInt(offset, 10),
       requestingUserId: req.userId,
+      tag:              tag || null,
     });
     res.json({ data: posts });
   } catch (err) { next(err); }
 }
 
 // POST /api/communities/:id/posts  (dispatches by post_type)
+// Text posts accept image_urls/link_url/article_title — same shape as Feed's
+// POST /api/posts, reusing the same normalizeImageUrls validation — so a
+// community post carries the same media a Feed post can. hashtags/show_ai_tags
+// use the exact same request-body field names/casing as Feed's POST /api/posts
+// for iOS-side consistency, and apply across all three post_type branches.
 async function createCommunityPost(req, res, next) {
   try {
     const { content, post_type = 'text', options, endsAt, eventData } = req.body;
+    const hashtags   = Array.isArray(req.body.hashtags) ? req.body.hashtags : [];
+    const showAiTags = !!req.body.show_ai_tags;
     let post;
 
     if (post_type === 'poll') {
-      post = await postService.createPollPost(req.userId, req.params.id, { content, options, endsAt });
+      post = await postService.createPollPost(req.userId, req.params.id, {
+        content, options, endsAt, hashtags, showAiTags,
+      });
     } else if (post_type === 'event') {
-      post = await postService.createEventPost(req.userId, req.params.id, { content, eventData });
+      post = await postService.createEventPost(req.userId, req.params.id, {
+        content, eventData, hashtags, showAiTags,
+      });
     } else {
-      post = await postService.createPost(req.userId, { content, communityId: req.params.id });
+      post = await postService.createPost(req.userId, {
+        content,
+        communityId:  req.params.id,
+        imageUrls:    normalizeImageUrls(req.body.image_urls),
+        linkUrl:      req.body.link_url      || null,
+        articleTitle: req.body.article_title || null,
+        hashtags,
+        showAiTags,
+      });
     }
 
     res.status(201).json({ data: post });
-  } catch (err) { next(err); }
-}
-
-// DELETE /api/posts/:id  (registered in postRoutes)
-async function deletePost(req, res, next) {
-  try {
-    await postService.deletePost(req.userId, req.params.id);
-    res.json({ status: 'ok', message: 'Post deleted' });
   } catch (err) { next(err); }
 }
 
@@ -213,7 +226,6 @@ module.exports = {
   getCommunityMembers,
   getCommunityPosts,
   createCommunityPost,
-  deletePost,
   // Phase 2
   requestToJoin,
   listJoinRequests,

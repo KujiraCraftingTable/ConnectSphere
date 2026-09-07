@@ -5,6 +5,7 @@ import Charts
 /// Uses Swift Charts (iOS 16+, available on iOS 26.5 target)
 struct GrowthChart: View {
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.appBundle) var bundle
     let snapshots:    [DailySnapshot]
     @Binding var showMembers: Bool   // true = member count, false = post count
     var accentColor: Color
@@ -13,8 +14,8 @@ struct GrowthChart: View {
         VStack(alignment: .leading, spacing: 12) {
             // Toggle
             Picker("Metric", selection: $showMembers) {
-                Text("Members").tag(true)
-                Text("Posts").tag(false)
+                Text("Members", bundle: bundle).tag(true)
+                Text("Posts", bundle: bundle).tag(false)
             }
             .pickerStyle(.segmented)
 
@@ -79,7 +80,7 @@ struct GrowthChart: View {
     }
 
     private var noDataPlaceholder: some View {
-        Text("No data yet for this period")
+        Text("No data yet for this period", bundle: bundle)
             .font(.system(size: 14))
             .foregroundColor(AppColors.textTertiary(colorScheme))
             .frame(maxWidth: .infinity, alignment: .center)

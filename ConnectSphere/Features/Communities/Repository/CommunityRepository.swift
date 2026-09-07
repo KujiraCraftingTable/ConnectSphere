@@ -104,8 +104,8 @@ struct CommunityRepository {
                                     method: "DELETE", token: token)
     }
 
-    /// Toggle like cho một bài viết. Dùng route /posts/:id/like chung (không phải
-    /// route riêng của community) — hoạt động với mọi post id, kể cả bài trong cộng đồng.
+    /// Toggle like on a post. Uses the shared /posts/:id/like route (not a
+    /// community-specific one) — works for any post id, including posts inside a community.
     func toggleLikePost(postId: String, token: String) async throws -> (liked: Bool, likeCount: Int) {
         let res = try await client.fetch(LikeResponse.self,
                                           path: "/posts/\(postId)/like",

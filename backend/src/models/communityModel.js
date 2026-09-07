@@ -1,14 +1,18 @@
 const { query } = require('../config/db');
 
-// Returns one community row; if requestingUserId given, also returns is_member + role
+// Returns one community row; if requestingUserId given, also returns is_member,
+// role, and the requester's own join_request_status ('pending' | 'approved' |
+// 'rejected' | null) so the client can show a "pending" state without a
+// separate call.
 async function getCommunityById(id, requestingUserId = null) {
   const params = [id];
   const memberJoin = requestingUserId
-    ? `LEFT JOIN community_members cm ON cm.community_id = c.id AND cm.user_id = $2`
+    ? `LEFT JOIN community_members cm ON cm.community_id = c.id AND cm.user_id = $2
+       LEFT JOIN community_join_requests jr ON jr.community_id = c.id AND jr.user_id = $2`
     : '';
   const memberFields = requestingUserId
-    ? `(cm.user_id IS NOT NULL) AS is_member, cm.role`
-    : `false AS is_member, NULL::VARCHAR AS role`;
+    ? `(cm.user_id IS NOT NULL) AS is_member, cm.role, jr.status AS join_request_status`
+    : `false AS is_member, NULL::VARCHAR AS role, NULL::VARCHAR AS join_request_status`;
 
   if (requestingUserId) params.push(requestingUserId);
 
@@ -24,6 +28,17 @@ async function getCommunityById(id, requestingUserId = null) {
 
   const { rows } = await query(sql, params);
   return rows[0] || null;
+}
+
+// Number of admins in a community — used to block the last admin from leaving
+// or being demoted (which would orphan the community).
+async function countAdmins(communityId) {
+  const { rows } = await query(
+    `SELECT COUNT(*)::int AS n FROM community_members
+     WHERE community_id = $1 AND role = 'admin'`,
+    [communityId]
+  );
+  return rows[0].n;
 }
 
 // Insert a new community row (does NOT add member — service layer does that)
@@ -271,6 +286,7 @@ module.exports = {
   getPinnedPost,
   kickMember,
   updateMemberRole,
+  countAdmins,
   // Phase 3
   isBanned,
 };

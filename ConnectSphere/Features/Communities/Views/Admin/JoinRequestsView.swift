@@ -3,6 +3,7 @@ import SwiftUI
 /// Shows pending join requests for a private community; visible to admins and moderators only.
 struct JoinRequestsView: View {
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.appBundle) var bundle
     @State private var viewModel: JoinRequestsViewModel
 
     init(communityId: String, token: String) {
@@ -24,14 +25,14 @@ struct JoinRequestsView: View {
                                 Button(role: .destructive) {
                                     Task<Void, Never>(name: nil) { await viewModel.reject(request.id) }
                                 } label: {
-                                    Label("Decline", systemImage: "xmark")
+                                    Label(bundle.loc("Decline"), systemImage: "xmark")
                                 }
                             }
                             .swipeActions(edge: .leading, allowsFullSwipe: true) {
                                 Button {
                                     Task<Void, Never>(name: nil) { await viewModel.approve(request.id) }
                                 } label: {
-                                    Label("Approve", systemImage: "checkmark")
+                                    Label(bundle.loc("Approve"), systemImage: "checkmark")
                                 }
                                 .tint(.green)
                             }
@@ -40,11 +41,13 @@ struct JoinRequestsView: View {
                 .listStyle(.plain)
             }
         }
-        .navigationTitle("Join Requests")
+        .navigationTitle(bundle.loc("Join Requests"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await viewModel.fetchRequests() }
-        .alert("Lỗi", isPresented: .constant(viewModel.errorMessage != nil)) {
-            Button("OK") { viewModel.errorMessage = nil }
+        .onAppear { viewModel.startListening() }
+        .onDisappear { viewModel.stopListening() }
+        .alert(bundle.loc("Error"), isPresented: .constant(viewModel.errorMessage != nil)) {
+            Button(bundle.loc("OK")) { viewModel.errorMessage = nil }
         } message: {
             Text(viewModel.errorMessage ?? "")
         }
@@ -104,10 +107,10 @@ struct JoinRequestsView: View {
             Image(systemName: "person.badge.plus")
                 .font(.system(size: 40))
                 .foregroundColor(AppColors.textTertiary(colorScheme))
-            Text("No pending requests")
+            Text(bundle.loc("No pending requests"))
                 .font(.system(size: 16, weight: .medium))
                 .foregroundColor(AppColors.textSecondary(colorScheme))
-            Text("Join requests will appear here")
+            Text(bundle.loc("Join requests will appear here"))
                 .font(.system(size: 14))
                 .foregroundColor(AppColors.textTertiary(colorScheme))
         }

@@ -62,7 +62,7 @@ struct DiscoverView: View {
             HStack(spacing: 8) {
                 filterChip(label: bundle.loc("All"), type: nil)
                 ForEach(CommunityType.allCases, id: \.self) { t in
-                    filterChip(label: t.label, type: t)
+                    filterChip(label: bundle.loc(t.label), type: t)
                 }
             }
         }

@@ -13,9 +13,15 @@ const assert = require('node:assert/strict');
 const recommendationService = require('../../../src/services/recommendationService');
 mock.method(recommendationService, 'scheduleInterestRebuild', () => {});
 
+// join_request_created (Phase 3 realtime) needs the requester's display name,
+// and actorPayload hits Postgres directly, so it is stubbed before
+// communityService is first required — same reasoning as
+// scheduleInterestRebuild above.
+const notifyService = require('../../../src/services/userNotifyService');
+mock.method(notifyService, 'actorPayload', async () => ({ fromDisplayName: 'Requester Name' }));
+
 const communityService    = require('../../../src/services/communityService');
 const communityModel      = require('../../../src/models/communityModel');
-const notificationModel   = require('../../../src/models/notificationModel');
 const joinRequestModel    = require('../../../src/models/joinRequestModel');
 
 // ── createCommunity: validation ─────────────────────────────────────────────
@@ -141,6 +147,17 @@ test('joinCommunity joins and increments member count on success', async (t) => 
   assert.deepEqual(incCall.mock.calls[0].arguments, ['c1', 1]);
 });
 
+test('joinCommunity rejects a private community — direct join must go through requestToJoin', async (t) => {
+  t.mock.method(communityModel, 'getCommunityById', async () => ({ id: 'c1', privacy: 'private' }));
+  const joinCall = t.mock.method(communityModel, 'joinCommunity', async () => {});
+
+  await assert.rejects(
+    communityService.joinCommunity('c1', 'u1'),
+    (err) => { assert.equal(err.status, 403); assert.match(err.message, /requires a request to join/); return true; }
+  );
+  assert.equal(joinCall.mock.calls.length, 0);
+});
+
 // ── leaveCommunity: sole-admin-can't-leave ──────────────────────────────────
 
 test('leaveCommunity throws when the user is not a member', async (t) => {
@@ -153,40 +170,38 @@ test('leaveCommunity throws when the user is not a member', async (t) => {
 
 test('leaveCommunity blocks the sole admin from leaving', async (t) => {
   t.mock.method(communityModel, 'isMember', async () => ({ role: 'admin' }));
-  t.mock.method(communityModel, 'getCommunityMembers', async () => ([
-    { id: 'u1', role: 'admin' },
-    { id: 'u2', role: 'member' },
-  ]));
+  t.mock.method(communityModel, 'countAdmins', async () => 1);
   await assert.rejects(
     communityService.leaveCommunity('c1', 'u1'),
     /sole admin/
   );
 });
 
-test('leaveCommunity allows an admin to leave when a co-admin exists', async (t) => {
+test('leaveCommunity allows an admin to leave when a co-admin exists, and clears their join-request row', async (t) => {
   t.mock.method(communityModel, 'isMember', async () => ({ role: 'admin' }));
-  t.mock.method(communityModel, 'getCommunityMembers', async () => ([
-    { id: 'u1', role: 'admin' },
-    { id: 'u2', role: 'admin' },
-  ]));
-  const leaveCall = t.mock.method(communityModel, 'leaveCommunity', async () => {});
-  const decCall   = t.mock.method(communityModel, 'incrementMemberCount', async () => {});
+  t.mock.method(communityModel, 'countAdmins', async () => 2);
+  const leaveCall  = t.mock.method(communityModel, 'leaveCommunity', async () => {});
+  const decCall    = t.mock.method(communityModel, 'incrementMemberCount', async () => {});
+  const deleteReq  = t.mock.method(joinRequestModel, 'deleteRequest', async () => {});
 
   await communityService.leaveCommunity('c1', 'u1');
 
   assert.deepEqual(leaveCall.mock.calls[0].arguments, ['c1', 'u1']);
   assert.deepEqual(decCall.mock.calls[0].arguments, ['c1', -1]);
+  // Stale 'approved' join-request row must be removed so a later re-join works.
+  assert.deepEqual(deleteReq.mock.calls[0].arguments, ['c1', 'u1']);
 });
 
 test('leaveCommunity allows a regular member to leave without an admin-count check', async (t) => {
-  const membersCall = t.mock.method(communityModel, 'getCommunityMembers', async () => []);
+  const adminCountCall = t.mock.method(communityModel, 'countAdmins', async () => 1);
   t.mock.method(communityModel, 'isMember', async () => ({ role: 'member' }));
   t.mock.method(communityModel, 'leaveCommunity', async () => {});
   t.mock.method(communityModel, 'incrementMemberCount', async () => {});
+  t.mock.method(joinRequestModel, 'deleteRequest', async () => {});
 
   await communityService.leaveCommunity('c1', 'u1');
 
-  assert.equal(membersCall.mock.calls.length, 0);
+  assert.equal(adminCountCall.mock.calls.length, 0);
 });
 
 // ── getCommunityMembers: private-community visibility ───────────────────────
@@ -264,18 +279,26 @@ test('requestToJoin creates a pending request and notifies staff for a private c
   t.mock.method(communityModel, 'isBanned', async () => false);
   t.mock.method(joinRequestModel, 'hasExistingRequest', async () => null);
   t.mock.method(joinRequestModel, 'createRequest', async () => ({ id: 'req1' }));
-  t.mock.method(communityModel, 'getCommunityMembers', async () => ([
-    { id: 'admin1', role: 'admin' },
-    { id: 'mod1', role: 'moderator' },
-    { id: 'mem1', role: 'member' },
+  const membersCall = t.mock.method(communityModel, 'getCommunityMembers', async () => ([]));
+  const fanOutCall = t.mock.method(notifyService, 'fanOutCommunityNotification', async () => ([
+    { user_id: 'admin1' }, { user_id: 'mod1' },
   ]));
-  const notifyCall = t.mock.method(notificationModel, 'createNotification', async () => {});
 
   const result = await communityService.requestToJoin('c1', 'u1');
 
   assert.deepEqual(result, { status: 'pending', requestId: 'req1' });
-  // Only admin + moderator notified, not the plain member
-  assert.equal(notifyCall.mock.calls.length, 2);
+  // Staff selection is a SQL role filter now, not a JS filter over the first
+  // 500 members — that older shape silently skipped admins in big communities.
+  assert.equal(fanOutCall.mock.calls.length, 1);
+  const arg = fanOutCall.mock.calls[0].arguments[0];
+  assert.equal(arg.type, 'join_request');
+  assert.deepEqual(arg.roles, ['admin', 'moderator']);
+  assert.equal(arg.entityId, 'req1');
+  assert.equal(membersCall.mock.calls.length, 0);
+  // Realtime: utils/realtime.emitToUser() is a safe no-op while no Socket.IO
+  // instance is registered (same convention as messageService.test.js) — the
+  // join_request_created fan-out itself isn't asserted here, just that it
+  // doesn't throw / doesn't touch Postgres beyond the mocked calls above.
 });
 
 test('requestToJoin rejects a duplicate pending request', async (t) => {
@@ -289,15 +312,18 @@ test('requestToJoin rejects a duplicate pending request', async (t) => {
   );
 });
 
-test('requestToJoin blocks re-requesting after a rejection', async (t) => {
+test('requestToJoin re-opens a rejected request instead of locking the user out', async (t) => {
   t.mock.method(communityModel, 'getCommunityById', async () => ({ id: 'c1', privacy: 'private' }));
   t.mock.method(communityModel, 'isMember', async () => null);
   t.mock.method(communityModel, 'isBanned', async () => false);
   t.mock.method(joinRequestModel, 'hasExistingRequest', async () => ({ status: 'rejected' }));
-  await assert.rejects(
-    communityService.requestToJoin('c1', 'u1'),
-    (err) => { assert.equal(err.status, 403); return true; }
-  );
+  const createCall = t.mock.method(joinRequestModel, 'createRequest', async () => ({ id: 'req2' }));
+  t.mock.method(notifyService, 'fanOutCommunityNotification', async () => []);
+
+  const result = await communityService.requestToJoin('c1', 'u1');
+
+  assert.deepEqual(result, { status: 'pending', requestId: 'req2' });
+  assert.equal(createCall.mock.calls.length, 1);
 });
 
 // ── reviewJoinRequest ─────────────────────────────────────────────────────────
@@ -340,7 +366,7 @@ test('reviewJoinRequest approves: joins the user, increments count, notifies', a
   t.mock.method(joinRequestModel, 'reviewRequest', async () => ({ id: 'req1', status: 'approved' }));
   const joinCall   = t.mock.method(communityModel, 'joinCommunity', async () => {});
   const incCall    = t.mock.method(communityModel, 'incrementMemberCount', async () => {});
-  const notifyCall = t.mock.method(notificationModel, 'createNotification', async () => {});
+  const notifyCall = t.mock.method(notifyService, 'pushUserNotification', async () => ({}));
 
   await communityService.reviewJoinRequest('req1', 'admin1', 'approved');
 
@@ -354,7 +380,7 @@ test('reviewJoinRequest rejects without joining the user', async (t) => {
   t.mock.method(communityModel, 'isMember', async () => ({ role: 'moderator' }));
   t.mock.method(joinRequestModel, 'reviewRequest', async () => ({ id: 'req1', status: 'rejected' }));
   const joinCall   = t.mock.method(communityModel, 'joinCommunity', async () => {});
-  const notifyCall = t.mock.method(notificationModel, 'createNotification', async () => {});
+  const notifyCall = t.mock.method(notifyService, 'pushUserNotification', async () => ({}));
 
   await communityService.reviewJoinRequest('req1', 'mod1', 'rejected');
 
@@ -384,7 +410,7 @@ test('pinPost throws 404 when the post is not in the community', async (t) => {
 test('pinPost succeeds for a moderator and notifies the community', async (t) => {
   t.mock.method(communityModel, 'isMember', async () => ({ role: 'moderator' }));
   t.mock.method(communityModel, 'pinPost', async () => ({ id: 'p1', pinned: true }));
-  const bulkCall = t.mock.method(notificationModel, 'createBulkNotifications', async () => {});
+  const bulkCall = t.mock.method(notifyService, 'fanOutCommunityNotification', async () => []);
 
   const result = await communityService.pinPost('p1', 'c1', 'mod1');
 
@@ -439,17 +465,19 @@ test('kickMember blocks a moderator from removing an admin (caught by the member
   );
 });
 
-test('kickMember lets a moderator remove a regular member', async (t) => {
+test('kickMember lets a moderator remove a regular member and clears their join-request row', async (t) => {
   t.mock.method(communityModel, 'isMember', async (communityId, userId) =>
     userId === 'mod1' ? { role: 'moderator' } : { role: 'member' }
   );
-  const kickCall = t.mock.method(communityModel, 'kickMember', async () => {});
-  const decCall  = t.mock.method(communityModel, 'incrementMemberCount', async () => {});
+  const kickCall  = t.mock.method(communityModel, 'kickMember', async () => {});
+  const decCall   = t.mock.method(communityModel, 'incrementMemberCount', async () => {});
+  const deleteReq = t.mock.method(joinRequestModel, 'deleteRequest', async () => {});
 
   await communityService.kickMember('c1', 'plain-member', 'mod1');
 
   assert.deepEqual(kickCall.mock.calls[0].arguments, ['c1', 'plain-member']);
   assert.deepEqual(decCall.mock.calls[0].arguments, ['c1', -1]);
+  assert.deepEqual(deleteReq.mock.calls[0].arguments, ['c1', 'plain-member']);
 });
 
 test('kickMember lets an admin remove another admin', async (t) => {
@@ -458,6 +486,7 @@ test('kickMember lets an admin remove another admin', async (t) => {
   );
   const kickCall = t.mock.method(communityModel, 'kickMember', async () => {});
   t.mock.method(communityModel, 'incrementMemberCount', async () => {});
+  t.mock.method(joinRequestModel, 'deleteRequest', async () => {});
 
   await communityService.kickMember('c1', 'other-admin', 'admin1');
 
@@ -496,11 +525,38 @@ test('updateMemberRole succeeds for an admin and notifies the target', async (t)
     userId === 'admin1' ? { role: 'admin' } : { role: 'member' }
   );
   const updateCall = t.mock.method(communityModel, 'updateMemberRole', async () => ({ role: 'moderator' }));
-  const notifyCall = t.mock.method(notificationModel, 'createNotification', async () => {});
+  const notifyCall = t.mock.method(notifyService, 'pushUserNotification', async () => ({}));
 
   const result = await communityService.updateMemberRole('c1', 'u2', 'moderator', 'admin1');
 
   assert.equal(result.role, 'moderator');
   assert.deepEqual(updateCall.mock.calls[0].arguments, ['c1', 'u2', 'moderator']);
   assert.equal(notifyCall.mock.calls[0].arguments[0].type, 'role_changed');
+});
+
+test('updateMemberRole blocks demoting the only admin', async (t) => {
+  t.mock.method(communityModel, 'isMember', async (communityId, userId) =>
+    userId === 'admin1' ? { role: 'admin' } : { role: 'admin' }
+  );
+  t.mock.method(communityModel, 'countAdmins', async () => 1);
+  const updateCall = t.mock.method(communityModel, 'updateMemberRole', async () => ({}));
+
+  await assert.rejects(
+    communityService.updateMemberRole('c1', 'admin1', 'member', 'admin1'),
+    /only admin/
+  );
+  assert.equal(updateCall.mock.calls.length, 0);
+});
+
+test('updateMemberRole allows demoting an admin when a co-admin remains', async (t) => {
+  t.mock.method(communityModel, 'isMember', async (communityId, userId) =>
+    userId === 'admin1' ? { role: 'admin' } : { role: 'admin' }
+  );
+  t.mock.method(communityModel, 'countAdmins', async () => 2);
+  const updateCall = t.mock.method(communityModel, 'updateMemberRole', async () => ({ role: 'member' }));
+  t.mock.method(notifyService, 'pushUserNotification', async () => ({}));
+
+  await communityService.updateMemberRole('c1', 'admin2', 'member', 'admin1');
+
+  assert.deepEqual(updateCall.mock.calls[0].arguments, ['c1', 'admin2', 'member']);
 });

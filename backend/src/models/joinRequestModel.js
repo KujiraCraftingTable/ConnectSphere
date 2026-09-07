@@ -1,14 +1,31 @@
 const { query } = require('../config/db');
 
-// Create a pending join request; throws if a row already exists (UNIQUE constraint)
+// Create (or re-open) a pending join request. Upserts on the
+// (community_id, user_id) UNIQUE constraint: a previously rejected request —
+// or a stale approved one left behind after the user left the community — is
+// reset to 'pending' rather than causing a duplicate-key error or a lockout.
 async function createRequest(communityId, userId) {
   const { rows } = await query(
     `INSERT INTO community_join_requests (community_id, user_id)
      VALUES ($1, $2)
+     ON CONFLICT (community_id, user_id) DO UPDATE SET
+       status       = 'pending',
+       requested_at = NOW(),
+       reviewed_by  = NULL,
+       reviewed_at  = NULL
      RETURNING *`,
     [communityId, userId]
   );
   return rows[0];
+}
+
+// Remove a user's join-request row for a community (called when they leave or
+// are kicked, so a future re-request isn't blocked by a stale row)
+async function deleteRequest(communityId, userId) {
+  await query(
+    `DELETE FROM community_join_requests WHERE community_id = $1 AND user_id = $2`,
+    [communityId, userId]
+  );
 }
 
 // Paginated list of pending requests for a community
@@ -60,6 +77,7 @@ async function getRequestById(requestId) {
 
 module.exports = {
   createRequest,
+  deleteRequest,
   getPendingRequests,
   reviewRequest,
   hasExistingRequest,

@@ -3,12 +3,13 @@ import SwiftUI
 /// Horizontal scroll of trending community cards
 struct TrendingSection: View {
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.appBundle) var bundle
     let communities: [Community]
     let onTap: (Community) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionHeader("Trending Now", icon: "flame.fill", color: .orange)
+            sectionHeader(bundle.loc("Trending Now"), icon: "flame.fill", color: .orange)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
@@ -38,7 +39,7 @@ struct TrendingSection: View {
                 .foregroundColor(AppColors.textPrimary(colorScheme))
                 .lineLimit(1)
                 .frame(width: 80)
-            Text("\(community.memberCount.formatted()) members")
+            Text(String(format: bundle.loc("%d members"), community.memberCount))
                 .font(.system(size: 11))
                 .foregroundColor(AppColors.textTertiary(colorScheme))
         }

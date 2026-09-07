@@ -5,19 +5,23 @@ private let fandomEmojis = ["🎵","🎮","📚","🍕","✈️","🎨","🏆","
 private let workEmojis   = ["💼","💻","🔬","🌎","📊","📈","🏢","🤝","📋","✉️",
                              "🔧","⚙️","📱","💡","🎓","🏅","📌","🗂️","🖥️","📝"]
 
+// Localization keys — resolved through `bundle.loc(...)` at the call site
+// (`duplicateWarning`), never rendered directly. These used to be Vietnamese
+// literals with no English counterpart at all, so an English-language user
+// saw Vietnamese text with no way to fall back.
 private let fandomDuplicateWarnings = [
-    "Ủa, đã có cộng đồng tên này rồi nè! 😄 Thử đặt tên khác xịn hơn đi~",
-    "Trùng tên rồi bạn ơi! ✨ Cộng đồng của bạn xứng đáng có cái tên độc đáo hơn kia!",
-    "Oops! Ai đó đã 'chiếm' tên này rồi 🎉 Sáng tạo thêm chút nữa nhé!",
-    "Tên này đã có chủ rồi~ 🌟 Bạn chắc chắn có thể nghĩ ra cái tên cool hơn mà!",
-    "Giống y chang rồi! 😆 Hãy làm cho cộng đồng của bạn nổi bật với tên riêng nhé!"
+    "Oops, there's already a community with this name! 😄 Try something even cooler~",
+    "Name taken! ✨ Your community deserves something more unique!",
+    "Uh oh! Someone already snagged this name 🎉 Get a little more creative!",
+    "This name's already claimed~ 🌟 You can definitely think of something cooler!",
+    "Exact match! 😆 Make your community stand out with its own name!"
 ]
 private let workDuplicateWarnings = [
-    "Tên cộng đồng này đã tồn tại. Vui lòng chọn tên khác để tiếp tục.",
-    "Đã có cộng đồng mang tên này trong hệ thống. Đề nghị sử dụng tên định danh riêng biệt.",
-    "Tên trùng với cộng đồng hiện có. Vui lòng điều chỉnh để đảm bảo tính duy nhất.",
-    "Cộng đồng với tên này đã được tạo trước đó. Vui lòng chọn một tên khác.",
-    "Tên không hợp lệ: đã tồn tại trong hệ thống. Vui lòng nhập tên khác."
+    "This community name already exists. Please choose a different name to continue.",
+    "A community with this name already exists in the system. Please use a distinct identifier.",
+    "This name matches an existing community. Please adjust it to ensure uniqueness.",
+    "A community with this name has already been created. Please choose another name.",
+    "Invalid name: already exists in the system. Please enter a different name."
 ]
 private let colorPreset  = [
     "#7F5AF0","#F72585","#2196F3","#00BCD4","#4CAF50",
@@ -62,7 +66,7 @@ struct CreateCommunityView: View {
 
     private var duplicateWarning: String {
         let pool = type == .work ? workDuplicateWarnings : fandomDuplicateWarnings
-        return pool[warningIndex % pool.count]
+        return bundle.loc(pool[warningIndex % pool.count])
     }
 
     private var nameError: String? {
@@ -96,7 +100,7 @@ struct CreateCommunityView: View {
                                 .foregroundColor(name.isEmpty
                                     ? AppColors.textTertiary(colorScheme)
                                     : AppColors.textPrimary(colorScheme))
-                            Text(type.label)
+                            Text(bundle.loc(type.label))
                                 .font(.system(size: 12))
                                 .foregroundColor(Color(hex: selectedColor))
                         }
@@ -161,7 +165,7 @@ struct CreateCommunityView: View {
                         HStack(spacing: 0) {
                             ForEach(CommunityType.allCases, id: \.self) { t in
                                 Button { type = t } label: {
-                                    Text(t.label)
+                                    Text(bundle.loc(t.label))
                                         .font(.system(size: 14, weight: type == t ? .semibold : .regular))
                                         .foregroundColor(type == t ? .white : AppColors.textSecondary(colorScheme))
                                         .frame(maxWidth: .infinity)
@@ -211,7 +215,7 @@ struct CreateCommunityView: View {
                             }
                         }
 
-                        // "+" row — left-aligned, mirrors "Màu tùy chỉnh" below
+                        // "+" row — left-aligned, mirrors "Custom color" below
                         if showCustomEmojiInput {
                             HStack(spacing: 10) {
                                 TextField(bundle.loc("Type or paste an emoji…"), text: $customEmojiDraft)

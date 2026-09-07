@@ -27,7 +27,12 @@ async function countPendingReportsForTarget(targetType, targetId) {
 async function getReportsByStatus(communityId, status, { limit = 20, offset = 0 } = {}) {
   const params = [communityId, limit, offset];
   let statusFilter = '';
-  if (status && status !== 'all') {
+  if (status === 'resolved') {
+    // The "Resolved" tab must also surface dismissed reports — resolveReport
+    // stores a dismissed report with status 'dismissed', which would otherwise
+    // vanish from every tab.
+    statusFilter = `AND r.status IN ('resolved', 'dismissed')`;
+  } else if (status && status !== 'all') {
     params.push(status);
     statusFilter = `AND r.status = $${params.length}`;
   }

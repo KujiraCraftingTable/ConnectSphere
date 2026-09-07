@@ -76,6 +76,50 @@ test('computeTrendingScore parses Postgres COUNT() string results correctly', as
   assert.equal(score, 67);
 });
 
+test('computeTrendingScore uses independent scalar subqueries (no cartesian self-join of posts)', async (t) => {
+  let capturedSql = '';
+  queryImpl = async (sql) => {
+    capturedSql = sql;
+    return { rows: [{ new_posts_24h: '0', new_members_24h: '0', active_members_24h: '0' }] };
+  };
+  t.mock.method(recommendationModel, 'updateTrendingScore', async () => {});
+
+  await recommendationService.computeTrendingScore('c1');
+
+  // The old query LEFT JOINed posts + community_members + posts, inflating the
+  // non-DISTINCT post count by members x total_posts.
+  assert.doesNotMatch(capturedSql, /LEFT JOIN/i);
+  assert.match(capturedSql, /\(SELECT COUNT\(\*\) FROM posts/);
+  assert.match(capturedSql, /\(SELECT COUNT\(\*\) FROM community_members/);
+  assert.match(capturedSql, /\(SELECT COUNT\(DISTINCT author_id\) FROM posts/);
+});
+
+// ── buildUserInterests: full rebuild (clears before inserting) ──────────────
+
+test('buildUserInterests clears existing interest rows before re-inserting', async (t) => {
+  const order = [];
+  t.mock.method(recommendationModel, 'clearInterests', async () => { order.push('clear'); });
+  t.mock.method(communityModel, 'getCommunitiesByUser', async () => ([{ id: 'c1' }]));
+  t.mock.method(recommendationModel, 'getCommunitiesWithTags', async () => ({ c1: ['anime', 'jrpg'] }));
+  t.mock.method(recommendationModel, 'upsertInterest', async () => { order.push('upsert'); });
+
+  await recommendationService.buildUserInterests('u1');
+
+  assert.equal(order[0], 'clear');
+  assert.deepEqual(order.slice(1), ['upsert', 'upsert']);
+});
+
+test('buildUserInterests still clears interests when the user has joined nothing', async (t) => {
+  const clearCall = t.mock.method(recommendationModel, 'clearInterests', async () => {});
+  t.mock.method(communityModel, 'getCommunitiesByUser', async () => ([]));
+  const upsertCall = t.mock.method(recommendationModel, 'upsertInterest', async () => {});
+
+  await recommendationService.buildUserInterests('u1');
+
+  assert.equal(clearCall.mock.calls.length, 1);
+  assert.equal(upsertCall.mock.calls.length, 0);
+});
+
 // ── computeAllTrendingScores: continues past a single failure ────────────────
 
 test('computeAllTrendingScores continues computing remaining communities after one fails', async (t) => {

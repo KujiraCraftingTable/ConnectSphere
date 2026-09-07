@@ -2,7 +2,7 @@ const { query }          = require('../config/db');
 const reportModel        = require('../models/reportModel');
 const communityModel     = require('../models/communityModel');
 const postModel          = require('../models/postModel');
-const notificationModel  = require('../models/notificationModel');
+const notifyService      = require('./userNotifyService');
 
 const VALID_REASONS       = ['spam', 'harassment', 'hate_speech', 'misinformation', 'off_topic', 'other'];
 const AUTO_NOTIFY_THRESHOLD = 5;
@@ -38,20 +38,21 @@ async function submitReport(reporterId, { targetType, targetId, communityId, rea
 
   const report = await reportModel.createReport({ reporterId, targetType, targetId, communityId, reason, detail });
 
-  // Auto-notify admins/mods when a target accumulates ≥5 pending reports
+  // Auto-notify admins/mods once, when a target's pending reports first reach
+  // the threshold. `=== ` not `>=` — otherwise every subsequent report (6th,
+  // 7th, …) re-fires the whole staff fan-out.
   // (feed posts have no community_id and thus no community staff to notify)
   const count = await reportModel.countPendingReportsForTarget(targetType, targetId);
-  if (communityId && count >= AUTO_NOTIFY_THRESHOLD) {
-    const allMembers = await communityModel.getCommunityMembers(communityId, { limit: 500, offset: 0 });
-    const staff = allMembers.filter(m => ['admin', 'moderator'].includes(m.role));
-    for (const person of staff) {
-      await notificationModel.createNotification({
-        communityId,
-        userId: person.id,
-        type:   'new_report',
-        refId:  targetId,
-      });
-    }
+  if (communityId && count === AUTO_NOTIFY_THRESHOLD) {
+    // The role filter runs in SQL: the previous version fetched the first 500
+    // members and filtered in JS, so staff past that cut-off were never notified.
+    await notifyService.fanOutCommunityNotification({
+      communityId,
+      type:     'new_report',
+      roles:    ['admin', 'moderator'],
+      entityId: targetId,
+      payload:  { communityId, targetType, targetId, reportCount: count },
+    });
   }
 
   return report;
@@ -82,9 +83,26 @@ async function resolveReport(reportId, reviewerId, action) {
 
   // Execute action
   if (action === 'remove_content') {
-    const deleted = await postModel.deletePost(report.target_id);
+    // Soft-delete (status = 'deleted'), not a hard DELETE: the post goes to the
+    // author's "Recently Deleted" and stays restorable for 30 days, and its
+    // comments / likes / poll votes / RSVPs are preserved. Matches the delete
+    // semantics used everywhere else (postService.deletePost).
+    const deleted = await postModel.softDeletePost(report.target_id);
     if (deleted?.community_id) {
       await communityModel.incrementPostCount(deleted.community_id, -1);
+    }
+    // Tell the author their post was taken down, rather than letting it
+    // silently vanish. postId is deliberately omitted from the payload: the
+    // post is hidden, so the row is informational only.
+    if (deleted?.author_id) {
+      await notifyService.pushUserNotification({
+        userId:      deleted.author_id,
+        type:        'content_removed',
+        actorId:     reviewerId,
+        communityId: report.community_id,
+        groupTargetId: report.community_id,
+        payload:     { communityId: report.community_id },
+      });
     }
   }
 

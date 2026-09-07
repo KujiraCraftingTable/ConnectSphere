@@ -3,6 +3,7 @@ import SwiftUI
 /// Card body for event-type posts. Shows event details and 3-button RSVP strip.
 struct EventPostCard: View {
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.appBundle) var bundle
     @State var vm: EventViewModel
 
     var accentColor: Color
@@ -43,7 +44,7 @@ struct EventPostCard: View {
                     rsvpButton(status)
                 }
                 Spacer()
-                Text("\(vm.eventData.rsvpCount) going")
+                Text(String(format: bundle.loc("%d going"), vm.eventData.rsvpCount))
                     .font(.system(size: 12))
                     .foregroundColor(AppColors.textTertiary(colorScheme))
             }
@@ -64,7 +65,7 @@ struct EventPostCard: View {
             HStack(spacing: 4) {
                 Image(systemName: status.icon)
                     .font(.system(size: 12))
-                Text(status.label)
+                Text(bundle.loc(status.label))
                     .font(.system(size: 12, weight: .medium))
             }
             .foregroundColor(isActive ? .white : AppColors.textSecondary(colorScheme))
@@ -77,11 +78,18 @@ struct EventPostCard: View {
         .disabled(vm.isUpdating)
     }
 
-    /// Short formatted date: "Sat, Jun 7 · 7:00 PM"
+    /// Short formatted date: "Sat, Jun 7 · 7:00 PM" (or the Vietnamese
+    /// equivalent) — locale-aware so weekday/month names and AM/PM markers
+    /// follow the in-app language, same convention as Date+Extensions.timeAgoString.
     private var formattedDate: String {
+        let isVi = (UserDefaults.standard.string(forKey: "appLanguage") ?? "vi") == "vi"
+        let locale = Locale(identifier: isVi ? "vi_VN" : "en_US")
+
         let df = DateFormatter()
+        df.locale = locale
         df.dateFormat = "EEE, MMM d"
         let tf = DateFormatter()
+        tf.locale = locale
         tf.dateFormat = "h:mm a"
         return "\(df.string(from: vm.eventData.startsAt)) · \(tf.string(from: vm.eventData.startsAt))"
     }

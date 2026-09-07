@@ -3,15 +3,16 @@ import SwiftUI
 /// Horizontal scroll of recommended community cards
 struct RecommendedSection: View {
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.appBundle) var bundle
     let communities: [Community]
     let onTap: (Community) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionHeader("Recommended For You", icon: "sparkles", color: .purple)
+            sectionHeader(bundle.loc("Recommended For You"), icon: "sparkles", color: .purple)
 
             if communities.isEmpty {
-                Text("Join some communities to get personalised recommendations")
+                Text(bundle.loc("Join some communities to get personalised recommendations"))
                     .font(.system(size: 14))
                     .foregroundColor(AppColors.textTertiary(colorScheme))
                     .padding(.horizontal, 16)
@@ -44,7 +45,7 @@ struct RecommendedSection: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .lineLimit(1)
-                Text("\(community.memberCount.formatted()) members")
+                Text(String(format: bundle.loc("%d members"), community.memberCount))
                     .font(.system(size: 11))
                     .foregroundColor(AppColors.textTertiary(colorScheme))
             }

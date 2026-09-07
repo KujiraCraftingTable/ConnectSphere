@@ -1,7 +1,8 @@
 const communityModel         = require('../models/communityModel');
-const notificationModel      = require('../models/notificationModel');
 const joinRequestModel       = require('../models/joinRequestModel');
 const { scheduleInterestRebuild } = require('./recommendationService');
+const { emitToUser } = require('../utils/realtime');
+const notifyService = require('./userNotifyService');
 
 const VALID_TYPES   = ['fandom', 'work'];
 const VALID_PRIVACY = ['public', 'private'];
@@ -73,10 +74,16 @@ async function getMyCommunities(userId) {
   return communityModel.getCommunitiesByUser(userId);
 }
 
-// Single community with isMember/role info for the requesting user
+// Single community with isMember/role info for the requesting user.
+// A private community's description is withheld from non-members — enough
+// metadata is kept (name, icon, counts, privacy, join_request_status) to render
+// the "request to join" card; posts and the member list are 403-gated elsewhere.
 async function getCommunityById(communityId, requestingUserId) {
   const community = await communityModel.getCommunityById(communityId, requestingUserId);
   if (!community) clientError('Community not found', 404);
+  if (community.privacy === 'private' && !community.is_member) {
+    community.description = null;
+  }
   return community;
 }
 
@@ -84,6 +91,12 @@ async function getCommunityById(communityId, requestingUserId) {
 async function joinCommunity(communityId, userId) {
   const community = await communityModel.getCommunityById(communityId);
   if (!community) clientError('Community not found', 404);
+
+  // Private communities are join-by-approval only — this direct-join path must
+  // never let a caller skip the request/review flow in requestToJoin().
+  if (community.privacy === 'private') {
+    clientError('This community requires a request to join', 403);
+  }
 
   if (await communityModel.isBanned(communityId, userId)) {
     clientError('You are banned from this community', 403);
@@ -102,19 +115,20 @@ async function leaveCommunity(communityId, userId) {
   const membership = await communityModel.isMember(communityId, userId);
   if (!membership) clientError('You are not a member of this community');
 
-  if (membership.role === 'admin') {
-    const allMembers = await communityModel.getCommunityMembers(communityId, { limit: 500, offset: 0 });
-    const adminCount = allMembers.filter(m => m.role === 'admin').length;
-    if (adminCount <= 1) clientError('You are the sole admin — transfer the role before leaving');
+  if (membership.role === 'admin' && (await communityModel.countAdmins(communityId)) <= 1) {
+    clientError('You are the sole admin — transfer the role before leaving');
   }
 
   await communityModel.leaveCommunity(communityId, userId);
   await communityModel.incrementMemberCount(communityId, -1);
+  // Clear any join-request row so a later re-join isn't blocked by a stale
+  // 'approved' record (requestToJoin keys off this table, not membership).
+  await joinRequestModel.deleteRequest(communityId, userId);
   scheduleInterestRebuild(userId);
 }
 
 // Paginated list of members for a community.
-// Community private → chỉ member mới xem được danh sách thành viên.
+// Private community → only members can view the member list.
 async function getCommunityMembers(communityId, requesterId, { limit = 20, offset = 0 } = {}) {
   const community = await communityModel.getCommunityById(communityId);
   if (!community) clientError('Community not found', 404);
@@ -140,7 +154,7 @@ async function requestToJoin(communityId, userId) {
   const existing = await communityModel.isMember(communityId, userId);
   if (existing)  clientError('You are already a member of this community', 409);
 
-  // Ban check phải đứng trước cả nhánh public — user bị ban không được rejoin
+  // Ban check must come before the public-join branch — banned users must not be able to rejoin
   if (await communityModel.isBanned(communityId, userId)) {
     clientError('You are banned from this community', 403);
   }
@@ -152,25 +166,40 @@ async function requestToJoin(communityId, userId) {
     return { status: 'joined' };
   }
 
-  // Private → create a pending join request
+  // Private → create a pending join request. Only an in-flight ('pending')
+  // request blocks a new one; a 'rejected' or stale 'approved' row (e.g. the
+  // user was rejected once, or left the community) must not lock the user out
+  // forever — createRequest upserts it back to 'pending'. A banned user was
+  // already stopped by the isBanned check above.
   const existingReq = await joinRequestModel.hasExistingRequest(communityId, userId);
-  if (existingReq) {
-    if (existingReq.status === 'pending')  clientError('You already have a pending request', 409);
-    if (existingReq.status === 'rejected') clientError('Your previous request was rejected — contact an admin', 403);
-    if (existingReq.status === 'approved') clientError('You are already a member of this community', 409);
+  if (existingReq && existingReq.status === 'pending') {
+    clientError('You already have a pending request', 409);
   }
 
   const request = await joinRequestModel.createRequest(communityId, userId);
 
-  // Notify admins and moderators (small group — loop is acceptable)
-  const allMembers = await communityModel.getCommunityMembers(communityId, { limit: 500, offset: 0 });
-  const staff = allMembers.filter(m => ['admin', 'moderator'].includes(m.role));
-  for (const person of staff) {
-    await notificationModel.createNotification({
+  // Notify admins and moderators. The role filter runs in SQL: the previous
+  // version fetched the first 500 members and filtered in JS, so staff past
+  // that cut-off were silently never notified.
+  const requester = await notifyService.actorPayload(userId);
+  const notified = await notifyService.fanOutCommunityNotification({
+    communityId,
+    type:     'join_request',
+    actorId:  userId,
+    roles:    ['admin', 'moderator'],
+    entityId: request.id,
+    payload:  { ...requester, communityId, requestId: request.id },
+  });
+
+  // Live badge update for the admin/mod join-requests screen — a separate
+  // side-channel from the notification row, kept because that screen listens
+  // for it specifically.
+  for (const row of notified) {
+    emitToUser(row.user_id, 'join_request_created', {
       communityId,
-      userId:  person.id,
-      type:    'join_request',
-      refId:   request.id,
+      requestId:     request.id,
+      requesterId:   userId,
+      requesterName: requester.fromDisplayName,
     });
   }
 
@@ -199,12 +228,26 @@ async function reviewJoinRequest(requestId, reviewerId, status) {
   }
 
   // Notify the requester of the outcome
-  await notificationModel.createNotification({
-    communityId: request.community_id,
+  await notifyService.pushUserNotification({
     userId:      request.user_id,
     type:        status === 'approved' ? 'join_approved' : 'join_rejected',
-    refId:       requestId,
+    actorId:     reviewerId,
+    communityId: request.community_id,
+    entityId:    requestId,
+    // Grouped by community so repeated requests don't stack up separately.
+    groupTargetId: request.community_id,
+    payload: {
+      communityId: request.community_id,
+      requestId,
+    },
   });
+
+  // Live update for the requester (badge/toast) — same DB-vs-socket split as
+  // requestToJoin above.
+  emitToUser(request.user_id, 'join_request_reviewed', { communityId: request.community_id, status });
+  if (status === 'approved') {
+    emitToUser(request.user_id, 'community_joined', { communityId: request.community_id });
+  }
 
   return updated;
 }
@@ -220,7 +263,15 @@ async function pinPost(postId, communityId, requesterId) {
   if (!result) clientError('Post not found in this community', 404);
 
   // Notify all community members
-  await notificationModel.createBulkNotifications(communityId, 'pinned_post', postId, requesterId);
+  await notifyService.fanOutCommunityNotification({
+    communityId,
+    type:          'pinned_post',
+    actorId:       requesterId,
+    excludeUserId: requesterId,
+    postId,
+    entityId:      postId,
+    payload: { communityId },
+  });
 
   return result;
 }
@@ -260,6 +311,9 @@ async function kickMember(communityId, targetUserId, requesterId) {
 
   await communityModel.kickMember(communityId, targetUserId);
   await communityModel.incrementMemberCount(communityId, -1);
+  // A kicked (not banned) member should be able to request to join again —
+  // clear the stale join-request row the same way leaveCommunity does.
+  await joinRequestModel.deleteRequest(communityId, targetUserId);
 }
 
 // Change a member's role; only admins may do this
@@ -274,13 +328,25 @@ async function updateMemberRole(communityId, targetUserId, newRole, requesterId)
   const target = await communityModel.isMember(communityId, targetUserId);
   if (!target) clientError('User is not a member of this community', 404);
 
+  // Never let the last admin be demoted — that would leave the community with
+  // no one able to manage it, and there's no transfer/recovery endpoint.
+  if (target.role === 'admin' && newRole !== 'admin'
+      && (await communityModel.countAdmins(communityId)) <= 1) {
+    clientError('Cannot demote the only admin — promote another admin first');
+  }
+
   const result = await communityModel.updateMemberRole(communityId, targetUserId, newRole);
 
-  await notificationModel.createNotification({
+  await notifyService.pushUserNotification({
+    userId:  targetUserId,
+    type:    'role_changed',
+    actorId: requesterId,
     communityId,
-    userId: targetUserId,
-    type:   'role_changed',
-    refId:  null,
+    payload: {
+      communityId,
+      newRole,
+      previousRole: target.role,
+    },
   });
 
   return result;

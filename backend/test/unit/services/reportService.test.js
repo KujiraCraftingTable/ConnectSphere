@@ -21,7 +21,7 @@ const reportService     = require('../../../src/services/reportService');
 const reportModel       = require('../../../src/models/reportModel');
 const communityModel    = require('../../../src/models/communityModel');
 const postModel         = require('../../../src/models/postModel');
-const notificationModel = require('../../../src/models/notificationModel');
+const notifyService = require('../../../src/services/userNotifyService');
 
 // ── submitReport ─────────────────────────────────────────────────────────────
 
@@ -90,46 +90,51 @@ test('submitReport does NOT notify staff when pending reports are below the thre
   t.mock.method(reportModel, 'createReport', async () => ({ id: 'r1' }));
   t.mock.method(reportModel, 'countPendingReportsForTarget', async () => 4);
   const membersCall = t.mock.method(communityModel, 'getCommunityMembers', async () => ([]));
-  const notifyCall  = t.mock.method(notificationModel, 'createNotification', async () => {});
+  const fanOutCall  = t.mock.method(notifyService, 'fanOutCommunityNotification', async () => []);
 
   await reportService.submitReport('u1', { targetType: 'post', targetId: 'p1', communityId: 'c1', reason: 'spam' });
 
   assert.equal(membersCall.mock.calls.length, 0);
-  assert.equal(notifyCall.mock.calls.length, 0);
+  assert.equal(fanOutCall.mock.calls.length, 0);
 });
 
+// Staff selection moved from "fetch the first 500 members, filter in JS" into
+// a SQL role filter, so these assert one fan-out call carrying roles rather
+// than one pushUserNotification per staff member. The old shape silently
+// missed admins in communities larger than 500.
 test('submitReport notifies admins/moderators once pending reports reach the threshold of 5', async (t) => {
   t.mock.method(reportModel, 'hasReported', async () => null);
   t.mock.method(postModel, 'findPostMeta', async () => ({ community_id: 'c1' }));
   t.mock.method(reportModel, 'createReport', async () => ({ id: 'r1' }));
   t.mock.method(reportModel, 'countPendingReportsForTarget', async () => 5);
-  t.mock.method(communityModel, 'getCommunityMembers', async () => ([
-    { id: 'admin1', role: 'admin' },
-    { id: 'mod1', role: 'moderator' },
-    { id: 'mem1', role: 'member' },
-  ]));
-  const notifyCall = t.mock.method(notificationModel, 'createNotification', async () => {});
+  const membersCall = t.mock.method(communityModel, 'getCommunityMembers', async () => ([]));
+  const fanOutCall = t.mock.method(notifyService, 'fanOutCommunityNotification', async () => []);
 
   await reportService.submitReport('u1', { targetType: 'post', targetId: 'p1', communityId: 'c1', reason: 'spam' });
 
-  assert.equal(notifyCall.mock.calls.length, 2);
-  assert.deepEqual(
-    notifyCall.mock.calls.map((c) => c.arguments[0].userId).sort(),
-    ['admin1', 'mod1']
-  );
+  assert.equal(fanOutCall.mock.calls.length, 1);
+  const arg = fanOutCall.mock.calls[0].arguments[0];
+  assert.equal(arg.type, 'new_report');
+  assert.equal(arg.communityId, 'c1');
+  assert.equal(arg.entityId, 'p1');
+  assert.deepEqual(arg.roles, ['admin', 'moderator']);
+  assert.equal(arg.payload.reportCount, 5);
+  // No longer paginates the member list to find staff
+  assert.equal(membersCall.mock.calls.length, 0);
 });
 
-test('submitReport notifies staff when pending reports exceed the threshold', async (t) => {
+test('submitReport does NOT re-notify staff once pending reports are past the threshold', async (t) => {
+  // The fan-out fires once, when the count first equals the threshold. A 6th,
+  // 7th, … report must not re-trigger the whole staff notification.
   t.mock.method(reportModel, 'hasReported', async () => null);
   t.mock.method(postModel, 'findPostMeta', async () => ({ community_id: 'c1' }));
   t.mock.method(reportModel, 'createReport', async () => ({ id: 'r1' }));
   t.mock.method(reportModel, 'countPendingReportsForTarget', async () => 9);
-  t.mock.method(communityModel, 'getCommunityMembers', async () => ([{ id: 'admin1', role: 'admin' }]));
-  const notifyCall = t.mock.method(notificationModel, 'createNotification', async () => {});
+  const fanOutCall = t.mock.method(notifyService, 'fanOutCommunityNotification', async () => []);
 
   await reportService.submitReport('u1', { targetType: 'post', targetId: 'p1', communityId: 'c1', reason: 'spam' });
 
-  assert.equal(notifyCall.mock.calls.length, 1);
+  assert.equal(fanOutCall.mock.calls.length, 0);
 });
 
 // ── resolveReport ─────────────────────────────────────────────────────────────
@@ -193,7 +198,7 @@ test('resolveReport dismiss sets status to dismissed and performs no side effect
     id: 'r1', status: 'pending', community_id: 'c1', target_type: 'post', target_id: 'p1',
   }));
   t.mock.method(communityModel, 'isMember', async () => ({ role: 'admin' }));
-  const deleteCall = t.mock.method(postModel, 'deletePost', async () => { throw new Error('should not be called'); });
+  const deleteCall = t.mock.method(postModel, 'softDeletePost', async () => { throw new Error('should not be called'); });
   const resolveCall = t.mock.method(reportModel, 'resolveReport', async (id, reviewerId, status) => ({ id, status }));
 
   const result = await reportService.resolveReport('r1', 'admin1', 'dismiss');
@@ -203,18 +208,22 @@ test('resolveReport dismiss sets status to dismissed and performs no side effect
   assert.deepEqual(resolveCall.mock.calls[0].arguments, ['r1', 'admin1', 'dismissed']);
 });
 
-test('resolveReport remove_content deletes the post and decrements the community post count', async (t) => {
+test('resolveReport remove_content soft-deletes the post and decrements the community post count', async (t) => {
   t.mock.method(reportModel, 'getReportById', async () => ({
     id: 'r1', status: 'pending', community_id: 'c1', target_type: 'post', target_id: 'p1',
   }));
   t.mock.method(communityModel, 'isMember', async () => ({ role: 'moderator' }));
-  t.mock.method(postModel, 'deletePost', async () => ({ community_id: 'c1' }));
+  // Soft-delete, not hard — the post stays restorable and its comments/votes survive.
+  const softDeleteCall = t.mock.method(postModel, 'softDeletePost', async () => ({ community_id: 'c1', author_id: 'author1' }));
   const decCall = t.mock.method(communityModel, 'incrementPostCount', async () => {});
+  const notifyCall = t.mock.method(notifyService, 'pushUserNotification', async () => ({}));
   t.mock.method(reportModel, 'resolveReport', async (id, reviewerId, status) => ({ id, status }));
 
   const result = await reportService.resolveReport('r1', 'mod1', 'remove_content');
 
+  assert.deepEqual(softDeleteCall.mock.calls[0].arguments, ['p1']);
   assert.deepEqual(decCall.mock.calls[0].arguments, ['c1', -1]);
+  assert.equal(notifyCall.mock.calls[0].arguments[0].type, 'content_removed');
   assert.equal(result.status, 'resolved');
 });
 

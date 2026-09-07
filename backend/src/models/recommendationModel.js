@@ -12,6 +12,11 @@ async function getUserInterests(userId) {
   return rows;
 }
 
+// Remove all interest rows for a user — called before a full rebuild
+async function clearInterests(userId) {
+  await query(`DELETE FROM recommendation_interests WHERE user_id = $1`, [userId]);
+}
+
 // Add or increment interest weight for a tag; cap at 10.0 to prevent runaway values
 async function upsertInterest(userId, tag, weightDelta = 1.0) {
   await query(
@@ -137,6 +142,7 @@ async function getCommunitiesWithTags(communityIds) {
 
 module.exports = {
   getUserInterests,
+  clearInterests,
   upsertInterest,
   getCommunityTags,
   addTagsToCommunity,

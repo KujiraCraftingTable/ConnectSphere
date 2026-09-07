@@ -8,8 +8,13 @@ function clientError(message, status = 400) {
   throw err;
 }
 
-// Rebuild user interest weights from their joined communities' tags
+// Rebuild user interest weights from their joined communities' tags.
+// Clears first so this is a true rebuild — without it, upsertInterest's
+// `weight = LEAST(weight + delta, 10)` accumulated on every join/leave until
+// every tag saturated at 10.0 and the ordering became meaningless.
 async function buildUserInterests(userId) {
+  await recommendationModel.clearInterests(userId);
+
   const myCommunities = await communityModel.getCommunitiesByUser(userId);
   if (!myCommunities.length) return;
 
@@ -33,18 +38,19 @@ async function getRecommendations(userId, { limit = 10 } = {}) {
   return recommendationModel.getRecommendedCommunities(userId, { limit });
 }
 
-// Compute and cache trending score for one community
+// Compute and cache trending score for one community.
+// Each metric is an independent scalar subquery — joining posts + members +
+// posts in one FROM produced a cartesian product that inflated the non-DISTINCT
+// post count by members × total_posts.
 async function computeTrendingScore(communityId) {
   const { rows } = await query(
     `SELECT
-       COUNT(p.id) FILTER (WHERE p.created_at >= NOW() - INTERVAL '24 hours')                  AS new_posts_24h,
-       COUNT(DISTINCT cm.user_id) FILTER (WHERE cm.joined_at >= NOW() - INTERVAL '24 hours')   AS new_members_24h,
-       COUNT(DISTINCT p2.author_id) FILTER (WHERE p2.created_at >= NOW() - INTERVAL '24 hours') AS active_members_24h
-     FROM communities c
-     LEFT JOIN posts             p   ON p.community_id   = c.id
-     LEFT JOIN community_members cm  ON cm.community_id  = c.id
-     LEFT JOIN posts             p2  ON p2.community_id  = c.id
-     WHERE c.id = $1`,
+       (SELECT COUNT(*) FROM posts
+          WHERE community_id = $1 AND created_at >= NOW() - INTERVAL '24 hours')            AS new_posts_24h,
+       (SELECT COUNT(*) FROM community_members
+          WHERE community_id = $1 AND joined_at  >= NOW() - INTERVAL '24 hours')            AS new_members_24h,
+       (SELECT COUNT(DISTINCT author_id) FROM posts
+          WHERE community_id = $1 AND created_at >= NOW() - INTERVAL '24 hours')            AS active_members_24h`,
     [communityId]
   );
 

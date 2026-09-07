@@ -3,6 +3,8 @@ import SwiftUI
 struct CommunityPostCard: View {
     @Environment(AppState.self) var appState
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.appBundle) var bundle
+    @Environment(\.openURL) private var openURL
     var post: CommunityPost
     let currentUserId: String
     let communityId: String
@@ -53,7 +55,7 @@ struct CommunityPostCard: View {
                 HStack(spacing: 4) {
                     Image(systemName: "pin.fill")
                         .font(.system(size: 11))
-                    Text("Pinned")
+                    Text(bundle.loc("Pinned"))
                         .font(.system(size: 12, weight: .semibold))
                 }
                 .foregroundColor(accentColor)
@@ -97,7 +99,28 @@ struct CommunityPostCard: View {
                 .foregroundColor(AppColors.textPrimary(colorScheme))
                 .padding(.horizontal, 14)
                 .padding(.top, 10)
-                .padding(.bottom, post.postType == .text ? 14 : 8)
+                .padding(.bottom, hasMediaBelowContent ? 8 : 14)
+
+            // Hashtag chips — parity with Feed's PostCard
+            if !post.tags.isEmpty {
+                hashtagRow
+                    .padding(.horizontal, 14)
+                    .padding(.top, 2)
+                    .padding(.bottom, 8)
+            }
+
+            // Link preview card (if link_url is present) — mirrors PostCard's treatment
+            if let linkUrl = post.linkUrl, let url = URL(string: linkUrl) {
+                linkPreviewCard(url: url)
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 8)
+            }
+            // Real uploaded images — uses the same PostPhotoGrid component Feed uses, so
+            // images in a community post look identical to images in a Feed post.
+            else if !post.displayImageUrls.isEmpty {
+                PostPhotoGrid(urls: post.displayImageUrls)
+                    .padding(.bottom, 8)
+            }
 
             // Poll or Event inline body
             switch post.postType {
@@ -164,11 +187,24 @@ struct CommunityPostCard: View {
             }
             .environment(appState)
         }
+        // `isLiked`/`likeCount`/`commentCount` are local @State (seeded once
+        // from `post` in `init`, per the optimistic-update pattern above) so
+        // they don't get overwritten mid-gesture by a fresh `post` value on
+        // every parent re-render. `CommunityDetailViewModel`'s socket
+        // listeners patch `post` in place when a live update arrives for
+        // THIS post (`community_post_liked`/`community_post_commented`) — these
+        // three `onChange`s are what let that reach the screen, resyncing the
+        // local copies to the server-authoritative value without fighting our
+        // own optimistic writes above (those also converge to the same
+        // absolute values, so this is a same-value confirm, not a conflict).
+        .onChange(of: post.likeCount) { _, newValue in likeCount = newValue }
+        .onChange(of: post.isLiked) { _, newValue in isLiked = newValue }
+        .onChange(of: post.commentCount) { _, newValue in commentCount = newValue }
     }
 
     // MARK: - Actions
 
-    /// Toggle like cho bài viết cộng đồng; cập nhật lạc quan rồi đồng bộ theo response.
+    /// Toggle like on a community post; updates optimistically then syncs with the response.
     private func toggleLike() async {
         isLiked.toggle()
         likeCount += isLiked ? 1 : -1
@@ -178,6 +214,80 @@ struct CommunityPostCard: View {
     }
 
     // MARK: - Subviews
+
+    /// True when a tag/link/image renders right below the content — used to drop the extra
+    /// bottom padding on the content text, avoiding double spacing between content and media.
+    private var hasMediaBelowContent: Bool {
+        !post.tags.isEmpty || post.linkUrl != nil || !post.displayImageUrls.isEmpty
+    }
+
+    /// The post's hashtag list — tapping a chip opens TagFeedView browsing by that tag
+    /// (same component Feed's PostCard uses; tags aren't distinguished between Feed/Community).
+    private var hashtagRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(post.tags, id: \.self) { tag in
+                    NavigationLink(destination: TagFeedView(tag: tag, mode: appState.currentMode)) {
+                        Text("#\(tag)")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(accentColor)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(accentColor.opacity(0.12), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    /// Link preview card — same layout as Feed's PostCard.linkPreviewCard
+    /// (thumbnail + domain + article title) so a community post looks identical to a Feed post.
+    private func linkPreviewCard(url: URL) -> some View {
+        Button { openURL(url) } label: {
+            VStack(spacing: 0) {
+                if let imageUrl = post.imageUrl.flatMap({ URL(string: $0) }) {
+                    AsyncImage(url: imageUrl) { phase in
+                        switch phase {
+                        case .success(let img):
+                            img.resizable().scaledToFill()
+                                .frame(maxWidth: .infinity).frame(height: 180)
+                                .clipped()
+                        default:
+                            Rectangle().fill(AppColors.base(colorScheme))
+                                .frame(maxWidth: .infinity).frame(height: 100)
+                        }
+                    }
+                }
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(url.host ?? url.absoluteString)
+                            .font(.system(size: 11))
+                            .foregroundColor(AppColors.textSecondary(colorScheme))
+                            .textCase(.uppercase)
+                        if let title = post.articleTitle {
+                            Text(title)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(AppColors.textPrimary(colorScheme))
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                        }
+                    }
+                    Spacer()
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 12))
+                        .foregroundColor(AppColors.textSecondary(colorScheme))
+                }
+                .padding(10)
+                .background(AppColors.base(colorScheme))
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(AppColors.borderDefault(colorScheme), lineWidth: 1))
+            .contentShape(RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+    }
 
     private var authorAvatar: some View {
         ZStack {
@@ -200,11 +310,11 @@ struct CommunityPostCard: View {
             if isStaff {
                 if post.isPinned {
                     Button { onUnpin?() } label: {
-                        Label("Unpin post", systemImage: "pin.slash")
+                        Label(bundle.loc("Unpin post"), systemImage: "pin.slash")
                     }
                 } else {
                     Button { onPin?() } label: {
-                        Label("Pin post", systemImage: "pin")
+                        Label(bundle.loc("Pin post"), systemImage: "pin")
                     }
                 }
                 Divider()
@@ -213,7 +323,7 @@ struct CommunityPostCard: View {
             // Delete (author, admin, mod)
             if let onDelete, (isAuthor || isStaff) {
                 Button(role: .destructive, action: onDelete) {
-                    Label("Delete post", systemImage: "trash")
+                    Label(bundle.loc("Delete post"), systemImage: "trash")
                 }
                 Divider()
             }
@@ -223,7 +333,7 @@ struct CommunityPostCard: View {
                 Button {
                     showReportSheet = true
                 } label: {
-                    Label("Report post", systemImage: "flag")
+                    Label(bundle.loc("Report post"), systemImage: "flag")
                 }
             }
         } label: {

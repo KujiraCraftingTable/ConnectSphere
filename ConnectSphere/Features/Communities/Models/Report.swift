@@ -9,6 +9,7 @@ enum ReportReason: String, Codable, CaseIterable {
     case offTopic      = "off_topic"
     case other         = "other"
 
+    /// Localization key — callers must wrap this in `bundle.loc(...)`.
     var displayName: String {
         switch self {
         case .spam:           return "Spam"
