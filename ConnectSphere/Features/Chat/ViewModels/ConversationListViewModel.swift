@@ -10,11 +10,11 @@ class ConversationListViewModel {
     var error: String?
     var unreadCount: Int = 0
 
-    // Active connections bar (kết nối đã accepted + trạng thái online realtime)
+    // Active connections bar (accepted connections + realtime online status)
     var connections: [ConnectionItemDTO] = []
     var onlineUserIds: Set<String> = []
 
-    /// Kết nối đang online — dùng cho hàng avatar active ở đầu màn Messages.
+    /// Connections that are currently online — used for the active avatar row at the top of the Messages screen.
     var activeConnections: [ConnectionItemDTO] {
         connections.filter { onlineUserIds.contains($0.user.id) }
     }
@@ -34,12 +34,12 @@ class ConversationListViewModel {
             async let unread = repository.fetchUnreadCount(mode: mode, token: token)
             (conversations, unreadCount) = try await (convs, unread)
         } catch {
-            self.error = "Could not load conversations"
+            self.error = Bundle.app.loc("Could not load conversations")
         }
     }
 
-    /// Nạp danh sách kết nối đã accepted của mode hiện tại cho hàng active.
-    /// Lỗi ở đây không chặn màn hình chính (chỉ ẩn hàng active).
+    /// Fetch the current mode's accepted connections for the active row.
+    /// Errors here don't block the main screen (they just hide the active row).
     func loadConnections(mode: String) async {
         do {
             connections = try await connectionRepo.fetchConnections(mode: mode, status: "accepted")
@@ -65,14 +65,14 @@ class ConversationListViewModel {
     // MARK: - Presence (realtime online status)
 
     func registerPresenceHandlers() {
-        // Snapshot đầy đủ khi (re)kết nối / khi chủ động xin lại
+        // Full snapshot on (re)connect / when explicitly requested again
         ws.on("presence_snapshot", tag: "presence") { [weak self] payload in
             guard let self,
                   let dict = payload as? [String: Any],
                   let ids = dict["userIds"] as? [String] else { return }
             self.onlineUserIds = Set(ids)
         }
-        // Cập nhật từng người khi họ online/offline
+        // Update each person as they go online/offline
         ws.on("presence_update", tag: "presence") { [weak self] payload in
             guard let self,
                   let dict = payload as? [String: Any],
@@ -81,7 +81,7 @@ class ConversationListViewModel {
             if online { self.onlineUserIds.insert(uid) }
             else { self.onlineUserIds.remove(uid) }
         }
-        // Nếu socket đã connect sẵn (quay lại tab), xin lại snapshot ngay
+        // If the socket is already connected (returning to the tab), request a fresh snapshot right away
         ws.emit("get_presence")
     }
 
@@ -95,5 +95,11 @@ class ConversationListViewModel {
 
     func openConversation(with otherUserId: String, mode: String, token: String) async throws -> String {
         return try await repository.openConversation(otherUserId: otherUserId, mode: mode, token: token)
+    }
+
+    /// Create a new group conversation. Returns the new conversation's id so
+    /// the caller can navigate straight into its `ChatView`.
+    func createGroup(memberIds: [String], mode: String, name: String?, token: String) async throws -> String {
+        try await repository.createGroup(memberIds: memberIds, mode: mode, name: name, token: token)
     }
 }

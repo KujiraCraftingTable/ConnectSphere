@@ -1,15 +1,15 @@
 import SwiftUI
 import AVKit
 
-/// Một media mở trong viewer fullscreen (từ bubble chat hoặc gallery).
+/// A single media item opened in the fullscreen viewer (from a chat bubble or the gallery).
 struct ChatMediaViewerItem: Identifiable {
     let id: String
     let url: URL
     let isVideo: Bool
 }
 
-/// Xem ảnh/video của đoạn chat fullscreen: pager ngang khi có nhiều media,
-/// ảnh pinch-zoom + double-tap, video phát bằng AVPlayer.
+/// View a chat's images/videos fullscreen: horizontal pager when there are multiple media items,
+/// images support pinch-zoom + double-tap, videos play via AVPlayer.
 struct ChatMediaViewerView: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -39,7 +39,7 @@ struct ChatMediaViewerView: View {
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
 
-            // Overlay: nút đóng + đếm trang
+            // Overlay: close button + page counter
             VStack {
                 HStack {
                     Button { dismiss() } label: {
@@ -70,7 +70,7 @@ struct ChatMediaViewerView: View {
 
 // MARK: - Video page
 
-/// Trang video: tự phát khi là trang hiện tại, dừng khi lướt sang trang khác.
+/// Video page: auto-plays when it's the current page, pauses when swiping to another page.
 private struct VideoPlayerPage: View {
     let url: URL
     let isActive: Bool
@@ -93,8 +93,8 @@ private struct VideoPlayerPage: View {
 
 // MARK: - Zoomable image page
 
-/// Ảnh fullscreen: pinch để zoom (1x–4x), double-tap bật/tắt 2.5x,
-/// kéo để pan khi đang zoom. Reset khi rời trang.
+/// Fullscreen image: pinch to zoom (1x-4x), double-tap to toggle 2.5x,
+/// drag to pan while zoomed. Resets when leaving the page.
 private struct ZoomableAsyncImage: View {
     let url: URL
 

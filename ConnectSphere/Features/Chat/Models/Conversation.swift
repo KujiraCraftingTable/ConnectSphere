@@ -1,16 +1,38 @@
 import Foundation
 
+/// Discriminates a conversation's "other side": a single other person (1:1)
+/// vs. a group's name/photo/member count. Decoded from the row's `is_group`
+/// flag so every downstream call site is compiler-exhaustive-checked, rather
+/// than relying on optional-field discipline over one flat struct.
+enum ConversationPeer: Equatable {
+    case direct(
+        otherUserId: String,
+        username: String,
+        name: String,
+        avatarColor: String,
+        avatarUrl: String?,
+        jobTitle: String?,
+        nickname: String?
+    )
+    case group(
+        name: String,
+        avatarUrl: String?,
+        avatarColor: String?,
+        memberCount: Int
+    )
+}
+
+/// A row from `GET /messages/conversations` — either a 1:1 or a group
+/// conversation. The "irrelevant half" of the backend row (direct-only or
+/// group-only columns) is NULL and folded into `peer` at decode time.
 struct Conversation: Identifiable, Decodable, Equatable {
     let id: String
     let mode: String
+    let isGroup: Bool
+    let theme: String?
     let updatedAt: Date
-
-    let otherUserId: String
-    let otherUserUsername: String
-    let otherUserName: String
-    let otherUserAvatarColor: String
-    let otherUserJobTitle: String?
-    let otherUserNickname: String?
+    let mutedUntil: Date?
+    let peer: ConversationPeer
 
     let lastMessageContent: String?
     let lastMessageType: String?
@@ -20,40 +42,189 @@ struct Conversation: Identifiable, Decodable, Equatable {
     let unreadCount: Int
 
     enum CodingKeys: String, CodingKey {
-        case id, mode
-        case updatedAt          = "updated_at"
-        case otherUserId        = "other_user_id"
-        case otherUserUsername  = "other_user_username"
-        case otherUserName      = "other_user_name"
+        case id, mode, theme
+        case isGroup   = "is_group"
+        case updatedAt = "updated_at"
+        case mutedUntil = "muted_until"
+
+        case otherUserId          = "other_user_id"
+        case otherUserUsername    = "other_user_username"
+        case otherUserName        = "other_user_name"
         case otherUserAvatarColor = "other_user_avatar_color"
-        case otherUserJobTitle  = "other_user_job_title"
-        case otherUserNickname  = "other_user_nickname"
-        case lastMessageContent = "last_message_content"
-        case lastMessageType    = "last_message_type"
+        case otherUserAvatarUrl   = "other_user_avatar_url"
+        case otherUserJobTitle    = "other_user_job_title"
+        case otherUserNickname    = "other_user_nickname"
+
+        case name
+        case avatarUrl   = "avatar_url"
+        case avatarColor = "avatar_color"
+        case memberCount = "member_count"
+
+        case lastMessageContent  = "last_message_content"
+        case lastMessageType     = "last_message_type"
         case lastMessageSenderId = "last_message_sender_id"
-        case lastMessageAt      = "last_message_at"
-        case unreadCount        = "unread_count"
+        case lastMessageAt       = "last_message_at"
+        case unreadCount         = "unread_count"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        mode = try c.decode(String.self, forKey: .mode)
+        isGroup = try c.decodeIfPresent(Bool.self, forKey: .isGroup) ?? false
+        theme = try c.decodeIfPresent(String.self, forKey: .theme)
+        updatedAt = try c.decode(Date.self, forKey: .updatedAt)
+        mutedUntil = try c.decodeIfPresent(Date.self, forKey: .mutedUntil)
+
+        if isGroup {
+            let name = try c.decode(String.self, forKey: .name)
+            let avatarUrl = try c.decodeIfPresent(String.self, forKey: .avatarUrl)
+            let avatarColor = try c.decodeIfPresent(String.self, forKey: .avatarColor)
+            let memberCount = try c.decodeIfPresent(Int.self, forKey: .memberCount) ?? 0
+            peer = .group(name: name, avatarUrl: avatarUrl, avatarColor: avatarColor, memberCount: memberCount)
+        } else {
+            let otherUserId = try c.decode(String.self, forKey: .otherUserId)
+            let username = try c.decode(String.self, forKey: .otherUserUsername)
+            let name = try c.decode(String.self, forKey: .otherUserName)
+            let avatarColor = try c.decode(String.self, forKey: .otherUserAvatarColor)
+            let avatarUrl = try c.decodeIfPresent(String.self, forKey: .otherUserAvatarUrl)
+            let jobTitle = try c.decodeIfPresent(String.self, forKey: .otherUserJobTitle)
+            let nickname = try c.decodeIfPresent(String.self, forKey: .otherUserNickname)
+            peer = .direct(
+                otherUserId: otherUserId, username: username, name: name,
+                avatarColor: avatarColor, avatarUrl: avatarUrl,
+                jobTitle: jobTitle, nickname: nickname
+            )
+        }
+
+        lastMessageContent = try c.decodeIfPresent(String.self, forKey: .lastMessageContent)
+        lastMessageType = try c.decodeIfPresent(String.self, forKey: .lastMessageType)
+        lastMessageSenderId = try c.decodeIfPresent(String.self, forKey: .lastMessageSenderId)
+        lastMessageAt = try c.decodeIfPresent(Date.self, forKey: .lastMessageAt)
+        unreadCount = try c.decodeIfPresent(Int.self, forKey: .unreadCount) ?? 0
     }
 
     /// True when the current user has unread messages in this conversation.
     var hasUnread: Bool { unreadCount > 0 }
 
-    /// Name to show for the other person: shared nickname overrides real name.
-    var displayName: String { otherUserNickname ?? otherUserName }
+    /// The other 1:1 participant's id — nil for groups (no single "other person").
+    var otherUserId: String? {
+        if case .direct(let id, _, _, _, _, _, _) = peer { return id }
+        return nil
+    }
 
-    /// Formatted preview text for the conversation list row.
+    /// Name to show for this conversation: shared nickname overrides real name
+    /// for 1:1; the group's name for groups.
+    var displayName: String {
+        switch peer {
+        case .direct(_, _, let name, _, _, _, let nickname):
+            return nickname ?? name
+        case .group(let name, _, _, _):
+            return name
+        }
+    }
+
+    /// Fallback avatar color (used when there's no photo, or as the base of a
+    /// group's avatar stack when the group has no dedicated photo/color).
+    var avatarColor: String {
+        switch peer {
+        case .direct(_, _, _, let color, _, _, _): return color
+        case .group(_, _, let color, _): return color ?? "#8A8F98"
+        }
+    }
+
+    /// Photo URL (relative path from the server), if set.
+    var avatarUrl: String? {
+        switch peer {
+        case .direct(_, _, _, _, let url, _, _): return url
+        case .group(_, let url, _, _): return url
+        }
+    }
+
+    /// Member count — 0 for 1:1 (always exactly 2 there, so callers should
+    /// branch on `isGroup` rather than rely on this for 1:1 rows).
+    var memberCount: Int {
+        if case .group(_, _, _, let count) = peer { return count }
+        return 0
+    }
+
+    /// Formatted preview text for the conversation list row. Uses `Bundle.app`
+    /// since this model has no `@Environment(\.appBundle)` access — same
+    /// convention as `Message.preview`, which this mirrors.
     func previewText(currentUserId: String) -> String {
         let isOwn = lastMessageSenderId == currentUserId
-        let prefix = isOwn ? "You: " : ""
+        let prefix = isOwn ? Bundle.app.loc("You: ") : ""
         switch lastMessageType {
-        case "image":   return "\(prefix)📷 Photo"
-        case "video":   return "\(prefix)🎥 Video"
+        case "image":   return "\(prefix)📷 " + Bundle.app.loc("Photo")
+        case "video":   return "\(prefix)🎥 " + Bundle.app.loc("Video")
         // Meeting proposals carry no text content, so this must be checked before
         // the nil-content guard below (which would otherwise show "No messages yet").
-        case "meeting": return "\(prefix)📅 Meeting proposal"
+        case "meeting": return "\(prefix)📅 " + Bundle.app.loc("Meeting proposal")
+        case "voice":   return "\(prefix)🎤 " + Bundle.app.loc("Voice message")
         default:
-            guard let content = lastMessageContent else { return "No messages yet" }
+            guard let content = lastMessageContent else { return Bundle.app.loc("No messages yet") }
             return "\(prefix)\(content)"
+        }
+    }
+}
+
+// MARK: - ChatPeer (lean UI descriptor for ChatView/ChatSettingsView)
+
+/// What `ChatView`/`ChatSettingsView` need to render their header/settings —
+/// a leaner subset of `ConversationPeer`'s fields (no username/job title,
+/// which those two views never display). Kept separate from `ConversationPeer`
+/// so call sites that don't have a full `Conversation` (e.g. opening chat from
+/// a connections row or a user profile) can build one without placeholder values.
+enum ChatPeer: Hashable {
+    case direct(otherUserId: String, name: String, avatarColor: String, avatarUrl: String?)
+    case group(name: String, avatarUrl: String?, avatarColor: String?, memberCount: Int)
+
+    var isGroup: Bool {
+        if case .group = self { return true }
+        return false
+    }
+
+    var otherUserId: String? {
+        if case .direct(let id, _, _, _) = self { return id }
+        return nil
+    }
+
+    var name: String {
+        switch self {
+        case .direct(_, let name, _, _): return name
+        case .group(let name, _, _, _): return name
+        }
+    }
+
+    var avatarColor: String {
+        switch self {
+        case .direct(_, _, let color, _): return color
+        case .group(_, _, let color, _): return color ?? "#8A8F98"
+        }
+    }
+
+    var avatarUrl: String? {
+        switch self {
+        case .direct(_, _, _, let url): return url
+        case .group(_, let url, _, _): return url
+        }
+    }
+
+    var memberCount: Int? {
+        if case .group(_, _, _, let count) = self { return count }
+        return nil
+    }
+}
+
+extension ChatPeer {
+    /// Builds a `ChatPeer` from a conversation list row — used when navigating
+    /// into `ChatView` straight from `ConversationListView`'s row list.
+    init(_ conversation: Conversation) {
+        switch conversation.peer {
+        case .direct(let otherUserId, _, let name, let avatarColor, let avatarUrl, _, let nickname):
+            self = .direct(otherUserId: otherUserId, name: nickname ?? name, avatarColor: avatarColor, avatarUrl: avatarUrl)
+        case .group(let name, let avatarUrl, let avatarColor, let memberCount):
+            self = .group(name: name, avatarUrl: avatarUrl, avatarColor: avatarColor, memberCount: memberCount)
         }
     }
 }

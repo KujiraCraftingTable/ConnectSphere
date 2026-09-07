@@ -7,11 +7,11 @@ const ctrl = require('../controllers/messageController');
 
 // ── Media upload (images / videos) ───────────────────────────────────────────
 
-// Phải nằm TRONG backend/uploads vì index.js serve static từ đó
+// Must live INSIDE backend/uploads since index.js serves static files from there
 const MESSAGE_UPLOAD_DIR = path.join(__dirname, '../../uploads/messages');
 fs.mkdirSync(MESSAGE_UPLOAD_DIR, { recursive: true });
 
-// Đuôi file suy ra từ MIME type đã whitelist — không tin tên file gốc
+// File extension is derived from the whitelisted MIME type — never trust the original filename
 const EXT_BY_MIME = {
   'image/jpeg':      '.jpg',
   'image/png':       '.png',
@@ -19,6 +19,7 @@ const EXT_BY_MIME = {
   'image/webp':      '.webp',
   'video/mp4':       '.mp4',
   'video/quicktime': '.mov',
+  'audio/m4a':       '.m4a',
 };
 
 const storage = multer.diskStorage({
@@ -39,7 +40,9 @@ const upload = multer({
 // POST /api/messages/upload  →  { url, message_type }
 router.post('/upload', authMiddleware, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ status: 'error', code: 400, message: 'Invalid or missing file' });
-  const messageType = req.file.mimetype.startsWith('video/') ? 'video' : 'image';
+  const messageType = req.file.mimetype.startsWith('video/') ? 'video'
+                     : req.file.mimetype.startsWith('audio/') ? 'voice'
+                     : 'image';
   const url = `/uploads/messages/${req.file.filename}`;
   res.json({ data: { url, message_type: messageType } });
 });
@@ -49,6 +52,7 @@ router.post('/upload', authMiddleware, upload.single('file'), (req, res) => {
 router.use(authMiddleware);
 
 router.post  ('/conversations',             ctrl.openConversation);
+router.post  ('/conversations/group',       ctrl.createGroupConversation);
 router.get   ('/conversations',             ctrl.listConversations);
 
 // Conversation settings (nickname/theme shared, mute personal), media & search
@@ -57,6 +61,20 @@ router.patch ('/conversations/:id/settings', ctrl.updateSettings);
 router.put   ('/conversations/:id/mute',     ctrl.setMute);
 router.get   ('/conversations/:id/media',    ctrl.listMedia);
 router.get   ('/conversations/:id/messages/search', ctrl.searchMessages);
+
+// Pinned messages (any participant may pin/unpin; up to 10 per conversation)
+router.get   ('/conversations/:id/pins',              ctrl.listPins);
+router.post  ('/conversations/:id/pins',               ctrl.pinMessage);
+router.delete('/conversations/:id/pins/:messageId',    ctrl.unpinMessage);
+
+// Group management (owner-gated except leave) + alert-only block state
+router.post  ('/conversations/:id/members',                 ctrl.addMembers);
+router.delete('/conversations/:id/members/:userId',         ctrl.removeMember);
+router.post  ('/conversations/:id/members/:userId/promote', ctrl.promoteOwner);
+router.patch ('/conversations/:id/group',                   ctrl.updateGroup);
+router.post  ('/conversations/:id/leave',                   ctrl.leaveGroup);
+router.get   ('/conversations/:id/block-alert-state',       ctrl.getBlockAlertState);
+router.post  ('/conversations/:id/block-alert-ack',         ctrl.acknowledgeBlockAlert);
 
 router.get   ('/conversations/:id/messages', ctrl.listMessages);
 router.post  ('/conversations/:id/messages', ctrl.sendMessage);
@@ -67,6 +85,7 @@ router.patch ('/conversations/:id/messages/:messageId/meeting-proposal',        
 router.post  ('/conversations/:id/messages/:messageId/meeting-proposal/cancel', ctrl.cancelMeetingProposal);
 router.post  ('/conversations/:id/messages/:messageId/meeting-response',        ctrl.respondToMeeting);
 router.put   ('/conversations/:id/read',     ctrl.markRead);
+router.put   ('/conversations/:id/delivered', ctrl.markDelivered);
 router.get   ('/unread',                     ctrl.unreadCount);
 
 module.exports = router;

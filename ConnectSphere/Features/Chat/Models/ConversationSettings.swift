@@ -1,20 +1,40 @@
 import SwiftUI
 
-/// Settings snapshot for a 1-on-1 conversation (from `GET .../settings`).
-/// `theme` and `otherUserNickname` are shared between both participants;
-/// `mutedUntil` is the current user's own mute state.
-struct ConversationSettings: Decodable {
+/// Discriminates a conversation-settings snapshot's "other side" the same way
+/// `ConversationPeer` does for list rows: a single other person (1:1) vs. a
+/// group's identity + member roster. The backend has no explicit `is_group`
+/// field on this response, but group responses always carry a `members`
+/// array and 1:1 responses never do — a safe decode-time discriminant.
+enum ConversationSettingsPeer: Equatable {
+    case direct(
+        otherUserId: String,
+        otherUserUsername: String?,
+        otherUserName: String,
+        otherUserAvatarColor: String,
+        otherUserJobTitle: String?,
+        otherUserNickname: String?
+    )
+    case group(
+        id: String,
+        name: String,
+        avatarUrl: String?,
+        avatarColor: String?,
+        createdBy: String,
+        members: [GroupMember]
+    )
+}
+
+/// Settings snapshot for a conversation (from `GET .../settings`), 1:1 or
+/// group. `theme` is shared between all participants; `mutedUntil` is the
+/// current user's own mute state (present for 1:1; the group settings
+/// response does not currently return it — see `ChatViewModel`/report notes).
+struct ConversationSettings: Decodable, Equatable {
     let theme: String?
     let mutedUntil: Date?
-    let otherUserId: String
-    let otherUserUsername: String?
-    let otherUserName: String
-    let otherUserAvatarColor: String
-    let otherUserJobTitle: String?
-    let otherUserNickname: String?
+    let peer: ConversationSettingsPeer
 
     enum CodingKeys: String, CodingKey {
-        case theme
+        case id, theme, members
         case mutedUntil           = "muted_until"
         case otherUserId          = "other_user_id"
         case otherUserUsername    = "other_user_username"
@@ -22,10 +42,102 @@ struct ConversationSettings: Decodable {
         case otherUserAvatarColor = "other_user_avatar_color"
         case otherUserJobTitle    = "other_user_job_title"
         case otherUserNickname    = "other_user_nickname"
+        case name
+        case avatarUrl   = "avatar_url"
+        case avatarColor = "avatar_color"
+        case createdBy   = "created_by"
     }
 
-    /// Name to display for the other person: nickname takes precedence.
-    var displayName: String { otherUserNickname ?? otherUserName }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        theme = try c.decodeIfPresent(String.self, forKey: .theme)
+        mutedUntil = try c.decodeIfPresent(Date.self, forKey: .mutedUntil)
+
+        if let members = try c.decodeIfPresent([GroupMember].self, forKey: .members) {
+            let id = try c.decode(String.self, forKey: .id)
+            let name = try c.decode(String.self, forKey: .name)
+            let avatarUrl = try c.decodeIfPresent(String.self, forKey: .avatarUrl)
+            let avatarColor = try c.decodeIfPresent(String.self, forKey: .avatarColor)
+            let createdBy = try c.decode(String.self, forKey: .createdBy)
+            peer = .group(id: id, name: name, avatarUrl: avatarUrl, avatarColor: avatarColor,
+                           createdBy: createdBy, members: members)
+        } else {
+            let otherUserId = try c.decode(String.self, forKey: .otherUserId)
+            let otherUserUsername = try c.decodeIfPresent(String.self, forKey: .otherUserUsername)
+            let otherUserName = try c.decode(String.self, forKey: .otherUserName)
+            let otherUserAvatarColor = try c.decode(String.self, forKey: .otherUserAvatarColor)
+            let otherUserJobTitle = try c.decodeIfPresent(String.self, forKey: .otherUserJobTitle)
+            let otherUserNickname = try c.decodeIfPresent(String.self, forKey: .otherUserNickname)
+            peer = .direct(
+                otherUserId: otherUserId, otherUserUsername: otherUserUsername,
+                otherUserName: otherUserName, otherUserAvatarColor: otherUserAvatarColor,
+                otherUserJobTitle: otherUserJobTitle, otherUserNickname: otherUserNickname
+            )
+        }
+    }
+
+    var isGroup: Bool {
+        if case .group = peer { return true }
+        return false
+    }
+
+    // MARK: - 1:1 convenience accessors (nil when `peer` is `.group`)
+
+    var otherUserId: String? {
+        if case .direct(let id, _, _, _, _, _) = peer { return id }
+        return nil
+    }
+    var otherUserName: String? {
+        if case .direct(_, _, let name, _, _, _) = peer { return name }
+        return nil
+    }
+    var otherUserAvatarColor: String? {
+        if case .direct(_, _, _, let color, _, _) = peer { return color }
+        return nil
+    }
+    var otherUserJobTitle: String? {
+        if case .direct(_, _, _, _, let jobTitle, _) = peer { return jobTitle }
+        return nil
+    }
+    var otherUserNickname: String? {
+        if case .direct(_, _, _, _, _, let nickname) = peer { return nickname }
+        return nil
+    }
+
+    // MARK: - Group convenience accessors (nil when `peer` is `.direct`)
+
+    var groupId: String? {
+        if case .group(let id, _, _, _, _, _) = peer { return id }
+        return nil
+    }
+    var groupName: String? {
+        if case .group(_, let name, _, _, _, _) = peer { return name }
+        return nil
+    }
+    var groupAvatarUrl: String? {
+        if case .group(_, _, let url, _, _, _) = peer { return url }
+        return nil
+    }
+    var groupAvatarColor: String? {
+        if case .group(_, _, _, let color, _, _) = peer { return color }
+        return nil
+    }
+    var groupCreatedBy: String? {
+        if case .group(_, _, _, _, let createdBy, _) = peer { return createdBy }
+        return nil
+    }
+    var members: [GroupMember] {
+        if case .group(_, _, _, _, _, let members) = peer { return members }
+        return []
+    }
+
+    /// Name to display in the header/settings title: nickname (1:1) or group name.
+    var displayName: String {
+        switch peer {
+        case .direct(_, _, let name, _, _, let nickname): return nickname ?? name
+        case .group(_, let name, _, _, _, _): return name
+        }
+    }
 
     /// Whether the conversation is currently muted for the current user.
     var isMuted: Bool {

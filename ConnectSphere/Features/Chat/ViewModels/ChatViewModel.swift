@@ -8,14 +8,44 @@ class ChatViewModel {
     var messages: [Message] = []          // oldest → newest
     var isLoading = false
     var isSending = false
-    var isOtherTyping = false
+    /// Ids of participants currently typing (excludes the current user). A
+    /// 1:1 conversation has at most one id in here; a group can have several.
+    var typingUserIds: Set<String> = []
     var hasMoreMessages = false
     var error: String?
 
-    // Per-conversation settings: shared theme/nickname + my own mute
+    // Per-conversation settings: shared theme + my own mute (both kinds)
     var chatThemeId: String?
-    var otherNickname: String?
     var mutedUntil: Date?
+
+    // 1:1-only settings
+    var otherNickname: String?
+
+    // Group-only settings (populated when `isGroup`)
+    var groupName: String?
+    var groupAvatarUrl: String?
+    var groupAvatarColor: String?
+    var groupCreatedBy: String?
+    var groupMembers: [GroupMember] = []
+
+    /// Set once the current user has been removed from this group (by the
+    /// owner, or by leaving themselves) — `ChatView` observes this to
+    /// navigate back out, since the conversation is no longer accessible.
+    var wasRemovedFromGroup = false
+
+    /// Non-nil (and `shouldAlert == true`) when a blocked/blocking person is
+    /// in this group and hasn't been acknowledged yet. Groups only — 1:1
+    /// keeps its existing hard-block behaviour untouched.
+    var blockAlertState: (shouldAlert: Bool, blockedUserIds: [String])?
+
+    /// Live, socket-updated pins for this conversation (server caps at 10) —
+    /// drives `ChatView`'s pinned-banner and the context menu's Pin/Unpin
+    /// label. `ChatSettingsViewModel` keeps its own separate copy for the
+    /// settings-sheet-scoped `ChatPinnedMessagesView` list.
+    var pinnedMessages: [PinnedMessage] = []
+
+    /// Ids of currently pinned messages, for an O(1) "is this pinned?" check.
+    var pinnedMessageIds: Set<String> { Set(pinnedMessages.map(\.id)) }
 
     /// Whether this conversation is currently muted for me.
     var isMuted: Bool {
@@ -23,17 +53,39 @@ class ChatViewModel {
         return mutedUntil > Date()
     }
 
+    /// "X is typing…" / "N people are typing…" summary for the typing
+    /// indicator — formatted here so `ChatView` doesn't need its own
+    /// singular/plural or 1:1-vs-group branching.
+    var typingSummary: String? {
+        guard !typingUserIds.isEmpty else { return nil }
+        guard isGroup else { return "Typing…" }
+        if typingUserIds.count == 1, let id = typingUserIds.first {
+            let name = groupMembers.first(where: { $0.id == id })?.displayName ?? "Someone"
+            return "\(name) is typing…"
+        }
+        return "\(typingUserIds.count) people are typing…"
+    }
+
+    let isGroup: Bool
     private let conversationId: String
     private let currentUserId: String
-    private let otherUserId: String
+    /// The other 1:1 participant's id — nil for groups (no single "other person").
+    private let otherUserId: String?
     private let token: String
     private let repository = MessageRepository()
     private let ws = WebSocketClient.shared
-    private var typingTask: Task<Void, Never>?
+    /// One typing-timeout task per currently-typing user id, so each
+    /// participant's 3-second "stopped typing" timer runs independently
+    /// (a single shared task would reset everyone's timer on any keystroke).
+    private var typingTasks: [String: Task<Void, Never>] = [:]
+    /// Token for the `.webSocketDidReconnect` observer registered in `joinConversation()`;
+    /// removed symmetrically in `leaveConversation()`.
+    private var reconnectObserver: NSObjectProtocol?
 
-    init(conversationId: String, currentUserId: String, otherUserId: String, token: String) {
+    init(conversationId: String, currentUserId: String, isGroup: Bool, otherUserId: String?, token: String) {
         self.conversationId = conversationId
         self.currentUserId  = currentUserId
+        self.isGroup        = isGroup
         self.otherUserId    = otherUserId
         self.token          = token
     }
@@ -51,7 +103,7 @@ class ChatViewModel {
             messages = fetched.reversed()
             hasMoreMessages = fetched.count == 30
         } catch {
-            self.error = "Could not load messages"
+            self.error = Bundle.app.loc("Could not load messages")
         }
     }
 
@@ -67,13 +119,13 @@ class ChatViewModel {
             messages = older.reversed() + messages
             hasMoreMessages = older.count == 30
         } catch {
-            self.error = "Could not load older messages"
+            self.error = Bundle.app.loc("Could not load older messages")
         }
     }
 
-    /// Load lùi lịch sử tới khi gặp messageId (tối đa maxPages trang) —
-    /// phục vụ nhảy tới tin nhắn từ kết quả tìm kiếm.
-    /// Trả về true nếu message có mặt trong danh sách sau khi load.
+    /// Load older history pages until messageId is found (up to maxPages pages) —
+    /// used for jumping to a message from search results.
+    /// Returns true if the message is present in the list after loading.
     func loadUntilFound(messageId: String, maxPages: Int = 10) async -> Bool {
         if messages.contains(where: { $0.id == messageId }) { return true }
         var pages = 0
@@ -87,16 +139,75 @@ class ChatViewModel {
 
     // MARK: - Settings
 
-    /// Load shared theme/nickname + my mute state for this conversation.
+    /// Load shared theme + my mute state, plus 1:1 nickname or group identity
+    /// (name/photo/members) depending on `isGroup`.
     func loadSettings() async {
         do {
             let s = try await repository.fetchSettings(conversationId: conversationId, token: token)
-            chatThemeId   = s.theme
-            otherNickname = s.otherUserNickname
-            mutedUntil    = s.mutedUntil
+            applySettings(s)
         } catch {
             // Settings are non-critical; keep chat usable without them.
         }
+    }
+
+    private func applySettings(_ s: ConversationSettings) {
+        chatThemeId = s.theme
+        mutedUntil  = s.mutedUntil
+        if s.isGroup {
+            groupName        = s.groupName
+            groupAvatarUrl   = s.groupAvatarUrl
+            groupAvatarColor = s.groupAvatarColor
+            groupCreatedBy   = s.groupCreatedBy
+            groupMembers     = s.members
+        } else {
+            otherNickname = s.otherUserNickname
+        }
+    }
+
+    // MARK: - Group management
+
+    /// Leave this group (any member). Sets `wasRemovedFromGroup` so `ChatView`
+    /// navigates back out, mirroring what happens when the owner removes me.
+    /// (Add/remove/promote/rename/photo live on `GroupParticipantsViewModel`
+    /// and `ChatSettingsViewModel` instead — each screen owns the mutations it
+    /// actually performs, matching this codebase's existing per-screen-VM
+    /// pattern. `leaveGroup` lives here because it's driven directly from
+    /// `ChatView`'s block-alert "Leave the group" action.)
+    func leaveGroup() async {
+        guard isGroup else { return }
+        do {
+            try await repository.leaveGroup(conversationId: conversationId, token: token)
+            wasRemovedFromGroup = true
+        } catch {
+            self.error = friendlyError(error)
+        }
+    }
+
+    // MARK: - Block alert (groups only)
+
+    /// Checks whether a blocked/blocking person is in this group and hasn't
+    /// been acknowledged yet; populates `blockAlertState` only when it should
+    /// fire, so `ChatView` can drive its Leave/Stay alert off `!= nil`.
+    func checkBlockAlert() async {
+        guard isGroup else { return }
+        do {
+            let state = try await repository.fetchBlockAlertState(conversationId: conversationId, token: token)
+            blockAlertState = state.shouldAlert ? state : nil
+        } catch {
+            // Non-critical; skip the alert silently on failure.
+        }
+    }
+
+    /// Acknowledge the currently-alerted blocked-set ("Stay" path) so it
+    /// doesn't re-fire until the blocked-set changes.
+    func acknowledgeBlockAlert() async {
+        guard isGroup else { return }
+        do {
+            try await repository.acknowledgeBlockAlert(conversationId: conversationId, token: token)
+        } catch {
+            // Non-critical; worst case the alert re-fires next time.
+        }
+        blockAlertState = nil
     }
 
     // MARK: - Send text
@@ -114,7 +225,9 @@ class ChatViewModel {
                 "messageType": "text"
             ]
             if let replyToMessageId { payload["replyToMessageId"] = replyToMessageId }
-            ws.emit("send_message", payload)
+            if case .failure(let err) = await emitWithAck("send_message", payload) {
+                self.error = friendlyError(err)
+            }
         } else {
             do {
                 let msg = try await repository.sendMessage(
@@ -126,14 +239,23 @@ class ChatViewModel {
                 )
                 messages.append(msg)
             } catch {
-                self.error = "Failed to send message"
+                self.error = Bundle.app.loc("Failed to send message")
             }
         }
     }
 
     // MARK: - Send media
 
-    func sendMedia(fileURL: URL, replyTo replyToMessageId: String? = nil) async {
+    /// `voiceDurationSeconds`/`voiceWaveform` are only ever passed for a
+    /// recorded voice message (`VoiceRecorderControl`'s stop callback) —
+    /// every other caller (photo/video attachment) leaves them nil, mirroring
+    /// how `mediaUrl` is already the only required extra field for those types.
+    func sendMedia(
+        fileURL: URL,
+        replyTo replyToMessageId: String? = nil,
+        voiceDurationSeconds: Int? = nil,
+        voiceWaveform: [Float]? = nil
+    ) async {
         isSending = true
         defer { isSending = false }
         do {
@@ -145,7 +267,11 @@ class ChatViewModel {
                     "mediaUrl": url
                 ]
                 if let replyToMessageId { payload["replyToMessageId"] = replyToMessageId }
-                ws.emit("send_message", payload)
+                if let voiceDurationSeconds { payload["voiceDurationSeconds"] = voiceDurationSeconds }
+                if let voiceWaveform { payload["voiceWaveform"] = voiceWaveform }
+                if case .failure(let err) = await emitWithAck("send_message", payload) {
+                    self.error = friendlyError(err)
+                }
             } else {
                 let msg = try await repository.sendMessage(
                     conversationId: conversationId,
@@ -153,22 +279,31 @@ class ChatViewModel {
                     messageType: type,
                     mediaUrl: url,
                     replyToMessageId: replyToMessageId,
+                    voiceDurationSeconds: voiceDurationSeconds,
+                    voiceWaveform: voiceWaveform,
                     token: token
                 )
                 messages.append(msg)
             }
         } catch {
-            self.error = "Failed to upload media"
+            self.error = Bundle.app.loc("Failed to upload media")
         }
     }
 
     // MARK: - Meeting proposals
 
-    /// Propose a meeting (title/location/starts_at/ends_at) in this conversation.
-    /// Prefers the socket (server fans out `new_message` to both sides, same as
-    /// text/media); falls back to REST when disconnected, appending the result
-    /// locally since no broadcast will arrive to add this bubble.
-    func sendMeetingProposal(title: String, location: String?, startsAt: Date, endsAt: Date?) async {
+    /// Propose a meeting (title/location/starts_at/ends_at + a mandatory
+    /// reminder) in this conversation. Prefers the socket (server fans out
+    /// `new_message` to both sides, same as text/media); falls back to REST
+    /// when disconnected, appending the result locally since no broadcast
+    /// will arrive to add this bubble. `reminderOffset` is the raw preset key
+    /// ("on_day"/"1_day_before"/"2_days_before"/"1_week_before"); `reminderAt`
+    /// is the absolute instant computed client-side (`MeetingReminderOffset
+    /// .reminderDate(before:)`) since there's no per-user timezone tracked server-side.
+    func sendMeetingProposal(
+        title: String, location: String?, startsAt: Date, endsAt: Date?,
+        reminderOffset: String, reminderAt: Date
+    ) async {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty else { return }
         isSending = true
@@ -178,33 +313,43 @@ class ChatViewModel {
             let iso = ISO8601DateFormatter()
             var proposalPayload: [String: Any] = [
                 "title": trimmedTitle,
-                "startsAt": iso.string(from: startsAt)
+                "startsAt": iso.string(from: startsAt),
+                "reminderOffset": reminderOffset,
+                "reminderAt": iso.string(from: reminderAt)
             ]
             if let location, !location.isEmpty { proposalPayload["location"] = location }
             if let endsAt { proposalPayload["endsAt"] = iso.string(from: endsAt) }
-            ws.emit("send_message", [
+            let result = await emitWithAck("send_message", [
                 "conversationId": conversationId,
                 "messageType": "meeting",
                 "meetingProposal": proposalPayload
             ])
+            if case .failure(let err) = result {
+                self.error = friendlyError(err)
+            }
         } else {
             do {
                 let msg = try await repository.sendMeetingProposal(
                     conversationId: conversationId, title: trimmedTitle, location: location,
-                    startsAt: startsAt, endsAt: endsAt, token: token
+                    startsAt: startsAt, endsAt: endsAt,
+                    reminderOffset: reminderOffset, reminderAt: reminderAt, token: token
                 )
                 messages.append(msg)
             } catch {
-                self.error = "Failed to send meeting proposal"
+                self.error = Bundle.app.loc("Failed to send meeting proposal")
             }
         }
     }
 
     /// Reschedule an existing meeting proposal (proposer only — the server clears
-    /// prior RSVPs). Prefers the socket (server fans out `meeting_proposal_updated`
+    /// prior RSVPs, and resets `reminder_sent_at` so the reminder re-arms against
+    /// the new time). Prefers the socket (server fans out `meeting_proposal_updated`
     /// to both sides); falls back to REST when disconnected, applying the result
     /// locally since no broadcast will arrive for this bubble.
-    func rescheduleMeeting(messageId: String, title: String, location: String?, startsAt: Date, endsAt: Date?) async {
+    func rescheduleMeeting(
+        messageId: String, title: String, location: String?, startsAt: Date, endsAt: Date?,
+        reminderOffset: String, reminderAt: Date
+    ) async {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty else { return }
 
@@ -214,22 +359,27 @@ class ChatViewModel {
                 "conversationId": conversationId,
                 "messageId": messageId,
                 "title": trimmedTitle,
-                "startsAt": iso.string(from: startsAt)
+                "startsAt": iso.string(from: startsAt),
+                "reminderOffset": reminderOffset,
+                "reminderAt": iso.string(from: reminderAt)
             ]
             payload["location"] = (location?.isEmpty == false) ? location! : NSNull()
             payload["endsAt"] = endsAt.map { iso.string(from: $0) } ?? NSNull()
-            ws.emit("update_meeting_proposal", payload)
+            if case .failure(let err) = await emitWithAck("update_meeting_proposal", payload) {
+                self.error = friendlyError(err)
+            }
         } else {
             do {
                 let proposal = try await repository.updateMeetingProposal(
                     conversationId: conversationId, messageId: messageId, title: trimmedTitle,
-                    location: location, startsAt: startsAt, endsAt: endsAt, token: token
+                    location: location, startsAt: startsAt, endsAt: endsAt,
+                    reminderOffset: reminderOffset, reminderAt: reminderAt, token: token
                 )
                 if let i = messages.firstIndex(where: { $0.id == messageId }) {
                     messages[i].meetingProposal = proposal
                 }
             } catch {
-                self.error = "Could not reschedule meeting"
+                self.error = Bundle.app.loc("Could not reschedule meeting")
             }
         }
     }
@@ -238,10 +388,13 @@ class ChatViewModel {
     /// same pattern as `rescheduleMeeting`.
     func cancelMeeting(messageId: String) async {
         if ws.connectionState == .connected {
-            ws.emit("cancel_meeting_proposal", [
+            let result = await emitWithAck("cancel_meeting_proposal", [
                 "conversationId": conversationId,
                 "messageId": messageId
             ])
+            if case .failure(let err) = result {
+                self.error = friendlyError(err)
+            }
         } else {
             do {
                 let proposal = try await repository.cancelMeetingProposal(
@@ -251,7 +404,7 @@ class ChatViewModel {
                     messages[i].meetingProposal = proposal
                 }
             } catch {
-                self.error = "Could not cancel meeting"
+                self.error = Bundle.app.loc("Could not cancel meeting")
             }
         }
     }
@@ -260,11 +413,14 @@ class ChatViewModel {
     /// `sendReaction`'s exact branching.
     func respondToMeeting(messageId: String, status: MeetingRsvpStatus) async {
         if ws.connectionState == .connected {
-            ws.emit("respond_meeting", [
+            let result = await emitWithAck("respond_meeting", [
                 "conversationId": conversationId,
                 "messageId": messageId,
                 "status": status.rawValue
             ])
+            if case .failure(let err) = result {
+                self.error = friendlyError(err)
+            }
         } else {
             do {
                 let proposal = try await repository.respondToMeeting(
@@ -274,7 +430,7 @@ class ChatViewModel {
                     messages[i].meetingProposal = proposal
                 }
             } catch {
-                self.error = "Could not respond to meeting"
+                self.error = Bundle.app.loc("Could not respond to meeting")
             }
         }
     }
@@ -282,13 +438,51 @@ class ChatViewModel {
     // MARK: - WebSocket setup
 
     func joinConversation() {
-        ws.emit("join_conversation", conversationId)
+        emitJoin()
+
+        // Re-emit `join_conversation` after a socket reconnect — the server-side
+        // room membership is lost on disconnect, but listeners registered below
+        // stay live, so only the join needs repeating (not a full re-registration).
+        reconnectObserver = NotificationCenter.default.addObserver(
+            forName: .webSocketDidReconnect, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.emitJoin()
+        }
 
         ws.on("new_message", tag: "chat") { [weak self] payload in
             guard let self,
-                  let msg = self.decodeMessage(payload) else { return }
+                  let msg = self.decodeMessage(payload),
+                  msg.conversationId == self.conversationId else { return }
             if !self.messages.contains(where: { $0.id == msg.id }) {
                 self.messages.append(msg)
+                // Tell the sender this message has arrived — flips their bubble
+                // from `.sent` to `.delivered` via the `message_delivered` echo.
+                if msg.senderId != self.currentUserId {
+                    self.ws.emit("message_delivered", [
+                        "conversationId": self.conversationId,
+                        "messageId": msg.id
+                    ])
+                }
+            }
+        }
+
+        // The recipient's client confirmed receipt of one of my messages.
+        // Reconciled against the real backend broadcast (`backend/index.js`'s
+        // `message_delivered` handler): `{ conversationId, messageId, userId }`,
+        // sent only to the sender's personal room. Appends the delivering
+        // user's id to `deliveredTo`, idempotently (a duplicate delivered
+        // event for an already-delivered message is a no-op).
+        ws.on("message_delivered", tag: "chat") { [weak self] payload in
+            guard let self,
+                  let dict = payload as? [String: Any],
+                  let convId = (dict["conversation_id"] as? String) ?? (dict["conversationId"] as? String),
+                  convId == self.conversationId,
+                  let userId = dict["user_id"] as? String ?? dict["userId"] as? String else { return }
+            let messageIds = self.receiptMessageIds(from: dict)
+            for i in self.messages.indices where messageIds.contains(self.messages[i].id) {
+                if !self.messages[i].deliveredTo.contains(userId) {
+                    self.messages[i].deliveredTo.append(userId)
+                }
             }
         }
 
@@ -298,17 +492,34 @@ class ChatViewModel {
                   let userId = dict["userId"] as? String,
                   userId != self.currentUserId,
                   let isTyping = dict["isTyping"] as? Bool else { return }
-            self.handleTyping(isTyping)
+            self.handleTyping(userId: userId, isTyping: isTyping)
         }
 
+        // Someone (possibly me, from another device) read messages in this
+        // conversation. Reconciled against the real backend broadcast
+        // (`backend/index.js`'s `mark_read` handler): `{ conversationId, readBy }`
+        // where `readBy` is the reading user's id (not `user_id`/`userId`, and
+        // no message ids — `mark_read` is conversation-scoped, so every message
+        // not sent by the reader is affected, matching `markRead()`'s "mark my
+        // whole unread tail as read" semantics). Appends `readBy` to `readBy`
+        // (and `deliveredTo`, since read implies delivered) for the affected
+        // messages only — NOT a blanket flip of every message.
         ws.on("messages_read", tag: "chat") { [weak self] payload in
             guard let self,
                   let dict = payload as? [String: Any],
-                  let convId = dict["conversationId"] as? String,
-                  convId == self.conversationId else { return }
+                  let convId = (dict["conversation_id"] as? String) ?? (dict["conversationId"] as? String),
+                  convId == self.conversationId,
+                  let userId = (dict["readBy"] as? String) ?? (dict["read_by"] as? String)
+                    ?? (dict["user_id"] as? String) ?? (dict["userId"] as? String) else { return }
+            let scopedIds = self.receiptMessageIds(from: dict)
             for i in self.messages.indices {
-                if self.messages[i].status != .read {
-                    self.messages[i].status = .read
+                guard self.messages[i].senderId != userId else { continue }
+                guard scopedIds.isEmpty || scopedIds.contains(self.messages[i].id) else { continue }
+                if !self.messages[i].readBy.contains(userId) {
+                    self.messages[i].readBy.append(userId)
+                }
+                if !self.messages[i].deliveredTo.contains(userId) {
+                    self.messages[i].deliveredTo.append(userId)
                 }
             }
         }
@@ -321,6 +532,11 @@ class ChatViewModel {
                   let messageId = dict["message_id"] as? String,
                   let i = self.messages.firstIndex(where: { $0.id == messageId }) else { return }
             self.messages[i].markDeleted()
+            // Any OTHER message quoting this one via reply-preview would otherwise
+            // keep showing stale content until the conversation reloads — patch its
+            // embedded `repliedMessage` to the same "deleted" shape a fresh fetch
+            // would already return (mirrors how `replyPreview` renders `isDeleted`).
+            self.patchRepliedPreviews(forDeletedMessageId: messageId)
         }
 
         // A reaction was added/changed/removed on a message (either participant)
@@ -361,23 +577,91 @@ class ChatViewModel {
             self.messages[i].meetingProposal = proposal
         }
 
-        // Shared settings (theme/nickname) changed by either participant
+        // Shared settings (theme/nickname) changed by either participant.
+        // The nickname-target match only applies in the 1:1 case — a group has
+        // no single "other person" for `otherUserId` to compare against.
         ws.on("conversation_settings_updated", tag: "chat") { [weak self] payload in
             guard let self,
                   let dict = payload as? [String: Any],
                   let convId = dict["conversation_id"] as? String,
                   convId == self.conversationId else { return }
             self.chatThemeId = dict["theme"] as? String
-            if let targetId = dict["nickname_target_id"] as? String, targetId == self.otherUserId {
+            if !self.isGroup, let targetId = dict["nickname_target_id"] as? String, targetId == self.otherUserId {
                 self.otherNickname = dict["nickname"] as? String
+            }
+        }
+
+        // Group identity (name/photo) changed by the owner — refetch rather
+        // than patch individual fields from the payload, since the exact
+        // broadcast shape isn't pinned down; a refetch is resilient to that
+        // and this is a low-frequency event.
+        ws.on("group_updated", tag: "chat") { [weak self] payload in
+            guard let self, self.isGroup,
+                  let dict = payload as? [String: Any],
+                  let convId = dict["conversation_id"] as? String,
+                  convId == self.conversationId else { return }
+            Task { await self.loadSettings() }
+        }
+
+        // A member was added to this group — refetch the roster.
+        ws.on("member_added", tag: "chat") { [weak self] payload in
+            guard let self, self.isGroup,
+                  let dict = payload as? [String: Any],
+                  let convId = dict["conversation_id"] as? String,
+                  convId == self.conversationId else { return }
+            Task { await self.loadSettings() }
+        }
+
+        // A message was pinned by any participant. The server broadcasts the
+        // conversation's full current pin list (not a single row) — replace
+        // wholesale rather than trying to merge one row in.
+        ws.on("pin_added", tag: "chat") { [weak self] payload in
+            guard let self,
+                  let dict = payload as? [String: Any],
+                  let convId = dict["conversation_id"] as? String,
+                  convId == self.conversationId,
+                  let pins = self.decodePinnedMessages(dict["pins"]) else { return }
+            self.pinnedMessages = pins
+        }
+
+        // A message was unpinned by any participant.
+        ws.on("pin_removed", tag: "chat") { [weak self] payload in
+            guard let self,
+                  let dict = payload as? [String: Any],
+                  let convId = dict["conversation_id"] as? String,
+                  convId == self.conversationId,
+                  let messageId = dict["message_id"] as? String else { return }
+            self.pinnedMessages.removeAll { $0.id == messageId }
+        }
+
+        // A member was removed from this group — refetch the roster, then check
+        // (independent of the payload's exact shape) whether I'm still in it;
+        // if not, I was the one removed and the conversation is no longer
+        // accessible to me.
+        ws.on("member_removed", tag: "chat") { [weak self] payload in
+            guard let self, self.isGroup,
+                  let dict = payload as? [String: Any],
+                  let convId = dict["conversation_id"] as? String,
+                  convId == self.conversationId else { return }
+            Task {
+                await self.loadSettings()
+                if !self.groupMembers.contains(where: { $0.id == self.currentUserId }) {
+                    self.wasRemovedFromGroup = true
+                }
             }
         }
     }
 
     func leaveConversation() {
-        typingTask?.cancel()
+        typingTasks.values.forEach { $0.cancel() }
+        typingTasks = [:]
+        if let reconnectObserver {
+            NotificationCenter.default.removeObserver(reconnectObserver)
+            self.reconnectObserver = nil
+        }
         ws.emit("leave_conversation", conversationId)
         ws.off("new_message", tag: "chat")
+        ws.off("message_delivered", tag: "chat")
         ws.off("user_typing",   tag: "chat")
         ws.off("messages_read", tag: "chat")
         ws.off("message_deleted", tag: "chat")
@@ -385,12 +669,24 @@ class ChatViewModel {
         ws.off("meeting_proposal_updated", tag: "chat")
         ws.off("meeting_response_updated", tag: "chat")
         ws.off("conversation_settings_updated", tag: "chat")
+        ws.off("group_updated", tag: "chat")
+        ws.off("member_added", tag: "chat")
+        ws.off("member_removed", tag: "chat")
+        ws.off("pin_added", tag: "chat")
+        ws.off("pin_removed", tag: "chat")
     }
 
-    // MARK: - Recall (thu hồi)
+    /// Emits `join_conversation` for this conversation's room — factored out of
+    /// `joinConversation()` so it can also be called after a socket reconnect
+    /// without re-registering the listeners above (which are still live).
+    private func emitJoin() {
+        ws.emit("join_conversation", conversationId)
+    }
 
-    /// Thu hồi tin nhắn của mình; cập nhật tại chỗ ngay, server sẽ phát
-    /// message_deleted cho phía bên kia.
+    // MARK: - Recall
+
+    /// Recall one of my own messages; update locally right away, the server will emit
+    /// message_deleted to the other side.
     func recallMessage(_ message: Message) async {
         guard message.senderId == currentUserId, !message.isDeleted else { return }
         do {
@@ -403,7 +699,7 @@ class ChatViewModel {
                 messages[i].markDeleted()
             }
         } catch {
-            self.error = "Could not recall message"
+            self.error = Bundle.app.loc("Could not recall message")
         }
     }
 
@@ -415,11 +711,14 @@ class ChatViewModel {
     /// socket broadcast will arrive to update this bubble.
     func sendReaction(messageId: String, emoji: String) async {
         if ws.connectionState == .connected {
-            ws.emit("react_message", [
+            let result = await emitWithAck("react_message", [
                 "conversationId": conversationId,
                 "messageId": messageId,
                 "emoji": emoji
             ])
+            if case .failure(let err) = result {
+                self.error = friendlyError(err)
+            }
         } else {
             do {
                 let reactions = try await repository.react(
@@ -429,7 +728,66 @@ class ChatViewModel {
                     messages[i].reactions = reactions
                 }
             } catch {
-                self.error = "Could not react to message"
+                self.error = Bundle.app.loc("Could not react to message")
+            }
+        }
+    }
+
+    // MARK: - Pinned messages
+    // NOTE: socket payload/REST field names assumed per the Phase 4 plan's
+    // working shape (parallel backend task not landed at write time) —
+    // reconcile against the real backend once it lands. See `PinnedMessage`.
+
+    /// Load this conversation's pinned messages (server caps at 10).
+    func loadPins() async {
+        do { pinnedMessages = try await repository.fetchPins(conversationId: conversationId, token: token) }
+        catch {
+            // Non-critical; chat stays usable without the pinned banner/menu state.
+        }
+    }
+
+    /// Pin a message, optionally with an auto-delete expiry. Prefers the
+    /// socket (server fans out `pin_added` to every participant); falls back
+    /// to REST when disconnected, applying the result locally since no
+    /// broadcast will arrive to update the banner/context-menu state.
+    func pinMessage(_ messageId: String, expiresAt: Date?) async {
+        if ws.connectionState == .connected {
+            var payload: [String: Any] = ["conversationId": conversationId, "messageId": messageId]
+            if let expiresAt { payload["expiresAt"] = ISO8601DateFormatter().string(from: expiresAt) }
+            if case .failure(let err) = await emitWithAck("pin_message", payload) {
+                self.error = friendlyError(err)
+            }
+        } else {
+            do {
+                try await repository.pinMessage(
+                    conversationId: conversationId, messageId: messageId, expiresAt: expiresAt, token: token
+                )
+                // The create response is the raw pin row (no joined sender
+                // name/content) — refetch for the properly-joined list.
+                await loadPins()
+            } catch {
+                self.error = Bundle.app.loc("Could not pin message")
+            }
+        }
+    }
+
+    /// Unpin a message. Any participant may unpin (not owner-only). Socket-first
+    /// with REST fallback, same pattern as `pinMessage`.
+    func unpinMessage(_ messageId: String) async {
+        if ws.connectionState == .connected {
+            let result = await emitWithAck("unpin_message", [
+                "conversationId": conversationId,
+                "messageId": messageId
+            ])
+            if case .failure(let err) = result {
+                self.error = friendlyError(err)
+            }
+        } else {
+            do {
+                try await repository.unpinMessage(conversationId: conversationId, messageId: messageId, token: token)
+                pinnedMessages.removeAll { $0.id == messageId }
+            } catch {
+                self.error = Bundle.app.loc("Could not unpin message")
             }
         }
     }
@@ -440,6 +798,18 @@ class ChatViewModel {
         ws.emit("mark_read", ["conversationId": conversationId])
     }
 
+    /// REST catch-up for delivery: flips any of my messages the other person
+    /// received while offline from `.sent` to `.delivered`. The live path (while
+    /// both sides are connected) is handled by the `message_delivered` socket
+    /// event registered in `joinConversation()`.
+    func markConversationDelivered() async {
+        do {
+            try await repository.markDelivered(conversationId: conversationId, token: token)
+        } catch {
+            // Non-critical; the live socket path still covers most cases.
+        }
+    }
+
     // MARK: - Typing indicator
 
     func sendTyping(_ isTyping: Bool) {
@@ -448,15 +818,76 @@ class ChatViewModel {
 
     // MARK: - Helpers
 
-    private func handleTyping(_ isTyping: Bool) {
-        typingTask?.cancel()
-        self.isOtherTyping = isTyping
+    /// Inserts/removes `userId` from `typingUserIds`, with its own 3-second
+    /// auto-clear timer independent of any other typing participant's timer.
+    private func handleTyping(userId: String, isTyping: Bool) {
+        typingTasks[userId]?.cancel()
+        typingTasks[userId] = nil
         if isTyping {
-            typingTask = Task {
+            typingUserIds.insert(userId)
+            typingTasks[userId] = Task {
                 try? await Task.sleep(for: .seconds(3))
-                if !Task.isCancelled { self.isOtherTyping = false }
+                if !Task.isCancelled { self.typingUserIds.remove(userId) }
+            }
+        } else {
+            typingUserIds.remove(userId)
+        }
+    }
+
+    /// Bridges `WebSocketClient.emit(...completion:)`'s callback into `async/await`
+    /// so every socket-emit call site above can simply `await` the server's ack
+    /// (or its rejection/timeout) instead of firing blind.
+    private func emitWithAck(_ event: String, _ data: Any) async -> Result<Any?, Error> {
+        await withCheckedContinuation { continuation in
+            ws.emit(event, data) { result in
+                continuation.resume(returning: result)
             }
         }
+    }
+
+    /// Patches every message whose embedded `repliedMessage` quotes `deletedId`
+    /// so its preview reflects the deletion immediately, instead of staying stale
+    /// until the conversation is reloaded from the server.
+    private func patchRepliedPreviews(forDeletedMessageId deletedId: String) {
+        for j in messages.indices {
+            guard let replied = messages[j].repliedMessage,
+                  replied.id == deletedId,
+                  !replied.isDeleted else { continue }
+            messages[j].repliedMessage = RepliedMessage(
+                id: replied.id,
+                senderId: replied.senderId,
+                senderName: replied.senderName,
+                messageType: replied.messageType,
+                isDeleted: true,
+                content: nil
+            )
+        }
+    }
+
+    /// Decodes the `pins` array from a `pin_added` socket payload — the
+    /// server broadcasts the conversation's full current pin list on every
+    /// change, not a single row.
+    private func decodePinnedMessages(_ value: Any?) -> [PinnedMessage]? {
+        guard let value else { return nil }
+        guard let json = try? JSONSerialization.data(withJSONObject: value) else { return nil }
+        return try? JSONDecoder.makeISO8601().decode([PinnedMessage].self, from: json)
+    }
+
+    /// Extracts the affected message id(s) from a `message_delivered`/
+    /// `messages_read` receipt payload, tolerating a single `message_id`/
+    /// `messageId` string or a `message_ids`/`messageIds` array — exact shape
+    /// TBD until the parallel backend task lands (see the listener comments
+    /// in `joinConversation()`). Returns an empty set when neither key is
+    /// present, which callers treat as "no messages matched" rather than
+    /// guessing a blanket scope.
+    private func receiptMessageIds(from dict: [String: Any]) -> Set<String> {
+        if let single = (dict["message_id"] as? String) ?? (dict["messageId"] as? String) {
+            return [single]
+        }
+        if let many = (dict["message_ids"] as? [String]) ?? (dict["messageIds"] as? [String]) {
+            return Set(many)
+        }
+        return []
     }
 
     private func decodeMessage(_ payload: Any) -> Message? {

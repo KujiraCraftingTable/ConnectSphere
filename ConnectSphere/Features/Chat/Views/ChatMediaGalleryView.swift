@@ -1,13 +1,13 @@
 import SwiftUI
 
-/// Target mở viewer từ grid — giữ index trang bắt đầu
+/// Target for opening the viewer from the grid — holds the starting page index
 private struct GalleryViewerTarget: Identifiable {
     let id = UUID()
     let startIndex: Int
 }
 
 /// Grid of all images/videos shared in a conversation.
-/// Tap một ô để mở viewer fullscreen (lướt ngang qua toàn bộ media).
+/// Tap a cell to open the fullscreen viewer (swipe horizontally through all media).
 struct ChatMediaGalleryView: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.appBundle) var bundle
@@ -18,7 +18,7 @@ struct ChatMediaGalleryView: View {
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 2), count: 3)
 
-    /// Toàn bộ media của grid dưới dạng item cho viewer (bỏ URL hỏng)
+    /// All media in the grid as viewer items (drops broken URLs)
     private var viewerItems: [ChatMediaViewerItem] {
         viewModel.media.compactMap { item in
             guard let url = item.absoluteMediaURL() else { return nil }
@@ -71,7 +71,7 @@ struct ChatMediaGalleryView: View {
             .onTapGesture { openViewer(for: item) }
     }
 
-    /// Mở viewer tại đúng vị trí ô được bấm (map theo id vì viewerItems có thể bỏ URL hỏng)
+    /// Open the viewer at the exact position of the tapped cell (mapped by id since viewerItems may drop broken URLs)
     private func openViewer(for item: ChatMediaItem) {
         let index = viewerItems.firstIndex { $0.id == item.id } ?? 0
         viewerTarget = GalleryViewerTarget(startIndex: index)
