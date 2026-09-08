@@ -28,4 +28,35 @@ final class AppTests: XCTestCase {
             ][key]
         })
     }
+
+    // MARK: JWTHS256 — must stay wire-compatible with `jsonwebtoken`.
+
+    func testJWTDurationParsing() {
+        XCTAssertEqual(JWTHS256.seconds(from: "90d"), 90 * 86400)
+        XCTAssertEqual(JWTHS256.seconds(from: "1h"), 3600)
+        XCTAssertEqual(JWTHS256.seconds(from: "3600"), 3600)
+        XCTAssertEqual(JWTHS256.seconds(from: "30m"), 1800)
+        XCTAssertEqual(JWTHS256.seconds(from: "junk"), 90 * 86400)
+    }
+
+    func testJWTRoundTrip() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let token = JWTHS256.sign(sub: "abc-123", secret: "s3cr3t", expiresIn: "90d", now: now)
+        let parts = token.split(separator: ".")
+        XCTAssertEqual(parts.count, 3)
+        // header is the canonical jsonwebtoken header
+        XCTAssertEqual(JWTHS256.b64Decode(String(parts[0])).flatMap { String(data: $0, encoding: .utf8) },
+                       #"{"alg":"HS256","typ":"JWT"}"#)
+        let payload = try JWTHS256.verify(token, secret: "s3cr3t", now: now.addingTimeInterval(60))
+        XCTAssertEqual(payload.sub, "abc-123")
+        XCTAssertEqual(payload.iat, 1_700_000_000)
+        XCTAssertEqual(payload.exp, 1_700_000_000 + 90 * 86400)
+    }
+
+    func testJWTRejectsTamperAndExpiry() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let token = JWTHS256.sign(sub: "u", secret: "right", expiresIn: "1h", now: now)
+        XCTAssertThrowsError(try JWTHS256.verify(token, secret: "wrong", now: now))
+        XCTAssertThrowsError(try JWTHS256.verify(token, secret: "right", now: now.addingTimeInterval(7200)))
+    }
 }

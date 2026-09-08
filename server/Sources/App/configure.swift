@@ -12,6 +12,9 @@ public func configure(_ app: Application) async throws {
     app.http.server.configuration.port = env.port
     app.http.server.configuration.hostname = "0.0.0.0"
 
+    // JSON in/out matching Node's `res.json` (fractional-second ISO-8601 dates).
+    JSONCoding.install()
+
     // 2. Body size — Express default is ~100 kb; upload routes raise it later.
     app.routes.defaultMaxBodySize = "128kb"
 
