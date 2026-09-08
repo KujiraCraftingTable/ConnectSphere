@@ -38,12 +38,13 @@ async function submitReport(reporterId, { targetType, targetId, communityId, rea
 
   const report = await reportModel.createReport({ reporterId, targetType, targetId, communityId, reason, detail });
 
-  // Auto-notify admins/mods once, when a target's pending reports first reach
-  // the threshold. `=== ` not `>=` — otherwise every subsequent report (6th,
-  // 7th, …) re-fires the whole staff fan-out.
+  // Auto-notify admins/mods when a target's pending reports cross the
+  // threshold, but only within a small window above it so a concurrent burst
+  // that jumps 4 → 7 still notifies (a bare `=== 5` could be skipped by every
+  // racing request) while a steady stream past ~10 stops re-spamming staff.
   // (feed posts have no community_id and thus no community staff to notify)
   const count = await reportModel.countPendingReportsForTarget(targetType, targetId);
-  if (communityId && count === AUTO_NOTIFY_THRESHOLD) {
+  if (communityId && count >= AUTO_NOTIFY_THRESHOLD && count < AUTO_NOTIFY_THRESHOLD + 5) {
     // The role filter runs in SQL: the previous version fetched the first 500
     // members and filtered in JS, so staff past that cut-off were never notified.
     await notifyService.fanOutCommunityNotification({

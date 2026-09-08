@@ -91,6 +91,13 @@ async function createPost(req, res, next) {
     const hashtags   = Array.isArray(req.body.hashtags) ? req.body.hashtags : [];
     const showAiTags = !!req.body.show_ai_tags;
 
+    // A Feed post has no community to derive the mode from — require it for
+    // every post_type (the text branch below already did; poll/event slipped
+    // through and silently defaulted to 'hobby').
+    if (!['hobby', 'work'].includes(mode)) {
+      return res.status(400).json({ error: 'mode must be hobby or work' });
+    }
+
     if (post_type === 'poll') {
       const post = await postService.createPollPost(req.userId, null, {
         content, options, endsAt, mode, privacy, hashtags, showAiTags,
@@ -116,8 +123,6 @@ async function createPost(req, res, next) {
     if (typeof content === 'string' && content.length > 2000) {
       return res.status(400).json({ error: 'content must be at most 2000 characters' });
     }
-    if (!['hobby', 'work'].includes(mode))
-      return res.status(400).json({ error: 'mode must be hobby or work' });
 
     const post = await postModel.create({
       authorId:     req.userId,

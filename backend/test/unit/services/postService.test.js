@@ -174,17 +174,17 @@ test('createPost skips community side effects entirely for a Feed post (no commu
   assert.equal(bulkCall.mock.calls.length, 0);
 });
 
-// ── createPollPost / createEventPost: Phase 3 re-fetch-before-broadcast ────
-// Both now call postModel.findById again after creating poll options / the
-// event row, so the community_post_created broadcast carries poll_data /
-// event_data (the first postModel.createCommunityPost fetch predates those
-// inserts). The function's own return value must stay the pre-refetch `post`
-// unchanged — only what gets emitted differs.
+// ── createPollPost / createEventPost: re-fetch after child-row inserts ─────
+// Both call postModel.findById again after creating poll options / the event
+// row (the first postModel.createCommunityPost fetch predates those inserts),
+// then return THAT re-fetched post — so both the community_post_created
+// broadcast and the REST response carry poll_data / event_data instead of the
+// null they'd have from the pre-insert fetch.
 
 const pollModel  = require('../../../src/models/pollModel');
 const eventModel = require('../../../src/models/eventModel');
 
-test('createPollPost re-fetches the post after creating options (for the broadcast) but still returns the original post', async (t) => {
+test('createPollPost returns the post re-fetched after options exist so poll_data is populated', async (t) => {
   t.mock.method(communityModel, 'isMember', async () => ({ role: 'member' }));
   t.mock.method(pollModel, 'createPollWithOptions', async () => {});
   t.mock.method(communityModel, 'incrementPostCount', async () => {});
@@ -198,7 +198,7 @@ test('createPollPost re-fetches the post after creating options (for the broadca
     content: 'Pick one', options: ['A', 'B'],
   });
 
-  assert.equal(result, originalPost);
+  assert.equal(result, refetchedPost);
   assert.deepEqual(findByIdCall.mock.calls[0].arguments, ['p1', 'u1']);
 });
 
@@ -221,7 +221,7 @@ test('createPollPost forwards hashtags/showAiTags and enqueues tag extraction wi
   assert.deepEqual(addCall.mock.calls[0].arguments[1], { postId: 'p1', content: 'Pick one' });
 });
 
-test('createEventPost re-fetches the post after creating the event but still returns the original post', async (t) => {
+test('createEventPost returns the post re-fetched after the event row exists so event_data is populated', async (t) => {
   t.mock.method(communityModel, 'isMember', async () => ({ role: 'member' }));
   t.mock.method(eventModel, 'createEvent', async () => {});
   t.mock.method(communityModel, 'incrementPostCount', async () => {});
@@ -236,7 +236,7 @@ test('createEventPost re-fetches the post after creating the event but still ret
     content: 'Join us', eventData: { title: 'Meetup', startsAt: futureDate },
   });
 
-  assert.equal(result, originalPost);
+  assert.equal(result, refetchedPost);
   assert.deepEqual(findByIdCall.mock.calls[0].arguments, ['p1', 'u1']);
 });
 

@@ -59,10 +59,13 @@ test('findAll (Feed) is scoped to community_id IS NULL and does not touch commun
   assert.equal(calls.length, 1);
   const { sql } = calls[0];
   assert.match(sql, /p\.community_id IS NULL/);
-  // The community-visibility fix must NOT be pulled into Feed's list query —
-  // it's a no-op there anyway (community_id is always NULL) and touching this
-  // query is exactly the highest-risk regression this fix could cause.
-  assert.doesNotMatch(sql, /community_members/);
+  // The community-visibility fix must NOT gate Feed's OUTER rows on membership
+  // — it's a no-op there anyway (community_id is always NULL) and touching this
+  // query is exactly the highest-risk regression this fix could cause. The
+  // shared_post JSON embed legitimately re-checks the ORIGINAL post's
+  // visibility (cm.community_id = sp.community_id), so only the outer-post gate
+  // (cm.community_id = p.community_id) is forbidden here.
+  assert.doesNotMatch(sql, /cm\.community_id = p\.community_id/);
 });
 
 test('countAll (Feed) likewise stays untouched by the community-visibility fix', async (t) => {

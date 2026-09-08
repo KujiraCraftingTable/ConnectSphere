@@ -215,19 +215,17 @@ async function createPollPost(authorId, communityId, { content, options, endsAt 
 
   await pollModel.createPollWithOptions(post.id, trimmedOptions, endsAt || null);
 
+  // Re-fetch AFTER the options exist so poll_data.options isn't null in the
+  // response (`post` was fetched before createPollWithOptions ran).
+  const fullPost = await postModel.findById(post.id, authorId);
+
   if (communityId) {
     await communityModel.incrementPostCount(communityId, 1);
     await notifyCommunityOfNewPost(communityId, post, authorId, 'poll', content);
-
-    // Re-fetch so the broadcast poll_data reflects the options just inserted
-    // above — the `post` var was fetched before they existed. (The REST
-    // response above intentionally keeps returning the original `post`; not
-    // touching that pre-existing shape here, only what gets emitted.)
-    const fullPost = await postModel.findById(post.id, authorId);
     emitToRoom(`community:${communityId}`, 'community_post_created', { ...fullPost, community_id: communityId });
   }
 
-  return post;
+  return fullPost;
 }
 
 // Create an event post; notifies all community members. `communityId` null
@@ -268,17 +266,16 @@ async function createEventPost(authorId, communityId, { content, eventData, hash
     endsAt:   eventData.endsAt || null,
   });
 
+  // Re-fetch AFTER the event row exists so event_data isn't null in the response.
+  const fullPost = await postModel.findById(post.id, authorId);
+
   if (communityId) {
     await communityModel.incrementPostCount(communityId, 1);
     await notifyCommunityOfNewPost(communityId, post, authorId, 'event', content);
-
-    // Re-fetch so the broadcast event_data reflects the event just created
-    // above (see createPollPost's identical comment for why).
-    const fullPost = await postModel.findById(post.id, authorId);
     emitToRoom(`community:${communityId}`, 'community_post_created', { ...fullPost, community_id: communityId });
   }
 
-  return post;
+  return fullPost;
 }
 
 // Cast a vote on a poll option; enforces membership and one-vote-per-poll

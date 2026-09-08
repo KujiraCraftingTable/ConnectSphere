@@ -123,18 +123,35 @@ test('submitReport notifies admins/moderators once pending reports reach the thr
   assert.equal(membersCall.mock.calls.length, 0);
 });
 
-test('submitReport does NOT re-notify staff once pending reports are past the threshold', async (t) => {
-  // The fan-out fires once, when the count first equals the threshold. A 6th,
-  // 7th, … report must not re-trigger the whole staff notification.
+test('submitReport does NOT re-notify staff once pending reports climb well past the threshold', async (t) => {
+  // The fan-out fires only inside a small window just above the threshold
+  // (>= 5 and < 10) — wide enough that a concurrent burst which skips exactly
+  // 5 still notifies, narrow enough that a steady stream of reports past ~10
+  // stops re-spamming staff. A count of 12 is past that window.
   t.mock.method(reportModel, 'hasReported', async () => null);
   t.mock.method(postModel, 'findPostMeta', async () => ({ community_id: 'c1' }));
   t.mock.method(reportModel, 'createReport', async () => ({ id: 'r1' }));
-  t.mock.method(reportModel, 'countPendingReportsForTarget', async () => 9);
+  t.mock.method(reportModel, 'countPendingReportsForTarget', async () => 12);
   const fanOutCall = t.mock.method(notifyService, 'fanOutCommunityNotification', async () => []);
 
   await reportService.submitReport('u1', { targetType: 'post', targetId: 'p1', communityId: 'c1', reason: 'spam' });
 
   assert.equal(fanOutCall.mock.calls.length, 0);
+});
+
+test('submitReport still notifies staff when a concurrent burst skips exactly the threshold count', async (t) => {
+  // Regression guard for the race the bare `=== 5` had: if two reports land
+  // together the count can jump 4 → 6, so `=== 5` would never match. The
+  // `>= 5 && < 10` window still fires at 6.
+  t.mock.method(reportModel, 'hasReported', async () => null);
+  t.mock.method(postModel, 'findPostMeta', async () => ({ community_id: 'c1' }));
+  t.mock.method(reportModel, 'createReport', async () => ({ id: 'r1' }));
+  t.mock.method(reportModel, 'countPendingReportsForTarget', async () => 6);
+  const fanOutCall = t.mock.method(notifyService, 'fanOutCommunityNotification', async () => []);
+
+  await reportService.submitReport('u1', { targetType: 'post', targetId: 'p1', communityId: 'c1', reason: 'spam' });
+
+  assert.equal(fanOutCall.mock.calls.length, 1);
 });
 
 // ── resolveReport ─────────────────────────────────────────────────────────────

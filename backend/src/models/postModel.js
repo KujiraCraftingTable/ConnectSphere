@@ -38,6 +38,27 @@ const buildPostSelect = (viewerRef) => `
       FROM posts sp
       JOIN users su ON su.id = sp.author_id
       WHERE sp.id = p.shared_post_id AND sp.status = 'posted'
+        -- Re-check the original's own visibility against THIS viewer: a share
+        -- wrapper is public, but the embedded post must still respect the
+        -- original's privacy / community membership. Without this, sharing a
+        -- 'friends' or private-community post publicly leaks its full content
+        -- to everyone who sees the share. Fails closed → shared_post is NULL.
+        AND (
+          sp.privacy = 'public'
+          OR sp.author_id = ${viewerRef}::uuid
+          OR (sp.privacy = 'friends' AND EXISTS (
+            SELECT 1 FROM connections c
+            WHERE c.status = 'accepted'
+              AND ((c.requester_id = sp.author_id AND c.addressee_id = ${viewerRef}::uuid)
+                OR (c.addressee_id = sp.author_id AND c.requester_id = ${viewerRef}::uuid))
+          ))
+        )
+        AND (
+          sp.community_id IS NULL
+          OR sp.author_id = ${viewerRef}::uuid
+          OR EXISTS (SELECT 1 FROM communities co WHERE co.id = sp.community_id AND co.privacy = 'public')
+          OR EXISTS (SELECT 1 FROM community_members cm WHERE cm.community_id = sp.community_id AND cm.user_id = ${viewerRef}::uuid)
+        )
     ) ELSE NULL END AS shared_post,
     -- Visibility-aware: user-typed hashtags always show; AI-extracted tags
     -- only show when the author opted in via posts.show_ai_tags at creation
@@ -408,8 +429,12 @@ async function findPostMeta(postId) {
 // would double-count).
 async function softDeletePost(postId) {
   const { rows } = await query(
+    // `AND status = 'posted'` keeps this idempotent: a second call (retry, or a
+    // second pending report on the same post resolved with remove_content)
+    // matches 0 rows and returns null, so the caller doesn't decrement
+    // communities.post_count twice.
     `UPDATE posts SET status = 'deleted', deleted_at = NOW(), updated_at = NOW()
-     WHERE id = $1
+     WHERE id = $1 AND status = 'posted'
      RETURNING id, author_id, community_id`,
     [postId]
   );
@@ -478,7 +503,9 @@ async function listSavedPosts(userId, { limit = 20, offset = 0 } = {}) {
   const sql = `
     ${buildPostSelect('$1')}
     JOIN saved_posts sap ON sap.post_id = p.id AND sap.user_id = $1
-    WHERE p.status = 'posted' AND ${privacyClause('$1')} AND ${notBlockedClause('$1')}
+    WHERE p.status = 'posted'
+      AND ${privacyClause('$1')} AND ${notBlockedClause('$1')}
+      AND ${communityVisibilityClause('$1')}
     GROUP BY p.id, u.id, sap.created_at
     ORDER BY sap.created_at DESC
     LIMIT $2 OFFSET $3

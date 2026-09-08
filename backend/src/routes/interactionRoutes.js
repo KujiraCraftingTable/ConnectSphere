@@ -356,17 +356,23 @@ router.post('/comments/:commentId/restore', async (req, res, next) => {
       return res.status(403).json({ error: 'Not allowed to restore this comment' });
     }
 
-    const { rows: [restored] } = await query(
-      `UPDATE comments SET status = 'posted', deleted_at = NULL
-       WHERE id = $1
-       RETURNING id, content, created_at, parent_comment_id, like_count`,
-      [commentId]
-    );
-
-    const { rows: [{ comment_count: commentCount }] } = await query(
-      'UPDATE posts SET comment_count = comment_count + 1 WHERE id = $1 RETURNING comment_count',
-      [postId]
-    );
+    // Atomic + status-guarded so a double-tap / retry can't restore twice and
+    // inflate comment_count (mirrors the delete handler above).
+    const { restored, commentCount } = await withTransaction(async (client) => {
+      const { rows: [r] } = await client.query(
+        `UPDATE comments SET status = 'posted', deleted_at = NULL
+         WHERE id = $1 AND status = 'deleted'
+         RETURNING id, content, created_at, parent_comment_id, like_count`,
+        [commentId]
+      );
+      if (!r) return { restored: null, commentCount: null };
+      const { rows: [{ comment_count: cc }] } = await client.query(
+        'UPDATE posts SET comment_count = comment_count + 1 WHERE id = $1 RETURNING comment_count',
+        [postId]
+      );
+      return { restored: r, commentCount: cc };
+    });
+    if (!restored) return res.status(409).json({ error: 'Comment is not currently deleted' });
 
     const { rows: [author] } = await query(
       `SELECT id,
