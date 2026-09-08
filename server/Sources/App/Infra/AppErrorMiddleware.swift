@@ -39,8 +39,18 @@ struct AppErrorMiddleware: AsyncMiddleware {
             status = abort.status
             message = abort.reason
         default:
-            status = .internalServerError
-            message = "Internal Server Error"
+            // Postgres "client error" SQLSTATEs → 4xx, matching
+            // backend/src/middlewares/errorHandler.js's PG_CLIENT_ERRORS map.
+            if PGError.sqlState(error, is: "22P02") {          // invalid_text_representation (bad UUID)
+                status = .notFound;   message = "Not found"
+            } else if PGError.sqlState(error, is: "22003") {   // numeric_value_out_of_range
+                status = .badRequest; message = "Value out of range"
+            } else if PGError.sqlState(error, is: "22007") {   // invalid_datetime_format
+                status = .badRequest; message = "Invalid date/time"
+            } else {
+                status = .internalServerError
+                message = "Internal Server Error"
+            }
         }
 
         logger.report(error: error)
