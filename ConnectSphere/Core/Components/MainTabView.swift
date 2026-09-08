@@ -52,6 +52,9 @@ struct MainTabView: View {
         // presenter inside CommentSheet, which is presented modally above this).
         .undoToastOverlay(toastPresenter)
         .accentColor(themeManager.theme.primary)
+        // Dense feed/chat layouts have fixed-height controls — support Dynamic
+        // Type up to a cap rather than unbounded accessibility sizes.
+        .cappedDynamicType()
         .environment(assistantViewModel)
         .task {
             if assistantViewModel == nil {

@@ -70,7 +70,7 @@ struct PostCard: View {
             // Content — only shown if there's actual text
             if !post.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(linkifiedContent)
-                    .font(.system(size: 15))
+                    .appFont(.body)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .tint(themeManager.theme.primary)
                     .environment(\.openURL, OpenURLAction { url in
@@ -267,7 +267,7 @@ struct PostCard: View {
             guard let url = match.url, let range = Range(match.range, in: post.content) else { continue }
             if let attrRange = Range(range, in: result) {
                 result[attrRange].link = url
-                result[attrRange].foregroundColor = Color.blue
+                result[attrRange].foregroundColor = themeManager.theme.primary
             }
         }
         return result
@@ -357,7 +357,7 @@ struct PostCard: View {
                             .environment(appState)
                     ) {
                         Text(post.author.name)
-                            .font(.system(size: 15, weight: .semibold))
+                            .appFont(.headline)
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                     }
                     .buttonStyle(.plain)
@@ -372,7 +372,7 @@ struct PostCard: View {
                    let title = post.author.jobTitle,
                    let company = post.author.company {
                     Text("\(title) · \(company)")
-                        .font(.system(size: 12))
+                        .appFont(.footnote)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
 
@@ -381,7 +381,7 @@ struct PostCard: View {
                     Text("·")
                     Image(systemName: post.privacy == .publicAll ? "globe.americas" : post.privacy.icon)
                 }
-                .font(.system(size: 12))
+                .appFont(.footnote)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
             }
 
@@ -432,15 +432,10 @@ struct PostCard: View {
     /// List of the post's hashtags — tapping a chip opens TagFeedView to browse that tag
     private var hashtagRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
+            HStack(spacing: AppSpacing.sm) {
                 ForEach(post.tags, id: \.self) { tag in
                     NavigationLink(destination: TagFeedView(tag: tag, mode: appState.currentMode)) {
-                        Text("#\(tag)")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(themeManager.theme.primary)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(themeManager.theme.primary.opacity(0.12), in: Capsule())
+                        Chip(text: "#\(tag)", style: .neutral)
                     }
                     .buttonStyle(.plain)
                 }
@@ -461,20 +456,20 @@ struct PostCard: View {
                             .foregroundColor(.white)
                     }
                     Text("\(likeCount)")
-                        .font(.system(size: 13))
+                        .appFont(.subheadline)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
             }
             Spacer()
             HStack(spacing: 10) {
                 if commentCount > 0 {
-                    Text(String(format: bundle.loc("%d comments"), commentCount))
-                        .font(.system(size: 13))
+                    Text(String(format: bundle.loc("%lld comments"), commentCount))
+                        .appFont(.subheadline)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 if shareCount > 0 {
-                    Text(String(format: bundle.loc("%d shares"), shareCount))
-                        .font(.system(size: 13))
+                    Text(String(format: bundle.loc("%lld shares"), shareCount))
+                        .appFont(.subheadline)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
             }
