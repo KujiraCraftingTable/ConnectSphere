@@ -9,7 +9,7 @@ struct RecommendedSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionHeader(bundle.loc("Recommended For You"), icon: "sparkles", color: .purple)
+            sectionHeader(bundle.loc("Recommended For You"), icon: "sparkles", color: AppColors.textSecondary(colorScheme))
 
             if communities.isEmpty {
                 Text(bundle.loc("Join some communities to get personalised recommendations"))

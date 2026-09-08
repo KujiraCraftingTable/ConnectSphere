@@ -4,6 +4,7 @@ import SwiftUI
 /// Lets the user enter 2–6 options and an optional end date.
 struct CreatePollSheet: View {
     @Environment(\.colorScheme) var colorScheme
+    @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
     @Binding var options: [String]
     @Binding var endsAt: Date?
@@ -61,7 +62,7 @@ struct CreatePollSheet: View {
                     .font(.system(size: 14))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
             }
-            .tint(.purple)
+            .tint(themeManager.theme.primary)
 
             if showEndDate {
                 DatePicker(

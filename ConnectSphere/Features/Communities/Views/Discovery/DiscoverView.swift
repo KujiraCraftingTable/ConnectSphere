@@ -4,6 +4,7 @@ import SwiftUI
 struct DiscoverView: View {
     @Environment(AppState.self) var appState
     @Environment(\.colorScheme) var colorScheme
+    @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
     @State private var viewModel: DiscoverViewModel
     @State private var selectedType: CommunityType? = nil
@@ -79,7 +80,7 @@ struct DiscoverView: View {
                 .foregroundColor(isSelected ? .white : AppColors.textSecondary(colorScheme))
                 .padding(.horizontal, 14)
                 .padding(.vertical, 7)
-                .background(isSelected ? Color.purple : AppColors.elevated(colorScheme))
+                .background(isSelected ? themeManager.theme.primary : AppColors.elevated(colorScheme))
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)

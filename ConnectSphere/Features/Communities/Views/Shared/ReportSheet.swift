@@ -4,6 +4,7 @@ import SwiftUI
 /// Used from CommunityPostCard context menu and member row context menu.
 struct ReportSheet: View {
     @Environment(\.colorScheme) var colorScheme
+    @Environment(ThemeManager.self) var themeManager
     @Environment(\.dismiss) var dismiss
     @Environment(\.appBundle) var bundle
 
@@ -77,7 +78,7 @@ struct ReportSheet: View {
                         Spacer()
                         if selectedReason == reason {
                             Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.purple)
+                                .foregroundColor(themeManager.theme.primary)
                         } else {
                             Image(systemName: "circle")
                                 .foregroundColor(AppColors.textTertiary(colorScheme))
@@ -133,7 +134,7 @@ struct ReportSheet: View {
                 .foregroundColor(.white)
                 .padding(.horizontal, 40)
                 .padding(.vertical, 12)
-                .background(Color.purple)
+                .background(themeManager.theme.primary)
                 .clipShape(Capsule())
                 .padding(.top, 8)
         }

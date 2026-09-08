@@ -283,7 +283,7 @@ struct SearchView: View {
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.orange)
+                        .foregroundColor(AppColors.warning(colorScheme))
                         .padding(.top, 1)
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(messages, id: \.self) { message in
@@ -310,7 +310,7 @@ struct SearchView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.orange.opacity(0.10))
+                .background(AppColors.warning(colorScheme).opacity(0.10))
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .padding(.horizontal, 12)
                 .padding(.top, 8)

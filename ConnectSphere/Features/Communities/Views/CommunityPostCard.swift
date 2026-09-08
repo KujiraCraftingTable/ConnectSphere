@@ -150,9 +150,9 @@ struct CommunityPostCard: View {
                 Button {
                     Task { await toggleLike() }
                 } label: {
-                    Label("\(likeCount)", systemImage: isLiked ? "heart.fill" : "heart")
-                        .font(.system(size: 13))
-                        .foregroundColor(isLiked ? .red : AppColors.textSecondary(colorScheme))
+                    Label("\(likeCount)", systemImage: isLiked ? "hand.thumbsup.fill" : "hand.thumbsup")
+                        .appFont(.subheadline)
+                        .foregroundColor(isLiked ? accentColor : AppColors.textSecondary(colorScheme))
                 }
                 .buttonStyle(.plain)
 
@@ -225,15 +225,10 @@ struct CommunityPostCard: View {
     /// (same component Feed's PostCard uses; tags aren't distinguished between Feed/Community).
     private var hashtagRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
+            HStack(spacing: AppSpacing.sm) {
                 ForEach(post.tags, id: \.self) { tag in
                     NavigationLink(destination: TagFeedView(tag: tag, mode: appState.currentMode)) {
-                        Text("#\(tag)")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(accentColor)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(accentColor.opacity(0.12), in: Capsule())
+                        Chip(text: "#\(tag)", style: .neutral)
                     }
                     .buttonStyle(.plain)
                 }

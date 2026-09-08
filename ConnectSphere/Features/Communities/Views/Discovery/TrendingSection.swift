@@ -9,7 +9,7 @@ struct TrendingSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionHeader(bundle.loc("Trending Now"), icon: "flame.fill", color: .orange)
+            sectionHeader(bundle.loc("Trending Now"), icon: "flame.fill", color: AppColors.textSecondary(colorScheme))
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {

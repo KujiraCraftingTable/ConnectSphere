@@ -372,7 +372,7 @@ struct CommentRow: View {
                                     Text("\(comment.likeCount)").font(.system(size: 12))
                                 }
                             }
-                            .foregroundColor(comment.isLiked ? .red : AppColors.textSecondary(colorScheme))
+                            .foregroundColor(comment.isLiked ? AppColors.danger(colorScheme) : AppColors.textSecondary(colorScheme))
                         }
                         .buttonStyle(.plain)
                     }
