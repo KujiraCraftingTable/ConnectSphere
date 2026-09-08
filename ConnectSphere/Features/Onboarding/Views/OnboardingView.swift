@@ -2,6 +2,7 @@ import SwiftUI
 
 struct OnboardingView: View {
     @Environment(AppState.self) var appState
+    @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
     @State private var step    = 0
     @State private var form    = OnboardingForm()
@@ -64,7 +65,7 @@ struct OnboardingView: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(AppColors.borderDefault(.light)).frame(height: 4)
                     Capsule()
-                        .fill(Color.white)
+                        .fill(themeManager.theme.primary)
                         .frame(width: geo.size.width * CGFloat(step + 1) / CGFloat(totalSteps), height: 4)
                         .animation(.spring(), value: step)
                 }
@@ -82,11 +83,11 @@ struct OnboardingView: View {
                 modeCard(mode: "hobby", icon: "person.2.fill",
                          title: bundle.loc("Friends & Fun"),
                          desc: bundle.loc("Find friends, share interests"),
-                         color: Color(hex: "#FF6B35"))
+                         color: themeManager.theme.primary)
                 modeCard(mode: "work", icon: "briefcase.fill",
                          title: bundle.loc("Work & Study"),
                          desc: bundle.loc("Networking, find collaborators"),
-                         color: Color(hex: "#1877F2"))
+                         color: themeManager.theme.primary)
             }
             nextButton(enabled: true, label: bundle.loc("Continue"))
         }
@@ -113,7 +114,7 @@ struct OnboardingView: View {
             .padding(16)
             .background(
                 RoundedRectangle(cornerRadius: 14)
-                    .fill(Color.white.opacity(selected ? 0.15 : 0.07))
+                    .fill(selected ? themeManager.theme.primary.opacity(0.14) : AppColors.elevated(.light))
                     .overlay(RoundedRectangle(cornerRadius: 14)
                         .stroke(selected ? color : Color.clear, lineWidth: 2))
             )
@@ -180,7 +181,7 @@ struct OnboardingView: View {
                                     .padding(.vertical, 12)
                                     .background(
                                         RoundedRectangle(cornerRadius: 12)
-                                            .fill(selected ? Color(hex: "#1877F2") : AppColors.surface(.light))
+                                            .fill(selected ? themeManager.theme.primary : AppColors.surface(.light))
                                     )
                             }
                             .buttonStyle(.plain)
@@ -212,7 +213,7 @@ struct OnboardingView: View {
                 }
 
                 // Who can see the age — defaults to Private, doesn't affect age-based search
-                DobVisibilityToggle(visibility: $form.dob_visibility, accentColor: Color(hex: "#1877F2"))
+                DobVisibilityToggle(visibility: $form.dob_visibility, accentColor: themeManager.theme.primary)
             }
 
             if let e = error { errorBanner(e) }
@@ -246,10 +247,10 @@ struct OnboardingView: View {
         case .available:
             HStack(spacing: 6) {
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(Color(hex: "#2CB67D"))
+                    .foregroundColor(AppColors.success(.light))
                 Text("Username available", bundle: bundle)
                     .font(.system(size: 12))
-                    .foregroundColor(Color(hex: "#2CB67D"))
+                    .foregroundColor(AppColors.success(.light))
             }
             .padding(.leading, 4)
         case .taken:
@@ -258,7 +259,7 @@ struct OnboardingView: View {
                 Text("Username already taken", bundle: bundle)
                     .font(.system(size: 12))
             }
-            .foregroundColor(Color(hex: "#FF6B6B"))
+            .foregroundColor(AppColors.danger(.light))
             .padding(.leading, 4)
         }
     }
@@ -366,10 +367,10 @@ struct OnboardingView: View {
             Image(systemName: "exclamationmark.triangle.fill")
             Text(msg).font(.system(size: 13))
         }
-        .foregroundColor(Color(hex: "#FF6B6B"))
+        .foregroundColor(AppColors.danger(.light))
         .padding(.horizontal, 12).padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(hex: "#FF6B6B").opacity(0.12))
+        .background(AppColors.danger(.light).opacity(0.12))
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
@@ -436,6 +437,7 @@ struct OnboardingCard<Content: View>: View {
 struct ProvincePickerSheet: View {
     @Binding var selectedId: String
     @Environment(\.dismiss) private var dismiss
+    @Environment(ThemeManager.self) private var themeManager
     @Environment(\.appBundle) var bundle
     @State private var searchText = ""
 
@@ -460,7 +462,7 @@ struct ProvincePickerSheet: View {
                         Spacer()
                         if selectedId == province.id {
                             Image(systemName: "checkmark")
-                                .foregroundColor(Color(hex: "#1877F2"))
+                                .foregroundColor(themeManager.theme.primary)
                         }
                     }
                 }

@@ -65,10 +65,10 @@ struct PersonaSetupView: View {
                             Image(systemName: "exclamationmark.triangle.fill")
                             Text(e).font(.system(size: 13))
                         }
-                        .foregroundColor(Color(hex: "#FF6B6B"))
+                        .foregroundColor(AppColors.danger(.light))
                         .padding(.horizontal, 12).padding(.vertical, 8)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(hex: "#FF6B6B").opacity(0.12))
+                        .background(AppColors.danger(.light).opacity(0.12))
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
 

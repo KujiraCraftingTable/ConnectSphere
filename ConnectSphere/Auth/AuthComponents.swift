@@ -35,29 +35,6 @@ extension Bundle {
 // Kept for backward compatibility during migration. Will be removed once
 // all views have been migrated to ThemeManager.theme.primaryGradient.
 
-struct AppGradient {
-    static let primary = LinearGradient(
-        colors: [Color(hex: "#7F5AF0"), Color(hex: "#2CB67D")],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
-    static let background = LinearGradient(
-        colors: [Color(hex: "#0F0C29"), Color(hex: "#302B63"), Color(hex: "#24243E")],
-        startPoint: .top,
-        endPoint: .bottom
-    )
-    static let card = LinearGradient(
-        colors: [Color.white.opacity(0.08), Color.white.opacity(0.03)],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
-    static let accent = LinearGradient(
-        colors: [Color(hex: "#F7971E"), Color(hex: "#FFD200")],
-        startPoint: .leading,
-        endPoint: .trailing
-    )
-}
-
 // MARK: - Color Hex Extension
 
 extension Color {
@@ -194,30 +171,15 @@ extension View {
 
 // MARK: - Gradient Primary Button
 
+/// Legacy name kept for the Auth/Onboarding call sites — now a flat primary
+/// button (no gradient), delegating to the design-system `PrimaryButton`.
 struct GradientButton: View {
     let title: String
     var isLoading: Bool = false
     let action: () -> Void
 
-    @Environment(ThemeManager.self) var themeManager
-
     var body: some View {
-        Button(action: action) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(themeManager.theme.primaryGradient)
-                    .frame(height: 52)
-
-                if isLoading {
-                    ProgressView().tint(.white)
-                } else {
-                    Text(title)
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.white)
-                }
-            }
-        }
-        .disabled(isLoading)
+        PrimaryButton(title: title, isLoading: isLoading, action: action)
     }
 }
 

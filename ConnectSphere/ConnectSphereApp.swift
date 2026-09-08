@@ -53,21 +53,22 @@ struct ConnectSphereApp: App {
 
 struct RootView: View {
     @Environment(AppState.self) var appState
+    @Environment(ThemeManager.self) var themeManager
 
     var body: some View {
         Group {
             if appState.isCheckingAuth {
                 // Splash screen while checking the Keychain
                 ZStack {
-                    AppGradient.background.ignoresSafeArea()
+                    AppColors.base(.light).ignoresSafeArea()
                     VStack(spacing: 16) {
                         Image(systemName: "bubble.left.and.bubble.right.fill")
                             .font(.system(size: 54))
-                            .foregroundColor(.white)
+                            .foregroundColor(themeManager.theme.primary)
                         Text("ConnectSphere")
                             .font(.system(size: 28, weight: .bold))
-                            .foregroundColor(.white)
-                        ProgressView().tint(.white)
+                            .foregroundColor(AppColors.textPrimary(.light))
+                        ProgressView().tint(themeManager.theme.primary)
                     }
                 }
             } else if !appState.isLoggedIn {
