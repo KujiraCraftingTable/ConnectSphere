@@ -1,36 +1,13 @@
 import SwiftUI
 
+/// Thin forwarder to `Avatar` kept so the ~30 `AvatarView(user:size:)` call
+/// sites don't all have to change at once.
 struct AvatarView: View {
     let user: UserProfile
     let size: CGFloat
 
     var body: some View {
-        Group {
-            if let urlString = user.avatarUrl, let url = URL(string: urlString) {
-                // Real photo avatar; show the initials fallback while loading (or on error)
-                AsyncImage(url: url) { phase in
-                    if let image = phase.image {
-                        image.resizable().scaledToFill()
-                    } else {
-                        initialCircle
-                    }
-                }
-                .frame(width: size, height: size)
-                .clipShape(Circle())
-            } else {
-                initialCircle
-            }
-        }
-        .frame(width: size, height: size)
-    }
-
-    private var initialCircle: some View {
-        ZStack {
-            Circle()
-                .fill(Color(hex: user.avatarColor))
-            Text(String(user.name.prefix(1)))
-                .font(.system(size: size * 0.38, weight: .bold))
-                .foregroundColor(.white)
-        }
+        Avatar(name: user.name, colorHex: user.avatarColor,
+               imageURL: user.avatarUrl, diameter: size)
     }
 }
