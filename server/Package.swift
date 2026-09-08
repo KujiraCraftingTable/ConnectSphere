@@ -12,6 +12,8 @@ let package = Package(
         // PostgresKit re-exports SQLKit — raw parameterized SQL against Postgres,
         // which is how every query in the Node backend is written. No Fluent.
         .package(url: "https://github.com/vapor/postgres-kit.git", from: "2.13.0"),
+        // HMAC-SHA256 for the hand-rolled HS256 JWT (jsonwebtoken-compatible).
+        .package(url: "https://github.com/apple/swift-crypto.git", "3.0.0" ..< "5.0.0"),
     ],
     targets: [
         .executableTarget(
@@ -19,6 +21,7 @@ let package = Package(
             dependencies: [
                 .product(name: "Vapor", package: "vapor"),
                 .product(name: "PostgresKit", package: "postgres-kit"),
+                .product(name: "Crypto", package: "swift-crypto"),
             ],
             swiftSettings: swiftSettings
         ),

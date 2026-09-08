@@ -5,7 +5,7 @@ import Vapor
 func routes(_ app: Application) throws {
     let api = app.grouped("api")
 
-    // Phase 1 — try AuthController.register(routes: api)
+    AuthController.register(routes: api)
     // Phase 1 — try UsersController.register(routes: api)
     // Phase 2 — posts / feed / interactions / tags / stories / link-preview / events
     // Phase 3 — communities / connections / notifications
