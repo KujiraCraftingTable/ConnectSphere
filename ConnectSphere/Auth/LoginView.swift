@@ -78,7 +78,7 @@ struct LoginView: View {
         VStack(spacing: 12) {
             ZStack {
                 Circle()
-                    .fill(themeManager.theme.primaryGradient)
+                    .fill(themeManager.theme.primary)
                     .frame(width: 72, height: 72)
                 Image(systemName: "bubble.left.and.bubble.right.fill")
                     .font(.system(size: 30))
@@ -86,7 +86,7 @@ struct LoginView: View {
             }
             Text("ConnectSphere")
                 .font(.system(size: 28, weight: .bold))
-                .foregroundStyle(themeManager.theme.primaryGradient)
+                .foregroundStyle(themeManager.theme.primary)
             Text("Sign in to your account", bundle: bundle)
                 .font(.system(size: 14))
                 .foregroundColor(AppColors.textSecondary(.light))
@@ -123,10 +123,10 @@ struct LoginView: View {
                     Text(errorMessage)
                         .font(.system(size: 13))
                 }
-                .foregroundColor(Color(hex: "#FF6B6B"))
+                .foregroundColor(AppColors.danger(.light))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Color(hex: "#FF6B6B").opacity(0.12))
+                .background(AppColors.danger(.light).opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .transition(.scale.combined(with: .opacity))
             }
@@ -177,7 +177,7 @@ struct LoginView: View {
                 navigateToRegister = true
             }
             .font(.system(size: 14, weight: .bold))
-            .foregroundStyle(themeManager.theme.primaryGradient)
+            .foregroundStyle(themeManager.theme.primary)
         }
         .padding(.top, 4)
     }

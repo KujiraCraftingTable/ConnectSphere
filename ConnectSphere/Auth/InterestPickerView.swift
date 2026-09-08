@@ -101,7 +101,7 @@ struct InterestPickerView: View {
                 .foregroundColor(.white)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
-                .background(Capsule().fill(themeManager.theme.primaryGradient))
+                .background(Capsule().fill(themeManager.theme.primary))
             }
         }
     }
@@ -127,7 +127,7 @@ struct InterestPickerView: View {
             .padding(.vertical, 7)
             .background(
                 Capsule().fill(isSelected
-                    ? AnyShapeStyle(themeManager.theme.primaryGradient)
+                    ? AnyShapeStyle(themeManager.theme.primary)
                     : AnyShapeStyle(colorScheme == .dark
                         ? Color.white.opacity(0.1)
                         : Color.black.opacity(0.06)))
@@ -143,10 +143,10 @@ struct InterestPickerView: View {
             VStack(spacing: 4) {
                 Text(pendingCategory)
                     .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(AppTheme.textPrimary)
+                    .foregroundColor(AppColors.textPrimary(.light))
                 Text(String(format: bundle.loc("Specifically which %@? (optional)"), pendingCategory.lowercased()))
                     .font(.system(size: 14))
-                    .foregroundColor(AppTheme.textSecondary)
+                    .foregroundColor(AppColors.textSecondary(.light))
             }
             .padding(.top, 8)
 
@@ -154,9 +154,9 @@ struct InterestPickerView: View {
                 .font(.system(size: 16))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 13)
-                .background(AppTheme.background)
+                .background(AppColors.surface(.light))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(AppTheme.divider, lineWidth: 1))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(AppColors.borderDefault(.light), lineWidth: 1))
                 .padding(.horizontal, 20)
                 .submitLabel(.done)
                 .onSubmit { confirmSubItem() }
@@ -168,10 +168,10 @@ struct InterestPickerView: View {
                     showSubItemSheet = false
                 }
                 .font(.system(size: 15, weight: .medium))
-                .foregroundColor(AppTheme.textSecondary)
+                .foregroundColor(AppColors.textSecondary(.light))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 13)
-                .background(AppTheme.background)
+                .background(AppColors.surface(.light))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
 
                 // Add with sub-item
@@ -182,13 +182,13 @@ struct InterestPickerView: View {
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 13)
-                .background(themeManager.theme.primaryGradient, in: RoundedRectangle(cornerRadius: 12))
+                .background(themeManager.theme.primary, in: RoundedRectangle(cornerRadius: 12))
             }
             .padding(.horizontal, 20)
 
             Spacer()
         }
-        .background(AppTheme.card.ignoresSafeArea())
+        .background(AppColors.base(.light).ignoresSafeArea())
     }
 
     // MARK: Helpers

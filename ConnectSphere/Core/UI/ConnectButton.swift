@@ -192,7 +192,7 @@ struct ConnectButton: View {
                 withCompanion { connectedChip }
             case .pendingSent:
                 withCompanion {
-                    actionChip(label: bundle.loc("Sent"), icon: "clock", color: AppTheme.textSecondary,
+                    actionChip(label: bundle.loc("Sent"), icon: "clock", color: AppColors.textSecondary(colorScheme),
                                minWidth: singleChipMinWidth) {
                         Task { await vm.cancel() }
                     }
