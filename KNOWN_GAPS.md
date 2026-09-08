@@ -41,6 +41,29 @@ prototype surface for the project; finishing them is post-submission work.
 - Orphaned files under `backend/uploads/` (from deleted posts / recalled
   messages / expired stories) are not swept.
 
+## iOS — design-system rollout is partial
+
+A token layer (`Core/Theme/AppMetrics.swift`: `AppFont`, `AppSpacing`,
+`AppRadius`, `AppElevation`) + shared components (`Core/UI/`: `Avatar`, `Chip`,
+`CountBadge`, `ListRow`, `SectionHeader`, `PrimaryButton`, `EmptyStateView`)
+were added, `AppTheme`/`AppGradient` deleted, the Feed migrated as the visual
+reference, and the loud palette-on-chip / stray-`.orange`/`.purple` problems
+swept app-wide. Still mechanical follow-up:
+
+- ~637 inline `.font(.system(size:))` sites still need `.appFont(_:)` (Chat,
+  Communities, Search, Profile, Notifications bodies). `scripts/lint-design.sh`
+  budget-checks the count so it can only shrink.
+- `settingsRow` (×2 copies) → `ListRow`; the ~13 hand-rolled avatar circles in
+  Chat / Notifications → `Avatar`.
+- `FeedView.chatIconButton` / `ProfileView.navIconButton` bespoke filled circles
+  → plain toolbar buttons.
+- `SearchView`'s ~5 stacked info panels → one `InfoPanel`.
+- `ThemePickerView` still uses `Color(.systemGroupedBackground)` (a cool-grey
+  seam against the warm base) and heavy `primaryGradient`.
+- `%d` → `%lld` in ~24 `String(format: bundle.loc(...))` sites (correctness nit
+  only — no value reaches 2³¹; each needs a matching key rename in both
+  `.strings` files).
+
 ## iOS — error-UX rollout is partial
 
 Phase 4 added the loading / error+Retry / empty pattern to Feed, Blocked Users,

@@ -6,6 +6,13 @@ on:
   pull_request:
 
 jobs:
+  design-lint:
+    name: Design-system guardrails
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/lint-design.sh
+
   backend:
     name: Backend unit tests
     runs-on: ubuntu-latest
