@@ -61,6 +61,25 @@ struct AppColors {
     static func stateSelected(_ scheme: ColorScheme) -> Color {
         scheme == .dark ? Color.white.opacity(0.11) : Color.black.opacity(0.09)
     }
+
+    // MARK: Semantic status
+    // Use these instead of raw Color.green/.orange/.red / hex literals for
+    // success / warning / danger. System `.red` stays only on
+    // `role: .destructive` labels (iOS styles those itself).
+
+    static func success(_ scheme: ColorScheme) -> Color {
+        scheme == .dark ? Color(hex: "#34D399") : Color(hex: "#059669")
+    }
+    static func warning(_ scheme: ColorScheme) -> Color {
+        scheme == .dark ? Color(hex: "#FBBF24") : Color(hex: "#D97706")
+    }
+    static func danger(_ scheme: ColorScheme) -> Color {
+        scheme == .dark ? Color(hex: "#F87171") : Color(hex: "#DC2626")
+    }
+
+    /// Fallback background for an avatar with no image and no server color.
+    /// One value app-wide (was #7F5AF0 in some places, #1877F2 in others).
+    static let avatarFallback = "#7F5AF0"
 }
 
 // MARK: - ViewModifiers
