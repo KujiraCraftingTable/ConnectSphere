@@ -14,20 +14,14 @@ struct FeedView: View {
         NavigationStack {
             ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 5) {
+                LazyVStack(spacing: AppSpacing.sm) {
                     Color.clear.frame(height: 0).id("feedTop")
                     createPostBar
-                        .background(AppColors.surface(colorScheme))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.06),
-                                radius: 4, x: 0, y: 2)
+                        .cardStyle()
 
                     if appState.currentMode == .hobby {
                         StoriesRow()
-                            .background(AppColors.surface(colorScheme))
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.06),
-                                    radius: 4, x: 0, y: 2)
+                            .cardStyle()
                     }
 
                     feedScopeRow
@@ -70,9 +64,7 @@ struct FeedView: View {
                                 onPostDeleted: { viewModel.removePost(id: post.id) },
                                 onPostUpdated: { updated in viewModel.updatePost(updated) }
                             )
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.06),
-                                    radius: 4, x: 0, y: 2)
+                            .cardStyle()
                             // Makes a just-created post visibly slide/fade in at
                             // the top instead of silently popping into place —
                             // the "yes, this actually posted" confirmation.
@@ -90,8 +82,8 @@ struct FeedView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 10)
-                .padding(.bottom, 16)
+                .padding(.horizontal, AppSpacing.sm)
+                .padding(.bottom, AppSpacing.lg)
             }
             .background(AppColors.base(colorScheme))
             .navigationBarTitleDisplayMode(.inline)
@@ -282,15 +274,8 @@ struct FeedView: View {
                         .font(.system(size: 15, weight: .medium))
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                 }
-                if appState.chatUnreadCount > 0 {
-                    Text(appState.chatUnreadCount > 99 ? "99+" : "\(appState.chatUnreadCount)")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 2)
-                        .background(Capsule().fill(Color.red))
-                        .offset(x: 4, y: -4)
-                }
+                CountBadge(count: appState.chatUnreadCount)
+                    .offset(x: 6, y: -6)
             }
         }
     }
