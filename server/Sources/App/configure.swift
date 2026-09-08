@@ -1,0 +1,43 @@
+import Vapor
+
+/// Boot-time wiring. Mirrors the middleware order and route mounts in
+/// `backend/index.js` (helmet → rate limit → body parse → static → health →
+/// routes → error handler).
+public func configure(_ app: Application) async throws {
+    // 1. Environment — same var names / defaults as backend/src/config/env.js.
+    //    `.env` is loaded by Vapor's DotEnvFile from the working directory; we
+    //    point the process at `../backend/.env` in entrypoint before this runs.
+    let env = try AppEnv.load()
+    app.appEnv = env
+    app.http.server.configuration.port = env.port
+    app.http.server.configuration.hostname = "0.0.0.0"
+
+    // 2. Body size — Express default is ~100 kb; upload routes raise it later.
+    app.routes.defaultMaxBodySize = "128kb"
+
+    // 3. Database pool (PostgresKit, raw SQL — no Fluent).
+    app.db = AppDatabase(env: env, eventLoopGroup: app.eventLoopGroup, logger: app.logger)
+    app.lifecycle.use(Application.DatabaseLifecycle())
+
+    // 4. Middleware — order matches index.js. Vapor's own ErrorMiddleware is
+    //    replaced by ours so the JSON error shape matches Node.
+    app.middleware = .init()
+    app.middleware.use(AppErrorMiddleware(isProduction: env.isProduction, logger: app.logger))
+    app.middleware.use(SecurityHeadersMiddleware())
+    app.middleware.use(RateLimitMiddleware.global())
+    // FileMiddleware for /uploads (public) is added in Phase 2 alongside the
+    // /uploads/messages JWT gate.
+
+    // 5. Routes.
+    HealthController.register(app)
+    try routes(app)
+
+    // 6. Run pending migrations at boot (same files as scripts/migrate.js).
+    //    Controlled by RUN_MIGRATIONS=1 so a plain `swift run` against an
+    //    already-migrated DB is a no-op unless asked.
+    if Environment.get("RUN_MIGRATIONS") == "1" {
+        let dir = Environment.get("MIGRATIONS_DIR") ?? app.directory.workingDirectory + "../backend/migrations"
+        let result = try await MigrationRunner.run(db: app.db, migrationsDir: dir, logger: app.logger)
+        app.logger.info("migrations: \(result.applied.count) applied, \(result.skipped.count) already present")
+    }
+}

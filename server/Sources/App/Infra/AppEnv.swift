@@ -1,0 +1,125 @@
+import Vapor
+
+/// Mirror of `backend/src/config/env.js` — same variable names, same defaults,
+/// so the Swift server reads the identical `.env` the Node backend uses.
+struct AppEnv: Sendable {
+    struct DB: Sendable {
+        var host: String
+        var port: Int
+        var database: String
+        var user: String
+        var password: String
+        var poolMax: Int
+        var idleTimeoutMS: Int
+        var connectionTimeoutMS: Int
+    }
+    struct JWT: Sendable {
+        var secret: String
+        var expiresIn: String
+    }
+    struct Mail: Sendable {
+        var host: String
+        var port: Int
+        var user: String
+        var pass: String
+        var from: String
+    }
+    struct Ollama: Sendable {
+        var url: String
+        var model: String
+    }
+    struct Redis: Sendable {
+        var host: String
+        var port: Int
+    }
+
+    var port: Int
+    var nodeEnv: String
+    var isProduction: Bool
+    var corsOrigins: [String]
+    var googleClientId: String
+    var jwt: JWT
+    var mail: Mail
+    var ollama: Ollama
+    var redis: Redis
+    var db: DB
+
+    /// Placeholder secrets — production must never boot with one (matches env.js).
+    static let weakJWTSecrets: Set<String> = [
+        "dev_secret",
+        "change-me-generate-with-openssl-rand-hex-32",
+    ]
+
+    enum ValidationError: Error, CustomStringConvertible {
+        case missing([String])
+        case weakJWTInProduction
+        var description: String {
+            switch self {
+            case .missing(let keys): return "Missing required environment variables: \(keys.joined(separator: ", "))"
+            case .weakJWTInProduction: return "JWT_SECRET must be set to a strong, unique value in production"
+            }
+        }
+    }
+
+    /// Reads and validates the process environment. `get` is injected so tests
+    /// can supply a fixed dictionary.
+    static func load(_ get: (String) -> String? = { Environment.get($0) }) throws -> AppEnv {
+        let required = ["DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD"]
+        let missing = required.filter { (get($0) ?? "").isEmpty }
+        if !missing.isEmpty { throw ValidationError.missing(missing) }
+
+        let nodeEnv = get("NODE_ENV") ?? "development"
+        let isProd = nodeEnv == "production"
+        let jwtSecret = get("JWT_SECRET") ?? "dev_secret"
+        let weakJWT = jwtSecret.isEmpty || weakJWTSecrets.contains(jwtSecret)
+        if isProd && weakJWT { throw ValidationError.weakJWTInProduction }
+
+        func int(_ key: String, _ fallback: Int) -> Int { Int(get(key) ?? "") ?? fallback }
+
+        return AppEnv(
+            port: int("PORT", 3000),
+            nodeEnv: nodeEnv,
+            isProduction: isProd,
+            corsOrigins: (get("CORS_ORIGINS") ?? "")
+                .split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty },
+            googleClientId: get("GOOGLE_CLIENT_ID") ?? "",
+            jwt: JWT(secret: jwtSecret, expiresIn: get("JWT_EXPIRES_IN") ?? "90d"),
+            mail: Mail(
+                host: get("SMTP_HOST") ?? "smtp.gmail.com",
+                port: int("SMTP_PORT", 587),
+                user: get("SMTP_USER") ?? "",
+                pass: get("SMTP_PASS") ?? "",
+                from: get("MAIL_FROM") ?? (get("SMTP_USER") ?? "")
+            ),
+            ollama: Ollama(
+                url: get("OLLAMA_URL") ?? "http://localhost:11434",
+                model: get("OLLAMA_MODEL") ?? "qwen2.5:7b-instruct-q4_k_m"
+            ),
+            redis: Redis(
+                host: get("REDIS_HOST") ?? "localhost",
+                port: int("REDIS_PORT", 6379)
+            ),
+            db: DB(
+                host: get("DB_HOST") ?? "localhost",
+                port: int("DB_PORT", 5432),
+                database: get("DB_NAME") ?? "connectsphere",
+                user: get("DB_USER") ?? "connectsphere_user",
+                password: get("DB_PASSWORD") ?? "",
+                poolMax: int("DB_POOL_MAX", 10),
+                idleTimeoutMS: int("DB_POOL_IDLE_TIMEOUT", 30000),
+                connectionTimeoutMS: int("DB_POOL_CONNECTION_TIMEOUT", 2000)
+            )
+        )
+    }
+}
+
+extension Application {
+    private struct AppEnvKey: StorageKey { typealias Value = AppEnv }
+    var appEnv: AppEnv {
+        get {
+            guard let e = storage[AppEnvKey.self] else { fatalError("AppEnv not configured") }
+            return e
+        }
+        set { storage[AppEnvKey.self] = newValue }
+    }
+}
