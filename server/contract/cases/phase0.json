@@ -1,0 +1,3 @@
+[
+  { "name": "health returns ok + env + checks", "method": "GET", "path": "/health" }
+]

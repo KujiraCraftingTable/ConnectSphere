@@ -1,0 +1,82 @@
+# Swift-backend variant of backend/docker-compose.yml. Same Postgres + Redis;
+# the `server` service replaces the Node `backend` container. Run alongside the
+# Node stack during the port (different published ports) or standalone.
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: connectsphere_db_swift
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: connectsphere
+      POSTGRES_USER: connectsphere_user
+      POSTGRES_PASSWORD: connectsphere_pass
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data_swift:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U connectsphere_user -d connectsphere"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: connectsphere_redis_swift
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data_swift:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: ./server
+    container_name: connectsphere_server_swift
+    restart: unless-stopped
+    init: true
+    ports:
+      - "3001:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: connectsphere
+      DB_USER: connectsphere_user
+      DB_PASSWORD: connectsphere_pass
+      DB_POOL_MAX: "10"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      OLLAMA_URL: http://host.docker.internal:11434
+      OLLAMA_MODEL: qwen2.5:7b-instruct-q4_k_m
+      JWT_SECRET: connectsphere_jwt_secret_change_in_production
+      JWT_EXPIRES_IN: 90d
+      RUN_MIGRATIONS: "1"
+      MIGRATIONS_DIR: /migrations
+    volumes:
+      - ./backend/migrations:/migrations:ro
+      - ./backend/uploads:/app/uploads
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  postgres_data_swift:
+  redis_data_swift:
