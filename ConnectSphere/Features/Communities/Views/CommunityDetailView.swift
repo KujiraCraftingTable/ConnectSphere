@@ -3,6 +3,7 @@ import SwiftUI
 struct CommunityDetailView: View {
     @Environment(AppState.self) var appState
     @Environment(\.colorScheme) var colorScheme
+    @Environment(ThemeManager.self) private var themeManager
     @Environment(\.appBundle) var bundle
     @State private var viewModel: CommunityDetailViewModel
     @State private var selectedTab = 0
@@ -161,34 +162,37 @@ struct CommunityDetailView: View {
 
     private var communityHeader: some View {
         ZStack(alignment: .bottomLeading) {
-            Rectangle()
-                .fill(accentColor.gradient)
-                .frame(height: 130)
+            AppColors.surface(colorScheme)
+                .frame(height: 112)
 
-            HStack(alignment: .bottom, spacing: 12) {
+            HStack(alignment: .bottom, spacing: AppSpacing.md) {
+                // Cover color lives in a small emoji tile, not a full-bleed band.
                 Text(viewModel.community?.iconEmoji ?? "👥")
-                    .font(.system(size: 48))
-                    .padding(.leading, 16)
-                    .padding(.bottom, 12)
+                    .font(.system(size: 34))
+                    .frame(width: 60, height: 60)
+                    .background(accentColor.opacity(0.15),
+                                in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
+                    .padding(.leading, AppSpacing.lg)
+                    .padding(.bottom, AppSpacing.md)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(viewModel.community?.name ?? "")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(.white)
+                        .appFont(.title3)
+                        .foregroundColor(AppColors.textPrimary(colorScheme))
                     if let count = viewModel.community?.memberCount {
                         Text(String(format: bundle.loc("%lld members"), count))
-                            .font(.system(size: 13))
-                            .foregroundColor(.white.opacity(0.8))
+                            .appFont(.footnote)
+                            .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
                 }
-                .padding(.bottom, 14)
+                .padding(.bottom, AppSpacing.md + 2)
                 Spacer()
 
                 // Join / Request / Pending button for non-members
                 if viewModel.community?.isMember == false {
                     joinButton
-                        .padding(.trailing, 16)
-                        .padding(.bottom, 12)
+                        .padding(.trailing, AppSpacing.lg)
+                        .padding(.bottom, AppSpacing.md)
                 }
             }
         }
@@ -203,19 +207,20 @@ struct CommunityDetailView: View {
             } label: {
                 joinButtonLabel(
                     title: viewModel.community?.privacy == .private ? bundle.loc("Request to join") : bundle.loc("Join"),
-                    bg: .white, fg: accentColor
+                    bg: themeManager.theme.primary, fg: .white
                 )
             }
             .buttonStyle(.plain)
 
         case .loading:
             ProgressView()
-                .tint(.white)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
+                .padding(.horizontal, AppSpacing.lg)
+                .padding(.vertical, AppSpacing.sm)
 
         case .pending:
-            joinButtonLabel(title: bundle.loc("Pending"), bg: .white.opacity(0.3), fg: .white)
+            joinButtonLabel(title: bundle.loc("Pending"),
+                            bg: AppColors.elevated(colorScheme),
+                            fg: AppColors.textSecondary(colorScheme))
                 .disabled(true)
 
         case .joined:
@@ -225,10 +230,11 @@ struct CommunityDetailView: View {
 
     private func joinButtonLabel(title: String, bg: Color, fg: Color) -> some View {
         Text(title)
-            .font(.system(size: 13, weight: .semibold))
+            .appFont(.subheadline)
+            .fontWeight(.semibold)
             .foregroundColor(fg)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
+            .padding(.horizontal, AppSpacing.md + 2)
+            .padding(.vertical, AppSpacing.sm)
             .background(bg)
             .clipShape(Capsule())
     }
