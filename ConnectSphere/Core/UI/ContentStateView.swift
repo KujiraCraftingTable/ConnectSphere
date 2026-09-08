@@ -36,20 +36,12 @@ struct ContentStateView<Content: View, Empty: View>: View {
                 .frame(maxWidth: .infinity)
                 .padding(.top, 60)
         case .failed(let message) where isEmpty:
-            VStack(spacing: 12) {
-                Image(systemName: "wifi.exclamationmark")
-                    .font(.system(size: 36))
-                    .foregroundColor(AppColors.textTertiary(colorScheme))
-                Text(message)
-                    .font(.system(size: 14))
-                    .multilineTextAlignment(.center)
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-                    .padding(.horizontal, 32)
-                Button(bundle.loc("Retry"), action: retry)
-                    .font(.system(size: 14, weight: .semibold))
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.top, 60)
+            EmptyStateView(
+                systemImage: "wifi.exclamationmark",
+                title: message,
+                actionTitle: bundle.loc("Retry"),
+                action: retry
+            )
         default:
             if isEmpty {
                 emptyState()
