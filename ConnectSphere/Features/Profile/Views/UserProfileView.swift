@@ -235,25 +235,20 @@ struct UserProfileView: View {
     }
 
     private func chipSection(title: String, items: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
             Text(title)
-                .font(.system(size: 16, weight: .semibold))
+                .appFont(.headline)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
+                HStack(spacing: AppSpacing.sm) {
                     ForEach(items, id: \.self) { item in
-                        Text(item)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(themeManager.theme.primary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Capsule().fill(themeManager.theme.primary.opacity(0.1)))
+                        Chip(text: item, style: .neutral)
                     }
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
+        .padding(AppSpacing.lg)
         .background(AppColors.surface(colorScheme))
     }
 

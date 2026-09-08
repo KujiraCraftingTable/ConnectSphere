@@ -228,7 +228,7 @@ struct NotificationsView: View {
 
     private func unreadTint(for group: NotificationGroup) -> Color {
         group.representative.type == "mode_mismatch"
-            ? Color.orange.opacity(0.06)
+            ? AppColors.warning(colorScheme).opacity(0.06)
             : themeManager.theme.primary.opacity(0.06)
     }
 
@@ -538,16 +538,16 @@ struct ModeMismatchCard: View {
             HStack(spacing: 6) {
                 Image(systemName: "wand.and.stars")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.orange)
+                    .foregroundColor(AppColors.warning(colorScheme))
                 Text("AI suggestion", bundle: bundle)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.orange)
+                    .foregroundColor(AppColors.warning(colorScheme))
                 Spacer()
                 Text(notif.createdAt.timeAgoString)
                     .font(.system(size: 12))
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                 if !notif.isRead {
-                    Circle().fill(Color.orange).frame(width: 8, height: 8)
+                    Circle().fill(AppColors.warning(colorScheme)).frame(width: 8, height: 8)
                 }
             }
 
@@ -577,7 +577,7 @@ struct ModeMismatchCard: View {
                     .foregroundColor(.white)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 7)
-                    .background(Capsule().fill(Color.orange))
+                    .background(Capsule().fill(AppColors.warning(colorScheme)))
                 }
             } else if isResolving {
                 ProgressView().scaleEffect(0.8)

@@ -57,6 +57,7 @@ final class LocationSearchCompleter: NSObject, MKLocalSearchCompleterDelegate {
 /// unrelated features decoupled. `CreateEventSheet` itself is untouched.
 struct MeetingProposalComposerView: View {
     @Environment(\.colorScheme) var colorScheme
+    @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
 
     @Binding var title: String
@@ -144,7 +145,7 @@ struct MeetingProposalComposerView: View {
                     .font(.system(size: 14))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
             }
-            .tint(.purple)
+            .tint(themeManager.theme.primary)
 
             if showEndDate {
                 DatePicker(

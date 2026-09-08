@@ -4,6 +4,7 @@ import SwiftUI
 /// Captures title, optional location, starts_at, and optional ends_at.
 struct CreateEventSheet: View {
     @Environment(\.colorScheme) var colorScheme
+    @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
     @Binding var title: String
     @Binding var location: String
@@ -48,7 +49,7 @@ struct CreateEventSheet: View {
                     .font(.system(size: 14))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
             }
-            .tint(.purple)
+            .tint(themeManager.theme.primary)
 
             if showEndDate {
                 DatePicker(

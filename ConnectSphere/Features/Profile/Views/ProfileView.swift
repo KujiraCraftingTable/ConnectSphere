@@ -207,52 +207,24 @@ struct ProfileView: View {
         }
     }
 
-    private var skillsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Skills", bundle: bundle)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(AppColors.textPrimary(colorScheme))
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(user.skills, id: \.self) { skill in
-                        Text(skill)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(themeManager.theme.primary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(themeManager.theme.primary.opacity(0.1))
-                            )
-                    }
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(AppColors.surface(colorScheme))
-    }
+    private var skillsSection: some View { tagSection(title: bundle.loc("Skills"), items: user.skills) }
+    private var interestsSection: some View { tagSection(title: bundle.loc("Interests"), items: user.interests) }
 
-    private var interestsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Interests", bundle: bundle)
-                .font(.system(size: 16, weight: .semibold))
+    private func tagSection(title: String, items: [String]) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            Text(title)
+                .appFont(.headline)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(user.interests, id: \.self) { interest in
-                        Text(interest)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(themeManager.theme.primary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Capsule().fill(themeManager.theme.primary.opacity(0.1)))
+                HStack(spacing: AppSpacing.sm) {
+                    ForEach(items, id: \.self) { item in
+                        Chip(text: item, style: .neutral)
                     }
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
+        .padding(AppSpacing.lg)
         .background(AppColors.surface(colorScheme))
     }
 
