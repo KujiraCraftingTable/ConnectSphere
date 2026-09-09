@@ -26,12 +26,24 @@ struct UserNotificationRepository {
         ]
         if let cursor { queryItems.append(URLQueryItem(name: "cursor", value: cursor)) }
 
-        return try await client.fetch(
-            UserNotificationListResponseDTO.self,
-            path: "/user-notifications",
-            token: token,
-            queryItems: queryItems
-        )
+        // Cache only the first page of the default (All) filter — the offline
+        // landing surface. Cursored / Unread-filtered fetches bypass it.
+        let cacheable = cursor == nil && filter == .all
+        do {
+            let (response, body) = try await client.fetchRaw(
+                UserNotificationListResponseDTO.self,
+                path: "/user-notifications",
+                token: token,
+                queryItems: queryItems
+            )
+            if cacheable { await CacheStore.shared.put(CacheStore.Key.notifications, body: body) }
+            return response
+        } catch {
+            if cacheable, let cached = await CacheStore.shared.get(UserNotificationListResponseDTO.self, CacheStore.Key.notifications) {
+                return cached
+            }
+            throw error
+        }
     }
 
     func fetchAll(token: String) async throws -> UserNotificationListResponseDTO {

@@ -32,14 +32,23 @@ struct MessageRepository {
 
     /// Fetch all conversations for the current user in a given mode.
     func fetchConversations(mode: String, token: String) async throws -> [Conversation] {
-        let response = try await client.fetch(
-            DataListResponse<Conversation>.self,
-            path: "/messages/conversations",
-            method: "GET",
-            token: token,
-            queryItems: [URLQueryItem(name: "mode", value: mode)]
-        )
-        return response.data
+        let key = CacheStore.Key.conversations(mode)
+        do {
+            let (response, body) = try await client.fetchRaw(
+                DataListResponse<Conversation>.self,
+                path: "/messages/conversations",
+                method: "GET",
+                token: token,
+                queryItems: [URLQueryItem(name: "mode", value: mode)]
+            )
+            await CacheStore.shared.put(key, body: body)
+            return response.data
+        } catch {
+            if let cached = await CacheStore.shared.get(DataListResponse<Conversation>.self, key) {
+                return cached.data
+            }
+            throw error
+        }
     }
 
     // MARK: - Group conversations

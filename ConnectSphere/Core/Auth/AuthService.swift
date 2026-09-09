@@ -66,13 +66,24 @@ class AuthService {
         guard let url = URL(string: APIConfig.baseURL + "/auth/me") else { throw URLError(.badURL) }
         var req = URLRequest(url: url)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        let (data, resp) = try await URLSession.shared.data(for: req)
-        guard let http = resp as? HTTPURLResponse else { throw URLError(.badServerResponse) }
-        // Distinguish 401 (genuinely invalid token) from other errors (server trouble) —
-        // the caller should only delete the Keychain token on a 401
-        guard http.statusCode != 401 else { throw URLError(.userAuthenticationRequired) }
-        guard http.statusCode == 200 else { throw URLError(.badServerResponse) }
-        return try JSONDecoder.makeISO8601().decode(MeResponse.self, from: data).user
+        do {
+            let (data, resp) = try await URLSession.shared.data(for: req)
+            guard let http = resp as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+            // Distinguish 401 (genuinely invalid token) from other errors (server trouble) —
+            // the caller should only delete the Keychain token on a 401
+            guard http.statusCode != 401 else { throw URLError(.userAuthenticationRequired) }
+            guard http.statusCode == 200 else { throw URLError(.badServerResponse) }
+            let user = try JSONDecoder.makeISO8601().decode(MeResponse.self, from: data).user
+            await CacheStore.shared.put(CacheStore.Key.me, body: data)   // for an offline cold launch
+            return user
+        } catch let err as URLError where err.code != .userAuthenticationRequired {
+            // Offline / server down (not a 401) — restore the last-known profile
+            // so the app opens to its cached state instead of the login screen.
+            if let cached = await CacheStore.shared.get(MeResponse.self, CacheStore.Key.me) {
+                return cached.user
+            }
+            throw err
+        }
     }
 
     /// Realtime check used during the onboarding step — returns true if the username is still available.
