@@ -14,6 +14,9 @@ let package = Package(
         .package(url: "https://github.com/vapor/postgres-kit.git", from: "2.13.0"),
         // HMAC-SHA256 for the hand-rolled HS256 JWT (jsonwebtoken-compatible).
         .package(url: "https://github.com/apple/swift-crypto.git", "3.0.0" ..< "5.0.0"),
+        // Background jobs + scheduled tasks on Redis (BullMQ counterpart).
+        .package(url: "https://github.com/vapor/queues.git", from: "1.13.0"),
+        .package(url: "https://github.com/vapor/queues-redis-driver.git", from: "1.1.0"),
     ],
     targets: [
         .executableTarget(
@@ -22,6 +25,8 @@ let package = Package(
                 .product(name: "Vapor", package: "vapor"),
                 .product(name: "PostgresKit", package: "postgres-kit"),
                 .product(name: "Crypto", package: "swift-crypto"),
+                .product(name: "Queues", package: "queues"),
+                .product(name: "QueuesRedisDriver", package: "queues-redis-driver"),
             ],
             swiftSettings: swiftSettings
         ),

@@ -138,7 +138,20 @@ struct PostsController {
                 hashtags: hashtags, showAiTags: showAi), on: req.db)
             else { throw Abort(.internalServerError) }
             post = created
-            // TODO(phase 5): runPostBackground (mode-check notification + tag queue)
+        }
+        // runPostBackground: enqueue tag-extraction (→ chained chunk-embed), or
+        // embed directly for a link/image-only post. Only when this server owns
+        // the job schedule (RUN_JOBS=1). The mode-mismatch notification lands
+        // with the notify-service port (phase 5d).
+        if BackgroundJobs.enabled {
+            let text = post.content ?? ""
+            if !text.isEmpty {
+                try? await req.queue.dispatch(BackgroundJobs.TagExtractionJob.self,
+                    .init(postId: post.id, content: text), maxRetryCount: 3)
+            } else {
+                try? await req.queue.dispatch(BackgroundJobs.ChunkEmbedJob.self,
+                    .init(kind: .post, id: post.id), maxRetryCount: 3)
+            }
         }
         let res = try await DataResponse(data: post).encodeResponse(for: req)
         res.status = .created
@@ -182,8 +195,9 @@ struct PostsController {
 
     struct DeleteResponse: Content { var status = "ok"; var message = "Post deleted" }
     static func softDelete(_ req: Request) async throws -> DeleteResponse {
-        try await PostService.deletePost(requesterID: req.userID, postID: req.parameters.get("id")!, on: req.db)
-        // TODO(phase 5): deletePostChunks
+        let id = req.parameters.get("id")!
+        try await PostService.deletePost(requesterID: req.userID, postID: id, on: req.db)
+        try? await ChunkService.deletePostChunks(id, on: req.db.sql())
         return DeleteResponse()
     }
 
