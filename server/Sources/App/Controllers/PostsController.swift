@@ -54,13 +54,14 @@ struct PostsController {
         return DataResponse(data: post)
     }
 
-    // MARK: POST /api/posts/analyze  (deferred to Phase 5 — stub keyword fast-path only)
+    // MARK: POST /api/posts/analyze
 
     struct AnalyzeBody: Content { var content: String?; var currentMode: String? }
     struct AnalyzeResponse: Content {
         var suggestedMode: String
         var confidence: Double
         var reason: String
+        var fast: Bool?
         var isMismatch: Bool
     }
     static func analyze(_ req: Request) async throws -> AnalyzeResponse {
@@ -68,9 +69,11 @@ struct PostsController {
         guard let content = b.content?.trimmingCharacters(in: .whitespaces), !content.isEmpty else {
             throw InlineError(.badRequest, "content is required")
         }
-        // Phase 5 will call the Ollama-backed analyzer. Until then: neutral/no-op,
-        // which matches the Node fallback path on Ollama failure.
-        return AnalyzeResponse(suggestedMode: "neutral", confidence: 0, reason: "", isMismatch: false)
+        let r = await PostAnalyzeService.analyze(req.ollama, content, logger: req.logger)
+        let isMismatch = r.confidence >= 0.75 && r.suggestedMode != "neutral"
+            && (b.currentMode.map { !$0.isEmpty && r.suggestedMode != $0 } ?? false)
+        return AnalyzeResponse(suggestedMode: r.suggestedMode, confidence: r.confidence, reason: r.reason,
+                               fast: r.fast, isMismatch: isMismatch)
     }
 
     // MARK: POST /api/posts
