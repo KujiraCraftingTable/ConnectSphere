@@ -1,12 +1,17 @@
 # ConnectSphere
 
-A native iOS social networking app (COMP1682 project) with a Node.js/Express backend.
+A native iOS social networking app (COMP1682 project) with a **Swift/Vapor 4** backend
+(`server/`), ported from Node/Express (retired to `legacy/backend-node/`, tag
+`node-backend-final`). Raw parameterised SQL via SQLKit/PostgresKit — no Fluent.
 Notable feature: an AI-powered semantic search over users/posts using a local LLM
 query pipeline and chunk-based pgvector embeddings — see `AI_SEARCH_OVERVIEW.md`.
 
 ## Running it
-- `./dev.sh start` — Docker (`backend/docker-compose.yml`: Postgres + Redis + the backend container) + host Ollama + opens Xcode
-- Backend runs in a container in dev mode with hot reload; run migrations with `cd backend && docker compose exec backend npm run migrate`
+- `./dev.sh start` — Docker (`backend/docker-compose.yml`: Postgres + Redis + the Swift backend container, name `connectsphere_backend`, port 3000) + host Ollama + opens Xcode
+- `backend/` is now the infra dir: `docker-compose.yml`, `.env`, `migrations/` (the 27 shared SQL files), `uploads/`
+- Migrations replay at boot (`RUN_MIGRATIONS=1`, advisory-locked); no separate migrate step
+- Fast inner loop: `cd server && PORT=3000 swift run App serve` (host, reads `../backend/.env`)
+- Contract tests: `server/contract/*.sh` diff the port against a Node oracle on :3000 — 179 checks, 8 suites
 
 ## Known gaps
 Deliberately deferred scope (e.g. push notifications) is tracked in [`KNOWN_GAPS.md`](KNOWN_GAPS.md) — check it before assuming a missing feature is an oversight.

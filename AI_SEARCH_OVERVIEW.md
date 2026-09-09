@@ -3,6 +3,21 @@
 > Tài liệu đọc hiểu, không phải thiết kế. Mọi mô tả đều phản ánh code hiện tại.
 > Cập nhật 2026-07-04: chunk-based retrieval + query pipeline mới
 > (Normalizer → Extractor → Query Builder), chuẩn hóa tiếng Anh cả hai phía.
+>
+> **Cập nhật 2026-09 (Phase 6 cutover):** backend đã port sang Swift/Vapor.
+> Thuật toán, prompt, trọng số, và CTE giữ nguyên — chỉ đổi ngôn ngữ. Ánh xạ file:
+>
+> | Node (cũ, `legacy/backend-node/src/`) | Swift (`server/Sources/App/`) |
+> |---|---|
+> | `services/aiService.js`               | `AI/OllamaService.swift` |
+> | `services/chunkService.js`            | `AI/ChunkService.swift` |
+> | `services/postTagExtractService.js`   | `AI/PostTagExtractService.swift` |
+> | `services/postAnalyzeService.js`      | `AI/PostAnalyzeService.swift` |
+> | `models/searchModel.js`               | `AI/SearchStore.swift` |
+> | `controllers/searchController.js`     | `Controllers/SearchController.swift` |
+> | `queues/{tag,embed}Queue.js`          | `Jobs/BackgroundJobs.swift` (Vapor Queues) |
+> | `models/feedModel.js` (taste vector)  | `Stores/FeedStore.swift` |
+> | entity Wikipedia tier, venue geocode, suggestion LLM cache | **chưa port** — Phase 8 |
 
 ---
 

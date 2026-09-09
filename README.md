@@ -6,9 +6,12 @@ posts. Built for **COMP1682**.
 
 - **iOS app** — SwiftUI, `@Observable` view models, `URLSession` + a hand‑rolled
   WebSocket client (no third‑party networking).
-- **Backend** — Node.js + Express, PostgreSQL (with `pgvector`), Redis + BullMQ
-  for background jobs, and a local **Ollama** LLM for query understanding and
-  embeddings.
+- **Backend** — Swift + Vapor 4, raw parameterised SQL via SQLKit/PostgresKit
+  (no Fluent), PostgreSQL (with `pgvector`), Redis + Vapor Queues for background
+  jobs, a Socket.IO v4 / Engine.IO 4 protocol shim on Vapor WebSocket, and a
+  local **Ollama** LLM for query understanding and embeddings. *(Ported from
+  Node/Express — the retired implementation is in `legacy/backend-node/`, tag
+  `node-backend-final`.)*
 - **Bilingual** — English / Vietnamese, switchable in‑app.
 
 For how the AI search pipeline works end to end, see
@@ -21,12 +24,12 @@ scope, see [`KNOWN_GAPS.md`](KNOWN_GAPS.md).
 
 ```
 ┌────────────┐     REST + WebSocket      ┌──────────────────────────────┐
-│  iOS app   │ ───────────────────────▶  │  Express API (backend/)       │
+│  iOS app   │ ───────────────────────▶  │  Vapor API (server/)          │
 │ (SwiftUI)  │ ◀───────────────────────  │  ├─ routes → controllers →    │
-└────────────┘                           │  │   services → models        │
-                                         │  ├─ Socket.IO (presence,      │
-                                         │  │   chat, live counters)     │
-                                         │  └─ BullMQ workers            │
+└────────────┘                           │  │   stores (raw SQL)         │
+                                         │  ├─ Socket.IO v4 shim         │
+                                         │  │   (presence, chat, counters)│
+                                         │  └─ Vapor Queues workers      │
                                          └───┬───────────┬───────────┬───┘
                                              │           │           │
                                     ┌────────▼──┐  ┌─────▼─────┐  ┌──▼────────┐
@@ -35,10 +38,16 @@ scope, see [`KNOWN_GAPS.md`](KNOWN_GAPS.md).
                                     └───────────┘  └───────────┘  └───────────┘
 ```
 
-- `backend/src/` is layered **routes → controllers → services → models**; models
-  are the only place raw SQL lives (`src/config/db.js` `query` / `withTransaction`).
-- Background work (tag extraction, chunk embedding, daily cleanup, birthday /
-  meeting reminders, post purge) runs in `src/jobs/` and `src/queues/`.
+- `server/Sources/App/` is layered **routes → controllers → stores**; the
+  `Stores/` (and `AI/`) files are the only place raw SQL lives
+  (`Infra/AppDatabase.swift` — `sql()` / `withTransaction`).
+- Background work (tag extraction → chunk embedding chain, daily cleanup,
+  birthday / meeting reminders, post purge, trending) runs in
+  `server/Sources/App/Jobs/` (gated by `RUN_JOBS=1`).
+- The 27 `backend/migrations/*.sql` files are unchanged and replayed at boot by
+  `Infra/MigrationRunner.swift` (advisory-locked, idempotent).
+- `server/contract/` diffs every endpoint's normalised JSON against a running
+  copy of the old Node backend — 179 checks across 8 suites.
 - The iOS app mirrors the layering: `Features/<X>/{Views,ViewModels,Repository,Models}`
   with shared infrastructure in `Core/`.
 
@@ -60,10 +69,12 @@ cp backend/.env.example backend/.env
 ollama pull qwen2.5:7b-instruct-q4_k_m
 ollama pull mxbai-embed-large
 
-# 3. Bring up Postgres + Redis + the backend, run migrations
+# 3. Bring up Postgres + Redis + the Swift backend (migrations run at boot)
 ./dev.sh start
-#    (or manually:  cd backend && docker compose up -d --build
-#                   && docker compose exec backend npm run migrate)
+#    (or manually:  cd backend && docker compose up -d --build)
+#    First run builds the Swift release image — slow; later runs cache.
+#    For a fast inner loop, run the server on the host instead:
+#      cd server && PORT=3000 swift run App serve          # reads ../backend/.env
 
 # 4. Open the iOS app
 open ConnectSphere.xcodeproj      # then Run on an iOS 17+ simulator
@@ -73,13 +84,17 @@ open ConnectSphere.xcodeproj      # then Run on an iOS 17+ simulator
 everything down. The script derives its own path, so it runs from any checkout
 location.
 
-Seed some demo data (optional): `cd backend && docker compose exec backend npm run seed`
-
 ## Tests
 
 ```bash
-# Backend (Node's built‑in test runner, all mocked — no live DB needed)
-cd backend && docker compose exec backend npm test
+# Backend contract checks — diff the Vapor port against the retired Node oracle.
+# Needs the Node backend running on :3000 as the oracle:
+#   cd legacy/backend-node && npm install && DB_HOST=localhost npm start   # :3000
+#   cd server && PORT=8080 swift run App serve                             # :8080
+bash server/contract/phase2.sh          # etc. — see server/contract/
+
+# Backend unit tests
+cd server && swift test
 
 # iOS unit tests
 xcodebuild test -scheme ConnectSphere \
@@ -87,16 +102,15 @@ xcodebuild test -scheme ConnectSphere \
   -only-testing:ConnectSphereTests
 ```
 
-CI (`.github/workflows/ci.yml`) runs both on every push, with coverage enabled.
-
 ## Operational notes
 
 - `GET /health` reports the liveness of Postgres, Redis, and Ollama.
-- `node backend/scripts/reconcile-counters.js` recomputes every denormalised
-  `*_count` column from source rows (`--dry-run` to just report drift).
-- Migrations run in filename order and are each wrapped in a transaction by
-  `scripts/migrate.js`. There are no down‑migrations — take a `pg_dump` before a
-  risky one.
+- Migrations run at boot in filename order, each wrapped in a transaction, under
+  a Postgres advisory lock (`Infra/MigrationRunner.swift`). There are no
+  down‑migrations — take a `pg_dump` before a risky one. `RUN_MIGRATIONS=1`
+  (set by docker-compose) enables the boot replay.
+- The retired Node backend is in `legacy/backend-node/` (tag `node-backend-final`)
+  — kept as a reference and a contract-test oracle, not part of the running stack.
 - `docker compose down` (no `-v`) stops everything and **keeps** data; `-v`
   would wipe the `postgres_data` / `redis_data` volumes.
 
