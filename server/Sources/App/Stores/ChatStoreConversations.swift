@@ -110,13 +110,15 @@ extension ChatStore {
             """).first(decoding: Settings1to1.self)
     }
 
+    /// Mirrors Node `getGroupSettings` exactly: `{ id, theme, name, avatar_url,
+    /// avatar_color, created_by, members[] }` — no mute (that's per-user, read
+    /// via the 1:1/settings path), members ordered purely by `joined_at ASC`.
     struct GroupSettings: Content {
         var id: String
+        @NullCoded var theme: String?
         @NullCoded var name: String?
         @NullCoded var avatar_url: String?
         @NullCoded var avatar_color: String?
-        @NullCoded var theme: String?
-        @NullCoded var muted_until: Date?
         var created_by: String
         var members: [GroupMember]
         struct GroupMember: Content {
@@ -125,7 +127,7 @@ extension ChatStore {
             var role: String; var joined_at: Date
         }
     }
-    static func groupSettings(_ conversationID: String, userID: String, on db: any SQLDatabase) async throws -> GroupSettings? {
+    static func groupSettings(_ conversationID: String, on db: any SQLDatabase) async throws -> GroupSettings? {
         struct Conv: Decodable {
             let id: String; let theme: String?; let name: String?; let avatar_url: String?
             let avatar_color: String?; let created_by: String
@@ -134,11 +136,6 @@ extension ChatStore {
             SELECT id::text AS id, theme, name, avatar_url, avatar_color, created_by::text AS created_by
             FROM conversations WHERE id = \(uuid: conversationID) AND is_group = TRUE
             """).first(decoding: Conv.self) else { return nil }
-        struct M: Decodable {
-            let muted_until: Date?
-        }
-        let mute = try await db.raw("SELECT muted_until FROM conversation_participants WHERE conversation_id = \(uuid: conversationID) AND user_id = \(uuid: userID)")
-            .first(decoding: M.self)?.muted_until
         let members = try await db.raw("""
             SELECT u.id::text AS id, u.username,
               \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "c.mode")) AS display_name,
@@ -148,9 +145,9 @@ extension ChatStore {
             JOIN conversations c ON c.id = cp.conversation_id
             JOIN users u ON u.id = cp.user_id
             WHERE cp.conversation_id = \(uuid: conversationID)
-            ORDER BY CASE cp.role WHEN 'owner' THEN 0 ELSE 1 END, cp.joined_at ASC
+            ORDER BY cp.joined_at ASC
             """).all(decoding: GroupSettings.GroupMember.self)
-        return GroupSettings(id: conv.id, name: conv.name, avatar_url: conv.avatar_url, avatar_color: conv.avatar_color,
-                             theme: conv.theme, muted_until: mute, created_by: conv.created_by, members: members)
+        return GroupSettings(id: conv.id, theme: conv.theme, name: conv.name, avatar_url: conv.avatar_url,
+                             avatar_color: conv.avatar_color, created_by: conv.created_by, members: members)
     }
 }
