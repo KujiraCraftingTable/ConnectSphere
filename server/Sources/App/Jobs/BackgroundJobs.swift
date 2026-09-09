@@ -29,12 +29,14 @@ enum BackgroundJobs {
         // Daily housekeeping — staggered UTC slots, matching the Node crons.
         app.queues.schedule(AnalyticsSnapshotJob()).using(utc).daily().at(0, 5)
         app.queues.schedule(AgeRecomputeJob()).using(utc).daily().at(0, 10)
+        app.queues.schedule(BirthdayJob()).using(utc).daily().at(0, 15)
         app.queues.schedule(PinExpiryJob()).using(utc).daily().at(0, 20)
         app.queues.schedule(PostPurgeJob()).using(utc).daily().at(0, 25)
         app.queues.schedule(DataCleanupJob()).using(utc).daily().at(0, 30)
-        // Hourly.
+        // Sub-daily.
         app.queues.schedule(TrendingJob()).using(utc).hourly().at(0)
         app.queues.schedule(ChunkSweepJob()).using(utc).hourly().at(15)
+        app.queues.schedule(MeetingReminderJob()).every(minutes: 5)   // matches Node's */5 cron; atomic claim makes it idempotent
 
         try app.queues.startInProcessJobs(on: .default)
         try app.queues.startScheduledJobs()
@@ -99,6 +101,88 @@ enum BackgroundJobs {
 
     struct ChunkSweepJob: AsyncScheduledJob {
         func run(context: QueueContext) async throws { try await chunkSweep(context.application) }
+    }
+
+    /// Daily birthday greetings — notify each birthday user's accepted
+    /// connections, deduped against "already sent today".
+    struct BirthdayJob: AsyncScheduledJob {
+        func run(context: QueueContext) async throws {
+            let app = context.application, db = app.db.sql()
+            struct I: Decodable { let id: String }
+            let birthdayUsers = try await db.raw("""
+                SELECT id::text AS id FROM users
+                WHERE dob IS NOT NULL AND deleted_at IS NULL
+                  AND EXTRACT(MONTH FROM dob) = EXTRACT(MONTH FROM CURRENT_DATE)
+                  AND EXTRACT(DAY FROM dob) = EXTRACT(DAY FROM CURRENT_DATE)
+                """).all(decoding: I.self)
+            for bu in birthdayUsers {
+                let connections = try await db.raw("""
+                    SELECT DISTINCT (CASE WHEN c.requester_id = \(uuid: bu.id) THEN c.addressee_id ELSE c.requester_id END)::text AS id
+                    FROM connections c WHERE c.status = 'accepted'
+                      AND (c.requester_id = \(uuid: bu.id) OR c.addressee_id = \(uuid: bu.id))
+                    """).all(decoding: I.self).map(\.id)
+                for cid in connections {
+                    struct One: Decodable { let one: Int }
+                    let already = try await db.raw("""
+                        SELECT 1 AS one FROM user_notifications
+                        WHERE user_id = \(uuid: cid) AND type = 'birthday'
+                          AND payload->>'fromUserId' = \(bind: bu.id) AND created_at::date = CURRENT_DATE LIMIT 1
+                        """).first(decoding: One.self) != nil
+                    if already { continue }
+                    _ = await NotifyService.pushUserNotification(userID: cid, type: "birthday", actorID: bu.id,
+                        on: db, hub: app.socketHub, logger: context.logger)
+                }
+            }
+        }
+    }
+
+    /// Every 5 min — send due meeting reminders. Folded review fix: claim the
+    /// due rows atomically (`UPDATE … reminder_sent_at = NOW() WHERE … IS NULL
+    /// RETURNING id`) BEFORE sending, so a concurrent/overlapping run can't
+    /// double-send.
+    struct MeetingReminderJob: AsyncScheduledJob {
+        func run(context: QueueContext) async throws {
+            let app = context.application, db = app.db.sql()
+            struct Due: Decodable {
+                let id: String; let title: String; let starts_at: Date
+                let message_id: String; let conversation_id: String
+            }
+            let claimed = try await db.raw("""
+                WITH due AS (
+                  SELECT mp.id FROM message_meeting_proposals mp
+                  WHERE mp.status = 'active' AND mp.reminder_sent_at IS NULL AND mp.reminder_at <= NOW()
+                ),
+                claimed AS (
+                  UPDATE message_meeting_proposals SET reminder_sent_at = NOW()
+                  WHERE id IN (SELECT id FROM due) AND reminder_sent_at IS NULL
+                  RETURNING id
+                )
+                SELECT mp.id::text AS id, mp.title, mp.starts_at,
+                       m.id::text AS message_id, m.conversation_id::text AS conversation_id
+                FROM claimed c JOIN message_meeting_proposals mp ON mp.id = c.id
+                JOIN messages m ON m.id = mp.message_id
+                """).all(decoding: Due.self)
+            for p in claimed {
+                guard let conv = try await ChatStore.conversationByID(p.conversation_id, on: db) else { continue }
+                let recipients: [String]
+                if conv.is_group {
+                    struct U: Decodable { let user_id: String }
+                    recipients = try await db.raw("SELECT user_id::text AS user_id FROM message_meeting_rsvps WHERE proposal_id = \(uuid: p.id) AND status = 'going'")
+                        .all(decoding: U.self).map(\.user_id)
+                } else {
+                    recipients = try await ChatStore.participants(p.conversation_id, on: db)
+                }
+                for uid in recipients {
+                    _ = await NotifyService.pushUserNotification(userID: uid, type: "meeting_reminder",
+                        conversationID: p.conversation_id, entityID: p.id,
+                        payload: ["conversationId": p.conversation_id, "messageId": p.message_id,
+                                  "proposalId": p.id, "title": p.title,
+                                  "startsAt": JSONCoding.isoFractional.string(from: p.starts_at)],
+                        on: db, hub: app.socketHub, logger: context.logger)
+                }
+            }
+            if !claimed.isEmpty { context.logger.info("MeetingReminderJob: \(claimed.count) reminders sent") }
+        }
     }
 
     // MARK: queue jobs (tag-extraction → chunk-embedding chain)

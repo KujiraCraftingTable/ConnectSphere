@@ -202,10 +202,12 @@ struct NotificationsController {
 
     static func setRead(_ req: Request, _ isRead: Bool) async throws -> StatusUnread {
         let db = req.db.sql()
+        let nid = req.parameters.get("id")!
         struct R: Decodable { let id: String }
-        guard try await db.raw("UPDATE user_notifications SET is_read = \(bind: isRead) WHERE id = \(uuid: req.parameters.get("id")!) AND user_id = \(uuid: req.userID) RETURNING id")
+        guard try await db.raw("UPDATE user_notifications SET is_read = \(bind: isRead) WHERE id = \(uuid: nid) AND user_id = \(uuid: req.userID) RETURNING id")
             .first(decoding: R.self) != nil else { throw Abort(.notFound, reason: "Notification not found") }
-        // TODO(phase 4): notification_read / notification_count emits
+        req.socketHub.emitToUser(req.userID, event: "notification_read", NotifyService.ReadPayload(ids: [nid], isRead: isRead))
+        await NotifyService.emitCounts(req.userID, on: db, hub: req.socketHub)
         return StatusUnread(data: .init(unread: try await summary(req.userID, on: db).0))
     }
     static func markRead(_ req: Request) async throws -> StatusUnread { try await setRead(req, true) }

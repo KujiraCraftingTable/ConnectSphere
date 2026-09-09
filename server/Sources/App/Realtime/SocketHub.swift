@@ -84,6 +84,12 @@ final class SocketHub: @unchecked Sendable {
     func emitToUser<T: Encodable>(_ userID: String, event: String, _ payload: T) {
         emit(room: "user:\(userID)", event: event, payload)
     }
+    /// Emit a pre-rendered JSON payload to `user:<id>` (notification DTOs are
+    /// built as raw bytes by `NotificationsController.toDTOJSON`).
+    func emitToUser(_ userID: String, event: String, rawJSON: Data) {
+        let frame = Self.eventFrame(event, rawJSON)
+        for c in targets("user:\(userID)", except: nil) { c.sendRaw(frame) }
+    }
     /// Fan a chat mutation to the conversation room **and** every participant's
     /// personal room (the client dedupes by id) — the exact pattern every Node
     /// chat handler uses.

@@ -159,7 +159,8 @@ enum SocketHandlers {
             }
             let parts = try await ChatStore.participants(cid, on: db)
             session.hub.emitConversation(cid, participants: parts, event: "new_message", msg)
-            // TODO(phase 5): notifyNewMessage inbox row (meeting → meeting_proposed)
+            Task { await NotifyService.notifyNewMessage(conversationID: cid, senderID: conn.userID, message: msg,
+                on: session.db.sql(), hub: session.hub, logger: session.logger) }
             await ackData(session, ackID, msg)
         } catch {
             session.logger.error("send_message error: \(error)")
@@ -192,7 +193,9 @@ enum SocketHandlers {
             let parts = try await ChatStore.participants(cid, on: db)
             session.hub.emitConversation(cid, participants: parts, event: "reaction_updated",
                 WSReactionUpdated(conversation_id: cid, message_id: mid, reactions: reactions))
-            // TODO(phase 5): message_reaction notification → message author
+            Task { await NotifyService.pushChatNotification(conversationID: cid, type: "message_reaction",
+                actorID: conn.userID, userIDs: [t.sender_id], entityID: mid,
+                payload: ["messageId": mid, "emoji": emoji], on: session.db.sql(), hub: session.hub, logger: session.logger) }
             await ackData(session, ackID, reactions)
         } catch {
             session.logger.error("react_message error: \(error)")
@@ -233,6 +236,9 @@ enum SocketHandlers {
 
             try await ChatStore.updateMeetingProposalRow(p.id!, v, on: session.db)
             await emitMeeting(cid: cid, mid: mid, event: "meeting_proposal_updated", ackID: ackID, conn: conn, session: session)
+            Task { await NotifyService.pushChatNotification(conversationID: cid, type: "meeting_updated", actorID: conn.userID,
+                entityID: p.id!, payload: ["messageId": mid, "proposalId": p.id!, "changeKind": "rescheduled",
+                    "title": v.title, "startsAt": v.startsAt], on: session.db.sql(), hub: session.hub, logger: session.logger) }
         } catch {
             session.logger.error("update_meeting_proposal error: \(error)")
             await session.ackError(ackID, "Failed to reschedule meeting")
@@ -259,6 +265,11 @@ enum SocketHandlers {
 
             try await ChatStore.cancelMeetingProposalRow(p.id!, on: db)
             await emitMeeting(cid: cid, mid: mid, event: "meeting_proposal_updated", ackID: ackID, conn: conn, session: session)
+            let msgP = try? await ChatStore.messageByID(mid, on: db)
+            Task { await NotifyService.pushChatNotification(conversationID: cid, type: "meeting_updated", actorID: conn.userID,
+                entityID: p.id!, payload: ["messageId": mid, "proposalId": p.id!, "changeKind": "cancelled",
+                    "title": (msgP?.meeting_proposal?.title as Any?) ?? NSNull()],
+                on: session.db.sql(), hub: session.hub, logger: session.logger) }
         } catch {
             session.logger.error("cancel_meeting_proposal error: \(error)")
             await session.ackError(ackID, "Failed to cancel meeting")
@@ -291,6 +302,9 @@ enum SocketHandlers {
                 await session.ackError(ackID, "Cannot respond to a cancelled meeting"); return
             }
             await emitMeeting(cid: cid, mid: mid, event: "meeting_response_updated", ackID: ackID, conn: conn, session: session)
+            Task { await NotifyService.pushChatNotification(conversationID: cid, type: "meeting_rsvp", actorID: conn.userID,
+                userIDs: [p.sender_id], entityID: p.id!, payload: ["messageId": mid, "proposalId": p.id!, "status": status],
+                on: session.db.sql(), hub: session.hub, logger: session.logger) }
         } catch {
             session.logger.error("respond_meeting error: \(error)")
             await session.ackError(ackID, "Failed to respond to meeting")
@@ -327,7 +341,8 @@ enum SocketHandlers {
             _ = try await ChatStore.markRead(cid, userID: conn.userID, on: db)
             session.hub.emit(room: cid, event: "messages_read",
                 WSMessagesRead(conversationId: cid, readBy: conn.userID), except: conn)
-            // TODO(phase 5): clearConversationNotification
+            Task { await NotifyService.clearConversationNotification(conversationID: cid, userID: conn.userID,
+                on: session.db.sql(), hub: session.hub, logger: session.logger) }
             await ackData(session, ackID, ["status": "ok"])
         } catch {
             session.logger.error("mark_read error: \(error)")

@@ -145,9 +145,9 @@ enum ChatStore {
         return try mapMessage(row)
     }
 
-    struct BasicMsg: Decodable { let id: String; let conversation_id: String }
+    struct BasicMsg: Decodable { let id: String; let conversation_id: String; let sender_id: String }
     static func messageBasic(_ id: String, on db: any SQLDatabase) async throws -> BasicMsg? {
-        try await db.raw("SELECT id::text AS id, conversation_id::text AS conversation_id FROM messages WHERE id = \(uuid: id)")
+        try await db.raw("SELECT id::text AS id, conversation_id::text AS conversation_id, sender_id::text AS sender_id FROM messages WHERE id = \(uuid: id)")
             .first(decoding: BasicMsg.self)
     }
 
