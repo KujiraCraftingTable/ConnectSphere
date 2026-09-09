@@ -17,44 +17,145 @@ struct MessagesController {
 
         let m = routes.grouped("messages").grouped(AuthMiddleware())
         m.post("conversations", use: openConversation)
-        m.post("conversations", "group", use: notImplemented)
+        m.post("conversations", "group", use: createGroupConversation)
         m.get("conversations", use: listConversations)
         m.get("conversations", ":id", "settings", use: getSettings)
-        m.patch("conversations", ":id", "settings", use: notImplemented)
+        m.patch("conversations", ":id", "settings", use: updateSettings)
         m.put("conversations", ":id", "mute", use: setMute)
         m.get("conversations", ":id", "media", use: listMedia)
         m.get("conversations", ":id", "messages", "search", use: searchMessages)
         m.get("conversations", ":id", "pins", use: listPins)
         m.post("conversations", ":id", "pins", use: pinMessage)
         m.delete("conversations", ":id", "pins", ":messageId", use: unpinMessage)
-        m.post("conversations", ":id", "members", use: notImplemented)
-        m.delete("conversations", ":id", "members", ":userId", use: notImplemented)
-        m.post("conversations", ":id", "members", ":userId", "promote", use: notImplemented)
-        m.patch("conversations", ":id", "group", use: notImplemented)
-        m.post("conversations", ":id", "leave", use: notImplemented)
+        m.post("conversations", ":id", "members", use: addMembers)
+        m.delete("conversations", ":id", "members", ":userId", use: removeMember)
+        m.post("conversations", ":id", "members", ":userId", "promote", use: promoteOwner)
+        m.patch("conversations", ":id", "group", use: updateGroup)
+        m.post("conversations", ":id", "leave", use: leaveGroup)
         m.get("conversations", ":id", "block-alert-state", use: blockAlertState)
-        m.post("conversations", ":id", "block-alert-ack", use: notImplemented)
+        m.post("conversations", ":id", "block-alert-ack", use: acknowledgeBlockAlert)
         m.get("conversations", ":id", "messages", use: listMessages)
         m.post("conversations", ":id", "messages", use: sendMessage)
         m.delete("conversations", ":id", "messages", use: clearConversation)
         m.delete("conversations", ":id", "messages", ":messageId", use: recallMessage)
         m.post("conversations", ":id", "messages", ":messageId", "reactions", use: reactToMessage)
-        m.patch("conversations", ":id", "messages", ":messageId", "meeting-proposal", use: notImplemented)
-        m.post("conversations", ":id", "messages", ":messageId", "meeting-proposal", "cancel", use: notImplemented)
-        m.post("conversations", ":id", "messages", ":messageId", "meeting-response", use: notImplemented)
+        m.patch("conversations", ":id", "messages", ":messageId", "meeting-proposal", use: updateMeetingProposal)
+        m.post("conversations", ":id", "messages", ":messageId", "meeting-proposal", "cancel", use: cancelMeetingProposal)
+        m.post("conversations", ":id", "messages", ":messageId", "meeting-response", use: respondToMeeting)
         m.put("conversations", ":id", "read", use: markRead)
         m.put("conversations", ":id", "delivered", use: markDelivered)
         m.get("unread", use: unreadCount)
-    }
-
-    static func notImplemented(_ req: Request) async throws -> Response {
-        throw Abort(.notImplemented, reason: "ported in a later Phase 4 slice")
     }
 
     static func requireParticipant(_ conversationID: String, _ req: Request) async throws {
         guard try await ChatStore.isParticipant(conversationID, req.userID, on: req.db.sql()) else {
             throw Abort(.notFound, reason: "Conversation not found")
         }
+    }
+
+    /// Owner-only gate for group management (participant already verified by
+    /// the caller). Mirrors `messageService.requireGroupOwner`.
+    static func requireGroupOwner(_ conversationID: String, _ userID: String, on db: any SQLDatabase) async throws {
+        guard let conv = try await ChatStore.conversationByID(conversationID, on: db), conv.is_group else {
+            throw Abort(.notFound, reason: "Conversation not found")
+        }
+        guard let role = try await ChatStore.participantRole(conversationID, userID, on: db) else {
+            throw Abort(.notFound, reason: "Conversation not found")
+        }
+        guard role == "owner" else { throw Abort(.forbidden, reason: "Only the group owner can do this") }
+    }
+
+    /// 1:1 block guard — no-op for groups (>2 participants). Mirrors
+    /// `messageService.assertNotBlockedInConversation`.
+    static func assertNotBlockedInConversation(_ conversationID: String, _ userID: String, on db: any SQLDatabase) async throws {
+        let parts = try await ChatStore.participants(conversationID, on: db)
+        if parts.count > 2 { return }
+        if let other = parts.first(where: { $0 != userID }),
+           try await UserStore.isBlockedEitherWay(userID, other, on: db) {
+            throw Abort(.forbidden, reason: "Cannot message this user")
+        }
+    }
+
+    /// Resolve a `:messageId` to its active-or-cancelled meeting proposal in
+    /// this conversation, 404ing otherwise. Mirrors `resolveMeetingProposal`.
+    static func resolveMeetingProposal(_ conversationID: String, _ messageID: String, on db: any SQLDatabase) async throws -> ChatStore.ProposalRow {
+        guard let p = try await ChatStore.proposalByMessageID(messageID, on: db),
+              p.conversation_id == conversationID, p.message_type == "meeting", p.id != nil else {
+            throw Abort(.notFound, reason: "Meeting proposal not found")
+        }
+        return p
+    }
+
+    // MARK: meeting-proposal validation (messageService.validateMeetingProposal)
+
+    static let allowedReminderOffsets = ["on_day", "1_day_before", "2_days_before", "1_week_before"]
+    static let reminderOffsetDays: [String: Int] = ["on_day": 0, "1_day_before": 1, "2_days_before": 2, "1_week_before": 7]
+
+    private static let isoIn: [ISO8601DateFormatter] = {
+        let a = ISO8601DateFormatter(); a.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let b = ISO8601DateFormatter(); b.formatOptions = [.withInternetDateTime]
+        return [a, b]
+    }()
+    private static let isoOut: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        f.timeZone = TimeZone(identifier: "UTC")
+        return f
+    }()
+    static func parseDate(_ s: String) -> Date? {
+        for p in isoIn { if let d = p.date(from: s) { return d } }
+        return nil
+    }
+
+    static func defaultReminderAt(start: Date, offset: String) -> String {
+        let days = reminderOffsetDays[offset] ?? reminderOffsetDays["1_day_before"]!
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        let shifted = cal.date(byAdding: .day, value: -days, to: start) ?? start
+        let ymd = cal.dateComponents([.year, .month, .day], from: shifted)
+        let atSeven = cal.date(from: DateComponents(timeZone: TimeZone(identifier: "UTC"),
+                                                    year: ymd.year, month: ymd.month, day: ymd.day,
+                                                    hour: 7, minute: 0, second: 0)) ?? shifted
+        return isoOut.string(from: atSeven)
+    }
+
+    static func validateMeetingProposal(title: String?, location: String?, startsAt: String?, endsAt: String?,
+                                        reminderOffset: String?, reminderAt: String?) throws -> ValidatedMeeting {
+        guard let cleanTitle = title?.trimmingCharacters(in: .whitespaces), !cleanTitle.isEmpty else {
+            throw Abort(.badRequest, reason: "Meeting title is required")
+        }
+        guard let startsAtStr = startsAt, !startsAtStr.isEmpty else {
+            throw Abort(.badRequest, reason: "Meeting start time is required")
+        }
+        guard let start = parseDate(startsAtStr) else { throw Abort(.badRequest, reason: "Invalid meeting start time") }
+        if start <= Date() { throw Abort(.badRequest, reason: "Meeting start time must be in the future") }
+
+        if let endsAtStr = endsAt, !endsAtStr.isEmpty {
+            guard let end = parseDate(endsAtStr) else { throw Abort(.badRequest, reason: "Invalid meeting end time") }
+            if end <= start { throw Abort(.badRequest, reason: "Meeting end time must be after the start time") }
+        }
+
+        var offset = "1_day_before"
+        if let ro = reminderOffset {
+            guard allowedReminderOffsets.contains(ro) else { throw Abort(.badRequest, reason: "Invalid reminder offset") }
+            offset = ro
+        }
+
+        let reminderAtOut: String
+        if let ra = reminderAt, !ra.isEmpty {
+            guard let parsed = parseDate(ra) else { throw Abort(.badRequest, reason: "Invalid reminder time") }
+            reminderAtOut = isoOut.string(from: parsed)
+        } else {
+            reminderAtOut = defaultReminderAt(start: start, offset: offset)
+        }
+
+        return ValidatedMeeting(
+            title: cleanTitle,
+            location: location?.trimmingCharacters(in: .whitespaces).nilIfEmpty,
+            startsAt: startsAtStr,
+            endsAt: (endsAt?.isEmpty ?? true) ? nil : endsAt,
+            reminderOffset: offset,
+            reminderAt: reminderAtOut)
     }
 
     // MARK: upload
@@ -116,14 +217,22 @@ struct MessagesController {
         return DataListResponse(data: try await ChatStore.listMessages(id, userID: req.userID, limit: limit, before: before, on: req.db.sql()))
     }
 
+    struct MeetingProposalIn: Content {
+        var title: String?
+        var location: String?
+        var starts_at: String?
+        var ends_at: String?
+        var reminder_offset: String?
+        var reminder_at: String?
+    }
     struct SendBody: Content {
         var content: String?
         var message_type: String?
         var media_url: String?
         var reply_to_message_id: String?
+        var meeting_proposal: MeetingProposalIn?
         var voice_duration_seconds: Int?
         var voice_waveform: [Double]?
-        // meeting_proposal handled in slice 4b
     }
     static func sendMessage(_ req: Request) async throws -> Response {
         let id = req.parameters.get("id")!
@@ -131,7 +240,6 @@ struct MessagesController {
         try await requireParticipant(id, req)
         let b = try req.content.decode(SendBody.self)
         let type = b.message_type ?? "text"
-        if type == "meeting" { throw Abort(.notImplemented, reason: "meeting messages ported in a later Phase 4 slice") }
         if type == "text", (b.content?.trimmingCharacters(in: .whitespaces).isEmpty ?? true) {
             throw Abort(.badRequest, reason: "Message content is required")
         }
@@ -140,6 +248,14 @@ struct MessagesController {
         }
         if let c = b.content, c.count > 2000 { throw Abort(.badRequest, reason: "Message is too long") }
 
+        var validated: ValidatedMeeting? = nil
+        if type == "meeting" {
+            validated = try validateMeetingProposal(
+                title: b.meeting_proposal?.title, location: b.meeting_proposal?.location,
+                startsAt: b.meeting_proposal?.starts_at, endsAt: b.meeting_proposal?.ends_at,
+                reminderOffset: b.meeting_proposal?.reminder_offset, reminderAt: b.meeting_proposal?.reminder_at)
+        }
+
         var replyTo: String? = nil
         if let rid = b.reply_to_message_id {
             guard let target = try await ChatStore.messageBasic(rid, on: db), target.conversation_id == id else {
@@ -147,18 +263,18 @@ struct MessagesController {
             }
             replyTo = rid
         }
-        // 1:1 block check (groups: warning only, skipped here)
-        let parts = try await ChatStore.participants(id, on: db)
-        if parts.count <= 2, let other = parts.first(where: { $0 != req.userID }),
-           try await UserStore.isBlockedEitherWay(req.userID, other, on: db) {
-            throw Abort(.forbidden, reason: "Cannot message this user")
-        }
+        try await assertNotBlockedInConversation(id, req.userID, on: db)
+
+        let storedContent = b.content?.trimmingCharacters(in: .whitespaces).nilIfEmpty ?? validated?.title
         let newID = try await ChatStore.insertMessage(id, senderID: req.userID,
-            content: b.content?.trimmingCharacters(in: .whitespaces).nilIfEmpty, messageType: type,
+            content: storedContent, messageType: type,
             mediaUrl: b.media_url, replyToMessageID: replyTo,
             voiceDuration: b.voice_duration_seconds, voiceWaveform: b.voice_waveform, on: db)
+        if let v = validated {
+            try await ChatStore.createMeetingProposalRow(messageID: newID, v, on: db)
+        }
         guard let msg = try await ChatStore.messageByID(newID, on: db) else { throw Abort(.internalServerError) }
-        // TODO(4c): emit new_message; (4b) notifyNewMessage inbox row
+        // TODO(4c): emit new_message; notifyNewMessage inbox row (meeting → meeting_proposed)
         return try await ConnectionsController.encode(DataResponse(data: msg), req, .created)
     }
 
@@ -231,7 +347,7 @@ struct MessagesController {
         try await requireParticipant(id, req)
         guard let conv = try await ChatStore.conversationByID(id, on: db) else { throw Abort(.notFound, reason: "Conversation not found") }
         if conv.is_group {
-            guard let s = try await ChatStore.groupSettings(id, userID: req.userID, on: db) else { throw Abort(.notFound, reason: "Conversation not found") }
+            guard let s = try await ChatStore.groupSettings(id, on: db) else { throw Abort(.notFound, reason: "Conversation not found") }
             return try await ConnectionsController.encode(SettingsData(data: s), req, .ok)
         } else {
             guard let s = try await ChatStore.settings1to1(id, userID: req.userID, on: db) else { throw Abort(.notFound, reason: "Conversation not found") }
@@ -297,11 +413,287 @@ struct MessagesController {
 
     // MARK: block-alert (group-only; 1:1 → { shouldAlert: false })
 
-    struct BlockAlertData: Content { var data: Inner; struct Inner: Content { var shouldAlert = false; @NullCoded var blockedUserIds: [String]? } }
+    /// `blockedUserIds` is a plain Optional (omitted when nil) — Node only
+    /// includes the key on the `shouldAlert: true` branch.
+    struct BlockAlertData: Content { var data: Inner; struct Inner: Content { var shouldAlert = false; var blockedUserIds: [String]? } }
     static func blockAlertState(_ req: Request) async throws -> BlockAlertData {
         let id = req.parameters.get("id")!
+        let db = req.db.sql()
         try await requireParticipant(id, req)
-        // Full group block-alert logic lands in slice 4b; 1:1 always false.
+        guard let conv = try await ChatStore.conversationByID(id, on: db), conv.is_group else {
+            return BlockAlertData(data: .init())
+        }
+        let blocked = try await ChatStore.blockedIDsInConversation(id, userID: req.userID, on: db)
+        if blocked.isEmpty { return BlockAlertData(data: .init()) }
+        let snapshot = blocked.sorted().joined(separator: ",")
+        let ack = try await ChatStore.getBlockAck(id, userID: req.userID, on: db)
+        if ack == nil || ack!.acked_blocked_ids != snapshot {
+            return BlockAlertData(data: .init(shouldAlert: true, blockedUserIds: blocked))
+        }
         return BlockAlertData(data: .init())
+    }
+
+    struct AckedData: Content { var data: Inner; struct Inner: Content { var acked = true } }
+    static func acknowledgeBlockAlert(_ req: Request) async throws -> AckedData {
+        let id = req.parameters.get("id")!
+        let db = req.db.sql()
+        try await requireParticipant(id, req)
+        let blocked = try await ChatStore.blockedIDsInConversation(id, userID: req.userID, on: db)
+        try await ChatStore.setBlockAck(id, userID: req.userID, blockedIDs: blocked, on: db)
+        return AckedData(data: .init())
+    }
+
+    // MARK: group conversations
+
+    struct GroupCreateBody: Content { var member_ids: [String]?; var mode: String?; var name: String? }
+    static func createGroupConversation(_ req: Request) async throws -> Response {
+        let b = try req.content.decode(GroupCreateBody.self)
+        guard let memberIDs = b.member_ids, !memberIDs.isEmpty else {
+            throw Abort(.badRequest, reason: "member_ids is required")
+        }
+        guard let mode = b.mode else { throw Abort(.badRequest, reason: "mode is required") }
+        guard ["hobby", "work"].contains(mode) else { throw Abort(.badRequest, reason: "Invalid mode") }
+
+        var seen = Set<String>(); var unique: [String] = []
+        for x in memberIDs where seen.insert(x).inserted { unique.append(x) }
+        if unique.count != memberIDs.count { throw Abort(.badRequest, reason: "Duplicate member ids are not allowed") }
+        if unique.contains(req.userID) { throw Abort(.badRequest, reason: "Creator should not be listed in member_ids") }
+        if unique.count + 1 > 100 { throw Abort(.badRequest, reason: "A group cannot have more than 100 members") }
+
+        var groupName = "New group"
+        if let n = b.name {
+            let trimmed = n.trimmingCharacters(in: .whitespaces)
+            if !trimmed.isEmpty { groupName = String(trimmed.prefix(100)) }
+        }
+
+        let conv = try await ChatStore.createGroupConversation(
+            creatorID: req.userID, memberIDs: unique, mode: mode, name: groupName, on: req.db)
+        return try await ConnectionsController.encode(DataResponse(data: conv), req, .created)
+    }
+
+    struct SettingsPatchBody: Content { var theme: String?; var nickname: String?; var target_user_id: String? }
+    static func updateSettings(_ req: Request) async throws -> Response {
+        let id = req.parameters.get("id")!
+        let db = req.db.sql()
+        try await requireParticipant(id, req)
+        guard let conv = try await ChatStore.conversationByID(id, on: db) else { throw Abort(.notFound, reason: "Conversation not found") }
+        let raw = try req.content.decode(SettingsPatchBody.self)
+        let present: Set<String> = {
+            guard let dict = try? req.content.decode([String: AnyCodableValue].self) else { return [] }
+            return Set(dict.keys)
+        }()
+        let parts = try await ChatStore.participants(id, on: db)
+
+        if present.contains("theme") {
+            if let t = raw.theme, t.count > 20 { throw Abort(.badRequest, reason: "Invalid theme") }
+            let value = (raw.theme?.isEmpty ?? true) ? nil : raw.theme
+            try await ChatStore.updateTheme(id, theme: value, on: db)
+        }
+
+        if present.contains("nickname") {
+            var value: String? = nil
+            if let nn = raw.nickname {
+                let t = String(nn.trimmingCharacters(in: .whitespaces).prefix(50))
+                value = t.isEmpty ? nil : t
+            }
+            if conv.is_group {
+                guard let target = raw.target_user_id else {
+                    throw Abort(.badRequest, reason: "target_user_id is required to set a nickname in a group")
+                }
+                guard parts.contains(target) else { throw Abort(.notFound, reason: "User is not a member of this group") }
+                if let v = value {
+                    try await ChatStore.setGroupNickname(id, setterID: req.userID, targetID: target, nickname: v, on: db)
+                } else {
+                    try await ChatStore.deleteGroupNickname(id, setterID: req.userID, targetID: target, on: db)
+                }
+            } else if let other = parts.first(where: { $0 != req.userID }) {
+                try await ChatStore.setNickname(id, targetUserID: other, nickname: value, on: db)
+            }
+        }
+
+        if conv.is_group {
+            guard let s = try await ChatStore.groupSettings(id, on: db) else { throw Abort(.notFound, reason: "Conversation not found") }
+            // TODO(4c): emit conversation_settings_updated { conversation_id, theme }
+            return try await ConnectionsController.encode(SettingsData(data: s), req, .ok)
+        } else {
+            guard let s = try await ChatStore.settings1to1(id, userID: req.userID, on: db) else { throw Abort(.notFound, reason: "Conversation not found") }
+            // TODO(4c): emit conversation_settings_updated { conversation_id, theme, nickname_target_id, nickname }
+            return try await ConnectionsController.encode(SettingsData(data: s), req, .ok)
+        }
+    }
+
+    struct MemberIDsBody: Content { var member_ids: [String]? }
+    static func addMembers(_ req: Request) async throws -> Response {
+        let id = req.parameters.get("id")!
+        let db = req.db.sql()
+        try await requireParticipant(id, req)
+        guard let ids = try req.content.decode(MemberIDsBody.self).member_ids, !ids.isEmpty else {
+            throw Abort(.badRequest, reason: "member_ids is required")
+        }
+        try await requireGroupOwner(id, req.userID, on: db)
+
+        var seen = Set<String>(); var uniqueNew: [String] = []
+        for x in ids where seen.insert(x).inserted { uniqueNew.append(x) }
+        let current = try await ChatStore.participants(id, on: db)
+        let currentSet = Set(current)
+        let toAdd = uniqueNew.filter { !currentSet.contains($0) }
+        if !toAdd.isEmpty, current.count + toAdd.count > 100 {
+            throw Abort(.badRequest, reason: "A group cannot have more than 100 members")
+        }
+        if !toAdd.isEmpty { try await ChatStore.addParticipants(id, toAdd, on: db) }
+        guard let s = try await ChatStore.groupSettings(id, on: db) else { throw Abort(.notFound, reason: "Conversation not found") }
+        // TODO(4c): emit member_added { conversation_id, added_user_ids, members }; notifyChat group_added → toAdd
+        return try await ConnectionsController.encode(SettingsData(data: s), req, .ok)
+    }
+
+    struct RemovedData: Content { var data: Inner; struct Inner: Content { var removed = true } }
+    static func removeMember(_ req: Request) async throws -> RemovedData {
+        let id = req.parameters.get("id")!, target = req.parameters.get("userId")!
+        let db = req.db.sql()
+        try await requireParticipant(id, req)
+        try await requireGroupOwner(id, req.userID, on: db)
+        if target == req.userID { throw Abort(.badRequest, reason: "Use leave instead of removing yourself") }
+        guard try await ChatStore.isParticipant(id, target, on: db) else {
+            throw Abort(.notFound, reason: "User is not a member of this group")
+        }
+        try await ChatStore.removeParticipant(id, target, on: db)
+        // TODO(4c): emit member_removed / removed_from_conversation; notifyChat group_removed → target
+        return RemovedData(data: .init())
+    }
+
+    static func promoteOwner(_ req: Request) async throws -> Response {
+        let id = req.parameters.get("id")!, target = req.parameters.get("userId")!
+        let db = req.db.sql()
+        try await requireParticipant(id, req)
+        try await requireGroupOwner(id, req.userID, on: db)
+        if target == req.userID { throw Abort(.badRequest, reason: "You are already the owner") }
+        guard try await ChatStore.isParticipant(id, target, on: db) else {
+            throw Abort(.notFound, reason: "User is not a member of this group")
+        }
+        try await ChatStore.transferOwnership(id, from: req.userID, to: target, on: req.db)
+        guard let s = try await ChatStore.groupSettings(id, on: db) else { throw Abort(.notFound, reason: "Conversation not found") }
+        // TODO(4c): emit group_updated { …, new_owner_id: target }
+        return try await ConnectionsController.encode(SettingsData(data: s), req, .ok)
+    }
+
+    struct GroupPatchBody: Content { var name: String?; var avatar_url: String?; var avatar_color: String? }
+    static func updateGroup(_ req: Request) async throws -> Response {
+        let id = req.parameters.get("id")!
+        let db = req.db.sql()
+        try await requireParticipant(id, req)
+        let raw = try req.content.decode(GroupPatchBody.self)
+        let present: Set<String> = {
+            guard let dict = try? req.content.decode([String: AnyCodableValue].self) else { return [] }
+            return Set(dict.keys)
+        }()
+
+        var settings: ChatStore.GroupSettings? = nil
+        if present.contains("name") {
+            try await requireGroupOwner(id, req.userID, on: db)
+            guard let n = raw.name, !n.trimmingCharacters(in: .whitespaces).isEmpty else {
+                throw Abort(.badRequest, reason: "Group name is required")
+            }
+            try await ChatStore.updateGroupInfo(id, sets: [("name", String(n.trimmingCharacters(in: .whitespaces).prefix(100)))], on: db)
+            settings = try await ChatStore.groupSettings(id, on: db)
+        }
+        if present.contains("avatar_url") || present.contains("avatar_color") {
+            try await requireGroupOwner(id, req.userID, on: db)
+            var sets: [(String, String?)] = []
+            if present.contains("avatar_url") { sets.append(("avatar_url", raw.avatar_url)) }
+            if present.contains("avatar_color") { sets.append(("avatar_color", raw.avatar_color)) }
+            try await ChatStore.updateGroupInfo(id, sets: sets, on: db)
+            settings = try await ChatStore.groupSettings(id, on: db)
+        }
+        guard let s = settings else {
+            throw Abort(.badRequest, reason: "name, avatar_url or avatar_color is required")
+        }
+        // TODO(4c): broadcastGroupUpdated
+        return try await ConnectionsController.encode(SettingsData(data: s), req, .ok)
+    }
+
+    static func leaveGroup(_ req: Request) async throws -> StatusOK {
+        let id = req.parameters.get("id")!
+        let db = req.db.sql()
+        try await requireParticipant(id, req)
+        guard let conv = try await ChatStore.conversationByID(id, on: db), conv.is_group else {
+            throw Abort(.notFound, reason: "Conversation not found")
+        }
+        let role = try await ChatStore.participantRole(id, req.userID, on: db)
+        let ordered = try await ChatStore.participantsByJoin(id, on: db)
+        let others = ordered.filter { $0 != req.userID }
+        if role == "owner", let heir = others.first {
+            try await ChatStore.transferOwnership(id, from: req.userID, to: heir, on: req.db)
+        }
+        try await ChatStore.removeParticipant(id, req.userID, on: db)
+        // TODO(4c): emit member_removed to remaining
+        return StatusOK()
+    }
+
+    // MARK: meeting-proposal mutation
+
+    static func updateMeetingProposal(_ req: Request) async throws -> Response {
+        let id = req.parameters.get("id")!, mid = req.parameters.get("messageId")!
+        let db = req.db.sql()
+        try await requireParticipant(id, req)
+        let p = try await resolveMeetingProposal(id, mid, on: db)
+        guard req.userID == p.sender_id else { throw Abort(.forbidden, reason: "Only the proposer can reschedule this meeting") }
+        guard p.status == "active" else { throw Abort(.conflict, reason: "Cannot reschedule a cancelled meeting") }
+        try await assertNotBlockedInConversation(id, req.userID, on: db)
+
+        let b = try req.content.decode(MeetingProposalIn.self)
+        let v = try validateMeetingProposal(
+            title: b.title, location: b.location, startsAt: b.starts_at, endsAt: b.ends_at,
+            reminderOffset: b.reminder_offset, reminderAt: b.reminder_at)
+        try await ChatStore.updateMeetingProposalRow(p.id!, v, on: req.db)
+
+        guard let msg = try await ChatStore.messageByID(mid, on: db), let mp = msg.meeting_proposal else {
+            throw Abort(.internalServerError)
+        }
+        // TODO(4c): emit meeting_proposal_updated; notifyChat meeting_updated (rescheduled)
+        return try await ConnectionsController.encode(DataResponse(data: mp), req, .ok)
+    }
+
+    static func cancelMeetingProposal(_ req: Request) async throws -> Response {
+        let id = req.parameters.get("id")!, mid = req.parameters.get("messageId")!
+        let db = req.db.sql()
+        try await requireParticipant(id, req)
+        let p = try await resolveMeetingProposal(id, mid, on: db)
+        guard req.userID == p.sender_id else { throw Abort(.forbidden, reason: "Only the proposer can cancel this meeting") }
+        guard p.status == "active" else { throw Abort(.conflict, reason: "Meeting is already cancelled") }
+        try await assertNotBlockedInConversation(id, req.userID, on: db)
+
+        try await ChatStore.cancelMeetingProposalRow(p.id!, on: db)
+        guard let msg = try await ChatStore.messageByID(mid, on: db), let mp = msg.meeting_proposal else {
+            throw Abort(.internalServerError)
+        }
+        // TODO(4c): emit meeting_proposal_updated; notifyChat meeting_updated (cancelled)
+        return try await ConnectionsController.encode(DataResponse(data: mp), req, .ok)
+    }
+
+    struct RsvpBody: Content { var status: String? }
+    static let allowedRsvp = ["going", "maybe", "not_going"]
+    static func respondToMeeting(_ req: Request) async throws -> Response {
+        let id = req.parameters.get("id")!, mid = req.parameters.get("messageId")!
+        let db = req.db.sql()
+        try await requireParticipant(id, req)
+        guard let status = try req.content.decode(RsvpBody.self).status else {
+            throw Abort(.badRequest, reason: "status is required")
+        }
+        guard allowedRsvp.contains(status) else {
+            throw Abort(.badRequest, reason: "Status must be going, maybe, or not_going")
+        }
+        let p = try await resolveMeetingProposal(id, mid, on: db)
+        guard let conv = try await ChatStore.conversationByID(id, on: db), conv.is_group else {
+            throw Abort(.badRequest, reason: "RSVP is not applicable to a 1:1 meeting")
+        }
+        try await assertNotBlockedInConversation(id, req.userID, on: db)
+        guard try await ChatStore.setMeetingRsvp(p.id!, userID: req.userID, status: status, on: db) else {
+            throw Abort(.conflict, reason: "Cannot respond to a cancelled meeting")
+        }
+        guard let msg = try await ChatStore.messageByID(mid, on: db), let mp = msg.meeting_proposal else {
+            throw Abort(.internalServerError)
+        }
+        // TODO(4c): emit meeting_response_updated; notifyChat meeting_rsvp → proposer
+        return try await ConnectionsController.encode(DataResponse(data: mp), req, .ok)
     }
 }
