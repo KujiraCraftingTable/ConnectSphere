@@ -15,6 +15,48 @@ struct SearchController {
         s.grouped(RateLimitMiddleware.aiSearch()).post("ai", use: aiSearch)
         s.get("suggestions", use: suggestions)
         s.post("lookup", use: lookup)
+
+        // Phase 8: entity alias confirm + venue clarification.
+        routes.grouped("entities").grouped(AuthMiddleware()).post("alias", use: entityAlias)
+        routes.grouped("locations").grouped(AuthMiddleware())
+            .grouped(RateLimitMiddleware.clarify()).post("clarify", use: locationClarify)
+    }
+
+    // MARK: POST /api/entities/alias
+
+    struct AliasBody: Content { var keyword: String?; var entity_id: String? }
+    struct AliasOK: Content { var status = "ok"; var canonical_name: String }
+    static func entityAlias(_ req: Request) async throws -> AliasOK {
+        let b = try req.content.decode(AliasBody.self)
+        guard let kw = b.keyword?.trimmingCharacters(in: .whitespaces), !kw.isEmpty, let eid = b.entity_id else {
+            throw StatusMessageError(.badRequest, "keyword and entity_id are required")
+        }
+        guard let canonical = try await EntityLookupService.saveAlias(kw, entityID: eid, on: req.db.sql()) else {
+            throw StatusMessageError(.notFound, "Entity not found")
+        }
+        return AliasOK(canonical_name: canonical)
+    }
+
+    // MARK: POST /api/locations/clarify
+
+    struct ClarifyBody: Content { var alias: String?; var canonical: String? }
+    struct ClarifyOK: Content {
+        var status = "ok"; var resolved: Bool
+        @NullCoded var province_name: String?; @NullCoded var lat: Double?; @NullCoded var lng: Double?
+    }
+    static func locationClarify(_ req: Request) async throws -> ClarifyOK {
+        let b = try req.content.decode(ClarifyBody.self)
+        guard let alias = b.alias?.trimmingCharacters(in: .whitespaces), !alias.isEmpty,
+              let canonical = b.canonical?.trimmingCharacters(in: .whitespaces), !canonical.isEmpty else {
+            throw StatusMessageError(.badRequest, "alias and canonical are required")
+        }
+        guard alias.count <= 100, canonical.count <= 100 else {
+            throw StatusMessageError(.badRequest, "alias and canonical must be 100 characters or fewer")
+        }
+        let r = try await VenueLocationService.recordClarification(
+            alias: alias, canonical: canonical, userID: req.userID,
+            client: req.application.http.client.shared, on: req.db.sql(), logger: req.logger)
+        return ClarifyOK(resolved: r.resolved, province_name: r.province_name, lat: r.lat, lng: r.lng)
     }
 
     // MARK: response shapes
@@ -75,7 +117,7 @@ struct SearchController {
         let searcher = req.userID
         let log = req.logger
 
-        let criteria = await OllamaService.extractSearchCriteria(cfg, userQuery, mode: b.mode, logger: log)
+        var criteria = await OllamaService.extractSearchCriteria(cfg, userQuery, mode: b.mode, logger: log)
 
         async let ctxTask = SearchStore.getUserContext(searcher, on: db)
         async let entityTask = buildEntityVector(cfg, criteria, on: db, logger: log)
@@ -85,10 +127,19 @@ struct SearchController {
         let generalVec = await generalTask
 
         var warnings: [Warning] = []
-        // Phase 8: venue geocoding. Until then a place_name without a location
-        // simply doesn't filter — surface that.
+        var searchCoords: (lat: Double, lng: Double)? = nil
         if let place = criteria.place_name, criteria.location == nil {
-            warnings.append(Warning(code: "venue_unresolved", value: place))
+            if let loc = await VenueLocationService.resolveVenueToCity(
+                place, client: HTTPClient.shared, on: db, logger: log), let prov = loc.provinceName {
+                criteria.location = prov
+                if let la = loc.lat, let ln = loc.lng { searchCoords = (la, ln) }
+            } else {
+                warnings.append(Warning(code: "venue_unresolved", value: place))
+            }
+        } else if let loc = criteria.location, b.radiusKm != nil,
+                  let g = await VenueLocationService.resolveVenueToCity(loc, client: HTTPClient.shared, on: db, logger: log),
+                  let la = g.lat, let ln = g.lng {
+            searchCoords = (la, ln)
         }
 
         let entityVec = entityResult.vec
@@ -116,6 +167,8 @@ struct SearchController {
         base.hasDatingIntent = hasDatingIntent
         base.currentUserGender = ctx?.gender
         base.radiusKm = b.radiusKm
+        base.searchLat = searchCoords?.lat
+        base.searchLng = searchCoords?.lng
         base.excludeUserID = searcher
         base.threshold = 0.6
 
@@ -170,7 +223,7 @@ struct SearchController {
         }
         let cands = (try? await SearchStore.findEntityCandidates(nameVec, category: c.entity_type, limit: 3, on: db)) ?? []
         if let top = cands.first, top.similarity >= SearchStore.highConfidenceThreshold {
-            // Phase 8: background lookupEntity() alias auto-save.
+            selfLearn(name, category: c.entity_type, cfg: cfg, on: db, logger: logger)
             return EntityVecResult(vec: await OllamaService.embedText(cfg, top.canonical_name, logger: logger), suggestion: nil)
         }
         let grey = cands.filter { $0.similarity >= SearchStore.suggestThreshold }
@@ -179,8 +232,21 @@ struct SearchController {
                 keyword: name,
                 candidates: grey.map { .init(entity_id: $0.entity_id, canonical_name: $0.canonical_name) }))
         }
-        // Phase 8: background Wikipedia self-learn.
+        // No close candidates — the entity may be a new proper noun. Learn it in
+        // the background (Wikipedia → interest_entities) so Tier-1 catches it next time.
+        selfLearn(name, category: c.entity_type, cfg: cfg, on: db, logger: logger)
         return EntityVecResult(vec: nameVec, suggestion: nil)
+    }
+
+    /// Fire-and-forget 3-tier `lookupEntity` — its Tier-2/Tier-3 side effects
+    /// (alias save, Wikipedia entity insert) make the next search sharper.
+    static func selfLearn(_ name: String, category: String?, cfg: OllamaService.Config,
+                          on db: any SQLDatabase, logger: Logger) {
+        let client = HTTPClient.shared
+        Task.detached {
+            _ = await EntityLookupService.lookupEntity(name, category: category, cfg: cfg,
+                                                       client: client, on: db, logger: logger)
+        }
     }
 
     static func buildGeneralVector(_ cfg: OllamaService.Config, _ c: OllamaService.SearchCriteria, logger: Logger) async -> [Double]? {
@@ -296,14 +362,10 @@ struct SearchController {
             "tìm designer có kinh nghiệm Figma",
         ],
     ]
-    /// Phase 8 ports the LLM-cached trending-query suggestions; until then this
-    /// serves the same static defaults Node falls back to.
     static func suggestions(_ req: Request) async throws -> SuggestionsResponse {
         let mode = try? req.query.get(String.self, at: "mode")
-        if mode == "hobby" || mode == "work" {
-            return SuggestionsResponse(suggestions: defaultSuggestions[mode!]!)
-        }
-        return SuggestionsResponse(suggestions: Array((defaultSuggestions["hobby"]! + defaultSuggestions["work"]!).prefix(4)))
+        let list = await SuggestionService.getSuggestions(mode: mode, cfg: req.ollama, on: req.db.sql(), logger: req.logger)
+        return SuggestionsResponse(suggestions: list)
     }
 
     // MARK: POST /api/search/lookup  (exact + vector tiers only; Wikipedia = Phase 8)
