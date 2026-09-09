@@ -21,6 +21,15 @@ backend/uploads/
 
 # Redis runtime dump
 backend/dump.rdb
+legacy/backend-node/dump.rdb
+
+# Retired Node backend — its deps are not tracked (npm install to run the fallback)
+legacy/backend-node/node_modules/
+legacy/backend-node/.env
 
 # Generated embedding visualization artifacts (script is committed, outputs are not)
-backend/scripts/embedding-viz/
+legacy/backend-node/scripts/embedding-viz/
+
+# Swift build products
+server/.build/
+server/.swiftpm/

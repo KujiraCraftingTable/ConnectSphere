@@ -32,39 +32,48 @@ services:
       timeout: 5s
       retries: 5
 
+  # The Swift/Vapor backend (was Node/Express until the Phase 6 cutover — the
+  # retired Node app lives in ../legacy/backend-node, tag `node-backend-final`).
+  # Container name / published port are unchanged so nothing downstream (the iOS
+  # app's APIBaseURL, dev.sh, TablePlus) needs touching.
   backend:
     build:
-      context: .
-      target: dev
+      context: ../server
     container_name: connectsphere_backend
     restart: unless-stopped
-    init: true                      # SIGTERM reaches node → graceful worker shutdown in index.js fires
-    command: ["npm", "run", "dev", "--", "--legacy-watch"]   # poll for changes — Docker Desktop bind mounts don't deliver fs events on macOS
+    init: true                      # SIGTERM → Vapor graceful shutdown (queue workers, DB pool)
+    command: ["serve", "--env", "development", "--hostname", "0.0.0.0", "--port", "3000"]
     ports:
       - "3000:3000"
     env_file:
       - .env                        # JWT_SECRET, DB creds, SMTP, etc. (gitignored; teammates copy .env.example)
-    environment:                    # applied after env_file, so these win — the host-vs-container differences
-      NODE_ENV: development
+    environment:                    # applied after env_file, so these win — host-vs-container differences
+      NODE_ENV: development         # Vapor maps this via `--env`; kept for parity with the seed data
+      PORT: "3000"
       DB_HOST: postgres
+      DB_PORT: "5432"
       REDIS_HOST: redis
+      REDIS_PORT: "6379"
       OLLAMA_URL: http://host.docker.internal:11434   # Ollama runs on the host, not in a container
+      RUN_MIGRATIONS: "1"           # replay ./migrations/*.sql at boot (advisory-locked, idempotent)
+      MIGRATIONS_DIR: /migrations
+      RUN_JOBS: "1"                 # this server now owns the schedule + queue workers
     extra_hosts:
       - "host.docker.internal:host-gateway"           # harmless on macOS, required on Linux
     volumes:
-      - .:/app                      # live source for nodemon hot reload
-      - /app/node_modules           # anonymous volume: keep the container's linux node_modules (bcrypt is a native addon)
+      - ./migrations:/migrations:ro                   # the 27 shared SQL files the migration runner replays
+      - ./uploads:/app/uploads                        # user uploads (served at /uploads, /uploads/messages behind a JWT gate)
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health >/dev/null 2>&1 || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 40s            # release Swift build + first-boot migrations
 
 volumes:
   postgres_data:

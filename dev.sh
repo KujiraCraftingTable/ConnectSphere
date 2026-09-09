@@ -64,11 +64,12 @@ start() {
     fi
   done
 
-  # 3. Docker services: PostgreSQL + Redis + backend
-  log "Starting Docker services (Postgres, Redis, backend)..."
+  # 3. Docker services: PostgreSQL + Redis + the Swift/Vapor backend
+  #    (first run builds the Swift release image — that is slow; later runs cache).
+  log "Starting Docker services (Postgres, Redis, Swift backend)..."
   cd "$BACKEND_DIR"
   docker compose up -d --build > /dev/null 2>&1
-  echo "   Waiting for the backend to be healthy"
+  echo "   Waiting for the backend to be healthy (Swift build + boot migrations on first run)"
   while [ "$(docker compose ps backend --format '{{.Health}}' 2>/dev/null)" != "healthy" ]; do
     printf "."
     sleep 2
@@ -76,9 +77,9 @@ start() {
   echo ""
   ok "Postgres, Redis, backend running"
 
-  # 4. Database migrations (run inside the backend container)
-  log "Running migrations..."
-  docker compose exec -T backend npm run migrate > /dev/null 2>&1 && ok "Migrations applied" || warn "Migration step reported an issue — check: docker compose logs backend"
+  # 4. Migrations run automatically at boot (RUN_MIGRATIONS=1, advisory-locked,
+  #    idempotent — see server/Sources/App/Infra/MigrationRunner.swift).
+  ok "Migrations applied at boot"
 
   # 5. Xcode
   log "Opening Xcode..."
