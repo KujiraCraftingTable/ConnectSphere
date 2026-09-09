@@ -16,6 +16,10 @@ struct AppErrorMiddleware: AsyncMiddleware {
     struct InlineBody: Content {
         let error: String
     }
+    struct StatusMessageBody: Content {
+        let status = "error"
+        let message: String
+    }
 
     func respond(to request: Request, chainingTo next: any AsyncResponder) async throws -> Response {
         do {
@@ -29,12 +33,17 @@ struct AppErrorMiddleware: AsyncMiddleware {
         var status: HTTPResponseStatus
         var message: String
         var inline = false
+        var statusMessageOnly = false
 
         switch error {
         case let inlineErr as InlineError:
             status = inlineErr.status
             message = inlineErr.reason
             inline = true
+        case let sm as StatusMessageError:
+            status = sm.status
+            message = sm.reason
+            statusMessageOnly = true
         case let abort as any AbortError:
             status = abort.status
             message = abort.reason
@@ -60,6 +69,8 @@ struct AppErrorMiddleware: AsyncMiddleware {
         let body: Response.Body
         if inline {
             body = (try? JSONEncoder().encode(InlineBody(error: message))).map { Response.Body(data: $0) } ?? .init(string: #"{"error":"error"}"#)
+        } else if statusMessageOnly {
+            body = (try? JSONEncoder().encode(StatusMessageBody(message: message))).map { Response.Body(data: $0) } ?? .init(string: #"{"status":"error","message":"error"}"#)
         } else {
             let safe = status.code < 500 ? message : "Internal Server Error"
             body = (try? JSONEncoder().encode(StandardBody(code: Int(status.code), message: safe)))
@@ -73,6 +84,18 @@ struct AppErrorMiddleware: AsyncMiddleware {
 /// (auth, connections, users, posts, stories, interactions). Everything else
 /// uses `Abort` → the `{status,code,message}` shape.
 struct InlineError: Error {
+    let status: HTTPResponseStatus
+    let reason: String
+    init(_ status: HTTPResponseStatus, _ reason: String) {
+        self.status = status
+        self.reason = reason
+    }
+}
+
+/// Throw this for routes whose Node original responds with
+/// `{ "status": "error", "message": "…" }` — no `code` (feedController and a
+/// few others).
+struct StatusMessageError: Error {
     let status: HTTPResponseStatus
     let reason: String
     init(_ status: HTTPResponseStatus, _ reason: String) {

@@ -24,7 +24,7 @@ extension UserStore {
             ?? "u.display_name, u.bio, u.avatar_url, u.cover_url"
         return """
         SELECT
-          u.id, u.username,
+          u.id::text AS id, u.username,
           \(identity),
           u.avatar_color,
           CASE WHEN u.dob_visibility = 'public' THEN u.age ELSE NULL END AS age,
@@ -51,7 +51,7 @@ extension UserStore {
             """
             (SELECT COUNT(*)::int FROM connections c
              WHERE c.status = 'accepted' AND c.mode = '\($0)'
-               AND (c.requester_id = base.id OR c.addressee_id = base.id))
+               AND (c.requester_id = base.id::uuid OR c.addressee_id = base.id::uuid))
             """
         } ?? "0"
         return try await db.raw("""
@@ -86,13 +86,13 @@ extension UserStore {
         q = q + """
              AND (c.requester_id = \(uuid: f.viewerID) OR c.addressee_id = \(uuid: f.viewerID))
                 INTERSECT
-                SELECT CASE WHEN c.requester_id = base.id THEN c.addressee_id ELSE c.requester_id END
+                SELECT CASE WHEN c.requester_id = base.id::uuid THEN c.addressee_id ELSE c.requester_id END
                 FROM connections c
                 WHERE c.status = 'accepted'
             """
         if let m = f.mode { q = q + " AND c.mode = '\(unsafeRaw: m)'" }
         q = q + """
-             AND (c.requester_id = base.id OR c.addressee_id = base.id)
+             AND (c.requester_id = base.id::uuid OR c.addressee_id = base.id::uuid)
               ) mutual
             ) AS mutual_count
             FROM (

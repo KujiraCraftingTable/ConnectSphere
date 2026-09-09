@@ -32,7 +32,10 @@ struct AuthMiddleware: AsyncMiddleware {
             throw InlineError(.unauthorized, "Invalid or expired token")
         }
 
-        request.userID = payload.sub
+        // Canonicalise to lowercase — Postgres uuid columns decode to an
+        // uppercase String via PostgresKit, but `json_build_object` and node-pg
+        // both render lowercase, so everything downstream expects lowercase.
+        request.userID = payload.sub.lowercased()
         return try await next.respond(to: request)
     }
 }
