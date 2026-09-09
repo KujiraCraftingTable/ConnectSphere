@@ -28,6 +28,12 @@ struct RateLimitMiddleware: AsyncMiddleware {
         .init(max: 20, windowSeconds: 15 * 60, inlineErrorBody: true,
               message: "Too many requests, please try again later")
     }
+    /// Folded review fix: the Ollama-bound `/api/search/ai` is unthrottled in
+    /// Node — cap it per client. Allowlisted divergence.
+    static func aiSearch() -> RateLimitMiddleware {
+        .init(max: 30, windowSeconds: 15 * 60, inlineErrorBody: false,
+              message: "Too many searches, please slow down")
+    }
 
     func respond(to request: Request, chainingTo next: any AsyncResponder) async throws -> Response {
         let key = "\(ObjectIdentifier(Self.store).hashValue):\(request.route?.description ?? request.url.path):\(clientIP(request))"
