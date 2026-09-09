@@ -276,7 +276,10 @@ struct MessagesController {
         guard let msg = try await ChatStore.messageByID(newID, on: db) else { throw Abort(.internalServerError) }
         let parts = try await ChatStore.participants(id, on: db)
         req.socketHub.emitConversation(id, participants: parts, event: "new_message", msg)
-        // TODO(phase 5): notifyNewMessage inbox row (meeting → meeting_proposed)
+        let uid = req.userID
+        NotifyService.fireAndForget(req) { d, h, l in
+            await NotifyService.notifyNewMessage(conversationID: id, senderID: uid, message: msg, on: d, hub: h, logger: l)
+        }
         return try await ConnectionsController.encode(DataResponse(data: msg), req, .created)
     }
 
@@ -310,6 +313,13 @@ struct MessagesController {
             throw Abort(.forbidden, reason: "Cannot message this user")
         }
         let reactions = try await ChatStore.setReaction(mid, userID: req.userID, emoji: emoji, on: db)
+        req.socketHub.emitConversation(id, participants: parts, event: "reaction_updated",
+            WSReactionUpdated(conversation_id: id, message_id: mid, reactions: reactions))
+        let uid = req.userID, senderID = target.sender_id
+        NotifyService.fireAndForget(req) { d, h, l in
+            await NotifyService.pushChatNotification(conversationID: id, type: "message_reaction", actorID: uid,
+                userIDs: [senderID], entityID: mid, payload: ["messageId": mid, "emoji": emoji], on: d, hub: h, logger: l)
+        }
         return ReactionsResponse(data: .init(reactions: reactions))
     }
 
@@ -321,6 +331,10 @@ struct MessagesController {
         // only fires it from the socket handler) so the other side's ticks
         // update even when the reader used REST.
         req.socketHub.emit(room: id, event: "messages_read", WSMessagesRead(conversationId: id, readBy: req.userID))
+        let uid = req.userID
+        NotifyService.fireAndForget(req) { d, h, l in
+            await NotifyService.clearConversationNotification(conversationID: id, userID: uid, on: d, hub: h, logger: l)
+        }
         return StatusOK()
     }
 
@@ -567,7 +581,13 @@ struct MessagesController {
         let after = try await ChatStore.participants(id, on: db)
         req.socketHub.emitConversation(id, participants: after, event: "member_added",
             WSMemberAdded(conversation_id: id, added_user_ids: toAdd, members: s.members))
-        // TODO(phase 5): notifyChat group_added → toAdd
+        if !toAdd.isEmpty {
+            let uid = req.userID, added = toAdd
+            NotifyService.fireAndForget(req) { d, h, l in
+                await NotifyService.pushChatNotification(conversationID: id, type: "group_added", actorID: uid,
+                    userIDs: added, on: d, hub: h, logger: l)
+            }
+        }
         return try await ConnectionsController.encode(SettingsData(data: s), req, .ok)
     }
 
@@ -587,7 +607,11 @@ struct MessagesController {
             req.socketHub.emitToUser(uid, event: "member_removed", payload)
         }
         req.socketHub.emitToUser(target, event: "removed_from_conversation", payload)
-        // TODO(phase 5): notifyChat group_removed → target
+        let uid = req.userID, tgt = target
+        NotifyService.fireAndForget(req) { d, h, l in
+            await NotifyService.pushChatNotification(conversationID: id, type: "group_removed", actorID: uid,
+                userIDs: [tgt], on: d, hub: h, logger: l)
+        }
         return RemovedData(data: .init())
     }
 
@@ -692,7 +716,12 @@ struct MessagesController {
             throw Abort(.internalServerError)
         }
         try await emitMeeting(req, id, mid, event: "meeting_proposal_updated", proposal: mp)
-        // TODO(phase 5): notifyChat meeting_updated (rescheduled)
+        let uid = req.userID, pid = p.id!, ttl = v.title, sa = v.startsAt
+        NotifyService.fireAndForget(req) { d, h, l in
+            await NotifyService.pushChatNotification(conversationID: id, type: "meeting_updated", actorID: uid,
+                entityID: pid, payload: ["messageId": mid, "proposalId": pid, "changeKind": "rescheduled",
+                                         "title": ttl, "startsAt": sa], on: d, hub: h, logger: l)
+        }
         return try await ConnectionsController.encode(DataResponse(data: mp), req, .ok)
     }
 
@@ -719,7 +748,12 @@ struct MessagesController {
             throw Abort(.internalServerError)
         }
         try await emitMeeting(req, id, mid, event: "meeting_proposal_updated", proposal: mp)
-        // TODO(phase 5): notifyChat meeting_updated (cancelled)
+        let uid = req.userID, pid = p.id!, ttl = mp.title
+        NotifyService.fireAndForget(req) { d, h, l in
+            await NotifyService.pushChatNotification(conversationID: id, type: "meeting_updated", actorID: uid,
+                entityID: pid, payload: ["messageId": mid, "proposalId": pid, "changeKind": "cancelled",
+                                         "title": ttl], on: d, hub: h, logger: l)
+        }
         return try await ConnectionsController.encode(DataResponse(data: mp), req, .ok)
     }
 
@@ -747,7 +781,12 @@ struct MessagesController {
             throw Abort(.internalServerError)
         }
         try await emitMeeting(req, id, mid, event: "meeting_response_updated", proposal: mp)
-        // TODO(phase 5): notifyChat meeting_rsvp → proposer
+        let uid = req.userID, pid = p.id!, proposer = p.sender_id, st = status
+        NotifyService.fireAndForget(req) { d, h, l in
+            await NotifyService.pushChatNotification(conversationID: id, type: "meeting_rsvp", actorID: uid,
+                userIDs: [proposer], entityID: pid,
+                payload: ["messageId": mid, "proposalId": pid, "status": st], on: d, hub: h, logger: l)
+        }
         return try await ConnectionsController.encode(DataResponse(data: mp), req, .ok)
     }
 }

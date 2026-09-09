@@ -139,18 +139,30 @@ struct PostsController {
             else { throw Abort(.internalServerError) }
             post = created
         }
-        // runPostBackground: enqueue tag-extraction (→ chained chunk-embed), or
-        // embed directly for a link/image-only post. Only when this server owns
-        // the job schedule (RUN_JOBS=1). The mode-mismatch notification lands
-        // with the notify-service port (phase 5d).
+        // runPostBackground (all fire-and-forget, like Node):
+        //  • mode-mismatch check → mode_mismatch notification to the author
+        //  • tag-extraction (→ chained chunk-embed) or a direct embed for a
+        //    link/image-only post — only when this server owns the schedule.
+        let postID = post.id, postMode = post.mode, postText = post.content ?? "", authorID = req.userID
+        if !postText.isEmpty {
+            let cfg = req.ollama
+            NotifyService.fireAndForget(req) { d, h, l in
+                let r = await PostAnalyzeService.analyze(cfg, postText, logger: l)
+                if r.confidence >= 0.75, r.suggestedMode != "neutral", r.suggestedMode != postMode {
+                    _ = await NotifyService.pushUserNotification(userID: authorID, type: "mode_mismatch",
+                        postID: postID,
+                        payload: ["suggestedMode": r.suggestedMode, "currentMode": postMode, "reason": r.reason],
+                        on: d, hub: h, logger: l)
+                }
+            }
+        }
         if BackgroundJobs.enabled {
-            let text = post.content ?? ""
-            if !text.isEmpty {
+            if !postText.isEmpty {
                 try? await req.queue.dispatch(BackgroundJobs.TagExtractionJob.self,
-                    .init(postId: post.id, content: text), maxRetryCount: 3)
+                    .init(postId: postID, content: postText), maxRetryCount: 3)
             } else {
                 try? await req.queue.dispatch(BackgroundJobs.ChunkEmbedJob.self,
-                    .init(kind: .post, id: post.id), maxRetryCount: 3)
+                    .init(kind: .post, id: postID), maxRetryCount: 3)
             }
         }
         let res = try await DataResponse(data: post).encodeResponse(for: req)
