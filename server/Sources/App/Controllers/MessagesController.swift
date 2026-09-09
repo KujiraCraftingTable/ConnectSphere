@@ -274,7 +274,9 @@ struct MessagesController {
             try await ChatStore.createMeetingProposalRow(messageID: newID, v, on: db)
         }
         guard let msg = try await ChatStore.messageByID(newID, on: db) else { throw Abort(.internalServerError) }
-        // TODO(4c): emit new_message; notifyNewMessage inbox row (meeting → meeting_proposed)
+        let parts = try await ChatStore.participants(id, on: db)
+        req.socketHub.emitConversation(id, participants: parts, event: "new_message", msg)
+        // TODO(phase 5): notifyNewMessage inbox row (meeting → meeting_proposed)
         return try await ConnectionsController.encode(DataResponse(data: msg), req, .created)
     }
 
@@ -282,9 +284,12 @@ struct MessagesController {
 
     static func recallMessage(_ req: Request) async throws -> StatusOK {
         let id = req.parameters.get("id")!, mid = req.parameters.get("messageId")!
+        let db = req.db.sql()
         try await requireParticipant(id, req)
-        _ = try await ChatStore.recall(mid, conversationID: id, senderID: req.userID, on: req.db.sql())
-        // TODO(4c): message_deleted emit
+        _ = try await ChatStore.recall(mid, conversationID: id, senderID: req.userID, on: db)
+        let parts = try await ChatStore.participants(id, on: db)
+        req.socketHub.emitConversation(id, participants: parts, event: "message_deleted",
+            WSMessageDeleted(conversation_id: id, message_id: mid))
         return StatusOK()
     }
 
@@ -312,15 +317,22 @@ struct MessagesController {
         let id = req.parameters.get("id")!
         try await requireParticipant(id, req)
         _ = try await ChatStore.markRead(id, userID: req.userID, on: req.db.sql())
-        // TODO(4c): emit messages_read (folded fix — REST path must emit too)
+        // Folded review fix: the REST read path also emits messages_read (Node's
+        // only fires it from the socket handler) so the other side's ticks
+        // update even when the reader used REST.
+        req.socketHub.emit(room: id, event: "messages_read", WSMessagesRead(conversationId: id, readBy: req.userID))
         return StatusOK()
     }
 
     static func markDelivered(_ req: Request) async throws -> StatusOK {
         let id = req.parameters.get("id")!
         try await requireParticipant(id, req)
-        _ = try await ChatStore.markConversationDelivered(id, userID: req.userID, on: req.db.sql())
-        // TODO(4c): emit message_delivered per sender
+        let rows = try await ChatStore.markConversationDelivered(id, userID: req.userID, on: req.db.sql())
+        // Node's REST catch-up path emits { conversationId, messageId } (no userId).
+        for r in rows {
+            req.socketHub.emitToUser(r.sender_id, event: "message_delivered",
+                WSMessageDelivered(conversationId: id, messageId: r.id, userId: nil))
+        }
         return StatusOK()
     }
 
@@ -398,16 +410,23 @@ struct MessagesController {
         guard let pin = try await ChatStore.pinMessage(id, messageID: mid, userID: req.userID, expiresAt: expiresAt, on: db) else {
             throw Abort(.badRequest, reason: "This conversation already has \(ChatStore.maxPins) pinned messages")
         }
-        // TODO(4c): pin_added emit
+        let pins = try await ChatStore.listPins(id, on: db)
+        let parts = try await ChatStore.participants(id, on: db)
+        req.socketHub.emitConversation(id, participants: parts, event: "pin_added",
+            WSPinAdded(conversation_id: id, message_id: mid, pins: pins))
         return try await ConnectionsController.encode(DataResponse(data: pin), req, .created)
     }
     struct UnpinData: Content { var data: Inner; struct Inner: Content { var unpinned = true } }
     static func unpinMessage(_ req: Request) async throws -> UnpinData {
         let id = req.parameters.get("id")!, mid = req.parameters.get("messageId")!
+        let db = req.db.sql()
         try await requireParticipant(id, req)
-        guard try await ChatStore.unpinMessage(id, messageID: mid, on: req.db.sql()) else {
+        guard try await ChatStore.unpinMessage(id, messageID: mid, on: db) else {
             throw Abort(.notFound, reason: "Pin not found")
         }
+        let parts = try await ChatStore.participants(id, on: db)
+        req.socketHub.emitConversation(id, participants: parts, event: "pin_removed",
+            WSPinRemoved(conversation_id: id, message_id: mid))
         return UnpinData(data: .init())
     }
 
@@ -513,11 +532,14 @@ struct MessagesController {
 
         if conv.is_group {
             guard let s = try await ChatStore.groupSettings(id, on: db) else { throw Abort(.notFound, reason: "Conversation not found") }
-            // TODO(4c): emit conversation_settings_updated { conversation_id, theme }
+            let payload = WSGroupSettingsUpdated(conversation_id: id, theme: s.theme)
+            for uid in parts { req.socketHub.emitToUser(uid, event: "conversation_settings_updated", payload) }
             return try await ConnectionsController.encode(SettingsData(data: s), req, .ok)
         } else {
             guard let s = try await ChatStore.settings1to1(id, userID: req.userID, on: db) else { throw Abort(.notFound, reason: "Conversation not found") }
-            // TODO(4c): emit conversation_settings_updated { conversation_id, theme, nickname_target_id, nickname }
+            let payload = WSDirectSettingsUpdated(conversation_id: id, theme: s.theme,
+                nickname_target_id: s.other_user_id, nickname: s.other_user_nickname)
+            for uid in parts { req.socketHub.emitToUser(uid, event: "conversation_settings_updated", payload) }
             return try await ConnectionsController.encode(SettingsData(data: s), req, .ok)
         }
     }
@@ -542,7 +564,10 @@ struct MessagesController {
         }
         if !toAdd.isEmpty { try await ChatStore.addParticipants(id, toAdd, on: db) }
         guard let s = try await ChatStore.groupSettings(id, on: db) else { throw Abort(.notFound, reason: "Conversation not found") }
-        // TODO(4c): emit member_added { conversation_id, added_user_ids, members }; notifyChat group_added → toAdd
+        let after = try await ChatStore.participants(id, on: db)
+        req.socketHub.emitConversation(id, participants: after, event: "member_added",
+            WSMemberAdded(conversation_id: id, added_user_ids: toAdd, members: s.members))
+        // TODO(phase 5): notifyChat group_added → toAdd
         return try await ConnectionsController.encode(SettingsData(data: s), req, .ok)
     }
 
@@ -557,7 +582,12 @@ struct MessagesController {
             throw Abort(.notFound, reason: "User is not a member of this group")
         }
         try await ChatStore.removeParticipant(id, target, on: db)
-        // TODO(4c): emit member_removed / removed_from_conversation; notifyChat group_removed → target
+        let payload = WSMemberRemoved(conversation_id: id, removed_user_id: target)
+        for uid in try await ChatStore.participants(id, on: db) {
+            req.socketHub.emitToUser(uid, event: "member_removed", payload)
+        }
+        req.socketHub.emitToUser(target, event: "removed_from_conversation", payload)
+        // TODO(phase 5): notifyChat group_removed → target
         return RemovedData(data: .init())
     }
 
@@ -572,8 +602,17 @@ struct MessagesController {
         }
         try await ChatStore.transferOwnership(id, from: req.userID, to: target, on: req.db)
         guard let s = try await ChatStore.groupSettings(id, on: db) else { throw Abort(.notFound, reason: "Conversation not found") }
-        // TODO(4c): emit group_updated { …, new_owner_id: target }
+        try await broadcastGroupUpdated(req, id, settings: s, newOwnerID: target)
         return try await ConnectionsController.encode(SettingsData(data: s), req, .ok)
+    }
+
+    /// `broadcastGroupUpdated` — `group_updated` to the room + every participant.
+    static func broadcastGroupUpdated(_ req: Request, _ conversationID: String,
+                                     settings s: ChatStore.GroupSettings, newOwnerID: String? = nil) async throws {
+        let payload = WSGroupUpdated(conversation_id: conversationID, name: s.name,
+            avatar_url: s.avatar_url, avatar_color: s.avatar_color, new_owner_id: newOwnerID)
+        let parts = try await ChatStore.participants(conversationID, on: req.db.sql())
+        req.socketHub.emitConversation(conversationID, participants: parts, event: "group_updated", payload)
     }
 
     struct GroupPatchBody: Content { var name: String?; var avatar_url: String?; var avatar_color: String? }
@@ -607,7 +646,7 @@ struct MessagesController {
         guard let s = settings else {
             throw Abort(.badRequest, reason: "name, avatar_url or avatar_color is required")
         }
-        // TODO(4c): broadcastGroupUpdated
+        try await broadcastGroupUpdated(req, id, settings: s)
         return try await ConnectionsController.encode(SettingsData(data: s), req, .ok)
     }
 
@@ -625,7 +664,10 @@ struct MessagesController {
             try await ChatStore.transferOwnership(id, from: req.userID, to: heir, on: req.db)
         }
         try await ChatStore.removeParticipant(id, req.userID, on: db)
-        // TODO(4c): emit member_removed to remaining
+        let payload = WSMemberRemoved(conversation_id: id, removed_user_id: req.userID)
+        for uid in try await ChatStore.participants(id, on: db) {
+            req.socketHub.emitToUser(uid, event: "member_removed", payload)
+        }
         return StatusOK()
     }
 
@@ -649,8 +691,18 @@ struct MessagesController {
         guard let msg = try await ChatStore.messageByID(mid, on: db), let mp = msg.meeting_proposal else {
             throw Abort(.internalServerError)
         }
-        // TODO(4c): emit meeting_proposal_updated; notifyChat meeting_updated (rescheduled)
+        try await emitMeeting(req, id, mid, event: "meeting_proposal_updated", proposal: mp)
+        // TODO(phase 5): notifyChat meeting_updated (rescheduled)
         return try await ConnectionsController.encode(DataResponse(data: mp), req, .ok)
+    }
+
+    /// Fan `meeting_proposal_updated` / `meeting_response_updated` to the room +
+    /// every participant, payload `{ conversation_id, message_id, meeting_proposal }`.
+    static func emitMeeting(_ req: Request, _ conversationID: String, _ messageID: String,
+                            event: String, proposal: MessageObject.MeetingProposal) async throws {
+        let parts = try await ChatStore.participants(conversationID, on: req.db.sql())
+        req.socketHub.emitConversation(conversationID, participants: parts, event: event,
+            WSMeetingProposal(conversation_id: conversationID, message_id: messageID, meeting_proposal: proposal))
     }
 
     static func cancelMeetingProposal(_ req: Request) async throws -> Response {
@@ -666,7 +718,8 @@ struct MessagesController {
         guard let msg = try await ChatStore.messageByID(mid, on: db), let mp = msg.meeting_proposal else {
             throw Abort(.internalServerError)
         }
-        // TODO(4c): emit meeting_proposal_updated; notifyChat meeting_updated (cancelled)
+        try await emitMeeting(req, id, mid, event: "meeting_proposal_updated", proposal: mp)
+        // TODO(phase 5): notifyChat meeting_updated (cancelled)
         return try await ConnectionsController.encode(DataResponse(data: mp), req, .ok)
     }
 
@@ -693,7 +746,8 @@ struct MessagesController {
         guard let msg = try await ChatStore.messageByID(mid, on: db), let mp = msg.meeting_proposal else {
             throw Abort(.internalServerError)
         }
-        // TODO(4c): emit meeting_response_updated; notifyChat meeting_rsvp → proposer
+        try await emitMeeting(req, id, mid, event: "meeting_response_updated", proposal: mp)
+        // TODO(phase 5): notifyChat meeting_rsvp → proposer
         return try await ConnectionsController.encode(DataResponse(data: mp), req, .ok)
     }
 }
