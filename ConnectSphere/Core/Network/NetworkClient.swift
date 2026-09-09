@@ -74,6 +74,27 @@ final class NetworkClient {
         return try await performRaw(request, decoding: type)
     }
 
+    func fetchRaw<T: Decodable>(
+        _ type: T.Type,
+        path: String,
+        method: String = "GET",
+        token: String,
+        queryItems: [URLQueryItem] = [],
+        bodyData: Data? = nil
+    ) async throws -> (value: T, body: Data) {
+        var components = URLComponents(string: APIConfig.baseURL + path)!
+        if !queryItems.isEmpty { components.queryItems = queryItems }
+        guard let url = components.url else { throw APIError.invalidURL }
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if let bodyData {
+            request.httpBody = bodyData
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+        return try await performRaw(request, decoding: type)
+    }
+
     // MARK: - Encode helper (mirrors CommunityAPIClient.encode)
 
     static func encode<T: Encodable>(_ value: T) -> Data? {
