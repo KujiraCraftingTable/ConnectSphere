@@ -43,4 +43,12 @@ public func configure(_ app: Application) async throws {
         let result = try await MigrationRunner.run(db: app.db, migrationsDir: dir, logger: app.logger)
         app.logger.info("migrations: \(result.applied.count) applied, \(result.skipped.count) already present")
     }
+
+    // 7. Background jobs (BullMQ → Vapor Queues). Gated behind RUN_JOBS=1 so the
+    //    Node backend keeps owning the schedule during the parallel-oracle
+    //    phase; the cutover flips the flag.
+    if BackgroundJobs.enabled {
+        try BackgroundJobs.register(app)
+        app.logger.info("background jobs + scheduler started (RUN_JOBS=1)")
+    }
 }
