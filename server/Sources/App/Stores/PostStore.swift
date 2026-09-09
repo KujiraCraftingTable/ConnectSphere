@@ -325,6 +325,20 @@ enum PostStore {
         return try await db.raw(q).all(decoding: PostRow.self).map(map)
     }
 
+    /// Port of `getPostsByCommunity` — buildPostSelect wrapped so the embedded
+    /// `community` object can be merged in; pinned post first.
+    static func getPostsByCommunity(_ communityID: String, viewer: String, tag: String?, limit: Int, offset: Int, on db: any SQLDatabase) async throws -> [PostObject] {
+        var q = "SELECT sub.*, (SELECT json_build_object('id', co.id, 'name', co.name, 'icon_emoji', co.icon_emoji) FROM communities co WHERE co.id = " as SQLQueryString
+        q = q + "\(uuid: communityID))::text AS community FROM ("
+        q = q + buildPostSelect(viewer)
+        q = q + " WHERE p.community_id = \(uuid: communityID) AND p.status = 'posted'"
+        if let tag {
+            q = q + " AND EXISTS (SELECT 1 FROM post_tags ptf WHERE ptf.post_id = p.id AND LOWER(ptf.tag) = LOWER(\(bind: tag)) AND (ptf.source = 'user' OR p.show_ai_tags))"
+        }
+        q = q + " GROUP BY p.id, u.id) sub ORDER BY sub.is_pinned DESC, sub.created_at DESC LIMIT \(bind: limit) OFFSET \(bind: offset)"
+        return try await db.raw(q).all(decoding: PostRow.self).map(map)
+    }
+
     static func listSaved(_ userID: String, limit: Int, offset: Int, on db: any SQLDatabase) async throws -> [PostObject] {
         let q = buildPostSelect(userID)
             + " JOIN saved_posts sap ON sap.post_id = p.id AND sap.user_id = \(uuid: userID)"

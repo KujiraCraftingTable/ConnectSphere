@@ -278,8 +278,7 @@ struct PostsController {
         return OKMessage(message: "Vote recorded")
     }
 
-    // report → Phase 3 (reportService). Minimal stub kept out until then.
     static func report(_ req: Request) async throws -> Response {
-        throw Abort(.notImplemented, reason: "reporting ported in Phase 3")
+        try await ReportsController.reportPost(req)
     }
 }
