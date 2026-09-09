@@ -327,14 +327,19 @@ enum ChatStore {
             ORDER BY mp.pinned_at DESC
             """).all(decoding: PinRow.self)
     }
-    struct PinCreated: Content { var id: String }
-    static func pinMessage(_ conversationID: String, messageID: String, userID: String, expiresAt: String?, on db: any SQLDatabase) async throws -> PinCreated? {
+    /// Node's `pinMessage` returns `RETURNING *` — the full `message_pins` row.
+    struct PinInserted: Content {
+        var id: String; var conversation_id: String; var message_id: String
+        var pinned_by: String; var pinned_at: Date; @NullCoded var expires_at: Date?
+    }
+    static func pinMessage(_ conversationID: String, messageID: String, userID: String, expiresAt: String?, on db: any SQLDatabase) async throws -> PinInserted? {
         try await db.raw("""
             INSERT INTO message_pins (conversation_id, message_id, pinned_by, expires_at)
             SELECT \(uuid: conversationID), \(uuid: messageID), \(uuid: userID), \(bind: expiresAt)::timestamptz
             WHERE (SELECT COUNT(*) FROM message_pins WHERE conversation_id = \(uuid: conversationID)) < \(bind: maxPins)
-            RETURNING id::text AS id
-            """).first(decoding: PinCreated.self)
+            RETURNING id::text AS id, conversation_id::text AS conversation_id, message_id::text AS message_id,
+                      pinned_by::text AS pinned_by, pinned_at, expires_at
+            """).first(decoding: PinInserted.self)
     }
     static func unpinMessage(_ conversationID: String, messageID: String, on db: any SQLDatabase) async throws -> Bool {
         struct R: Decodable { let id: String }

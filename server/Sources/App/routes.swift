@@ -17,7 +17,10 @@ func routes(_ app: Application) throws {
     CommunitiesController.register(routes: api)
     NotificationsController.register(routes: api)
     MessagesController.register(routes: api)
-    // Phase 4c — the /socket.io shim, mounted on `app` not `api`
+
+    // Socket.IO v4 / Engine.IO 4 shim — mounted on `app` (not `api`), auth via
+    // the SIO CONNECT frame's `{token}`, not a header.
+    SocketIOShim.register(app)
     // Phase 5 — search / entities
     // Phase 8 — wards / locations
 }

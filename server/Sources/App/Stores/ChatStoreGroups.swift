@@ -217,6 +217,21 @@ extension ChatStore {
         try await db.raw("UPDATE message_meeting_proposals SET status = 'cancelled', updated_at = NOW() WHERE id = \(uuid: proposalID)").run()
     }
 
+    /// `markMessageDelivered` — upgrade one message to `delivered` for the
+    /// caller. Returns the message's id + sender (for the realtime echo), or
+    /// nil when nothing was upgraded (already delivered, own message, missing).
+    static func markMessageDelivered(_ messageID: String, userID: String, on db: any SQLDatabase) async throws -> DeliveredRow? {
+        try await db.raw("""
+            WITH ins AS (
+              INSERT INTO message_receipts (message_id, user_id, kind)
+              SELECT m.id, \(uuid: userID), 'delivered' FROM messages m
+              WHERE m.id = \(uuid: messageID) AND m.sender_id != \(uuid: userID)
+              ON CONFLICT (message_id, user_id, kind) DO NOTHING RETURNING message_id
+            )
+            SELECT m.id::text AS id, m.sender_id::text AS sender_id FROM ins JOIN messages m ON m.id = ins.message_id
+            """).first(decoding: DeliveredRow.self)
+    }
+
     /// Guarded RSVP upsert — the write only lands while the proposal is still
     /// `active` (WHERE EXISTS on the source SELECT). Returns false when nothing
     /// was written (proposal cancelled/rescheduled).
