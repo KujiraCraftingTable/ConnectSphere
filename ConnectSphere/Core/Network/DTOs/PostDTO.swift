@@ -170,7 +170,9 @@ struct PostDTO: Decodable {
         likeCount     = try c.decodeIfPresent(Int.self, forKey: .likeCount) ?? 0
         commentCount  = try c.decodeIfPresent(Int.self, forKey: .commentCount) ?? 0
         shareCount    = try c.decodeIfPresent(Int.self, forKey: .shareCount) ?? 0
-        createdAt     = try c.decode(Date.self, forKey: .createdAt)
+        // A malformed / missing `created_at` must not fail the whole list page —
+        // fall back to .distantPast so the row sorts to the bottom instead.
+        createdAt     = (try? c.decode(Date.self, forKey: .createdAt)) ?? .distantPast
         tags          = try c.decodeIfPresent([String].self, forKey: .tags) ?? []
         author        = try c.decodeIfPresent(PostAuthorDTO.self, forKey: .author) ?? .deleted
         sharedPostId  = try c.decodeIfPresent(String.self, forKey: .sharedPostId)

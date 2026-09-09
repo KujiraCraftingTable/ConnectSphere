@@ -137,6 +137,9 @@ final class NotificationsViewModel {
         apply(isRead: isRead, to: ids)
         adjustUnread(by: isRead ? -changed : changed, appState: appState)
 
+        // Restore only the rows that actually failed — the ones that already
+        // succeeded server-side stay in their new state.
+        var failed: [String] = []
         for id in ids {
             do {
                 if isRead {
@@ -145,11 +148,18 @@ final class NotificationsViewModel {
                     try await repo.markUnread(notificationId: id, token: token)
                 }
             } catch {
-                notifications = previous
-                adjustUnread(by: isRead ? changed : -changed, appState: appState)
-                return
+                failed.append(id)
             }
         }
+        guard !failed.isEmpty else { return }
+        for id in failed {
+            if let prev = previous.first(where: { $0.id == id }),
+               let idx = notifications.firstIndex(where: { $0.id == id }) {
+                notifications[idx] = prev
+            }
+        }
+        let failedChanged = failed.filter { id in previous.first { $0.id == id }?.isRead == !isRead }.count
+        adjustUnread(by: isRead ? failedChanged : -failedChanged, appState: appState)
     }
 
     func markAllRead(token: String, appState: AppState?) async {
@@ -174,14 +184,17 @@ final class NotificationsViewModel {
         notifications.removeAll { ids.contains($0.id) }
         adjustUnread(by: -removedUnread, appState: appState)
 
-        do {
-            for id in group.ids {
-                try await repo.delete(notificationId: id, token: token)
-            }
-        } catch {
-            notifications = previous
-            adjustUnread(by: removedUnread, appState: appState)
+        var failed: [String] = []
+        for id in group.ids {
+            do { try await repo.delete(notificationId: id, token: token) }
+            catch { failed.append(id) }
         }
+        guard !failed.isEmpty else { return }
+        // Re-insert only the rows that failed to delete, in their original order.
+        let failedSet = Set(failed)
+        let restored = previous.filter { failedSet.contains($0.id) }
+        notifications = (notifications + restored).sorted { $0.sortDate > $1.sortDate }
+        adjustUnread(by: restored.filter { !$0.isRead }.count, appState: appState)
     }
 
     func resolve(notification: UserNotificationDTO, action: String, token: String, appState: AppState?) async {
@@ -196,14 +209,14 @@ final class NotificationsViewModel {
     func startListening(token: String, appState: AppState?) {
         let socket = WebSocketClient.shared
 
-        socket.on("notification", tag: socketTag) { _ in
-            Task { @MainActor in await self.load(token: token, appState: appState) }
+        socket.on("notification", tag: socketTag) { [weak self] _ in
+            Task { @MainActor in await self?.load(token: token, appState: appState) }
         }
-        socket.on("notification_read", tag: socketTag) { _ in
-            Task { @MainActor in await self.load(token: token, appState: appState) }
+        socket.on("notification_read", tag: socketTag) { [weak self] _ in
+            Task { @MainActor in await self?.load(token: token, appState: appState) }
         }
-        socket.on("notification_deleted", tag: socketTag) { _ in
-            Task { @MainActor in await self.load(token: token, appState: appState) }
+        socket.on("notification_deleted", tag: socketTag) { [weak self] _ in
+            Task { @MainActor in await self?.load(token: token, appState: appState) }
         }
     }
 

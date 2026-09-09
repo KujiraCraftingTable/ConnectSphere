@@ -6,26 +6,44 @@ struct PostRepository {
     private let client = NetworkClient.shared
 
     func fetchPosts(mode: AppMode, connectionsOnly: Bool = false, limit: Int = 20, offset: Int = 0) async throws -> [Post] {
-        let response = try await client.fetch(
-            PaginatedResponse<PostDTO>.self,
-            from: .listPosts(
-                mode: mode.rawValue,
-                filter: connectionsOnly ? "connections" : nil,
-                limit: limit,
-                offset: offset
-            )
+        let endpoint = Endpoint.listPosts(
+            mode: mode.rawValue,
+            filter: connectionsOnly ? "connections" : nil,
+            limit: limit,
+            offset: offset
         )
-        return response.data.map { $0.toPost() }
+        // Only the first page of the unfiltered main feed is cached — that is
+        // the airplane-mode landing surface. Filtered / paged requests skip it.
+        let cacheable = !connectionsOnly && offset == 0
+        let key = CacheStore.Key.feed(mode.rawValue)
+        do {
+            let (response, body) = try await client.fetchRaw(PaginatedResponse<PostDTO>.self, from: endpoint)
+            if cacheable { await CacheStore.shared.put(key, body: body) }
+            return response.data.map { $0.toPost() }
+        } catch {
+            if cacheable, let cached = await CacheStore.shared.get(PaginatedResponse<PostDTO>.self, key) {
+                return cached.data.map { $0.toPost() }
+            }
+            throw error
+        }
     }
 
     /// Personalized newsfeed (recommendations) — paginated with a keyset cursor.
     /// Returns (posts, nextCursor); nextCursor = nil means there's no more page.
     func fetchRecommendedFeed(mode: AppMode, cursor: String?, limit: Int = 20) async throws -> (posts: [Post], nextCursor: String?) {
-        let response = try await client.fetch(
-            CursorResponse<PostDTO>.self,
-            from: .recommendedFeed(mode: mode.rawValue, cursor: cursor, limit: limit)
-        )
-        return (response.data.map { $0.toPost() }, response.nextCursor)
+        let endpoint = Endpoint.recommendedFeed(mode: mode.rawValue, cursor: cursor, limit: limit)
+        let cacheable = cursor == nil
+        let key = CacheStore.Key.recommendedFeed(mode.rawValue)
+        do {
+            let (response, body) = try await client.fetchRaw(CursorResponse<PostDTO>.self, from: endpoint)
+            if cacheable { await CacheStore.shared.put(key, body: body) }
+            return (response.data.map { $0.toPost() }, response.nextCursor)
+        } catch {
+            if cacheable, let cached = await CacheStore.shared.get(CursorResponse<PostDTO>.self, key) {
+                return (cached.data.map { $0.toPost() }, nil)   // no further pages offline
+            }
+            throw error
+        }
     }
 
     /// Fetches a single post by id (used for the screen opened from a notification)

@@ -55,6 +55,25 @@ final class NetworkClient {
         return try await perform(request, decoding: type)
     }
 
+    // MARK: - Raw-body variant (for the SwiftData offline cache)
+
+    /// Like `fetch(_:from:)` but also returns the exact response bytes, so the
+    /// caller can write them through to `CacheStore` and re-decode an identical
+    /// page offline later.
+    func fetchRaw<T: Decodable>(_ type: T.Type, from endpoint: Endpoint) async throws -> (value: T, body: Data) {
+        guard let url = endpoint.url else { throw APIError.invalidURL }
+        var request = URLRequest(url: url, timeoutInterval: endpoint.timeoutInterval)
+        request.httpMethod = endpoint.httpMethod
+        if let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        if let body = endpoint.httpBody {
+            request.httpBody = body
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+        return try await performRaw(request, decoding: type)
+    }
+
     // MARK: - Encode helper (mirrors CommunityAPIClient.encode)
 
     static func encode<T: Encodable>(_ value: T) -> Data? {
@@ -64,6 +83,10 @@ final class NetworkClient {
     // MARK: - Private
 
     private func perform<T: Decodable>(_ request: URLRequest, decoding type: T.Type) async throws -> T {
+        try await performRaw(request, decoding: type).value
+    }
+
+    private func performRaw<T: Decodable>(_ request: URLRequest, decoding type: T.Type) async throws -> (value: T, body: Data) {
         let (data, response): (Data, URLResponse)
         do { (data, response) = try await session.data(for: request) }
         catch { throw APIError.networkError(error) }
@@ -72,7 +95,7 @@ final class NetworkClient {
             let msg = (try? JSONDecoder().decode(ErrorResponse.self, from: data))?.message ?? "Unknown error"
             throw APIError.serverError(statusCode: http.statusCode, message: msg)
         }
-        do { return try JSONDecoder.makeISO8601().decode(type, from: data) }
+        do { return (try JSONDecoder.makeISO8601().decode(type, from: data), data) }
         catch { throw APIError.decodingFailed(error) }
     }
 }

@@ -232,6 +232,14 @@ struct PollDataDTO: Decodable {
         case userVote = "user_vote"
     }
 
+    // Defensive: a poll payload with a missing/garbled `options` array must not
+    // fail the whole feed page — decode to [] and let the card render empty.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        options  = try c.decodeIfPresent([PollOptionDTO].self, forKey: .options) ?? []
+        userVote = try c.decodeIfPresent(String.self, forKey: .userVote)
+    }
+
     func toPollData() -> PollData {
         PollData(options: options.map { $0.toPollOption() }, userVote: userVote)
     }
@@ -248,6 +256,15 @@ struct PollOptionDTO: Decodable {
         case id, text, position
         case voteCount = "vote_count"
         case endsAt    = "ends_at"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id        = try c.decodeIfPresent(String.self, forKey: .id) ?? ""
+        text      = try c.decodeIfPresent(String.self, forKey: .text) ?? ""
+        voteCount = try c.decodeIfPresent(Int.self, forKey: .voteCount) ?? 0
+        position  = try c.decodeIfPresent(Int.self, forKey: .position) ?? 0
+        endsAt    = try c.decodeIfPresent(Date.self, forKey: .endsAt)
     }
 
     func toPollOption() -> PollOption {
@@ -272,6 +289,17 @@ struct EventDataDTO: Decodable {
         case endsAt    = "ends_at"
         case rsvpCount = "rsvp_count"
         case userRsvp  = "user_rsvp"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id        = try c.decodeIfPresent(String.self, forKey: .id) ?? ""
+        title     = try c.decodeIfPresent(String.self, forKey: .title) ?? ""
+        location  = try c.decodeIfPresent(String.self, forKey: .location)
+        startsAt  = (try? c.decode(Date.self, forKey: .startsAt)) ?? .distantPast
+        endsAt    = try c.decodeIfPresent(Date.self, forKey: .endsAt)
+        rsvpCount = try c.decodeIfPresent(Int.self, forKey: .rsvpCount) ?? 0
+        userRsvp  = try c.decodeIfPresent(String.self, forKey: .userRsvp)
     }
 
     func toEventData() -> EventData {
