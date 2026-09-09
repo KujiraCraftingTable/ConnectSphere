@@ -7,7 +7,12 @@ func routes(_ app: Application) throws {
 
     AuthController.register(routes: api)
     UsersController.register(routes: api)
-    // Phase 2 — posts / feed / interactions / tags / stories / link-preview / events
+    PostsController.register(routes: api)          // + nested /posts/:id interactions
+    FeedController.register(routes: api)
+    TagsController.register(routes: api)
+    EventsController.register(routes: api)
+    StoriesController.register(routes: api)
+    LinkPreviewController.register(routes: api)
     // Phase 3 — communities / connections / notifications
     // Phase 4 — messages  (+ the /socket.io shim, mounted on `app` not `api`)
     // Phase 5 — search / entities

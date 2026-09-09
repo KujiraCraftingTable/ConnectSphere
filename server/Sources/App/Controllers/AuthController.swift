@@ -29,7 +29,7 @@ struct AuthController {
 
     static func signToken(_ userID: String, _ req: Request) -> String {
         let jwt = req.application.appEnv.jwt
-        return JWTHS256.sign(sub: userID, secret: jwt.secret, expiresIn: jwt.expiresIn)
+        return JWTHS256.sign(sub: userID.lowercased(), secret: jwt.secret, expiresIn: jwt.expiresIn)
     }
 
     static func matches(_ regex: NSRegularExpression, _ s: String) -> Bool {

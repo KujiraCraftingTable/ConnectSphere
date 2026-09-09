@@ -18,12 +18,12 @@ enum UserStore {
 
         return try await db.raw("""
             SELECT
-              u.id, u.username,
+              u.id::text AS id, u.username,
               \(unsafeRaw: dn)  AS display_name,
               \(unsafeRaw: bio) AS bio,
               u.avatar_color,
               \(unsafeRaw: av)  AS avatar_url,
-              u.location, u.ward_id, u.gender, u.dob,
+              u.location, u.ward_id::text AS ward_id, u.gender, u.dob,
               u.job_title, u.company, u.phone, u.email,
               u.is_setup, u.default_mode, u.hobby_theme, u.work_theme,
               u.follower_count, u.following_count, u.post_count,
