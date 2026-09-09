@@ -59,7 +59,11 @@ cmp "posts/create-empty" POST "/api/posts" "$TN" "$TSK" '{"mode":"hobby"}'
 cmp "posts/create-poll-1opt" POST "/api/posts" "$TN" "$TSK" '{"content":"q","mode":"hobby","post_type":"poll","options":["a"]}'
 cmp "posts/create-event-notitle" POST "/api/posts" "$TN" "$TSK" '{"content":"e","mode":"hobby","post_type":"event","eventData":{"startsAt":"2030-01-01T00:00:00Z"}}'
 cmp "feed/rec-badmode"  GET "/api/feed/recommendations" "$TN" "$TSK"
-cmp "feed/rec"          GET "/api/feed/recommendations?mode=hobby&limit=3" "$TN" "$TSK"
+# Same token on both servers (shared JWT secret + shared DB): a fresh user has
+# no taste vector, so the feed ranks purely by recency, and with dozens of
+# accumulated flow-test posts at recency≈1.0 the top-3 tie-break between two
+# *different* fresh users is a coin flip. One identical user makes it deterministic.
+cmp "feed/rec"          GET "/api/feed/recommendations?mode=hobby&limit=3" "$TN" "$TN"
 cmp "tags/trending"     GET "/api/tags/trending?limit=5" "$TN" "$TSK"
 cmp "tags/suggest-noprefix" GET "/api/tags/suggest" "$TN" "$TSK"
 cmp "tags/suggest"      GET "/api/tags/suggest?prefix=a&limit=5" "$TN" "$TSK"
