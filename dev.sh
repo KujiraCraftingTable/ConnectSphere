@@ -5,8 +5,10 @@
 
 # Derive the project root from this script's own location so it runs from any checkout.
 PROJECT_DIR="${0:A:h}"
-BACKEND_DIR="$PROJECT_DIR/backend"
+BACKEND_DIR="$PROJECT_DIR/backend"   # infra dir: docker-compose.yml, .env, migrations/, uploads/
+SERVER_DIR="$PROJECT_DIR/server"     # the Swift/Vapor backend (runs on the host)
 XCODE_PROJECT="$PROJECT_DIR/ConnectSphere.xcodeproj"
+SERVER_LOG="/tmp/connectsphere-server.log"
 
 OLLAMA_MODELS=("qwen2.5:7b-instruct-q4_k_m" "mxbai-embed-large")
 
@@ -64,22 +66,51 @@ start() {
     fi
   done
 
-  # 3. Docker services: PostgreSQL + Redis + the Swift/Vapor backend
-  #    (first run builds the Swift release image — that is slow; later runs cache).
-  log "Starting Docker services (Postgres, Redis, Swift backend)..."
+  # 3. Docker: the data layer ONLY — Postgres 16 + pgvector and Redis.
+  #    The Swift backend runs on the host (step 3b), not as a container.
+  log "Starting Docker data layer (Postgres, Redis)..."
   cd "$BACKEND_DIR"
-  docker compose up -d --build > /dev/null 2>&1
-  echo "   Waiting for the backend to be healthy (Swift build + boot migrations on first run)"
-  while [ "$(docker compose ps backend --format '{{.Health}}' 2>/dev/null)" != "healthy" ]; do
-    printf "."
-    sleep 2
+  docker compose up -d postgres redis > /dev/null 2>&1
+  echo "   Waiting for Postgres + Redis to be healthy"
+  for svc in postgres redis; do
+    while [ "$(docker compose ps "$svc" --format '{{.Health}}' 2>/dev/null)" != "healthy" ]; do
+      printf "."
+      sleep 2
+    done
   done
   echo ""
-  ok "Postgres, Redis, backend running"
+  ok "Postgres + Redis running (Docker)"
 
-  # 4. Migrations run automatically at boot (RUN_MIGRATIONS=1, advisory-locked,
-  #    idempotent — see server/Sources/App/Infra/MigrationRunner.swift).
-  ok "Migrations applied at boot"
+  # 3b. Swift/Vapor backend — on the host (reads ../backend/.env; migrations
+  #     replay at boot via RUN_MIGRATIONS=1, advisory-locked and idempotent).
+  log "Starting Swift backend (host: swift run App serve)..."
+  if lsof -nP -iTCP:3000 -sTCP:LISTEN > /dev/null 2>&1; then
+    ok "Backend already listening on :3000"
+  else
+    cd "$SERVER_DIR"
+    RUN_MIGRATIONS=1 RUN_JOBS=1 PORT=3000 nohup swift run App serve > "$SERVER_LOG" 2>&1 &
+    SERVER_PID=$!
+    echo "   Waiting for the backend to be healthy (first run compiles Swift — this is slow)"
+    tries=0
+    while ! curl -sf http://localhost:3000/health > /dev/null 2>&1; do
+      if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+        echo ""
+        err "Swift backend exited before it came up — check $SERVER_LOG"
+        tail -n 20 "$SERVER_LOG"
+        return 1
+      fi
+      tries=$((tries + 1))
+      if [ "$tries" -gt 180 ]; then   # ~6 min
+        echo ""
+        err "Backend not healthy after 6 min — check $SERVER_LOG"
+        return 1
+      fi
+      printf "."
+      sleep 2
+    done
+    echo ""
+    ok "Swift backend running on :3000 (host) — logs: $SERVER_LOG"
+  fi
 
   # 5. Xcode
   log "Opening Xcode..."
@@ -109,10 +140,11 @@ start() {
   echo "${GREEN}║   All services are running   ║${NC}"
   echo "${GREEN}╚══════════════════════════════╝${NC}"
   echo ""
-  echo "  Backend : http://localhost:3000  (container: connectsphere_backend)"
+  echo "  Backend : http://localhost:3000  (host: swift run App serve)"
   echo "  Ollama  : http://localhost:11434 (host process)"
+  echo "  Postgres: localhost:5432         (container: connectsphere_db)"
   echo "  Redis   : localhost:6379         (container: connectsphere_redis)"
-  echo "  Logs    : cd backend && docker compose logs -f backend"
+  echo "  Logs    : tail -f $SERVER_LOG"
   echo ""
 }
 
@@ -141,7 +173,15 @@ stop() {
   log "Closing TablePlus..."
   osascript -e 'tell application "TablePlus" to quit' 2>/dev/null && ok "TablePlus closed" || warn "TablePlus was not running"
 
-  # 3. Ollama (host process)
+  # 3. Swift backend (host process)
+  log "Stopping Swift backend..."
+  if pkill -f 'App serve' 2>/dev/null; then
+    ok "Swift backend stopped"
+  else
+    warn "Swift backend was not running"
+  fi
+
+  # 4. Ollama (host process)
   log "Stopping Ollama..."
   if pkill -x "ollama" 2>/dev/null; then
     ok "Ollama stopped"
@@ -149,8 +189,8 @@ stop() {
     warn "Ollama was not running"
   fi
 
-  # 4. Docker services: PostgreSQL + Redis + backend
-  log "Stopping Docker services (Postgres, Redis, backend)..."
+  # 5. Docker data layer: PostgreSQL + Redis
+  log "Stopping Docker data layer (Postgres, Redis)..."
   cd "$BACKEND_DIR"
   docker compose down > /dev/null 2>&1 && ok "Docker services stopped" || warn "Docker services were not running"
 
@@ -178,7 +218,7 @@ case "$1" in
   *)
     echo "Usage: ./dev.sh [start|stop]"
     echo ""
-    echo "  start  —  Docker + PostgreSQL + Redis + Ollama + Backend + Xcode + VS Code + TablePlus"
+    echo "  start  —  Docker (Postgres + Redis) + Ollama + Swift backend (host) + Xcode + VS Code + TablePlus"
     echo "  stop   —  Dừng tất cả và đóng Xcode"
     ;;
 esac
