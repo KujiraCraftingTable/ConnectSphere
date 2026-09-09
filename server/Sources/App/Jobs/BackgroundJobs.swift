@@ -193,7 +193,7 @@ enum BackgroundJobs {
             let app = context.application
             try await PostTagExtractService.extractAndSave(
                 app.ollama, postID: payload.postId, content: payload.content,
-                on: app.db.sql(), logger: context.logger)
+                client: app.http.client.shared, on: app.db.sql(), logger: context.logger)
             try await context.queue.dispatch(ChunkEmbedJob.self, .init(kind: .post, id: payload.postId), maxRetryCount: 3)
         }
     }

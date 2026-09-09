@@ -61,25 +61,22 @@ enum PostTagExtractService {
         (try? await OllamaService.rawChatArray(cfg, system: systemPrompt, user: content, temperature: 0.2)) ?? []
     }
 
-    /// Expand each raw tag via exact + confident-vector tiers; add canonical
-    /// name + aliases. (Wikipedia genre tags land in Phase 8.)
-    static func expandTags(_ cfg: OllamaService.Config, _ rawTags: [String], on db: any SQLDatabase, logger: Logger) async -> [String] {
+    /// Expand each raw tag via the full 3-tier `lookupEntity` (exact → confident
+    /// vector → Wikipedia self-learn) and attach canonical name + aliases +
+    /// (Wikipedia) genre tags.
+    static func expandTags(_ cfg: OllamaService.Config, _ rawTags: [String], client: HTTPClient,
+                           on db: any SQLDatabase, logger: Logger) async -> [String] {
         var all = Set(rawTags.map { $0.lowercased().trimmingCharacters(in: .whitespaces) })
         struct NameAliases: Decodable { let canonical_name: String; let aliases: [String]? }
         for tag in rawTags {
-            var entityID: String? = nil
-            if let hit = try? await SearchStore.exactMatch(tag, category: nil, on: db) {
-                entityID = hit.id
-            } else if let vec = await OllamaService.embedText(cfg, tag, logger: logger),
-                      let top = (try? await SearchStore.findEntityCandidates(vec, category: nil, limit: 1, on: db))?.first,
-                      top.similarity >= SearchStore.highConfidenceThreshold {
-                entityID = top.entity_id
+            let r = await EntityLookupService.lookupEntity(tag, category: nil, cfg: cfg, client: client, on: db, logger: logger)
+            guard r.confidence != "none", let eid = r.entityID else { continue }
+            if let row = try? await db.raw("SELECT canonical_name, aliases FROM interest_entities WHERE id = \(uuid: eid)")
+                .first(decoding: NameAliases.self) {
+                all.insert(row.canonical_name.lowercased().trimmingCharacters(in: .whitespaces))
+                for a in row.aliases ?? [] { all.insert(a.lowercased().trimmingCharacters(in: .whitespaces)) }
             }
-            guard let eid = entityID,
-                  let row = try? await db.raw("SELECT canonical_name, aliases FROM interest_entities WHERE id = \(uuid: eid)")
-                    .first(decoding: NameAliases.self) else { continue }
-            all.insert(row.canonical_name.lowercased().trimmingCharacters(in: .whitespaces))
-            for a in row.aliases ?? [] { all.insert(a.lowercased().trimmingCharacters(in: .whitespaces)) }
+            for gt in r.genreTags { all.insert(gt.lowercased().trimmingCharacters(in: .whitespaces)) }
         }
         return all.filter { !$0.isEmpty }
     }
@@ -93,11 +90,12 @@ enum PostTagExtractService {
             """).run()
     }
 
-    static func extractAndSave(_ cfg: OllamaService.Config, postID: String, content: String, on db: any SQLDatabase, logger: Logger) async throws {
+    static func extractAndSave(_ cfg: OllamaService.Config, postID: String, content: String,
+                               client: HTTPClient, on db: any SQLDatabase, logger: Logger) async throws {
         guard !content.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         let raw = await extractRawTags(cfg, content, logger: logger)
         guard !raw.isEmpty else { return }
-        let tags = await expandTags(cfg, raw, on: db, logger: logger)
+        let tags = await expandTags(cfg, raw, client: client, on: db, logger: logger)
         try await savePostTags(postID, tags, on: db)
         logger.info("postTagExtract: \(tags.count) tags saved for \(postID)")
     }
