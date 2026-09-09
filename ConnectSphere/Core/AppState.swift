@@ -323,5 +323,8 @@ class AppState {
         chatUnreadCount  = 0
         notificationUnreadCount = 0
         WebSocketClient.shared.disconnect()
+        // Drop the offline cache so the next account never sees the previous
+        // one's feed / chats / notifications.
+        CacheStore.shared.wipe()
     }
 }

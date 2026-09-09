@@ -449,13 +449,15 @@ class ChatViewModel {
     func joinConversation() {
         emitJoin()
 
-        // Re-emit `join_conversation` after a socket reconnect — the server-side
-        // room membership is lost on disconnect, but listeners registered below
-        // stay live, so only the join needs repeating (not a full re-registration).
+        // After a socket reconnect: re-join the room (server-side membership is
+        // lost on disconnect) AND re-fetch the message history — messages sent
+        // while the socket was down never arrived as live `new_message` events,
+        // so an emit-join alone would leave a silent gap.
         reconnectObserver = NotificationCenter.default.addObserver(
             forName: .webSocketDidReconnect, object: nil, queue: .main
         ) { [weak self] _ in
             self?.emitJoin()
+            Task { @MainActor [weak self] in await self?.loadMessages() }
         }
 
         ws.on("new_message", tag: "chat") { [weak self] payload in
