@@ -15,7 +15,7 @@ func routes(_ app: Application) throws {
     LinkPreviewController.register(routes: api)
     ConnectionsController.register(routes: api)
     CommunitiesController.register(routes: api)
-    // notifications inbox ported next
+    NotificationsController.register(routes: api)
     // Phase 4 — messages  (+ the /socket.io shim, mounted on `app` not `api`)
     // Phase 5 — search / entities
     // Phase 8 — wards / locations
