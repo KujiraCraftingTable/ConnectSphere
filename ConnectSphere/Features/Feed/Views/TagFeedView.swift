@@ -17,6 +17,7 @@ struct TagFeedView: View {
     @State private var loadError: String?
     @State private var offset = 0
     @State private var hasMore = true
+    @State private var detailRoute: PostRoute?
 
     private let repository = PostRepository()
     private let pageSize = 20
@@ -59,6 +60,9 @@ struct TagFeedView: View {
                                 if let i = posts.firstIndex(where: { $0.id == updated.id }) {
                                     posts[i] = updated
                                 }
+                            },
+                            onOpenDetail: { focus in
+                                detailRoute = PostRoute(postId: post.id, focusComposer: focus)
                             }
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -83,6 +87,18 @@ struct TagFeedView: View {
         .background(AppColors.base(colorScheme))
         .navigationTitle("#\(tag)")
         .navigationBarTitleDisplayMode(.inline)
+        // `isPresented:` (not `item:`) — TagFeedView shares its host's
+        // NavigationStack, which may already carry a PostRoute `item:`
+        // destination (from FeedView); type-keyed `item:` destinations collide,
+        // boolean ones don't.
+        .navigationDestination(isPresented: Binding(
+            get: { detailRoute != nil },
+            set: { if !$0 { detailRoute = nil } }
+        )) {
+            if let route = detailRoute {
+                PostDetailView(postId: route.postId, focusComposer: route.focusComposer)
+            }
+        }
         .task { await load() }
         .refreshable { await load() }
     }

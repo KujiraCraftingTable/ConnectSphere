@@ -31,6 +31,11 @@ struct PostCard: View {
     var onPostDeleted: (() -> Void)? = nil
     /// Called when the user successfully saves an edit to the post
     var onPostUpdated: ((Post) -> Void)? = nil
+    /// When set, tapping the post body opens it in a pushed `PostDetailView`,
+    /// and the comment button opens it there with the composer focused
+    /// (`focusComposer == true`). `nil` = no whole-card tap (e.g. inside
+    /// `PostDetailView` itself, so it can't recurse).
+    var onOpenDetail: ((_ focusComposer: Bool) -> Void)? = nil
 
     @State private var shakeAmount: CGFloat = 0
     private let repository = PostRepository()
@@ -41,7 +46,8 @@ struct PostCard: View {
         onOwnAvatarTapped: (() -> Void)? = nil,
         onCommentAdded: (() -> Void)? = nil,
         onPostDeleted: (() -> Void)? = nil,
-        onPostUpdated: ((Post) -> Void)? = nil
+        onPostUpdated: ((Post) -> Void)? = nil,
+        onOpenDetail: ((_ focusComposer: Bool) -> Void)? = nil
     ) {
         self.post = post
         self.disableSelfNavigation = disableSelfNavigation
@@ -49,6 +55,7 @@ struct PostCard: View {
         self.onCommentAdded = onCommentAdded
         self.onPostDeleted = onPostDeleted
         self.onPostUpdated = onPostUpdated
+        self.onOpenDetail = onOpenDetail
         _isLiked      = State(initialValue: post.isLiked)
         _isSaved      = State(initialValue: post.isSaved)
         _likeCount    = State(initialValue: post.likeCount)
@@ -66,70 +73,7 @@ struct PostCard: View {
     private var mainCard: some View {
         VStack(alignment: .leading, spacing: 0) {
             postHeader
-
-            // Content — only shown if there's actual text
-            if !post.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(linkifiedContent)
-                    .appFont(.body)
-                    .foregroundColor(AppColors.textPrimary(colorScheme))
-                    .tint(themeManager.theme.primary)
-                    .environment(\.openURL, OpenURLAction { url in
-                        openURL(url); return .handled
-                    })
-                    .padding(.horizontal, 12)
-                    .padding(.top, 10)
-            }
-
-            // Hashtag chips — tapping one opens TagFeedView to browse by tag
-            if !post.tags.isEmpty {
-                hashtagRow
-                    .padding(.horizontal, 12)
-                    .padding(.top, 10)
-            }
-
-            // Link preview card (if there's a link_url)
-            if let linkUrl = post.linkUrl, let url = URL(string: linkUrl) {
-                linkPreviewCard(url: url)
-                    .padding(.horizontal, 12)
-                    .padding(.top, 10)
-            }
-            // Real uploaded images — Facebook-style grid, supports multiple images
-            else if !post.displayImageUrls.isEmpty {
-                PostPhotoGrid(urls: post.displayImageUrls)
-                    .padding(.top, 10)
-            }
-
-            // Embedded original post (if this is a shared post)
-            if post.sharedPostId != nil {
-                sharedPostEmbed
-                    .padding(.horizontal, 12)
-                    .padding(.top, 10)
-            }
-
-            // Poll or Event inline body — same PollPostCard/EventPostCard used by
-            // CommunityPostCard, drop-in reusable since both view models are
-            // fully post-id/event-id generic (no community coupling).
-            switch post.postType {
-            case .poll:
-                if let pollData = post.pollData {
-                    PollPostCard(
-                        vm: PollViewModel(postId: post.id, pollData: pollData, token: appState.authToken ?? ""),
-                        accentColor: themeManager.theme.primary
-                    )
-                    .padding(.top, 10)
-                }
-            case .event:
-                if let eventData = post.eventData {
-                    EventPostCard(
-                        vm: EventViewModel(eventData: eventData, token: appState.authToken ?? ""),
-                        accentColor: themeManager.theme.primary
-                    )
-                    .padding(.top, 10)
-                }
-            case .text:
-                EmptyView()
-            }
-
+            postBody
             Divider().padding(.horizontal, 12).padding(.top, 8)
             actionButtons
         }
@@ -185,6 +129,88 @@ struct PostCard: View {
         // Report result feedback
         .alert(reportResultMessage, isPresented: $showReportResult) {
             Button(bundle.loc("Done")) {}
+        }
+    }
+
+    // MARK: Body
+
+    /// Everything between the header and the action row. The plain content areas
+    /// (text, photos, shared-post embed) get a `.onTapGesture` that opens the
+    /// pushed `PostDetailView` via `onOpenDetail`; the interactive pieces (tag
+    /// chips, link-preview card, poll / event controls) are deliberately left
+    /// out so they keep handling their own taps.
+    @ViewBuilder
+    private var postBody: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Content — only shown if there's actual text
+            if !post.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(linkifiedContent)
+                    .appFont(.body)
+                    .foregroundColor(AppColors.textPrimary(colorScheme))
+                    .tint(themeManager.theme.primary)
+                    .environment(\.openURL, OpenURLAction { url in
+                        openURL(url); return .handled
+                    })
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 10)
+                    .contentShape(Rectangle())
+                    .onTapGesture { onOpenDetail?(false) }
+            }
+
+            // Hashtag chips — tapping one opens TagFeedView to browse by tag
+            if !post.tags.isEmpty {
+                hashtagRow
+                    .padding(.horizontal, 12)
+                    .padding(.top, 10)
+            }
+
+            // Link preview card (if there's a link_url)
+            if let linkUrl = post.linkUrl, let url = URL(string: linkUrl) {
+                linkPreviewCard(url: url)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 10)
+            }
+            // Real uploaded images — Facebook-style grid, supports multiple images
+            else if !post.displayImageUrls.isEmpty {
+                PostPhotoGrid(urls: post.displayImageUrls)
+                    .padding(.top, 10)
+                    .contentShape(Rectangle())
+                    .onTapGesture { onOpenDetail?(false) }
+            }
+
+            // Embedded original post (if this is a shared post)
+            if post.sharedPostId != nil {
+                sharedPostEmbed
+                    .padding(.horizontal, 12)
+                    .padding(.top, 10)
+                    .contentShape(Rectangle())
+                    .onTapGesture { onOpenDetail?(false) }
+            }
+
+            // Poll or Event inline body — same PollPostCard/EventPostCard used by
+            // CommunityPostCard, drop-in reusable since both view models are
+            // fully post-id/event-id generic (no community coupling).
+            switch post.postType {
+            case .poll:
+                if let pollData = post.pollData {
+                    PollPostCard(
+                        vm: PollViewModel(postId: post.id, pollData: pollData, token: appState.authToken ?? ""),
+                        accentColor: themeManager.theme.primary
+                    )
+                    .padding(.top, 10)
+                }
+            case .event:
+                if let eventData = post.eventData {
+                    EventPostCard(
+                        vm: EventViewModel(eventData: eventData, token: appState.authToken ?? ""),
+                        accentColor: themeManager.theme.primary
+                    )
+                    .padding(.top, 10)
+                }
+            case .text:
+                EmptyView()
+            }
         }
     }
 
@@ -503,7 +529,9 @@ struct PostCard: View {
                     }
                 }
 
-                Button { showComments = true } label: {
+                Button {
+                    if let onOpenDetail { onOpenDetail(true) } else { showComments = true }
+                } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "bubble.left")
                             .font(.system(size: 20))

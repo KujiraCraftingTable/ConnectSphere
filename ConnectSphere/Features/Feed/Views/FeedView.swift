@@ -8,6 +8,7 @@ struct FeedView: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var showCreatePost = false
     @State private var showMessages = false
+    @State private var detailRoute: PostRoute?
     @Binding var selectedTab: Int
 
     var body: some View {
@@ -62,7 +63,10 @@ struct FeedView: View {
                                 post: post,
                                 onOwnAvatarTapped: { selectedTab = 4 },
                                 onPostDeleted: { viewModel.removePost(id: post.id) },
-                                onPostUpdated: { updated in viewModel.updatePost(updated) }
+                                onPostUpdated: { updated in viewModel.updatePost(updated) },
+                                onOpenDetail: { focus in
+                                    detailRoute = PostRoute(postId: post.id, focusComposer: focus)
+                                }
                             )
                             .cardStyle()
                             // Makes a just-created post visibly slide/fade in at
@@ -148,6 +152,17 @@ struct FeedView: View {
             }
             .navigationDestination(isPresented: $showMessages) {
                 ConversationListView()
+            }
+            // `isPresented:` (not `item:`) so it doesn't collide with the
+            // identical PostRoute destination TagFeedView also puts on this
+            // same stack — SwiftUI keeps only the root-most `item:` of a type.
+            .navigationDestination(isPresented: Binding(
+                get: { detailRoute != nil },
+                set: { if !$0 { detailRoute = nil } }
+            )) {
+                if let route = detailRoute {
+                    PostDetailView(postId: route.postId, focusComposer: route.focusComposer)
+                }
             }
             .onAppear {
                 setupChatBadge()
