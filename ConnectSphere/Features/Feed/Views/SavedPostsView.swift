@@ -14,6 +14,7 @@ struct SavedPostsView: View {
     @State private var savedPosts: [Post] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var detailRoute: PostRoute?
 
     private let repository = PostRepository()
 
@@ -24,7 +25,9 @@ struct SavedPostsView: View {
                     emptyState
                 } else {
                     ForEach(savedPosts) { post in
-                        PostCard(post: post)
+                        PostCard(post: post, onOpenDetail: { focus in
+                            detailRoute = PostRoute(postId: post.id, focusComposer: focus)
+                        })
                     }
                 }
             }
@@ -33,6 +36,14 @@ struct SavedPostsView: View {
         .background(AppColors.base(colorScheme))
         .navigationTitle(bundle.loc("Saved"))
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(isPresented: Binding(
+            get: { detailRoute != nil },
+            set: { if !$0 { detailRoute = nil } }
+        )) {
+            if let route = detailRoute {
+                PostDetailView(postId: route.postId, focusComposer: route.focusComposer)
+            }
+        }
         .overlay {
             if isLoading && savedPosts.isEmpty {
                 ProgressView()
