@@ -564,11 +564,9 @@
 "Manage notification sounds from Settings → Notifications → Message sounds." = "Manage notification sounds from Settings → Notifications → Message sounds.";
 "Manage privacy and security options from Settings → Privacy & Security." = "Manage privacy and security options from Settings → Privacy & Security.";
 
-// MARK: - Hashtags / AI-tag visibility (CreatePostView, HashtagInputView)
+// MARK: - Hashtags (CreatePostView, HashtagInputView)
 "Add a hashtag (#topic)" = "Add a hashtag (#topic)";
 "Maximum of %d hashtags reached" = "Maximum of %d hashtags reached";
-"Show AI-generated tags" = "Show AI-generated tags";
-"AI tags stay hidden unless you turn this on for this post." = "AI tags stay hidden unless you turn this on for this post.";
 
 // MARK: - Delete recovery (Undo toast, Recently Deleted screen)
 "Undo" = "Undo";

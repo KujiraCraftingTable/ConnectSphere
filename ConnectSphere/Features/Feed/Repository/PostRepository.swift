@@ -114,10 +114,9 @@ struct PostRepository {
 
     /// Creates a post and returns the new post's ID.
     /// The backend derives the author from the JWT, so author_id is no longer sent.
-    /// `hashtags`/`showAiTags` mirror the backend's optional create-post fields
-    /// (default `[]`/`false` server-side) — hashtags are user-typed tags saved
-    /// synchronously with `source = 'user'`; showAiTags controls whether this
-    /// post's async-extracted AI tags become visible once extraction finishes.
+    /// `hashtags` are the user-typed tags, saved synchronously with `source = 'user'`.
+    /// AI-generated tags are never surfaced (`show_ai_tags` is always `false`);
+    /// they still feed the search embeddings server-side.
     func createPost(
         content: String,
         mode: AppMode,
@@ -126,8 +125,7 @@ struct PostRepository {
         imageUrls: [String] = [],
         linkUrl: String? = nil,
         articleTitle: String? = nil,
-        hashtags: [String] = [],
-        showAiTags: Bool = false
+        hashtags: [String] = []
     ) async throws -> Post {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")
@@ -137,7 +135,7 @@ struct PostRepository {
             "content":      content,
             "mode":         mode.rawValue,
             "privacy":      privacy.rawValue,
-            "show_ai_tags": showAiTags,
+            "show_ai_tags": false,
         ]
         if let img = imageUrl      { body["image_url"]     = img }
         if !imageUrls.isEmpty      { body["image_urls"]    = imageUrls }

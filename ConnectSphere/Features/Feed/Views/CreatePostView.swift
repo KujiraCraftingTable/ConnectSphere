@@ -25,12 +25,9 @@ struct CreatePostView: View {
     @State private var selectedItems: [PhotosPickerItem] = []
     @State private var selectedMedia: [PickedPostMedia] = []
 
-    // Hashtags + AI-tag visibility — create mode only (PATCH /posts/:id doesn't
-    // accept these fields yet). `showAiTags` is a plain, non-persisted @State so
-    // the toggle always resets to off whenever the composer opens fresh.
+    // Hashtags — create mode only (PATCH /posts/:id doesn't accept them yet).
     @State private var hashtags: [String] = []
     @State private var hashtagController = HashtagInputController()
-    @State private var showAiTags = false
 
     @State private var viewModel = CreatePostViewModel()
 
@@ -208,15 +205,10 @@ struct CreatePostView: View {
                             }
                         }
 
-                        // ── Hashtags + AI-tag visibility (create mode only — the
-                        // update-post endpoint doesn't accept these fields).
-                        // Applies to all post types — backend accepts hashtags/
-                        // show_ai_tags on text/poll/event alike. ────────────────
+                        // ── Hashtags (create mode only — the update-post endpoint
+                        // doesn't accept them). Applies to all post types. ───────
                         if !isEditMode {
                             HashtagInputView(hashtags: $hashtags, controller: hashtagController)
-                                .padding(.horizontal, 16)
-
-                            aiTagsToggle
                                 .padding(.horizontal, 16)
                         }
 
@@ -352,8 +344,7 @@ struct CreatePostView: View {
                 privacy: privacy,
                 authToken: appState.authToken,
                 selectedMedia: selectedMedia,
-                hashtags: hashtags,
-                showAiTags: showAiTags
+                hashtags: hashtags
             ) { post in
                 // Broadcast beyond just this composer's own caller — e.g.
                 // `AppState.currentUser.postCount` and a `ProfileViewModel`
@@ -383,8 +374,7 @@ struct CreatePostView: View {
                 token: appState.authToken ?? "",
                 mode: appState.currentMode,
                 privacy: privacy,
-                hashtags: hashtags,
-                showAiTags: showAiTags
+                hashtags: hashtags
             ) { communityPost in
                 let post = feedPost(from: communityPost)
                 NotificationCenter.default.post(name: .postCreated, object: nil, userInfo: ["post": post])
@@ -436,25 +426,6 @@ struct CreatePostView: View {
             NotificationCenter.default.post(name: .postUpdated, object: nil, userInfo: ["post": updatedPost])
             onPostUpdated?(updatedPost)
             dismiss()
-        }
-    }
-
-    // MARK: - AI tags toggle
-
-    /// Always starts off each time the composer opens (not persisted as a preference) —
-    /// this post's AI tags only show up if the user actively turns it on for that specific post.
-    private var aiTagsToggle: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Toggle(isOn: $showAiTags) {
-                Text("Show AI-generated tags", bundle: bundle)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(AppColors.textPrimary(colorScheme))
-            }
-            .tint(themeManager.theme.primary)
-
-            Text("AI tags stay hidden unless you turn this on for this post.", bundle: bundle)
-                .font(.system(size: 12))
-                .foregroundColor(AppColors.textTertiary(colorScheme))
         }
     }
 

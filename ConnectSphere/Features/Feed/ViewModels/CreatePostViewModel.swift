@@ -164,10 +164,8 @@ class CreatePostViewModel {
     /// to the caller via `onSuccess` so it can be inserted straight at the top of the
     /// feed — no need to wait for a separate reload to see your own post. After posting,
     /// a background task waits 10 seconds then checks whether the backend created a mode
-    /// mismatch notification. If `showAiTags` is on, another background task waits ~15
-    /// seconds then refetches the post to pick up AI tags (if extraction has finished)
-    /// and fires `.postUpdated` so FeedViewModel/ProfileViewModel can patch that post
-    /// in whatever list they're currently displaying.
+    /// mismatch notification. (AI-generated tags are never surfaced on the client, so
+    /// there is nothing to refetch once the post is created.)
     func submitPost(
         content: String,
         mode: AppMode,
@@ -175,7 +173,6 @@ class CreatePostViewModel {
         authToken: String?,
         selectedMedia: [PickedPostMedia],
         hashtags: [String] = [],
-        showAiTags: Bool = false,
         onSuccess: @escaping (Post) -> Void
     ) {
         var finalContent = content.trimmingCharacters(in: .whitespaces)
@@ -211,8 +208,7 @@ class CreatePostViewModel {
                 imageUrls: imageUrls,
                 linkUrl: capturedPreview?.url,
                 articleTitle: capturedPreview?.title,
-                hashtags: hashtags,
-                showAiTags: showAiTags
+                hashtags: hashtags
             ) else {
                 return
             }
@@ -227,36 +223,10 @@ class CreatePostViewModel {
                     await self.checkAndNotifyMismatch(postId: postId, token: token)
                 }
             }
-
-            // Background: if the user turned on "show AI tags", wait 15 seconds
-            // (best-effort, no retry) then refetch the post to pick up AI tags if
-            // extraction has finished. When showAiTags == false, AI tags will never
-            // show up through any endpoint — there's nothing to wait for.
-            if showAiTags {
-                Task.detached(priority: .background) {
-                    try? await Task.sleep(nanoseconds: 15_000_000_000)
-                    await self.refetchAndBroadcastTags(postId: postId)
-                }
-            }
         }
     }
 
     // MARK: - Private
-
-    /// Refetches a single post after "show AI tags" is turned on and fires
-    /// `.postUpdated` — FeedViewModel/ProfileViewModel already have an observer for
-    /// this notification (the exact same mechanism CreatePostView's saveEdit() uses),
-    /// so the post currently on screen (if still there) updates its tag chips on its
-    /// own, with no separate callback needed.
-    /// Internal (not `private`) — `PostComposerViewModel` calls this directly
-    /// through `mediaHelper` to reuse this exact logic for community/Feed posts
-    /// (poll, event, text), avoiding a duplicated debounce/refetch elsewhere.
-    /// `CommunityDetailViewModel`/`FeedViewModel` observe `.postUpdated` themselves
-    /// to patch `tags` into whatever `posts` they're currently displaying.
-    func refetchAndBroadcastTags(postId: String) async {
-        guard let post = try? await repository.fetchPost(id: postId) else { return }
-        NotificationCenter.default.post(name: .postUpdated, object: nil, userInfo: ["post": post])
-    }
 
     /// Fetches the notification from the backend; if there's a mismatch, shows an iOS local notification banner.
     private func checkAndNotifyMismatch(postId: String, token: String) async {

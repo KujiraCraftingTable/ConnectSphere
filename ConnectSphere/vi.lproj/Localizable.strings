@@ -564,11 +564,9 @@
 "Manage notification sounds from Settings → Notifications → Message sounds." = "Quản lý âm thanh thông báo từ Cài đặt → Thông báo → Âm thanh tin nhắn.";
 "Manage privacy and security options from Settings → Privacy & Security." = "Quản lý các tuỳ chọn quyền riêng tư và bảo mật từ Cài đặt → Quyền riêng tư & Bảo mật.";
 
-// MARK: - Hashtags / AI-tag visibility (CreatePostView, HashtagInputView)
+// MARK: - Hashtags (CreatePostView, HashtagInputView)
 "Add a hashtag (#topic)" = "Thêm hashtag (#chủ_đề)";
 "Maximum of %d hashtags reached" = "Đã đạt tối đa %d hashtag";
-"Show AI-generated tags" = "Hiện tag do AI tạo";
-"AI tags stay hidden unless you turn this on for this post." = "Tag do AI tạo sẽ bị ẩn trừ khi bạn bật tuỳ chọn này cho bài viết.";
 
 // MARK: - Delete recovery (Undo toast, Recently Deleted screen)
 "Undo" = "Hoàn tác";
