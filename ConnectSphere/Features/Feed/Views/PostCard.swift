@@ -130,8 +130,7 @@ struct PostCard: View {
                 EmptyView()
             }
 
-            postStats
-            Divider().padding(.horizontal, 12)
+            Divider().padding(.horizontal, 12).padding(.top, 8)
             actionButtons
         }
         .background(AppColors.surface(colorScheme))
@@ -443,42 +442,18 @@ struct PostCard: View {
         }
     }
 
-    // MARK: Stats Row
-
-    private var postStats: some View {
-        HStack {
-            if likeCount > 0 {
-                HStack(spacing: 4) {
-                    ZStack {
-                        Circle().fill(themeManager.theme.primary).frame(width: 18, height: 18)
-                        Image(systemName: "hand.thumbsup.fill")
-                            .font(.system(size: 9))
-                            .foregroundColor(.white)
-                    }
-                    Text("\(likeCount)")
-                        .appFont(.subheadline)
-                        .foregroundColor(AppColors.textSecondary(colorScheme))
-                }
-            }
-            Spacer()
-            HStack(spacing: 10) {
-                if commentCount > 0 {
-                    Text(String(format: bundle.loc("%lld comments"), commentCount))
-                        .appFont(.subheadline)
-                        .foregroundColor(AppColors.textSecondary(colorScheme))
-                }
-                if shareCount > 0 {
-                    Text(String(format: bundle.loc("%lld shares"), shareCount))
-                        .appFont(.subheadline)
-                        .foregroundColor(AppColors.textSecondary(colorScheme))
-                }
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-    }
-
     // MARK: Action Buttons
+
+    /// Count shown immediately to the right of an action icon (hidden at 0) —
+    /// same style the old FB-style summary row above the divider used to have.
+    @ViewBuilder
+    private func actionCount(_ value: Int) -> some View {
+        if value > 0 {
+            Text("\(value)")
+                .appFont(.subheadline)
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+        }
+    }
 
     private var actionButtons: some View {
         HStack {
@@ -502,15 +477,21 @@ struct PostCard: View {
                         }
                     }
                 } label: {
-                    Image(systemName: isLiked ? "hand.thumbsup.fill" : "hand.thumbsup")
-                        .font(.system(size: 20))
-                        .foregroundColor(isLiked ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
+                    HStack(spacing: 4) {
+                        Image(systemName: isLiked ? "hand.thumbsup.fill" : "hand.thumbsup")
+                            .font(.system(size: 20))
+                            .foregroundColor(isLiked ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
+                        actionCount(likeCount)
+                    }
                 }
 
                 Button { showComments = true } label: {
-                    Image(systemName: "bubble.left")
-                        .font(.system(size: 20))
-                        .foregroundColor(AppColors.textSecondary(colorScheme))
+                    HStack(spacing: 4) {
+                        Image(systemName: "bubble.left")
+                            .font(.system(size: 20))
+                            .foregroundColor(AppColors.textSecondary(colorScheme))
+                        actionCount(commentCount)
+                    }
                 }
             }
 
@@ -538,9 +519,12 @@ struct PostCard: View {
                 }
 
                 Button { showShareSheet = true } label: {
-                    Image(systemName: "arrowshape.turn.up.right")
-                        .font(.system(size: 20))
-                        .foregroundColor(AppColors.textSecondary(colorScheme))
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrowshape.turn.up.right")
+                            .font(.system(size: 20))
+                            .foregroundColor(AppColors.textSecondary(colorScheme))
+                        actionCount(shareCount)
+                    }
                 }
             }
         }
