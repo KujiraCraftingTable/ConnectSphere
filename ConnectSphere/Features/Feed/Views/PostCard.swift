@@ -237,6 +237,26 @@ struct PostCard: View {
         }
     }
 
+    // MARK: Hide
+
+    /// Hides someone else's post from your feed (persisted server-side so a
+    /// reload doesn't bring it back) and shows an Undo toast — tapping Undo
+    /// un-hides it in place. Unlike delete, the post is never removed from the
+    /// feed's array, so flipping `isHidden` back to false fully restores the card.
+    private func handleHidePost() {
+        withAnimation { isHidden = true }
+        Task { try? await repository.hidePost(postId: post.id) }
+
+        let hiddenPostId = post.id
+        toastPresenter.show(message: bundle.loc("Post hidden")) {
+            withAnimation { isHidden = false }
+            Task {
+                let restoreRepository = PostRepository()
+                try? await restoreRepository.unhidePost(postId: hiddenPostId)
+            }
+        }
+    }
+
     // MARK: Shake
 
     private func triggerShake() {
@@ -402,9 +422,7 @@ struct PostCard: View {
                     }
                 } else {
                     Button {
-                        // Hide immediately in the UI, and also persist so a reload doesn't bring it back
-                        withAnimation { isHidden = true }
-                        Task { try? await repository.hidePost(postId: post.id) }
+                        handleHidePost()
                     } label: {
                         Label(bundle.loc("Hide post"), systemImage: "eye.slash")
                     }

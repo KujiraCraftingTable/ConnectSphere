@@ -407,6 +407,7 @@
 "Edit post" = "Chỉnh sửa bài viết";
 "Delete post" = "Xoá bài viết";
 "Hide post" = "Ẩn bài viết";
+"Post hidden" = "Đã ẩn bài viết";
 "Delete post?" = "Xoá bài viết?";
 "This post won't be shown in the app. You can restore it from Recently Deleted within 30 days." = "Bài viết sẽ không còn hiển thị trong ứng dụng. Bạn có thể khôi phục từ mục Đã xoá gần đây trong vòng 30 ngày.";
 "Delete comment?" = "Xoá bình luận?";

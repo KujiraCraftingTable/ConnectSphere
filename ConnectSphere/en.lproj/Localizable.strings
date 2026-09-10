@@ -407,6 +407,7 @@
 "Edit post" = "Edit post";
 "Delete post" = "Delete post";
 "Hide post" = "Hide post";
+"Post hidden" = "Post hidden";
 "Delete post?" = "Delete post?";
 "This post won't be shown in the app. You can restore it from Recently Deleted within 30 days." = "This post won't be shown in the app. You can restore it from Recently Deleted within 30 days.";
 "Delete comment?" = "Delete comment?";
