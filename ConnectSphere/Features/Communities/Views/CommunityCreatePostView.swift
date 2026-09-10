@@ -3,18 +3,15 @@ import PhotosUI
 
 struct CommunityCreatePostView: View {
     @Environment(AppState.self) var appState
-    @Environment(ThemeManager.self) var themeManager
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) var dismiss
     @Environment(\.appBundle) var bundle
     @State private var viewModel = PostComposerViewModel()
 
-    // Hashtags + AI-tag visibility — same fields/caps as Feed's CreatePostView,
-    // reusing the shared HashtagInputView unmodified. `showAiTags` is a plain,
-    // non-persisted @State so the toggle always resets to off on a fresh sheet.
+    // Hashtags — same field/caps as Feed's CreatePostView, reusing the shared
+    // HashtagInputView unmodified.
     @State private var hashtags: [String] = []
     @State private var hashtagController = HashtagInputController()
-    @State private var showAiTags = false
 
     let community: Community
     let onPostCreated: (CommunityPost) -> Void
@@ -129,15 +126,10 @@ struct CommunityCreatePostView: View {
                         .padding(.top, 12)
                     }
 
-                    // ── Hashtags + AI-tag visibility — applies to all post types
-                    // (backend accepts hashtags/show_ai_tags on text/poll/event alike) ──
+                    // ── Hashtags — applies to all post types ──
                     HashtagInputView(hashtags: $hashtags, controller: hashtagController)
                         .padding(.horizontal, 16)
                         .padding(.top, 12)
-
-                    aiTagsToggle
-                        .padding(.horizontal, 16)
-                        .padding(.top, 10)
 
                     Divider().background(AppColors.borderDefault(colorScheme))
 
@@ -211,8 +203,7 @@ struct CommunityCreatePostView: View {
                                 token: appState.authToken ?? "",
                                 mode: community.type == .work ? .work : .hobby,
                                 privacy: .publicAll,
-                                hashtags: hashtags,
-                                showAiTags: showAiTags
+                                hashtags: hashtags
                             ) { post in
                                 onPostCreated(post)
                                 dismiss()
@@ -223,26 +214,6 @@ struct CommunityCreatePostView: View {
                     .disabled(!viewModel.isValid || viewModel.isPosting)
                 }
             }
-        }
-    }
-
-    // MARK: - AI tags toggle
-
-    /// Identical copy/behavior to Feed's `CreatePostView.aiTagsToggle` (reused
-    /// strings, not duplicated with different text) — always starts off each
-    /// time the composer sheet opens, never persisted.
-    private var aiTagsToggle: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Toggle(isOn: $showAiTags) {
-                Text("Show AI-generated tags", bundle: bundle)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(AppColors.textPrimary(colorScheme))
-            }
-            .tint(themeManager.theme.primary)
-
-            Text("AI tags stay hidden unless you turn this on for this post.", bundle: bundle)
-                .font(.system(size: 12))
-                .foregroundColor(AppColors.textTertiary(colorScheme))
         }
     }
 

@@ -74,18 +74,16 @@ class PostComposerViewModel {
     /// composer's actual mode/privacy choice instead of a silent hobby/public
     /// default (see postModel.createCommunityPost's mode/privacy overrides).
     ///
-    /// `hashtags`/`showAiTags` mirror Feed's `CreatePostViewModel.submitPost` — user-typed
-    /// tags saved synchronously (`source = 'user'`), `showAiTags` controls whether this
-    /// post's async-extracted AI tags become visible once extraction finishes. Backend
-    /// accepts both on all three post types (`postService.js`'s `createPost`/
-    /// `createPollPost`/`createEventPost`), so they're threaded through uniformly here too.
+    /// `hashtags` mirror Feed's `CreatePostViewModel.submitPost` — user-typed tags
+    /// saved synchronously (`source = 'user'`). AI-generated tags are never surfaced
+    /// on the client (`show_ai_tags` is always sent as `false`), so there is nothing
+    /// to refetch after the post is created.
     func submitPost(
         communityId: String?,
         token: String,
         mode: AppMode,
         privacy: PostPrivacy,
         hashtags: [String] = [],
-        showAiTags: Bool = false,
         onSuccess: @escaping (CommunityPost) -> Void
     ) async {
         guard isValid else { return }
@@ -94,29 +92,15 @@ class PostComposerViewModel {
         do {
             let post: CommunityPost
             switch postType {
-            case .text:  post = try await submitText(communityId: communityId, token: token, mode: mode, privacy: privacy, hashtags: hashtags, showAiTags: showAiTags)
-            case .poll:  post = try await submitPoll(communityId: communityId, token: token, mode: mode, privacy: privacy, hashtags: hashtags, showAiTags: showAiTags)
-            case .event: post = try await submitEvent(communityId: communityId, token: token, mode: mode, privacy: privacy, hashtags: hashtags, showAiTags: showAiTags)
+            case .text:  post = try await submitText(communityId: communityId, token: token, mode: mode, privacy: privacy, hashtags: hashtags)
+            case .poll:  post = try await submitPoll(communityId: communityId, token: token, mode: mode, privacy: privacy, hashtags: hashtags)
+            case .event: post = try await submitEvent(communityId: communityId, token: token, mode: mode, privacy: privacy, hashtags: hashtags)
             }
             content = ""
             selectedItems = []
             selectedMedia = []
             linkPreview = nil
             onSuccess(post)
-
-            // Background: if the user turned on "show AI tags", wait 15 seconds
-            // (best-effort, no retry) then refetch the post to pick up AI tags if
-            // extraction has finished. Reuses CreatePostViewModel's exact logic
-            // (via mediaHelper) instead of duplicating it — same ~15s delay, same
-            // `.postUpdated` broadcast.
-            if showAiTags {
-                let postId = post.id
-                let helper = mediaHelper
-                Task.detached(priority: .background) {
-                    try? await Task.sleep(nanoseconds: 15_000_000_000)
-                    await helper.refetchAndBroadcastTags(postId: postId)
-                }
-            }
         } catch {
             if case APIError.serverError(_, let msg) = error { errorMessage = msg }
             else { errorMessage = Bundle.app.loc("Could not post. Please try again.") }
@@ -171,7 +155,7 @@ class PostComposerViewModel {
         communityId.map { "/communities/\($0)/posts" } ?? "/posts"
     }
 
-    private func submitText(communityId: String?, token: String, mode: AppMode, privacy: PostPrivacy, hashtags: [String], showAiTags: Bool) async throws -> CommunityPost {
+    private func submitText(communityId: String?, token: String, mode: AppMode, privacy: PostPrivacy, hashtags: [String]) async throws -> CommunityPost {
         var finalContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
         let capturedPreview = linkPreview
 
@@ -195,7 +179,7 @@ class PostComposerViewModel {
             "post_type":    "text",
             "mode":         mode.rawValue,
             "privacy":      privacy.rawValue,
-            "show_ai_tags": showAiTags,
+            "show_ai_tags": false,
         ]
         if !imageUrls.isEmpty                   { dict["image_urls"]    = imageUrls }
         if let url = capturedPreview?.url       { dict["link_url"]      = url }
@@ -209,7 +193,7 @@ class PostComposerViewModel {
         return res.data.toCommunityPost()
     }
 
-    private func submitPoll(communityId: String?, token: String, mode: AppMode, privacy: PostPrivacy, hashtags: [String], showAiTags: Bool) async throws -> CommunityPost {
+    private func submitPoll(communityId: String?, token: String, mode: AppMode, privacy: PostPrivacy, hashtags: [String]) async throws -> CommunityPost {
         let validOptions = pollOptions
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
@@ -220,7 +204,7 @@ class PostComposerViewModel {
             "options":      validOptions,
             "mode":         mode.rawValue,
             "privacy":      privacy.rawValue,
-            "show_ai_tags": showAiTags,
+            "show_ai_tags": false,
         ]
         if showPollEndDate, let endsAt = pollEndsAt {
             dict["endsAt"] = ISO8601DateFormatter().string(from: endsAt)
@@ -233,7 +217,7 @@ class PostComposerViewModel {
         return res.data.toCommunityPost()
     }
 
-    private func submitEvent(communityId: String?, token: String, mode: AppMode, privacy: PostPrivacy, hashtags: [String], showAiTags: Bool) async throws -> CommunityPost {
+    private func submitEvent(communityId: String?, token: String, mode: AppMode, privacy: PostPrivacy, hashtags: [String]) async throws -> CommunityPost {
         let iso = ISO8601DateFormatter()
         var eventDict: [String: Any] = [
             "title":    eventTitle.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -248,7 +232,7 @@ class PostComposerViewModel {
             "eventData":    eventDict,
             "mode":         mode.rawValue,
             "privacy":      privacy.rawValue,
-            "show_ai_tags": showAiTags,
+            "show_ai_tags": false,
         ]
         if !hashtags.isEmpty { dict["hashtags"] = hashtags }
         let body = try? JSONSerialization.data(withJSONObject: dict)
