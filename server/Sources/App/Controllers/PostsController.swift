@@ -197,7 +197,13 @@ struct PostsController {
             sharedPostID: rootID, hashtags: [], showAiTags: false), on: req.db)
         else { throw Abort(.internalServerError) }
         try await req.db.sql().raw("UPDATE posts SET share_count = share_count + 1 WHERE id = \(uuid: rootID)").run()
-        // TODO(phase 3): post_shared notification
+        struct RA: Decodable { let author_id: String }
+        if let root = try? await req.db.sql().raw("SELECT author_id::text AS author_id FROM posts WHERE id = \(uuid: rootID)")
+            .first(decoding: RA.self), root.author_id != req.userID {
+            NotifyService.dispatchSocial(req, .init(
+                type: "post_shared", actorID: req.userID, recipientID: root.author_id,
+                postID: rootID, checkID: post.id))
+        }
         let res = try await DataResponse(data: post).encodeResponse(for: req)
         res.status = .created
         return res

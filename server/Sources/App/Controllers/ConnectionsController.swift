@@ -140,7 +140,9 @@ struct ConnectionsController {
                       status = 'pending', updated_at = NOW()
                     WHERE id = \(uuid: existing.id) RETURNING id::text AS id
                     """).first(decoding: I.self)!
-                // TODO(phase 3 notify): connection_request
+                NotifyService.dispatchSocial(req, .init(
+                    type: "connection_request", actorID: req.userID, recipientID: addresseeID,
+                    connectionID: updated.id))
                 return try await encode(ConnResult(connection_id: updated.id, status: "pending_sent"), req, .created)
             default: break
             }
@@ -151,7 +153,9 @@ struct ConnectionsController {
                 VALUES (\(uuid: req.userID), \(uuid: addresseeID), \(bind: mode))
                 RETURNING id::text AS id
                 """).first(decoding: I.self)!
-            // TODO(phase 3 notify): connection_request
+            NotifyService.dispatchSocial(req, .init(
+                type: "connection_request", actorID: req.userID, recipientID: addresseeID,
+                connectionID: created.id))
             return try await encode(ConnResult(connection_id: created.id, status: "pending_sent"), req, .created)
         } catch {
             // Folded review fix: concurrent duplicate insert → 409, not an
@@ -191,7 +195,9 @@ struct ConnectionsController {
             try await t.raw("UPDATE users SET follower_count = follower_count + 1, following_count = following_count + 1 WHERE id IN (\(uuid: c.requester_id), \(uuid: c.addressee_id))").run()
         }
         guard let c = conn else { throw InlineError(.conflict, "Request not found, not yours, or already handled") }
-        // TODO(phase 3 notify): connection_accepted
+        NotifyService.dispatchSocial(req, .init(
+            type: "connection_accepted", actorID: req.userID, recipientID: c.requester_id,
+            connectionID: c.id))
         return AcceptResp(connection_id: c.id)
     }
 

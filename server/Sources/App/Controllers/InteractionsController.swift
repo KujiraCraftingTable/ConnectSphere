@@ -46,7 +46,7 @@ struct InteractionsController {
     static func likePost(_ req: Request) async throws -> LikeResponse {
         let postID = req.parameters.get("id")!
         let db = req.db.sql()
-        guard try await visibleMeta(postID, viewer: req.userID, db) != nil else {
+        guard let meta = try await visibleMeta(postID, viewer: req.userID, db) else {
             throw InlineError(.notFound, "Post not found")
         }
         var liked = false
@@ -68,7 +68,11 @@ struct InteractionsController {
         }
         struct LC: Decodable { let like_count: Int }
         let lc = try await db.raw("SELECT like_count FROM posts WHERE id = \(uuid: postID)").first(decoding: LC.self)!
-        // TODO(phase 4): community_post_liked emit; (phase 3) post_liked notification
+        if liked {
+            NotifyService.dispatchSocial(req, .init(
+                type: "post_liked", actorID: req.userID, recipientID: meta.authorID, postID: postID))
+        }
+        // TODO(phase 4): community_post_liked socket emit for open community viewers
         return LikeResponse(liked: liked, like_count: lc.like_count)
     }
 
@@ -141,7 +145,23 @@ struct InteractionsController {
         let payload = CommentObject(id: created.id, content: created.content, created_at: created.created_at,
                                     parent_comment_id: created.parent_comment_id, like_count: created.like_count,
                                     is_liked: false, author: author)
-        // TODO(phase 3/4): notifications + community_post_commented emit
+
+        // Notify the post's author for any comment (grouped by post so several
+        // collapse), plus the parent comment's author when this is a reply —
+        // both delayed + cancel-if-deleted via SocialNotifyJob.
+        NotifyService.dispatchSocial(req, .init(
+            type: "post_commented", actorID: req.userID, recipientID: meta.authorID,
+            postID: postID, commentID: created.id))
+        if let parentID = b.parent_comment_id {
+            struct PA: Decodable { let author_id: String }
+            if let pa = try? await db.raw("SELECT author_id::text AS author_id FROM comments WHERE id = \(uuid: parentID) AND post_id = \(uuid: postID)")
+                .first(decoding: PA.self), pa.author_id != meta.authorID {
+                NotifyService.dispatchSocial(req, .init(
+                    type: "comment_replied", actorID: req.userID, recipientID: pa.author_id,
+                    postID: postID, commentID: created.id, parentCommentID: parentID))
+            }
+        }
+        // TODO(phase 4): community_post_commented socket emit for open community viewers
         let res = try await DataResponse(data: payload).encodeResponse(for: req)
         res.status = .created
         return res
@@ -232,8 +252,8 @@ struct InteractionsController {
         let db = req.db.sql()
         guard try await visibleMeta(postID, viewer: req.userID, db) != nil else { throw InlineError(.notFound, "Post not found") }
         struct C: Decodable { let author_id: String }
-        guard try await db.raw("SELECT author_id FROM comments WHERE id = \(uuid: commentID) AND post_id = \(uuid: postID) AND status = 'posted'")
-            .first(decoding: C.self) != nil else { throw InlineError(.notFound, "Comment not found") }
+        guard let comment = try await db.raw("SELECT author_id::text AS author_id FROM comments WHERE id = \(uuid: commentID) AND post_id = \(uuid: postID) AND status = 'posted'")
+            .first(decoding: C.self) else { throw InlineError(.notFound, "Comment not found") }
         struct R: Decodable { let one: Int }
         let inserted = try await db.raw("INSERT INTO comment_likes (comment_id, user_id) VALUES (\(uuid: commentID), \(uuid: req.userID)) ON CONFLICT DO NOTHING RETURNING 1 AS one")
             .first(decoding: R.self)
@@ -250,6 +270,11 @@ struct InteractionsController {
         }
         struct LC: Decodable { let like_count: Int }
         let lc = try await db.raw("SELECT like_count FROM comments WHERE id = \(uuid: commentID)").first(decoding: LC.self)!
+        if liked {
+            NotifyService.dispatchSocial(req, .init(
+                type: "comment_liked", actorID: req.userID, recipientID: comment.author_id,
+                postID: postID, commentID: commentID))
+        }
         return LikeResponse(liked: liked, like_count: lc.like_count)
     }
 
