@@ -183,6 +183,16 @@ struct ConnectButton: View {
     /// so they're all the same size. Only applied in the full (non-compact) form.
     private var singleChipMinWidth: CGFloat? { compact ? nil : 112 }
 
+    /// Fixed width for the single-status chips in the *compact* form. Without it
+    /// the chip resizes when its label swaps on tap (Add friend → Sent →
+    /// Connected), which reflows the author name / job title / timestamp sitting
+    /// next to it in the feed card and re-flashes the avatar. Pinning every
+    /// single-status compact chip to one width keeps the row perfectly still
+    /// through the whole connect lifecycle. 96pt clears the widest label in
+    /// either language ("Add friend" / "Connected" / VI "Đã kết nối") plus the
+    /// icon, spacing and padding.
+    private var compactChipWidth: CGFloat? { compact ? 96 : nil }
+
     var body: some View {
         Group {
             switch vm.status {
@@ -193,7 +203,7 @@ struct ConnectButton: View {
             case .pendingSent:
                 withCompanion {
                     actionChip(label: bundle.loc("Sent"), icon: "clock", color: AppColors.textSecondary(colorScheme),
-                               minWidth: singleChipMinWidth) {
+                               minWidth: singleChipMinWidth, fixedWidth: compactChipWidth) {
                         Task { await vm.cancel() }
                     }
                 }
@@ -220,7 +230,8 @@ struct ConnectButton: View {
             case .none:
                 withCompanion {
                     actionChip(label: connectLabel, icon: "person.badge.plus",
-                               color: themeManager.theme.primary, minWidth: singleChipMinWidth) {
+                               color: themeManager.theme.primary,
+                               minWidth: singleChipMinWidth, fixedWidth: compactChipWidth) {
                         Task {
                             await vm.sendRequest(
                                 targetId: targetUserId,
@@ -279,6 +290,7 @@ struct ConnectButton: View {
             .foregroundColor(AppColors.textPrimary(colorScheme))
             .padding(.horizontal, compact ? 8 : 14)
             .padding(.vertical, compact ? 3 : 7)
+            .frame(width: compactChipWidth)
             .frame(minWidth: singleChipMinWidth)
             .background(Capsule().fill(AppColors.elevated(colorScheme)))
         }
@@ -298,8 +310,10 @@ struct ConnectButton: View {
 
     // minWidth: minimum width so the single-status states (Add friend / Sent)
     // are the same size despite different content — sized to the widest button.
+    // fixedWidth: exact width, used in the compact form to keep the chip from
+    // resizing (and reflowing its neighbours) when the label swaps on tap.
     private func actionChip(label: String, icon: String, color: Color,
-                             minWidth: CGFloat? = nil,
+                             minWidth: CGFloat? = nil, fixedWidth: CGFloat? = nil,
                              action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 4) {
@@ -317,6 +331,7 @@ struct ConnectButton: View {
             .foregroundColor(color == themeManager.theme.primary ? .white : color)
             .padding(.horizontal, compact ? 8 : 14)
             .padding(.vertical, compact ? 3 : 7)
+            .frame(width: fixedWidth)
             .frame(minWidth: minWidth)
             .background(
                 Capsule().fill(
