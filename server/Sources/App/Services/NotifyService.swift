@@ -267,6 +267,35 @@ enum NotifyService {
         Task { await work(db.sql(), hub, log) }
     }
 
+    /// A "someone interacted with your thing" notification (post_liked /
+    /// post_commented / comment_replied / comment_liked / post_shared /
+    /// connection_request / connection_accepted). Never delivered inline: it
+    /// goes onto the queue with a ~3s `delayUntil`, and `SocialNotifyJob`
+    /// re-checks that the like / comment / request still exists before writing
+    /// the row — so an accidental tap that's undone within the window notifies
+    /// nobody. With `RUN_JOBS` unset there's no queue, so it falls back to an
+    /// immediate fire-and-forget through the same delivery body (still deduped,
+    /// just without the cancel window).
+    static func dispatchSocial(_ req: Request, _ payload: BackgroundJobs.SocialNotifyJob.Payload) {
+        guard payload.actorID != payload.recipientID else { return }
+        let app = req.application
+        let logger = req.logger
+        if BackgroundJobs.enabled {
+            Task {
+                do {
+                    try await app.queues.queue.dispatch(
+                        BackgroundJobs.SocialNotifyJob.self, payload,
+                        maxRetryCount: 3, delayUntil: Date().addingTimeInterval(3))
+                } catch {
+                    logger.warning("dispatchSocial(\(payload.type)) enqueue failed: \(error)")
+                }
+            }
+        } else {
+            let db = app.db.sql(), hub = app.socketHub
+            Task { await BackgroundJobs.SocialNotifyJob.deliver(payload, on: db, hub: hub, logger: logger) }
+        }
+    }
+
     static func messagePreview(_ m: MessageObject) -> String? {
         switch m.message_type {
         case "image": return "📷 Photo"

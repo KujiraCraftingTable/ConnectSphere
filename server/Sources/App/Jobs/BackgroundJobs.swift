@@ -25,6 +25,7 @@ enum BackgroundJobs {
 
         app.queues.add(TagExtractionJob())
         app.queues.add(ChunkEmbedJob())
+        app.queues.add(SocialNotifyJob())
 
         // Daily housekeeping — staggered UTC slots, matching the Node crons.
         app.queues.schedule(AnalyticsSnapshotJob()).using(utc).daily().at(0, 5)
@@ -207,6 +208,143 @@ enum BackgroundJobs {
             case .post:    _ = try await ChunkService.buildPostChunk(payload.id, cfg: app.ollama, on: app.db.sql(), logger: context.logger)
             case .profile: _ = try await ChunkService.buildProfileChunk(payload.id, cfg: app.ollama, on: app.db.sql(), logger: context.logger)
             }
+        }
+    }
+
+    // MARK: social notifications (like / comment / reply / comment-like / share / connect)
+
+    /// Delivers a "someone interacted with your thing" notification, but only
+    /// after a ~3s delay (see `NotifyService.dispatchSocial`) — long enough that
+    /// an accidental like / comment / connection request undone within the
+    /// window never reaches the recipient. `dequeue` re-checks that the
+    /// triggering state still holds, then applies a 24h unread-dup guard, then
+    /// writes the row through `NotifyService.pushUserNotification`.
+    ///
+    /// `groupTargetID` / `entityID` per type match the retired Node backend so
+    /// the read side groups these rows identically:
+    ///   post_liked      → group `post_liked:<postID>`,       entity = post
+    ///   comment_liked   → group `comment_liked:<commentID>`, entity = comment
+    ///   post_commented  → group `post_commented:<postID>`,   entity = comment
+    ///   comment_replied → group `comment_replied:<parentID>`,entity = comment
+    ///   post_shared     → group `post_shared:<rootPostID>`,  entity = post
+    ///   connection_*    → group `<type>:none`,               entity = none
+    struct SocialNotifyJob: AsyncJob {
+        struct Payload: Codable, Sendable {
+            var type: String
+            var actorID: String
+            var recipientID: String
+            var postID: String? = nil
+            var commentID: String? = nil
+            var parentCommentID: String? = nil
+            var connectionID: String? = nil
+            /// For post_shared: the repost row's id — deleting it inside the
+            /// delay window cancels the notification.
+            var checkID: String? = nil
+        }
+
+        func dequeue(_ context: QueueContext, _ payload: Payload) async throws {
+            await Self.deliver(payload, on: context.application.db.sql(),
+                               hub: context.application.socketHub, logger: context.logger)
+        }
+
+        /// Shared body so the jobs-off fallback path (`dispatchSocial` when
+        /// `RUN_JOBS` is unset) can reuse it verbatim.
+        static func deliver(_ p: Payload, on db: any SQLDatabase, hub: SocketHub, logger: Logger) async {
+            guard p.actorID != p.recipientID else { return }
+            do {
+                guard try await stillValid(p, on: db) else {
+                    logger.debug("SocialNotifyJob \(p.type): triggering state gone, skipping")
+                    return
+                }
+
+                let entityID: String?
+                let groupTargetID: String?
+                switch p.type {
+                case "post_liked":      entityID = p.postID;    groupTargetID = p.postID
+                case "comment_liked":   entityID = p.commentID; groupTargetID = p.commentID
+                case "post_commented":  entityID = p.commentID; groupTargetID = p.postID
+                case "comment_replied": entityID = p.commentID; groupTargetID = p.parentCommentID
+                case "post_shared":     entityID = p.postID;    groupTargetID = nil
+                default:                entityID = nil;         groupTargetID = nil   // connection_*
+                }
+
+                // Same formula pushUserNotification uses internally → the dup
+                // check and the eventual INSERT can't drift onto different keys.
+                let refs = NotifyService.resolveRefs(
+                    type: p.type, entityType: nil, entityID: entityID, groupTargetID: groupTargetID,
+                    postID: p.postID, conversationID: nil, communityID: nil)
+
+                struct One: Decodable { let one: Int }
+                let dup = try await db.raw("""
+                    SELECT 1 AS one FROM user_notifications
+                    WHERE user_id = \(uuid: p.recipientID) AND group_key = \(bind: refs.groupKey)
+                      AND actor_id IS NOT DISTINCT FROM \(uuid: p.actorID)
+                      AND is_read = FALSE AND created_at > NOW() - INTERVAL '24 hours'
+                    LIMIT 1
+                    """).first(decoding: One.self) != nil
+                if dup {
+                    logger.debug("SocialNotifyJob \(p.type): unread duplicate within 24h, skipping")
+                    return
+                }
+
+                var payload: [String: Any] = [:]
+                if p.type == "post_commented" || p.type == "comment_replied" {
+                    if let ex = try await commentExcerpt(p.commentID, on: db) { payload["excerpt"] = ex }
+                    if let cid = p.commentID { payload["commentId"] = cid }
+                    if let par = p.parentCommentID { payload["parentCommentId"] = par }
+                }
+
+                _ = await NotifyService.pushUserNotification(
+                    userID: p.recipientID, type: p.type, actorID: p.actorID,
+                    postID: p.postID, entityID: entityID, groupTargetID: groupTargetID,
+                    payload: payload, on: db, hub: hub, logger: logger)
+            } catch {
+                logger.warning("SocialNotifyJob \(p.type) failed: \(error)")
+            }
+        }
+
+        /// Has the interaction that triggered this notification survived the
+        /// delay window? (like still there, comment/post still 'posted',
+        /// connection still in the expected status)
+        private static func stillValid(_ p: Payload, on db: any SQLDatabase) async throws -> Bool {
+            struct One: Decodable { let one: Int }
+            switch p.type {
+            case "post_liked":
+                guard let post = p.postID else { return false }
+                return try await db.raw("SELECT 1 AS one FROM post_likes WHERE post_id = \(uuid: post) AND user_id = \(uuid: p.actorID)")
+                    .first(decoding: One.self) != nil
+            case "comment_liked":
+                guard let c = p.commentID else { return false }
+                return try await db.raw("SELECT 1 AS one FROM comment_likes WHERE comment_id = \(uuid: c) AND user_id = \(uuid: p.actorID)")
+                    .first(decoding: One.self) != nil
+            case "post_commented", "comment_replied":
+                guard let c = p.commentID else { return false }
+                return try await db.raw("SELECT 1 AS one FROM comments WHERE id = \(uuid: c) AND status = 'posted'")
+                    .first(decoding: One.self) != nil
+            case "post_shared":
+                guard let repost = p.checkID ?? p.postID else { return false }
+                return try await db.raw("SELECT 1 AS one FROM posts WHERE id = \(uuid: repost) AND status = 'posted'")
+                    .first(decoding: One.self) != nil
+            case "connection_request":
+                guard let c = p.connectionID else { return false }
+                return try await db.raw("SELECT 1 AS one FROM connections WHERE id = \(uuid: c) AND status = 'pending'")
+                    .first(decoding: One.self) != nil
+            case "connection_accepted":
+                guard let c = p.connectionID else { return false }
+                return try await db.raw("SELECT 1 AS one FROM connections WHERE id = \(uuid: c) AND status = 'accepted'")
+                    .first(decoding: One.self) != nil
+            default:
+                return false
+            }
+        }
+
+        private static func commentExcerpt(_ commentID: String?, on db: any SQLDatabase) async throws -> String? {
+            guard let commentID else { return nil }
+            struct R: Decodable { let content: String? }
+            let content = try await db.raw("SELECT content FROM comments WHERE id = \(uuid: commentID) AND status = 'posted'")
+                .first(decoding: R.self)?.content ?? nil
+            guard let content, !content.isEmpty else { return nil }
+            return String(content.prefix(120))
         }
     }
 
