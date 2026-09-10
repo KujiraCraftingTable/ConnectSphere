@@ -290,6 +290,21 @@ struct PostRepository {
         )
     }
 
+    /// Un-hides a post previously hidden with `hidePost` — backs the "Undo" on
+    /// the hide toast (`DELETE /posts/:id/hide`, mirrors `hidePost`).
+    func unhidePost(postId: String) async throws {
+        guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
+            throw APIError.serverError(statusCode: 401, message: "Not authenticated")
+        }
+        struct HideResponse: Decodable { let hidden: Bool }
+        _ = try await client.fetch(
+            HideResponse.self,
+            path: "/posts/\(postId)/hide",
+            method: "DELETE",
+            token: token
+        )
+    }
+
     /// Toggles the current user's like on a post; returns the server's
     /// authoritative liked state + count so the caller can reconcile.
     func toggleLike(postId: String) async throws -> LikeResponse {
