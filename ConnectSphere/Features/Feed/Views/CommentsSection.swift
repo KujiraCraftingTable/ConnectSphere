@@ -73,17 +73,22 @@ class CommentViewModel {
         return true
     }
 
-    /// Deletes one of your own comments (or one on your own post) — backend soft-deletes replies too
-    func deleteComment(postId: String, commentId: String) async {
-        guard let token = authToken() else { return }
-        struct Empty: Decodable { let status: String? }
-        _ = try? await NetworkClient.shared.fetch(
-            Empty.self,
+    /// Deletes one of your own comments (or one on your own post) — backend
+    /// soft-deletes replies too. Returns how many comments were actually
+    /// removed (deleting a root cascades to its replies), so the caller can
+    /// decrement the post's displayed comment count by the right amount;
+    /// `0` if the request failed (nothing was actually removed).
+    func deleteComment(postId: String, commentId: String) async -> Int {
+        guard let token = authToken() else { return 0 }
+        struct Response: Decodable { let removed: Int }
+        let removed = (try? await NetworkClient.shared.fetch(
+            Response.self,
             path: "/posts/\(postId)/comments/\(commentId)",
             method: "DELETE",
             token: token
-        )
+        ))?.removed ?? 0
         await load(postId: postId)
+        return removed
     }
 
     /// Edits the content of one of your own comments. Same approach as
@@ -140,6 +145,14 @@ struct CommentsSection: View {
     let toastPresenter: UndoToastPresenter
     /// Called after `viewModel.replyingTo` is set, so the host can focus its composer.
     var onReplyRequested: () -> Void = {}
+    /// Called with the change in total comment count whenever this section's
+    /// own actions move it — `+1` after sending a comment/reply, `-N` after
+    /// a delete (N = however many were actually removed, including any
+    /// replies cascaded with a root), `+1` after undoing a delete. Lets the
+    /// host (which owns the visible comment count) update immediately
+    /// instead of waiting on a full refetch — the server's own count is
+    /// already updated durably and remains the eventual source of truth.
+    var onCommentCountChange: (Int) -> Void = { _ in }
 
     @State private var pendingDeleteCommentId: String? = nil
     @State private var editingCommentId: String? = nil
@@ -169,7 +182,6 @@ struct CommentsSection: View {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(viewModel.parents) { comment in
                             commentBlock(comment)
-                            Divider().padding(.leading, 56)
                         }
                     }
                 }
@@ -238,10 +250,16 @@ struct CommentsSection: View {
     /// Deletes the comment then shows an Undo toast; tapping Undo calls restore
     /// then reloads the whole comment list.
     private func handleDeleteComment(commentId: String) async {
-        await viewModel.deleteComment(postId: postId, commentId: commentId)
+        let removed = await viewModel.deleteComment(postId: postId, commentId: commentId)
+        if removed > 0 { onCommentCountChange(-removed) }
         toastPresenter.show(message: bundle.loc("Comment deleted")) {
             Task {
-                try? await repository.restoreComment(postId: postId, commentId: commentId)
+                let restored = (try? await repository.restoreComment(postId: postId, commentId: commentId)) != nil
+                // Restore only ever brings back the single comment that was
+                // deleted, never its cascade-deleted replies — so this delta
+                // is always exactly +1, regardless of how much `removed`
+                // subtracted above.
+                if restored { onCommentCountChange(1) }
                 await viewModel.load(postId: postId)
             }
         }

@@ -18,7 +18,10 @@ struct CommentSheet: View {
 
     let postId: String
     let postAuthorId: String
-    var onCommentAdded: (() -> Void)?
+    /// Called with the change in comment count (+1 on send, -N on delete, +1
+    /// on undo) — see `CommentsSection.onCommentCountChange`, which this
+    /// passes straight through.
+    var onCommentCountChange: ((Int) -> Void)?
 
     var body: some View {
         NavigationStack {
@@ -37,7 +40,8 @@ struct CommentSheet: View {
                             postAuthorId: postAuthorId,
                             viewModel: viewModel,
                             toastPresenter: toastPresenter,
-                            onReplyRequested: { focused = true }
+                            onReplyRequested: { focused = true },
+                            onCommentCountChange: { delta in onCommentCountChange?(delta) }
                         )
                         Color.clear.frame(height: 1).id("bottom")
                     }
@@ -88,7 +92,7 @@ struct CommentSheet: View {
                                 input = ""
                                 let ok = await viewModel.addComment(postId: postId, content: text)
                                 if ok {
-                                    onCommentAdded?()
+                                    onCommentCountChange?(1)
                                     withAnimation { proxy.scrollTo("bottom") }
                                 }
                             }

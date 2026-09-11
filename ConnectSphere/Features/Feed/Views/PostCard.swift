@@ -130,9 +130,9 @@ struct PostCard: View {
         .inAppBrowser(url: $inAppBrowserURL)
         // Comment sheet
         .sheet(isPresented: $showComments) {
-            CommentSheet(postId: post.id, postAuthorId: post.author.id) {
-                commentCount += 1
-                onCommentAdded?()
+            CommentSheet(postId: post.id, postAuthorId: post.author.id) { delta in
+                commentCount = max(0, commentCount + delta)
+                if delta > 0 { onCommentAdded?() }
             }
             .environment(appState)
         }
@@ -178,6 +178,14 @@ struct PostCard: View {
         .alert(reportResultMessage, isPresented: $showReportResult) {
             Button(bundle.loc("Done")) {}
         }
+        // Resyncs the locally-tracked count whenever a fresh `post` value
+        // flows in from the parent (e.g. after `.postUpdated` patches this
+        // post's entry in FeedViewModel/ProfileViewModel following a comment
+        // add/delete elsewhere) — `@State`'s `initialValue` only seeds once
+        // per view identity, so without this the row would keep showing a
+        // stale count until the app fully reloads it. Mirrors the same
+        // pattern already used in `CommunityPostCard`.
+        .onChange(of: post.commentCount) { _, newValue in commentCount = newValue }
     }
 
     // MARK: Body
