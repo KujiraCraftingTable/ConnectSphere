@@ -31,11 +31,15 @@ struct PostCard: View {
     var onPostDeleted: (() -> Void)? = nil
     /// Called when the user successfully saves an edit to the post
     var onPostUpdated: ((Post) -> Void)? = nil
-    /// When set, tapping the post body opens it in a pushed `PostDetailView`,
-    /// and the comment button opens it there with the composer focused
-    /// (`focusComposer == true`). `nil` = no whole-card tap (e.g. inside
-    /// `PostDetailView` itself, so it can't recurse).
+    /// When set, tapping anywhere on the card (outside its own controls) opens
+    /// it in a pushed `PostDetailView`, and the comment button opens it there
+    /// with the composer focused (`focusComposer == true`). `nil` = no
+    /// whole-card tap (e.g. inside `PostDetailView` itself, so it can't recurse).
     var onOpenDetail: ((_ focusComposer: Bool) -> Void)? = nil
+    /// Corner radius for the card's own clip shape. Default `12` everywhere;
+    /// `PostDetailView` passes `0` so its embedded copy reads as a square-edged
+    /// panel pinned at the top of the screen rather than a floating card.
+    var cornerRadius: CGFloat = 12
 
     @State private var shakeAmount: CGFloat = 0
     private let repository = PostRepository()
@@ -47,7 +51,8 @@ struct PostCard: View {
         onCommentAdded: (() -> Void)? = nil,
         onPostDeleted: (() -> Void)? = nil,
         onPostUpdated: ((Post) -> Void)? = nil,
-        onOpenDetail: ((_ focusComposer: Bool) -> Void)? = nil
+        onOpenDetail: ((_ focusComposer: Bool) -> Void)? = nil,
+        cornerRadius: CGFloat = 12
     ) {
         self.post = post
         self.disableSelfNavigation = disableSelfNavigation
@@ -56,6 +61,7 @@ struct PostCard: View {
         self.onPostDeleted = onPostDeleted
         self.onPostUpdated = onPostUpdated
         self.onOpenDetail = onOpenDetail
+        self.cornerRadius = cornerRadius
         _isLiked      = State(initialValue: post.isLiked)
         _isSaved      = State(initialValue: post.isSaved)
         _likeCount    = State(initialValue: post.likeCount)
@@ -78,8 +84,15 @@ struct PostCard: View {
             actionButtons
         }
         .background(AppColors.surface(colorScheme))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
         .offset(x: shakeAmount)
+        // Whole-card tap-to-open — placed on the outer container so it covers
+        // header/body/action-row dead space uniformly; every interactive child
+        // (avatar/name links, the "…" menu, tag chips, the link-preview card,
+        // poll/event controls, the like/comment/save/share buttons) still wins
+        // its own tap over this parent gesture, so nothing here regresses.
+        .contentShape(Rectangle())
+        .onTapGesture { onOpenDetail?(false) }
         // Comment sheet
         .sheet(isPresented: $showComments) {
             CommentSheet(postId: post.id) {
@@ -134,11 +147,10 @@ struct PostCard: View {
 
     // MARK: Body
 
-    /// Everything between the header and the action row. The plain content areas
-    /// (text, photos, shared-post embed) get a `.onTapGesture` that opens the
-    /// pushed `PostDetailView` via `onOpenDetail`; the interactive pieces (tag
-    /// chips, link-preview card, poll / event controls) are deliberately left
-    /// out so they keep handling their own taps.
+    /// Everything between the header and the action row: text, hashtags, link
+    /// preview / photos, shared-post embed, poll / event. The whole-card tap
+    /// (see `mainCard`) covers this region too; the link-preview card, tag
+    /// chips, and poll/event controls keep handling their own taps.
     @ViewBuilder
     private var postBody: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -154,8 +166,6 @@ struct PostCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 12)
                     .padding(.top, 10)
-                    .contentShape(Rectangle())
-                    .onTapGesture { onOpenDetail?(false) }
             }
 
             // Hashtag chips — tapping one opens TagFeedView to browse by tag
@@ -175,8 +185,6 @@ struct PostCard: View {
             else if !post.displayImageUrls.isEmpty {
                 PostPhotoGrid(urls: post.displayImageUrls)
                     .padding(.top, 10)
-                    .contentShape(Rectangle())
-                    .onTapGesture { onOpenDetail?(false) }
             }
 
             // Embedded original post (if this is a shared post)
@@ -184,8 +192,6 @@ struct PostCard: View {
                 sharedPostEmbed
                     .padding(.horizontal, 12)
                     .padding(.top, 10)
-                    .contentShape(Rectangle())
-                    .onTapGesture { onOpenDetail?(false) }
             }
 
             // Poll or Event inline body — same PollPostCard/EventPostCard used by
