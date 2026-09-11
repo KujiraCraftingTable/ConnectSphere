@@ -15,6 +15,12 @@ struct CommentSheet: View {
     /// above `MainTabView`'s app-wide toast overlay, so it can't reuse that one
     /// and owns its own instance instead (see `UndoToastView.swift`).
     @State private var toastPresenter = UndoToastPresenter()
+    /// Guards the scroll-to-bottom logic below so it only fires for a comment
+    /// added *during* this sheet's lifetime — without it, the count going
+    /// from 0 (initial state) to however-many-loaded on first appear looks
+    /// identical to "a comment was just added," scrolling to the bottom the
+    /// instant the sheet opens.
+    @State private var hasLoadedCommentsOnce = false
 
     let postId: String
     var onCommentAdded: (() -> Void)?
@@ -34,6 +40,7 @@ struct CommentSheet: View {
                         Color.clear.frame(height: 1).id("bottom")
                     }
                     .onChange(of: viewModel.comments.count) { _, _ in
+                        guard hasLoadedCommentsOnce else { return }
                         withAnimation { proxy.scrollTo("bottom") }
                     }
                 }
@@ -104,7 +111,10 @@ struct CommentSheet: View {
         .undoToastOverlay(toastPresenter)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-        .task { await viewModel.load(postId: postId) }
+        .task {
+            await viewModel.load(postId: postId)
+            hasLoadedCommentsOnce = true
+        }
         .onAppear { focused = true }
     }
 }

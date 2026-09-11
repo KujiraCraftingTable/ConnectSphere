@@ -32,6 +32,12 @@ struct PostDetailView: View {
     @State private var commentVM = CommentViewModel()
     @State private var draft = ""
     @FocusState private var composerFocused: Bool
+    /// Guards the scroll-to-newest-comment logic below so it only fires for a
+    /// comment added *during* this screen's lifetime — without it, the count
+    /// going from 0 (initial state) to however-many-loaded on first appear
+    /// looks identical to "a comment was just added," auto-scrolling straight
+    /// to the bottom the instant the screen opens.
+    @State private var hasLoadedCommentsOnce = false
 
     private let repository = PostRepository()
 
@@ -87,8 +93,10 @@ struct PostDetailView: View {
                     .background(AppColors.surface(colorScheme))
                     .task { await loadAll(proxy: proxy) }
                     .onChange(of: commentVM.comments.count) { oldCount, newCount in
-                        // A comment you just added → nudge down to it.
-                        guard newCount > oldCount, let last = commentVM.comments.last else { return }
+                        // A comment you just added → nudge down to it. Gated on
+                        // `hasLoadedCommentsOnce` so the initial load (0 → N)
+                        // never triggers this — only a genuine addition after.
+                        guard hasLoadedCommentsOnce, newCount > oldCount, let last = commentVM.comments.last else { return }
                         withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
                     }
                 }
@@ -112,6 +120,7 @@ struct PostDetailView: View {
             do { post = try await repository.fetchPost(id: postId) }
             catch { loadFailed = true; return }
             await commentVM.load(postId: postId)
+            hasLoadedCommentsOnce = true
         }
 
         if let target = scrollToCommentId {

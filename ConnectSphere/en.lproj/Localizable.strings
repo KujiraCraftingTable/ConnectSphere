@@ -174,6 +174,7 @@
 "Name must not exceed 100 characters" = "Name must not exceed 100 characters";
 "Networking, find collaborators" = "Networking, find collaborators";
 "New post" = "New post";
+"Newest first" = "Newest first";
 "No comments yet" = "No comments yet";
 "No connections yet — try searching and sending a request" = "No connections yet — try searching and sending a request";
 "No conversations yet" = "No conversations yet";
@@ -186,6 +187,7 @@
 "Nothing to discover yet" = "Nothing to discover yet";
 "Notifications" = "Notifications";
 "OK" = "OK";
+"Oldest first" = "Oldest first";
 "or continue with" = "or continue with";
 "Other" = "Other";
 "Password" = "Password";
