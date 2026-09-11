@@ -79,7 +79,8 @@ struct PostDetailView: View {
                                 postAuthorId: post.author.id,
                                 viewModel: commentVM,
                                 toastPresenter: toastPresenter,
-                                onReplyRequested: { composerFocused = true }
+                                onReplyRequested: { composerFocused = true },
+                                onCommentCountChange: { delta in adjustCommentCount(by: delta) }
                             )
                         } else if loadFailed {
                             errorState
@@ -127,6 +128,22 @@ struct PostDetailView: View {
         }
     }
 
+    // MARK: - Comment count
+
+    /// Adjusts the pinned post's displayed comment count by `delta` and
+    /// broadcasts it via `.postUpdated` so other already-loaded screens (the
+    /// Feed list, Profile, etc.) pick up the change too — a same-user,
+    /// same-session optimistic update, not a push to other viewers. The
+    /// server's own `comment_count` column is already updated synchronously
+    /// and remains the eventual, authoritative value the next full fetch
+    /// returns.
+    private func adjustCommentCount(by delta: Int) {
+        guard var p = post else { return }
+        p.commentCount = max(0, p.commentCount + delta)
+        post = p
+        NotificationCenter.default.post(name: .postUpdated, object: nil, userInfo: ["post": p])
+    }
+
     // MARK: - Composer
 
     private func composerBar(proxy: ScrollViewProxy) -> some View {
@@ -172,13 +189,7 @@ struct PostDetailView: View {
                         let text = draft
                         draft = ""
                         let ok = await commentVM.addComment(postId: postId, content: text)
-                        if ok, var p = post {
-                            // Mirror the Save button: keep the feed cards' count
-                            // in sync via a `.postUpdated` broadcast.
-                            p.commentCount += 1
-                            post = p
-                            NotificationCenter.default.post(name: .postUpdated, object: nil, userInfo: ["post": p])
-                        }
+                        if ok { adjustCommentCount(by: 1) }
                         // Reveal the comment/reply just sent — triggered directly
                         // here (not inferred from a comments-count change) so it
                         // can't misfire on the initial load.
