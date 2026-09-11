@@ -40,8 +40,22 @@ struct PostCard: View {
     /// `PostDetailView` passes `0` so its embedded copy reads as a square-edged
     /// panel pinned at the top of the screen rather than a floating card.
     var cornerRadius: CGFloat = 12
+    /// When set, the whole card (header + content + action row) is capped at
+    /// first render to at most this total height — the header and action row
+    /// always render in full; only the content region (text/tags/media/poll/
+    /// event) clips to fill what's left, with an "Expand" button overlaid at
+    /// its bottom-right. Tapping it (or the "Collapse" button that replaces it
+    /// once expanded) toggles a bounded, scrollable full view on/off. `nil`
+    /// (every host except `PostDetailView`) = always full height, no clipping.
+    var collapsedTotalHeight: CGFloat? = nil
 
     @State private var shakeAmount: CGFloat = 0
+    @State private var isContentExpanded = false
+    // Seeded with realistic estimates so the very first render (before the
+    // real measurements land via readHeight) doesn't briefly show too much
+    // content and then visibly snap down a frame later.
+    @State private var measuredHeaderHeight: CGFloat = 64
+    @State private var measuredActionsHeight: CGFloat = 54
     private let repository = PostRepository()
 
     init(
@@ -52,7 +66,8 @@ struct PostCard: View {
         onPostDeleted: (() -> Void)? = nil,
         onPostUpdated: ((Post) -> Void)? = nil,
         onOpenDetail: ((_ focusComposer: Bool) -> Void)? = nil,
-        cornerRadius: CGFloat = 12
+        cornerRadius: CGFloat = 12,
+        collapsedTotalHeight: CGFloat? = nil
     ) {
         self.post = post
         self.disableSelfNavigation = disableSelfNavigation
@@ -62,6 +77,7 @@ struct PostCard: View {
         self.onPostUpdated = onPostUpdated
         self.onOpenDetail = onOpenDetail
         self.cornerRadius = cornerRadius
+        self.collapsedTotalHeight = collapsedTotalHeight
         _isLiked      = State(initialValue: post.isLiked)
         _isSaved      = State(initialValue: post.isSaved)
         _likeCount    = State(initialValue: post.likeCount)
@@ -79,9 +95,11 @@ struct PostCard: View {
     private var mainCard: some View {
         VStack(alignment: .leading, spacing: 0) {
             postHeader
-            postBody
+                .readHeight { measuredHeaderHeight = $0 }
+            collapsibleBody
             Divider().padding(.horizontal, 12).padding(.top, 8)
             actionButtons
+                .readHeight { measuredActionsHeight = $0 }
         }
         .background(AppColors.surface(colorScheme))
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
@@ -218,6 +236,76 @@ struct PostCard: View {
                 EmptyView()
             }
         }
+    }
+
+    // MARK: Collapsible body (PostDetailView's 1/3-height preview)
+
+    /// Wraps `postBody` with the collapse/expand treatment when
+    /// `collapsedTotalHeight` is set; otherwise renders it untouched. The
+    /// header and action row are never part of the clipped region — only the
+    /// budget left over after their (measured) height is spent on content.
+    @ViewBuilder
+    private var collapsibleBody: some View {
+        if let totalBudget = collapsedTotalHeight {
+            // Small fixed allowance for the Divider + its padding (~9pt) —
+            // not worth measuring separately, it barely varies.
+            let contentBudget = max(80, totalBudget - measuredHeaderHeight - measuredActionsHeight - 9)
+            if isContentExpanded {
+                ZStack(alignment: .bottomTrailing) {
+                    ScrollView {
+                        postBody
+                    }
+                    // Generous but still bounded — even a very long post stays
+                    // scrollable within its own region instead of swallowing
+                    // the whole screen (and pushing the comments panel away,
+                    // which is exactly the problem this feature avoids).
+                    .frame(height: min(contentBudget * 2.6, 480))
+                    expandCollapseButton(systemImage: "chevron.up", label: "Collapse") {
+                        withAnimation(.easeInOut(duration: 0.22)) { isContentExpanded = false }
+                    }
+                }
+            } else {
+                ZStack(alignment: .bottomTrailing) {
+                    postBody
+                        .frame(height: contentBudget, alignment: .top)
+                        .clipped()
+                    // Fade so the hard clip at the bottom reads as "more below"
+                    // rather than content getting cut off unintentionally —
+                    // media (PostPhotoGrid tiles) already crop via
+                    // `scaledToFill()`, so this looks consistent for a photo/
+                    // video post too, not just truncated text.
+                    LinearGradient(
+                        colors: [AppColors.surface(colorScheme).opacity(0), AppColors.surface(colorScheme)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                    .frame(height: 44)
+                    .allowsHitTesting(false)
+                    expandCollapseButton(systemImage: "chevron.down", label: "Expand") {
+                        withAnimation(.easeInOut(duration: 0.22)) { isContentExpanded = true }
+                    }
+                }
+                .frame(height: contentBudget, alignment: .top)
+            }
+        } else {
+            postBody
+        }
+    }
+
+    private func expandCollapseButton(systemImage: String, label: LocalizedStringKey, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Text(label, bundle: bundle)
+                    .font(.system(size: 12, weight: .semibold))
+                Image(systemName: systemImage)
+                    .font(.system(size: 10, weight: .semibold))
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color.black.opacity(0.55), in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .padding(8)
     }
 
     // MARK: Report
@@ -631,5 +719,25 @@ struct PostCard: View {
             RoundedRectangle(cornerRadius: 10)
                 .stroke(AppColors.borderDefault(colorScheme), lineWidth: 1)
         )
+    }
+}
+
+// MARK: - Height measuring (feeds PostCard's collapsedTotalHeight budget)
+
+private struct HeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
+private extension View {
+    /// Reports this view's rendered height via `onChange` without affecting
+    /// its own layout (measured through a zero-size `.background`).
+    func readHeight(_ onChange: @escaping (CGFloat) -> Void) -> some View {
+        background(
+            GeometryReader { geo in
+                Color.clear.preference(key: HeightPreferenceKey.self, value: geo.size.height)
+            }
+        )
+        .onPreferenceChange(HeightPreferenceKey.self, perform: onChange)
     }
 }

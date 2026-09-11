@@ -57,6 +57,7 @@
 "Couldn't load results" = "Không tải được kết quả";
 "Couldn't tell which city \"%@\" is in — add a province to narrow it down." = "Không xác định được \"%@\" ở thành phố nào — thêm tên tỉnh/thành để tìm chuẩn hơn nhé!";
 "Couldn't pick out anything specific to search for — try naming an interest, skill, or place." = "Chưa rõ bạn muốn tìm gì cụ thể — thử nêu một sở thích, kỹ năng hoặc địa điểm nhé!";
+"Collapse" = "Thu gọn";
 "Come back when there are more communities" = "Hãy quay lại sau khi có thêm cộng đồng mới";
 "Comments" = "Bình luận";
 "Community" = "Cộng đồng";
@@ -111,6 +112,7 @@
 "Enter your display name and username" = "Điền tên hiển thị và username của bạn";
 "Error" = "Lỗi";
 "Event" = "Sự kiện";
+"Expand" = "Xem thêm";
 "Expand your professional network, find collaborators and career opportunities" = "Mở rộng mạng lưới chuyên nghiệp, tìm cộng tác viên và cơ hội nghề nghiệp";
 "Feature coming soon" = "Tính năng đang được phát triển";
 "Feed" = "Bảng tin";
