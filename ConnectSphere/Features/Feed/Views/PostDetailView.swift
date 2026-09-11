@@ -32,12 +32,6 @@ struct PostDetailView: View {
     @State private var commentVM = CommentViewModel()
     @State private var draft = ""
     @FocusState private var composerFocused: Bool
-    /// Guards the scroll-to-newest-comment logic below so it only fires for a
-    /// comment added *during* this screen's lifetime — without it, the count
-    /// going from 0 (initial state) to however-many-loaded on first appear
-    /// looks identical to "a comment was just added," auto-scrolling straight
-    /// to the bottom the instant the screen opens.
-    @State private var hasLoadedCommentsOnce = false
 
     private let repository = PostRepository()
 
@@ -51,30 +45,38 @@ struct PostDetailView: View {
         // the full quarter — PostCard only clips once content genuinely
         // overflows it — so the comments panel gets whatever's left over.
         GeometryReader { geo in
-            VStack(spacing: 0) {
-                // Pinned header — the post itself never scrolls away; only the
-                // comment list below it does. Square corners (cornerRadius: 0)
-                // so it reads as a panel at the top of the screen, not a
-                // floating card.
-                if let post {
-                    PostCard(
-                        post: post,
-                        onPostDeleted: { dismiss() },
-                        onPostUpdated: { self.post = $0 },
-                        cornerRadius: 0,
-                        collapsedTotalHeight: geo.size.height / 4,
-                        expandedTotalHeight: geo.size.height / 2
-                    )
-                    .padding(.top, 8)
+            // ScrollViewReader wraps the whole screen body (not just the
+            // ScrollView below) so the composer's Send button can also reach
+            // `proxy` — it needs to scroll to a just-sent comment directly,
+            // deterministically, rather than inferring "a comment was added"
+            // from a comments-count change (that approach raced against
+            // @Observable's deferred change notification and auto-scrolled
+            // on the initial load too; see PostCard/CommentSheet history).
+            ScrollViewReader { proxy in
+                VStack(spacing: 0) {
+                    // Pinned header — the post itself never scrolls away; only the
+                    // comment list below it does. Square corners (cornerRadius: 0)
+                    // so it reads as a panel at the top of the screen, not a
+                    // floating card.
+                    if let post {
+                        PostCard(
+                            post: post,
+                            onPostDeleted: { dismiss() },
+                            onPostUpdated: { self.post = $0 },
+                            cornerRadius: 0,
+                            collapsedTotalHeight: geo.size.height / 4,
+                            expandedTotalHeight: geo.size.height / 2
+                        )
+                        .padding(.top, 8)
 
-                    Divider().padding(.top, 4)
-                }
+                        Divider().padding(.top, 4)
+                    }
 
-                ScrollViewReader { proxy in
                     ScrollView {
-                        if post != nil {
+                        if let post {
                             CommentsSection(
                                 postId: postId,
+                                postAuthorId: post.author.id,
                                 viewModel: commentVM,
                                 toastPresenter: toastPresenter,
                                 onReplyRequested: { composerFocused = true }
@@ -92,17 +94,10 @@ struct PostDetailView: View {
                     // (possibly short) content height.
                     .background(AppColors.surface(colorScheme))
                     .task { await loadAll(proxy: proxy) }
-                    .onChange(of: commentVM.comments.count) { oldCount, newCount in
-                        // A comment you just added → nudge down to it. Gated on
-                        // `hasLoadedCommentsOnce` so the initial load (0 → N)
-                        // never triggers this — only a genuine addition after.
-                        guard hasLoadedCommentsOnce, newCount > oldCount, let last = commentVM.comments.last else { return }
-                        withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
-                    }
-                }
 
-                if post != nil {
-                    composerBar
+                    if post != nil {
+                        composerBar(proxy: proxy)
+                    }
                 }
             }
         }
@@ -120,7 +115,6 @@ struct PostDetailView: View {
             do { post = try await repository.fetchPost(id: postId) }
             catch { loadFailed = true; return }
             await commentVM.load(postId: postId)
-            hasLoadedCommentsOnce = true
         }
 
         if let target = scrollToCommentId {
@@ -135,7 +129,7 @@ struct PostDetailView: View {
 
     // MARK: - Composer
 
-    private var composerBar: some View {
+    private func composerBar(proxy: ScrollViewProxy) -> some View {
         VStack(spacing: 0) {
             Divider()
 
@@ -184,6 +178,12 @@ struct PostDetailView: View {
                             p.commentCount += 1
                             post = p
                             NotificationCenter.default.post(name: .postUpdated, object: nil, userInfo: ["post": p])
+                        }
+                        // Reveal the comment/reply just sent — triggered directly
+                        // here (not inferred from a comments-count change) so it
+                        // can't misfire on the initial load.
+                        if ok, let last = commentVM.comments.last {
+                            withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
                         }
                     }
                 } label: {

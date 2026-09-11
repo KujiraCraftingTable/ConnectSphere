@@ -130,7 +130,7 @@ struct PostCard: View {
         .inAppBrowser(url: $inAppBrowserURL)
         // Comment sheet
         .sheet(isPresented: $showComments) {
-            CommentSheet(postId: post.id) {
+            CommentSheet(postId: post.id, postAuthorId: post.author.id) {
                 commentCount += 1
                 onCommentAdded?()
             }
