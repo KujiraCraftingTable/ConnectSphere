@@ -7,7 +7,9 @@ class CommentViewModel {
     var comments: [CommentDTO] = []
     var isLoading  = false
     var isSending  = false
-    /// Root comment currently being replied to (nil = a plain comment)
+    /// Comment currently being replied to (nil = a plain comment) — can be a
+    /// root comment or a depth-1 reply (replies nest one level deeper: root →
+    /// reply → reply-to-reply, capped there).
     var replyingTo: CommentDTO? = nil
 
     private let repository = PostRepository()
@@ -211,7 +213,12 @@ struct CommentsSection: View {
                 isEditing: editingCommentId == reply.id,
                 editingText: $editingText,
                 onLike:   { Task { await viewModel.toggleLike(postId: postId, commentId: reply.id) } },
-                onReply:  nil,   // only one level of replies
+                onReply:  {
+                    // A reply to a reply nests one level deeper (staircase
+                    // indent below) — the backend caps depth at 2.
+                    viewModel.replyingTo = reply
+                    onReplyRequested()
+                },
                 onDelete: { pendingDeleteCommentId = reply.id },
                 onEdit: { beginEditing(reply) },
                 onSaveEdit: { Task { await saveEdit(commentId: reply.id) } },
@@ -219,6 +226,24 @@ struct CommentsSection: View {
             )
             .id(reply.id)
             .padding(.leading, 44)
+
+            ForEach(viewModel.replies(for: reply.id)) { subReply in
+                CommentRow(
+                    comment: subReply,
+                    isOwn: subReply.author.id == appState.currentUser?.id,
+                    isEditing: editingCommentId == subReply.id,
+                    editingText: $editingText,
+                    replyTarget: CommentReplyTarget(name: reply.author.displayName, userId: reply.author.id),
+                    onLike:   { Task { await viewModel.toggleLike(postId: postId, commentId: subReply.id) } },
+                    onReply:  nil,   // max depth reached — can't reply to a reply-of-a-reply
+                    onDelete: { pendingDeleteCommentId = subReply.id },
+                    onEdit: { beginEditing(subReply) },
+                    onSaveEdit: { Task { await saveEdit(commentId: subReply.id) } },
+                    onCancelEdit: { editingCommentId = nil }
+                )
+                .id(subReply.id)
+                .padding(.leading, 88)
+            }
         }
     }
 
@@ -238,7 +263,18 @@ struct CommentsSection: View {
 
 // MARK: - Comment Row
 
+/// The person a depth-2 reply is answering — a depth-1 comment can have
+/// several depth-2 replies, and the shared indent alone doesn't say which one
+/// they're addressing, so the row spells it out as "[replier] replied to
+/// [name]". Paired name+id (not a bare `String?`) so the attribution text and
+/// its `NavigationLink` destination can never drift apart.
+struct CommentReplyTarget {
+    let name: String
+    let userId: String
+}
+
 struct CommentRow: View {
+    @Environment(AppState.self) private var appState
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
     @Environment(\.colorScheme) var colorScheme
@@ -250,6 +286,10 @@ struct CommentRow: View {
     /// Shared editing-text binding, owned by the host — only meaningful while
     /// `isEditing` is true.
     var editingText: Binding<String> = .constant("")
+    /// Set only on a depth-2 reply (a reply to a reply) — renders "replied to
+    /// [name]" after this row's own name, both independently tappable to their
+    /// own profiles.
+    var replyTarget: CommentReplyTarget? = nil
     var onLike:   (() -> Void)? = nil
     var onReply:  (() -> Void)? = nil
     var onDelete: (() -> Void)? = nil
@@ -262,10 +302,26 @@ struct CommentRow: View {
             avatar
 
             VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(comment.author.displayName)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(AppColors.textPrimary(colorScheme))
+                HStack(spacing: 4) {
+                    NavigationLink(destination: UserProfileView(userId: comment.author.id).environment(appState)) {
+                        Text(comment.author.displayName)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(AppColors.textPrimary(colorScheme))
+                    }
+                    .buttonStyle(.plain)
+
+                    if let replyTarget {
+                        Text("replied to", bundle: bundle)
+                            .font(.system(size: 13))
+                            .foregroundColor(AppColors.textSecondary(colorScheme))
+                        NavigationLink(destination: UserProfileView(userId: replyTarget.userId).environment(appState)) {
+                            Text(replyTarget.name)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(AppColors.textPrimary(colorScheme))
+                        }
+                        .buttonStyle(.plain)
+                    }
+
                     Text(comment.createdAt.timeAgoString)
                         .font(.system(size: 12))
                         .foregroundColor(AppColors.textSecondary(colorScheme))
