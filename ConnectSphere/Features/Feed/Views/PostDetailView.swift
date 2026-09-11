@@ -37,18 +37,24 @@ struct PostDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Pinned header — the post itself never scrolls away; only the
+            // comment list below it does. Square corners (cornerRadius: 0) so
+            // it reads as a panel at the top of the screen, not a floating card.
+            if let post {
+                PostCard(
+                    post: post,
+                    onPostDeleted: { dismiss() },
+                    onPostUpdated: { self.post = $0 },
+                    cornerRadius: 0
+                )
+                .padding(.top, 8)
+
+                Divider().padding(.top, 4)
+            }
+
             ScrollViewReader { proxy in
                 ScrollView {
-                    if let post {
-                        PostCard(
-                            post: post,
-                            onPostDeleted: { dismiss() },
-                            onPostUpdated: { self.post = $0 }
-                        )
-                        .padding(.top, 8)
-
-                        Divider().padding(.top, 4)
-
+                    if post != nil {
                         CommentsSection(
                             postId: postId,
                             viewModel: commentVM,
@@ -61,6 +67,12 @@ struct PostDetailView: View {
                         ProgressView().padding(.top, 80)
                     }
                 }
+                // A ScrollView always fills its parent's full proposed height
+                // regardless of content size, so this background covers the
+                // whole comments panel edge-to-edge even with 0-1 comments —
+                // backgrounding CommentsSection itself would only paint its own
+                // (possibly short) content height.
+                .background(AppColors.surface(colorScheme))
                 .task { await loadAll(proxy: proxy) }
                 .onChange(of: commentVM.comments.count) { oldCount, newCount in
                     // A comment you just added → nudge down to it.
