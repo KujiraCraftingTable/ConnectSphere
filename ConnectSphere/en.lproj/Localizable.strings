@@ -57,6 +57,7 @@
 "Couldn't load results" = "Couldn't load results";
 "Couldn't tell which city \"%@\" is in — add a province to narrow it down." = "Couldn't tell which city \"%@\" is in — add a province to narrow it down.";
 "Couldn't pick out anything specific to search for — try naming an interest, skill, or place." = "Couldn't pick out anything specific to search for — try naming an interest, skill, or place.";
+"Collapse" = "Collapse";
 "Come back when there are more communities" = "Come back when there are more communities";
 "Comments" = "Comments";
 "Community" = "Community";
@@ -111,6 +112,7 @@
 "Enter your display name and username" = "Enter your display name and username";
 "Error" = "Error";
 "Event" = "Event";
+"Expand" = "Expand";
 "Expand your professional network, find collaborators and career opportunities" = "Expand your professional network, find collaborators and career opportunities";
 "Feature coming soon" = "Feature coming soon";
 "Feed" = "Feed";

@@ -36,53 +36,62 @@ struct PostDetailView: View {
     private let repository = PostRepository()
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Pinned header — the post itself never scrolls away; only the
-            // comment list below it does. Square corners (cornerRadius: 0) so
-            // it reads as a panel at the top of the screen, not a floating card.
-            if let post {
-                PostCard(
-                    post: post,
-                    onPostDeleted: { dismiss() },
-                    onPostUpdated: { self.post = $0 },
-                    cornerRadius: 0
-                )
-                .padding(.top, 8)
+        // GeometryReader gives us the screen's own available height so the
+        // pinned post can be capped at a third of it — without this, an
+        // unusually long post (long caption, several photos, an embedded
+        // share) would push the whole comments panel down/off-screen, since
+        // the post itself never scrolls away (see PostCard.collapsedTotalHeight).
+        GeometryReader { geo in
+            VStack(spacing: 0) {
+                // Pinned header — the post itself never scrolls away; only the
+                // comment list below it does. Square corners (cornerRadius: 0)
+                // so it reads as a panel at the top of the screen, not a
+                // floating card.
+                if let post {
+                    PostCard(
+                        post: post,
+                        onPostDeleted: { dismiss() },
+                        onPostUpdated: { self.post = $0 },
+                        cornerRadius: 0,
+                        collapsedTotalHeight: geo.size.height / 3
+                    )
+                    .padding(.top, 8)
 
-                Divider().padding(.top, 4)
-            }
+                    Divider().padding(.top, 4)
+                }
 
-            ScrollViewReader { proxy in
-                ScrollView {
-                    if post != nil {
-                        CommentsSection(
-                            postId: postId,
-                            viewModel: commentVM,
-                            toastPresenter: toastPresenter,
-                            onReplyRequested: { composerFocused = true }
-                        )
-                    } else if loadFailed {
-                        errorState
-                    } else {
-                        ProgressView().padding(.top, 80)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        if post != nil {
+                            CommentsSection(
+                                postId: postId,
+                                viewModel: commentVM,
+                                toastPresenter: toastPresenter,
+                                onReplyRequested: { composerFocused = true }
+                            )
+                        } else if loadFailed {
+                            errorState
+                        } else {
+                            ProgressView().padding(.top, 80)
+                        }
+                    }
+                    // A ScrollView always fills its parent's full proposed height
+                    // regardless of content size, so this background covers the
+                    // whole comments panel edge-to-edge even with 0-1 comments —
+                    // backgrounding CommentsSection itself would only paint its own
+                    // (possibly short) content height.
+                    .background(AppColors.surface(colorScheme))
+                    .task { await loadAll(proxy: proxy) }
+                    .onChange(of: commentVM.comments.count) { oldCount, newCount in
+                        // A comment you just added → nudge down to it.
+                        guard newCount > oldCount, let last = commentVM.comments.last else { return }
+                        withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
                     }
                 }
-                // A ScrollView always fills its parent's full proposed height
-                // regardless of content size, so this background covers the
-                // whole comments panel edge-to-edge even with 0-1 comments —
-                // backgrounding CommentsSection itself would only paint its own
-                // (possibly short) content height.
-                .background(AppColors.surface(colorScheme))
-                .task { await loadAll(proxy: proxy) }
-                .onChange(of: commentVM.comments.count) { oldCount, newCount in
-                    // A comment you just added → nudge down to it.
-                    guard newCount > oldCount, let last = commentVM.comments.last else { return }
-                    withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
-                }
-            }
 
-            if post != nil {
-                composerBar
+                if post != nil {
+                    composerBar
+                }
             }
         }
         .background(AppColors.base(colorScheme))
