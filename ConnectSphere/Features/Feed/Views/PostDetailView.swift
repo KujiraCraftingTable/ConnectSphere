@@ -37,10 +37,13 @@ struct PostDetailView: View {
 
     var body: some View {
         // GeometryReader gives us the screen's own available height so the
-        // pinned post can be capped at a third of it — without this, an
-        // unusually long post (long caption, several photos, an embedded
-        // share) would push the whole comments panel down/off-screen, since
-        // the post itself never scrolls away (see PostCard.collapsedTotalHeight).
+        // pinned post can be capped at a quarter of it (expanding to at most
+        // half) — without this, an unusually long post (long caption, several
+        // photos, an embedded share) would push the whole comments panel
+        // down/off-screen, since the post itself never scrolls away (see
+        // PostCard.collapsedTotalHeight). A short post never actually uses
+        // the full quarter — PostCard only clips once content genuinely
+        // overflows it — so the comments panel gets whatever's left over.
         GeometryReader { geo in
             VStack(spacing: 0) {
                 // Pinned header — the post itself never scrolls away; only the
@@ -53,7 +56,8 @@ struct PostDetailView: View {
                         onPostDeleted: { dismiss() },
                         onPostUpdated: { self.post = $0 },
                         cornerRadius: 0,
-                        collapsedTotalHeight: geo.size.height / 3
+                        collapsedTotalHeight: geo.size.height / 4,
+                        expandedTotalHeight: geo.size.height / 2
                     )
                     .padding(.top, 8)
 
