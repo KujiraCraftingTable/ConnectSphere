@@ -126,10 +126,19 @@ struct InteractionsController {
             throw InlineError(.notFound, "Post not found")
         }
         if let parentID = b.parent_comment_id {
+            // Replies nest two levels deep (root → reply → reply-to-reply):
+            // if the parent is itself a reply, its own parent must be a root,
+            // or this new comment would land at depth 3.
             struct P: Decodable { let id: String; let parent_comment_id: String? }
             guard let parent = try await db.raw("SELECT id, parent_comment_id FROM comments WHERE id = \(uuid: parentID) AND post_id = \(uuid: postID) AND status = 'posted'")
                 .first(decoding: P.self) else { throw InlineError(.notFound, "Parent comment not found") }
-            if parent.parent_comment_id != nil { throw InlineError(.badRequest, "Replies can only be one level deep") }
+            if let grandparentID = parent.parent_comment_id {
+                let grandparent = try await db.raw("SELECT id, parent_comment_id FROM comments WHERE id = \(uuid: grandparentID)")
+                    .first(decoding: P.self)
+                guard grandparent?.parent_comment_id == nil else {
+                    throw InlineError(.badRequest, "Replies can only be two levels deep")
+                }
+            }
         }
         struct C: Decodable { let id: String; let content: String?; let created_at: Date; let parent_comment_id: String?; let like_count: Int }
         var created: C!
@@ -173,7 +182,12 @@ struct InteractionsController {
         let db = req.db.sql()
         guard let meta = try await visibleMeta(postID, viewer: req.userID, db) else { throw InlineError(.notFound, "Post not found") }
         struct C: Decodable { let author_id: String }
-        guard let c = try await db.raw("SELECT author_id FROM comments WHERE id = \(uuid: commentID) AND post_id = \(uuid: postID) AND status = 'posted'")
+        // `::text` matters: a raw `uuid` column decodes to Swift's uppercase
+        // `UUID.uuidString` form, while `req.userID` is the lowercased JWT
+        // subject — without the cast this comparison (and edit's/restore's
+        // below) can never match, so delete/edit/restore silently 403 for
+        // everyone. Bug found and fixed alongside this batch's cascade change.
+        guard let c = try await db.raw("SELECT author_id::text AS author_id FROM comments WHERE id = \(uuid: commentID) AND post_id = \(uuid: postID) AND status = 'posted'")
             .first(decoding: C.self) else { throw InlineError(.notFound, "Comment not found") }
         guard c.author_id == req.userID || meta.authorID == req.userID else {
             throw InlineError(.forbidden, "Not allowed to delete this comment")
@@ -181,9 +195,17 @@ struct InteractionsController {
         var removed = 0
         try await req.db.tx { t in
             struct D: Decodable { let id: String }
+            // Cascade two levels: the comment itself, its direct replies, and
+            // (only relevant when commentID is a root) those replies' own
+            // replies — deleting a depth-1 reply already catches its depth-2
+            // children via the middle clause; this extra clause is what's
+            // needed for a root delete to also remove its grandchildren.
             let rows = try await t.raw("""
                 UPDATE comments SET status = 'deleted', deleted_at = NOW()
-                WHERE (id = \(uuid: commentID) OR parent_comment_id = \(uuid: commentID)) AND status = 'posted'
+                WHERE (id = \(uuid: commentID)
+                    OR parent_comment_id = \(uuid: commentID)
+                    OR parent_comment_id IN (SELECT id FROM comments WHERE parent_comment_id = \(uuid: commentID))
+                ) AND status = 'posted'
                 RETURNING id
                 """).all(decoding: D.self)
             removed = rows.count
@@ -201,7 +223,7 @@ struct InteractionsController {
         }
         guard let meta = try await visibleMeta(postID, viewer: req.userID, db) else { throw InlineError(.notFound, "Post not found") }
         struct C: Decodable { let author_id: String }
-        guard let c = try await db.raw("SELECT author_id FROM comments WHERE id = \(uuid: commentID) AND post_id = \(uuid: postID) AND status = 'posted'")
+        guard let c = try await db.raw("SELECT author_id::text AS author_id FROM comments WHERE id = \(uuid: commentID) AND post_id = \(uuid: postID) AND status = 'posted'")
             .first(decoding: C.self) else { throw InlineError(.notFound, "Comment not found") }
         guard c.author_id == req.userID else { throw InlineError(.forbidden, "Not allowed to edit this comment") }
         struct U: Decodable { let id: String; let content: String?; let created_at: Date; let parent_comment_id: String?; let like_count: Int }
@@ -222,7 +244,7 @@ struct InteractionsController {
         let db = req.db.sql()
         guard let meta = try await visibleMeta(postID, viewer: req.userID, db) else { throw InlineError(.notFound, "Post not found") }
         struct C: Decodable { let author_id: String }
-        guard let c = try await db.raw("SELECT author_id FROM comments WHERE id = \(uuid: commentID) AND post_id = \(uuid: postID) AND status = 'deleted'")
+        guard let c = try await db.raw("SELECT author_id::text AS author_id FROM comments WHERE id = \(uuid: commentID) AND post_id = \(uuid: postID) AND status = 'deleted'")
             .first(decoding: C.self) else { throw InlineError(.notFound, "Comment not found or not deleted") }
         guard c.author_id == req.userID else { throw InlineError(.forbidden, "Not allowed to restore this comment") }
         struct R: Decodable { let id: String; let content: String?; let created_at: Date; let parent_comment_id: String?; let like_count: Int }
