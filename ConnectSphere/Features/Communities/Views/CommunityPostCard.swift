@@ -182,7 +182,7 @@ struct CommunityPostCard: View {
             )
         }
         .sheet(isPresented: $showCommentSheet) {
-            CommentSheet(postId: post.id) {
+            CommentSheet(postId: post.id, postAuthorId: post.author.id) {
                 commentCount += 1
             }
             .environment(appState)

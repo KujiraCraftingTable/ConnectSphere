@@ -133,6 +133,9 @@ struct CommentsSection: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let postId: String
+    /// The post's own author — compared against each comment's author to show
+    /// the "Author" badge on their comments/replies.
+    let postAuthorId: String
     let viewModel: CommentViewModel
     let toastPresenter: UndoToastPresenter
     /// Called after `viewModel.replyingTo` is set, so the host can focus its composer.
@@ -196,7 +199,6 @@ struct CommentsSection: View {
 
     private var sortControl: some View {
         HStack {
-            Spacer()
             Menu {
                 ForEach(CommentSortOrder.allCases) { order in
                     Button {
@@ -215,9 +217,10 @@ struct CommentsSection: View {
                     Image(systemName: "chevron.down")
                         .font(.system(size: 10, weight: .semibold))
                 }
-                .font(.system(size: 13, weight: .medium))
+                .font(.system(size: 13, weight: .bold))
                 .foregroundColor(AppColors.textSecondary(colorScheme))
             }
+            Spacer()
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 6)
@@ -251,6 +254,7 @@ struct CommentsSection: View {
         CommentRow(
             comment: comment,
             isOwn: comment.author.id == appState.currentUser?.id,
+            isPostAuthor: comment.author.id == postAuthorId,
             isEditing: editingCommentId == comment.id,
             editingText: $editingText,
             onLike:   { Task { await viewModel.toggleLike(postId: postId, commentId: comment.id) } },
@@ -269,6 +273,7 @@ struct CommentsSection: View {
             CommentRow(
                 comment: reply,
                 isOwn: reply.author.id == appState.currentUser?.id,
+                isPostAuthor: reply.author.id == postAuthorId,
                 isEditing: editingCommentId == reply.id,
                 editingText: $editingText,
                 onLike:   { Task { await viewModel.toggleLike(postId: postId, commentId: reply.id) } },
@@ -290,6 +295,7 @@ struct CommentsSection: View {
                 CommentRow(
                     comment: subReply,
                     isOwn: subReply.author.id == appState.currentUser?.id,
+                    isPostAuthor: subReply.author.id == postAuthorId,
                     isEditing: editingCommentId == subReply.id,
                     editingText: $editingText,
                     replyTarget: CommentReplyTarget(name: reply.author.displayName, userId: reply.author.id),
@@ -340,6 +346,10 @@ struct CommentRow: View {
 
     let comment: CommentDTO
     var isOwn: Bool = false
+    /// True when this comment/reply was written by the post's own author —
+    /// shows a small "Author" badge to the left of the timestamp, so other
+    /// readers can quickly spot the poster's own comments.
+    var isPostAuthor: Bool = false
     /// True while this specific row is the one being edited inline.
     var isEditing: Bool = false
     /// Shared editing-text binding, owned by the host — only meaningful while
@@ -379,6 +389,16 @@ struct CommentRow: View {
                                 .foregroundColor(AppColors.textPrimary(colorScheme))
                         }
                         .buttonStyle(.plain)
+                    }
+
+                    if isPostAuthor {
+                        Text("Author", bundle: bundle)
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(themeManager.theme.primary)
+                            .clipShape(Capsule())
                     }
 
                     Text(comment.createdAt.timeAgoString)
