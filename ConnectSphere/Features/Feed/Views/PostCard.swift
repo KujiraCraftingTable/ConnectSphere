@@ -257,14 +257,25 @@ struct PostCard: View {
 
     // MARK: Collapsible body (PostDetailView's 1/4-height preview)
 
+    /// A post with a link preview or uploaded photos/videos was already
+    /// fully visible on the feed card that led here — always start it
+    /// collapsed in `PostDetailView` (Expand still available) so the
+    /// comments panel gets the space back by default, regardless of whether
+    /// the media would technically fit the budget. Text-only posts are
+    /// unaffected — they keep sizing to their natural height.
+    private var hasMediaOrLinkContent: Bool {
+        post.linkUrl != nil || !post.displayImageUrls.isEmpty
+    }
+
     /// Wraps `postBody` with the collapse/expand treatment when
     /// `collapsedTotalHeight` is set; otherwise renders it untouched. The
     /// header and action row are never part of the clipped region — only the
     /// budget left over after their (measured) height is spent on content.
     /// A live (not one-way-locked) comparison: a post whose content already
     /// fits the budget is never stretched or clipped, and never shows the
-    /// Expand button — only a post that genuinely overflows gets the clip +
-    /// fade + button treatment.
+    /// Expand button — only a post that genuinely overflows (or has media/a
+    /// link, see `hasMediaOrLinkContent`) gets the clip + fade + button
+    /// treatment.
     @ViewBuilder
     private var collapsibleBody: some View {
         if let totalBudget = collapsedTotalHeight {
@@ -273,8 +284,9 @@ struct PostCard: View {
             let contentBudget = max(80, totalBudget - measuredHeaderHeight - measuredActionsHeight - 9)
             // nil = not measured yet → treat as "fits" so the very first
             // render never shows a spurious clip/Expand button before any
-            // real measurement lands.
-            let fits = measuredContentHeight.map { $0 <= contentBudget } ?? true
+            // real measurement lands. A post with media/a link is always
+            // forced to the collapsed branch regardless of measured height.
+            let fits = !hasMediaOrLinkContent && (measuredContentHeight.map { $0 <= contentBudget } ?? true)
 
             if isContentExpanded {
                 let expandedBudget = max(
