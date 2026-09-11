@@ -1,6 +1,17 @@
 import SwiftUI
 import Observation
 
+/// How root comments are ordered. Only affects top-level comments — each
+/// root's own replies always stay chronological underneath it, same as a
+/// real conversation thread. A third `.mostRelated` case (relevance-ranked)
+/// is a natural later addition — deliberately not built yet, since defining
+/// and testing "relevance" well is its own piece of work.
+enum CommentSortOrder: String, CaseIterable, Identifiable {
+    case oldest
+    case newest
+    var id: String { rawValue }
+}
+
 @MainActor
 @Observable
 class CommentViewModel {
@@ -11,6 +22,9 @@ class CommentViewModel {
     /// root comment or a depth-1 reply (replies nest one level deeper: root →
     /// reply → reply-to-reply, capped there).
     var replyingTo: CommentDTO? = nil
+    /// How `parents` orders root comments. Purely a display concern — doesn't
+    /// change what's fetched, so switching it never needs a reload.
+    var sortOrder: CommentSortOrder = .oldest
 
     private let repository = PostRepository()
 
@@ -18,9 +32,13 @@ class CommentViewModel {
         KeychainHelper.load(forKey: KeychainHelper.tokenKey)
     }
 
-    /// Root comments, in chronological order
+    /// Root comments, ordered per `sortOrder`.
     var parents: [CommentDTO] {
-        comments.filter { $0.parentCommentId == nil }
+        let roots = comments.filter { $0.parentCommentId == nil }
+        switch sortOrder {
+        case .oldest: return roots.sorted { $0.createdAt < $1.createdAt }
+        case .newest: return roots.sorted { $0.createdAt > $1.createdAt }
+        }
     }
 
     /// Replies to a given root comment
@@ -143,10 +161,13 @@ struct CommentsSection: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 40)
             } else {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(viewModel.parents) { comment in
-                        commentBlock(comment)
-                        Divider().padding(.leading, 56)
+                VStack(alignment: .leading, spacing: 0) {
+                    sortControl
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(viewModel.parents) { comment in
+                            commentBlock(comment)
+                            Divider().padding(.leading, 56)
+                        }
                     }
                 }
                 .padding(.top, 8)
@@ -168,6 +189,44 @@ struct CommentsSection: View {
             Button(bundle.loc("Cancel"), role: .cancel) {}
         } message: {
             Text("This comment won't be shown in the app. You can restore it from Recently Deleted within 30 days.", bundle: bundle)
+        }
+    }
+
+    // MARK: - Sort control
+
+    private var sortControl: some View {
+        HStack {
+            Spacer()
+            Menu {
+                ForEach(CommentSortOrder.allCases) { order in
+                    Button {
+                        viewModel.sortOrder = order
+                    } label: {
+                        if viewModel.sortOrder == order {
+                            Label(sortOrderLabel(order), systemImage: "checkmark")
+                        } else {
+                            Text(sortOrderLabel(order))
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(sortOrderLabel(viewModel.sortOrder))
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.bottom, 6)
+    }
+
+    private func sortOrderLabel(_ order: CommentSortOrder) -> String {
+        switch order {
+        case .oldest: return bundle.loc("Oldest first")
+        case .newest: return bundle.loc("Newest first")
         }
     }
 
