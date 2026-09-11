@@ -41,13 +41,20 @@ struct PostCard: View {
     /// panel pinned at the top of the screen rather than a floating card.
     var cornerRadius: CGFloat = 12
     /// When set, the whole card (header + content + action row) is capped at
-    /// first render to at most this total height — the header and action row
-    /// always render in full; only the content region (text/tags/media/poll/
-    /// event) clips to fill what's left, with an "Expand" button overlaid at
-    /// its bottom-right. Tapping it (or the "Collapse" button that replaces it
-    /// once expanded) toggles a bounded, scrollable full view on/off. `nil`
+    /// most to this total height *only while its content actually needs more
+    /// room than that* — the header and action row always render in full;
+    /// the content region (text/tags/media/poll/event) renders at its true
+    /// natural height when that already fits the budget (a short post is
+    /// never stretched to fill it), and only clips — with an "Expand" button
+    /// overlaid at its bottom-right — once it genuinely overflows. Tapping it
+    /// (or the "Collapse" button that replaces it once expanded) toggles a
+    /// bounded, scrollable full view capped at `expandedTotalHeight`. `nil`
     /// (every host except `PostDetailView`) = always full height, no clipping.
     var collapsedTotalHeight: CGFloat? = nil
+    /// Total on-screen height cap for the expanded state (same "whole card"
+    /// budget `collapsedTotalHeight` is), used only once `isContentExpanded`.
+    /// `nil` falls back to `collapsedTotalHeight * 2`.
+    var expandedTotalHeight: CGFloat? = nil
 
     @State private var shakeAmount: CGFloat = 0
     @State private var isContentExpanded = false
@@ -56,6 +63,12 @@ struct PostCard: View {
     // content and then visibly snap down a frame later.
     @State private var measuredHeaderHeight: CGFloat = 64
     @State private var measuredActionsHeight: CGFloat = 54
+    /// The content region's true natural height, kept live via `readHeight`
+    /// while it fits the budget; `nil` until first measured.
+    @State private var measuredContentHeight: CGFloat? = nil
+    /// Drives the in-app browser (see `openLink(_:)`) for a tapped http(s)
+    /// link — the link-preview card or an in-text URL.
+    @State private var inAppBrowserURL: URL?
     private let repository = PostRepository()
 
     init(
@@ -67,7 +80,8 @@ struct PostCard: View {
         onPostUpdated: ((Post) -> Void)? = nil,
         onOpenDetail: ((_ focusComposer: Bool) -> Void)? = nil,
         cornerRadius: CGFloat = 12,
-        collapsedTotalHeight: CGFloat? = nil
+        collapsedTotalHeight: CGFloat? = nil,
+        expandedTotalHeight: CGFloat? = nil
     ) {
         self.post = post
         self.disableSelfNavigation = disableSelfNavigation
@@ -78,6 +92,7 @@ struct PostCard: View {
         self.onOpenDetail = onOpenDetail
         self.cornerRadius = cornerRadius
         self.collapsedTotalHeight = collapsedTotalHeight
+        self.expandedTotalHeight = expandedTotalHeight
         _isLiked      = State(initialValue: post.isLiked)
         _isSaved      = State(initialValue: post.isSaved)
         _likeCount    = State(initialValue: post.likeCount)
@@ -111,6 +126,8 @@ struct PostCard: View {
         // its own tap over this parent gesture, so nothing here regresses.
         .contentShape(Rectangle())
         .onTapGesture { onOpenDetail?(false) }
+        // In-app browser for tapped links (link-preview card, in-text URLs)
+        .inAppBrowser(url: $inAppBrowserURL)
         // Comment sheet
         .sheet(isPresented: $showComments) {
             CommentSheet(postId: post.id) {
@@ -179,7 +196,7 @@ struct PostCard: View {
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .tint(themeManager.theme.primary)
                     .environment(\.openURL, OpenURLAction { url in
-                        openURL(url); return .handled
+                        openLink(url); return .handled
                     })
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 12)
@@ -238,19 +255,32 @@ struct PostCard: View {
         }
     }
 
-    // MARK: Collapsible body (PostDetailView's 1/3-height preview)
+    // MARK: Collapsible body (PostDetailView's 1/4-height preview)
 
     /// Wraps `postBody` with the collapse/expand treatment when
     /// `collapsedTotalHeight` is set; otherwise renders it untouched. The
     /// header and action row are never part of the clipped region — only the
     /// budget left over after their (measured) height is spent on content.
+    /// A live (not one-way-locked) comparison: a post whose content already
+    /// fits the budget is never stretched or clipped, and never shows the
+    /// Expand button — only a post that genuinely overflows gets the clip +
+    /// fade + button treatment.
     @ViewBuilder
     private var collapsibleBody: some View {
         if let totalBudget = collapsedTotalHeight {
             // Small fixed allowance for the Divider + its padding (~9pt) —
             // not worth measuring separately, it barely varies.
             let contentBudget = max(80, totalBudget - measuredHeaderHeight - measuredActionsHeight - 9)
+            // nil = not measured yet → treat as "fits" so the very first
+            // render never shows a spurious clip/Expand button before any
+            // real measurement lands.
+            let fits = measuredContentHeight.map { $0 <= contentBudget } ?? true
+
             if isContentExpanded {
+                let expandedBudget = max(
+                    contentBudget,
+                    (expandedTotalHeight ?? totalBudget * 2) - measuredHeaderHeight - measuredActionsHeight - 9
+                )
                 ZStack(alignment: .bottomTrailing) {
                     ScrollView {
                         postBody
@@ -259,11 +289,19 @@ struct PostCard: View {
                     // scrollable within its own region instead of swallowing
                     // the whole screen (and pushing the comments panel away,
                     // which is exactly the problem this feature avoids).
-                    .frame(height: min(contentBudget * 2.6, 480))
+                    .frame(height: min(expandedBudget, 480))
                     expandCollapseButton(systemImage: "chevron.up", label: "Collapse") {
                         withAnimation(.easeInOut(duration: 0.22)) { isContentExpanded = false }
                     }
                 }
+            } else if fits {
+                // Content already fits the budget on its own — render it at
+                // its true natural height (no frame, no clip, no button).
+                // `readHeight` stays attached here (not in the `else` branch
+                // below) so a post that grows past the budget — or is still
+                // mid-measurement — keeps getting re-checked on every render.
+                postBody
+                    .readHeight { measuredContentHeight = $0 }
             } else {
                 ZStack(alignment: .bottomTrailing) {
                     postBody
@@ -412,10 +450,23 @@ struct PostCard: View {
         return result
     }
 
+    // MARK: Links
+
+    /// http(s) → the in-app browser (matches Facebook/X/Instagram); anything
+    /// else (`mailto:`, `tel:`, a custom app scheme) → the system opener,
+    /// since `SFSafariViewController` can't handle those.
+    private func openLink(_ url: URL) {
+        if let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
+            inAppBrowserURL = url
+        } else {
+            openURL(url)
+        }
+    }
+
     // MARK: Link Preview Card
 
     private func linkPreviewCard(url: URL) -> some View {
-        Button { openURL(url) } label: {
+        Button { openLink(url) } label: {
             VStack(spacing: 0) {
                 // Thumbnail
                 if let imageUrl = post.imageUrl.flatMap({ URL(string: $0) }) {
