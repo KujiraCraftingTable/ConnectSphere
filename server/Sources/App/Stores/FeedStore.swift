@@ -94,8 +94,12 @@ enum FeedStore {
         var relaxed = decoded?.relaxed == true
 
         func run() async throws -> [FeedRow] {
+            // COALESCE to 0 (not left NULL) for a post with no chunk yet — a
+            // bare NULL would poison the whole weighted `score` sum below via
+            // SQL's NULL-propagation, silently dropping the post from ranking
+            // entirely rather than just scoring its semantic term as "unknown".
             let semanticExpr: SQLQueryString = hasTaste
-                ? "(1 - (c.embedding <=> \(bind: toVectorLiteral(taste!))::vector))::float"
+                ? "COALESCE((1 - (c.embedding <=> \(bind: toVectorLiteral(taste!))::vector))::float, 0)"
                 : "0::float"
             var q: SQLQueryString = """
             WITH scored AS (
@@ -121,11 +125,19 @@ enum FeedStore {
                   'avatar_color', u.avatar_color, 'avatar_url', \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: "p.mode")),
                   'job_title', u.job_title, 'company', u.company)::text AS author,
                 COALESCE(json_agg(DISTINCT pt.tag) FILTER (WHERE pt.tag IS NOT NULL), '[]')::text AS tags
-              FROM user_embedding_chunks c
-              JOIN posts p ON p.id = c.source_id
+              FROM posts p
               JOIN users u ON u.id = p.author_id
+              -- LEFT (not INNER) join: a post with no embedding chunk yet —
+              -- because its async embed job hasn't run, is still queued, or
+              -- Ollama was unavailable when it tried — must still be a feed
+              -- candidate, just with no semantic signal (see semanticExpr
+              -- above), not silently erased from the feed until it's embedded.
+              -- `c.source_type = 'post'` has to live in this ON clause, not
+              -- WHERE below — WHERE would drop every unmatched (NULL) row and
+              -- turn this back into an INNER JOIN in all but name.
+              LEFT JOIN user_embedding_chunks c ON c.source_id = p.id AND c.source_type = 'post'
               LEFT JOIN post_tags pt ON pt.post_id = p.id
-              WHERE c.source_type = 'post' AND p.mode = \(bind: mode) AND p.status = 'posted'
+              WHERE p.mode = \(bind: mode) AND p.status = 'posted'
                 AND p.community_id IS NULL AND p.author_id <> \(uuid: userID)
                 AND NOT EXISTS (SELECT 1 FROM user_blocks ub
                   WHERE (ub.blocker_id = \(uuid: userID) AND ub.blocked_id = p.author_id)
@@ -142,6 +154,16 @@ enum FeedStore {
                 + CASE WHEN is_connection THEN \(unsafeRaw: String(connectionBoost)) ELSE 0 END)::float AS score
               FROM scored WHERE
             """
+            // Deliberately NOT bypassing this gate for chunk-less posts (e.g.
+            // "is_connection OR c.id IS NULL OR ..."): a handful of unscored
+            // posts squeaking through here would make `rows` non-empty below,
+            // which would suppress the `relaxed` retry for a viewer with a
+            // taste vector but zero genuinely strong matches — trading a
+            // small, correct fallback (relaxed → the full pool, ranked
+            // recency/engagement-only) for a much worse one (just those few
+            // stray unscored posts). Unscored posts still surface via that
+            // same relaxed path once matches run out; they just don't skip
+            // the relevance bar in the confident, non-relaxed pass.
             q = q + ((hasTaste && !relaxed) ? " (is_connection OR semantic >= \(unsafeRaw: String(discoveryThreshold)))" : " TRUE")
             q = q + " ) SELECT * FROM ranked WHERE 1 = 1"
             if let d = decoded {
