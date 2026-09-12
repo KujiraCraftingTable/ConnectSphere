@@ -10,10 +10,13 @@ enum FeedStore {
     static let recencyTauHours = 72.0, engagementCap = 500.0
     static let wProfile = 0.6, wBehavior = 0.4, recentLikes = 20
 
-    struct Cursor: Codable { var score: Double; var id: String; var relaxed: Bool? }
+    /// `asOf` pins the "now" used for every page's `recency` computation to
+    /// whenever the *first* page of a pagination sequence was fetched — see
+    /// `getRecommendedFeed`'s use of it below for why.
+    struct Cursor: Codable { var score: Double; var id: String; var relaxed: Bool?; var asOf: Date }
 
-    static func encodeCursor(_ score: Double, _ id: String, relaxed: Bool) -> String {
-        let c = relaxed ? Cursor(score: score, id: id, relaxed: true) : Cursor(score: score, id: id, relaxed: nil)
+    static func encodeCursor(_ score: Double, _ id: String, relaxed: Bool, asOf: Date) -> String {
+        let c = Cursor(score: score, id: id, relaxed: relaxed ? true : nil, asOf: asOf)
         return (try? JSONEncoder().encode(c)).map { Data($0).base64EncodedString() } ?? ""
     }
     static func decodeCursor(_ s: String) -> Cursor? {
@@ -92,6 +95,18 @@ enum FeedStore {
         let hasTaste = taste != nil
         let decoded = cursor.flatMap(decodeCursor)
         var relaxed = decoded?.relaxed == true
+        // Pin "now" for the whole pagination sequence, not a fresh `NOW()`
+        // per page: `recency` (and therefore `score`) is a continuously
+        // time-decaying value, and two different posts decay at different
+        // absolute rates (a newer, higher-recency post's score falls faster
+        // in absolute terms than an older one's, even at the same tau) — so
+        // recomputing against a fresh clock on every request lets a post
+        // that was correctly ranked just above the keyset cursor boundary
+        // drift to just below it moments later, and get returned again on a
+        // later page. Freezing the reference instant at the first page and
+        // carrying it through the cursor makes every page's ranking (and the
+        // keyset comparison against it) self-consistent.
+        let asOf = decoded?.asOf ?? Date()
 
         func run() async throws -> [FeedRow] {
             // COALESCE to 0 (not left NULL) for a post with no chunk yet — a
@@ -110,7 +125,7 @@ enum FeedStore {
                   AND ((co.requester_id = p.author_id AND co.addressee_id = \(uuid: userID))
                     OR (co.addressee_id = p.author_id AND co.requester_id = \(uuid: userID)))) AS is_connection,
                 \(semanticExpr) AS semantic,
-                EXP(- (EXTRACT(EPOCH FROM (NOW() - p.created_at)) / 3600.0) / \(unsafeRaw: String(recencyTauHours)))::float AS recency,
+                EXP(- (EXTRACT(EPOCH FROM (\(bind: asOf) - p.created_at)) / 3600.0) / \(unsafeRaw: String(recencyTauHours)))::float AS recency,
                 LEAST(1, LN(1 + p.like_count + 2 * p.comment_count) / LN(1 + \(unsafeRaw: String(Int(engagementCap)))))::float AS engagement,
                 (CASE WHEN p.shared_post_id IS NOT NULL THEN (
                   SELECT json_build_object('id', sp.id, 'content', sp.content, 'image_url', sp.image_urls[1], 'image_urls', sp.image_urls,
@@ -167,16 +182,40 @@ enum FeedStore {
             q = q + ((hasTaste && !relaxed) ? " (is_connection OR semantic >= \(unsafeRaw: String(discoveryThreshold)))" : " TRUE")
             q = q + " ) SELECT * FROM ranked WHERE 1 = 1"
             if let d = decoded {
-                q = q + " AND (score < \(bind: d.score) OR (score = \(bind: d.score) AND id < \(uuid: d.id)))"
+                // `id` here is `p.id::text` (see the SELECT above), not a raw
+                // uuid column — binding this as `\(uuid:)` sends a `::uuid`
+                // typed parameter against a `text` value, which Postgres
+                // rejects outright ("operator does not exist: text < uuid").
+                // That made every second-page request of this feed 500,
+                // silently swallowed by the client's "scrolling further will
+                // retry" catch — i.e. pagination has never actually worked
+                // past page 1. Plain `\(bind:)` matches the column's real type.
+                q = q + " AND (score < \(bind: d.score) OR (score = \(bind: d.score) AND id < \(bind: d.id)))"
             }
             q = q + " ORDER BY score DESC, id DESC LIMIT \(bind: limit + 1)"
             return try await db.raw(q).all(decoding: FeedRow.self)
         }
 
         var rows = try await run()
-        if rows.isEmpty && hasTaste && !relaxed && decoded == nil {
+        // Widen to the relaxed (no-relevance-floor) pool whenever the strict,
+        // personalized pass didn't fill a whole page — not just when the
+        // very first page came back completely empty. A viewer can easily
+        // have a handful of connection/high-similarity posts (page 1 isn't
+        // empty, so the old check never fired) and then run out of them a
+        // page or two later, at which point pagination would previously just
+        // stop cold even though plenty of less-personally-relevant posts
+        // remain. Merge rather than replace, since the strict rows are still
+        // valid and already the most relevant — just top the page up with
+        // whatever the relaxed pass finds that the strict pass didn't
+        // already return, then re-rank the combined set by the same score so
+        // ordering stays consistent either way.
+        if hasTaste && !relaxed && rows.count <= limit {
             relaxed = true
-            rows = try await run()
+            let relaxedRows = try await run()
+            let seen = Set(rows.map(\.id))
+            rows = Array((rows + relaxedRows.filter { !seen.contains($0.id) })
+                .sorted { $0.score != $1.score ? $0.score > $1.score : $0.id > $1.id }
+                .prefix(limit + 1))
         }
         let hasMore = rows.count > limit
         let page = hasMore ? Array(rows.prefix(limit)) : rows
@@ -194,7 +233,7 @@ enum FeedStore {
                 tags: (try? dec.decode([String].self, from: Data(r.tags.utf8))) ?? [],
                 score: r.score)
         }
-        let next = hasMore ? encodeCursor(page.last!.score, page.last!.id, relaxed: relaxed) : nil
+        let next = hasMore ? encodeCursor(page.last!.score, page.last!.id, relaxed: relaxed, asOf: asOf) : nil
         return (posts, next)
     }
 }
