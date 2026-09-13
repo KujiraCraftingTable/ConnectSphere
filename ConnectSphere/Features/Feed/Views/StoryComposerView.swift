@@ -494,7 +494,16 @@ struct StoryComposerView: View {
     /// of earlier ones.
     private func addTextLayer() {
         var layer = TextLayerState()
-        layer.position = CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2 + CGFloat(textLayers.count) * 40)
+        // Spawn well within the region still visible above the `.medium`
+        // text-editor sheet (which covers roughly the bottom half of the
+        // screen) so the user can actually see what they're typing/styling
+        // as they do it. The previous version accumulated +40pt of Y per
+        // existing layer, which could push a 3rd/4th text down behind the
+        // sheet entirely — a small horizontal-only stagger still keeps
+        // several never-yet-repositioned texts from landing in the exact
+        // same spot, without risking that.
+        let stagger = CGFloat(textLayers.count % 4) * 24 - 36
+        layer.position = CGPoint(x: canvasSize.width / 2 + stagger, y: canvasSize.height * 0.22)
         textLayers.append(layer)
         editingTextLayerID = layer.id
         showTextEditor = true
