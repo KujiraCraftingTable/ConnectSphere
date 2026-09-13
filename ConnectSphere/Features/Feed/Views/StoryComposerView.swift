@@ -5,7 +5,7 @@ import PhotosUI
 /// tap. Up to 4 photos arranged in a collage, each independently
 /// pinch-to-zoom + drag-to-pan; every photo count (1-4) offers 2 alternate
 /// layout templates, picked via `layoutPicker`'s swatches (see
-/// `frameRects(count:variant:in:)` for exactly what each looks like). Any
+/// `frameRects(count:variant:ratios:in:)` for exactly what each looks like). Any
 /// number of styled text overlays can be added (drag to reposition, pinch to
 /// resize, drag to the bottom trash zone to delete).
 ///
@@ -27,6 +27,13 @@ struct StoryComposerView: View {
     /// Which of the 2 layout templates for the current photo count is
     /// active — reset to `.a` whenever a fresh set of photos is picked.
     @State private var layoutVariant: LayoutVariant = .a
+    /// Adjustable divider positions, as a fraction (0...1) of the canvas
+    /// width/height — which slot means what depends on the current
+    /// (frames.count, layoutVariant) shape, see `frameRects`/`dividers`.
+    /// Reset to even whenever a fresh set of photos is picked or the
+    /// layout variant changes (a different shape's dividers mean something
+    /// different, so a carried-over value would be meaningless).
+    @State private var ratios: [CGFloat] = [0.5, 0.5]
     @State private var textLayers: [TextLayerState] = []
     /// Which layer the text-editor sheet is currently editing — always the
     /// one "Aa" just created; the sheet never re-opens an existing layer.
@@ -171,7 +178,7 @@ struct StoryComposerView: View {
 
     private func layoutSwatch(_ variant: LayoutVariant) -> some View {
         let previewSize = CGSize(width: 36, height: 64)
-        let rects = Self.frameRects(count: frames.count, variant: variant, in: previewSize)
+        let rects = Self.frameRects(count: frames.count, variant: variant, ratios: [0.5, 0.5], in: previewSize)
         let isSelected = layoutVariant == variant
         return ZStack {
             ForEach(rects.indices, id: \.self) { i in
@@ -190,18 +197,21 @@ struct StoryComposerView: View {
             RoundedRectangle(cornerRadius: 6)
                 .stroke(isSelected ? themeManager.theme.primary : Color.clear, lineWidth: 2)
         )
-        .onTapGesture { layoutVariant = variant }
+        .onTapGesture {
+            layoutVariant = variant
+            ratios = [0.5, 0.5]
+        }
     }
 
     /// The pure visual content — collage frames + text overlay, nothing
     /// else. This is exactly what gets flattened into the posted image (see
     /// `post()`), so it must never contain editing-only chrome.
     private var composedContent: some View {
-        let rects = Self.frameRects(count: frames.count, variant: layoutVariant, in: canvasSize)
+        let rects = Self.frameRects(count: frames.count, variant: layoutVariant, ratios: ratios, in: canvasSize)
         return ZStack {
             Color.black
             ForEach(frames.indices, id: \.self) { i in
-                EditableFrame(frame: $frames[i], rect: rects[i])
+                EditableFrame(frame: $frames[i], rect: rects[i], onDoubleTap: { replacingFrameIndex = i })
                     .overlay(Rectangle().stroke(Color.black, lineWidth: 1.5))
             }
             ForEach(textLayers.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) { layer in
@@ -220,7 +230,7 @@ struct StoryComposerView: View {
     /// layered on top rather than baked into `composedContent`, since that's
     /// the exact view `post()` renders to produce the uploaded image.
     private var canvas: some View {
-        let rects = Self.frameRects(count: frames.count, variant: layoutVariant, in: canvasSize)
+        let rects = Self.frameRects(count: frames.count, variant: layoutVariant, ratios: ratios, in: canvasSize)
         return ZStack {
             composedContent
             ForEach(frames.indices, id: \.self) { i in
@@ -234,6 +244,15 @@ struct StoryComposerView: View {
                         .background(Color.black.opacity(0.45), in: Circle())
                 }
                 .position(x: rects[i].minX + 22, y: rects[i].minY + 22)
+            }
+            // Draggable lines between frames — pure editing chrome, kept out
+            // of `composedContent` like everything else on this layer.
+            ForEach(Self.dividers(count: frames.count, variant: layoutVariant, ratios: ratios, in: canvasSize)) { divider in
+                DividerHandle(
+                    divider: divider,
+                    ratios: $ratios,
+                    axisLength: divider.isHorizontal ? canvasSize.height : canvasSize.width
+                )
             }
             // Drag-to-delete target — shown only while a text layer is
             // actively being dragged, never part of the exported image.
@@ -255,7 +274,14 @@ struct StoryComposerView: View {
     ///  2 photos — `.a` stacked halves, `.b` side-by-side halves.
     ///  3 photos — `.a` one large top + two small bottom, `.b` one large left + two small right.
     ///  4 photos — `.a` even 2×2 grid, `.b` one large top + three small bottom columns.
-    static func frameRects(count: Int, variant: LayoutVariant, in size: CGSize) -> [CGRect] {
+    /// Every split is a fraction from `ratios` rather than a fixed half, so
+    /// dragging a divider (see `dividers`/`DividerHandle`) actually resizes
+    /// the frames on either side of it. The one exception is `(4, .b)`'s
+    /// three bottom columns, which stay equal-width — a disclosed scope
+    /// trim so this doesn't need a third ratio slot.
+    static func frameRects(count: Int, variant: LayoutVariant, ratios: [CGFloat], in size: CGSize) -> [CGRect] {
+        let r0 = ratios.count > 0 ? ratios[0] : 0.5
+        let r1 = ratios.count > 1 ? ratios[1] : 0.5
         switch (count, variant) {
         case (0, _):
             return []
@@ -267,29 +293,29 @@ struct StoryComposerView: View {
             return [CGRect(x: inset, y: inset, width: size.width - inset * 2, height: size.height - inset * 2)]
 
         case (2, .a):
-            let h = size.height / 2
+            let h = size.height * r0
             return [
                 CGRect(x: 0, y: 0, width: size.width, height: h),
                 CGRect(x: 0, y: h, width: size.width, height: size.height - h),
             ]
         case (2, .b):
-            let w = size.width / 2
+            let w = size.width * r0
             return [
                 CGRect(x: 0, y: 0, width: w, height: size.height),
                 CGRect(x: w, y: 0, width: size.width - w, height: size.height),
             ]
 
         case (3, .a):
-            let topH = size.height / 2
-            let halfW = size.width / 2
+            let topH = size.height * r0
+            let halfW = size.width * r1
             return [
                 CGRect(x: 0, y: 0, width: size.width, height: topH),
                 CGRect(x: 0, y: topH, width: halfW, height: size.height - topH),
                 CGRect(x: halfW, y: topH, width: size.width - halfW, height: size.height - topH),
             ]
         case (3, .b):
-            let leftW = size.width / 2
-            let halfH = size.height / 2
+            let leftW = size.width * r0
+            let halfH = size.height * r1
             return [
                 CGRect(x: 0, y: 0, width: leftW, height: size.height),
                 CGRect(x: leftW, y: 0, width: size.width - leftW, height: halfH),
@@ -297,16 +323,16 @@ struct StoryComposerView: View {
             ]
 
         case (4, .a):
-            let halfW = size.width / 2
-            let halfH = size.height / 2
+            let w = size.width * r0
+            let h = size.height * r1
             return [
-                CGRect(x: 0, y: 0, width: halfW, height: halfH),
-                CGRect(x: halfW, y: 0, width: size.width - halfW, height: halfH),
-                CGRect(x: 0, y: halfH, width: halfW, height: size.height - halfH),
-                CGRect(x: halfW, y: halfH, width: size.width - halfW, height: size.height - halfH),
+                CGRect(x: 0, y: 0, width: w, height: h),
+                CGRect(x: w, y: 0, width: size.width - w, height: h),
+                CGRect(x: 0, y: h, width: w, height: size.height - h),
+                CGRect(x: w, y: h, width: size.width - w, height: size.height - h),
             ]
         default: // (4, .b)
-            let topH = size.height / 2
+            let topH = size.height * r0
             let thirdW = size.width / 3
             return [
                 CGRect(x: 0, y: 0, width: size.width, height: topH),
@@ -314,6 +340,73 @@ struct StoryComposerView: View {
                 CGRect(x: thirdW, y: topH, width: thirdW, height: size.height - topH),
                 CGRect(x: thirdW * 2, y: topH, width: size.width - thirdW * 2, height: size.height - topH),
             ]
+        }
+    }
+
+    /// One draggable divider between two adjacent frames.
+    struct FrameDivider: Identifiable {
+        /// `ratioIndex` is always unique within one `dividers(...)` call
+        /// (at most 2 dividers per shape, one per ratio slot).
+        var id: Int { ratioIndex }
+        let ratioIndex: Int
+        /// `true` = a horizontal line (dragged vertically, up/down);
+        /// `false` = a vertical line (dragged horizontally, left/right).
+        let isHorizontal: Bool
+        /// Generous draggable hit area, centered on the actual line.
+        let hitRect: CGRect
+    }
+
+    /// The divider(s) for the current shape, positioned from the same
+    /// `rects` `frameRects` just computed for it (a divider always sits
+    /// exactly on the shared boundary between two of those rects). Mirrors
+    /// `frameRects`'s own switch — see its doc comment for what each shape
+    /// looks like.
+    static func dividers(count: Int, variant: LayoutVariant, ratios: [CGFloat], in size: CGSize) -> [FrameDivider] {
+        let r0 = ratios.count > 0 ? ratios[0] : 0.5
+        let r1 = ratios.count > 1 ? ratios[1] : 0.5
+        let thickness: CGFloat = 28
+        switch (count, variant) {
+        case (2, .a):
+            let y = size.height * r0
+            return [FrameDivider(ratioIndex: 0, isHorizontal: true,
+                                  hitRect: CGRect(x: 0, y: y - thickness / 2, width: size.width, height: thickness))]
+        case (2, .b):
+            let x = size.width * r0
+            return [FrameDivider(ratioIndex: 0, isHorizontal: false,
+                                  hitRect: CGRect(x: x - thickness / 2, y: 0, width: thickness, height: size.height))]
+        case (3, .a):
+            let topH = size.height * r0
+            let x = size.width * r1
+            return [
+                FrameDivider(ratioIndex: 0, isHorizontal: true,
+                             hitRect: CGRect(x: 0, y: topH - thickness / 2, width: size.width, height: thickness)),
+                FrameDivider(ratioIndex: 1, isHorizontal: false,
+                             hitRect: CGRect(x: x - thickness / 2, y: topH, width: thickness, height: size.height - topH)),
+            ]
+        case (3, .b):
+            let leftW = size.width * r0
+            let y = size.height * r1
+            return [
+                FrameDivider(ratioIndex: 0, isHorizontal: false,
+                             hitRect: CGRect(x: leftW - thickness / 2, y: 0, width: thickness, height: size.height)),
+                FrameDivider(ratioIndex: 1, isHorizontal: true,
+                             hitRect: CGRect(x: leftW, y: y - thickness / 2, width: size.width - leftW, height: thickness)),
+            ]
+        case (4, .a):
+            let x = size.width * r0
+            let y = size.height * r1
+            return [
+                FrameDivider(ratioIndex: 0, isHorizontal: false,
+                             hitRect: CGRect(x: x - thickness / 2, y: 0, width: thickness, height: size.height)),
+                FrameDivider(ratioIndex: 1, isHorizontal: true,
+                             hitRect: CGRect(x: 0, y: y - thickness / 2, width: size.width, height: thickness)),
+            ]
+        case (4, .b):
+            let topH = size.height * r0
+            return [FrameDivider(ratioIndex: 0, isHorizontal: true,
+                                  hitRect: CGRect(x: 0, y: topH - thickness / 2, width: size.width, height: thickness))]
+        default: // (0, _), (1, .a), (1, .b) — nothing to divide
+            return []
         }
     }
 
@@ -436,6 +529,7 @@ struct StoryComposerView: View {
         }
         frames = newFrames
         layoutVariant = .a
+        ratios = [0.5, 0.5]
         pickerItems = []
     }
 
@@ -475,7 +569,7 @@ struct StoryComposerView: View {
 // MARK: - Frame model + editable view
 
 /// Two alternate collage templates exist for every photo count (1-4) — see
-/// `StoryComposerView.frameRects(count:variant:in:)` for what each looks
+/// `StoryComposerView.frameRects(count:variant:ratios:in:)` for what each looks
 /// like at each count.
 enum LayoutVariant: CaseIterable {
     case a, b
@@ -497,6 +591,12 @@ struct ComposerFrame: Identifiable {
 private struct EditableFrame: View {
     @Binding var frame: ComposerFrame
     let rect: CGRect
+    /// Double-tapping the photo also opens the replace-photo picker — a
+    /// second, more discoverable-by-feel path to the same flow the corner
+    /// button triggers. Reported up rather than handled locally since
+    /// `replacingFrameIndex` lives on the parent (`StoryComposerView`), not
+    /// this single frame.
+    var onDoubleTap: () -> Void = {}
 
     var body: some View {
         Image(uiImage: frame.image)
@@ -511,6 +611,7 @@ private struct EditableFrame: View {
             .position(x: rect.midX, y: rect.midY)
             .gesture(magnification)
             .simultaneousGesture(pan)
+            .onTapGesture(count: 2, perform: onDoubleTap)
     }
 
     private var magnification: some Gesture {
@@ -529,6 +630,43 @@ private struct EditableFrame: View {
                     height: frame.lastOffset.height + value.translation.height)
             }
             .onEnded { _ in frame.lastOffset = frame.offset }
+    }
+}
+
+/// The draggable line between two adjacent frames — a thin visible line
+/// plus a much more generous invisible hit area, both centered on
+/// `divider.hitRect`. Drags by translation-from-drag-start (like
+/// `EditableFrame`'s own pan/zoom) rather than `DragGesture`'s `location`,
+/// which is relative to this view's own small local frame, not the canvas —
+/// translation is coordinate-space-agnostic, so it stays correct regardless
+/// of where the hit rect sits.
+private struct DividerHandle: View {
+    let divider: StoryComposerView.FrameDivider
+    @Binding var ratios: [CGFloat]
+    /// The canvas dimension (width or height) this divider's ratio is a
+    /// fraction of.
+    let axisLength: CGFloat
+
+    @State private var startRatio: CGFloat = 0
+
+    var body: some View {
+        ZStack {
+            Rectangle().fill(Color.white.opacity(0.001))
+            Rectangle()
+                .fill(Color.white.opacity(0.6))
+                .frame(width: divider.isHorizontal ? nil : 2, height: divider.isHorizontal ? 2 : nil)
+        }
+        .frame(width: divider.hitRect.width, height: divider.hitRect.height)
+        .contentShape(Rectangle())
+        .position(x: divider.hitRect.midX, y: divider.hitRect.midY)
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    if value.translation == .zero { startRatio = ratios[divider.ratioIndex] }
+                    let delta = divider.isHorizontal ? value.translation.height : value.translation.width
+                    ratios[divider.ratioIndex] = min(max(startRatio + delta / axisLength, 0.15), 0.85)
+                }
+        )
     }
 }
 
