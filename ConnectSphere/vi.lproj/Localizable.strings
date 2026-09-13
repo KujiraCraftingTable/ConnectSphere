@@ -31,6 +31,8 @@
 "Activity" = "Hoạt động";
 "Add" = "Thêm";
 "Add emoji" = "Thêm emoji";
+"Add text" = "Thêm văn bản";
+"Add text..." = "Thêm văn bản...";
 "Additional details (optional)" = "Chi tiết thêm (tùy chọn)";
 "AI search keywords" = "Từ khoá AI đã tìm";
 "AI suggestion" = "Gợi ý AI";
@@ -41,6 +43,7 @@
 "Appearance" = "Giao diện";
 "Appearance · %@" = "Giao diện · %@";
 "Author" = "Tác giả";
+"Background highlight" = "Nền nổi bật";
 "Basic information" = "Thông tin cơ bản";
 "Be the first to post in this community!" = "Hãy là người đầu tiên đăng bài trong cộng đồng này!";
 "Block" = "Chặn";
@@ -58,7 +61,9 @@
 "Couldn't load results" = "Không tải được kết quả";
 "Couldn't tell which city \"%@\" is in — add a province to narrow it down." = "Không xác định được \"%@\" ở thành phố nào — thêm tên tỉnh/thành để tìm chuẩn hơn nhé!";
 "Couldn't pick out anything specific to search for — try naming an interest, skill, or place." = "Chưa rõ bạn muốn tìm gì cụ thể — thử nêu một sở thích, kỹ năng hoặc địa điểm nhé!";
+"Choose up to 4 photos" = "Chọn tối đa 4 ảnh";
 "Collapse" = "Thu gọn";
+"Color" = "Màu sắc";
 "Come back when there are more communities" = "Hãy quay lại sau khi có thêm cộng đồng mới";
 "Comments" = "Bình luận";
 "Community" = "Cộng đồng";
@@ -122,6 +127,7 @@
 "Find colleagues" = "Tìm đồng nghiệp";
 "Find friends" = "Tìm bạn bè";
 "Find friends, share interests" = "Tìm bạn chơi, chia sẻ sở thích";
+"Font" = "Phông chữ";
 "Followers" = "Người theo dõi";
 "Following" = "Đang theo dõi";
 "For you" = "Dành cho bạn";
@@ -167,6 +173,7 @@
 "Maybe the network is weak or Kujira is busy~ Try again later! 🙏" = "Có thể do mạng yếu hoặc Kujira đang bận tý~ Bạn thử lại sau nhé! 🙏";
 "Members" = "Thành viên";
 "Message" = "Nhắn tin";
+"Monospaced" = "Đều nét";
 "Message..." = "Nhắn tin...";
 "Messages" = "Tin nhắn";
 "My communities" = "Cộng đồng của tôi";
@@ -225,6 +232,7 @@
 "Remove from community" = "Xóa khỏi cộng đồng";
 "Reply" = "Trả lời";
 "Retry" = "Thử lại";
+"Rounded" = "Bo tròn";
 "Replying to %@" = "Đang trả lời %@";
 "replied to" = "đã trả lời";
 "Report member" = "Báo cáo thành viên";
@@ -254,9 +262,11 @@
 "Select what you like" = "Chọn những gì bạn thích";
 "Send" = "Gửi";
 "Sent" = "Đã gửi";
+"Serif" = "Chân chữ";
 "set up now →" = "thiết lập ngay →";
 "Set up profile" = "Thiết lập hồ sơ";
 "Settings" = "Cài đặt";
+"Size" = "Cỡ chữ";
 "Share" = "Chia sẻ";
 "Share a professional update..." = "Chia sẻ cập nhật chuyên nghiệp...";
 "Share post" = "Chia sẻ bài viết";

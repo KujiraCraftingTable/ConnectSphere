@@ -93,14 +93,18 @@ struct StoriesController {
         var id: String; var display_name: String
         @NullCoded var avatar_color: String?; @NullCoded var avatar_url: String?; var viewed_at: Date
     }
-    struct CreateBody: Content { var image_url: String? }
+    struct CreateBody: Content { var image_url: String?; var mode: String? }
 
     static func create(_ req: Request) async throws -> Response {
-        guard let url = try req.content.decode(CreateBody.self).image_url, !url.isEmpty else {
+        let body = try req.content.decode(CreateBody.self)
+        guard let url = body.image_url, !url.isEmpty else {
             throw InlineError(.badRequest, "image_url is required")
         }
+        guard let mode = body.mode, ["hobby", "work"].contains(mode) else {
+            throw InlineError(.badRequest, "mode must be hobby or work")
+        }
         let row = try await req.db.sql().raw("""
-            INSERT INTO stories (author_id, image_url) VALUES (\(uuid: req.userID), \(bind: url))
+            INSERT INTO stories (author_id, image_url, mode) VALUES (\(uuid: req.userID), \(bind: url), \(bind: mode))
             RETURNING id, author_id, image_url, created_at, expires_at
             """).first(decoding: StoryRow.self)!
         let res = try await DataResponse(data: row).encodeResponse(for: req)
@@ -109,6 +113,9 @@ struct StoriesController {
     }
 
     static func list(_ req: Request) async throws -> DataListResponse<StoryFull> {
+        guard let mode = try? req.query.get(String.self, at: "mode"), ["hobby", "work"].contains(mode) else {
+            throw InlineError(.badRequest, "mode must be hobby or work")
+        }
         struct Row: Decodable {
             let id: String; let author_id: String; let image_url: String
             let created_at: Date; let expires_at: Date; let author: String; let viewed: Bool
@@ -116,12 +123,12 @@ struct StoriesController {
         let rows = try await req.db.sql().raw("""
             SELECT s.id, s.author_id, s.image_url, s.created_at, s.expires_at,
               json_build_object('id', u.id, 'username', u.username,
-                'display_name', \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "'hobby'")),
-                'avatar_color', u.avatar_color, 'avatar_url', \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: "'hobby'")))::text AS author,
+                'display_name', \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "s.mode")),
+                'avatar_color', u.avatar_color, 'avatar_url', \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: "s.mode")))::text AS author,
               EXISTS(SELECT 1 FROM story_views sv WHERE sv.story_id = s.id AND sv.viewer_id = \(uuid: req.userID)) AS viewed
             FROM stories s JOIN users u ON u.id = s.author_id
-            WHERE s.expires_at > NOW()
-              AND (s.author_id = \(uuid: req.userID) OR EXISTS (SELECT 1 FROM connections c WHERE c.status = 'accepted'
+            WHERE s.expires_at > NOW() AND s.mode = \(bind: mode)
+              AND (s.author_id = \(uuid: req.userID) OR EXISTS (SELECT 1 FROM connections c WHERE c.status = 'accepted' AND c.mode = \(bind: mode)
                 AND ((c.requester_id = s.author_id AND c.addressee_id = \(uuid: req.userID))
                   OR (c.addressee_id = s.author_id AND c.requester_id = \(uuid: req.userID)))))
               AND NOT EXISTS (SELECT 1 FROM user_blocks ub
@@ -150,12 +157,19 @@ struct StoriesController {
     }
     static func viewers(_ req: Request) async throws -> DataListResponse<ViewerRow> {
         let id = req.parameters.get("id")!
-        struct S: Decodable { let author_id: String }
-        guard let s = try await req.db.sql().raw("SELECT author_id FROM stories WHERE id = \(uuid: id)").first(decoding: S.self),
+        struct S: Decodable { let author_id: String; let mode: String }
+        guard let s = try await req.db.sql().raw("SELECT author_id, mode FROM stories WHERE id = \(uuid: id)").first(decoding: S.self),
               s.author_id == req.userID else { throw InlineError(.notFound, "Story not found") }
+        // Viewers are shown with the persona matching this story's own mode —
+        // same reasoning as `list`'s author field: the identity a hobby-mode
+        // story's audience sees should be their hobby persona, not whichever
+        // mode they currently happen to be browsing in.
+        // `s.mode` came back from the DB's own CHECK-constrained column
+        // (only ever 'hobby'/'work'), not from request input, so splicing it
+        // into a quoted SQL literal here carries no injection risk.
         let rows = try await req.db.sql().raw("""
-            SELECT u.id, \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "'hobby'")) AS display_name,
-              u.avatar_color, \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: "'hobby'")) AS avatar_url, sv.viewed_at
+            SELECT u.id, \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "'\(s.mode)'")) AS display_name,
+              u.avatar_color, \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: "'\(s.mode)'")) AS avatar_url, sv.viewed_at
             FROM story_views sv JOIN users u ON u.id = sv.viewer_id
             WHERE sv.story_id = \(uuid: id) AND sv.viewer_id <> \(uuid: req.userID)
             ORDER BY sv.viewed_at DESC
