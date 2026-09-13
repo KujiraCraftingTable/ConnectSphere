@@ -144,7 +144,11 @@ struct FeedView: View {
             }
             } // ScrollViewReader
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                // `.principal` centers this in the nav bar, matching the
+                // "Mode Switch Pill (center of nav bar)" intent below —
+                // `.navigationBarLeading` (the old placement) pushed it to
+                // the left edge instead.
+                ToolbarItem(placement: .principal) {
                     modeSwitchPill
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
