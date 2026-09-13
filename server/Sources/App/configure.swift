@@ -28,12 +28,16 @@ public func configure(_ app: Application) async throws {
     app.middleware.use(AppErrorMiddleware(isProduction: env.isProduction, logger: app.logger))
     app.middleware.use(SecurityHeadersMiddleware())
     app.middleware.use(RateLimitMiddleware.global())
-    // FileMiddleware for /uploads (public) is added in Phase 2 alongside the
-    // /uploads/messages JWT gate.
 
     // 5. Routes.
     HealthController.register(app)
     try routes(app)
+    // Public static serving for uploaded media (`GET /uploads/:filename`,
+    // bare path — see UploadsController.registerPublic for why this is a
+    // narrow single-segment route and not a blanket FileMiddleware).
+    // `/uploads/messages/*` (private chat attachments) still has no serving
+    // route at all — that needs its own auth gate, not built yet.
+    UploadsController.registerPublic(app)
 
     // 6. Run pending migrations at boot (same files as scripts/migrate.js).
     //    Controlled by RUN_MIGRATIONS=1 so a plain `swift run` against an

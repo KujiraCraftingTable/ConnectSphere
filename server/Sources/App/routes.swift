@@ -19,6 +19,7 @@ func routes(_ app: Application) throws {
     MessagesController.register(routes: api)
     SearchController.register(routes: api)          // + /entities/alias, /locations/clarify
     WardsController.register(routes: api)           // GET /api/wards/* — no auth (matches Node)
+    UploadsController.register(routes: api)         // POST /api/uploads — generic media upload
 
     // Socket.IO v4 / Engine.IO 4 shim — mounted on `app` (not `api`), auth via
     // the SIO CONNECT frame's `{token}`, not a header.
