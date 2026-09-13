@@ -68,20 +68,22 @@ struct StoriesRow: View {
                     if let mine = myGroup { selectedGroup = mine }
                 } label: {
                     ZStack {
-                        // Always draw a ring — same visual weight as every
-                        // other bubble (see storyBubble(_:) below) — instead
-                        // of only when a story exists. `myGroup?.hasUnseen`
-                        // is nil (→ false) when there's no story at all, so
-                        // that case naturally falls to the neutral/grey ring
-                        // here too, rather than no ring — a bare avatar next
-                        // to ringed ones read as "faded"/broken, including
-                        // right after deleting your only story.
-                        Circle()
-                            .stroke(
-                                myGroup?.hasUnseen == true ? themeManager.theme.primary : AppColors.borderDefault(colorScheme),
-                                lineWidth: 2.5
-                            )
-                            .frame(width: 68, height: 68)
+                        // A ring only when there's an actual story to show —
+                        // no story at all should look like no story at all,
+                        // not a dim/neutral placeholder ring (that previously
+                        // used AppColors.borderDefault, a near-transparent
+                        // 0.09-0.10 opacity hairline — barely visible against
+                        // a light background, which is exactly what read as
+                        // "faded" rather than as an intentional neutral state).
+                        if myGroup?.hasUnseen == true {
+                            Circle()
+                                .stroke(themeManager.theme.primary, lineWidth: 2.5)
+                                .frame(width: 68, height: 68)
+                        } else if myGroup != nil {
+                            Circle()
+                                .stroke(AppColors.borderDefault(colorScheme), lineWidth: 2.5)
+                                .frame(width: 68, height: 68)
+                        }
                         if let me = appState.currentUser {
                             AvatarView(user: me, size: 60)
                         }
