@@ -91,7 +91,13 @@ struct StoriesRow: View {
                     .frame(width: 68, height: 68)
                 }
                 .buttonStyle(.plain)
-                .disabled(myGroup == nil)
+                // NOT `.disabled(myGroup == nil)`: SwiftUI dims a disabled
+                // Button's own content by default (even with .plain style),
+                // which is what was actually reading as a "faded" avatar
+                // with no story — not the ring (already ruled that out).
+                // The tap action itself already no-ops when there's nothing
+                // to view, so disabling the control added nothing but that
+                // unwanted dimming.
 
                 PhotosPicker(selection: $pickerItem, matching: .images) {
                     ZStack {
