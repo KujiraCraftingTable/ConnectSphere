@@ -90,6 +90,7 @@ struct FeedView: View {
                 .padding(.bottom, AppSpacing.lg)
             }
             .background(AppColors.base(colorScheme))
+            .scrollIndicators(.hidden)
             .navigationBarTitleDisplayMode(.inline)
             .refreshable {
                 await viewModel.loadPosts(for: appState.currentMode)
