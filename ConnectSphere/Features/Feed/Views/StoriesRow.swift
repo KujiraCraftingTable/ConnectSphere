@@ -21,8 +21,12 @@ struct StoriesRow: View {
         groups.first { $0.author.id == appState.currentUser?.id }
     }
 
+    /// Unseen-first: an author with any unseen story sorts before one whose
+    /// stories are all already viewed. `sorted` is stable, so within each of
+    /// those two buckets authors keep whatever order the server returned.
     private var otherGroups: [StoryGroup] {
         groups.filter { $0.author.id != appState.currentUser?.id }
+            .sorted { $0.hasUnseen && !$1.hasUnseen }
     }
 
     var body: some View {
@@ -64,15 +68,20 @@ struct StoriesRow: View {
                     if let mine = myGroup { selectedGroup = mine }
                 } label: {
                     ZStack {
-                        if myGroup?.hasUnseen == true {
-                            Circle()
-                                .stroke(themeManager.theme.primary, lineWidth: 2.5)
-                                .frame(width: 68, height: 68)
-                        } else if myGroup != nil {
-                            Circle()
-                                .stroke(AppColors.borderDefault(colorScheme), lineWidth: 2.5)
-                                .frame(width: 68, height: 68)
-                        }
+                        // Always draw a ring — same visual weight as every
+                        // other bubble (see storyBubble(_:) below) — instead
+                        // of only when a story exists. `myGroup?.hasUnseen`
+                        // is nil (→ false) when there's no story at all, so
+                        // that case naturally falls to the neutral/grey ring
+                        // here too, rather than no ring — a bare avatar next
+                        // to ringed ones read as "faded"/broken, including
+                        // right after deleting your only story.
+                        Circle()
+                            .stroke(
+                                myGroup?.hasUnseen == true ? themeManager.theme.primary : AppColors.borderDefault(colorScheme),
+                                lineWidth: 2.5
+                            )
+                            .frame(width: 68, height: 68)
                         if let me = appState.currentUser {
                             AvatarView(user: me, size: 60)
                         }
