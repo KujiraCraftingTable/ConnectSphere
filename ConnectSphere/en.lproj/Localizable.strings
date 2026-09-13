@@ -31,6 +31,8 @@
 "Activity" = "Activity";
 "Add" = "Add";
 "Add emoji" = "Add emoji";
+"Add text" = "Add text";
+"Add text..." = "Add text...";
 "Additional details (optional)" = "Additional details (optional)";
 "AI search keywords" = "AI search keywords";
 "AI suggestion" = "AI suggestion";
@@ -41,6 +43,7 @@
 "Appearance" = "Appearance";
 "Appearance · %@" = "Appearance · %@";
 "Author" = "Author";
+"Background highlight" = "Background highlight";
 "Basic information" = "Basic information";
 "Be the first to post in this community!" = "Be the first to post in this community!";
 "Block" = "Block";
@@ -58,7 +61,9 @@
 "Couldn't load results" = "Couldn't load results";
 "Couldn't tell which city \"%@\" is in — add a province to narrow it down." = "Couldn't tell which city \"%@\" is in — add a province to narrow it down.";
 "Couldn't pick out anything specific to search for — try naming an interest, skill, or place." = "Couldn't pick out anything specific to search for — try naming an interest, skill, or place.";
+"Choose up to 4 photos" = "Choose up to 4 photos";
 "Collapse" = "Collapse";
+"Color" = "Color";
 "Come back when there are more communities" = "Come back when there are more communities";
 "Comments" = "Comments";
 "Community" = "Community";
@@ -122,6 +127,7 @@
 "Find colleagues" = "Find colleagues";
 "Find friends" = "Find friends";
 "Find friends, share interests" = "Find friends, share interests";
+"Font" = "Font";
 "Followers" = "Followers";
 "Following" = "Following";
 "For you" = "For you";
@@ -167,6 +173,7 @@
 "Maybe the network is weak or Kujira is busy~ Try again later! 🙏" = "Maybe the network is weak or Kujira is busy~ Try again later! 🙏";
 "Members" = "Members";
 "Message" = "Message";
+"Monospaced" = "Monospaced";
 "Message..." = "Message...";
 "Messages" = "Messages";
 "My communities" = "My communities";
@@ -225,6 +232,7 @@
 "Remove from community" = "Remove from community";
 "Reply" = "Reply";
 "Retry" = "Retry";
+"Rounded" = "Rounded";
 "Replying to %@" = "Replying to %@";
 "replied to" = "replied to";
 "Report member" = "Report member";
@@ -254,9 +262,11 @@
 "Select what you like" = "Select what you like";
 "Send" = "Send";
 "Sent" = "Sent";
+"Serif" = "Serif";
 "set up now →" = "set up now →";
 "Set up profile" = "Set up profile";
 "Settings" = "Settings";
+"Size" = "Size";
 "Share" = "Share";
 "Share a professional update..." = "Share a professional update...";
 "Share post" = "Share post";

@@ -20,10 +20,10 @@ struct FeedView: View {
                     createPostBar
                         .cardStyle()
 
-                    if appState.currentMode == .hobby {
-                        StoriesRow()
-                            .cardStyle()
-                    }
+                    // Stories are mode-scoped (like posts) — shown in both
+                    // Hobby and Work, each mode only ever seeing its own.
+                    StoriesRow()
+                        .cardStyle()
 
                     feedScopeRow
 

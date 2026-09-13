@@ -1,5 +1,4 @@
 import SwiftUI
-import PhotosUI
 
 /// The real stories row: your own story + stories from connections (24h).
 /// Tapping a bubble opens StoryViewerView; the + button posts a new story.
@@ -11,11 +10,9 @@ struct StoriesRow: View {
 
     @State private var groups: [StoryGroup] = []
     @State private var selectedGroup: StoryGroup?
-    @State private var pickerItem: PhotosPickerItem?
-    @State private var isPosting = false
+    @State private var showComposer = false
 
     private let storyRepo = StoryRepository()
-    private let postRepo  = PostRepository()   // reuses the shared image upload endpoint
 
     private var myGroup: StoryGroup? {
         groups.first { $0.author.id == appState.currentUser?.id }
@@ -46,9 +43,13 @@ struct StoriesRow: View {
             .padding(.vertical, 10)
         }
         .task { await load() }
-        .onChange(of: pickerItem) { _, item in
-            guard let item else { return }
-            Task { await postStory(from: item) }
+        .onChange(of: appState.currentMode) { _, _ in
+            // Stories are mode-scoped like posts — reload for the newly
+            // selected mode. (Previously this row was only ever shown in
+            // Hobby mode, so switching modes tore the whole view down and
+            // recreated it; now that it's shown in both, an explicit reload
+            // is needed instead.)
+            Task { await load() }
         }
         .fullScreenCover(item: $selectedGroup) { group in
             StoryViewerView(group: group) {
@@ -56,16 +57,24 @@ struct StoriesRow: View {
                 Task { await load() }
             }
         }
+        .fullScreenCover(isPresented: $showComposer) {
+            StoryComposerView(mode: appState.currentMode.rawValue) {
+                Task { await load() }
+            }
+        }
     }
 
     // MARK: - Bubbles
 
-    /// "Your story" bubble: tapping the avatar opens your own story (if any), + posts a new one
+    /// "Your story" bubble: tapping the avatar opens your own story if you
+    /// have one, or the composer (same as the "+" badge) if you don't — a
+    /// bare avatar with a "+" next to it reads as "tap me to add a story"
+    /// just as much as the badge itself does.
     private var myStoryBubble: some View {
         VStack(spacing: 5) {
             ZStack(alignment: .bottomTrailing) {
                 Button {
-                    if let mine = myGroup { selectedGroup = mine }
+                    if let mine = myGroup { selectedGroup = mine } else { showComposer = true }
                 } label: {
                     ZStack {
                         // A ring only when there's an actual story to show —
@@ -95,20 +104,18 @@ struct StoriesRow: View {
                 // Button's own content by default (even with .plain style),
                 // which is what was actually reading as a "faded" avatar
                 // with no story — not the ring (already ruled that out).
-                // The tap action itself already no-ops when there's nothing
-                // to view, so disabling the control added nothing but that
-                // unwanted dimming.
+                // The tap action now always does something meaningful
+                // (open the story, or open the composer), so there's
+                // nothing to disable in the first place.
 
-                PhotosPicker(selection: $pickerItem, matching: .images) {
+                Button {
+                    showComposer = true
+                } label: {
                     ZStack {
                         Circle().fill(themeManager.theme.primary).frame(width: 22, height: 22)
-                        if isPosting {
-                            ProgressView().scaleEffect(0.5).tint(.white)
-                        } else {
-                            Image(systemName: "plus")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(.white)
-                        }
+                        Image(systemName: "plus")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.white)
                     }
                 }
                 .offset(x: 2, y: 2)
@@ -145,21 +152,8 @@ struct StoriesRow: View {
     // MARK: - Data
 
     private func load() async {
-        if let stories = try? await storyRepo.fetchStories() {
+        if let stories = try? await storyRepo.fetchStories(mode: appState.currentMode.rawValue) {
             groups = groupStories(stories)
         }
-    }
-
-    private func postStory(from item: PhotosPickerItem) async {
-        isPosting = true
-        defer { isPosting = false; pickerItem = nil }
-
-        guard let data = try? await item.loadTransferable(type: Data.self),
-              let image = UIImage(data: data),
-              let jpeg = image.jpegData(compressionQuality: 0.85),
-              let imageUrl = try? await postRepo.uploadImage(jpeg) else { return }
-
-        try? await storyRepo.createStory(imageUrl: imageUrl)
-        await load()
     }
 }

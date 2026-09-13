@@ -14,25 +14,27 @@ struct StoryRepository {
         return token
     }
 
-    /// The current user's own stories + connections', not yet expired
-    func fetchStories() async throws -> [StoryDTO] {
+    /// The current user's own stories + connections', not yet expired, for
+    /// one mode ("hobby"/"work") — stories are mode-scoped like posts.
+    func fetchStories(mode: String) async throws -> [StoryDTO] {
         let response = try await client.fetch(
             ListResponse.self,
-            path: "/stories",
+            path: "/stories?mode=\(mode)",
             token: try token()
         )
         return response.data
     }
 
-    /// Posts a new story from an already-uploaded image URL
-    func createStory(imageUrl: String) async throws {
+    /// Posts a new story from an already-uploaded image URL, tagged with the
+    /// mode it was posted from ("hobby"/"work").
+    func createStory(imageUrl: String, mode: String) async throws {
         struct CreateResponse: Decodable { struct S: Decodable { let id: String }; let data: S }
         _ = try await client.fetch(
             CreateResponse.self,
             path: "/stories",
             method: "POST",
             token: try token(),
-            bodyData: NetworkClient.encode(["image_url": imageUrl])
+            bodyData: NetworkClient.encode(["image_url": imageUrl, "mode": mode])
         )
     }
 
