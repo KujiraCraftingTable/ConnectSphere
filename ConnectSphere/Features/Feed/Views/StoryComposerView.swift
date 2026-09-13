@@ -2,10 +2,12 @@ import SwiftUI
 import PhotosUI
 
 /// Story composer — presented full-screen from `StoriesRow`'s "+"/empty-avatar
-/// tap. Up to 4 photos arranged in an adaptive collage (1 = full-bleed, 2 =
-/// stacked halves, 3 = one large + two small, 4 = even 2×2 grid), each
-/// independently pinch-to-zoom + drag-to-pan, plus one optional styled text
-/// overlay (drag to reposition, pinch to resize).
+/// tap. Up to 4 photos arranged in a collage, each independently
+/// pinch-to-zoom + drag-to-pan; every photo count (1-4) offers 2 alternate
+/// layout templates, picked via `layoutPicker`'s swatches (see
+/// `frameRects(count:variant:in:)` for exactly what each looks like). Any
+/// number of styled text overlays can be added (drag to reposition, pinch to
+/// resize, drag to the bottom trash zone to delete).
 ///
 /// "Post" flattens the exact on-screen canvas into a single `UIImage` via
 /// `ImageRenderer` and uploads it through the same pipeline a plain
@@ -22,13 +24,23 @@ struct StoryComposerView: View {
     var onPosted: () -> Void
 
     @State private var frames: [ComposerFrame] = []
-    @State private var textLayer = TextLayerState()
+    /// Which of the 2 layout templates for the current photo count is
+    /// active — reset to `.a` whenever a fresh set of photos is picked.
+    @State private var layoutVariant: LayoutVariant = .a
+    @State private var textLayers: [TextLayerState] = []
+    /// Which layer the text-editor sheet is currently editing — always the
+    /// one "Aa" just created; the sheet never re-opens an existing layer.
+    @State private var editingTextLayerID: UUID?
     @State private var showTextEditor = false
     @State private var showPicker = false
     @State private var replacingFrameIndex: Int?
     @State private var replacementItem: PhotosPickerItem?
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var isPosting = false
+    /// Drag-to-delete: while any text is being dragged, a trash icon shows
+    /// at the bottom of the canvas; dropping the text near it deletes it.
+    @State private var isDraggingText = false
+    @State private var isNearTrash = false
 
     private let storyRepo = StoryRepository()
     private let postRepo = PostRepository()
@@ -38,11 +50,21 @@ struct StoryComposerView: View {
     /// is what actually determines the exported resolution, not this.
     private let canvasSize = CGSize(width: 360, height: 640)
 
+    /// Bottom-center drop zone a dragged text is deleted by releasing near.
+    private let trashPoint = CGPoint(x: 180, y: 600)
+    private let trashRadius: CGFloat = 36
+
+    private func distance(_ a: CGPoint, _ b: CGPoint) -> CGFloat {
+        let dx = a.x - b.x, dy = a.y - b.y
+        return (dx * dx + dy * dy).squareRoot()
+    }
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 16) {
                 Spacer(minLength: 0)
                 canvasArea
+                layoutPicker
                 Spacer(minLength: 0)
             }
             .padding(.vertical, 12)
@@ -57,7 +79,7 @@ struct StoryComposerView: View {
                 ToolbarItem(placement: .principal) {
                     if !frames.isEmpty {
                         Button {
-                            showTextEditor = true
+                            addTextLayer()
                         } label: {
                             Text("Aa")
                                 .font(.system(size: 17, weight: .bold))
@@ -134,19 +156,60 @@ struct StoryComposerView: View {
         .clipShape(RoundedRectangle(cornerRadius: 18))
     }
 
+    /// Two small tappable previews of the current photo count's two layout
+    /// templates — hidden until at least one photo is picked (no layout to
+    /// choose between before then).
+    @ViewBuilder
+    private var layoutPicker: some View {
+        if !frames.isEmpty {
+            HStack(spacing: 16) {
+                layoutSwatch(.a)
+                layoutSwatch(.b)
+            }
+        }
+    }
+
+    private func layoutSwatch(_ variant: LayoutVariant) -> some View {
+        let previewSize = CGSize(width: 36, height: 64)
+        let rects = Self.frameRects(count: frames.count, variant: variant, in: previewSize)
+        let isSelected = layoutVariant == variant
+        return ZStack {
+            ForEach(rects.indices, id: \.self) { i in
+                Rectangle()
+                    .fill(Color.white.opacity(0.35))
+                    .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
+                    .frame(width: rects[i].width, height: rects[i].height)
+                    .position(x: rects[i].midX, y: rects[i].midY)
+            }
+        }
+        .frame(width: previewSize.width, height: previewSize.height)
+        .padding(4)
+        .background(Color.white.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(isSelected ? themeManager.theme.primary : Color.clear, lineWidth: 2)
+        )
+        .onTapGesture { layoutVariant = variant }
+    }
+
     /// The pure visual content — collage frames + text overlay, nothing
     /// else. This is exactly what gets flattened into the posted image (see
     /// `post()`), so it must never contain editing-only chrome.
     private var composedContent: some View {
-        let rects = Self.frameRects(count: frames.count, in: canvasSize)
+        let rects = Self.frameRects(count: frames.count, variant: layoutVariant, in: canvasSize)
         return ZStack {
             Color.black
             ForEach(frames.indices, id: \.self) { i in
                 EditableFrame(frame: $frames[i], rect: rects[i])
                     .overlay(Rectangle().stroke(Color.black, lineWidth: 1.5))
             }
-            if !textLayer.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                EditableText(state: $textLayer)
+            ForEach(textLayers.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) { layer in
+                EditableText(
+                    state: binding(for: layer.id),
+                    onDragMove: { textDragMoved(to: $0) },
+                    onDragEnd: { textDragEnded(layer.id, at: $0) }
+                )
             }
         }
         .frame(width: canvasSize.width, height: canvasSize.height)
@@ -157,7 +220,7 @@ struct StoryComposerView: View {
     /// layered on top rather than baked into `composedContent`, since that's
     /// the exact view `post()` renders to produce the uploaded image.
     private var canvas: some View {
-        let rects = Self.frameRects(count: frames.count, in: canvasSize)
+        let rects = Self.frameRects(count: frames.count, variant: layoutVariant, in: canvasSize)
         return ZStack {
             composedContent
             ForEach(frames.indices, id: \.self) { i in
@@ -172,26 +235,51 @@ struct StoryComposerView: View {
                 }
                 .position(x: rects[i].minX + 22, y: rects[i].minY + 22)
             }
+            // Drag-to-delete target — shown only while a text layer is
+            // actively being dragged, never part of the exported image.
+            if isDraggingText {
+                Image(systemName: isNearTrash ? "trash.circle.fill" : "trash.circle")
+                    .font(.system(size: isNearTrash ? 40 : 32))
+                    .foregroundColor(isNearTrash ? .red : .white.opacity(0.85))
+                    .position(trashPoint)
+                    .animation(.easeInOut(duration: 0.15), value: isNearTrash)
+            }
         }
         .frame(width: canvasSize.width, height: canvasSize.height)
         .clipShape(RoundedRectangle(cornerRadius: 18))
     }
 
-    /// Adaptive collage layout: 1 = full-bleed, 2 = stacked halves, 3 = one
-    /// large top + two small bottom, 4 = even 2×2 grid.
-    static func frameRects(count: Int, in size: CGSize) -> [CGRect] {
-        switch count {
-        case 0:
+    /// Two alternative collage templates per photo count, picked via
+    /// `layoutPicker`'s swatches:
+    ///  1 photo — `.a` full-bleed edge-to-edge, `.b` inset/"framed" with a margin.
+    ///  2 photos — `.a` stacked halves, `.b` side-by-side halves.
+    ///  3 photos — `.a` one large top + two small bottom, `.b` one large left + two small right.
+    ///  4 photos — `.a` even 2×2 grid, `.b` one large top + three small bottom columns.
+    static func frameRects(count: Int, variant: LayoutVariant, in size: CGSize) -> [CGRect] {
+        switch (count, variant) {
+        case (0, _):
             return []
-        case 1:
+
+        case (1, .a):
             return [CGRect(origin: .zero, size: size)]
-        case 2:
+        case (1, .b):
+            let inset: CGFloat = 24
+            return [CGRect(x: inset, y: inset, width: size.width - inset * 2, height: size.height - inset * 2)]
+
+        case (2, .a):
             let h = size.height / 2
             return [
                 CGRect(x: 0, y: 0, width: size.width, height: h),
                 CGRect(x: 0, y: h, width: size.width, height: size.height - h),
             ]
-        case 3:
+        case (2, .b):
+            let w = size.width / 2
+            return [
+                CGRect(x: 0, y: 0, width: w, height: size.height),
+                CGRect(x: w, y: 0, width: size.width - w, height: size.height),
+            ]
+
+        case (3, .a):
             let topH = size.height / 2
             let halfW = size.width / 2
             return [
@@ -199,7 +287,16 @@ struct StoryComposerView: View {
                 CGRect(x: 0, y: topH, width: halfW, height: size.height - topH),
                 CGRect(x: halfW, y: topH, width: size.width - halfW, height: size.height - topH),
             ]
-        default: // 4
+        case (3, .b):
+            let leftW = size.width / 2
+            let halfH = size.height / 2
+            return [
+                CGRect(x: 0, y: 0, width: leftW, height: size.height),
+                CGRect(x: leftW, y: 0, width: size.width - leftW, height: halfH),
+                CGRect(x: leftW, y: halfH, width: size.width - leftW, height: size.height - halfH),
+            ]
+
+        case (4, .a):
             let halfW = size.width / 2
             let halfH = size.height / 2
             return [
@@ -208,22 +305,38 @@ struct StoryComposerView: View {
                 CGRect(x: 0, y: halfH, width: halfW, height: size.height - halfH),
                 CGRect(x: halfW, y: halfH, width: size.width - halfW, height: size.height - halfH),
             ]
+        default: // (4, .b)
+            let topH = size.height / 2
+            let thirdW = size.width / 3
+            return [
+                CGRect(x: 0, y: 0, width: size.width, height: topH),
+                CGRect(x: 0, y: topH, width: thirdW, height: size.height - topH),
+                CGRect(x: thirdW, y: topH, width: thirdW, height: size.height - topH),
+                CGRect(x: thirdW * 2, y: topH, width: size.width - thirdW * 2, height: size.height - topH),
+            ]
         }
     }
 
     // MARK: - Text editor sheet
 
+    /// The layer "Aa" just created and opened the sheet for. Falls back to a
+    /// throwaway, harmlessly-discarded binding if somehow no id is set (the
+    /// sheet is only ever shown right after `addTextLayer()` sets one).
+    private var editingBinding: Binding<TextLayerState> {
+        binding(for: editingTextLayerID ?? UUID())
+    }
+
     private var textEditorSheet: some View {
         NavigationStack {
             Form {
                 Section {
-                    TextField(bundle.loc("Add text..."), text: $textLayer.text, axis: .vertical)
+                    TextField(bundle.loc("Add text..."), text: editingBinding.text, axis: .vertical)
                 }
                 Section(bundle.loc("Color")) {
                     colorSwatchRow
                 }
                 Section(bundle.loc("Font")) {
-                    Picker(bundle.loc("Font"), selection: $textLayer.fontDesign) {
+                    Picker(bundle.loc("Font"), selection: editingBinding.fontDesign) {
                         Text(bundle.loc("Default")).tag(Font.Design.default)
                         Text(bundle.loc("Serif")).tag(Font.Design.serif)
                         Text(bundle.loc("Rounded")).tag(Font.Design.rounded)
@@ -232,10 +345,10 @@ struct StoryComposerView: View {
                     .pickerStyle(.segmented)
                 }
                 Section(bundle.loc("Size")) {
-                    Slider(value: $textLayer.fontSize, in: 16...64)
+                    Slider(value: editingBinding.fontSize, in: 16...64)
                 }
                 Section {
-                    Toggle(bundle.loc("Background highlight"), isOn: $textLayer.hasBackground)
+                    Toggle(bundle.loc("Background highlight"), isOn: editingBinding.hasBackground)
                 }
             }
             .navigationTitle(bundle.loc("Add text"))
@@ -257,12 +370,57 @@ struct StoryComposerView: View {
                     Circle()
                         .fill(colors[i])
                         .frame(width: 32, height: 32)
-                        .overlay(Circle().stroke(Color.gray, lineWidth: colors[i] == textLayer.color ? 3 : 1))
-                        .onTapGesture { textLayer.color = colors[i] }
+                        .overlay(Circle().stroke(Color.gray, lineWidth: colors[i] == editingBinding.wrappedValue.color ? 3 : 1))
+                        .onTapGesture { editingBinding.wrappedValue.color = colors[i] }
                 }
-                ColorPicker("", selection: $textLayer.color).labelsHidden()
+                ColorPicker("", selection: editingBinding.color).labelsHidden()
             }
             .padding(.vertical, 4)
+        }
+    }
+
+    // MARK: - Text layers
+
+    /// A binding to one specific layer by id — used both by the editor
+    /// sheet (bound to whichever layer "Aa" just created) and by each
+    /// `EditableText` on the canvas.
+    private func binding(for id: UUID) -> Binding<TextLayerState> {
+        Binding(
+            get: { textLayers.first { $0.id == id } ?? TextLayerState() },
+            set: { newValue in
+                if let i = textLayers.firstIndex(where: { $0.id == id }) {
+                    textLayers[i] = newValue
+                }
+            }
+        )
+    }
+
+    /// "Aa" always creates a brand-new text layer and opens the editor for
+    /// it — never re-opens an existing one. Staggers the default position
+    /// slightly per existing layer so new texts don't land exactly on top
+    /// of earlier ones.
+    private func addTextLayer() {
+        var layer = TextLayerState()
+        layer.position = CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2 + CGFloat(textLayers.count) * 40)
+        textLayers.append(layer)
+        editingTextLayerID = layer.id
+        showTextEditor = true
+    }
+
+    private func textDragMoved(to point: CGPoint) {
+        isDraggingText = true
+        isNearTrash = distance(point, trashPoint) < trashRadius
+    }
+
+    /// Drop near the trash zone deletes the layer; otherwise its position
+    /// commits to where it was dropped.
+    private func textDragEnded(_ id: UUID, at point: CGPoint) {
+        isDraggingText = false
+        isNearTrash = false
+        if distance(point, trashPoint) < trashRadius {
+            textLayers.removeAll { $0.id == id }
+        } else if let i = textLayers.firstIndex(where: { $0.id == id }) {
+            textLayers[i].position = point
         }
     }
 
@@ -277,6 +435,7 @@ struct StoryComposerView: View {
             }
         }
         frames = newFrames
+        layoutVariant = .a
         pickerItems = []
     }
 
@@ -314,6 +473,13 @@ struct StoryComposerView: View {
 }
 
 // MARK: - Frame model + editable view
+
+/// Two alternate collage templates exist for every photo count (1-4) — see
+/// `StoryComposerView.frameRects(count:variant:in:)` for what each looks
+/// like at each count.
+enum LayoutVariant: CaseIterable {
+    case a, b
+}
 
 struct ComposerFrame: Identifiable {
     let id = UUID()
@@ -368,7 +534,8 @@ private struct EditableFrame: View {
 
 // MARK: - Text overlay model + editable view
 
-struct TextLayerState {
+struct TextLayerState: Identifiable {
+    let id = UUID()
     var text: String = ""
     var color: Color = .white
     var fontDesign: Font.Design = .default
@@ -382,6 +549,14 @@ struct TextLayerState {
 
 private struct EditableText: View {
     @Binding var state: TextLayerState
+    /// Live absolute position while dragging — lets the parent track
+    /// proximity to the trash zone and show/highlight its icon.
+    var onDragMove: (CGPoint) -> Void = { _ in }
+    /// Final absolute position on release — the parent decides whether to
+    /// commit it as the new position or delete this layer entirely (a
+    /// single-layer `Binding` can't remove itself from the array it lives
+    /// in, so that decision has to live one level up).
+    var onDragEnd: (CGPoint) -> Void = { _ in }
 
     var body: some View {
         Text(state.text)
@@ -398,11 +573,16 @@ private struct EditableText: View {
                       y: state.position.y + state.dragOffset.height)
             .gesture(
                 DragGesture()
-                    .onChanged { value in state.dragOffset = value.translation }
+                    .onChanged { value in
+                        state.dragOffset = value.translation
+                        onDragMove(CGPoint(x: state.position.x + value.translation.width,
+                                            y: state.position.y + value.translation.height))
+                    }
                     .onEnded { value in
-                        state.position.x += value.translation.width
-                        state.position.y += value.translation.height
+                        let finalPoint = CGPoint(x: state.position.x + value.translation.width,
+                                                  y: state.position.y + value.translation.height)
                         state.dragOffset = .zero
+                        onDragEnd(finalPoint)
                     }
             )
             .simultaneousGesture(
