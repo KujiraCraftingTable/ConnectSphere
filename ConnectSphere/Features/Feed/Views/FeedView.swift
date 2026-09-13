@@ -144,11 +144,7 @@ struct FeedView: View {
             }
             } // ScrollViewReader
             .toolbar {
-                // `.principal` centers this in the nav bar, matching the
-                // "Mode Switch Pill (center of nav bar)" intent below —
-                // `.navigationBarLeading` (the old placement) pushed it to
-                // the left edge instead.
-                ToolbarItem(placement: .principal) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     modeSwitchPill
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -199,7 +195,7 @@ struct FeedView: View {
         }
     }
 
-    // MARK: Mode Switch Pill (center of nav bar)
+    // MARK: Mode Switch Pill (leading edge of nav bar, icon-only)
 
     private var modeSwitchPill: some View {
         HStack(spacing: 0) {
@@ -218,16 +214,15 @@ struct FeedView: View {
                 appState.requestModeSwitch(to: mode)
             }
         } label: {
-            HStack(spacing: 4) {
-                Image(systemName: icon).font(.system(size: 11, weight: .semibold))
-                Text(label).font(.system(size: 12, weight: .semibold))
-            }
-            .foregroundColor(isActive ? .white : AppColors.textSecondary(colorScheme))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(isActive ? themeManager.theme.primary : Color.clear, in: Capsule())
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(isActive ? .white : AppColors.textSecondary(colorScheme))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(isActive ? themeManager.theme.primary : Color.clear, in: Capsule())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 
     // MARK: Feed Scope Row ("For you" / "Connections")
