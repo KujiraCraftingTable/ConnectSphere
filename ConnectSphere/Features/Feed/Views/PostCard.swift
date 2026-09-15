@@ -583,12 +583,10 @@ struct PostCard: View {
                 }
                 .buttonStyle(.plain)
 
-                Text(String(format: bundle.loc("Posted by %@"), post.author.name))
-                    .appFont(.footnote)
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-                    .lineLimit(1)
-
                 HStack(spacing: 3) {
+                    Text(String(format: bundle.loc("Posted by %@"), post.author.name))
+                        .lineLimit(1)
+                    Text("·")
                     if post.isPinned {
                         Image(systemName: "pin.fill")
                         Text("Pinned", bundle: bundle)
