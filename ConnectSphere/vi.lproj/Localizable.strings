@@ -185,6 +185,7 @@
 "Newest first" = "Mới nhất trước";
 "No comments yet" = "Chưa có bình luận nào";
 "No connections yet — try searching and sending a request" = "Chưa có kết nối nào — thử tìm kiếm và gửi lời mời nhé";
+"No chats yet 👋" = "Chưa có tin nhắn nào 👋";
 "No conversations yet" = "Chưa có cuộc trò chuyện nào";
 "No distance limit when searching with location." = "Không giới hạn khoảng cách khi tìm kiếm có địa điểm.";
 "No notifications yet" = "Chưa có thông báo nào";
@@ -279,6 +280,7 @@
 "Skills (Swift, Python, UI/UX...)" = "Kỹ năng (Swift, Python, UI/UX...)";
 "Skip" = "Bỏ qua";
 "Someone" = "Ai đó";
+"Say hi to a connection and start the fun!" = "Chào một người bạn để bắt đầu trò chuyện vui vẻ nào!";
 "Specifically which %@? (optional)" = "Cụ thể là %@ nào? (tùy chọn)";
 "Start a conversation by visiting someone's profile." = "Bắt đầu trò chuyện bằng cách vào trang cá nhân của ai đó.";
 "Submit report" = "Gửi báo cáo";
@@ -331,6 +333,7 @@
 "You two will no longer see each other's posts, all connections will be removed, and you won't be able to message each other." = "Hai bạn sẽ không còn thấy bài viết của nhau, mọi kết nối sẽ bị gỡ và không thể nhắn tin cho nhau.";
 "You've blocked this user" = "Bạn đã chặn người dùng này";
 "You're connected — say hello 👋" = "Bạn đã kết nối với tài khoản này, hãy gửi lời chào 👋";
+"You're connected. Say hello." = "Hai bạn đã kết nối. Hãy chào hỏi.";
 "You're not connected with this user" = "Bạn chưa kết nối với tài khoản này";
 "Your interests" = "Sở thích của bạn";
 "Your location" = "Vị trí của bạn";
@@ -726,6 +729,7 @@
 "No connections available to add" = "Không có kết nối nào để thêm";
 "Someone you've blocked (or who has blocked you) is in this group." = "Có người bạn đã chặn (hoặc đã chặn bạn) trong nhóm này.";
 "Say hello to the group 👋" = "Chào hỏi mọi người trong nhóm nào 👋";
+"Say hello to the group." = "Hãy chào hỏi cả nhóm.";
 "You will no longer be the owner of this group." = "Bạn sẽ không còn là chủ nhóm này nữa.";
 
 // MARK: - Conversation list preview text
