@@ -132,6 +132,8 @@
 "Following" = "Following";
 "For you" = "For you";
 "Forgot password?" = "Forgot password?";
+"Forward" = "Forward";
+"Forward to..." = "Forward to...";
 "Friends" = "Friends";
 "Friends & Fun" = "Friends & Fun";
 "Gender *" = "Gender *";
@@ -727,6 +729,7 @@
 "Username available" = "Username available";
 "This mode has its own separate identity — name, avatar and bio won't be shared with the other mode" = "This mode has its own separate identity — name, avatar and bio won't be shared with the other mode";
 "No connections available to add" = "No connections available to add";
+"No other conversations to forward to" = "No other conversations to forward to";
 "Someone you've blocked (or who has blocked you) is in this group." = "Someone you've blocked (or who has blocked you) is in this group.";
 "Say hello to the group 👋" = "Say hello to the group 👋";
 "Say hello to the group." = "Say hello to the group.";

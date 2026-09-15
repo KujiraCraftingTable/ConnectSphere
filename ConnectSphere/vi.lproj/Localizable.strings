@@ -132,6 +132,8 @@
 "Following" = "Đang theo dõi";
 "For you" = "Dành cho bạn";
 "Forgot password?" = "Quên mật khẩu?";
+"Forward" = "Chuyển tiếp";
+"Forward to..." = "Chuyển tiếp đến...";
 "Friends" = "Bạn bè";
 "Friends & Fun" = "Kết bạn & Giải trí";
 "Gender *" = "Giới tính *";
@@ -727,6 +729,7 @@
 "Username available" = "Tên người dùng khả dụng";
 "This mode has its own separate identity — name, avatar and bio won't be shared with the other mode" = "Chế độ này có danh tính riêng biệt — tên, ảnh đại diện và tiểu sử sẽ không dùng chung với chế độ còn lại";
 "No connections available to add" = "Không có kết nối nào để thêm";
+"No other conversations to forward to" = "Không có cuộc trò chuyện nào khác để chuyển tiếp";
 "Someone you've blocked (or who has blocked you) is in this group." = "Có người bạn đã chặn (hoặc đã chặn bạn) trong nhóm này.";
 "Say hello to the group 👋" = "Chào hỏi mọi người trong nhóm nào 👋";
 "Say hello to the group." = "Hãy chào hỏi cả nhóm.";

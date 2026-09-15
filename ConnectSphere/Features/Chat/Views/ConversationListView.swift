@@ -251,15 +251,34 @@ struct ConversationListView: View {
 
     // MARK: - Read/unread filter
 
+    // Same visual language as FeedView's `feedScopeButton` ("For you"/"Connections")
+    // pill so this reads as the same control pattern across the app.
     private var unreadFilterRow: some View {
-        Picker("", selection: $unreadOnly) {
-            Text("All", bundle: bundle).tag(false)
-            Text("Unread", bundle: bundle).tag(true)
+        HStack(spacing: 8) {
+            unreadFilterButton(false, label: bundle.loc("All"))
+            unreadFilterButton(true, label: bundle.loc("Unread"))
+            Spacer()
         }
-        .pickerStyle(.segmented)
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, 4)
+        .padding(.horizontal, 12)
+        .padding(.top, 2)
+    }
+
+    private func unreadFilterButton(_ value: Bool, label: String) -> some View {
+        let isActive = unreadOnly == value
+        return Button {
+            unreadOnly = value
+        } label: {
+            Text(label)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(isActive ? .white : AppColors.textSecondary(colorScheme))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .background(isActive ? themeManager.theme.primary : AppColors.surface(colorScheme), in: Capsule())
+                .overlay(
+                    Capsule().stroke(AppColors.borderDefault(colorScheme), lineWidth: isActive ? 0 : 1)
+                )
+        }
+        .buttonStyle(.plain)
     }
 
     /// `viewModel.conversations` filtered by the read/unread toggle — purely
