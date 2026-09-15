@@ -36,6 +36,12 @@ struct PostCard: View {
     /// with the composer focused (`focusComposer == true`). `nil` = no
     /// whole-card tap (e.g. inside `PostDetailView` itself, so it can't recurse).
     var onOpenDetail: ((_ focusComposer: Bool) -> Void)? = nil
+    /// Staff-only pin/unpin for a community post — set (non-nil) only by a
+    /// caller that has already verified the viewer is an admin/moderator of
+    /// `post.community`; `nil` on every non-community call site, and on a
+    /// community post viewed by a regular member.
+    var onPin: (() -> Void)? = nil
+    var onUnpin: (() -> Void)? = nil
     /// Corner radius for the card's own clip shape. Default `12` everywhere;
     /// `PostDetailView` passes `0` so its embedded copy reads as a square-edged
     /// panel pinned at the top of the screen rather than a floating card.
@@ -79,6 +85,8 @@ struct PostCard: View {
         onPostDeleted: (() -> Void)? = nil,
         onPostUpdated: ((Post) -> Void)? = nil,
         onOpenDetail: ((_ focusComposer: Bool) -> Void)? = nil,
+        onPin: (() -> Void)? = nil,
+        onUnpin: (() -> Void)? = nil,
         cornerRadius: CGFloat = 12,
         collapsedTotalHeight: CGFloat? = nil,
         expandedTotalHeight: CGFloat? = nil
@@ -90,6 +98,8 @@ struct PostCard: View {
         self.onPostDeleted = onPostDeleted
         self.onPostUpdated = onPostUpdated
         self.onOpenDetail = onOpenDetail
+        self.onPin = onPin
+        self.onUnpin = onUnpin
         self.cornerRadius = cornerRadius
         self.collapsedTotalHeight = collapsedTotalHeight
         self.expandedTotalHeight = expandedTotalHeight
@@ -668,6 +678,21 @@ struct PostCard: View {
 
     private var postHeaderMenu: some View {
         Menu {
+            if let onPin, !post.isPinned {
+                Button {
+                    onPin()
+                } label: {
+                    Label(bundle.loc("Pin post"), systemImage: "pin")
+                }
+            }
+            if let onUnpin, post.isPinned {
+                Button {
+                    onUnpin()
+                } label: {
+                    Label(bundle.loc("Unpin post"), systemImage: "pin.slash")
+                }
+            }
+
             let isSelf = post.author.id == appState.currentUser?.id
             if isSelf {
                 Button { showEditSheet = true } label: {

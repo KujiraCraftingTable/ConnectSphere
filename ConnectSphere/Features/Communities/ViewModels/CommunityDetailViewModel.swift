@@ -4,7 +4,7 @@ import Observation
 @Observable
 class CommunityDetailViewModel {
     var community: Community?
-    var posts: [CommunityPost] = []
+    var posts: [Post] = []
     var members: [CommunityMember] = []
     var isLoadingPosts = false
     var isLoadingMembers = false
@@ -89,7 +89,7 @@ class CommunityDetailViewModel {
         isLoadingPosts = false
     }
 
-    func loadMorePostsIfNeeded(currentPost: CommunityPost) async {
+    func loadMorePostsIfNeeded(currentPost: Post) async {
         guard let last = posts.last, last.id == currentPost.id else { return }
         await fetchPosts()
     }
@@ -212,15 +212,14 @@ class CommunityDetailViewModel {
 
     /// Decodes a `community_post_created` socket payload the same way the
     /// REST post list does — the payload is the full post row (same columns
-    /// `buildPostSelect` projects) plus `community_id`, so `CommunityPostDTO`
-    /// decodes it directly. Unlike `GET /communities/:id/posts`, the socket
-    /// emit doesn't add the joined `community` object (it broadcasts the raw
-    /// row from `createCommunityPost`/`findById`, not `getPostsByCommunity`'s
-    /// query) — fill it in from the community already loaded here so a
-    /// live-arriving post's community badge matches a REST-fetched one's.
-    private func decodePost(_ payload: Any) -> CommunityPost? {
+    /// `buildPostSelect` projects, which now includes `community` itself
+    /// whenever `community_id` is set — see PostStore.buildPostSelect), so
+    /// `PostDTO` decodes it directly. `community` is filled in from the
+    /// community already loaded here only as a defensive fallback, in case a
+    /// server payload predates that projection.
+    private func decodePost(_ payload: Any) -> Post? {
         guard let json = try? JSONSerialization.data(withJSONObject: payload) else { return nil }
-        guard var post = try? JSONDecoder.makeISO8601().decode(CommunityPostDTO.self, from: json).toCommunityPost() else {
+        guard var post = try? JSONDecoder.makeISO8601().decode(PostDTO.self, from: json).toPost() else {
             return nil
         }
         if post.community == nil, let community {
@@ -236,7 +235,7 @@ class CommunityDetailViewModel {
     // the same statement triggers a Swift exclusivity-access crash
     // (overlapping getter/setter access on the @Observable `community`
     // property).
-    func prependPost(_ post: CommunityPost) {
+    func prependPost(_ post: Post) {
         posts.insert(post, at: 0)
         if let currentCount = community?.postCount {
             community?.postCount = currentCount + 1
@@ -247,17 +246,6 @@ class CommunityDetailViewModel {
         posts.removeAll { $0.id == id }
         if let currentCount = community?.postCount, currentCount > 0 {
             community?.postCount = currentCount - 1
-        }
-    }
-
-    // MARK: - Delete post (moved from View)
-
-    func deletePost(_ post: CommunityPost) async {
-        do {
-            try await repository.deletePost(postId: post.id, token: token)
-            removePost(id: post.id)
-        } catch {
-            errorMessage = Bundle.app.loc("Could not delete post.")
         }
     }
 

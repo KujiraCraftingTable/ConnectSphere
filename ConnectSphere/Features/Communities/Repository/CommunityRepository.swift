@@ -75,21 +75,18 @@ struct CommunityRepository {
 
     // MARK: - Posts
 
-    func fetchPosts(communityId: String, limit: Int, offset: Int, token: String) async throws -> [CommunityPost] {
+    /// Decodes as `PostDTO`/`Post` — the same model `PostCard` (and Feed)
+    /// render — not the legacy `CommunityPost`, which is now only used as
+    /// `PostComposerViewModel`'s internal create-response decode target.
+    func fetchPosts(communityId: String, limit: Int, offset: Int, token: String) async throws -> [Post] {
         let items: [URLQueryItem] = [
             .init(name: "limit",  value: "\(limit)"),
             .init(name: "offset", value: "\(offset)"),
         ]
-        let res = try await client.fetch(DataListResponse<CommunityPostDTO>.self,
+        let res = try await client.fetch(DataListResponse<PostDTO>.self,
                                           path: "/communities/\(communityId)/posts",
                                           token: token, queryItems: items)
-        return res.data.map { $0.toCommunityPost() }
-    }
-
-    func deletePost(postId: String, token: String) async throws {
-        _ = try await client.fetch(OKResponse.self,
-                                    path: "/posts/\(postId)",
-                                    method: "DELETE", token: token)
+        return res.data.map { $0.toPost() }
     }
 
     func pinPost(communityId: String, postId: String, token: String) async throws {
@@ -102,15 +99,6 @@ struct CommunityRepository {
         _ = try await client.fetch(OKResponse.self,
                                     path: "/communities/\(communityId)/posts/\(postId)/pin",
                                     method: "DELETE", token: token)
-    }
-
-    /// Toggle like on a post. Uses the shared /posts/:id/like route (not a
-    /// community-specific one) — works for any post id, including posts inside a community.
-    func toggleLikePost(postId: String, token: String) async throws -> (liked: Bool, likeCount: Int) {
-        let res = try await client.fetch(LikeResponse.self,
-                                          path: "/posts/\(postId)/like",
-                                          method: "POST", token: token)
-        return (liked: res.liked, likeCount: res.likeCount)
     }
 
     // MARK: - Members

@@ -1,7 +1,9 @@
 import SwiftUI
 
-/// Bottom sheet for reporting a post or a member.
-/// Used from CommunityPostCard context menu and member row context menu.
+/// Bottom sheet for reporting a community member — used from the member row's
+/// context menu on `CommunityDetailView`. Post reports go through `PostCard`'s
+/// own inline confirmation-dialog flow instead (`targetType` here still
+/// accepts "post" server-side if a future caller needs it).
 struct ReportSheet: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(ThemeManager.self) var themeManager

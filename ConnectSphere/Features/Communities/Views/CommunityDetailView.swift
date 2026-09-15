@@ -13,6 +13,8 @@ struct CommunityDetailView: View {
     @State private var showAnalytics     = false
     @State private var reportTargetId: String? = nil
     @State private var showReportMember  = false
+    // Tap-to-open-post-detail — same PostRoute/PostDetailView navigation Feed uses.
+    @State private var detailRoute: PostRoute?
 
     let communityId: String
 
@@ -119,6 +121,14 @@ struct CommunityDetailView: View {
                     viewModel.prependPost(post)
                 }
                 .environment(appState)
+            }
+        }
+        .navigationDestination(isPresented: Binding(
+            get: { detailRoute != nil },
+            set: { if !$0 { detailRoute = nil } }
+        )) {
+            if let route = detailRoute {
+                PostDetailView(postId: route.postId, focusComposer: route.focusComposer)
             }
         }
         .navigationDestination(isPresented: $showJoinRequests) {
@@ -285,17 +295,18 @@ struct CommunityDetailView: View {
         } else if viewModel.posts.isEmpty {
             emptyFeed
         } else {
-            LazyVStack(spacing: 8) {
+            LazyVStack(spacing: AppSpacing.sm) {
                 ForEach(viewModel.posts) { post in
-                    CommunityPostCard(
-                        post:              post,
-                        currentUserId:     appState.currentUser?.id ?? "",
-                        communityId:       communityId,
-                        token:             appState.authToken ?? "",
-                        accentColor:       accentColor,
-                        currentUserRole:   currentUserRole,
-                        onDelete: {
-                            Task<Void, Never>(name: nil) { await deletePost(post) }
+                    PostCard(
+                        post: post,
+                        onPostDeleted: { viewModel.removePost(id: post.id) },
+                        onPostUpdated: { updated in
+                            if let idx = viewModel.posts.firstIndex(where: { $0.id == updated.id }) {
+                                viewModel.posts[idx] = updated
+                            }
+                        },
+                        onOpenDetail: { focus in
+                            detailRoute = PostRoute(postId: post.id, focusComposer: focus)
                         },
                         onPin: isStaff ? {
                             Task<Void, Never>(name: nil) { await viewModel.pinPost(post.id) }
@@ -304,13 +315,14 @@ struct CommunityDetailView: View {
                             Task<Void, Never>(name: nil) { await viewModel.unpinPost(post.id) }
                         } : nil
                     )
-                    .padding(.horizontal, 10)
+                    .cardStyle()
                     .task { await viewModel.loadMorePostsIfNeeded(currentPost: post) }
                 }
                 if viewModel.isLoadingPosts {
                     ProgressView().padding(.vertical, 12)
                 }
             }
+            .padding(.horizontal, AppSpacing.sm)
             .padding(.top, 8)
             .padding(.bottom, 80)
         }
@@ -467,11 +479,5 @@ struct CommunityDetailView: View {
         }
         .padding(.trailing, 20)
         .padding(.bottom, 24)
-    }
-
-    // MARK: - Delete post
-
-    private func deletePost(_ post: CommunityPost) async {
-        await viewModel.deletePost(post)
     }
 }
