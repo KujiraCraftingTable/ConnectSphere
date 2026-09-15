@@ -101,6 +101,22 @@ final class FloatingChatPresenter {
         bubbles.removeAll { $0.id == bubble.id }
     }
 
+    /// Toggles `bubble`'s inline-compose affordance, closing any other
+    /// bubble's first — the on-screen keyboard is a single, device-wide
+    /// resource, so only one bubble composes at a time.
+    func toggleComposing(_ bubble: FloatingBubbleState) {
+        let opening = !bubble.isComposing
+        for other in bubbles where other.id != bubble.id { other.isComposing = false }
+        bubble.isComposing = opening
+        if opening { bringToFront(bubble) }
+    }
+
+    /// Closes every bubble's compose affordance — used by the overlay's
+    /// tap-outside catcher.
+    func dismissAllComposing() {
+        for bubble in bubbles { bubble.isComposing = false }
+    }
+
     /// Removes a bubble from the floating list and hands its still-live
     /// `ChatViewModel` to a root-level full-screen `ChatView` — no re-fetch,
     /// no re-join; the socket listeners registered under the bubble's tag
