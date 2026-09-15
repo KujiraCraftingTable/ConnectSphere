@@ -13,6 +13,8 @@ struct UserProfileView: View {
     @State private var chatConversationId: String?
     @State private var navigateToChat = false
     @State private var isOpeningChat = false
+    // Tap-to-open-post-detail — same PostRoute/PostDetailView navigation Feed uses.
+    @State private var detailRoute: PostRoute?
 
     // Block state
     @State private var isBlocked = false
@@ -85,6 +87,14 @@ struct UserProfileView: View {
             Button(bundle.loc("OK")) { errorMessage = nil }
         } message: {
             Text(errorMessage ?? "")
+        }
+        .navigationDestination(isPresented: Binding(
+            get: { detailRoute != nil },
+            set: { if !$0 { detailRoute = nil } }
+        )) {
+            if let route = detailRoute {
+                PostDetailView(postId: route.postId, focusComposer: route.focusComposer)
+            }
         }
         .navigationDestination(isPresented: $navigateToChat) {
             if let convId = chatConversationId, let user = user {
@@ -318,17 +328,17 @@ struct UserProfileView: View {
             if viewModel.isLoading && viewModel.posts.isEmpty {
                 ProgressView().padding(.top, 20).frame(maxWidth: .infinity)
             } else {
-                LazyVStack(spacing: 5) {
+                LazyVStack(spacing: AppSpacing.sm) {
                     ForEach(viewModel.posts) { post in
                         PostCard(
                             post: post,
                             onPostDeleted: { viewModel.removePost(id: post.id) },
-                            onPostUpdated: { updated in viewModel.updatePost(updated) }
+                            onPostUpdated: { updated in viewModel.updatePost(updated) },
+                            onOpenDetail: { focus in
+                                detailRoute = PostRoute(postId: post.id, focusComposer: focus)
+                            }
                         )
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.06),
-                                radius: 4, x: 0, y: 2)
-                        .padding(.horizontal, 10)
+                        .cardStyle()
                         .onAppear {
                             if post.id == viewModel.posts.last?.id {
                                 Task {
@@ -342,6 +352,7 @@ struct UserProfileView: View {
                         ProgressView().padding(.vertical, 12)
                     }
                 }
+                .padding(.horizontal, AppSpacing.sm)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

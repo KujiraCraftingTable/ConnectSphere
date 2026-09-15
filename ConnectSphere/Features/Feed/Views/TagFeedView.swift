@@ -24,7 +24,7 @@ struct TagFeedView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 5) {
+            LazyVStack(spacing: AppSpacing.sm) {
                 if isLoading && posts.isEmpty {
                     ProgressView().padding(.top, 60)
                 } else if let loadError, posts.isEmpty {
@@ -65,9 +65,7 @@ struct TagFeedView: View {
                                 detailRoute = PostRoute(postId: post.id, focusComposer: focus)
                             }
                         )
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.06),
-                                radius: 4, x: 0, y: 2)
+                        .cardStyle()
                         .onAppear {
                             // Scrolled to the last post → load the next page
                             if post.id == posts.last?.id {
@@ -81,7 +79,7 @@ struct TagFeedView: View {
                     }
                 }
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, AppSpacing.sm)
             .padding(.vertical, 10)
         }
         .background(AppColors.base(colorScheme))
