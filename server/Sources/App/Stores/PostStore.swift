@@ -328,7 +328,7 @@ enum PostStore {
     /// Port of `getPostsByCommunity` — buildPostSelect wrapped so the embedded
     /// `community` object can be merged in; pinned post first.
     static func getPostsByCommunity(_ communityID: String, viewer: String, tag: String?, limit: Int, offset: Int, on db: any SQLDatabase) async throws -> [PostObject] {
-        var q = "SELECT sub.*, (SELECT json_build_object('id', co.id, 'name', co.name, 'icon_emoji', co.icon_emoji) FROM communities co WHERE co.id = " as SQLQueryString
+        var q = "SELECT sub.*, (SELECT json_build_object('id', co.id, 'name', co.name, 'icon_emoji', co.icon_emoji, 'avatar_url', co.avatar_url) FROM communities co WHERE co.id = " as SQLQueryString
         q = q + "\(uuid: communityID))::text AS community FROM ("
         q = q + buildPostSelect(viewer)
         q = q + " WHERE p.community_id = \(uuid: communityID) AND p.status = 'posted'"

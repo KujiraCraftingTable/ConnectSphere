@@ -37,6 +37,7 @@ struct CommunitiesController {
         c.delete(":id", "members", ":userId", use: kickMember)
         c.patch(":id", "members", ":userId", "role", use: updateRole)
         c.post(":id", "tags", use: setTags)
+        c.patch(":id", use: update)
         // moderation / analytics / member-report → ReportsController (same phase)
         ReportsController.registerCommunityRoutes(on: c)
     }
@@ -47,7 +48,7 @@ struct CommunitiesController {
 
     struct CreateBody: Content {
         var name: String?; var description: String?; var type: String?; var privacy: String?
-        var icon_emoji: String?; var cover_color: String?
+        var icon_emoji: String?; var cover_color: String?; var avatar_url: String?
     }
     static func create(_ req: Request) async throws -> Response {
         let b = try req.content.decode(CreateBody.self)
@@ -63,14 +64,15 @@ struct CommunitiesController {
         let icon = b.icon_emoji ?? "👥"
         let cover = b.cover_color ?? "#7F5AF0"
         let desc = b.description?.trimmingCharacters(in: .whitespaces).nilIfEmpty
+        let avatarURL = b.avatar_url?.trimmingCharacters(in: .whitespaces).nilIfEmpty
 
         var newID = ""
         do {
             try await req.db.tx { t in
                 struct R: Decodable { let id: String }
                 newID = try await t.raw("""
-                    INSERT INTO communities (name, description, type, privacy, icon_emoji, cover_color, created_by)
-                    VALUES (\(bind: name), \(bind: desc), \(bind: type), \(bind: privacy), \(bind: icon), \(bind: cover), \(uuid: req.userID))
+                    INSERT INTO communities (name, description, type, privacy, icon_emoji, avatar_url, cover_color, created_by)
+                    VALUES (\(bind: name), \(bind: desc), \(bind: type), \(bind: privacy), \(bind: icon), \(bind: avatarURL), \(bind: cover), \(uuid: req.userID))
                     RETURNING id::text AS id
                     """).first(decoding: R.self)!.id
                 _ = try await CommunityStore.joinCommunity(newID, req.userID, role: "admin", on: t)
@@ -82,6 +84,35 @@ struct CommunitiesController {
         }
         guard let community = try await CommunityStore.byID(newID, viewer: req.userID, on: req.db.sql()) else { throw Abort(.internalServerError) }
         return try await ConnectionsController.encode(DataResponse(data: community), req, .created)
+    }
+
+    // MARK: update (avatar/name/description/icon/cover — admin/moderator only)
+
+    struct UpdateBody: Content {
+        var name: String?; var description: String?; var privacy: String?
+        var icon_emoji: String?; var cover_color: String?; var avatar_url: String?
+    }
+    static func update(_ req: Request) async throws -> DataResponse<CommunityStore.CommunityDetail> {
+        let id = req.parameters.get("id")!
+        let db = req.db.sql()
+        guard staff(try await CommunityStore.membership(id, req.userID, on: db)) else {
+            throw Abort(.forbidden, reason: "Only admins and moderators can edit this community")
+        }
+        let b = try req.content.decode(UpdateBody.self)
+        if let name = b.name {
+            let trimmed = name.trimmingCharacters(in: .whitespaces)
+            guard trimmed.count >= 3, trimmed.count <= 100 else {
+                throw Abort(.badRequest, reason: "Community name must be 3-100 characters")
+            }
+        }
+        if let d = b.description, d.count > 500 { throw Abort(.badRequest, reason: "Description must be at most 500 characters") }
+        if let p = b.privacy, !CommunitiesController.validPrivacy.contains(p) { throw Abort(.badRequest, reason: "privacy must be public or private") }
+        guard try await CommunityStore.update(id, name: b.name, description: b.description, privacy: b.privacy,
+            iconEmoji: b.icon_emoji, coverColor: b.cover_color, avatarURL: b.avatar_url, on: db) else {
+            throw Abort(.notFound, reason: "Community not found")
+        }
+        guard let community = try await CommunityStore.byID(id, viewer: req.userID, on: db) else { throw Abort(.internalServerError) }
+        return DataResponse(data: community)
     }
 
     // MARK: search / me / getOne

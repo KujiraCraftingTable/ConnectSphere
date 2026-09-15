@@ -89,5 +89,6 @@ struct PostObject: Content {
         var id: String
         var name: String
         var icon_emoji: String
+        @NullCoded var avatar_url: String?
     }
 }

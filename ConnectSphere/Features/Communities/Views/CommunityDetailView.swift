@@ -166,12 +166,11 @@ struct CommunityDetailView: View {
                 .frame(height: 112)
 
             HStack(alignment: .bottom, spacing: AppSpacing.md) {
-                // Cover color lives in a small emoji tile, not a full-bleed band.
-                Text(viewModel.community?.iconEmoji ?? "👥")
-                    .font(.system(size: 34))
-                    .frame(width: 60, height: 60)
-                    .background(accentColor.opacity(0.15),
-                                in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
+                // Real uploaded photo when set, else the emoji/color fallback —
+                // same Avatar component every user pfp already uses.
+                Avatar(name: viewModel.community?.iconEmoji ?? "👥",
+                       colorHex: viewModel.community?.coverColor,
+                       imageURL: viewModel.community?.avatarUrl, diameter: 60)
                     .padding(.leading, AppSpacing.lg)
                     .padding(.bottom, AppSpacing.md)
 

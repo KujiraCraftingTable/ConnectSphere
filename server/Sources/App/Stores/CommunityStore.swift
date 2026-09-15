@@ -16,6 +16,7 @@ enum CommunityStore {
         var type: String
         var privacy: String
         var icon_emoji: String
+        @NullCoded var avatar_url: String?
         var cover_color: String
         var member_count: Int
         var post_count: Int
@@ -36,6 +37,7 @@ enum CommunityStore {
         var type: String
         var privacy: String
         var icon_emoji: String
+        @NullCoded var avatar_url: String?
         var cover_color: String
         var member_count: Int
         var post_count: Int
@@ -49,7 +51,7 @@ enum CommunityStore {
         let q: SQLQueryString
         if let viewer {
             q = """
-                SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.cover_color,
+                SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.avatar_url, c.cover_color,
                   c.member_count, c.post_count, c.created_by::text AS created_by, c.created_at,
                   (cm.user_id IS NOT NULL) AS is_member, cm.role, jr.status AS join_request_status
                 FROM communities c
@@ -59,7 +61,7 @@ enum CommunityStore {
                 """
         } else {
             q = """
-                SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.cover_color,
+                SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.avatar_url, c.cover_color,
                   c.member_count, c.post_count, c.created_by::text AS created_by, c.created_at,
                   false AS is_member, NULL::VARCHAR AS role, NULL::VARCHAR AS join_request_status
                 FROM communities c WHERE c.id = \(uuid: id)
@@ -139,11 +141,11 @@ enum CommunityStore {
     static func trendingCommunities(type: String?, limit: Int, on db: any SQLDatabase) async throws -> [CommunityRow] {
         struct R: Decodable {
             let id: String; let name: String; let description: String?; let type: String; let privacy: String
-            let icon_emoji: String; let cover_color: String; let member_count: Int; let post_count: Int
+            let icon_emoji: String; let avatar_url: String?; let cover_color: String; let member_count: Int; let post_count: Int
             let created_at: Date; let trending_score: Double
         }
         var q: SQLQueryString = """
-            SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.cover_color,
+            SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.avatar_url, c.cover_color,
               c.member_count, c.post_count, c.created_at, COALESCE(tr.score, 0)::float AS trending_score
             FROM communities c LEFT JOIN community_trending tr ON tr.community_id = c.id
             WHERE c.privacy = 'public'
@@ -152,7 +154,7 @@ enum CommunityStore {
         q = q + " ORDER BY COALESCE(tr.score, 0) DESC, c.member_count DESC LIMIT \(bind: limit)"
         return try await db.raw(q).all(decoding: R.self).map {
             CommunityRow(id: $0.id, description: $0.description, name: $0.name, type: $0.type, privacy: $0.privacy,
-                icon_emoji: $0.icon_emoji, cover_color: $0.cover_color, member_count: $0.member_count, post_count: $0.post_count,
+                icon_emoji: $0.icon_emoji, avatar_url: $0.avatar_url, cover_color: $0.cover_color, member_count: $0.member_count, post_count: $0.post_count,
                 created_at: $0.created_at, role: nil, is_member: false, trending_score: $0.trending_score)
         }
     }
@@ -172,6 +174,7 @@ enum CommunityStore {
         var type: String
         var privacy: String
         var icon_emoji: String
+        @NullCoded var avatar_url: String?
         var cover_color: String
         var member_count: Int
         var post_count: Int
@@ -185,7 +188,7 @@ enum CommunityStore {
     static func recommendedCommunities(_ userID: String, limit: Int, on db: any SQLDatabase) async throws -> [RecommendedRow] {
         try await db.raw("""
             WITH user_tags AS (SELECT tag, weight FROM recommendation_interests WHERE user_id = \(uuid: userID) ORDER BY weight DESC LIMIT 10)
-            SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.cover_color,
+            SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.avatar_url, c.cover_color,
               c.member_count, c.post_count, false AS is_member, NULL::VARCHAR AS role, c.created_at,
               COUNT(DISTINCT ct.tag)::FLOAT AS tag_overlap,
               COALESCE(tr.score, 0)::float AS trending_score,
@@ -203,29 +206,29 @@ enum CommunityStore {
     static func byUser(_ userID: String, on db: any SQLDatabase) async throws -> [CommunityRow] {
         struct R: Decodable {
             let id: String; let name: String; let description: String?; let type: String; let privacy: String
-            let icon_emoji: String; let cover_color: String; let member_count: Int; let post_count: Int
+            let icon_emoji: String; let avatar_url: String?; let cover_color: String; let member_count: Int; let post_count: Int
             let created_at: Date; let role: String
         }
         let rows = try await db.raw("""
-            SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.cover_color,
+            SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.avatar_url, c.cover_color,
               c.member_count, c.post_count, c.created_at, cm.role
             FROM communities c JOIN community_members cm ON cm.community_id = c.id
             WHERE cm.user_id = \(uuid: userID) ORDER BY cm.joined_at DESC
             """).all(decoding: R.self)
         return rows.map { CommunityRow(id: $0.id, description: $0.description, name: $0.name, type: $0.type, privacy: $0.privacy,
-            icon_emoji: $0.icon_emoji, cover_color: $0.cover_color, member_count: $0.member_count, post_count: $0.post_count,
+            icon_emoji: $0.icon_emoji, avatar_url: $0.avatar_url, cover_color: $0.cover_color, member_count: $0.member_count, post_count: $0.post_count,
             created_at: $0.created_at, role: $0.role, is_member: nil, trending_score: nil) }
     }
 
     static func search(searchQuery: String, type: String?, tags: [String], sort: String, limit: Int, offset: Int, viewer: String, on db: any SQLDatabase) async throws -> [CommunityRow] {
         struct R: Decodable {
             let id: String; let name: String; let description: String?; let type: String; let privacy: String
-            let icon_emoji: String; let cover_color: String; let member_count: Int; let post_count: Int
+            let icon_emoji: String; let avatar_url: String?; let cover_color: String; let member_count: Int; let post_count: Int
             let created_at: Date; let is_member: Bool; let role: String?; let trending_score: Double
         }
         let like = "%\(searchQuery)%"
         var q: SQLQueryString = """
-            SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.cover_color,
+            SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.avatar_url, c.cover_color,
               c.member_count, c.post_count, c.created_at,
               (cm.user_id IS NOT NULL) AS is_member, cm.role,
               COALESCE(tr.score, 0)::float AS trending_score
@@ -246,7 +249,7 @@ enum CommunityStore {
         q = q + " LIMIT \(bind: limit) OFFSET \(bind: offset)"
         let rows = try await db.raw(q).all(decoding: R.self)
         return rows.map { CommunityRow(id: $0.id, description: $0.description, name: $0.name, type: $0.type, privacy: $0.privacy,
-            icon_emoji: $0.icon_emoji, cover_color: $0.cover_color, member_count: $0.member_count, post_count: $0.post_count,
+            icon_emoji: $0.icon_emoji, avatar_url: $0.avatar_url, cover_color: $0.cover_color, member_count: $0.member_count, post_count: $0.post_count,
             created_at: $0.created_at, role: $0.role, is_member: $0.is_member, trending_score: $0.trending_score) }
     }
 
@@ -328,6 +331,29 @@ enum CommunityStore {
         return try await db.raw("DELETE FROM community_members WHERE community_id = \(uuid: communityID) AND user_id = \(uuid: targetID) RETURNING user_id::text AS user_id")
             .first(decoding: R.self) != nil
     }
+    /// Partial update — a nil field is left untouched (only non-nil fields are
+    /// written), same convention as `UserQueries.updateProfile`. Returns false
+    /// when nothing matched `id` (already-deleted community).
+    static func update(_ id: String, name: String?, description: String?, privacy: String?,
+                        iconEmoji: String?, coverColor: String?, avatarURL: String?, on db: any SQLDatabase) async throws -> Bool {
+        var sets: [SQLQueryString] = []
+        if let name { sets.append("name = \(bind: name.trimmingCharacters(in: .whitespaces))") }
+        if let description { sets.append("description = \(bind: description.trimmingCharacters(in: .whitespaces).nilIfEmpty)") }
+        if let privacy { sets.append("privacy = \(bind: privacy)") }
+        if let iconEmoji { sets.append("icon_emoji = \(bind: iconEmoji)") }
+        if let coverColor { sets.append("cover_color = \(bind: coverColor)") }
+        if let avatarURL { sets.append("avatar_url = \(bind: avatarURL.trimmingCharacters(in: .whitespaces).nilIfEmpty)") }
+        guard !sets.isEmpty else { return true }
+        var q: SQLQueryString = "UPDATE communities SET "
+        for (i, s) in sets.enumerated() {
+            if i > 0 { q = q + ", " }
+            q = q + s
+        }
+        q = q + ", updated_at = NOW() WHERE id = \(uuid: id) RETURNING id"
+        struct R: Decodable { let id: String }
+        return try await db.raw(q).first(decoding: R.self) != nil
+    }
+
     struct RoleRow: Content { var community_id: String; var user_id: String; var role: String; var joined_at: Date }
     static func updateRole(_ communityID: String, _ targetID: String, _ newRole: String, on db: any SQLDatabase) async throws -> RoleRow? {
         try await db.raw("""
