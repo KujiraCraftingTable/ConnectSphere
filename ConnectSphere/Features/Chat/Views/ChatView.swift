@@ -56,6 +56,9 @@ struct ChatView: View {
     // The message currently being quoted for a reply — shows a preview bar above the input bar
     @State private var replyingTo: Message?
     @State private var messageToRecall: Message?
+    // "Forward" — pick a target conversation, re-send this message's content there.
+    @State private var forwardingMessage: Message?
+    @State private var isForwarding = false
     @State private var connectVM = ConnectViewModel()
     @AppStorage("messageSoundEnabled") private var messageSoundEnabled = true
     private let bottomID = "chatBottom"
@@ -286,6 +289,13 @@ struct ChatView: View {
         }
         .sheet(item: $pinningMessage) { message in
             pinExpirySheet(for: message)
+        }
+        .sheet(item: $forwardingMessage) { message in
+            ForwardMessagePickerView(excludeConversationId: conversationId) { targetConversationId in
+                Task { await forward(message, to: targetConversationId) }
+            }
+            .environment(appState)
+            .environment(themeManager)
         }
         .sheet(isPresented: $showPinnedList) {
             NavigationStack {
@@ -584,6 +594,28 @@ struct ChatView: View {
     /// the per-conversation default auto-delete preference — always shown
     /// rather than silently applying a hidden default, so the user can see/
     /// adjust the expiry before confirming.
+    /// Re-sends `message`'s content/media to a different conversation. No
+    /// re-upload needed — the server never ties `media_url` to the sender or
+    /// conversation it was originally uploaded in (`MessagesController.sendMessage`),
+    /// so the existing URL is reused as-is. Not threaded as a reply in the
+    /// target conversation (`replyToMessageId: nil`) since the original
+    /// message doesn't exist there.
+    private func forward(_ message: Message, to targetConversationId: String) async {
+        guard !isForwarding else { return }
+        isForwarding = true
+        defer { isForwarding = false }
+        _ = try? await MessageRepository().sendMessage(
+            conversationId: targetConversationId,
+            content: message.content,
+            messageType: message.messageType,
+            mediaUrl: message.mediaUrl,
+            replyToMessageId: nil,
+            voiceDurationSeconds: message.voiceDurationSeconds,
+            voiceWaveform: message.voiceWaveform,
+            token: appState.authToken ?? ""
+        )
+    }
+
     private func beginPinning(_ message: Message) {
         pinExpiryChoice = PinAutoDeleteOption(rawValue: pinAutoDeleteRaw) ?? .never
         pinCustomDate = pinAutoDeleteCustomDateRaw > 0
@@ -691,32 +723,48 @@ struct ChatView: View {
                                         .padding(.horizontal, 6)
                                 )
                                 .contextMenu {
-                                    if !message.isDeleted {
-                                        // Quick-react row: long-press already opens this menu,
-                                        // so the emoji row lives at the top of it.
-                                        ControlGroup {
-                                            let myReaction = message.myReaction(userId: appState.currentUser?.id ?? "")
-                                            // Hobby keeps the full set (already the max the
-                                            // server allows); Work is curated down to the two
-                                            // most professional-reading emoji in that same
-                                            // allowlist (server: ChatStore.reactionEmoji).
-                                            let quickReactions: [ReactionEmoji] = appState.currentMode == .hobby
-                                                ? ReactionEmoji.allCases
-                                                : [.thumbsUp, .heart]
-                                            ForEach(quickReactions, id: \.rawValue) { r in
-                                                // Distinguish the current user's own reaction (if any)
-                                                // in the quick-react row, mirroring MessageBubble's
-                                                // highlighted pill for the same reaction.
-                                                Button(r.rawValue == myReaction ? "\(r.rawValue) ✓" : r.rawValue) {
-                                                    Task { await viewModel.sendReaction(messageId: message.id, emoji: r.rawValue) }
-                                                }
+                                    // The quick-react row must be a true top-level, unconditional
+                                    // first item — a ControlGroup wrapped inside an `if` (as this
+                                    // was previously) can lose iOS's "first ControlGroup renders as
+                                    // its own horizontal strip, separate from the vertical action
+                                    // list below" behavior, since the menu content is then a
+                                    // conditional-content node rather than a plain ControlGroup.
+                                    // Reactions become an empty (so effectively invisible) group
+                                    // for a deleted message instead of wrapping the whole thing.
+                                    ControlGroup {
+                                        let myReaction = message.myReaction(userId: appState.currentUser?.id ?? "")
+                                        // Hobby keeps the full set (already the max the server
+                                        // allows); Work is curated to the two most professional-
+                                        // reading emoji in that same allowlist (server:
+                                        // ChatStore.reactionEmoji). Deleted messages get none.
+                                        let quickReactions: [ReactionEmoji] = message.isDeleted ? [] :
+                                            (appState.currentMode == .hobby ? ReactionEmoji.allCases : [.thumbsUp, .heart])
+                                        ForEach(quickReactions, id: \.rawValue) { r in
+                                            // Distinguish the current user's own reaction (if any)
+                                            // in the quick-react row, mirroring MessageBubble's
+                                            // highlighted pill for the same reaction.
+                                            Button(r.rawValue == myReaction ? "\(r.rawValue) ✓" : r.rawValue) {
+                                                Task { await viewModel.sendReaction(messageId: message.id, emoji: r.rawValue) }
                                             }
                                         }
+                                    }
 
+                                    if !message.isDeleted {
                                         Button {
                                             replyingTo = message
                                         } label: {
                                             Label(bundle.loc("Reply"), systemImage: "arrowshape.turn.up.left")
+                                        }
+
+                                        // Meeting proposals carry RSVP/reminder state tied to this
+                                        // specific conversation — forwarding one as-is wouldn't
+                                        // make sense, so it's excluded here.
+                                        if message.messageType != .meeting {
+                                            Button {
+                                                forwardingMessage = message
+                                            } label: {
+                                                Label(bundle.loc("Forward"), systemImage: "arrowshape.turn.up.right")
+                                            }
                                         }
 
                                         if viewModel.pinnedMessageIds.contains(message.id) {
