@@ -656,6 +656,7 @@ struct ChatView: View {
                                           currentUserId: appState.currentUser?.id ?? "",
                                           otherParticipantIds: otherParticipantIds,
                                           isGroup: viewModel.isGroup,
+                                          isPlayful: appState.currentMode == .hobby,
                                           onMediaTap: openMediaViewer,
                                           onReplyPreviewTap: { messageId in
                                               Task { await jumpToMessage(messageId) }
@@ -672,6 +673,7 @@ struct ChatView: View {
                                 .modifier(MessageAppearModifier(
                                     id: message.id,
                                     appearedIDs: $appearedMessageIDs,
+                                    playful: appState.currentMode == .hobby,
                                     onAnimationFinished: { playMessageSound(isOwn: isOwn) }
                                 ))
                                 // Flash the background when jumped to from a search result
@@ -687,7 +689,14 @@ struct ChatView: View {
                                         // so the emoji row lives at the top of it.
                                         ControlGroup {
                                             let myReaction = message.myReaction(userId: appState.currentUser?.id ?? "")
-                                            ForEach(ReactionEmoji.allCases, id: \.rawValue) { r in
+                                            // Hobby keeps the full set (already the max the
+                                            // server allows); Work is curated down to the two
+                                            // most professional-reading emoji in that same
+                                            // allowlist (server: ChatStore.reactionEmoji).
+                                            let quickReactions: [ReactionEmoji] = appState.currentMode == .hobby
+                                                ? ReactionEmoji.allCases
+                                                : [.thumbsUp, .heart]
+                                            ForEach(quickReactions, id: \.rawValue) { r in
                                                 // Distinguish the current user's own reaction (if any)
                                                 // in the quick-react row, mirroring MessageBubble's
                                                 // highlighted pill for the same reaction.
@@ -804,7 +813,9 @@ struct ChatView: View {
 
             // Connection status
             Text(isConnected
-                 ? bundle.loc("You're connected — say hello 👋")
+                 ? bundle.loc(appState.currentMode == .hobby
+                              ? "You're connected — say hello 👋"
+                              : "You're connected. Say hello.")
                  : bundle.loc("You're not connected with this user"))
                 .font(.system(size: 13))
                 .foregroundColor(AppColors.textSecondary(colorScheme))
@@ -839,7 +850,9 @@ struct ChatView: View {
                 .foregroundColor(AppColors.textPrimary(colorScheme))
                 .padding(.top, 10)
 
-            Text("Say hello to the group 👋", bundle: bundle)
+            Text(appState.currentMode == .hobby
+                 ? bundle.loc("Say hello to the group 👋")
+                 : bundle.loc("Say hello to the group."))
                 .font(.system(size: 13))
                 .foregroundColor(AppColors.textSecondary(colorScheme))
         }
@@ -1168,24 +1181,31 @@ private struct MediaFileTransferable: Transferable {
 private struct MessageAppearModifier: ViewModifier {
     let id: String
     @Binding var appearedIDs: Set<String>
+    /// Hobby mode gets a bouncier spring (lower damping, bigger start offset);
+    /// Work mode a calmer one. Duration is shared so `onAnimationFinished`'s
+    /// sound-cue timing stays the same regardless of mode.
+    let playful: Bool
     let onAnimationFinished: () -> Void
 
     @State private var shown = false
 
     private let duration = 0.35
+    private var startScale: CGFloat { playful ? 0.55 : 0.9 }
+    private var startYOffset: CGFloat { playful ? 24 : 10 }
+    private var dampingFraction: CGFloat { playful ? 0.6 : 0.85 }
 
     func body(content: Content) -> some View {
         content
-            .scaleEffect(shown ? 1 : 0.6, anchor: .bottom)
+            .scaleEffect(shown ? 1 : startScale, anchor: .bottom)
             .opacity(shown ? 1 : 0)
-            .offset(y: shown ? 0 : 20)
+            .offset(y: shown ? 0 : startYOffset)
             .onAppear {
                 if appearedIDs.contains(id) {
                     shown = true
                     return
                 }
                 appearedIDs.insert(id)
-                withAnimation(.spring(response: duration, dampingFraction: 0.7)) {
+                withAnimation(.spring(response: duration, dampingFraction: dampingFraction)) {
                     shown = true
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + duration) {

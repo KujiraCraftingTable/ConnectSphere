@@ -185,6 +185,7 @@
 "Newest first" = "Newest first";
 "No comments yet" = "No comments yet";
 "No connections yet — try searching and sending a request" = "No connections yet — try searching and sending a request";
+"No chats yet 👋" = "No chats yet 👋";
 "No conversations yet" = "No conversations yet";
 "No distance limit when searching with location." = "No distance limit when searching with location.";
 "No notifications yet" = "No notifications yet";
@@ -279,6 +280,7 @@
 "Skills (Swift, Python, UI/UX...)" = "Skills (Swift, Python, UI/UX...)";
 "Skip" = "Skip";
 "Someone" = "Someone";
+"Say hi to a connection and start the fun!" = "Say hi to a connection and start the fun!";
 "Specifically which %@? (optional)" = "Specifically which %@? (optional)";
 "Start a conversation by visiting someone's profile." = "Start a conversation by visiting someone's profile.";
 "Submit report" = "Submit report";
@@ -331,6 +333,7 @@
 "You two will no longer see each other's posts, all connections will be removed, and you won't be able to message each other." = "You two will no longer see each other's posts, all connections will be removed, and you won't be able to message each other.";
 "You've blocked this user" = "You've blocked this user";
 "You're connected — say hello 👋" = "You're connected — say hello 👋";
+"You're connected. Say hello." = "You're connected. Say hello.";
 "You're not connected with this user" = "You're not connected with this user";
 "Your interests" = "Your interests";
 "Your location" = "Your location";
@@ -726,6 +729,7 @@
 "No connections available to add" = "No connections available to add";
 "Someone you've blocked (or who has blocked you) is in this group." = "Someone you've blocked (or who has blocked you) is in this group.";
 "Say hello to the group 👋" = "Say hello to the group 👋";
+"Say hello to the group." = "Say hello to the group.";
 "You will no longer be the owner of this group." = "You will no longer be the owner of this group.";
 
 // MARK: - Conversation list preview text

@@ -240,7 +240,8 @@ struct ConversationListView: View {
                     } label: {
                         ConversationRow(
                             conversation: conversation,
-                            currentUserId: appState.currentUser?.id ?? ""
+                            currentUserId: appState.currentUser?.id ?? "",
+                            accentColor: themeManager.theme.primary
                         )
                     }
                     .buttonStyle(.plain)
@@ -254,13 +255,17 @@ struct ConversationListView: View {
 
     private var emptyState: some View {
         VStack(spacing: 16) {
-            Image(systemName: "bubble.left.and.bubble.right")
+            Image(systemName: appState.currentMode == .hobby ? "face.smiling" : "bubble.left.and.bubble.right")
                 .font(.system(size: 52))
                 .foregroundColor(AppColors.textTertiary(colorScheme))
-            Text("No conversations yet", bundle: bundle)
+            Text(appState.currentMode == .hobby
+                 ? bundle.loc("No chats yet 👋")
+                 : bundle.loc("No conversations yet"))
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(AppColors.textPrimary(colorScheme))
-            Text("Start a conversation by visiting someone's profile.", bundle: bundle)
+            Text(appState.currentMode == .hobby
+                 ? bundle.loc("Say hi to a connection and start the fun!")
+                 : bundle.loc("Start a conversation by visiting someone's profile."))
                 .font(.system(size: 14))
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .multilineTextAlignment(.center)
@@ -275,6 +280,7 @@ struct ConversationListView: View {
 private struct ConversationRow: View {
     let conversation: Conversation
     let currentUserId: String
+    let accentColor: Color
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.appBundle) var bundle
 
@@ -324,7 +330,7 @@ private struct ConversationRow: View {
                             .foregroundColor(.white)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Capsule().fill(Color(hex: "#1877F2")))
+                            .background(Capsule().fill(accentColor))
                     }
                 }
             }

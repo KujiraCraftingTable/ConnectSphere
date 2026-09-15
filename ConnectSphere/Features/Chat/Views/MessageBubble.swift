@@ -24,6 +24,10 @@ struct MessageBubble: View {
     /// RSVPs. The read-receipts glyph below still keys off participant count
     /// on purpose — that's cosmetic (which glyph), not a lost feature.
     var isGroup: Bool = false
+    /// Hobby mode = rounder bubble + bigger reaction pills; Work mode = crisper
+    /// bubble + today's tighter reaction-pill sizing. Threaded in from ChatView
+    /// (`appState.currentMode == .hobby`), same convention as `palette`.
+    var isPlayful: Bool = false
     /// Tapping the image/video in the bubble — the parent opens the fullscreen viewer
     var onMediaTap: ((Message) -> Void)? = nil
     /// Tapping the quoted preview — the parent jumps to the original message (jump-to-message)
@@ -44,6 +48,8 @@ struct MessageBubble: View {
     @State private var voiceIsPlaying = false
     @State private var voicePlaybackProgress: Double = 0
     @State private var voiceProgressTimer: Timer?
+
+    private var bubbleShape: BubbleShape { BubbleShape(isOwn: isOwn, isPlayful: isPlayful) }
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 6) {
@@ -127,15 +133,15 @@ struct MessageBubble: View {
             ForEach(message.reactionSummary, id: \.emoji) { item in
                 let isMine = item.emoji == mine
                 HStack(spacing: 2) {
-                    Text(item.emoji).font(.system(size: 11))
+                    Text(item.emoji).font(.system(size: isPlayful ? 13 : 11))
                     if item.count > 1 {
                         Text("\(item.count)")
                             .font(.system(size: 10, weight: .medium))
                             .foregroundColor(isMine ? .white : AppColors.textSecondary(colorScheme))
                     }
                 }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
+                .padding(.horizontal, isPlayful ? 7 : 6)
+                .padding(.vertical, isPlayful ? 4 : 3)
                 .background(isMine ? AnyShapeStyle(palette.primary) : AnyShapeStyle(AppColors.elevated(colorScheme)), in: Capsule())
             }
         }
@@ -154,7 +160,7 @@ struct MessageBubble: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(AppColors.elevated(colorScheme))
-                .clipShape(BubbleShape(isOwn: isOwn))
+                .clipShape(bubbleShape)
         } else {
             normalBubbleContent
         }
@@ -171,7 +177,7 @@ struct MessageBubble: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     .background(bubbleBackground)
-                    .clipShape(BubbleShape(isOwn: isOwn))
+                    .clipShape(bubbleShape)
             }
 
         case .image:
@@ -182,8 +188,8 @@ struct MessageBubble: View {
                         img.resizable()
                             .scaledToFill()
                             .frame(maxWidth: 220, maxHeight: 260)
-                            .clipShape(BubbleShape(isOwn: isOwn))
-                            .contentShape(BubbleShape(isOwn: isOwn))
+                            .clipShape(bubbleShape)
+                            .contentShape(bubbleShape)
                             .onTapGesture { onMediaTap?(message) }
                     case .failure:
                         imagePlaceholder(icon: "photo", label: bundle.loc("Photo"))
@@ -191,7 +197,7 @@ struct MessageBubble: View {
                         ProgressView()
                             .frame(width: 180, height: 140)
                             .background(AppColors.elevated(colorScheme))
-                            .clipShape(BubbleShape(isOwn: isOwn))
+                            .clipShape(bubbleShape)
                     }
                 }
             }
@@ -224,9 +230,16 @@ struct MessageBubble: View {
                 Image(systemName: "calendar")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(iconColor)
-                    .frame(width: 32, height: 32)
+                    .frame(width: isPlayful ? 32 : 36, height: isPlayful ? 32 : 36)
                     .background(iconColor.opacity(0.12))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay {
+                        // Work mode gives the meeting card a bit more visual
+                        // weight, since scheduling is a work-relevant action.
+                        if !isPlayful {
+                            RoundedRectangle(cornerRadius: 8).stroke(iconColor.opacity(0.35), lineWidth: 1)
+                        }
+                    }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(proposal.title)
@@ -298,9 +311,14 @@ struct MessageBubble: View {
                 meetingReminderRow(proposal)
             }
         }
-        .padding(12)
+        .padding(isPlayful ? 12 : 14)
         .frame(maxWidth: 300, alignment: .leading)
         .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 14))
+        .overlay {
+            if !isPlayful {
+                RoundedRectangle(cornerRadius: 14).stroke(palette.primary.opacity(0.18), lineWidth: 1)
+            }
+        }
         .opacity(cancelled ? 0.65 : 1)
     }
 
@@ -387,8 +405,8 @@ struct MessageBubble: View {
                 .foregroundColor(.white.opacity(0.92))
         }
         .frame(width: 200, height: 140)
-        .clipShape(BubbleShape(isOwn: isOwn))
-        .contentShape(BubbleShape(isOwn: isOwn))
+        .clipShape(bubbleShape)
+        .contentShape(bubbleShape)
         .onTapGesture { onMediaTap?(message) }
     }
 
@@ -426,7 +444,7 @@ struct MessageBubble: View {
         .padding(.vertical, 10)
         .frame(minWidth: 180, maxWidth: 240)
         .background(bubbleBackground)
-        .clipShape(BubbleShape(isOwn: isOwn))
+        .clipShape(bubbleShape)
         .onDisappear { stopVoicePlayback() }
     }
 
@@ -516,7 +534,7 @@ struct MessageBubble: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .background(bubbleBackground)
-        .clipShape(BubbleShape(isOwn: isOwn))
+        .clipShape(bubbleShape)
     }
 
     private var bubbleBackground: some ShapeStyle {
@@ -600,8 +618,11 @@ struct MessageBubble: View {
 
 private struct BubbleShape: Shape {
     let isOwn: Bool
-    private let r: CGFloat = 18
-    private let tail: CGFloat = 4
+    /// Hobby mode gets a rounder, softer bubble; Work mode a crisper one.
+    /// Baseline (both modes before this) was r=18/tail=4.
+    var isPlayful: Bool = false
+    private var r: CGFloat { isPlayful ? 20 : 15 }
+    private var tail: CGFloat { isPlayful ? 6 : 3 }
 
     func path(in rect: CGRect) -> Path {
         var path = Path()
