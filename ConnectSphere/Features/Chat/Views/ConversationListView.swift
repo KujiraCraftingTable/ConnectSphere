@@ -15,6 +15,10 @@ struct ConversationListView: View {
     @State private var activeRoute: ChatRoute?
     @State private var showAssistantChat = false
 
+    // Search (name + message content, across all conversations) + read/unread filter
+    @State private var searchQuery = ""
+    @State private var unreadOnly = false
+
     // "New group" flow: pick members, then (optionally) name the group, then
     // navigate straight into the freshly-created group's ChatView.
     @State private var showGroupMemberPicker = false
@@ -23,16 +27,27 @@ struct ConversationListView: View {
     @State private var isCreatingGroup = false
     @State private var createGroupError: String?
 
+    private var isSearchActive: Bool {
+        !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            // Active friends row — tap to jump straight into the conversation
-            if !viewModel.activeConnections.isEmpty {
+            // Active friends row — tap to jump straight into the conversation.
+            // Hidden while searching so the results list has full room.
+            if !viewModel.activeConnections.isEmpty && !isSearchActive {
                 activeConnectionsBar
                 Divider()
             }
 
+            if !isSearchActive {
+                unreadFilterRow
+            }
+
             Group {
-                if viewModel.isLoading && viewModel.conversations.isEmpty {
+                if isSearchActive {
+                    searchResultsList
+                } else if viewModel.isLoading && viewModel.conversations.isEmpty {
                     ProgressView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if let error = viewModel.error, viewModel.conversations.isEmpty {
@@ -52,8 +67,12 @@ struct ConversationListView: View {
                         .font(.system(size: 14, weight: .semibold))
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if viewModel.conversations.isEmpty {
-                    emptyState
+                } else if visibleConversations.isEmpty {
+                    if unreadOnly {
+                        unreadEmptyState
+                    } else {
+                        emptyState
+                    }
                 } else {
                     conversationList
                 }
@@ -83,6 +102,11 @@ struct ConversationListView: View {
         }
         .navigationTitle(bundle.loc("Messages"))
         .navigationBarTitleDisplayMode(.inline)
+        .searchable(text: $searchQuery, placement: .navigationBarDrawer(displayMode: .always),
+                    prompt: Text("Search chats and messages", bundle: bundle))
+        .onChange(of: searchQuery) { _, newValue in
+            viewModel.search(query: newValue, mode: appState.currentMode.rawValue, token: appState.authToken ?? "")
+        }
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -97,7 +121,8 @@ struct ConversationListView: View {
                 peer: route.peer,
                 otherUserLocation: route.location,
                 currentUserId: appState.currentUser?.id ?? "",
-                token: appState.authToken ?? ""
+                token: appState.authToken ?? "",
+                initialJumpMessageId: route.jumpToMessageId
             )
         }
         .onAppear {
@@ -224,12 +249,31 @@ struct ConversationListView: View {
         }
     }
 
+    // MARK: - Read/unread filter
+
+    private var unreadFilterRow: some View {
+        Picker("", selection: $unreadOnly) {
+            Text("All", bundle: bundle).tag(false)
+            Text("Unread", bundle: bundle).tag(true)
+        }
+        .pickerStyle(.segmented)
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
+    }
+
+    /// `viewModel.conversations` filtered by the read/unread toggle — purely
+    /// client-side, `Conversation.hasUnread` already comes with the list.
+    private var visibleConversations: [Conversation] {
+        viewModel.conversations.filter { !unreadOnly || $0.hasUnread }
+    }
+
     // MARK: - Conversation list
 
     private var conversationList: some View {
         ScrollView {
             LazyVStack(spacing: 1) {
-                ForEach(viewModel.conversations) { conversation in
+                ForEach(visibleConversations) { conversation in
                     NavigationLink {
                         ChatView(
                             conversationId: conversation.id,
@@ -251,7 +295,87 @@ struct ConversationListView: View {
         }
     }
 
+    // MARK: - Search (name + message content)
+
+    private var searchResultsList: some View {
+        Group {
+            if viewModel.isSearching && viewModel.searchResults.isEmpty {
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if viewModel.searchResults.isEmpty {
+                searchEmptyState
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 1) {
+                        ForEach(viewModel.searchResults) { hit in
+                            Button { openSearchHit(hit) } label: {
+                                ConversationRow(
+                                    conversation: hit.conversation,
+                                    currentUserId: appState.currentUser?.id ?? "",
+                                    accentColor: themeManager.theme.primary,
+                                    previewOverride: hit.matchType == "message"
+                                        ? highlighted(hit.matchedSnippet ?? "", term: searchQuery)
+                                        : nil
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.top, 8)
+                }
+            }
+        }
+    }
+
+    private var searchEmptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 40))
+                .foregroundColor(AppColors.textTertiary(colorScheme))
+            Text("No results", bundle: bundle)
+                .font(.system(size: 14))
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// Bolds + tints every case-insensitive occurrence of `term` in `text` —
+    /// same pattern as `ChatMessageSearchView.highlighted(_:term:)`.
+    private func highlighted(_ text: String, term: String) -> AttributedString {
+        var attr = AttributedString(text)
+        let needle = term.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !needle.isEmpty else { return attr }
+        var searchRange = attr.startIndex..<attr.endIndex
+        while let found = attr[searchRange].range(of: needle, options: .caseInsensitive) {
+            attr[found].foregroundColor = themeManager.theme.primary
+            attr[found].inlinePresentationIntent = .stronglyEmphasized
+            searchRange = found.upperBound..<attr.endIndex
+        }
+        return attr
+    }
+
+    private func openSearchHit(_ hit: ConversationSearchHit) {
+        activeRoute = ChatRoute(
+            conversationId: hit.conversation.id,
+            peer: ChatPeer(hit.conversation),
+            location: nil,
+            jumpToMessageId: hit.matchedMessageId
+        )
+    }
+
     // MARK: - Empty state
+
+    private var unreadEmptyState: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "checkmark.circle")
+                .font(.system(size: 52))
+                .foregroundColor(AppColors.textTertiary(colorScheme))
+            Text("No unread chats", bundle: bundle)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(AppColors.textPrimary(colorScheme))
+        }
+        .padding(40)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
 
     private var emptyState: some View {
         VStack(spacing: 16) {
@@ -281,6 +405,9 @@ private struct ConversationRow: View {
     let conversation: Conversation
     let currentUserId: String
     let accentColor: Color
+    /// Search results show the matched message (highlighted) here instead of
+    /// the conversation's actual last-message preview.
+    var previewOverride: AttributedString? = nil
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.appBundle) var bundle
 
@@ -315,7 +442,7 @@ private struct ConversationRow: View {
                             .foregroundColor(AppColors.textTertiary(colorScheme))
                     }
 
-                    Text(conversation.previewText(currentUserId: currentUserId))
+                    Text(previewOverride ?? AttributedString(conversation.previewText(currentUserId: currentUserId)))
                         .font(.system(size: 13))
                         .foregroundColor(conversation.hasUnread
                                          ? AppColors.textPrimary(colorScheme)
@@ -373,6 +500,9 @@ struct ChatRoute: Identifiable, Hashable {
     let conversationId: String
     let peer: ChatPeer
     let location: String?
+    /// Set when navigating from a search hit — `ChatView` scrolls to and
+    /// highlights this message once it opens.
+    var jumpToMessageId: String? = nil
 
     var id: String { conversationId }
 }

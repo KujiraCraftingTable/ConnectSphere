@@ -231,3 +231,33 @@ extension ChatPeer {
         }
     }
 }
+
+/// A row from `GET /messages/search` — a normal conversation-list row (same
+/// JSON shape `Conversation` already decodes) plus what matched and why.
+/// Composed rather than duplicating `Conversation`'s field list: reading a
+/// second keyed container from the same decoder is well-defined and doesn't
+/// consume/invalidate what `Conversation`'s own decode already read.
+struct ConversationSearchHit: Decodable, Identifiable {
+    let conversation: Conversation
+    /// "name" (the conversation/participant name matched) or "message"
+    /// (a message's content matched).
+    let matchType: String
+    let matchedMessageId: String?
+    let matchedSnippet: String?
+
+    var id: String { conversation.id + "-" + (matchedMessageId ?? "name") }
+
+    enum CodingKeys: String, CodingKey {
+        case matchType = "match_type"
+        case matchedMessageId = "matched_message_id"
+        case matchedSnippet = "matched_snippet"
+    }
+
+    init(from decoder: Decoder) throws {
+        conversation = try Conversation(from: decoder)
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        matchType = try c.decode(String.self, forKey: .matchType)
+        matchedMessageId = try c.decodeIfPresent(String.self, forKey: .matchedMessageId)
+        matchedSnippet = try c.decodeIfPresent(String.self, forKey: .matchedSnippet)
+    }
+}

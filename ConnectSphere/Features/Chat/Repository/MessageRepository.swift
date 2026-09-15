@@ -567,6 +567,19 @@ struct MessageRepository {
         return response.data
     }
 
+    /// Cross-conversation search — conversation name AND message content,
+    /// across every conversation the user participates in for this mode.
+    func searchAll(mode: String, query: String, token: String) async throws -> [ConversationSearchHit] {
+        let response = try await client.fetch(
+            DataListResponse<ConversationSearchHit>.self,
+            path: "/messages/search",
+            method: "GET",
+            token: token,
+            queryItems: [URLQueryItem(name: "mode", value: mode), URLQueryItem(name: "q", value: query)]
+        )
+        return response.data
+    }
+
     /// Clear the conversation on my side only (sets my cleared_at server-side).
     func clearConversation(conversationId: String, token: String) async throws {
         _ = try await client.fetch(

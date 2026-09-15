@@ -14,6 +14,11 @@ class ConversationListViewModel {
     var connections: [ConnectionItemDTO] = []
     var onlineUserIds: Set<String> = []
 
+    // Cross-conversation search (name + message content)
+    var searchResults: [ConversationSearchHit] = []
+    var isSearching = false
+    private var searchTask: Task<Void, Never>?
+
     /// Connections that are currently online — used for the active avatar row at the top of the Messages screen.
     var activeConnections: [ConnectionItemDTO] {
         connections.filter { onlineUserIds.contains($0.user.id) }
@@ -101,5 +106,29 @@ class ConversationListViewModel {
     /// the caller can navigate straight into its `ChatView`.
     func createGroup(memberIds: [String], mode: String, name: String?, token: String) async throws -> String {
         try await repository.createGroup(memberIds: memberIds, mode: mode, name: name, token: token)
+    }
+
+    // MARK: - Search
+
+    /// Debounced cross-conversation search — cancels any in-flight search so
+    /// only the latest keystroke's request lands. An empty (or whitespace-only)
+    /// query clears results immediately without a round trip.
+    func search(query: String, mode: String, token: String) {
+        searchTask?.cancel()
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            searchResults = []
+            isSearching = false
+            return
+        }
+        searchTask = Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            isSearching = true
+            defer { isSearching = false }
+            let results = (try? await repository.searchAll(mode: mode, query: trimmed, token: token)) ?? []
+            guard !Task.isCancelled else { return }
+            searchResults = results
+        }
     }
 }
