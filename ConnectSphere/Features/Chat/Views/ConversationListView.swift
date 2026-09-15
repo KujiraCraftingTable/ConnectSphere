@@ -228,7 +228,9 @@ struct ConversationListView: View {
 
     private var conversationList: some View {
         ScrollView {
-            LazyVStack(spacing: 1) {
+            // Rows are now standalone cards (spacing 12, side margin) rather
+            // than a hairline-separated full-bleed list.
+            LazyVStack(spacing: 12) {
                 ForEach(viewModel.conversations) { conversation in
                     NavigationLink {
                         ChatView(
@@ -241,12 +243,14 @@ struct ConversationListView: View {
                         ConversationRow(
                             conversation: conversation,
                             currentUserId: appState.currentUser?.id ?? "",
-                            accentColor: themeManager.theme.primary
+                            accentColor: themeManager.theme.primary,
+                            isPlayful: appState.currentMode == .hobby
                         )
                     }
                     .buttonStyle(.plain)
                 }
             }
+            .padding(.horizontal, 14)
             .padding(.top, 8)
         }
     }
@@ -281,6 +285,9 @@ private struct ConversationRow: View {
     let conversation: Conversation
     let currentUserId: String
     let accentColor: Color
+    /// Hobby: soft accent-tinted card with a shadow. Work: flat neutral card
+    /// with a crisp accent-tinted border. Same convention as ChatView/MessageBubble.
+    let isPlayful: Bool
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.appBundle) var bundle
 
@@ -336,8 +343,15 @@ private struct ConversationRow: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(AppColors.surface(colorScheme))
+        .padding(.vertical, 12)
+        .background(isPlayful ? accentColor.opacity(0.10) : AppColors.surface(colorScheme))
+        .clipShape(RoundedRectangle(cornerRadius: isPlayful ? 20 : 14))
+        .overlay {
+            if !isPlayful {
+                RoundedRectangle(cornerRadius: 14).stroke(accentColor.opacity(0.22), lineWidth: 1)
+            }
+        }
+        .shadow(color: isPlayful ? accentColor.opacity(0.16) : .clear, radius: isPlayful ? 8 : 0, y: isPlayful ? 3 : 0)
     }
 
     @ViewBuilder
