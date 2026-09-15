@@ -72,7 +72,11 @@ enum PostStore {
               'position', po.position, 'ends_at', po.ends_at) ORDER BY po.position) FROM poll_options po WHERE po.post_id = p.id),
             'user_vote', (SELECT pv.poll_option_id::TEXT FROM poll_votes pv JOIN poll_options po2 ON po2.id = pv.poll_option_id
               WHERE po2.post_id = p.id AND pv.user_id = \(uuid: v)))
-          ELSE NULL END)::text AS poll_data
+          ELSE NULL END)::text AS poll_data,
+          (CASE WHEN p.community_id IS NOT NULL THEN (
+            SELECT json_build_object('id', co.id, 'name', co.name, 'icon_emoji', co.icon_emoji, 'avatar_url', co.avatar_url)
+            FROM communities co WHERE co.id = p.community_id
+          ) ELSE NULL END)::text AS community
         FROM posts p
         JOIN users u ON u.id = p.author_id
         LEFT JOIN post_tags pt ON pt.post_id = p.id
@@ -174,7 +178,8 @@ enum PostStore {
     }
 
     private static func feedWhere(_ v: String, _ f: FeedFilters) -> SQLQueryString {
-        var w: SQLQueryString = "WHERE p.status = 'posted' AND p.community_id IS NULL AND "
+        var w: SQLQueryString = "WHERE p.status = 'posted' AND "
+        w = w + communityVisibilityClause(v) + " AND "
         w = w + privacyClause(v) + " AND " + notBlockedClause(v) + " AND " + notHiddenClause(v)
         if f.connectionsOnly { w = w + " AND " + connectionsOnlyClause(v) }
         if let m = f.mode { w = w + " AND p.mode = \(bind: m)" }
@@ -325,17 +330,17 @@ enum PostStore {
         return try await db.raw(q).all(decoding: PostRow.self).map(map)
     }
 
-    /// Port of `getPostsByCommunity` — buildPostSelect wrapped so the embedded
-    /// `community` object can be merged in; pinned post first.
+    /// Port of `getPostsByCommunity` — pinned post first. `buildPostSelect`
+    /// itself now projects `community` (needed so Feed posts carry it too,
+    /// once Feed starts including community posts), so this no longer needs
+    /// its own outer wrapper to merge it in.
     static func getPostsByCommunity(_ communityID: String, viewer: String, tag: String?, limit: Int, offset: Int, on db: any SQLDatabase) async throws -> [PostObject] {
-        var q = "SELECT sub.*, (SELECT json_build_object('id', co.id, 'name', co.name, 'icon_emoji', co.icon_emoji, 'avatar_url', co.avatar_url) FROM communities co WHERE co.id = " as SQLQueryString
-        q = q + "\(uuid: communityID))::text AS community FROM ("
-        q = q + buildPostSelect(viewer)
+        var q = buildPostSelect(viewer)
         q = q + " WHERE p.community_id = \(uuid: communityID) AND p.status = 'posted'"
         if let tag {
             q = q + " AND EXISTS (SELECT 1 FROM post_tags ptf WHERE ptf.post_id = p.id AND LOWER(ptf.tag) = LOWER(\(bind: tag)) AND (ptf.source = 'user' OR p.show_ai_tags))"
         }
-        q = q + " GROUP BY p.id, u.id) sub ORDER BY sub.is_pinned DESC, sub.created_at DESC LIMIT \(bind: limit) OFFSET \(bind: offset)"
+        q = q + " GROUP BY p.id, u.id ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT \(bind: limit) OFFSET \(bind: offset)"
         return try await db.raw(q).all(decoding: PostRow.self).map(map)
     }
 
