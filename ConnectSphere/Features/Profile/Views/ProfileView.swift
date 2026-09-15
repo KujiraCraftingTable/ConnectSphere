@@ -23,6 +23,8 @@ struct ProfileView: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var showCreatePost = false
     @State private var showEditProfile = false
+    // Tap-to-open-post-detail — same PostRoute/PostDetailView navigation Feed uses.
+    @State private var detailRoute: PostRoute?
 
     /// Binding from MainTabView — resets to root whenever the tab is reselected
     @Binding var navPath: NavigationPath
@@ -85,6 +87,14 @@ struct ProfileView: View {
                 })
                 .environment(appState)
                 .environment(themeManager)
+            }
+            .navigationDestination(isPresented: Binding(
+                get: { detailRoute != nil },
+                set: { if !$0 { detailRoute = nil } }
+            )) {
+                if let route = detailRoute {
+                    PostDetailView(postId: route.postId, focusComposer: route.focusComposer)
+                }
             }
             .task {
                 if let userId = appState.currentUser?.id {
@@ -250,18 +260,18 @@ struct ProfileView: View {
             if viewModel.isLoading && viewModel.posts.isEmpty {
                 ProgressView().padding(.top, 20).frame(maxWidth: .infinity)
             } else {
-                LazyVStack(spacing: 5) {
+                LazyVStack(spacing: AppSpacing.sm) {
                     ForEach(viewModel.posts) { post in
                         PostCard(
                             post: post,
                             disableSelfNavigation: true,
                             onPostDeleted: { viewModel.removePost(id: post.id) },
-                            onPostUpdated: { updated in viewModel.updatePost(updated) }
+                            onPostUpdated: { updated in viewModel.updatePost(updated) },
+                            onOpenDetail: { focus in
+                                detailRoute = PostRoute(postId: post.id, focusComposer: focus)
+                            }
                         )
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.06),
-                                radius: 4, x: 0, y: 2)
-                        .padding(.horizontal, 10)
+                        .cardStyle()
                         .onAppear {
                             if post.id == viewModel.posts.last?.id {
                                 Task {
@@ -275,6 +285,7 @@ struct ProfileView: View {
                         ProgressView().padding(.vertical, 12)
                     }
                 }
+                .padding(.horizontal, AppSpacing.sm)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

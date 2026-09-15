@@ -20,7 +20,7 @@ struct SavedPostsView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 12) {
+            LazyVStack(spacing: AppSpacing.sm) {
                 if savedPosts.isEmpty && !isLoading {
                     emptyState
                 } else {
@@ -28,9 +28,11 @@ struct SavedPostsView: View {
                         PostCard(post: post, onOpenDetail: { focus in
                             detailRoute = PostRoute(postId: post.id, focusComposer: focus)
                         })
+                        .cardStyle()
                     }
                 }
             }
+            .padding(.horizontal, AppSpacing.sm)
             .padding(.vertical, 12)
         }
         .background(AppColors.base(colorScheme))
