@@ -9,8 +9,8 @@ import SwiftUI
 ///
 /// Single-tap toggles `bubble.isComposing` (Phase 4 wires the actual compose
 /// UI); double-tap restores to a full `ChatView` via
-/// `FloatingChatPresenter.restore(_:)`. Static position for now — Phase 2
-/// adds drag + edge-snap.
+/// `FloatingChatPresenter.restore(_:)`; drag repositions it, snapping to
+/// whichever screen edge it's released closer to.
 struct FloatingChatBubbleView: View {
     @Environment(AppState.self) var appState
     @Environment(ThemeManager.self) var themeManager
@@ -19,9 +19,15 @@ struct FloatingChatBubbleView: View {
 
     let bubble: FloatingBubbleState
     let presenter: FloatingChatPresenter
+    /// The overlay's full size — needed to clamp/snap drag positions.
+    let containerSize: CGSize
 
-    private let width: CGFloat = 132
-    private var height: CGFloat { width * 16 / 9 }
+    /// Live finger-follow offset during a drag; committed into
+    /// `bubble.position` (snapped) on release.
+    @GestureState private var dragOffset: CGSize = .zero
+
+    private var width: CGFloat { FloatingChatLayout.bubbleWidth }
+    private var height: CGFloat { FloatingChatLayout.bubbleHeight }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -34,10 +40,26 @@ struct FloatingChatBubbleView: View {
         .clipShape(RoundedRectangle(cornerRadius: 18))
         .shadow(color: .black.opacity(0.22), radius: 10, y: 4)
         .overlay(RoundedRectangle(cornerRadius: 18).stroke(AppColors.borderDefault(colorScheme), lineWidth: 1))
-        .gesture(
+        .offset(dragOffset)
+        .gesture(dragGesture)
+        .simultaneousGesture(
             TapGesture(count: 2).onEnded { presenter.restore(bubble) }
                 .exclusively(before: TapGesture(count: 1).onEnded { bubble.isComposing.toggle() })
         )
+    }
+
+    private var dragGesture: some Gesture {
+        DragGesture(minimumDistance: 4)
+            .updating($dragOffset) { value, state, _ in
+                state = value.translation
+            }
+            .onEnded { value in
+                let current = bubble.position ?? FloatingChatLayout.defaultSpawn(index: 0, in: containerSize)
+                let moved = CGPoint(x: current.x + value.translation.width,
+                                     y: current.y + value.translation.height)
+                bubble.position = FloatingChatLayout.snapped(moved, in: containerSize)
+                presenter.bringToFront(bubble)
+            }
     }
 
     private var header: some View {
@@ -49,6 +71,19 @@ struct FloatingChatBubbleView: View {
                 .foregroundColor(AppColors.textPrimary(colorScheme))
                 .lineLimit(1)
             Spacer(minLength: 0)
+            // Closes this bubble outright (conversation stops being live
+            // anywhere) — separate from double-tap, which restores to full
+            // ChatView instead. A plain Button here doesn't fight the drag/
+            // tap gestures on the bubble body since it's its own hit target.
+            Button {
+                presenter.close(bubble)
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(AppColors.textTertiary(colorScheme))
+                    .padding(4)
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
