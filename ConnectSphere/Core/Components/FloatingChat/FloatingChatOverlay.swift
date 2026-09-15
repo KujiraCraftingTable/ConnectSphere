@@ -9,6 +9,16 @@ extension View {
     func floatingChatOverlay(_ presenter: FloatingChatPresenter) -> some View {
         overlay {
             GeometryReader { geo in
+                // Tap-outside-to-dismiss-keyboard catcher — only present (and
+                // only hit-testable) while some bubble's inline compose row
+                // is open; sits behind every bubble so tapping a bubble
+                // itself is unaffected.
+                if presenter.bubbles.contains(where: { $0.isComposing }) {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .onTapGesture { presenter.dismissAllComposing() }
+                }
                 ForEach(Array(presenter.bubbles.enumerated()), id: \.element.id) { index, bubble in
                     FloatingChatBubbleView(bubble: bubble, presenter: presenter, containerSize: geo.size)
                         .position(bubble.position ?? FloatingChatLayout.defaultSpawn(index: index, in: geo.size))
