@@ -11,8 +11,10 @@ struct StoriesRow: View {
     @State private var groups: [StoryGroup] = []
     @State private var selectedGroup: StoryGroup?
     @State private var showComposer = false
+    @State private var myProfile: UserProfile?
 
     private let storyRepo = StoryRepository()
+    private let profileRepo = ProfileRepository()
 
     private var myGroup: StoryGroup? {
         groups.first { $0.author.id == appState.currentUser?.id }
@@ -93,7 +95,11 @@ struct StoriesRow: View {
                                 .stroke(AppColors.borderDefault(colorScheme), lineWidth: 2.5)
                                 .frame(width: 68, height: 68)
                         }
-                        if let me = appState.currentUser {
+                        // `myProfile` is a fresh, mode-scoped fetch (see load()) —
+                        // `appState.currentUser` is a single unscoped cache that
+                        // never changes on mode switch, so it's only a same-frame
+                        // fallback before the first load() resolves.
+                        if let me = myProfile ?? appState.currentUser {
                             AvatarView(user: me, size: 60)
                         }
                     }
@@ -152,8 +158,18 @@ struct StoriesRow: View {
     // MARK: - Data
 
     private func load() async {
-        if let stories = try? await storyRepo.fetchStories(mode: appState.currentMode.rawValue) {
-            groups = groupStories(stories)
-        }
+        // Stories and "my" avatar both need to be fetched fresh per mode —
+        // the story authors already come back mode-scoped from the server,
+        // and `myProfile` mirrors ProfileView's own per-mode profile fetch
+        // so "Your story" shows the right persona's avatar (or the initials
+        // fallback) instead of AppState.currentUser's stale, unscoped one.
+        async let storiesResult: [StoryDTO]? = try? storyRepo.fetchStories(mode: appState.currentMode.rawValue)
+        async let profileResult: UserProfile? = {
+            guard let id = appState.currentUser?.id else { return nil }
+            return try? await profileRepo.fetchUser(userId: id, mode: appState.currentMode.rawValue)
+        }()
+        let (stories, profile) = await (storiesResult, profileResult)
+        if let stories { groups = groupStories(stories) }
+        if let profile { myProfile = profile }
     }
 }
