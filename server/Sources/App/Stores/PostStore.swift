@@ -98,6 +98,17 @@ enum PostStore {
          OR EXISTS (SELECT 1 FROM community_members cm WHERE cm.community_id = p.community_id AND cm.user_id = \(uuid: v)))
         """
     }
+    /// Feed-only suppression: a community you've muted still exists (its own
+    /// page, findById, listSaved are all unaffected — this is deliberately
+    /// NOT folded into `communityVisibilityClause`, which those still use
+    /// unchanged), but its posts drop out of your Feed. Your own posts in a
+    /// muted community still show (muting isn't "hide myself from myself").
+    static func notMutedClause(_ v: String) -> SQLQueryString {
+        """
+        (p.author_id = \(uuid: v) OR NOT EXISTS (SELECT 1 FROM community_members cmMute
+          WHERE cmMute.community_id = p.community_id AND cmMute.user_id = \(uuid: v) AND cmMute.muted = TRUE))
+        """
+    }
     static func notBlockedClause(_ v: String) -> SQLQueryString {
         """
         NOT EXISTS (SELECT 1 FROM user_blocks ub
@@ -179,7 +190,7 @@ enum PostStore {
 
     private static func feedWhere(_ v: String, _ f: FeedFilters) -> SQLQueryString {
         var w: SQLQueryString = "WHERE p.status = 'posted' AND "
-        w = w + communityVisibilityClause(v) + " AND "
+        w = w + communityVisibilityClause(v) + " AND " + notMutedClause(v) + " AND "
         w = w + privacyClause(v) + " AND " + notBlockedClause(v) + " AND " + notHiddenClause(v)
         if f.connectionsOnly { w = w + " AND " + connectionsOnlyClause(v) }
         if let m = f.mode { w = w + " AND p.mode = \(bind: m)" }

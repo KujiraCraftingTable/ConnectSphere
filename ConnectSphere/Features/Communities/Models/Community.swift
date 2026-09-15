@@ -12,6 +12,9 @@ struct Community: Identifiable {
     var memberCount: Int
     var postCount: Int
     var isMember: Bool
+    /// Feed-visibility mute — this community's posts are hidden from the
+    /// viewer's main Feed while true, but its own page is unaffected.
+    var isMuted: Bool = false
     var role: MemberRole?
     /// The viewer's own join-request status for this community, when they have
     /// one: "pending" | "approved" | "rejected". nil if they never requested.

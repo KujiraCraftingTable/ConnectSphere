@@ -65,6 +65,19 @@ struct CommunityRepository {
                                     method: "DELETE", token: token)
     }
 
+    /// Feed-visibility only — does not unfollow/leave the community.
+    func mute(communityId: String, token: String) async throws {
+        _ = try await client.fetch(OKResponse.self,
+                                    path: "/communities/\(communityId)/mute",
+                                    method: "PUT", token: token)
+    }
+
+    func unmute(communityId: String, token: String) async throws {
+        _ = try await client.fetch(OKResponse.self,
+                                    path: "/communities/\(communityId)/mute",
+                                    method: "DELETE", token: token)
+    }
+
     /// Returns "joined" or "pending" depending on community privacy.
     func requestToJoin(communityId: String, token: String) async throws -> String {
         let res = try await client.fetch(DataResponse<JoinStatusPayload>.self,

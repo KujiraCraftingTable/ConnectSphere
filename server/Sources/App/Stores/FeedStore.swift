@@ -161,6 +161,8 @@ enum FeedStore {
                 AND (p.community_id IS NULL OR p.author_id = \(uuid: userID)
                   OR EXISTS (SELECT 1 FROM communities co2 WHERE co2.id = p.community_id AND co2.privacy = 'public')
                   OR EXISTS (SELECT 1 FROM community_members cm2 WHERE cm2.community_id = p.community_id AND cm2.user_id = \(uuid: userID)))
+                AND NOT EXISTS (SELECT 1 FROM community_members cmMute
+                  WHERE cmMute.community_id = p.community_id AND cmMute.user_id = \(uuid: userID) AND cmMute.muted = TRUE)
                 AND p.author_id <> \(uuid: userID)
                 AND NOT EXISTS (SELECT 1 FROM user_blocks ub
                   WHERE (ub.blocker_id = \(uuid: userID) AND ub.blocked_id = p.author_id)

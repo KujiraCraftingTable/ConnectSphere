@@ -105,6 +105,27 @@ struct CommunityDetailView: View {
                     }
                 }
             }
+            // Mute — hides this community's posts from the viewer's own main
+            // Feed without leaving/unfollowing (see PostStore.notMutedClause);
+            // available to any member, not staff-gated.
+            if viewModel.community?.isMember == true {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Menu {
+                        Button {
+                            Task<Void, Never>(name: nil) { await viewModel.toggleMute() }
+                        } label: {
+                            if viewModel.community?.isMuted == true {
+                                Label(bundle.loc("Unmute this community"), systemImage: "bell")
+                            } else {
+                                Label(bundle.loc("Mute this community"), systemImage: "bell.slash")
+                            }
+                        }
+                    } label: {
+                        Image(systemName: viewModel.community?.isMuted == true ? "bell.slash.fill" : "ellipsis")
+                            .font(.system(size: 17))
+                    }
+                }
+            }
         }
         .task { await viewModel.fetchAll() }
         .refreshable { await viewModel.fetchAll() }
