@@ -7,7 +7,6 @@ struct DiscoverView: View {
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
     @State private var viewModel: DiscoverViewModel
-    @State private var selectedType: CommunityType? = nil
 
     /// Called when user taps a community card — navigates to detail
     let onSelectCommunity: (String) -> Void
@@ -17,13 +16,11 @@ struct DiscoverView: View {
         self.onSelectCommunity = onSelectCommunity
     }
 
+    private var modeType: CommunityType { appState.currentMode == .hobby ? .fandom : .work }
+
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 24) {
-                // Category filter chips
-                categoryChips
-                    .padding(.horizontal, 16)
-
                 if viewModel.isLoading {
                     skeletonLoader
                 } else {
@@ -47,43 +44,16 @@ struct DiscoverView: View {
             .padding(.vertical, 16)
         }
         .appBackground()
-        .task { await viewModel.fetchDiscover(type: selectedType) }
-        .refreshable { await viewModel.fetchDiscover(type: selectedType) }
+        .task { await viewModel.fetchDiscover(type: modeType) }
+        .refreshable { await viewModel.fetchDiscover(type: modeType) }
+        .onChange(of: appState.currentMode) { _, _ in
+            Task<Void, Never>(name: nil) { await viewModel.fetchDiscover(type: modeType) }
+        }
         .alert(bundle.loc("Error"), isPresented: .constant(viewModel.errorMessage != nil)) {
             Button(bundle.loc("OK")) { viewModel.errorMessage = nil }
         } message: {
             Text(viewModel.errorMessage ?? "")
         }
-    }
-
-    // MARK: - Category chips
-
-    private var categoryChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                filterChip(label: bundle.loc("All"), type: nil)
-                ForEach(CommunityType.allCases, id: \.self) { t in
-                    filterChip(label: bundle.loc(t.label), type: t)
-                }
-            }
-        }
-    }
-
-    private func filterChip(label: String, type: CommunityType?) -> some View {
-        let isSelected = selectedType == type
-        return Button {
-            selectedType = type
-            Task<Void, Never>(name: nil) { await viewModel.fetchDiscover(type: type) }
-        } label: {
-            Text(label)
-                .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
-                .foregroundColor(isSelected ? .white : AppColors.textSecondary(colorScheme))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 7)
-                .background(isSelected ? themeManager.theme.primary : AppColors.elevated(colorScheme))
-                .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Skeleton loading

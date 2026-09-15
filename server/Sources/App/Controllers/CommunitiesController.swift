@@ -387,16 +387,17 @@ struct CommunitiesController {
     /// getRecommendations: interest-overlap list if the user has interests,
     /// else the trending list. Returns raw JSON since the two paths have
     /// different shapes (recommended carries tag_overlap / rec_score).
-    static func recommendedJSON(_ userID: String, limit: Int, on db: any SQLDatabase) async throws -> Data {
+    static func recommendedJSON(_ userID: String, limit: Int, type: String? = nil, on db: any SQLDatabase) async throws -> Data {
         if try await CommunityStore.userHasInterests(userID, on: db) {
-            return try JSONCoding.makeEncoder().encode(try await CommunityStore.recommendedCommunities(userID, limit: limit, on: db))
+            return try JSONCoding.makeEncoder().encode(try await CommunityStore.recommendedCommunities(userID, limit: limit, type: type, on: db))
         }
-        return try JSONCoding.makeEncoder().encode(try await CommunityStore.trendingCommunities(type: nil, limit: limit, on: db))
+        return try JSONCoding.makeEncoder().encode(try await CommunityStore.trendingCommunities(type: type, limit: limit, on: db))
     }
 
     static func recommendations(_ req: Request) async throws -> Response {
+        let type = (try? req.query.get(String.self, at: "type")).flatMap { validTypes.contains($0) ? $0 : nil }
         let limit = min((try? req.query.get(Int.self, at: "limit")) ?? 10, 50)
-        let inner = try await recommendedJSON(req.userID, limit: limit, on: req.db.sql())
+        let inner = try await recommendedJSON(req.userID, limit: limit, type: type, on: req.db.sql())
         return jsonWrapped("data", inner)
     }
     static func trending(_ req: Request) async throws -> DataListResponse<CommunityStore.CommunityRow> {
@@ -408,7 +409,7 @@ struct CommunitiesController {
         let type = (try? req.query.get(String.self, at: "type")).flatMap { validTypes.contains($0) ? $0 : nil }
         let db = req.db.sql()
         let trendingJSON = try JSONCoding.makeEncoder().encode(try await CommunityStore.trendingCommunities(type: type, limit: 10, on: db))
-        let recJSON = try await recommendedJSON(req.userID, limit: 10, on: db)
+        let recJSON = try await recommendedJSON(req.userID, limit: 10, type: type, on: db)
         var body = Data(#"{"data":{"trending":"#.utf8)
         body.append(trendingJSON); body.append(Data(#","recommended":"#.utf8))
         body.append(recJSON); body.append(Data("}}".utf8))
