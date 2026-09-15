@@ -99,6 +99,10 @@ struct ChatView: View {
         ThemePalette.byId(viewModel.chatThemeId) ?? themeManager.theme
     }
 
+    /// Drives the header/input-bar "card" treatment below, same convention
+    /// as `MessageBubble.isPlayful`.
+    private var isPlayful: Bool { appState.currentMode == .hobby }
+
     /// Name to show in the header: shared nickname (1:1) or group name — live
     /// value from settings once loaded, falling back to what the caller passed in.
     private var headerName: String {
@@ -138,7 +142,10 @@ struct ChatView: View {
                 Divider()
             }
             messageList
-            Divider()
+            // Work's flat bordered bar wants the crisp line; Hobby's floating
+            // rounded card (see inputBarBackground) already reads as separated
+            // on its own, so the extra hairline would just look redundant.
+            if !isPlayful { Divider() }
             inputBar
         }
         // ignoresSafeArea (which covers .keyboard by default) so the background extends behind
@@ -146,6 +153,10 @@ struct ChatView: View {
         .background(AppColors.base(colorScheme).ignoresSafeArea())
         .navigationBarBackButtonHidden(true)
         .navigationBarTitleDisplayMode(.inline)
+        // Hobby: soft mode-tinted wash. Work: flat neutral surface instead of
+        // the default translucent material — a deliberate, crisper "card" feel.
+        .toolbarBackground(isPlayful ? chatPalette.softFill : AppColors.surface(colorScheme), for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
             // Back button
@@ -921,6 +932,10 @@ struct ChatView: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
                     .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 20))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(isPlayful ? chatPalette.primary.opacity(0.35) : chatPalette.softBorder, lineWidth: 1)
+                    )
                     .onChange(of: inputText) { _, newVal in
                         let typing = !newVal.isEmpty
                         if typing != isTyping {
@@ -943,8 +958,25 @@ struct ChatView: View {
             .opacity(blocking ? 0.5 : 1)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(AppColors.surface(colorScheme))
+        .padding(.vertical, 10)
+        .background(inputBarBackground)
+    }
+
+    /// Hobby: a rounded-top card that floats above the base background with a
+    /// soft mode-tinted fill and shadow. Work: a flat bar with a crisp top
+    /// border — same information, deliberately different "weight".
+    @ViewBuilder
+    private var inputBarBackground: some View {
+        if isPlayful {
+            UnevenRoundedRectangle(topLeadingRadius: 22, bottomLeadingRadius: 0, bottomTrailingRadius: 0, topTrailingRadius: 22)
+                .fill(chatPalette.softFill)
+                .shadow(color: chatPalette.primary.opacity(0.15), radius: 10, y: -3)
+        } else {
+            AppColors.surface(colorScheme)
+                .overlay(alignment: .top) {
+                    Rectangle().fill(chatPalette.softBorder).frame(height: 1)
+                }
+        }
     }
 
     /// Short notice shown above the composer while either side has blocked the other. 1:1 only.
