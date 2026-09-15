@@ -193,8 +193,8 @@ enum CommunityStore {
         var tag_overlap: Double
         var rec_score: Double
     }
-    static func recommendedCommunities(_ userID: String, limit: Int, on db: any SQLDatabase) async throws -> [RecommendedRow] {
-        try await db.raw("""
+    static func recommendedCommunities(_ userID: String, limit: Int, type: String? = nil, on db: any SQLDatabase) async throws -> [RecommendedRow] {
+        var q: SQLQueryString = """
             WITH user_tags AS (SELECT tag, weight FROM recommendation_interests WHERE user_id = \(uuid: userID) ORDER BY weight DESC LIMIT 10)
             SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.avatar_url, c.cover_color,
               c.member_count, c.post_count, false AS is_member, NULL::VARCHAR AS role, c.created_at,
@@ -206,9 +206,10 @@ enum CommunityStore {
             JOIN user_tags ut ON ut.tag = ct.tag
             LEFT JOIN community_trending tr ON tr.community_id = c.id
             WHERE c.id NOT IN (SELECT community_id FROM community_members WHERE user_id = \(uuid: userID)) AND c.privacy = 'public'
-            GROUP BY c.id, tr.score
-            ORDER BY rec_score DESC LIMIT \(bind: limit)
-            """).all(decoding: RecommendedRow.self)
+            """
+        if let type { q = q + " AND c.type = \(bind: type)" }
+        q = q + " GROUP BY c.id, tr.score ORDER BY rec_score DESC LIMIT \(bind: limit)"
+        return try await db.raw(q).all(decoding: RecommendedRow.self)
     }
 
     static func byUser(_ userID: String, on db: any SQLDatabase) async throws -> [CommunityRow] {

@@ -186,37 +186,6 @@ struct CreateCommunityView: View {
                             }
                     }
 
-                    // Type picker
-                    formSection(title: bundle.loc("Type")) {
-                        HStack(spacing: 0) {
-                            ForEach(CommunityType.allCases, id: \.self) { t in
-                                Button { type = t } label: {
-                                    Text(bundle.loc(t.label))
-                                        .font(.system(size: 14, weight: type == t ? .semibold : .regular))
-                                        .foregroundColor(type == t ? .white : AppColors.textSecondary(colorScheme))
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 10)
-                                        .background(type == t ? themeManager.theme.primary : Color.clear)
-                                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(4)
-                        .background(AppColors.surface(colorScheme))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                        .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
-                    }
-                    .onChange(of: type) { _, newType in
-                        // Reset to first emoji of new type if current selection doesn't belong
-                        let set = newType == .work ? workEmojis : fandomEmojis
-                        if !set.contains(selectedEmoji) && customEmoji != selectedEmoji {
-                            selectedEmoji = set[0]
-                        }
-                        customEmoji         = nil
-                        showCustomEmojiInput = false
-                    }
-
                     // Privacy picker
                     formSection(title: bundle.loc("Privacy")) {
                         HStack(spacing: 0) {
@@ -355,6 +324,18 @@ struct CreateCommunityView: View {
                         pickedImage = image
                     }
                 }
+            }
+            .onAppear {
+                type = appState.currentMode == .hobby ? .fandom : .work
+            }
+            .onChange(of: type) { _, newType in
+                // Reset to first emoji of new type if current selection doesn't belong
+                let set = newType == .work ? workEmojis : fandomEmojis
+                if !set.contains(selectedEmoji) && customEmoji != selectedEmoji {
+                    selectedEmoji = set[0]
+                }
+                customEmoji         = nil
+                showCustomEmojiInput = false
             }
         }
     }

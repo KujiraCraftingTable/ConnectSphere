@@ -20,7 +20,6 @@ struct CommunitiesView: View {
     @State private var viewModel  = CommunitiesViewModel()
     @State private var selectedTab: CommunityTab = .myCommunities
     @State private var searchText = ""
-    @State private var selectedType: CommunityType? = nil
     @State private var showCreate = false
 
     /// Binding from MainTabView — resets to root whenever the tab is re-selected
@@ -103,17 +102,7 @@ struct CommunitiesView: View {
                 } else if let myError = viewModel.myError, viewModel.myCommunities.isEmpty {
                     myCommunitiesError(myError)
                 } else {
-                    filterChips.padding(.horizontal, 16).padding(.top, 5)
-
-                    switch selectedType {
-                    case nil:
-                        typeSection(.fandom)
-                        typeSection(.work)
-                    case .fandom:
-                        typeSection(.fandom)
-                    case .work:
-                        typeSection(.work)
-                    }
+                    typeSection(appState.currentMode == .hobby ? .fandom : .work)
                 }
             }
             .padding(.bottom, 20)
@@ -167,35 +156,6 @@ struct CommunitiesView: View {
                 .buttonStyle(.plain)
             }
         }
-    }
-
-    // MARK: - Filter chips
-
-    private var filterChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                filterChip(label: bundle.loc("All"), type: nil)
-                ForEach(CommunityType.allCases, id: \.self) { t in
-                    filterChip(label: bundle.loc(t.label), type: t)
-                }
-            }
-        }
-    }
-
-    private func filterChip(label: String, type: CommunityType?) -> some View {
-        let isSelected = selectedType == type
-        return Button {
-            selectedType = type
-        } label: {
-            Text(label)
-                .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
-                .foregroundColor(isSelected ? .white : AppColors.textSecondary(colorScheme))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 7)
-                .background(isSelected ? themeManager.theme.primary : AppColors.elevated(colorScheme))
-                .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Helpers
