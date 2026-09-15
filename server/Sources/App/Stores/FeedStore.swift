@@ -85,6 +85,7 @@ enum FeedStore {
         var shared_post: String?
         var author: String
         var tags: String
+        var community: String?
         var score: Double
     }
 
@@ -139,7 +140,11 @@ enum FeedStore {
                   'display_name', \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "p.mode")),
                   'avatar_color', u.avatar_color, 'avatar_url', \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: "p.mode")),
                   'job_title', u.job_title, 'company', u.company)::text AS author,
-                COALESCE(json_agg(DISTINCT pt.tag) FILTER (WHERE pt.tag IS NOT NULL), '[]')::text AS tags
+                COALESCE(json_agg(DISTINCT pt.tag) FILTER (WHERE pt.tag IS NOT NULL), '[]')::text AS tags,
+                (CASE WHEN p.community_id IS NOT NULL THEN (
+                  SELECT json_build_object('id', co.id, 'name', co.name, 'icon_emoji', co.icon_emoji, 'avatar_url', co.avatar_url)
+                  FROM communities co WHERE co.id = p.community_id
+                ) ELSE NULL END)::text AS community
               FROM posts p
               JOIN users u ON u.id = p.author_id
               -- LEFT (not INNER) join: a post with no embedding chunk yet —
@@ -153,7 +158,10 @@ enum FeedStore {
               LEFT JOIN user_embedding_chunks c ON c.source_id = p.id AND c.source_type = 'post'
               LEFT JOIN post_tags pt ON pt.post_id = p.id
               WHERE p.mode = \(bind: mode) AND p.status = 'posted'
-                AND p.community_id IS NULL AND p.author_id <> \(uuid: userID)
+                AND (p.community_id IS NULL OR p.author_id = \(uuid: userID)
+                  OR EXISTS (SELECT 1 FROM communities co2 WHERE co2.id = p.community_id AND co2.privacy = 'public')
+                  OR EXISTS (SELECT 1 FROM community_members cm2 WHERE cm2.community_id = p.community_id AND cm2.user_id = \(uuid: userID)))
+                AND p.author_id <> \(uuid: userID)
                 AND NOT EXISTS (SELECT 1 FROM user_blocks ub
                   WHERE (ub.blocker_id = \(uuid: userID) AND ub.blocked_id = p.author_id)
                      OR (ub.blocker_id = p.author_id AND ub.blocked_id = \(uuid: userID)))
@@ -231,6 +239,7 @@ enum FeedStore {
                 shared_post: (r.shared_post != nil && r.shared_post != "null") ? try dec.decode(PostObject.SharedPost.self, from: Data(r.shared_post!.utf8)) : nil,
                 author: try dec.decode(PostObject.PostAuthor.self, from: Data(r.author.utf8)),
                 tags: (try? dec.decode([String].self, from: Data(r.tags.utf8))) ?? [],
+                community: (r.community != nil && r.community != "null") ? try dec.decode(PostObject.CommunityRef.self, from: Data(r.community!.utf8)) : nil,
                 score: r.score)
         }
         let next = hasMore ? encodeCursor(page.last!.score, page.last!.id, relaxed: relaxed, asOf: asOf) : nil
@@ -265,5 +274,6 @@ struct FeedPostObject: Content {
     @NullCoded var shared_post: PostObject.SharedPost?
     var author: PostObject.PostAuthor
     var tags: [String]
+    @NullCoded var community: PostObject.CommunityRef?
     var score: Double
 }

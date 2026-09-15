@@ -116,6 +116,12 @@ struct Post: Identifiable {
     var postType: PostType = .text
     var pollData: PollData? = nil
     var eventData: EventData? = nil
+    /// Set only for a post from a community the viewer's feed surfaces —
+    /// drives PostCard's combined "community avatar/name + actual poster"
+    /// header instead of the normal single-author one.
+    var isPinned: Bool = false
+    var pinnedAt: Date? = nil
+    var community: CommunityRef? = nil
 
     /// Images to render the grid: prefer the new array, fall back to the old post's single image.
     /// Posts with a link preview don't count (that image belongs to the link card).

@@ -535,7 +535,70 @@ struct PostCard: View {
 
     // MARK: Header
 
+    @ViewBuilder
     private var postHeader: some View {
+        if let community = post.community {
+            communityPostHeader(community)
+        } else {
+            regularPostHeader
+        }
+    }
+
+    /// A post that surfaced in Feed from a community: the community's own
+    /// avatar/name lead as the primary identity (so it's immediately clear
+    /// which community this came from), with the actual poster as a smaller
+    /// secondary line — same information `CommunityPostCard`'s small tag row
+    /// used to bury below the personal header, promoted to the primary spot
+    /// per the "which community, from which one" framing this was asked for.
+    private func communityPostHeader(_ community: CommunityRef) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            NavigationLink(destination:
+                CommunityDetailView(communityId: community.id, token: appState.authToken ?? "",
+                                     currentUserId: appState.currentUser?.id ?? "")
+                    .environment(appState).environment(themeManager)
+            ) {
+                Avatar(name: community.iconEmoji, imageURL: community.avatarUrl, size: .md)
+            }
+            .buttonStyle(.plain)
+
+            VStack(alignment: .leading, spacing: 3) {
+                NavigationLink(destination:
+                    CommunityDetailView(communityId: community.id, token: appState.authToken ?? "",
+                                         currentUserId: appState.currentUser?.id ?? "")
+                        .environment(appState).environment(themeManager)
+                ) {
+                    Text(community.name)
+                        .appFont(.headline)
+                        .foregroundColor(AppColors.textPrimary(colorScheme))
+                }
+                .buttonStyle(.plain)
+
+                Text(String(format: bundle.loc("Posted by %@"), post.author.name))
+                    .appFont(.footnote)
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
+                    .lineLimit(1)
+
+                HStack(spacing: 3) {
+                    if post.isPinned {
+                        Image(systemName: "pin.fill")
+                        Text("Pinned", bundle: bundle)
+                        Text("·")
+                    }
+                    Text(post.timestamp.timeAgoString)
+                }
+                .appFont(.footnote)
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+            }
+
+            Spacer()
+
+            postHeaderMenu
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 12)
+    }
+
+    private var regularPostHeader: some View {
         HStack(alignment: .top, spacing: 10) {
             // Avatar → shake (own profile) | Profile tab (own feed) | UserProfileView (someone else)
             let isSelf = post.author.id == appState.currentUser?.id
@@ -597,42 +660,46 @@ struct PostCard: View {
 
             Spacer()
 
-            Menu {
-                let isSelf = post.author.id == appState.currentUser?.id
-                if isSelf {
-                    Button { showEditSheet = true } label: {
-                        Label(bundle.loc("Edit post"), systemImage: "pencil")
-                    }
-                    Button(role: .destructive) {
-                        // Delay so the menu finishes dismissing before the alert appears (SwiftUI timing bug)
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            showDeleteAlert = true
-                        }
-                    } label: {
-                        Label(bundle.loc("Delete post"), systemImage: "trash")
-                    }
-                } else {
-                    Button {
-                        handleHidePost()
-                    } label: {
-                        Label(bundle.loc("Hide post"), systemImage: "eye.slash")
-                    }
-                    Button(role: .destructive) {
-                        showReportDialog = true
-                    } label: {
-                        Label(bundle.loc("Report post"), systemImage: "flag")
-                    }
-                }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 18))
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-                    .frame(width: 36, height: 36)
-                    .contentShape(Rectangle())
-            }
+            postHeaderMenu
         }
         .padding(.horizontal, 12)
         .padding(.top, 12)
+    }
+
+    private var postHeaderMenu: some View {
+        Menu {
+            let isSelf = post.author.id == appState.currentUser?.id
+            if isSelf {
+                Button { showEditSheet = true } label: {
+                    Label(bundle.loc("Edit post"), systemImage: "pencil")
+                }
+                Button(role: .destructive) {
+                    // Delay so the menu finishes dismissing before the alert appears (SwiftUI timing bug)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        showDeleteAlert = true
+                    }
+                } label: {
+                    Label(bundle.loc("Delete post"), systemImage: "trash")
+                }
+            } else {
+                Button {
+                    handleHidePost()
+                } label: {
+                    Label(bundle.loc("Hide post"), systemImage: "eye.slash")
+                }
+                Button(role: .destructive) {
+                    showReportDialog = true
+                } label: {
+                    Label(bundle.loc("Report post"), systemImage: "flag")
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 18))
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+                .frame(width: 36, height: 36)
+                .contentShape(Rectangle())
+        }
     }
 
     // MARK: Hashtag Chips
