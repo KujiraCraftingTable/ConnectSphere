@@ -355,6 +355,7 @@
 "For 10 minutes" = "Trong 10 phút";
 "For 30 minutes" = "Trong 30 phút";
 "Mute notifications" = "Tắt thông báo";
+"Mute this community" = "Tắt hiển thị cộng đồng này";
 "Muted until %@" = "Đã tắt đến %@";
 "Muted until you turn it back on" = "Đã tắt đến khi bạn bật lại";
 "Nickname" = "Biệt danh";
@@ -515,6 +516,7 @@
 "Pinned messages" = "Tin nhắn đã ghim";
 "Pin" = "Ghim";
 "Unpin" = "Bỏ ghim";
+"Unmute this community" = "Bật lại hiển thị cộng đồng này";
 "Pin message" = "Ghim tin nhắn";
 "Unpin this message?" = "Bỏ ghim tin nhắn này?";
 "It will be removed from the pinned list." = "Tin nhắn sẽ được xoá khỏi danh sách đã ghim.";

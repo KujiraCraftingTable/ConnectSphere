@@ -25,6 +25,8 @@ enum CommunityStore {
         var is_member: Bool
         @NullCoded var role: String?
         @NullCoded var join_request_status: String?
+        /// Feed-visibility mute — false for a non-member (nothing to mute).
+        var is_muted: Bool
     }
 
     /// List endpoints (`search`, `/me`, `recommendations`, `trending`,
@@ -53,7 +55,8 @@ enum CommunityStore {
             q = """
                 SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.avatar_url, c.cover_color,
                   c.member_count, c.post_count, c.created_by::text AS created_by, c.created_at,
-                  (cm.user_id IS NOT NULL) AS is_member, cm.role, jr.status AS join_request_status
+                  (cm.user_id IS NOT NULL) AS is_member, cm.role, jr.status AS join_request_status,
+                  COALESCE(cm.muted, false) AS is_muted
                 FROM communities c
                 LEFT JOIN community_members cm ON cm.community_id = c.id AND cm.user_id = \(uuid: viewer)
                 LEFT JOIN community_join_requests jr ON jr.community_id = c.id AND jr.user_id = \(uuid: viewer)
@@ -63,7 +66,8 @@ enum CommunityStore {
             q = """
                 SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.avatar_url, c.cover_color,
                   c.member_count, c.post_count, c.created_by::text AS created_by, c.created_at,
-                  false AS is_member, NULL::VARCHAR AS role, NULL::VARCHAR AS join_request_status
+                  false AS is_member, NULL::VARCHAR AS role, NULL::VARCHAR AS join_request_status,
+                  false AS is_muted
                 FROM communities c WHERE c.id = \(uuid: id)
                 """
         }
@@ -115,6 +119,10 @@ enum CommunityStore {
         struct R: Decodable { let user_id: String }
         return try await db.raw("DELETE FROM community_members WHERE community_id = \(uuid: communityID) AND user_id = \(uuid: userID) RETURNING user_id::text AS user_id")
             .first(decoding: R.self) != nil
+    }
+
+    static func setMuted(_ communityID: String, _ userID: String, _ muted: Bool, on db: any SQLDatabase) async throws {
+        try await db.raw("UPDATE community_members SET muted = \(bind: muted) WHERE community_id = \(uuid: communityID) AND user_id = \(uuid: userID)").run()
     }
 
     struct MemberRow: Content {

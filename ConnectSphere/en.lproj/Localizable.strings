@@ -355,6 +355,7 @@
 "For 10 minutes" = "For 10 minutes";
 "For 30 minutes" = "For 30 minutes";
 "Mute notifications" = "Mute notifications";
+"Mute this community" = "Mute this community";
 "Muted until %@" = "Muted until %@";
 "Muted until you turn it back on" = "Muted until you turn it back on";
 "Nickname" = "Nickname";
@@ -515,6 +516,7 @@
 "Pinned messages" = "Pinned messages";
 "Pin" = "Pin";
 "Unpin" = "Unpin";
+"Unmute this community" = "Unmute this community";
 "Pin message" = "Pin message";
 "Unpin this message?" = "Unpin this message?";
 "It will be removed from the pinned list." = "It will be removed from the pinned list.";

@@ -38,6 +38,8 @@ struct CommunitiesController {
         c.patch(":id", "members", ":userId", "role", use: updateRole)
         c.post(":id", "tags", use: setTags)
         c.patch(":id", use: update)
+        c.put(":id", "mute", use: mute)
+        c.delete(":id", "mute", use: unmute)
         // moderation / analytics / member-report → ReportsController (same phase)
         ReportsController.registerCommunityRoutes(on: c)
     }
@@ -179,6 +181,28 @@ struct CommunitiesController {
             try await CommunityStore.deleteRequest(id, req.userID, on: t)
         }
         return OKMsg(message: "Left community")
+    }
+
+    // MARK: mute / unmute (feed-visibility only — does not unfollow/leave)
+
+    static func mute(_ req: Request) async throws -> OKMsg {
+        let id = req.parameters.get("id")!
+        let db = req.db.sql()
+        guard try await CommunityStore.membership(id, req.userID, on: db) != nil else {
+            throw Abort(.badRequest, reason: "You are not a member of this community")
+        }
+        try await CommunityStore.setMuted(id, req.userID, true, on: db)
+        return OKMsg(message: "Community muted")
+    }
+
+    static func unmute(_ req: Request) async throws -> OKMsg {
+        let id = req.parameters.get("id")!
+        let db = req.db.sql()
+        guard try await CommunityStore.membership(id, req.userID, on: db) != nil else {
+            throw Abort(.badRequest, reason: "You are not a member of this community")
+        }
+        try await CommunityStore.setMuted(id, req.userID, false, on: db)
+        return OKMsg(message: "Community unmuted")
     }
 
     static func members(_ req: Request) async throws -> DataListResponse<CommunityStore.MemberRow> {

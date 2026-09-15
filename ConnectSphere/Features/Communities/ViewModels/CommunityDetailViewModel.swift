@@ -269,6 +269,22 @@ class CommunityDetailViewModel {
         }
     }
 
+    // MARK: - Mute (feed-visibility only)
+
+    func toggleMute() async {
+        guard let muted = community?.isMuted else { return }
+        do {
+            if muted {
+                try await repository.unmute(communityId: communityId, token: token)
+            } else {
+                try await repository.mute(communityId: communityId, token: token)
+            }
+            community?.isMuted = !muted
+        } catch {
+            errorMessage = friendlyError(error)
+        }
+    }
+
     // MARK: - Pin / Unpin
 
     func pinPost(_ postId: String) async {

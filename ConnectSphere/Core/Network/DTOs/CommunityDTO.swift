@@ -14,6 +14,7 @@ struct CommunityDTO: Decodable {
     let memberCount: Int
     let postCount: Int
     let isMember: Bool
+    let isMuted: Bool
     let role: String?
     let joinRequestStatus: String?
     let createdAt: Date
@@ -26,6 +27,7 @@ struct CommunityDTO: Decodable {
         case memberCount        = "member_count"
         case postCount          = "post_count"
         case isMember           = "is_member"
+        case isMuted            = "is_muted"
         case joinRequestStatus  = "join_request_status"
         case createdAt          = "created_at"
     }
@@ -43,6 +45,7 @@ struct CommunityDTO: Decodable {
         memberCount = try c.decode(Int.self, forKey: .memberCount)
         postCount   = try c.decode(Int.self, forKey: .postCount)
         isMember    = try c.decodeIfPresent(Bool.self, forKey: .isMember) ?? false
+        isMuted     = try c.decodeIfPresent(Bool.self, forKey: .isMuted) ?? false
         role        = try c.decodeIfPresent(String.self, forKey: .role)
         joinRequestStatus = try c.decodeIfPresent(String.self, forKey: .joinRequestStatus)
         createdAt   = try c.decode(Date.self, forKey: .createdAt)
@@ -61,6 +64,7 @@ struct CommunityDTO: Decodable {
             memberCount: memberCount,
             postCount:   postCount,
             isMember:    isMemberOverride ?? isMember,
+            isMuted:     isMuted,
             role:        role.flatMap { MemberRole(rawValue: $0) },
             joinRequestStatus: joinRequestStatus,
             createdAt:   createdAt
