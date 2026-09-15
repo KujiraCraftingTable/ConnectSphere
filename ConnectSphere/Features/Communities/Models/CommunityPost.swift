@@ -140,3 +140,40 @@ struct CommunityRef {
     let iconEmoji: String
     let avatarUrl: String?
 }
+
+extension CommunityPost {
+    /// Adapts a just-created `CommunityPost` (what `PostComposerViewModel`'s
+    /// shared submit path returns for every post type) into the Feed `Post`
+    /// shape `PostCard` renders — mirrors `CreatePostView.feedPost(from:)`
+    /// (same adapter need, kept separate rather than shared to avoid coupling
+    /// Feed's own composer to Communities). mode/privacy come from what was
+    /// just submitted (already known), not decoded from the response.
+    func toPost(author: UserProfile, mode: AppMode, privacy: PostPrivacy) -> Post {
+        Post(
+            id:            id,
+            author:        author,
+            content:       content,
+            timestamp:     createdAt,
+            mode:          mode,
+            privacy:       privacy,
+            linkUrl:       linkUrl,
+            imageUrl:      imageUrl,
+            imageUrls:     imageUrls,
+            likeCount:     likeCount,
+            commentCount:  commentCount,
+            shareCount:    0,
+            isLiked:       isLiked,
+            isSaved:       false,
+            articleTitle:  articleTitle,
+            tags:          tags,
+            sharedPostId:  nil,
+            sharedPost:    nil,
+            postType:      postType,
+            pollData:      pollData,
+            eventData:     eventData,
+            isPinned:      isPinned,
+            pinnedAt:      nil,
+            community:     community
+        )
+    }
+}

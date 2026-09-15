@@ -1,8 +1,10 @@
 import SwiftUI
 
-/// Modal comment view — still used by `CommunityPostCard`. The Feed flow no
-/// longer presents this; it shows comments inline on the pushed `PostDetailView`
-/// instead (see `CommentsSection`, which this sheet also reuses for its list).
+/// Modal comment view — `PostCard`'s fallback when it has no `onOpenDetail`
+/// to push to (e.g. from inside `PostDetailView` itself, or before that push
+/// wiring existed for a given screen). Feed's main flow shows comments inline
+/// on the pushed `PostDetailView` instead (see `CommentsSection`, which this
+/// sheet also reuses for its list).
 struct CommentSheet: View {
     @Environment(AppState.self) var appState
     @Environment(ThemeManager.self) var themeManager

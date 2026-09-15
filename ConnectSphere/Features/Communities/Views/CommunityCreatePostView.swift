@@ -14,7 +14,7 @@ struct CommunityCreatePostView: View {
     @State private var hashtagController = HashtagInputController()
 
     let community: Community
-    let onPostCreated: (CommunityPost) -> Void
+    let onPostCreated: (Post) -> Void
 
     var body: some View {
         NavigationStack {
@@ -198,14 +198,18 @@ struct CommunityCreatePostView: View {
                             // privacy always 'public') — passing them explicitly
                             // keeps this call site's behavior identical to before
                             // the Phase 2 mode/privacy override was added.
+                            let mode: AppMode = community.type == .work ? .work : .hobby
                             await viewModel.submitPost(
                                 communityId: community.id,
                                 token: appState.authToken ?? "",
-                                mode: community.type == .work ? .work : .hobby,
+                                mode: mode,
                                 privacy: .publicAll,
                                 hashtags: hashtags
-                            ) { post in
-                                onPostCreated(post)
+                            ) { communityPost in
+                                onPostCreated(communityPost.toPost(
+                                    author: appState.currentUser ?? MockData.currentUser,
+                                    mode: mode, privacy: .publicAll
+                                ))
                                 dismiss()
                             }
                         }
