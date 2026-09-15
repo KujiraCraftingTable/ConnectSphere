@@ -67,7 +67,9 @@ class ChatViewModel {
     }
 
     let isGroup: Bool
-    private let conversationId: String
+    /// Not `private` — `FloatingChatPresenter` keys its bubbles by this so at
+    /// most one bubble exists per conversation.
+    let conversationId: String
     private let currentUserId: String
     /// The other 1:1 participant's id — nil for groups (no single "other person").
     private let otherUserId: String?
@@ -81,6 +83,20 @@ class ChatViewModel {
     /// Token for the `.webSocketDidReconnect` observer registered in `joinConversation()`;
     /// removed symmetrically in `leaveConversation()`.
     private var reconnectObserver: NSObjectProtocol?
+    /// Registration key for every `ws.on(...)`/`ws.off(...)` call below. Plain
+    /// `"chat"` for a normal full-screen `ChatView`; `FloatingChatPresenter`
+    /// re-tags this to `"chatBubble-<conversationId>"` when minimizing a
+    /// conversation into a floating bubble — `WebSocketClient` stores exactly
+    /// one handler per (event, tag) pair, so two different `ChatViewModel`
+    /// instances sharing the same tag would silently clobber each other's
+    /// listeners (e.g. a full `ChatView` opened on a different conversation
+    /// while a bubble for this one is still live, both tagged plain "chat").
+    private var socketTag = "chat"
+    /// Guards `joinConversation()`/`leaveConversation()` against double
+    /// registration — needed because a bubble's already-joined view model can
+    /// be handed straight into a freshly-created `ChatView` (restoring from a
+    /// floating bubble), whose own `.task` calls `joinConversation()` again.
+    private(set) var hasJoinedConversation = false
 
     init(conversationId: String, currentUserId: String, isGroup: Bool, otherUserId: String?, token: String) {
         self.conversationId = conversationId
@@ -88,6 +104,18 @@ class ChatViewModel {
         self.isGroup        = isGroup
         self.otherUserId    = otherUserId
         self.token          = token
+    }
+
+    /// Re-tags this view model's socket listeners — tears down whatever's
+    /// registered under the current tag and re-registers everything under
+    /// `newTag`. Used only by `FloatingChatPresenter` when a conversation
+    /// transitions between a full `ChatView` and a floating bubble.
+    func retag(to newTag: String) {
+        guard newTag != socketTag else { return }
+        let wasJoined = hasJoinedConversation
+        if wasJoined { leaveConversation() }
+        socketTag = newTag
+        if wasJoined { joinConversation() }
     }
 
     // MARK: - Load messages
@@ -447,6 +475,8 @@ class ChatViewModel {
     // MARK: - WebSocket setup
 
     func joinConversation() {
+        guard !hasJoinedConversation else { return }
+        hasJoinedConversation = true
         emitJoin()
 
         // After a socket reconnect: re-join the room (server-side membership is
@@ -460,7 +490,7 @@ class ChatViewModel {
             Task { @MainActor [weak self] in await self?.loadMessages() }
         }
 
-        ws.on("new_message", tag: "chat") { [weak self] payload in
+        ws.on("new_message", tag: socketTag) { [weak self] payload in
             guard let self,
                   let msg = self.decodeMessage(payload),
                   msg.conversationId == self.conversationId else { return }
@@ -483,7 +513,7 @@ class ChatViewModel {
         // sent only to the sender's personal room. Appends the delivering
         // user's id to `deliveredTo`, idempotently (a duplicate delivered
         // event for an already-delivered message is a no-op).
-        ws.on("message_delivered", tag: "chat") { [weak self] payload in
+        ws.on("message_delivered", tag: socketTag) { [weak self] payload in
             guard let self,
                   let dict = payload as? [String: Any],
                   let convId = (dict["conversation_id"] as? String) ?? (dict["conversationId"] as? String),
@@ -497,7 +527,7 @@ class ChatViewModel {
             }
         }
 
-        ws.on("user_typing", tag: "chat") { [weak self] payload in
+        ws.on("user_typing", tag: socketTag) { [weak self] payload in
             guard let self,
                   let dict = payload as? [String: Any],
                   let userId = dict["userId"] as? String,
@@ -515,7 +545,7 @@ class ChatViewModel {
         // whole unread tail as read" semantics). Appends `readBy` to `readBy`
         // (and `deliveredTo`, since read implies delivered) for the affected
         // messages only — NOT a blanket flip of every message.
-        ws.on("messages_read", tag: "chat") { [weak self] payload in
+        ws.on("messages_read", tag: socketTag) { [weak self] payload in
             guard let self,
                   let dict = payload as? [String: Any],
                   let convId = (dict["conversation_id"] as? String) ?? (dict["conversationId"] as? String),
@@ -535,7 +565,7 @@ class ChatViewModel {
             }
         }
 
-        ws.on("message_deleted", tag: "chat") { [weak self] payload in
+        ws.on("message_deleted", tag: socketTag) { [weak self] payload in
             guard let self,
                   let dict = payload as? [String: Any],
                   let convId = dict["conversation_id"] as? String,
@@ -551,7 +581,7 @@ class ChatViewModel {
         }
 
         // A reaction was added/changed/removed on a message (either participant)
-        ws.on("reaction_updated", tag: "chat") { [weak self] payload in
+        ws.on("reaction_updated", tag: socketTag) { [weak self] payload in
             guard let self,
                   let dict = payload as? [String: Any],
                   let convId = dict["conversation_id"] as? String,
@@ -565,7 +595,7 @@ class ChatViewModel {
         // A meeting proposal was rescheduled or cancelled (proposer-only actions);
         // apply whatever the server sends — a reschedule's response already
         // reflects cleared RSVP counts/userResponse, so no extra clearing needed.
-        ws.on("meeting_proposal_updated", tag: "chat") { [weak self] payload in
+        ws.on("meeting_proposal_updated", tag: socketTag) { [weak self] payload in
             guard let self,
                   let dict = payload as? [String: Any],
                   let convId = dict["conversation_id"] as? String,
@@ -577,7 +607,7 @@ class ChatViewModel {
         }
 
         // Someone RSVPed to a meeting proposal (going/maybe/not_going)
-        ws.on("meeting_response_updated", tag: "chat") { [weak self] payload in
+        ws.on("meeting_response_updated", tag: socketTag) { [weak self] payload in
             guard let self,
                   let dict = payload as? [String: Any],
                   let convId = dict["conversation_id"] as? String,
@@ -591,7 +621,7 @@ class ChatViewModel {
         // Shared settings (theme/nickname) changed by either participant.
         // The nickname-target match only applies in the 1:1 case — a group has
         // no single "other person" for `otherUserId` to compare against.
-        ws.on("conversation_settings_updated", tag: "chat") { [weak self] payload in
+        ws.on("conversation_settings_updated", tag: socketTag) { [weak self] payload in
             guard let self,
                   let dict = payload as? [String: Any],
                   let convId = dict["conversation_id"] as? String,
@@ -612,7 +642,7 @@ class ChatViewModel {
         // than patch individual fields from the payload, since the exact
         // broadcast shape isn't pinned down; a refetch is resilient to that
         // and this is a low-frequency event.
-        ws.on("group_updated", tag: "chat") { [weak self] payload in
+        ws.on("group_updated", tag: socketTag) { [weak self] payload in
             guard let self, self.isGroup,
                   let dict = payload as? [String: Any],
                   let convId = dict["conversation_id"] as? String,
@@ -621,7 +651,7 @@ class ChatViewModel {
         }
 
         // A member was added to this group — refetch the roster.
-        ws.on("member_added", tag: "chat") { [weak self] payload in
+        ws.on("member_added", tag: socketTag) { [weak self] payload in
             guard let self, self.isGroup,
                   let dict = payload as? [String: Any],
                   let convId = dict["conversation_id"] as? String,
@@ -632,7 +662,7 @@ class ChatViewModel {
         // A message was pinned by any participant. The server broadcasts the
         // conversation's full current pin list (not a single row) — replace
         // wholesale rather than trying to merge one row in.
-        ws.on("pin_added", tag: "chat") { [weak self] payload in
+        ws.on("pin_added", tag: socketTag) { [weak self] payload in
             guard let self,
                   let dict = payload as? [String: Any],
                   let convId = dict["conversation_id"] as? String,
@@ -642,7 +672,7 @@ class ChatViewModel {
         }
 
         // A message was unpinned by any participant.
-        ws.on("pin_removed", tag: "chat") { [weak self] payload in
+        ws.on("pin_removed", tag: socketTag) { [weak self] payload in
             guard let self,
                   let dict = payload as? [String: Any],
                   let convId = dict["conversation_id"] as? String,
@@ -655,7 +685,7 @@ class ChatViewModel {
         // (independent of the payload's exact shape) whether I'm still in it;
         // if not, I was the one removed and the conversation is no longer
         // accessible to me.
-        ws.on("member_removed", tag: "chat") { [weak self] payload in
+        ws.on("member_removed", tag: socketTag) { [weak self] payload in
             guard let self, self.isGroup,
                   let dict = payload as? [String: Any],
                   let convId = dict["conversation_id"] as? String,
@@ -670,6 +700,8 @@ class ChatViewModel {
     }
 
     func leaveConversation() {
+        guard hasJoinedConversation else { return }
+        hasJoinedConversation = false
         typingTasks.values.forEach { $0.cancel() }
         typingTasks = [:]
         if let reconnectObserver {
@@ -677,20 +709,20 @@ class ChatViewModel {
             self.reconnectObserver = nil
         }
         ws.emit("leave_conversation", conversationId)
-        ws.off("new_message", tag: "chat")
-        ws.off("message_delivered", tag: "chat")
-        ws.off("user_typing",   tag: "chat")
-        ws.off("messages_read", tag: "chat")
-        ws.off("message_deleted", tag: "chat")
-        ws.off("reaction_updated", tag: "chat")
-        ws.off("meeting_proposal_updated", tag: "chat")
-        ws.off("meeting_response_updated", tag: "chat")
-        ws.off("conversation_settings_updated", tag: "chat")
-        ws.off("group_updated", tag: "chat")
-        ws.off("member_added", tag: "chat")
-        ws.off("member_removed", tag: "chat")
-        ws.off("pin_added", tag: "chat")
-        ws.off("pin_removed", tag: "chat")
+        ws.off("new_message", tag: socketTag)
+        ws.off("message_delivered", tag: socketTag)
+        ws.off("user_typing",   tag: socketTag)
+        ws.off("messages_read", tag: socketTag)
+        ws.off("message_deleted", tag: socketTag)
+        ws.off("reaction_updated", tag: socketTag)
+        ws.off("meeting_proposal_updated", tag: socketTag)
+        ws.off("meeting_response_updated", tag: socketTag)
+        ws.off("conversation_settings_updated", tag: socketTag)
+        ws.off("group_updated", tag: socketTag)
+        ws.off("member_added", tag: socketTag)
+        ws.off("member_removed", tag: socketTag)
+        ws.off("pin_added", tag: socketTag)
+        ws.off("pin_removed", tag: socketTag)
     }
 
     /// Emits `join_conversation` for this conversation's room — factored out of

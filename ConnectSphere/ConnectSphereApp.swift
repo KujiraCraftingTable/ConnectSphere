@@ -15,6 +15,9 @@ struct ConnectSphereApp: App {
     /// Shared "Undo" toast presenter for the delete-recovery flow — see
     /// `UndoToastView.swift`. Rendered by `MainTabView`'s overlay.
     @State private var toastPresenter = UndoToastPresenter()
+    /// Shared floating "chat head" presenter — see `FloatingChatPresenter.swift`.
+    /// Rendered by `MainTabView`'s overlay, same shape as `toastPresenter`.
+    @State private var floatingChatPresenter = FloatingChatPresenter()
 
     var body: some Scene {
         WindowGroup {
@@ -22,6 +25,7 @@ struct ConnectSphereApp: App {
                 .environment(appState)
                 .environment(themeManager)
                 .environment(toastPresenter)
+                .environment(floatingChatPresenter)
                 .environment(\.appBundle, appState.bundle)
                 .preferredColorScheme(appState.appearanceMode.colorScheme)
                 .onOpenURL { url in
