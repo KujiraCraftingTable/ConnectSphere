@@ -8,6 +8,7 @@ struct ChatView: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appBundle) var bundle
+    @Environment(FloatingChatPresenter.self) var floatingChatPresenter
 
     let conversationId: String
     let peer: ChatPeer
@@ -18,6 +19,17 @@ struct ChatView: View {
     let initialJumpMessageId: String?
 
     @State private var viewModel: ChatViewModel
+    /// True when `viewModel` was handed in already-loaded (restoring from a
+    /// floating bubble) — `.task` skips the initial `loadMessages()` fetch
+    /// since the message list is already live/current, avoiding both a
+    /// wasted request and a re-fetch flash that could momentarily replace
+    /// messages received while the bubble was floating.
+    private let isRestoredFromBubble: Bool
+    /// Set right before calling `dismiss()` from the "shrink to bubble"
+    /// button — tells `.onDisappear` to skip `leaveConversation()`, since the
+    /// conversation is transferring to a `FloatingChatPresenter` bubble, not
+    /// actually closing.
+    @State private var isMinimizing = false
     @State private var inputText = ""
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var pendingMedia: [PendingMedia] = []
@@ -77,13 +89,19 @@ struct ChatView: View {
     @State private var pinsSettingsViewModel: ChatSettingsViewModel
 
     init(conversationId: String, peer: ChatPeer, otherUserLocation: String? = nil,
-         currentUserId: String, token: String, initialJumpMessageId: String? = nil) {
+         currentUserId: String, token: String, initialJumpMessageId: String? = nil,
+         existingViewModel: ChatViewModel? = nil) {
         self.conversationId = conversationId
         self.peer = peer
         self.otherUserLocation = otherUserLocation
         self.token = token
         self.initialJumpMessageId = initialJumpMessageId
-        _viewModel = State(initialValue: ChatViewModel(
+        self.isRestoredFromBubble = existingViewModel != nil
+        // Restoring from a floating bubble hands in its already-loaded,
+        // already-joined view model — reused as-is (no re-fetch, no second
+        // socket join; see `ChatViewModel.hasJoinedConversation`'s guard and
+        // `FloatingChatPresenter.restore(_:)`).
+        _viewModel = State(initialValue: existingViewModel ?? ChatViewModel(
             conversationId: conversationId,
             currentUserId: currentUserId,
             isGroup: peer.isGroup,
@@ -195,6 +213,25 @@ struct ChatView: View {
                 }
                 .buttonStyle(.plain)
             }
+
+            // Shrink to a floating "chat head" — keeps this conversation
+            // live (still receiving/sendable) while browsing any other tab.
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    isMinimizing = true
+                    floatingChatPresenter.minimize(
+                        conversationId: conversationId, peer: peer,
+                        otherUserLocation: otherUserLocation,
+                        currentUserId: appState.currentUser?.id ?? "", token: token,
+                        viewModel: viewModel
+                    )
+                    dismiss()
+                } label: {
+                    Image(systemName: "pip.enter")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(AppColors.textPrimary(colorScheme))
+                }
+            }
         }
         .sheet(isPresented: $showChatSettings) {
             ChatSettingsView(
@@ -217,7 +254,9 @@ struct ChatView: View {
         }
         .task {
             viewModel.joinConversation()
-            await viewModel.loadMessages()
+            if !isRestoredFromBubble {
+                await viewModel.loadMessages()
+            }
             // Existing history should appear without the send animation.
             appearedMessageIDs = Set(viewModel.messages.map(\.id))
             if let initialJumpMessageId {
@@ -263,7 +302,12 @@ struct ChatView: View {
             }
         }
         .onDisappear {
-            viewModel.leaveConversation()
+            // Shrinking to a bubble transfers ownership of the live socket
+            // listeners to FloatingChatPresenter instead of tearing them
+            // down — see `isMinimizing`'s doc comment.
+            if !isMinimizing {
+                viewModel.leaveConversation()
+            }
             if let blockStatusObserver {
                 NotificationCenter.default.removeObserver(blockStatusObserver)
                 self.blockStatusObserver = nil

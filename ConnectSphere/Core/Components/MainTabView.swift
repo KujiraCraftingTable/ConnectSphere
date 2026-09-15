@@ -5,6 +5,7 @@ struct MainTabView: View {
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
     @Environment(UndoToastPresenter.self) var toastPresenter
+    @Environment(FloatingChatPresenter.self) var floatingChatPresenter
     @State private var selectedTab = 0
     @State private var profileNavPath = NavigationPath()
     @State private var searchNavPath = NavigationPath()
@@ -35,6 +36,7 @@ struct MainTabView: View {
 
     var body: some View {
         @Bindable var appState = appState
+        @Bindable var floatingChatPresenter = floatingChatPresenter
         return Group {
             if #available(iOS 26.0, *) {
                 modernTabs
@@ -51,6 +53,27 @@ struct MainTabView: View {
         // Undo toast for post soft-deletes (comment deletes use their own local
         // presenter inside CommentSheet, which is presented modally above this).
         .undoToastOverlay(toastPresenter)
+        // Floating "chat head" mini windows — persist above every tab the
+        // same way the undo toast does (see `FloatingChatPresenter.swift`).
+        .floatingChatOverlay(floatingChatPresenter)
+        // Double-tap on a bubble restores it here, regardless of which tab is
+        // active — a root-level presentation sidesteps needing to replay
+        // "switch tab → push Messages → push this conversation" navigation.
+        .fullScreenCover(item: $floatingChatPresenter.restoringBubble) { bubble in
+            NavigationStack {
+                ChatView(
+                    conversationId: bubble.id,
+                    peer: bubble.peer,
+                    otherUserLocation: bubble.otherUserLocation,
+                    currentUserId: bubble.currentUserId,
+                    token: bubble.token,
+                    existingViewModel: bubble.viewModel
+                )
+            }
+            .environment(appState)
+            .environment(themeManager)
+            .environment(floatingChatPresenter)
+        }
         .accentColor(themeManager.theme.primary)
         // Dense feed/chat layouts have fixed-height controls — support Dynamic
         // Type up to a cap rather than unbounded accessibility sizes.
