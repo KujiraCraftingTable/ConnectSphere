@@ -10,6 +10,8 @@ struct OnboardingView: View {
     @State private var error: String? = nil
     @State private var selectedInterests: [InterestItem] = []
     @State private var showProvincePicker = false
+    @State private var showDobPicker = false
+    @State private var dobDraft = Date()
 
     // Realtime username availability (only checks username — display_name doesn't need it
     // since many people can share the same name, only username needs to be unique).
@@ -190,7 +192,10 @@ struct OnboardingView: View {
                 }
 
                 // DOB (required)
-                VStack(alignment: .leading, spacing: 6) {
+                Button {
+                    dobDraft = dobDate
+                    showDobPicker = true
+                } label: {
                     HStack(spacing: 10) {
                         Image(systemName: "calendar").foregroundColor(AppColors.textSecondary(.light))
                         Text(form.dob.isEmpty ? bundle.loc("Date of birth *") : String(format: bundle.loc("Date of birth: %@"), form.dob))
@@ -202,14 +207,10 @@ struct OnboardingView: View {
                     .padding(.vertical, 14)
                     .background(AppColors.surface(.light))
                     .clipShape(RoundedRectangle(cornerRadius: 14))
-                    .overlay(
-                        DatePicker("", selection: Binding(
-                            get: { dobDate },
-                            set: { form.dob = dobFormatter.string(from: $0) }
-                        ), displayedComponents: .date)
-                        .blendMode(.destinationOver)
-                        .padding(.horizontal, 8)
-                    )
+                }
+                .buttonStyle(.plain)
+                .sheet(isPresented: $showDobPicker) {
+                    dobPickerSheet
                 }
 
                 // Who can see the age — defaults to Private, doesn't affect age-based search
@@ -381,6 +382,26 @@ struct OnboardingView: View {
     private let dobFormatter: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f
     }()
+
+    private var dobPickerSheet: some View {
+        NavigationStack {
+            DatePicker("", selection: $dobDraft, in: ...Date(), displayedComponents: .date)
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+                .padding()
+                .navigationTitle(bundle.loc("Date of birth"))
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button(bundle.loc("Done")) {
+                            form.dob = dobFormatter.string(from: dobDraft)
+                            showDobPicker = false
+                        }
+                    }
+                }
+        }
+        .presentationDetents([.height(340)])
+    }
 
     private func finish() async {
         // Sync selectedInterests → form.interests
