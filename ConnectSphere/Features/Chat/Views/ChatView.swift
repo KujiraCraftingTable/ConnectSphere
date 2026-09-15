@@ -13,6 +13,9 @@ struct ChatView: View {
     let peer: ChatPeer
     let otherUserLocation: String?
     private let token: String
+    /// Set when opened from a cross-conversation search hit — scrolls to and
+    /// highlights this message once the initial page has loaded.
+    let initialJumpMessageId: String?
 
     @State private var viewModel: ChatViewModel
     @State private var inputText = ""
@@ -71,11 +74,12 @@ struct ChatView: View {
     @State private var pinsSettingsViewModel: ChatSettingsViewModel
 
     init(conversationId: String, peer: ChatPeer, otherUserLocation: String? = nil,
-         currentUserId: String, token: String) {
+         currentUserId: String, token: String, initialJumpMessageId: String? = nil) {
         self.conversationId = conversationId
         self.peer = peer
         self.otherUserLocation = otherUserLocation
         self.token = token
+        self.initialJumpMessageId = initialJumpMessageId
         _viewModel = State(initialValue: ChatViewModel(
             conversationId: conversationId,
             currentUserId: currentUserId,
@@ -213,6 +217,9 @@ struct ChatView: View {
             await viewModel.loadMessages()
             // Existing history should appear without the send animation.
             appearedMessageIDs = Set(viewModel.messages.map(\.id))
+            if let initialJumpMessageId {
+                await jumpToMessage(initialJumpMessageId)
+            }
             viewModel.markRead()
             await viewModel.markConversationDelivered()
             await viewModel.loadSettings()

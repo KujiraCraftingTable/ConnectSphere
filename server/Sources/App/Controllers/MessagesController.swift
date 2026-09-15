@@ -45,6 +45,7 @@ struct MessagesController {
         m.put("conversations", ":id", "read", use: markRead)
         m.put("conversations", ":id", "delivered", use: markDelivered)
         m.get("unread", use: unreadCount)
+        m.get("search", use: searchAll)
     }
 
     static func requireParticipant(_ conversationID: String, _ req: Request) async throws {
@@ -355,6 +356,19 @@ struct MessagesController {
         guard let mode = try? req.query.get(String.self, at: "mode") else { throw Abort(.badRequest, reason: "mode is required") }
         guard ["hobby", "work"].contains(mode) else { throw Abort(.badRequest, reason: "Invalid mode") }
         return CountData(data: .init(count: try await ChatStore.totalUnread(req.userID, mode: mode, on: req.db.sql())))
+    }
+
+    /// Cross-conversation search — conversation name AND message content, so
+    /// a user who remembers what they said but not which chat it was in can
+    /// find it. Scoped to conversations the requester actually participates
+    /// in (see `ChatStore.searchAllConversations`), same mode-scoping as
+    /// every other conversation-listing endpoint.
+    static func searchAll(_ req: Request) async throws -> DataListResponse<ChatStore.ConversationSearchHit> {
+        guard let mode = try? req.query.get(String.self, at: "mode") else { throw Abort(.badRequest, reason: "mode is required") }
+        guard ["hobby", "work"].contains(mode) else { throw Abort(.badRequest, reason: "Invalid mode") }
+        let term = ((try? req.query.get(String.self, at: "q")) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !term.isEmpty else { return DataListResponse(data: []) }
+        return DataListResponse(data: try await ChatStore.searchAllConversations(req.userID, mode: mode, term: term, on: req.db.sql()))
     }
 
     static func clearConversation(_ req: Request) async throws -> StatusOK {
