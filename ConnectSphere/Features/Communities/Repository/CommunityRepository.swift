@@ -194,20 +194,45 @@ struct CommunityRepository {
         privacy: String,
         iconEmoji: String,
         coverColor: String,
+        avatarUrl: String? = nil,
         description: String?,
         token: String
     ) async throws -> Community {
         struct Body: Encodable {
             let name, type, privacy, icon_emoji, cover_color: String
+            let avatar_url: String?
             let description: String?
         }
         let body = NetworkClient.encode(Body(name: name, type: type, privacy: privacy,
                                              icon_emoji: iconEmoji, cover_color: coverColor,
-                                             description: description))
+                                             avatar_url: avatarUrl, description: description))
         let res = try await client.fetch(DataResponse<CommunityDTO>.self,
                                           path: "/communities", method: "POST",
                                           token: token, bodyData: body)
         return res.data.toCommunity(isMemberOverride: true)
+    }
+
+    /// Partial edit (name/description/privacy/icon/cover/avatar) — admin/moderator
+    /// only, enforced server-side. A nil field leaves that column untouched.
+    func updateCommunity(
+        communityId: String,
+        name: String? = nil,
+        description: String? = nil,
+        privacy: String? = nil,
+        iconEmoji: String? = nil,
+        coverColor: String? = nil,
+        avatarUrl: String? = nil,
+        token: String
+    ) async throws -> Community {
+        struct Body: Encodable {
+            let name, description, privacy, icon_emoji, cover_color, avatar_url: String?
+        }
+        let body = NetworkClient.encode(Body(name: name, description: description, privacy: privacy,
+                                             icon_emoji: iconEmoji, cover_color: coverColor, avatar_url: avatarUrl))
+        let res = try await client.fetch(DataResponse<CommunityDTO>.self,
+                                          path: "/communities/\(communityId)", method: "PATCH",
+                                          token: token, bodyData: body)
+        return res.data.toCommunity()
     }
 
     // MARK: - Reports

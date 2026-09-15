@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 private let fandomEmojis = ["🎵","🎮","📚","🍕","✈️","🎨","🏆","🐾","🎬","🎤",
                              "🌸","🦊","⚽","🏀","🎯","🎲","🧩","🌙","🎭","🎪"]
@@ -46,6 +47,11 @@ struct CreateCommunityView: View {
     @State private var isCreating    = false
     @State private var errorMessage: String?
 
+    // Real uploaded photo, same pick-now/upload-at-save pattern as EditProfileView.
+    @State private var pickerItem: PhotosPickerItem?
+    @State private var pickedImage: UIImage?
+    private let postRepo = PostRepository()
+
     @State private var customEmoji: String?  = nil
     @State private var showCustomEmojiInput  = false
     @State private var customEmojiDraft      = ""
@@ -88,12 +94,32 @@ struct CreateCommunityView: View {
                 VStack(spacing: 20) {
                     // Preview chip
                     HStack(spacing: 10) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(Color(hex: selectedColor).opacity(0.18))
-                                .frame(width: 44, height: 44)
-                            Text(selectedEmoji).font(.system(size: 22))
+                        PhotosPicker(selection: $pickerItem, matching: .images) {
+                            ZStack(alignment: .bottomTrailing) {
+                                if let pickedImage {
+                                    Image(uiImage: pickedImage)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 44, height: 44)
+                                        .clipShape(Circle())
+                                } else {
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .fill(Color(hex: selectedColor).opacity(0.18))
+                                            .frame(width: 44, height: 44)
+                                        Text(selectedEmoji).font(.system(size: 22))
+                                    }
+                                }
+                                ZStack {
+                                    Circle().fill(themeManager.theme.primary)
+                                        .frame(width: 18, height: 18)
+                                    Image(systemName: "camera.fill")
+                                        .font(.system(size: 9))
+                                        .foregroundColor(.white)
+                                }
+                            }
                         }
+                        .buttonStyle(.plain)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(name.isEmpty ? bundle.loc("Community name") : name)
                                 .font(.system(size: 15, weight: .semibold))
@@ -321,6 +347,15 @@ struct CreateCommunityView: View {
                     }
                 }
             }
+            .onChange(of: pickerItem) { _, item in
+                guard let item else { return }
+                Task {
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data) {
+                        pickedImage = image
+                    }
+                }
+            }
         }
     }
 
@@ -377,6 +412,19 @@ struct CreateCommunityView: View {
         isCreating = true
         errorMessage = nil
 
+        // Upload the picked photo first (if any) — same pick-now/upload-at-save
+        // ordering EditProfileView uses, so nothing's uploaded until Create is
+        // actually confirmed.
+        var avatarUrl: String? = nil
+        if let pickedImage, let data = pickedImage.jpegData(compressionQuality: 0.8) {
+            avatarUrl = try? await postRepo.uploadImage(data)
+            if avatarUrl == nil {
+                errorMessage = bundle.loc("Couldn't upload photo, please try again")
+                isCreating = false
+                return
+            }
+        }
+
         let descTrimmed = description.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
             let community = try await CommunityRepository().createCommunity(
@@ -385,6 +433,7 @@ struct CreateCommunityView: View {
                 privacy:     privacy.rawValue,
                 iconEmoji:   selectedEmoji,
                 coverColor:  selectedColor,
+                avatarUrl:   avatarUrl,
                 description: descTrimmed.isEmpty ? nil : descTrimmed,
                 token:       appState.authToken ?? ""
             )

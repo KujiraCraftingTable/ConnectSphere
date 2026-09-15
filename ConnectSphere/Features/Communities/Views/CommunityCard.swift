@@ -8,14 +8,10 @@ struct CommunityCard: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Cover icon
-            ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(hex: community.coverColor).opacity(0.18))
-                    .frame(width: 52, height: 52)
-                Text(community.iconEmoji)
-                    .font(.system(size: 26))
-            }
+            // Real uploaded photo when set, else the emoji/color fallback —
+            // same Avatar component every user pfp already uses.
+            Avatar(name: community.iconEmoji, colorHex: community.coverColor,
+                   imageURL: community.avatarUrl, size: .lg)
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {

@@ -7,6 +7,7 @@ struct Community: Identifiable {
     let type: CommunityType
     let privacy: CommunityPrivacy
     let iconEmoji: String
+    let avatarUrl: String?
     let coverColor: String
     var memberCount: Int
     var postCount: Int

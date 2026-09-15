@@ -224,7 +224,7 @@ class CommunityDetailViewModel {
             return nil
         }
         if post.community == nil, let community {
-            post.community = CommunityRef(id: community.id, name: community.name, iconEmoji: community.iconEmoji)
+            post.community = CommunityRef(id: community.id, name: community.name, iconEmoji: community.iconEmoji, avatarUrl: community.avatarUrl)
         }
         return post
     }

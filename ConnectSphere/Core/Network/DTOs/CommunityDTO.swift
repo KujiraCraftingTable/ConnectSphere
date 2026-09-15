@@ -9,6 +9,7 @@ struct CommunityDTO: Decodable {
     let type: String
     let privacy: String
     let iconEmoji: String
+    let avatarUrl: String?
     let coverColor: String
     let memberCount: Int
     let postCount: Int
@@ -20,6 +21,7 @@ struct CommunityDTO: Decodable {
     enum CodingKeys: String, CodingKey {
         case id, name, description, type, privacy, role
         case iconEmoji          = "icon_emoji"
+        case avatarUrl          = "avatar_url"
         case coverColor         = "cover_color"
         case memberCount        = "member_count"
         case postCount          = "post_count"
@@ -36,6 +38,7 @@ struct CommunityDTO: Decodable {
         type        = try c.decode(String.self, forKey: .type)
         privacy     = try c.decode(String.self, forKey: .privacy)
         iconEmoji   = try c.decode(String.self, forKey: .iconEmoji)
+        avatarUrl   = try c.decodeIfPresent(String.self, forKey: .avatarUrl)
         coverColor  = try c.decode(String.self, forKey: .coverColor)
         memberCount = try c.decode(Int.self, forKey: .memberCount)
         postCount   = try c.decode(Int.self, forKey: .postCount)
@@ -53,6 +56,7 @@ struct CommunityDTO: Decodable {
             type:        CommunityType(rawValue: type) ?? .fandom,
             privacy:     CommunityPrivacy(rawValue: privacy) ?? .public,
             iconEmoji:   iconEmoji,
+            avatarUrl:   avatarUrl,
             coverColor:  coverColor,
             memberCount: memberCount,
             postCount:   postCount,
@@ -210,14 +214,16 @@ struct CommunityRefDTO: Decodable {
     let id: String
     let name: String
     let iconEmoji: String
+    let avatarUrl: String?
 
     enum CodingKeys: String, CodingKey {
         case id, name
         case iconEmoji = "icon_emoji"
+        case avatarUrl = "avatar_url"
     }
 
     func toCommunityRef() -> CommunityRef {
-        CommunityRef(id: id, name: name, iconEmoji: iconEmoji)
+        CommunityRef(id: id, name: name, iconEmoji: iconEmoji, avatarUrl: avatarUrl)
     }
 }
 

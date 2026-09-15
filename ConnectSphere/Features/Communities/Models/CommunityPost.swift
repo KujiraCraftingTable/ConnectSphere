@@ -138,4 +138,5 @@ struct CommunityRef {
     let id: String
     let name: String
     let iconEmoji: String
+    let avatarUrl: String?
 }
