@@ -137,8 +137,6 @@ struct CommunitiesView: View {
             ? all
             : all.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
 
-        typeSectionHeader(bundle.loc(type.label), count: all.count)
-
         if visible.isEmpty {
             Text(searchText.isEmpty ? bundle.loc("You haven't joined any communities") : bundle.loc("No results found"))
                 .font(.system(size: 14))
@@ -156,21 +154,6 @@ struct CommunitiesView: View {
                 .buttonStyle(.plain)
             }
         }
-    }
-
-    // MARK: - Helpers
-
-    private func typeSectionHeader(_ title: String, count: Int) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(title)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(AppColors.textPrimary(colorScheme))
-            Text("\(count)")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(AppColors.textSecondary(colorScheme))
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 4)
     }
 
 }
