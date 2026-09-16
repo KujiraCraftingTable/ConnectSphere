@@ -4,19 +4,27 @@ import Foundation
 /// The base URL is read from Info.plist (key `APIBaseURL`) so it can change per environment
 /// (real device/production) without touching code; falls back to localhost for dev.
 enum APIConfig {
-    static let serverBase: String = {
+    /// Computed (not cached) so a `devServerOverride` change from
+    /// DevServerSettingsView takes effect on the next call, no relaunch
+    /// needed — see Endpoint.swift's baseURL for the one place that still
+    /// needs its own fix to stay in sync with this.
+    static var serverBase: String {
         // The simulator runs on the same machine as the backend → always use localhost,
         // to avoid breaking when APIBaseURL points at a stale WiFi network's LAN IP.
         #if targetEnvironment(simulator)
         return "http://localhost:3000"
         #else
+        if let override = UserDefaults.standard.string(forKey: "devServerOverride"),
+           !override.isEmpty {
+            return override
+        }
         return (Bundle.main.object(forInfoDictionaryKey: "APIBaseURL") as? String)
             .flatMap { $0.isEmpty ? nil : $0 }
             ?? "http://localhost:3000"
         #endif
-    }()
+    }
 
-    static let baseURL = "\(serverBase)/api"
+    static var baseURL: String { "\(serverBase)/api" }
 
     /// Builds an absolute URL for uploaded media. Message media
     /// (`/uploads/messages/*`) is auth-gated on the server; `AsyncImage` can't

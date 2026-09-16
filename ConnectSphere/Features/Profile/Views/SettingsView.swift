@@ -83,6 +83,20 @@ struct SettingsView: View {
                 }
             }
 
+            #if DEBUG
+            // Dev-only: override the backend address without an Xcode
+            // rebuild, for networks where the built-in .local Bonjour
+            // hostname doesn't resolve (see APIConfig.serverBase).
+            Section(bundle.loc("Developer")) {
+                NavigationLink {
+                    DevServerSettingsView()
+                        .environment(themeManager)
+                } label: {
+                    settingsRow(icon: "wrench.and.screwdriver.fill", label: bundle.loc("Server address"), color: Color(hex: "#5C6BC0"), showsChevron: false)
+                }
+            }
+            #endif
+
             // About
             Section(bundle.loc("About")) {
                 NavigationLink {
