@@ -27,39 +27,41 @@
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>
 				<true/>
 			</dict>
-			<!-- IP LAN của Mac dev — cho phép HTTP thường khi test trên iPhone thật qua WiFi.
-			     Đổi mạng WiFi là IP đổi theo → thêm/sửa entry ở đây VÀ APIBaseURL bên dưới. -->
-			<key>192.168.68.59</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-			</dict>
-			<key>192.168.68.62</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-			</dict>
-			<key>10.25.35.171</key>
+			<!-- Bonjour hostname của Mac dev (không đổi khi đổi mạng WiFi — macOS tự
+			     advertise tên này qua mDNS trên bất kỳ LAN nào). Dùng thay cho IP
+			     LAN cụ thể (hay đổi mỗi lần chuyển WiFi) — xem APIBaseURL bên dưới.
+			     Kiểm tra tên hiện tại bằng `scutil --get LocalHostName`.
+			     Lưu ý: mDNS bị chặn trên một số mạng công cộng/công ty có client
+			     isolation — nếu vậy fallback về IP LAN qua `ipconfig getifaddr en0`
+			     và thêm một entry IP riêng ở đây + APIBaseURL bên dưới như trước. -->
+			<key>Tris-MacBook-Pro.local</key>
 			<dict>
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>
 				<true/>
 			</dict>
 		</dict>
 	</dict>
-	<!-- Cần cho request tới IP mạng nội bộ (192.168.x.x) từ iOS 14+ — thiếu key này
-	     iOS có thể chặn âm thầm request thay vì hiện prompt xin quyền. -->
+	<!-- Cần cho request tới mạng nội bộ (mDNS/Bonjour, IP LAN) từ iOS 14+ — thiếu
+	     key này iOS có thể chặn âm thầm request thay vì hiện prompt xin quyền. -->
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>ConnectSphere cần truy cập mạng nội bộ để kết nối tới server phát triển khi test trên thiết bị thật.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_http._tcp</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 	</dict>
-	<!-- Base URL của backend — đổi giá trị này khi test trên device thật / production.
-	     Đang trỏ về IP LAN hiện tại của Mac dev (xem bằng `ipconfig getifaddr en0`).
-	     Simulator luôn dùng localhost (override trong APIConfig.swift) nên không phụ thuộc IP này. -->
+	<!-- Base URL của backend khi chạy trên thiết bị thật (simulator luôn dùng
+	     localhost — override trong APIConfig.swift — nên không phụ thuộc dòng này).
+	     Dùng hostname .local của Mac dev (ổn định qua mọi mạng WiFi) thay vì IP LAN
+	     cụ thể — không cần sửa mỗi lần đổi WiFi nữa. Nếu mạng chặn mDNS, đổi tạm
+	     sang IP LAN (`ipconfig getifaddr en0`) + thêm entry IP tương ứng ở
+	     NSExceptionDomains bên trên. -->
 	<key>APIBaseURL</key>
-	<string>http://192.168.68.59:3000</string>
+	<string>http://Tris-MacBook-Pro.local:3000</string>
 	<!-- Google Sign-In: thay YOUR_CLIENT_ID bằng ID từ Google Cloud Console -->
 	<key>GIDClientID</key>
 	<string>518394941509-iitibu52ufov7mm8u570g919e0ah9nkn.apps.googleusercontent.com</string>
