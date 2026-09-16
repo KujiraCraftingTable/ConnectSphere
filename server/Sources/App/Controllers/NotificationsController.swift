@@ -49,6 +49,15 @@ struct NotificationsController {
         return types.filter { $0.value.category == cat }.map(\.key)
     }
 
+    /// Chat activity that's already reflected by the Messages tab's own
+    /// unread badge — redundant to also surface in the Notifications inbox.
+    /// Meeting types ("meeting_proposed"/"meeting_updated"/"meeting_rsvp"/
+    /// "meeting_reminder") are deliberately NOT included here even though
+    /// they're also `category: "chat"` — those are calendar-like reminders,
+    /// not "someone messaged me," and stay in the inbox per explicit product
+    /// direction ("keep the reminder for calendar and similar features").
+    static let excludedFromInbox: [String] = ["message", "message_reaction", "group_added", "group_removed"]
+
     static func register(routes: any RoutesBuilder) {
         for prefix in ["notifications", "user-notifications"] {
             let n = routes.grouped(PathComponent(stringLiteral: prefix)).grouped(AuthMiddleware())
@@ -148,7 +157,7 @@ struct NotificationsController {
 
         var q: SQLQueryString = "SELECT " + selectColumns + """
              FROM user_notifications n LEFT JOIN communities c ON c.id = n.community_id
-            WHERE n.user_id = \(uuid: req.userID)
+            WHERE n.user_id = \(uuid: req.userID) AND NOT (n.type = ANY(\(bind: excludedFromInbox)::text[]))
             """
         if unreadOnly { q = q + " AND n.is_read = FALSE" }
         if let typeList { q = q + " AND n.type = ANY(\(bind: typeList)::text[])" }
@@ -173,7 +182,11 @@ struct NotificationsController {
 
     static func summary(_ userID: String, on db: any SQLDatabase) async throws -> (Int, [String: Int]) {
         struct C: Decodable { let type: String; let count: Int }
-        let rows = try await db.raw("SELECT type, COUNT(*)::int AS count FROM user_notifications WHERE user_id = \(uuid: userID) AND is_read = FALSE GROUP BY type")
+        let rows = try await db.raw("""
+            SELECT type, COUNT(*)::int AS count FROM user_notifications
+            WHERE user_id = \(uuid: userID) AND is_read = FALSE AND NOT (type = ANY(\(bind: excludedFromInbox)::text[]))
+            GROUP BY type
+            """)
             .all(decoding: C.self)
         var byCat = ["social": 0, "community": 0, "chat": 0]
         var unread = 0
