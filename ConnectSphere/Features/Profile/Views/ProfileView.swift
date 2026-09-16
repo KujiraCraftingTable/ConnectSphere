@@ -259,6 +259,12 @@ struct ProfileView: View {
 
             if viewModel.isLoading && viewModel.posts.isEmpty {
                 ProgressView().padding(.top, 20).frame(maxWidth: .infinity)
+            } else if let error = viewModel.error, viewModel.posts.isEmpty {
+                // A single failed load (e.g. a dropped connection) otherwise
+                // left this permanently stuck empty — .task only fires once
+                // per view identity, so switching tabs away and back doesn't
+                // retry on its own.
+                postsErrorState(error)
             } else {
                 LazyVStack(spacing: AppSpacing.sm) {
                     ForEach(viewModel.posts) { post in
@@ -290,6 +296,27 @@ struct ProfileView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.bottom, 16)
+    }
+
+    private func postsErrorState(_ message: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "wifi.exclamationmark")
+                .font(.system(size: 32))
+                .foregroundColor(AppColors.textTertiary(colorScheme))
+            Text(message)
+                .font(.system(size: 14))
+                .multilineTextAlignment(.center)
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+                .padding(.horizontal, 32)
+            Button(bundle.loc("Retry")) {
+                Task { await viewModel.load(userId: user.id, mode: appState.currentMode.rawValue) }
+            }
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundColor(themeManager.theme.primary)
+        }
+        .padding(.top, 24)
+        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity)
     }
 
     private func navIconButton(icon: String) -> some View {
