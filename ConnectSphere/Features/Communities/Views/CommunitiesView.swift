@@ -107,7 +107,7 @@ struct CommunitiesView: View {
             }
             .padding(.bottom, 20)
         }
-        .searchable(text: $searchText, prompt: bundle.loc("Search communities"))
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: bundle.loc("Search communities"))
     }
 
     private func myCommunitiesError(_ message: String) -> some View {
