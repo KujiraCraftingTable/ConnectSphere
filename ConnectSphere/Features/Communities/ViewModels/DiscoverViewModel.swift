@@ -8,8 +8,18 @@ class DiscoverViewModel {
     var isLoading = false
     var errorMessage: String?
 
+    /// Results for the Discover tab's own search box — a real server-side
+    /// search (`GET /communities?query=...`), not a client-side filter of
+    /// the already-fetched trending/recommended lists (those are just a
+    /// curated top-N, not the full browsable set).
+    var searchResults: [Community] = []
+    var isSearching = false
+
     private let token: String
     private let repository = CommunityRepository()
+    /// Discards a late search response from a since-superseded query (e.g.
+    /// typing fast) — same guard shape `SearchViewModel` already uses.
+    private var searchGeneration = 0
 
     init(token: String) {
         self.token = token
@@ -26,5 +36,45 @@ class DiscoverViewModel {
             errorMessage = friendlyError(error)
         }
         isLoading = false
+    }
+
+    func search(query: String, type: CommunityType?) async {
+        searchGeneration += 1
+        let generation = searchGeneration
+        isSearching = true
+        do {
+            let results = try await repository.fetchCommunities(query: query, type: type, token: token)
+            guard generation == searchGeneration else { return }
+            searchResults = results
+        } catch {
+            guard generation == searchGeneration else { return }
+            errorMessage = friendlyError(error)
+        }
+        if generation == searchGeneration { isSearching = false }
+    }
+
+    /// Join/leave straight from a search result row — mirrors
+    /// `CommunitiesViewModel.join`/`leave`'s optimistic-update-then-revert-
+    /// on-failure shape, scoped to `searchResults` instead of
+    /// `discoverCommunities`.
+    func toggleMembership(_ community: Community) async {
+        let joining = !community.isMember
+        updateSearchMembership(id: community.id, isMember: joining, delta: joining ? 1 : -1)
+        do {
+            if joining {
+                try await repository.join(communityId: community.id, token: token)
+            } else {
+                try await repository.leave(communityId: community.id, token: token)
+            }
+        } catch {
+            updateSearchMembership(id: community.id, isMember: !joining, delta: joining ? -1 : 1)
+            errorMessage = friendlyError(error)
+        }
+    }
+
+    private func updateSearchMembership(id: String, isMember: Bool, delta: Int) {
+        guard let i = searchResults.firstIndex(where: { $0.id == id }) else { return }
+        searchResults[i].isMember = isMember
+        searchResults[i].memberCount = max(0, searchResults[i].memberCount + delta)
     }
 }
