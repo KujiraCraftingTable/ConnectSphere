@@ -66,26 +66,7 @@ struct FeedView: View {
                     } else {
                         let posts = viewModel.posts(for: appState.currentMode)
                         ForEach(posts) { post in
-                            PostCard(
-                                post: post,
-                                onOwnAvatarTapped: { selectedTab = 4 },
-                                onPostDeleted: { viewModel.removePost(id: post.id) },
-                                onPostUpdated: { updated in viewModel.updatePost(updated) },
-                                onOpenDetail: { focus in
-                                    detailRoute = PostRoute(postId: post.id, focusComposer: focus)
-                                }
-                            )
-                            .cardStyle()
-                            // Makes a just-created post visibly slide/fade in at
-                            // the top instead of silently popping into place —
-                            // the "yes, this actually posted" confirmation.
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                            .onAppear {
-                                // Scrolled to the last post → load the next page
-                                if post.id == posts.last?.id {
-                                    Task { await viewModel.loadMorePosts(for: appState.currentMode) }
-                                }
-                            }
+                            feedPostCard(post, isLast: post.id == posts.last?.id)
                         }
 
                         if viewModel.isLoadingMore {
@@ -309,6 +290,31 @@ struct FeedView: View {
                 }
                 CountBadge(count: appState.chatUnreadCount)
                     .offset(x: 6, y: -6)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func feedPostCard(_ post: Post, isLast: Bool) -> some View {
+        PostCard(
+            post: post,
+            onOwnAvatarTapped: { selectedTab = 4 },
+            onPostDeleted: { viewModel.removePost(id: post.id) },
+            onPostUpdated: { updated in viewModel.updatePost(updated) },
+            onOpenDetail: { focus in
+                detailRoute = PostRoute(postId: post.id, focusComposer: focus)
+            },
+            showConnectButton: false
+        )
+        .cardStyle()
+        // Makes a just-created post visibly slide/fade in at the top instead
+        // of silently popping into place — the "yes, this actually posted"
+        // confirmation.
+        .transition(.move(edge: .top).combined(with: .opacity))
+        .onAppear {
+            // Scrolled to the last post → load the next page
+            if isLast {
+                Task { await viewModel.loadMorePosts(for: appState.currentMode) }
             }
         }
     }
