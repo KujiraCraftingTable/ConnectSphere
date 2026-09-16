@@ -133,7 +133,7 @@ struct CommunityDetailView: View {
                 }
             }
         }
-        .searchable(text: $searchText, prompt: bundle.loc("Search posts"))
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: bundle.loc("Search posts"))
         .onChange(of: searchText) { _, newValue in
             searchTask?.cancel()
             let trimmed = newValue.trimmingCharacters(in: .whitespaces)

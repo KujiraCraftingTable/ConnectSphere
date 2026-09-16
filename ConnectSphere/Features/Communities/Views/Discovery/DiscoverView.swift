@@ -51,7 +51,7 @@ struct DiscoverView: View {
             .padding(.vertical, 16)
         }
         .appBackground()
-        .searchable(text: $searchText, prompt: bundle.loc("Search communities"))
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: bundle.loc("Search communities"))
         .onChange(of: searchText) { _, newValue in
             searchTask?.cancel()
             let trimmed = newValue.trimmingCharacters(in: .whitespaces)
