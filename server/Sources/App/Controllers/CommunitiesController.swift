@@ -228,7 +228,8 @@ struct CommunitiesController {
         let limit = (try? req.query.get(Int.self, at: "limit")) ?? 20
         let offset = (try? req.query.get(Int.self, at: "offset")) ?? 0
         let tag = (try? req.query.get(String.self, at: "tag")).flatMap { $0.isEmpty ? nil : $0 }
-        return DataListResponse(data: try await PostStore.getPostsByCommunity(id, viewer: req.userID, tag: tag, limit: limit, offset: offset, on: req.db.sql()))
+        let search = (try? req.query.get(String.self, at: "search")).flatMap { $0.isEmpty ? nil : $0 }
+        return DataListResponse(data: try await PostStore.getPostsByCommunity(id, viewer: req.userID, tag: tag, search: search, limit: limit, offset: offset, on: req.db.sql()))
     }
 
     static func createPost(_ req: Request) async throws -> Response {

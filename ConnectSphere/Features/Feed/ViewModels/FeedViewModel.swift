@@ -18,7 +18,16 @@ class FeedViewModel {
     /// The current feed source — change this value then call loadPosts(for:) to switch data sources
     var feedScope: FeedScope = .forYou
 
+    /// Results for Feed's own search box — free-text post-content search,
+    /// not a client-side filter of `friendPosts`/`colleaguePosts` (those are
+    /// only whatever's already been paged in).
+    var searchResults: [Post] = []
+    var isSearching = false
+
     private let repository = PostRepository()
+    /// Discards a late search response from a since-superseded query — same
+    /// guard shape `SearchViewModel`/`DiscoverViewModel` already use.
+    private var searchGeneration = 0
     private let pageSize = 20
     private var loadedModes: Set<AppMode> = []
     private var hasMore: [AppMode: Bool] = [:]
@@ -189,5 +198,24 @@ class FeedViewModel {
 
     private func appendPosts(_ newPosts: [Post], for mode: AppMode) {
         if mode == .hobby { friendPosts += newPosts } else { colleaguePosts += newPosts }
+    }
+
+    // MARK: - Search
+
+    /// Called (debounced) from `FeedView`'s `.searchable` — replaces
+    /// `searchResults` wholesale, same as `SearchViewModel.performTextSearch`.
+    func searchPosts(query: String, mode: AppMode) async {
+        searchGeneration += 1
+        let generation = searchGeneration
+        isSearching = true
+        do {
+            let results = try await repository.searchPosts(query, mode: mode)
+            guard generation == searchGeneration else { return }
+            searchResults = results
+        } catch {
+            guard generation == searchGeneration else { return }
+            self.error = error.localizedDescription
+        }
+        if generation == searchGeneration { isSearching = false }
     }
 }

@@ -91,11 +91,12 @@ struct CommunityRepository {
     /// Decodes as `PostDTO`/`Post` — the same model `PostCard` (and Feed)
     /// render — not the legacy `CommunityPost`, which is now only used as
     /// `PostComposerViewModel`'s internal create-response decode target.
-    func fetchPosts(communityId: String, limit: Int, offset: Int, token: String) async throws -> [Post] {
-        let items: [URLQueryItem] = [
+    func fetchPosts(communityId: String, search: String? = nil, limit: Int, offset: Int, token: String) async throws -> [Post] {
+        var items: [URLQueryItem] = [
             .init(name: "limit",  value: "\(limit)"),
             .init(name: "offset", value: "\(offset)"),
         ]
+        if let search, !search.isEmpty { items.append(.init(name: "search", value: search)) }
         let res = try await client.fetch(DataListResponse<PostDTO>.self,
                                           path: "/communities/\(communityId)/posts",
                                           token: token, queryItems: items)

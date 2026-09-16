@@ -12,6 +12,13 @@ class CommunityDetailViewModel {
     var canLoadMorePosts = true
     var joinStatus: JoinStatus = .notMember
 
+    /// Results for this community's own search box — a real server-side
+    /// search scoped to this community (`GET /communities/:id/posts?search=`),
+    /// not a client-side filter of the already-paged-in `posts`.
+    var searchResults: [Post] = []
+    var isSearchingPosts = false
+    private var searchGeneration = 0
+
     private let communityId: String
     private let token: String
     private let currentUserId: String
@@ -92,6 +99,23 @@ class CommunityDetailViewModel {
     func loadMorePostsIfNeeded(currentPost: Post) async {
         guard let last = posts.last, last.id == currentPost.id else { return }
         await fetchPosts()
+    }
+
+    func searchPosts(query: String) async {
+        searchGeneration += 1
+        let generation = searchGeneration
+        isSearchingPosts = true
+        do {
+            let results = try await repository.fetchPosts(
+                communityId: communityId, search: query, limit: pageSize, offset: 0, token: token
+            )
+            guard generation == searchGeneration else { return }
+            searchResults = results
+        } catch {
+            guard generation == searchGeneration else { return }
+            errorMessage = friendlyError(error)
+        }
+        if generation == searchGeneration { isSearchingPosts = false }
     }
 
     func fetchMembers() async {

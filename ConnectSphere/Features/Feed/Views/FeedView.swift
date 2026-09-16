@@ -17,6 +17,12 @@ struct FeedView: View {
     /// same bug in "Your Story".
     @State private var myProfile: UserProfile?
     private let profileRepo = ProfileRepository()
+    @State private var searchText = ""
+    @State private var searchTask: Task<Void, Never>?
+
+    private var isSearchActive: Bool {
+        !searchText.trimmingCharacters(in: .whitespaces).isEmpty
+    }
 
     var body: some View {
         NavigationStack {
@@ -24,6 +30,10 @@ struct FeedView: View {
             ScrollView {
                 LazyVStack(spacing: AppSpacing.sm) {
                     Color.clear.frame(height: 0).id("feedTop")
+
+                    if isSearchActive {
+                        searchResultsSection
+                    } else {
                     createPostBar
                         .cardStyle()
 
@@ -73,6 +83,7 @@ struct FeedView: View {
                             ProgressView().padding(.vertical, 12)
                         }
                     }
+                    } // isSearchActive
                 }
                 .padding(.horizontal, AppSpacing.sm)
                 .padding(.bottom, AppSpacing.lg)
@@ -135,6 +146,17 @@ struct FeedView: View {
                 .environment(appState)
             }
             } // ScrollViewReader
+            .searchable(text: $searchText, prompt: bundle.loc("Search posts"))
+            .onChange(of: searchText) { _, newValue in
+                searchTask?.cancel()
+                let trimmed = newValue.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.isEmpty else { return }
+                searchTask = Task {
+                    try? await Task.sleep(nanoseconds: 300_000_000)
+                    guard !Task.isCancelled else { return }
+                    await viewModel.searchPosts(query: trimmed, mode: appState.currentMode)
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     modeSwitchPill
@@ -315,6 +337,36 @@ struct FeedView: View {
             // Scrolled to the last post → load the next page
             if isLast {
                 Task { await viewModel.loadMorePosts(for: appState.currentMode) }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var searchResultsSection: some View {
+        if viewModel.isSearching && viewModel.searchResults.isEmpty {
+            ProgressView().padding(.top, 40)
+        } else if viewModel.searchResults.isEmpty {
+            VStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 36))
+                    .foregroundColor(AppColors.textSecondary(colorScheme).opacity(0.4))
+                Text(bundle.loc("No results found"))
+                    .font(.system(size: 14))
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
+            }
+            .padding(.top, 40)
+        } else {
+            ForEach(viewModel.searchResults) { post in
+                PostCard(
+                    post: post,
+                    onOwnAvatarTapped: { selectedTab = 4 },
+                    onPostDeleted: { viewModel.searchResults.removeAll { $0.id == post.id } },
+                    onOpenDetail: { focus in
+                        detailRoute = PostRoute(postId: post.id, focusComposer: focus)
+                    },
+                    showConnectButton: false
+                )
+                .cardStyle()
             }
         }
     }

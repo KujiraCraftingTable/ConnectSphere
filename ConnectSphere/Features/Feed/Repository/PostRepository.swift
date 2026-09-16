@@ -68,6 +68,16 @@ struct PostRepository {
         return response.data.map { $0.toPost() }
     }
 
+    /// Free-text search over post content, mode-scoped like every other
+    /// post-list surface — mirrors `fetchPostsByTag`'s shape.
+    func searchPosts(_ query: String, mode: AppMode, limit: Int = 20, offset: Int = 0) async throws -> [Post] {
+        let response = try await client.fetch(
+            PaginatedResponse<PostDTO>.self,
+            from: .listPosts(mode: mode.rawValue, search: query, limit: limit, offset: offset)
+        )
+        return response.data.map { $0.toPost() }
+    }
+
     /// Shares/reposts a post; returns the new shared post
     func sharePost(postId: String, content: String, mode: AppMode) async throws -> Post {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {

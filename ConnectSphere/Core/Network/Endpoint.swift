@@ -6,7 +6,7 @@ import Foundation
 enum Endpoint {
     case listUsers(mode: String? = nil, search: String? = nil, limit: Int = 20, offset: Int = 0)
     case getUser(id: String, mode: String? = nil)
-    case listPosts(mode: String? = nil, authorId: String? = nil, filter: String? = nil, tag: String? = nil, limit: Int = 20, offset: Int = 0)
+    case listPosts(mode: String? = nil, authorId: String? = nil, filter: String? = nil, tag: String? = nil, search: String? = nil, limit: Int = 20, offset: Int = 0)
     case getPost(id: String)
     case recommendedFeed(mode: String, cursor: String? = nil, limit: Int = 20)
     case aiSearch(query: String, mode: String? = nil, radiusKm: Int? = nil)
@@ -106,7 +106,7 @@ enum Endpoint {
                 .init(name: "limit",  value: "\(limit)"),
             ]
 
-        case .listPosts(let mode, let authorId, let filter, let tag, let limit, let offset):
+        case .listPosts(let mode, let authorId, let filter, let tag, let search, let limit, let offset):
             var items: [URLQueryItem] = [
                 .init(name: "limit",  value: "\(limit)"),
                 .init(name: "offset", value: "\(offset)"),
@@ -115,6 +115,7 @@ enum Endpoint {
             if let authorId = authorId { items.append(.init(name: "author_id", value: authorId)) }
             if let filter   = filter   { items.append(.init(name: "filter",    value: filter)) }
             if let tag      = tag      { items.append(.init(name: "tag",       value: tag)) }
+            if let search   = search   { items.append(.init(name: "search",    value: search)) }
             return items
 
         case .recommendedFeed(let mode, let cursor, let limit):
