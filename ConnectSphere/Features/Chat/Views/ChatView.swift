@@ -32,6 +32,7 @@ struct ChatView: View {
     @State private var isMinimizing = false
     @State private var inputText = ""
     @State private var pickerItems: [PhotosPickerItem] = []
+    @State private var voiceSession = VoiceRecordingSession()
     @State private var pendingMedia: [PendingMedia] = []
     @State private var isTyping = false
     @State private var appearedMessageIDs: Set<String> = []
@@ -846,6 +847,7 @@ struct ChatView: View {
                             }
                             TypingIndicatorBubble()
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.bottom, 4)
                     }
 
@@ -981,62 +983,81 @@ struct ChatView: View {
             }
 
             HStack(alignment: .bottom, spacing: 10) {
-                PhotosPicker(selection: $pickerItems,
-                             maxSelectionCount: 10,
-                             matching: .any(of: [.images, .videos])) {
-                    Image(systemName: "photo.on.rectangle.angled")
-                        .font(.system(size: 22))
-                        .foregroundColor(chatPalette.primary)
-                        .padding(.bottom, 6)
+                if voiceSession.state == .idle {
+                    PhotosPicker(selection: $pickerItems,
+                                 maxSelectionCount: 10,
+                                 matching: .any(of: [.images, .videos])) {
+                        Image(systemName: "photo.on.rectangle.angled")
+                            .font(.system(size: 22))
+                            .foregroundColor(chatPalette.primary)
+                            .padding(.bottom, 6)
+                    }
+
+                    Button {
+                        resetMeetingComposer()
+                        showMeetingComposer = true
+                    } label: {
+                        Image(systemName: "calendar.badge.plus")
+                            .font(.system(size: 22))
+                            .foregroundColor(chatPalette.primary)
+                            .padding(.bottom, 6)
+                    }
+
+                    VoiceRecorderControl(session: voiceSession, tint: chatPalette.primary)
+
+                    TextField("", text: $inputText, prompt: Text("Message...", bundle: bundle), axis: .vertical)
+                        .font(.system(size: 15))
+                        .lineLimit(1...5)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 20))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20)
+                                .stroke(AppColors.borderStrong(colorScheme), lineWidth: 1)
+                        )
+                        .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
+                        .onChange(of: inputText) { _, newVal in
+                            let typing = !newVal.isEmpty
+                            if typing != isTyping {
+                                isTyping = typing
+                                viewModel.sendTyping(typing)
+                            }
+                        }
+                } else {
+                    // Recording/paused — the text field's spot is taken by a
+                    // live timer + cancel button, and the mic control moves
+                    // to the right of it (now a pause/resume toggle).
+                    VoiceRecordingBar(session: voiceSession)
+                    VoiceRecorderControl(session: voiceSession, tint: chatPalette.primary)
                 }
 
                 Button {
-                    resetMeetingComposer()
-                    showMeetingComposer = true
-                } label: {
-                    Image(systemName: "calendar.badge.plus")
-                        .font(.system(size: 22))
-                        .foregroundColor(chatPalette.primary)
-                        .padding(.bottom, 6)
-                }
-
-                VoiceRecorderControl(tint: chatPalette.primary) { fileURL, duration, waveform in
-                    let replyToId = replyingTo?.id
-                    replyingTo = nil
-                    Task {
-                        await viewModel.sendMedia(
-                            fileURL: fileURL,
-                            replyTo: replyToId,
-                            voiceDurationSeconds: duration,
-                            voiceWaveform: waveform
-                        )
-                        try? FileManager.default.removeItem(at: fileURL)
-                    }
-                }
-
-                TextField("", text: $inputText, prompt: Text("Message...", bundle: bundle), axis: .vertical)
-                    .font(.system(size: 15))
-                    .lineLimit(1...5)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 20))
-                    .onChange(of: inputText) { _, newVal in
-                        let typing = !newVal.isEmpty
-                        if typing != isTyping {
-                            isTyping = typing
-                            viewModel.sendTyping(typing)
+                    if voiceSession.state != .idle {
+                        let replyToId = replyingTo?.id
+                        replyingTo = nil
+                        voiceSession.finalizeAndSend { fileURL, duration, waveform in
+                            Task {
+                                await viewModel.sendMedia(
+                                    fileURL: fileURL,
+                                    replyTo: replyToId,
+                                    voiceDurationSeconds: duration,
+                                    voiceWaveform: waveform
+                                )
+                                try? FileManager.default.removeItem(at: fileURL)
+                            }
                         }
+                    } else {
+                        sendPending()
                     }
-
-                Button { sendPending() } label: {
+                } label: {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.system(size: 32))
-                        .foregroundColor(canSend
+                        .foregroundColor((canSend || voiceSession.state != .idle)
                                          ? chatPalette.primary
                                          : AppColors.textTertiary(colorScheme))
                         .padding(.bottom, 2)
                 }
-                .disabled(!canSend || viewModel.isSending || blocking)
+                .disabled((!canSend && voiceSession.state == .idle) || viewModel.isSending || blocking)
             }
             .disabled(blocking)
             .opacity(blocking ? 0.5 : 1)

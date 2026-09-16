@@ -205,6 +205,7 @@
 "Password" = "Mật khẩu";
 "Password must be at least 8 characters." = "Mật khẩu phải có ít nhất 8 ký tự.";
 "Passwords do not match." = "Mật khẩu không khớp.";
+"Paused" = "Đã tạm dừng";
 "Pending" = "Đang chờ";
 "Phone number" = "Số điện thoại";
 "Phone verification" = "Xác minh số điện thoại";

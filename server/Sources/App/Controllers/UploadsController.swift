@@ -1,4 +1,5 @@
 import Vapor
+import SQLKit
 
 /// Port of `backend/src/routes/uploadRoutes.js` — generic media upload, used
 /// by post image attachments, avatar/cover-photo upload, and Stories. Was
@@ -18,12 +19,46 @@ struct UploadsController {
     /// actually points, and where `PostRepository.uploadImage` requests it
     /// from). Deliberately a single dynamic path segment, not a blanket
     /// `FileMiddleware` over all of `backend/uploads/`: that directory also
-    /// holds `uploads/messages/` (private chat attachments), which needs its
-    /// own auth gate (still not built — see `configure.swift`) — a one-segment
-    /// route structurally can't match a two-segment `messages/<file>` path, so
-    /// this can't accidentally expose that subtree.
+    /// holds `uploads/messages/` (private chat attachments) — a one-segment
+    /// route structurally can't match that two-segment path, so this can't
+    /// accidentally expose it. `registerMessageMedia` below is that subtree's
+    /// own (auth-gated) route.
     static func registerPublic(_ app: Application) {
         app.get("uploads", ":filename", use: serve)
+    }
+
+    /// `GET /uploads/messages/:filename` — private chat attachments (photo/
+    /// video/voice messages). Auth-gated, but can't reuse `AuthMiddleware`
+    /// as-is: that only reads `Authorization: Bearer`, and `AsyncImage`/any
+    /// plain GET-by-URL load (which is how this is always fetched — inline
+    /// message media, not an explicit fetch call) can't attach custom
+    /// headers. So the JWT rides along as `?token=`, exactly like
+    /// `APIConfig.mediaURL` on the client already anticipates. Mirrors
+    /// `AuthMiddleware`'s verify + soft-deleted-account rejection, just
+    /// reading the token from the query string instead of the header.
+    static func registerMessageMedia(_ app: Application) {
+        app.get("uploads", "messages", ":filename", use: serveMessageMedia)
+    }
+
+    static func serveMessageMedia(_ req: Request) async throws -> Response {
+        guard let token = req.query[String.self, at: "token"] else {
+            throw Abort(.unauthorized, reason: "Missing token")
+        }
+        let secret = req.application.appEnv.jwt.secret
+        guard let payload = try? JWTHS256.verify(token, secret: secret) else {
+            throw Abort(.unauthorized, reason: "Invalid or expired token")
+        }
+        struct Row: Decodable { let deleted_at: Date? }
+        let row = try? await req.db.sql()
+            .raw("SELECT deleted_at FROM users WHERE id = \(uuid: payload.sub)")
+            .first(decoding: Row.self)
+        guard let row, row.deleted_at == nil else {
+            throw Abort(.unauthorized, reason: "Invalid or expired token")
+        }
+        guard let filename = req.parameters.get("filename") else { throw Abort(.notFound) }
+        let path = "\(MessagesController.uploadDir)/\(filename)"
+        guard FileManager.default.fileExists(atPath: path) else { throw Abort(.notFound) }
+        return req.fileio.streamFile(at: path)
     }
 
     struct UploadResponse: Content {
