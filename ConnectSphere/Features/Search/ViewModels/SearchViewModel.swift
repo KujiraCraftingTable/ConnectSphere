@@ -26,6 +26,18 @@ class SearchViewModel {
 
     var currentUserId: String? = nil
 
+    /// Paging state for the plain browse/text-search list — mirrors
+    /// `FeedViewModel`'s `.connections` offset pattern. Does NOT apply to
+    /// `aiSearch`, which returns one full ranked result set with no
+    /// limit/offset support on the backend.
+    private(set) var isLoadingMore = false
+    private(set) var hasMore = true
+    private var offset = 0
+    private let pageSize = 20
+    /// nil = last load was `loadAll` (browse); set = the active text search
+    /// query — lets `loadMore()` continue the right fetch with no parameter.
+    private var lastQuery: String? = nil
+
     private let repository = UserRepository()
     private var searchTask: Task<Void, Never>?
     /// Incremented every time a new load starts — a late response from an older load
@@ -58,16 +70,21 @@ class SearchViewModel {
         lastAIPrompt = ""   // browse list, not AI results — fully exit AI state
         entitySuggestions = []
         matchEvidence = [:]
-        async let usersResult = repository.fetchUsers(mode: mode)
+        offset = 0
+        lastQuery = nil
+        async let usersResult = repository.fetchUsers(mode: mode, limit: pageSize, offset: 0)
         async let suggestionsResult = repository.fetchSuggestions(mode: mode)
         do {
             let users = excluding(try await usersResult)
             guard generation == loadGeneration else { return }
             results = users
+            offset = pageSize
+            hasMore = users.count == pageSize
         } catch {
             guard generation == loadGeneration else { return }
             // Don't keep the old list — it could be data from a different mode, causing the wrong mode to display
             results = []
+            hasMore = false
             self.error = error.localizedDescription
         }
         if let fetched = try? await suggestionsResult, !fetched.isEmpty,
@@ -75,6 +92,30 @@ class SearchViewModel {
             suggestions = fetched
         }
         if generation == loadGeneration { isLoading = false }
+    }
+
+    /// Fetches the next page of the current browse/text-search list and
+    /// appends it — called when the last visible row appears (see
+    /// `SearchView`'s `.onAppear` on each row). No-op mid-AI-search (that
+    /// path has no pagination; see this file's paging-state doc comment).
+    func loadMore(mode: AppMode) async {
+        guard !isLoadingMore, hasMore, lastAIPrompt.isEmpty else { return }
+        loadGeneration += 1
+        let generation = loadGeneration
+        isLoadingMore = true
+        defer { isLoadingMore = false }
+        do {
+            let fetched = try await repository.fetchUsers(mode: mode, search: lastQuery, limit: pageSize, offset: offset)
+            guard generation == loadGeneration else { return }
+            results.append(contentsOf: excluding(fetched))
+            offset += pageSize
+            hasMore = fetched.count == pageSize
+        } catch {
+            guard generation == loadGeneration else { return }
+            // Leave the already-loaded rows in place — only stop trying to
+            // load further, don't wipe what's already showing.
+            hasMore = false
+        }
     }
 
     // MARK: - AI semantic search
@@ -167,14 +208,19 @@ class SearchViewModel {
         lastAIPrompt = ""
         entitySuggestions = []
         matchEvidence = [:]
+        offset = 0
+        lastQuery = query
         do {
-            let users = try await repository.fetchUsers(mode: mode, search: query)
+            let users = try await repository.fetchUsers(mode: mode, search: query, limit: pageSize, offset: 0)
             guard generation == loadGeneration else { return }
             results = excluding(users)
+            offset = pageSize
+            hasMore = users.count == pageSize
         } catch {
             guard generation == loadGeneration else { return }
             if !(error is CancellationError) {
                 results = []
+                hasMore = false
                 self.error = error.localizedDescription
             }
         }
