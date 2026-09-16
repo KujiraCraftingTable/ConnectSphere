@@ -15,6 +15,12 @@ struct CommunityDetailView: View {
     @State private var showReportMember  = false
     // Tap-to-open-post-detail — same PostRoute/PostDetailView navigation Feed uses.
     @State private var detailRoute: PostRoute?
+    @State private var searchText = ""
+    @State private var searchTask: Task<Void, Never>?
+
+    private var isSearchActive: Bool {
+        !searchText.trimmingCharacters(in: .whitespaces).isEmpty
+    }
 
     let communityId: String
 
@@ -125,6 +131,17 @@ struct CommunityDetailView: View {
                             .font(.system(size: 17))
                     }
                 }
+            }
+        }
+        .searchable(text: $searchText, prompt: bundle.loc("Search posts"))
+        .onChange(of: searchText) { _, newValue in
+            searchTask?.cancel()
+            let trimmed = newValue.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.isEmpty else { return }
+            searchTask = Task {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                guard !Task.isCancelled else { return }
+                await viewModel.searchPosts(query: trimmed)
             }
         }
         .task { await viewModel.fetchAll() }
@@ -309,6 +326,8 @@ struct CommunityDetailView: View {
     private var feedContent: some View {
         if isPrivateLockedOut {
             privateLockedNotice(bundle.loc("This community is private. Request to join to see its posts."))
+        } else if isSearchActive {
+            searchResultsSection
         } else if viewModel.isLoadingPosts && viewModel.posts.isEmpty {
             ProgressView()
                 .padding(.top, 40)
@@ -341,6 +360,46 @@ struct CommunityDetailView: View {
                 }
                 if viewModel.isLoadingPosts {
                     ProgressView().padding(.vertical, 12)
+                }
+            }
+            .padding(.horizontal, AppSpacing.sm)
+            .padding(.top, 8)
+            .padding(.bottom, 80)
+        }
+    }
+
+    @ViewBuilder
+    private var searchResultsSection: some View {
+        if viewModel.isSearchingPosts && viewModel.searchResults.isEmpty {
+            ProgressView().padding(.top, 40).frame(maxWidth: .infinity)
+        } else if viewModel.searchResults.isEmpty {
+            VStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 36))
+                    .foregroundColor(AppColors.textTertiary(colorScheme))
+                Text("No results found", bundle: bundle)
+                    .font(.system(size: 14))
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
+            }
+            .padding(.top, 40)
+            .frame(maxWidth: .infinity)
+        } else {
+            LazyVStack(spacing: AppSpacing.sm) {
+                ForEach(viewModel.searchResults) { post in
+                    PostCard(
+                        post: post,
+                        onPostDeleted: { viewModel.searchResults.removeAll { $0.id == post.id } },
+                        onOpenDetail: { focus in
+                            detailRoute = PostRoute(postId: post.id, focusComposer: focus)
+                        },
+                        onPin: isStaff ? {
+                            Task<Void, Never>(name: nil) { await viewModel.pinPost(post.id) }
+                        } : nil,
+                        onUnpin: isStaff ? {
+                            Task<Void, Never>(name: nil) { await viewModel.unpinPost(post.id) }
+                        } : nil
+                    )
+                    .cardStyle()
                 }
             }
             .padding(.horizontal, AppSpacing.sm)

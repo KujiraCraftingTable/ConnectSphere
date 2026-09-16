@@ -183,6 +183,10 @@ enum PostStore {
         var mode: String?
         var authorID: String?
         var tag: String?
+        /// Free-text search against `p.content` — plain `ILIKE`, same
+        /// shape/helper (`UserStore.escapeLike`) user search and message
+        /// search already use, not full-text/tsvector search.
+        var search: String?
         var connectionsOnly: Bool
         var limit: Int
         var offset: Int
@@ -201,6 +205,9 @@ enum PostStore {
         if let a = f.authorID { w = w + " AND p.author_id = \(uuid: a) AND p.community_id IS NULL" }
         if let t = f.tag {
             w = w + " AND EXISTS (SELECT 1 FROM post_tags ptf WHERE ptf.post_id = p.id AND LOWER(ptf.tag) = LOWER(\(bind: t)) AND (ptf.source = 'user' OR p.show_ai_tags))"
+        }
+        if let s = f.search {
+            w = w + " AND p.content ILIKE '%' || \(bind: UserStore.escapeLike(s)) || '%'"
         }
         return w
     }
@@ -349,11 +356,14 @@ enum PostStore {
     /// itself now projects `community` (needed so Feed posts carry it too,
     /// once Feed starts including community posts), so this no longer needs
     /// its own outer wrapper to merge it in.
-    static func getPostsByCommunity(_ communityID: String, viewer: String, tag: String?, limit: Int, offset: Int, on db: any SQLDatabase) async throws -> [PostObject] {
+    static func getPostsByCommunity(_ communityID: String, viewer: String, tag: String?, search: String? = nil, limit: Int, offset: Int, on db: any SQLDatabase) async throws -> [PostObject] {
         var q = buildPostSelect(viewer)
         q = q + " WHERE p.community_id = \(uuid: communityID) AND p.status = 'posted'"
         if let tag {
             q = q + " AND EXISTS (SELECT 1 FROM post_tags ptf WHERE ptf.post_id = p.id AND LOWER(ptf.tag) = LOWER(\(bind: tag)) AND (ptf.source = 'user' OR p.show_ai_tags))"
+        }
+        if let search {
+            q = q + " AND p.content ILIKE '%' || \(bind: UserStore.escapeLike(search)) || '%'"
         }
         q = q + " GROUP BY p.id, u.id ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT \(bind: limit) OFFSET \(bind: offset)"
         return try await db.raw(q).all(decoding: PostRow.self).map(map)
