@@ -574,11 +574,24 @@ struct PostCard: View {
                                      currentUserId: appState.currentUser?.id ?? "")
                     .environment(appState).environment(themeManager)
             ) {
-                Avatar(name: community.iconEmoji, imageURL: community.avatarUrl, size: .md)
+                // Rounded-square (not circle) + the poster's own small
+                // circular avatar badged on the bottom-right corner — reads
+                // as "a community post, by this person" in the avatar shape
+                // alone, before even reading the text. Taller than a plain
+                // circle, so the timestamp moves to its own line below to
+                // give the extra height somewhere to go (see the VStack).
+                ZStack(alignment: .bottomTrailing) {
+                    Avatar(name: community.iconEmoji, imageURL: community.avatarUrl,
+                           size: .md, shape: .roundedSquare)
+                    Avatar(name: post.author.name, colorHex: post.author.avatarColor,
+                           imageURL: post.author.avatarUrl, size: .xs)
+                        .overlay(Circle().stroke(AppColors.surface(colorScheme), lineWidth: 2))
+                        .offset(x: 6, y: 6)
+                }
             }
             .buttonStyle(.plain)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 2) {
                 NavigationLink(destination:
                     CommunityDetailView(communityId: community.id, token: appState.authToken ?? "",
                                          currentUserId: appState.currentUser?.id ?? "")
@@ -590,10 +603,12 @@ struct PostCard: View {
                 }
                 .buttonStyle(.plain)
 
+                Text(String(format: bundle.loc("Posted by %@"), post.author.name))
+                    .lineLimit(1)
+                    .appFont(.footnote)
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
+
                 HStack(spacing: 3) {
-                    Text(String(format: bundle.loc("Posted by %@"), post.author.name))
-                        .lineLimit(1)
-                    Text("·")
                     if post.isPinned {
                         Image(systemName: "pin.fill")
                         Text("Pinned", bundle: bundle)
