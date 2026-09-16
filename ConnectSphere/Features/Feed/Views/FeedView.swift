@@ -169,11 +169,17 @@ struct FeedView: View {
                 ToolbarItem(placement: .navigationBarLeading) {
                     modeSwitchPill
                 }
-                // Left of the message pill, deliberately its own separate
-                // pill (not merged into chatIconButton).
+                // Two separate ToolbarItems so each pill keeps its own
+                // independent Liquid Glass background — grouping them in
+                // one HStack/ToolbarItem instead made iOS 26 fuse both
+                // into a single shared glass shape. ToolbarSpacer(.fixed)
+                // is the system's own way to pull two adjacent items
+                // closer than its default toolbar spacing while still
+                // forcing the glass-background split between them.
                 ToolbarItem(placement: .navigationBarTrailing) {
                     searchIconButton
                 }
+                ToolbarSpacer(.fixed, placement: .navigationBarTrailing)
                 ToolbarItem(placement: .navigationBarTrailing) {
                     chatIconButton
                 }
