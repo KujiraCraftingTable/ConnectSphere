@@ -176,10 +176,15 @@ struct FeedView: View {
                 // is the system's own way to pull two adjacent items
                 // closer than its default toolbar spacing while still
                 // forcing the glass-background split between them.
+                // ToolbarSpacer itself is iOS 26+ only; below that there's
+                // no Liquid Glass grouping to split apart, so the two
+                // items just sit at the system's default spacing.
                 ToolbarItem(placement: .navigationBarTrailing) {
                     searchIconButton
                 }
-                ToolbarSpacer(.fixed, placement: .navigationBarTrailing)
+                if #available(iOS 26.0, *) {
+                    ToolbarSpacer(.fixed, placement: .navigationBarTrailing)
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     chatIconButton
                 }
