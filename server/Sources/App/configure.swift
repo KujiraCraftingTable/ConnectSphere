@@ -35,9 +35,10 @@ public func configure(_ app: Application) async throws {
     // Public static serving for uploaded media (`GET /uploads/:filename`,
     // bare path — see UploadsController.registerPublic for why this is a
     // narrow single-segment route and not a blanket FileMiddleware).
-    // `/uploads/messages/*` (private chat attachments) still has no serving
-    // route at all — that needs its own auth gate, not built yet.
     UploadsController.registerPublic(app)
+    // `/uploads/messages/*` (private chat attachments — photo/video/voice
+    // messages) — its own auth-gated route, see registerMessageMedia.
+    UploadsController.registerMessageMedia(app)
 
     // 6. Run pending migrations at boot (same files as scripts/migrate.js).
     //    Controlled by RUN_MIGRATIONS=1 so a plain `swift run` against an
