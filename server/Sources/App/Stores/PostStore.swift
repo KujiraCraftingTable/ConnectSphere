@@ -194,7 +194,11 @@ enum PostStore {
         w = w + privacyClause(v) + " AND " + notBlockedClause(v) + " AND " + notHiddenClause(v)
         if f.connectionsOnly { w = w + " AND " + connectionsOnlyClause(v) }
         if let m = f.mode { w = w + " AND p.mode = \(bind: m)" }
-        if let a = f.authorID { w = w + " AND p.author_id = \(uuid: a)" }
+        // Author-scoped listing is only ever a Profile screen (own or someone
+        // else's) — community posts belong on that community's own page, not
+        // mixed into a person's profile feed, so exclude them here even
+        // though they'd otherwise pass communityVisibilityClause fine.
+        if let a = f.authorID { w = w + " AND p.author_id = \(uuid: a) AND p.community_id IS NULL" }
         if let t = f.tag {
             w = w + " AND EXISTS (SELECT 1 FROM post_tags ptf WHERE ptf.post_id = p.id AND LOWER(ptf.tag) = LOWER(\(bind: t)) AND (ptf.source = 'user' OR p.show_ai_tags))"
         }
