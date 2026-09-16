@@ -19,7 +19,9 @@ enum Endpoint {
     /// Prefix-match hashtag suggestions while typing in `HashtagInputView` — GET /tags/suggest.
     case suggestTags(prefix: String, limit: Int = 8)
 
-    private static let baseURL = APIConfig.baseURL
+    // Computed, not cached — APIConfig.baseURL can change at runtime
+    // (devServerOverride); a `let` here would freeze the old value.
+    private static var baseURL: String { APIConfig.baseURL }
 
     /// Per-endpoint timeout. AI search allows up to 90 s for LLM inference.
     var timeoutInterval: TimeInterval {

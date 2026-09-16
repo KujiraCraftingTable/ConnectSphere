@@ -56,10 +56,17 @@
 	</dict>
 	<!-- Base URL của backend khi chạy trên thiết bị thật (simulator luôn dùng
 	     localhost — override trong APIConfig.swift — nên không phụ thuộc dòng này).
-	     Dùng hostname .local của Mac dev (ổn định qua mọi mạng WiFi) thay vì IP LAN
-	     cụ thể — không cần sửa mỗi lần đổi WiFi nữa. Nếu mạng chặn mDNS, đổi tạm
-	     sang IP LAN (`ipconfig getifaddr en0`) + thêm entry IP tương ứng ở
-	     NSExceptionDomains bên trên. -->
+	     Dùng hostname .local của Mac dev (ổn định qua mọi mạng WiFi) thay vì IP
+	     LAN cụ thể — không cần sửa mỗi lần đổi WiFi nữa. Kiểm tra tên hiện tại
+	     bằng `scutil --get LocalHostName`.
+	     Một số router/AP chặn mDNS multicast giữa các client dù cùng subnet
+	     (gặp trên 1 iPad — báo "cannot find host" dù IP LAN trực tiếp thì vào
+	     bình thường) — cho mạng đó, đừng sửa dòng này, thay vào đó vào app:
+	     Profile → Settings → Developer → Server address, nhập
+	     http://<IP LAN của Mac>:3000 (`ipconfig getifaddr en0`), rồi mở lại
+	     app (xem DevServerSettingsView.swift, DEBUG-only). Override đó luôn
+	     được ưu tiên trước giá trị ở đây, nên giá trị dưới đây có thể luôn
+	     giữ nguyên là hostname .local cho trường hợp phổ biến. -->
 	<key>APIBaseURL</key>
 	<string>http://Tris-MacBook-Pro.local:3000</string>
 	<!-- Google Sign-In: thay YOUR_CLIENT_ID bằng ID từ Google Cloud Console -->
