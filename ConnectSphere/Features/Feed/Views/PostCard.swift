@@ -42,6 +42,11 @@ struct PostCard: View {
     /// community post viewed by a regular member.
     var onPin: (() -> Void)? = nil
     var onUnpin: (() -> Void)? = nil
+    /// Whether to show the header's connect/Add friend/Accept-Decline
+    /// button. Default `true` everywhere (Profile/Community/Search); `false`
+    /// on the main Feed, where the author's name is already a link to their
+    /// profile if you want to connect from there.
+    var showConnectButton: Bool = true
     /// Corner radius for the card's own clip shape. Default `12` everywhere;
     /// `PostDetailView` passes `0` so its embedded copy reads as a square-edged
     /// panel pinned at the top of the screen rather than a floating card.
@@ -87,6 +92,7 @@ struct PostCard: View {
         onOpenDetail: ((_ focusComposer: Bool) -> Void)? = nil,
         onPin: (() -> Void)? = nil,
         onUnpin: (() -> Void)? = nil,
+        showConnectButton: Bool = true,
         cornerRadius: CGFloat = 12,
         collapsedTotalHeight: CGFloat? = nil,
         expandedTotalHeight: CGFloat? = nil
@@ -100,6 +106,7 @@ struct PostCard: View {
         self.onOpenDetail = onOpenDetail
         self.onPin = onPin
         self.onUnpin = onUnpin
+        self.showConnectButton = showConnectButton
         self.cornerRadius = cornerRadius
         self.collapsedTotalHeight = collapsedTotalHeight
         self.expandedTotalHeight = expandedTotalHeight
@@ -644,7 +651,7 @@ struct PostCard: View {
                     .buttonStyle(.plain)
 
                     // Only show Connect if this isn't the current user
-                    if post.author.id != appState.currentUser?.id {
+                    if showConnectButton && post.author.id != appState.currentUser?.id {
                         ConnectButton(targetUserId: post.author.id, compact: true)
                     }
                 }
