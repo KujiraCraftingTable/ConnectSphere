@@ -19,6 +19,12 @@ struct FeedView: View {
     private let profileRepo = ProfileRepository()
     @State private var searchText = ""
     @State private var searchTask: Task<Void, Never>?
+    /// Icon-triggered search — collapsed by default (a pill in the toolbar,
+    /// left of the message pill, deliberately not combined into one
+    /// control); tapping it reveals a focused text field in place of the
+    /// composer/stories/feed-scope row.
+    @State private var showSearchField = false
+    @FocusState private var isSearchFieldFocused: Bool
 
     private var isSearchActive: Bool {
         !searchText.trimmingCharacters(in: .whitespaces).isEmpty
@@ -31,8 +37,11 @@ struct FeedView: View {
                 LazyVStack(spacing: AppSpacing.sm) {
                     Color.clear.frame(height: 0).id("feedTop")
 
-                    if isSearchActive {
-                        searchResultsSection
+                    if showSearchField {
+                        searchFieldRow
+                        if isSearchActive {
+                            searchResultsSection
+                        }
                     } else {
                     createPostBar
                         .cardStyle()
@@ -146,7 +155,6 @@ struct FeedView: View {
                 .environment(appState)
             }
             } // ScrollViewReader
-            .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: bundle.loc("Search posts"))
             .onChange(of: searchText) { _, newValue in
                 searchTask?.cancel()
                 let trimmed = newValue.trimmingCharacters(in: .whitespaces)
@@ -160,6 +168,11 @@ struct FeedView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     modeSwitchPill
+                }
+                // Left of the message pill, deliberately its own separate
+                // pill (not merged into chatIconButton).
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    searchIconButton
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     chatIconButton
@@ -313,6 +326,44 @@ struct FeedView: View {
                 CountBadge(count: appState.chatUnreadCount)
                     .offset(x: 6, y: -6)
             }
+        }
+    }
+
+    private var searchIconButton: some View {
+        Button {
+            showSearchField = true
+            isSearchFieldFocused = true
+        } label: {
+            ZStack {
+                Circle().fill(AppColors.elevated(colorScheme)).frame(width: 36, height: 36)
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(AppColors.textPrimary(colorScheme))
+            }
+        }
+    }
+
+    /// Replaces the composer/stories/feed-scope row while `showSearchField`
+    /// is true — focused text field + Cancel.
+    private var searchFieldRow: some View {
+        HStack(spacing: 10) {
+            TextField("", text: $searchText, prompt: Text(bundle.loc("Search posts")))
+                .focused($isSearchFieldFocused)
+                .font(.system(size: 15))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 20))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(AppColors.borderStrong(colorScheme), lineWidth: 1)
+                )
+
+            Button(bundle.loc("Cancel")) {
+                searchText = ""
+                showSearchField = false
+                isSearchFieldFocused = false
+            }
+            .font(.system(size: 15, weight: .medium))
         }
     }
 
