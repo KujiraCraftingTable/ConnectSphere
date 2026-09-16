@@ -21,13 +21,6 @@ struct CommunitiesView: View {
     @State private var selectedTab: CommunityTab = .myCommunities
     @State private var searchText = ""
     @State private var showCreate = false
-    /// Icon-triggered search — collapsed by default, tapping the magnifying
-    /// glass in the toolbar swaps the segmented tab picker row for a
-    /// focused text field. Shared between both tabs (`myCommunitiesContent`
-    /// filters client-side, `DiscoverView` searches server-side) since they
-    /// sit on this one shared toolbar.
-    @State private var showSearchField = false
-    @FocusState private var isSearchFieldFocused: Bool
 
     /// Binding from MainTabView — resets to root whenever the tab is re-selected
     @Binding var navPath: NavigationPath
@@ -35,23 +28,16 @@ struct CommunitiesView: View {
     var body: some View {
         NavigationStack(path: $navPath) {
             VStack(spacing: 0) {
-                // Tab picker — pinned below navigation bar. While searching,
-                // this row becomes the search field instead (there's no
-                // meaningful "which tab" while actively searching across
-                // either tab's content).
-                if showSearchField {
-                    searchFieldRow
-                } else {
-                    Picker("", selection: $selectedTab) {
-                        ForEach(CommunityTab.allCases, id: \.self) { tab in
-                            Text(bundle.loc(tab.label)).tag(tab)
-                        }
+                // Tab picker — pinned below navigation bar
+                Picker("", selection: $selectedTab) {
+                    ForEach(CommunityTab.allCases, id: \.self) { tab in
+                        Text(bundle.loc(tab.label)).tag(tab)
                     }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(AppColors.surface(colorScheme))
                 }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(AppColors.surface(colorScheme))
 
                 Divider()
 
@@ -60,7 +46,7 @@ struct CommunitiesView: View {
                 case .myCommunities:
                     myCommunitiesContent
                 case .discover:
-                    DiscoverView(token: appState.authToken ?? "", searchText: $searchText) { communityId in
+                    DiscoverView(token: appState.authToken ?? "") { communityId in
                         navPath.append(communityId)
                     }
                 }
@@ -72,16 +58,6 @@ struct CommunitiesView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button { showCreate = true } label: {
                         Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 20))
-                            .foregroundColor(themeManager.theme.primary)
-                    }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showSearchField = true
-                        isSearchFieldFocused = true
-                    } label: {
-                        Image(systemName: "magnifyingglass")
                             .font(.system(size: 20))
                             .foregroundColor(themeManager.theme.primary)
                     }
@@ -134,35 +110,7 @@ struct CommunitiesView: View {
             .padding(.top, AppSpacing.sm)
             .padding(.bottom, 20)
         }
-    }
-
-    /// Replaces the tab picker row while `showSearchField` is true —
-    /// focused text field + Cancel, driving whichever tab is active
-    /// (`searchText` is shared with `DiscoverView` via binding).
-    private var searchFieldRow: some View {
-        HStack(spacing: 10) {
-            TextField("", text: $searchText, prompt: Text(bundle.loc("Search communities")))
-                .focused($isSearchFieldFocused)
-                .font(.system(size: 15))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 20))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(AppColors.borderStrong(colorScheme), lineWidth: 1)
-                )
-
-            Button(bundle.loc("Cancel")) {
-                searchText = ""
-                showSearchField = false
-                isSearchFieldFocused = false
-            }
-            .font(.system(size: 15, weight: .medium))
-            .foregroundColor(themeManager.theme.primary)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(AppColors.surface(colorScheme))
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: bundle.loc("Search communities"))
     }
 
     private func myCommunitiesError(_ message: String) -> some View {
