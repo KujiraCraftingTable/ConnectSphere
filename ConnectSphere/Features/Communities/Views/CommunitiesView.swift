@@ -105,6 +105,11 @@ struct CommunitiesView: View {
                     typeSection(appState.currentMode == .hobby ? .fandom : .work)
                 }
             }
+            // Removing the old "Fandom N"/"Work N" section title also
+            // removed the only thing giving the list breathing room below
+            // the tab pills (that header carried its own top padding) —
+            // same AppSpacing.sm token Feed's own top-of-list gap uses.
+            .padding(.top, AppSpacing.sm)
             .padding(.bottom, 20)
         }
         .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: bundle.loc("Search communities"))
