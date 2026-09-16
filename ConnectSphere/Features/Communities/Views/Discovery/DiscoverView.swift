@@ -7,14 +7,17 @@ struct DiscoverView: View {
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
     @State private var viewModel: DiscoverViewModel
-    @State private var searchText = ""
+    /// Owned by `CommunitiesView` (shared with "My communities") — its
+    /// icon-triggered search field drives whichever tab is active.
+    @Binding var searchText: String
     @State private var searchTask: Task<Void, Never>?
 
     /// Called when user taps a community card — navigates to detail
     let onSelectCommunity: (String) -> Void
 
-    init(token: String, onSelectCommunity: @escaping (String) -> Void) {
+    init(token: String, searchText: Binding<String>, onSelectCommunity: @escaping (String) -> Void) {
         _viewModel           = State(initialValue: DiscoverViewModel(token: token))
+        _searchText           = searchText
         self.onSelectCommunity = onSelectCommunity
     }
 
@@ -51,7 +54,6 @@ struct DiscoverView: View {
             .padding(.vertical, 16)
         }
         .appBackground()
-        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: bundle.loc("Search communities"))
         .onChange(of: searchText) { _, newValue in
             searchTask?.cancel()
             let trimmed = newValue.trimmingCharacters(in: .whitespaces)

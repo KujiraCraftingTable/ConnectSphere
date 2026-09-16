@@ -14,13 +14,10 @@ struct CommunityCard: View {
                    imageURL: community.avatarUrl, size: .lg)
 
             VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(community.name)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(AppColors.textPrimary(colorScheme))
-                        .lineLimit(1)
-                    typeBadge
-                }
+                Text(community.name)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(AppColors.textPrimary(colorScheme))
+                    .lineLimit(1)
                 if let desc = community.description {
                     Text(desc)
                         .font(.system(size: 13))
@@ -39,16 +36,6 @@ struct CommunityCard: View {
         .surfaceBackground()
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .shadow(color: .black.opacity(colorScheme == .dark ? 0.2 : 0.05), radius: 4, x: 0, y: 2)
-    }
-
-    private var typeBadge: some View {
-        Text(bundle.loc(community.type.label))
-            .font(.system(size: 11, weight: .medium))
-            .foregroundColor(Color(hex: community.coverColor))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Color(hex: community.coverColor).opacity(0.12))
-            .clipShape(Capsule())
     }
 
     private var joinButton: some View {
