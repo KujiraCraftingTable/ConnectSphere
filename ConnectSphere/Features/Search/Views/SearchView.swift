@@ -66,14 +66,28 @@ struct SearchView: View {
                                 }
                             } else {
                                 ForEach(viewModel.results) { user in
-                                    // AI search results → mini CV with match reasons; regular search keeps the old card
-                                    if !viewModel.lastAIPrompt.isEmpty {
-                                        MiniCVCard(user: user, evidence: viewModel.matchEvidence[user.id] ?? [])
-                                    } else if appState.currentMode == .hobby {
-                                        FriendSearchCard(user: user)
-                                    } else {
-                                        ColleagueSearchCard(user: user)
+                                    Group {
+                                        // AI search results → mini CV with match reasons; regular search keeps the old card
+                                        if !viewModel.lastAIPrompt.isEmpty {
+                                            MiniCVCard(user: user, evidence: viewModel.matchEvidence[user.id] ?? [])
+                                        } else if appState.currentMode == .hobby {
+                                            FriendSearchCard(user: user)
+                                        } else {
+                                            ColleagueSearchCard(user: user)
+                                        }
                                     }
+                                    .onAppear {
+                                        // Last row appearing → fetch the next page
+                                        // (loadMore itself no-ops mid-AI-search).
+                                        if user.id == viewModel.results.last?.id {
+                                            Task { await viewModel.loadMore(mode: appState.currentMode) }
+                                        }
+                                    }
+                                }
+                                if viewModel.isLoadingMore {
+                                    ProgressView()
+                                        .padding(.vertical, 16)
+                                        .frame(maxWidth: .infinity)
                                 }
                             }
                         }
