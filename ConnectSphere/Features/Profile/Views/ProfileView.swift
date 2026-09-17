@@ -29,17 +29,31 @@ struct ProfileView: View {
     /// Binding from MainTabView — resets to root whenever the tab is reselected
     @Binding var navPath: NavigationPath
 
-    private var user: UserProfile {
-        viewModel.user ?? appState.currentUser ?? MockData.currentUser
-    }
+    /// Only `viewModel.user` — no fallback to `appState.currentUser`, which
+    /// is resolved server-side against the account's stored `default_mode`
+    /// (GET /auth/me has no mode param), not the live `appState.currentMode`.
+    /// Falling back to it flashed the other mode's name/bio for a moment
+    /// right after switching modes. `viewModel.load()` is always in flight
+    /// by the time this matters, so a brief loading state here is honest
+    /// instead of showing possibly-wrong data.
+    private var user: UserProfile? { viewModel.user }
+
+    /// Used only where posts-section closures need an id while `user` may
+    /// still be nil (loading) — this is always the signed-in account's own
+    /// profile (ProfileViewModel is never used for anyone else's).
+    private var currentUserId: String { appState.currentUser?.id ?? "" }
 
     var body: some View {
         NavigationStack(path: $navPath) {
             ScrollView {
                 VStack(spacing: 8) {
-                    profileHeader
-                    statsRow
-                    infoSection
+                    if let user {
+                        profileHeader(user)
+                        statsRow(user)
+                        infoSection(user)
+                    } else {
+                        ProgressView().padding(.top, 60).frame(maxWidth: .infinity)
+                    }
                     postsSection
                 }
             }
@@ -47,7 +61,9 @@ struct ProfileView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    AvatarView(user: user, size: 32)
+                    if let user {
+                        AvatarView(user: user, size: 32)
+                    }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack(spacing: 6) {
@@ -124,7 +140,7 @@ struct ProfileView: View {
 
     // MARK: Profile Header (cover + avatar)
 
-    private var profileHeader: some View {
+    private func profileHeader(_ user: UserProfile) -> some View {
         ZStack(alignment: .bottomLeading) {
             // Cover photo — real image if available, otherwise fall back to a gradient
             CoverPhotoView(coverUrl: user.coverUrl)
@@ -158,7 +174,7 @@ struct ProfileView: View {
 
     // MARK: Stats
 
-    private var statsRow: some View {
+    private func statsRow(_ user: UserProfile) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(user.name)
                 .font(.system(size: 22, weight: .bold))
@@ -209,16 +225,13 @@ struct ProfileView: View {
     // MARK: Info Section (skills or interests)
 
     @ViewBuilder
-    private var infoSection: some View {
+    private func infoSection(_ user: UserProfile) -> some View {
         if appState.currentMode == .work {
-            skillsSection
+            tagSection(title: bundle.loc("Skills"), items: user.skills)
         } else {
-            interestsSection
+            tagSection(title: bundle.loc("Interests"), items: user.interests)
         }
     }
-
-    private var skillsSection: some View { tagSection(title: bundle.loc("Skills"), items: user.skills) }
-    private var interestsSection: some View { tagSection(title: bundle.loc("Interests"), items: user.interests) }
 
     private func tagSection(title: String, items: [String]) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
@@ -281,7 +294,7 @@ struct ProfileView: View {
                         .onAppear {
                             if post.id == viewModel.posts.last?.id {
                                 Task {
-                                    await viewModel.loadMorePosts(userId: user.id, mode: appState.currentMode.rawValue)
+                                    await viewModel.loadMorePosts(userId: currentUserId, mode: appState.currentMode.rawValue)
                                 }
                             }
                         }
@@ -309,7 +322,7 @@ struct ProfileView: View {
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .padding(.horizontal, 32)
             Button(bundle.loc("Retry")) {
-                Task { await viewModel.load(userId: user.id, mode: appState.currentMode.rawValue) }
+                Task { await viewModel.load(userId: currentUserId, mode: appState.currentMode.rawValue) }
             }
             .font(.system(size: 14, weight: .semibold))
             .foregroundColor(themeManager.theme.primary)
