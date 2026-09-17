@@ -283,6 +283,22 @@ struct OnboardingView: View {
             GradientButton(title: isLoading ? bundle.loc("Saving...") : bundle.loc("Complete 🎉"), isLoading: isLoading) {
                 Task { await finish() }
             }
+
+            // Bio is optional — finish() never validates it — but nothing
+            // on screen said so, so people got stuck typing something
+            // just to get past this step. Same action as Complete, just
+            // a second, lower-emphasis entry point that makes "leave this
+            // blank" an obvious, explicit choice.
+            Button {
+                Task { await finish() }
+            } label: {
+                Text("Skip for now", bundle: bundle)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(AppColors.textSecondary(.light))
+            }
+            .disabled(isLoading)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 4)
         }
     }
 
