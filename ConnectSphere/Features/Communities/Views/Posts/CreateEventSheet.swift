@@ -68,7 +68,14 @@ struct CreateEventSheet: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(AppColors.surface(colorScheme))
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(AppColors.surface(colorScheme))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(AppColors.borderDefault(colorScheme), lineWidth: 1)
+                )
+        )
     }
 
     private func sectionLabel(_ text: String) -> some View {
