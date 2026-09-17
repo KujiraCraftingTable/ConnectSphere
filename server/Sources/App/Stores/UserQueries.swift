@@ -24,9 +24,14 @@ extension UserStore {
             ?? "u.display_name, u.bio, u.avatar_url, u.cover_url"
         // Like connCount in findById below — post_count must be scoped to the
         // viewed mode (posts.mode), not the legacy global users.post_count
-        // column, or switching modes wouldn't change the number shown.
+        // column, or switching modes wouldn't change the number shown. Must
+        // also mirror PostStore.feedWhere's author-scoped branch exactly:
+        // community posts are excluded from a personal profile's feed/count
+        // (they belong on the community's own page — see the comment on
+        // feedWhere's `p.community_id IS NULL` clause), so without this the
+        // stats row overcounts by however many community posts the user has.
         let postCount = modeRef.map {
-            "(SELECT COUNT(*)::int FROM posts p WHERE p.author_id = u.id AND p.mode = \($0) AND p.status = 'posted') AS post_count"
+            "(SELECT COUNT(*)::int FROM posts p WHERE p.author_id = u.id AND p.mode = \($0) AND p.status = 'posted' AND p.community_id IS NULL) AS post_count"
         } ?? "u.post_count"
         return """
         SELECT
