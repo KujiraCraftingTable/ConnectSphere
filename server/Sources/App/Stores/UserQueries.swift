@@ -22,6 +22,12 @@ extension UserStore {
     private static func userSelectSQL(modeRef: String?) -> String {
         let identity = modeRef.map { PersonaSQL.cols(modeRef: $0) }
             ?? "u.display_name, u.bio, u.avatar_url, u.cover_url"
+        // Like connCount in findById below — post_count must be scoped to the
+        // viewed mode (posts.mode), not the legacy global users.post_count
+        // column, or switching modes wouldn't change the number shown.
+        let postCount = modeRef.map {
+            "(SELECT COUNT(*)::int FROM posts p WHERE p.author_id = u.id AND p.mode = \($0)) AS post_count"
+        } ?? "u.post_count"
         return """
         SELECT
           u.id::text AS id, u.username,
@@ -32,7 +38,7 @@ extension UserStore {
           (u.hobby_display_name IS NOT NULL) AS hobby_setup,
           (u.work_display_name  IS NOT NULL) AS work_setup,
           u.hobby_theme, u.work_theme,
-          u.follower_count, u.following_count, u.post_count,
+          u.follower_count, u.following_count, \(postCount),
           u.created_at,
           COALESCE(array_agg(DISTINCT ui.interest) FILTER (WHERE ui.interest IS NOT NULL), ARRAY[]::text[]) AS interests,
           COALESCE(array_agg(DISTINCT us.skill)    FILTER (WHERE us.skill    IS NOT NULL), ARRAY[]::text[]) AS skills

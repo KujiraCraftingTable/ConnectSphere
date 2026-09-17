@@ -13,6 +13,10 @@ class ProfileViewModel {
 
     private let repository = ProfileRepository()
     private let pageSize = 20
+    /// The mode `posts`/`user` were last loaded for — guards addNewPost/
+    /// restorePost from splicing in a post from the other mode (mirrors
+    /// FeedViewModel.restorePost's post.mode branch).
+    private var loadedMode: String?
     private var offset = 0
     nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
 
@@ -79,6 +83,7 @@ class ProfileViewModel {
     /// other reload already restored it, whose fresh `postCount` from the
     /// server we shouldn't then double-increment).
     func restorePost(_ post: Post) {
+        guard post.mode.rawValue == loadedMode else { return }
         let wasAbsent = !posts.contains { $0.id == post.id }
         if let i = posts.firstIndex(where: { $0.id == post.id }) {
             posts[i] = post
@@ -96,7 +101,8 @@ class ProfileViewModel {
     /// profile, but the author-id check costs nothing and matches the same
     /// defensive pattern `AppState`'s observers use.
     func addNewPost(_ post: Post) {
-        guard post.author.id == user?.id, !posts.contains(where: { $0.id == post.id }) else { return }
+        guard post.author.id == user?.id, post.mode.rawValue == loadedMode,
+              !posts.contains(where: { $0.id == post.id }) else { return }
         posts.insert(post, at: 0)
         if let currentCount = user?.postCount {
             user?.postCount = currentCount + 1
@@ -107,6 +113,7 @@ class ProfileViewModel {
         isLoading = true
         error = nil
         offset = 0
+        loadedMode = mode
         do {
             async let userResult  = repository.fetchUser(userId: userId, mode: mode)
             async let postsResult = repository.fetchPosts(authorId: userId, mode: mode, limit: pageSize, offset: 0)
