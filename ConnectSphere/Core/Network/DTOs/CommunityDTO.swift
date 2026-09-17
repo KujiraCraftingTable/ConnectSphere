@@ -121,6 +121,7 @@ struct CommunityPostDTO: Decodable {
     let community: CommunityRefDTO?
     let pollData: PollDataDTO?
     let eventData: EventDataDTO?
+    let jobData: JobDataDTO?
     // Parity fields — same shape as Feed's PostDTO now that
     // getPostsByCommunity reuses the shared buildPostSelect fragment.
     let imageUrl: String?
@@ -139,6 +140,7 @@ struct CommunityPostDTO: Decodable {
         case createdAt    = "created_at"
         case pollData     = "poll_data"
         case eventData    = "event_data"
+        case jobData      = "job_data"
         case imageUrl     = "image_url"
         case imageUrls    = "image_urls"
         case linkUrl      = "link_url"
@@ -159,6 +161,7 @@ struct CommunityPostDTO: Decodable {
         community    = try c.decodeIfPresent(CommunityRefDTO.self, forKey: .community)
         pollData     = try c.decodeIfPresent(PollDataDTO.self, forKey: .pollData)
         eventData    = try c.decodeIfPresent(EventDataDTO.self, forKey: .eventData)
+        jobData      = try c.decodeIfPresent(JobDataDTO.self, forKey: .jobData)
         imageUrl     = try c.decodeIfPresent(String.self, forKey: .imageUrl)
         imageUrls    = try c.decodeIfPresent([String].self, forKey: .imageUrls)
         linkUrl      = try c.decodeIfPresent(String.self, forKey: .linkUrl)
@@ -180,6 +183,7 @@ struct CommunityPostDTO: Decodable {
             createdAt:    createdAt,
             pollData:     pollData?.toPollData(),
             eventData:    eventData?.toEventData(),
+            jobData:      jobData?.toJobData(),
             linkUrl:      linkUrl,
             imageUrl:     imageUrl,
             imageUrls:    imageUrls ?? [],
@@ -321,6 +325,56 @@ struct EventDataDTO: Decodable {
             endsAt:    endsAt,
             rsvpCount: rsvpCount,
             userRsvp:  userRsvp.flatMap { RsvpStatus(rawValue: $0) }
+        )
+    }
+}
+
+// ── Job DTOs ──────────────────────────────────────────────────────────────────
+
+struct JobDataDTO: Decodable {
+    let id: String
+    let title: String
+    let company: String?
+    let location: String?
+    let employmentType: String?
+    let salaryRange: String?
+    let applicationDeadline: Date?
+    let interestedCount: Int
+    let userInterested: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, company, location
+        case employmentType      = "employment_type"
+        case salaryRange         = "salary_range"
+        case applicationDeadline = "application_deadline"
+        case interestedCount     = "interested_count"
+        case userInterested      = "user_interested"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id                  = try c.decodeIfPresent(String.self, forKey: .id) ?? ""
+        title               = try c.decodeIfPresent(String.self, forKey: .title) ?? ""
+        company             = try c.decodeIfPresent(String.self, forKey: .company)
+        location            = try c.decodeIfPresent(String.self, forKey: .location)
+        employmentType      = try c.decodeIfPresent(String.self, forKey: .employmentType)
+        salaryRange         = try c.decodeIfPresent(String.self, forKey: .salaryRange)
+        applicationDeadline = try c.decodeIfPresent(Date.self, forKey: .applicationDeadline)
+        interestedCount     = try c.decodeIfPresent(Int.self, forKey: .interestedCount) ?? 0
+        userInterested      = try c.decodeIfPresent(Bool.self, forKey: .userInterested) ?? false
+    }
+
+    func toJobData() -> JobData {
+        JobData(
+            id:                  id,
+            title:               title,
+            company:             company,
+            location:            location,
+            employmentType:      employmentType.flatMap { EmploymentType(rawValue: $0) },
+            salaryRange:         salaryRange,
+            applicationDeadline: applicationDeadline,
+            interestedCount:     interestedCount,
+            userInterested:      userInterested
         )
     }
 }

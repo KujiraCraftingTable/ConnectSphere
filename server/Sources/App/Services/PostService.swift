@@ -151,6 +151,55 @@ enum PostService {
         return post
     }
 
+    static func createJobPost(
+        authorID: String, communityID: String?, content: String?,
+        jobTitle: String?, jobCompany: String?, jobLocation: String?,
+        employmentType: String?, salaryRange: String?, applicationDeadline: String?,
+        hashtags: [String], showAiTags: Bool, mode: String?, privacy: String?,
+        on db: AppDatabase
+    ) async throws -> PostObject {
+        let trimmedContent = content?.trimmingCharacters(in: .whitespaces) ?? ""
+        if trimmedContent.isEmpty { throw Abort(.badRequest, reason: "Post content is required") }
+        if trimmedContent.count > 2000 { throw Abort(.badRequest, reason: "Post content must be at most 2000 characters") }
+        let title = jobTitle?.trimmingCharacters(in: .whitespaces) ?? ""
+        if title.isEmpty { throw Abort(.badRequest, reason: "Job title is required") }
+        if let communityID {
+            guard try await CommunityMemberStore.membership(communityID, authorID, on: db.sql()) != nil else {
+                throw Abort(.forbidden, reason: "You must be a member of this community to post")
+            }
+        }
+        // Job posts are a Work-mode-only concept — enforced here, not just
+        // hidden from the iOS composer's picker. Feed always passes an
+        // explicit, pre-validated `mode`; community posts pass mode: nil and
+        // let createCommunityPostRow's own SQL derive it from the community's
+        // `type` column (mirrored here in Swift so this check runs before
+        // that INSERT, the same way it does for the explicit-mode Feed path).
+        let effectiveMode: String?
+        if let mode {
+            effectiveMode = mode
+        } else if let communityID {
+            struct CommunityType: Decodable { let type: String }
+            let row = try await db.sql().raw("SELECT type FROM communities WHERE id = \(uuid: communityID)")
+                .first(decoding: CommunityType.self)
+            effectiveMode = row?.type == "work" ? "work" : "hobby"
+        } else {
+            effectiveMode = nil
+        }
+        guard effectiveMode == "work" else { throw Abort(.badRequest, reason: "Job posts are only available in Work mode") }
+        let id = try await createCommunityPostRow(
+            content: trimmedContent, authorID: authorID, communityID: communityID, postType: "job",
+            imageUrls: nil, linkUrl: nil, articleTitle: nil,
+            hashtags: hashtags, showAiTags: showAiTags, mode: mode, privacy: privacy, on: db)
+        try await JobStore.create(postID: id, title: title,
+            company: jobCompany?.trimmingCharacters(in: .whitespaces).nilIfEmpty,
+            location: jobLocation?.trimmingCharacters(in: .whitespaces).nilIfEmpty,
+            employmentType: employmentType?.nilIfEmpty, salaryRange: salaryRange?.trimmingCharacters(in: .whitespaces).nilIfEmpty,
+            applicationDeadline: applicationDeadline?.nilIfEmpty, on: db.sql())
+        if let communityID { try await CommunityMemberStore.incrementPostCount(communityID, 1, on: db.sql()) }
+        guard let post = try await PostStore.findById(id, viewer: authorID, on: db.sql()) else { throw Abort(.internalServerError) }
+        return post
+    }
+
     // MARK: delete / restore
 
     static func deletePost(requesterID: String, postID: String, on db: AppDatabase) async throws {
@@ -216,6 +265,17 @@ enum PostService {
             }
         }
         try await EventStore.upsertRsvp(eventID: eventID, userID: userID, status: status, on: db)
+    }
+
+    static func interestInJob(jobID: String, userID: String, interested: Bool, on db: AppDatabase) async throws {
+        let sdb = db.sql()
+        guard let job = try await JobStore.byID(jobID, on: sdb) else { throw Abort(.notFound, reason: "Job post not found") }
+        if let cid = job.community_id {
+            guard try await CommunityMemberStore.membership(cid, userID, on: sdb) != nil else {
+                throw Abort(.forbidden, reason: "You must be a member of this community to respond to this job post")
+            }
+        }
+        try await JobStore.setInterested(jobID: jobID, userID: userID, interested: interested, on: db)
     }
 }
 

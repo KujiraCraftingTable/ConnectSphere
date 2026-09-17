@@ -34,6 +34,7 @@ struct PostObject: Content {
     var author: PostAuthor
     @NullCoded var event_data: EventData?
     @NullCoded var poll_data: PollData?
+    @NullCoded var job_data: JobData?
     /// Only present on community-post responses (getPostsByCommunity's outer
     /// wrapper). Plain Optional — the key is *absent* on Feed posts, matching
     /// Node's `buildPostSelect` which doesn't project it at all.
@@ -84,6 +85,17 @@ struct PostObject: Content {
             var position: Int
             @NullCoded var ends_at: Date?
         }
+    }
+    struct JobData: Content {
+        var id: String
+        var title: String
+        @NullCoded var company: String?
+        @NullCoded var location: String?
+        @NullCoded var employment_type: String?
+        @NullCoded var salary_range: String?
+        @NullCoded var application_deadline: Date?
+        var interested_count: Int
+        var user_interested: Bool
     }
     struct CommunityRef: Content {
         var id: String

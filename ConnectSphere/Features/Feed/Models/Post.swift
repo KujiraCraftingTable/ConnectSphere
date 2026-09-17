@@ -116,6 +116,7 @@ struct Post: Identifiable {
     var postType: PostType = .text
     var pollData: PollData? = nil
     var eventData: EventData? = nil
+    var jobData: JobData? = nil
     /// Set only for a post from a community the viewer's feed surfaces —
     /// drives PostCard's combined "community avatar/name + actual poster"
     /// header instead of the normal single-author one.
