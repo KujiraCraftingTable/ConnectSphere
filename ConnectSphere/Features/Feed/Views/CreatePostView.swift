@@ -124,6 +124,12 @@ struct CreatePostView: View {
                                 Text("Text", bundle: bundle).tag(PostType.text)
                                 Text("Poll", bundle: bundle).tag(PostType.poll)
                                 Text("Event", bundle: bundle).tag(PostType.event)
+                                // Job posts are a Work-mode-only concept — hidden
+                                // from the picker in Hobby mode (also enforced
+                                // server-side, see PostService.createJobPost).
+                                if appState.currentMode == .work {
+                                    Text("Job", bundle: bundle).tag(PostType.job)
+                                }
                             }
                             .pickerStyle(.segmented)
                             .padding(.horizontal, 16)
@@ -178,6 +184,18 @@ struct CreatePostView: View {
                                 startsAt:    $composerViewModel.eventStartsAt,
                                 endsAt:      $composerViewModel.eventEndsAt,
                                 showEndDate: $composerViewModel.showEventEndDate
+                            )
+                            .padding(.horizontal, 16)
+                            .padding(.top, 10)
+                        } else if postType == .job {
+                            CreateJobSheet(
+                                title:                    $composerViewModel.jobTitle,
+                                company:                  $composerViewModel.jobCompany,
+                                location:                 $composerViewModel.jobLocation,
+                                employmentType:           $composerViewModel.jobEmploymentType,
+                                salaryRange:              $composerViewModel.jobSalaryRange,
+                                applicationDeadline:      $composerViewModel.jobApplicationDeadline,
+                                showApplicationDeadline:  $composerViewModel.showJobApplicationDeadline
                             )
                             .padding(.horizontal, 16)
                             .padding(.top, 10)
@@ -410,7 +428,8 @@ struct CreatePostView: View {
             sharedPost:    nil,
             postType:      communityPost.postType,
             pollData:      communityPost.pollData,
-            eventData:     communityPost.eventData
+            eventData:     communityPost.eventData,
+            jobData:       communityPost.jobData
         )
     }
 

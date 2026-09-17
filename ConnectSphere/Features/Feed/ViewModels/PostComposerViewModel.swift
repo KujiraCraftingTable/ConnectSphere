@@ -26,6 +26,14 @@ class PostComposerViewModel {
     var eventEndsAt: Date? = nil
     var showEventEndDate = false
 
+    var jobTitle: String = ""
+    var jobCompany: String = ""
+    var jobLocation: String = ""
+    var jobEmploymentType: EmploymentType? = nil
+    var jobSalaryRange: String = ""
+    var jobApplicationDeadline: Date? = nil
+    var showJobApplicationDeadline = false
+
     // Media — text posts only, same field names/upload path Feed's
     // CreatePostView uses (backend only accepts image_urls on post_type='text').
     var selectedItems: [PhotosPickerItem] = []
@@ -60,6 +68,9 @@ class PostComposerViewModel {
         case .event:
             guard !trimmed.isEmpty else { return false }
             return !eventTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && eventStartsAt > Date()
+        case .job:
+            guard !trimmed.isEmpty else { return false }
+            return !jobTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
     }
 
@@ -95,6 +106,7 @@ class PostComposerViewModel {
             case .text:  post = try await submitText(communityId: communityId, token: token, mode: mode, privacy: privacy, hashtags: hashtags)
             case .poll:  post = try await submitPoll(communityId: communityId, token: token, mode: mode, privacy: privacy, hashtags: hashtags)
             case .event: post = try await submitEvent(communityId: communityId, token: token, mode: mode, privacy: privacy, hashtags: hashtags)
+            case .job:   post = try await submitJob(communityId: communityId, token: token, mode: mode, privacy: privacy, hashtags: hashtags)
             }
             content = ""
             selectedItems = []
@@ -230,6 +242,41 @@ class PostComposerViewModel {
             "content":      content.trimmingCharacters(in: .whitespacesAndNewlines),
             "post_type":    "event",
             "eventData":    eventDict,
+            "mode":         mode.rawValue,
+            "privacy":      privacy.rawValue,
+            "show_ai_tags": false,
+        ]
+        if !hashtags.isEmpty { dict["hashtags"] = hashtags }
+        let body = try? JSONSerialization.data(withJSONObject: dict)
+        let res = try await client.fetch(DataResponse<CommunityPostDTO>.self,
+                                          path: postPath(communityId: communityId),
+                                          method: "POST", token: token, bodyData: body)
+        return res.data.toCommunityPost()
+    }
+
+    private func submitJob(communityId: String?, token: String, mode: AppMode, privacy: PostPrivacy, hashtags: [String]) async throws -> CommunityPost {
+        var jobDict: [String: Any] = [
+            "title": jobTitle.trimmingCharacters(in: .whitespacesAndNewlines),
+        ]
+        let company = jobCompany.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !company.isEmpty { jobDict["company"] = company }
+        let location = jobLocation.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !location.isEmpty { jobDict["location"] = location }
+        if let jobEmploymentType { jobDict["employmentType"] = jobEmploymentType.rawValue }
+        let salaryRange = jobSalaryRange.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !salaryRange.isEmpty { jobDict["salaryRange"] = salaryRange }
+        if showJobApplicationDeadline, let deadline = jobApplicationDeadline {
+            // Date-only (no time component) to match the backend's DATE column.
+            let df = DateFormatter()
+            df.dateFormat = "yyyy-MM-dd"
+            df.timeZone = TimeZone(identifier: "UTC")
+            jobDict["applicationDeadline"] = df.string(from: deadline)
+        }
+
+        var dict: [String: Any] = [
+            "content":      content.trimmingCharacters(in: .whitespacesAndNewlines),
+            "post_type":    "job",
+            "jobData":      jobDict,
             "mode":         mode.rawValue,
             "privacy":      privacy.rawValue,
             "show_ai_tags": false,

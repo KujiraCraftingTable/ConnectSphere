@@ -247,6 +247,12 @@ struct CommunitiesController {
                 eventTitle: b.eventData?.title, eventLocation: b.eventData?.location,
                 eventStartsAt: b.eventData?.startsAt, eventEndsAt: b.eventData?.endsAt,
                 hashtags: hashtags, showAiTags: showAi, mode: nil, privacy: nil, on: req.db)
+        } else if postType == "job" {
+            post = try await PostService.createJobPost(authorID: req.userID, communityID: id, content: b.content,
+                jobTitle: b.jobData?.title, jobCompany: b.jobData?.company, jobLocation: b.jobData?.location,
+                employmentType: b.jobData?.employmentType, salaryRange: b.jobData?.salaryRange,
+                applicationDeadline: b.jobData?.applicationDeadline,
+                hashtags: hashtags, showAiTags: showAi, mode: nil, privacy: nil, on: req.db)
         } else {
             post = try await PostService.createTextCommunityPost(userID: req.userID, content: b.content, communityID: id,
                 imageUrls: PostsController.normalizeImageUrls(b.image_urls), linkUrl: b.link_url?.nilIfEmpty,

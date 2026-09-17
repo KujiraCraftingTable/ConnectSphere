@@ -66,6 +66,22 @@ struct EventsController {
     }
 }
 
+/// /api/jobs — "I'm interested" toggle for Job/Opportunity posts.
+struct JobsController {
+    static func register(routes: any RoutesBuilder) {
+        routes.grouped("jobs").grouped(AuthMiddleware()).post(":id", "interest", use: interest)
+    }
+    struct InterestBody: Content { var interested: Bool? }
+    struct OKMessage: Content { var status = "ok"; var message = "Interest updated" }
+    static func interest(_ req: Request) async throws -> OKMessage {
+        guard let interested = try req.content.decode(InterestBody.self).interested else {
+            throw InlineError(.badRequest, "interested is required")
+        }
+        try await PostService.interestInJob(jobID: req.parameters.get("id")!, userID: req.userID, interested: interested, on: req.db)
+        return OKMessage()
+    }
+}
+
 /// /api/stories — port of storyRoutes.js.
 struct StoriesController {
     static func register(routes: any RoutesBuilder) {

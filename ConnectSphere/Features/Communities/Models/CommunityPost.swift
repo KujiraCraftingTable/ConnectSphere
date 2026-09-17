@@ -6,6 +6,7 @@ enum PostType: String, Codable {
     case text  = "text"
     case poll  = "poll"
     case event = "event"
+    case job   = "job"
 }
 
 // MARK: - Poll
@@ -81,6 +82,48 @@ enum RsvpStatus: String, Codable {
     }
 }
 
+// MARK: - Job
+
+struct JobData: Codable {
+    let id: String
+    let title: String
+    let company: String?
+    let location: String?
+    let employmentType: EmploymentType?
+    let salaryRange: String?
+    let applicationDeadline: Date?
+    var interestedCount: Int
+    var userInterested: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, company, location
+        case employmentType       = "employment_type"
+        case salaryRange          = "salary_range"
+        case applicationDeadline  = "application_deadline"
+        case interestedCount      = "interested_count"
+        case userInterested       = "user_interested"
+    }
+}
+
+enum EmploymentType: String, Codable, CaseIterable {
+    case fullTime   = "full_time"
+    case partTime   = "part_time"
+    case contract   = "contract"
+    case internship = "internship"
+    case remote     = "remote"
+
+    /// Localization key — callers must wrap this in `bundle.loc(...)`.
+    var label: String {
+        switch self {
+        case .fullTime:   return "Full-time"
+        case .partTime:   return "Part-time"
+        case .contract:   return "Contract"
+        case .internship: return "Internship"
+        case .remote:     return "Remote"
+        }
+    }
+}
+
 // MARK: - Post
 
 struct CommunityPost: Identifiable {
@@ -99,6 +142,7 @@ struct CommunityPost: Identifiable {
     let createdAt: Date
     var pollData: PollData?
     var eventData: EventData?
+    var jobData: JobData?
     /// Parity fields with Feed's `Post` — populated once `getPostsByCommunity`
     /// (backend) started reusing the shared `buildPostSelect` fragment.
     var linkUrl: String? = nil
@@ -171,6 +215,7 @@ extension CommunityPost {
             postType:      postType,
             pollData:      pollData,
             eventData:     eventData,
+            jobData:       jobData,
             isPinned:      isPinned,
             pinnedAt:      nil,
             community:     community

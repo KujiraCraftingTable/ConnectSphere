@@ -282,6 +282,15 @@ struct PostCard: View {
                     )
                     .padding(.top, 10)
                 }
+            case .job:
+                if let jobData = post.jobData {
+                    JobPostCard(
+                        vm: JobViewModel(jobData: jobData, token: appState.authToken ?? ""),
+                        poster: post.author,
+                        accentColor: themeManager.theme.primary
+                    )
+                    .padding(.top, 10)
+                }
             case .text:
                 EmptyView()
             }

@@ -73,6 +73,13 @@ enum PostStore {
             'user_vote', (SELECT pv.poll_option_id::TEXT FROM poll_votes pv JOIN poll_options po2 ON po2.id = pv.poll_option_id
               WHERE po2.post_id = p.id AND pv.user_id = \(uuid: v)))
           ELSE NULL END)::text AS poll_data,
+          (CASE WHEN p.post_type = 'job' THEN (
+            SELECT json_build_object('id', jp.id, 'title', jp.title, 'company', jp.company, 'location', jp.location,
+              'employment_type', jp.employment_type, 'salary_range', jp.salary_range,
+              'application_deadline', jp.application_deadline, 'interested_count', jp.interested_count,
+              'user_interested', EXISTS(SELECT 1 FROM job_interests ji WHERE ji.job_id = jp.id AND ji.user_id = \(uuid: v)))
+            FROM job_posts jp WHERE jp.post_id = p.id
+          ) ELSE NULL END)::text AS job_data,
           (CASE WHEN p.community_id IS NOT NULL THEN (
             SELECT json_build_object('id', co.id, 'name', co.name, 'icon_emoji', co.icon_emoji, 'avatar_url', co.avatar_url)
             FROM communities co WHERE co.id = p.community_id
@@ -153,6 +160,7 @@ enum PostStore {
         var author: String
         var event_data: String?
         var poll_data: String?
+        var job_data: String?
         var community: String?
     }
 
@@ -173,6 +181,7 @@ enum PostStore {
             author: try dec.decode(PostObject.PostAuthor.self, from: Data(r.author.utf8)),
             event_data: try parse(r.event_data, PostObject.EventData.self),
             poll_data: try parse(r.poll_data, PostObject.PollData.self),
+            job_data: try parse(r.job_data, PostObject.JobData.self),
             community: try parse(r.community, PostObject.CommunityRef.self)
         )
     }

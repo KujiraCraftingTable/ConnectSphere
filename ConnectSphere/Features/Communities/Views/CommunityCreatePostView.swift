@@ -36,6 +36,12 @@ struct CommunityCreatePostView: View {
                         Text("Text", bundle: bundle).tag(PostType.text)
                         Text("Poll", bundle: bundle).tag(PostType.poll)
                         Text("Event", bundle: bundle).tag(PostType.event)
+                        // Job posts are a Work-mode-only concept — hidden from
+                        // the picker in a non-Work community (also enforced
+                        // server-side, see PostService.createJobPost).
+                        if community.type == .work {
+                            Text("Job", bundle: bundle).tag(PostType.job)
+                        }
                     }
                     .pickerStyle(.segmented)
                     .padding(.horizontal, 16)
@@ -163,6 +169,16 @@ struct CommunityCreatePostView: View {
                             endsAt:      $viewModel.eventEndsAt,
                             showEndDate: $viewModel.showEventEndDate
                         )
+                    case .job:
+                        CreateJobSheet(
+                            title:                   $viewModel.jobTitle,
+                            company:                 $viewModel.jobCompany,
+                            location:                $viewModel.jobLocation,
+                            employmentType:          $viewModel.jobEmploymentType,
+                            salaryRange:             $viewModel.jobSalaryRange,
+                            applicationDeadline:     $viewModel.jobApplicationDeadline,
+                            showApplicationDeadline: $viewModel.showJobApplicationDeadline
+                        )
                     case .text:
                         EmptyView()
                     }
@@ -226,6 +242,7 @@ struct CommunityCreatePostView: View {
         case .text:  return bundle.loc("Share something with the community…")
         case .poll:  return bundle.loc("What do you want to ask?")
         case .event: return bundle.loc("Describe this event…")
+        case .job:   return bundle.loc("Describe this role…")
         }
     }
 

@@ -11,6 +11,7 @@ func routes(_ app: Application) throws {
     FeedController.register(routes: api)
     TagsController.register(routes: api)
     EventsController.register(routes: api)
+    JobsController.register(routes: api)
     StoriesController.register(routes: api)
     LinkPreviewController.register(routes: api)
     ConnectionsController.register(routes: api)

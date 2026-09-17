@@ -1,0 +1,167 @@
+import SwiftUI
+
+/// Card body for job-type posts. Shows job details and an "I'm interested"
+/// toggle + a Message button that opens a chat with the poster (hidden on
+/// your own post, mirroring PostCard's isSelf-gated actions).
+struct JobPostCard: View {
+    @Environment(AppState.self) var appState
+    @Environment(\.colorScheme) var colorScheme
+    @Environment(\.appBundle) var bundle
+    @State var vm: JobViewModel
+
+    let poster: UserProfile
+    var accentColor: Color
+
+    @State private var isOpeningChat = false
+    @State private var chatConversationId: String?
+    @State private var navigateToChat = false
+
+    private var isSelf: Bool { poster.id == appState.currentUser?.id }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Job header row
+            HStack(spacing: 10) {
+                Image(systemName: "briefcase.fill")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(accentColor)
+                    .frame(width: 32, height: 32)
+                    .background(accentColor.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(vm.jobData.title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(AppColors.textPrimary(colorScheme))
+
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.system(size: 13))
+                            .foregroundColor(AppColors.textSecondary(colorScheme))
+                    }
+                }
+                Spacer()
+            }
+
+            if let location = vm.jobData.location, !location.isEmpty {
+                Label(location, systemImage: "mappin.circle")
+                    .font(.system(size: 13))
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
+            }
+
+            if let salaryRange = vm.jobData.salaryRange, !salaryRange.isEmpty {
+                Label(salaryRange, systemImage: "dollarsign.circle")
+                    .font(.system(size: 13))
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
+            }
+
+            if let deadline = vm.jobData.applicationDeadline {
+                Label(String(format: bundle.loc("Apply by %@"), formattedDeadline(deadline)), systemImage: "calendar.badge.clock")
+                    .font(.system(size: 13))
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
+            }
+
+            // Actions
+            HStack(spacing: 8) {
+                interestedButton
+                if !isSelf {
+                    messageButton
+                }
+                Spacer()
+                Text(String(format: bundle.loc("%d interested"), vm.jobData.interestedCount))
+                    .font(.system(size: 12))
+                    .foregroundColor(AppColors.textTertiary(colorScheme))
+            }
+
+            if let err = vm.errorMessage {
+                Text(err).font(.system(size: 12)).foregroundColor(.red)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.bottom, 12)
+        .navigationDestination(isPresented: $navigateToChat) {
+            if let convId = chatConversationId {
+                ChatView(
+                    conversationId: convId,
+                    peer: .direct(otherUserId: poster.id, name: poster.name,
+                                  avatarColor: poster.avatarColor, avatarUrl: poster.avatarUrl),
+                    otherUserLocation: poster.location,
+                    currentUserId: appState.currentUser?.id ?? "",
+                    token: appState.authToken ?? ""
+                )
+            }
+        }
+    }
+
+    private var subtitle: String? {
+        let parts = [vm.jobData.company, vm.jobData.employmentType.map { bundle.loc($0.label) }]
+            .compactMap { $0 }.filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    private var interestedButton: some View {
+        let isActive = vm.jobData.userInterested
+        return Button {
+            Task<Void, Never>(name: nil) { await vm.setInterested(!isActive) }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: isActive ? "checkmark.circle.fill" : "hand.raised")
+                    .font(.system(size: 12))
+                Text(bundle.loc(isActive ? "Interested" : "I'm interested"))
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .foregroundColor(isActive ? .white : AppColors.textSecondary(colorScheme))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(isActive ? accentColor : AppColors.elevated(colorScheme))
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(vm.isUpdating)
+    }
+
+    private var messageButton: some View {
+        Button {
+            Task<Void, Never>(name: nil) { await openChat() }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "message")
+                    .font(.system(size: 12))
+                Text("Message", bundle: bundle)
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .foregroundColor(AppColors.textSecondary(colorScheme))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(AppColors.elevated(colorScheme))
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(isOpeningChat)
+    }
+
+    private func openChat() async {
+        guard let token = appState.authToken else { return }
+        isOpeningChat = true
+        defer { isOpeningChat = false }
+        do {
+            let convId = try await MessageRepository().openConversation(
+                otherUserId: poster.id,
+                mode: appState.currentMode.rawValue,
+                token: token
+            )
+            chatConversationId = convId
+            navigateToChat = true
+        } catch {
+            // silently fail — user can retry, mirrors UserProfileView.openChat
+        }
+    }
+
+    private func formattedDeadline(_ date: Date) -> String {
+        let isVi = (UserDefaults.standard.string(forKey: "appLanguage") ?? "vi") == "vi"
+        let df = DateFormatter()
+        df.locale = Locale(identifier: isVi ? "vi_VN" : "en_US")
+        df.dateFormat = "MMM d, yyyy"
+        return df.string(from: date)
+    }
+}

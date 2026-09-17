@@ -83,3 +83,54 @@ enum EventStore {
         }
     }
 }
+
+/// Job/Opportunity posts (Work mode only). "Interested" is a plain toggle
+/// (row presence in job_interests), unlike event_rsvps' 3-state status.
+enum JobStore {
+    static func create(postID: String, title: String, company: String?, location: String?,
+                        employmentType: String?, salaryRange: String?, applicationDeadline: String?,
+                        on db: any SQLDatabase) async throws {
+        try await db.raw("""
+            INSERT INTO job_posts (post_id, title, company, location, employment_type, salary_range, application_deadline)
+            VALUES (\(uuid: postID), \(bind: title), \(bind: company), \(bind: location),
+                    \(bind: employmentType), \(bind: salaryRange), \(bind: applicationDeadline)::date)
+            """).run()
+    }
+
+    struct JobByID: Decodable {
+        let id: String
+        let post_id: String
+        let interested_count: Int
+        let community_id: String?
+    }
+    static func byID(_ jobID: String, on db: any SQLDatabase) async throws -> JobByID? {
+        try await db.raw("""
+            SELECT j.id, j.post_id, j.interested_count, p.community_id
+            FROM job_posts j JOIN posts p ON p.id = j.post_id
+            WHERE j.id = \(uuid: jobID)
+            """).first(decoding: JobByID.self)
+    }
+
+    static func setInterested(jobID: String, userID: String, interested: Bool, on db: AppDatabase) async throws {
+        struct Exists: Decodable { let x: Int }
+        let sdb = db.sql()
+        let wasInterested = try await sdb.raw(
+            "SELECT 1 AS x FROM job_interests WHERE job_id = \(uuid: jobID) AND user_id = \(uuid: userID)"
+        ).first(decoding: Exists.self) != nil
+        try await db.tx { t in
+            if interested {
+                try await t.raw("""
+                    INSERT INTO job_interests (job_id, user_id) VALUES (\(uuid: jobID), \(uuid: userID))
+                    ON CONFLICT (job_id, user_id) DO NOTHING
+                    """).run()
+            } else {
+                try await t.raw("DELETE FROM job_interests WHERE job_id = \(uuid: jobID) AND user_id = \(uuid: userID)").run()
+            }
+            if !wasInterested && interested {
+                try await t.raw("UPDATE job_posts SET interested_count = interested_count + 1 WHERE id = \(uuid: jobID)").run()
+            } else if wasInterested && !interested {
+                try await t.raw("UPDATE job_posts SET interested_count = GREATEST(0, interested_count - 1) WHERE id = \(uuid: jobID)").run()
+            }
+        }
+    }
+}
