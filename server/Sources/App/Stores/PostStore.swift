@@ -240,7 +240,13 @@ enum PostStore {
         var post_type: String
     }
     static func findMeta(_ id: String, on db: any SQLDatabase) async throws -> PostMeta? {
-        try await db.raw("SELECT id, author_id, community_id, post_type FROM posts WHERE id = \(uuid: id)")
+        // `::text` matters: a raw `uuid` column decodes to Swift's uppercase
+        // UUID.uuidString form, while req.userID is the lowercased JWT
+        // subject — without the cast, every ownership check built on this
+        // (delete/edit/restore) can never match, silently 403ing for the
+        // genuine owner. Same fix already applied to comments in
+        // InteractionsController.swift.
+        try await db.raw("SELECT id::text AS id, author_id::text AS author_id, community_id::text AS community_id, post_type FROM posts WHERE id = \(uuid: id)")
             .first(decoding: PostMeta.self)
     }
 

@@ -26,7 +26,7 @@ extension UserStore {
         // viewed mode (posts.mode), not the legacy global users.post_count
         // column, or switching modes wouldn't change the number shown.
         let postCount = modeRef.map {
-            "(SELECT COUNT(*)::int FROM posts p WHERE p.author_id = u.id AND p.mode = \($0)) AS post_count"
+            "(SELECT COUNT(*)::int FROM posts p WHERE p.author_id = u.id AND p.mode = \($0) AND p.status = 'posted') AS post_count"
         } ?? "u.post_count"
         return """
         SELECT
