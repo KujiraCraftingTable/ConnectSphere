@@ -22,6 +22,10 @@ struct PostCard: View {
     @State private var showReportDialog  = false
     @State private var showReportResult  = false
     @State private var reportResultMessage = ""
+    // Delete/hide/restore failures used to only #if DEBUG print — nothing
+    // on screen, so a failed action looked identical to a successful one.
+    @State private var showActionError = false
+    @State private var actionErrorMessage = ""
 
     var post: Post
     var disableSelfNavigation: Bool = false
@@ -194,6 +198,10 @@ struct PostCard: View {
         // Report result feedback
         .alert(reportResultMessage, isPresented: $showReportResult) {
             Button(bundle.loc("Done")) {}
+        }
+        // Delete/hide/restore failures
+        .alert(actionErrorMessage, isPresented: $showActionError) {
+            Button(bundle.loc("OK")) {}
         }
         // Resyncs the locally-tracked count whenever a fresh `post` value
         // flows in from the parent (e.g. after `.postUpdated` patches this
@@ -418,10 +426,14 @@ struct PostCard: View {
             toastPresenter.show(message: bundle.loc("Post deleted")) {
                 Task {
                     let restoreRepository = PostRepository()
-                    if let restored = try? await restoreRepository.restorePost(postId: deletedPostId) {
+                    do {
+                        let restored = try await restoreRepository.restorePost(postId: deletedPostId)
                         NotificationCenter.default.post(name: .postRestored, object: nil, userInfo: [
                             "post": restored
                         ])
+                    } catch {
+                        actionErrorMessage = bundle.loc("Couldn't restore post, please try again")
+                        showActionError = true
                     }
                 }
             }
@@ -429,6 +441,8 @@ struct PostCard: View {
             #if DEBUG
             print("[PostCard] deletePost error: \(error)")
             #endif
+            actionErrorMessage = bundle.loc("Couldn't delete post, please try again")
+            showActionError = true
         }
     }
 
@@ -440,14 +454,27 @@ struct PostCard: View {
     /// feed's array, so flipping `isHidden` back to false fully restores the card.
     private func handleHidePost() {
         withAnimation { isHidden = true }
-        Task { try? await repository.hidePost(postId: post.id) }
+        Task {
+            do {
+                try await repository.hidePost(postId: post.id)
+            } catch {
+                withAnimation { isHidden = false }
+                actionErrorMessage = bundle.loc("Couldn't hide post, please try again")
+                showActionError = true
+            }
+        }
 
         let hiddenPostId = post.id
         toastPresenter.show(message: bundle.loc("Post hidden")) {
             withAnimation { isHidden = false }
             Task {
                 let restoreRepository = PostRepository()
-                try? await restoreRepository.unhidePost(postId: hiddenPostId)
+                do {
+                    try await restoreRepository.unhidePost(postId: hiddenPostId)
+                } catch {
+                    actionErrorMessage = bundle.loc("Couldn't unhide post, please try again")
+                    showActionError = true
+                }
             }
         }
     }
