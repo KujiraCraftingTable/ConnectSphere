@@ -86,22 +86,6 @@ class AuthService {
         }
     }
 
-    /// Realtime check used during the onboarding step — returns true if the username is still available.
-    func checkUsernameAvailable(token: String, username: String) async throws -> Bool {
-        var components = URLComponents(string: APIConfig.baseURL + "/auth/check-username")
-        components?.queryItems = [URLQueryItem(name: "username", value: username)]
-        guard let url = components?.url else { throw URLError(.badURL) }
-        var req = URLRequest(url: url)
-        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-        let (data, resp) = try await URLSession.shared.data(for: req)
-        guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else {
-            throw URLError(.badServerResponse)
-        }
-        struct Wrap: Decodable { let available: Bool }
-        return try JSONDecoder().decode(Wrap.self, from: data).available
-    }
-
     // MARK: - Password management
 
     /// Changes the password (Google accounts have no password yet: first-time set, currentPassword = nil)

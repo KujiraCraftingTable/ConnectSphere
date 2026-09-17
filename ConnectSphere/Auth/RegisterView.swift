@@ -28,33 +28,49 @@ struct RegisterView: View {
 
                     GlassCard {
                         VStack(spacing: 14) {
-                            AuthTextField(
-                                icon: "person.fill",
-                                placeholder: bundle.loc("Username"),
-                                text: Binding(
-                                    get: { username },
-                                    // Same filter as the onboarding step: lowercase letters, digits, underscore
-                                    set: { username = $0.lowercased().filter { $0.isLetter || $0.isNumber || $0 == "_" } }
+                            VStack(alignment: .leading, spacing: 6) {
+                                AuthTextField(
+                                    icon: "person.fill",
+                                    placeholder: bundle.loc("Username"),
+                                    // Only a silent lowercase normalization — everything else
+                                    // (symbols, too-short) is now surfaced as a live warning
+                                    // below instead of being silently stripped, so the user
+                                    // can see why and fix it.
+                                    text: Binding(
+                                        get: { username },
+                                        set: { username = $0.lowercased() }
+                                    )
                                 )
-                            )
-                            AuthTextField(
-                                icon: "lock.fill",
-                                placeholder: bundle.loc("Password (at least 8 characters)"),
-                                text: $password,
-                                isSecure: true
-                            )
-                            AuthTextField(
-                                icon: "lock.fill",
-                                placeholder: bundle.loc("Confirm password"),
-                                text: $confirmPassword,
-                                isSecure: true
-                            )
+                                fieldHint(usernameHint, isError: usernameError != nil)
+                            }
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                AuthTextField(
+                                    icon: "lock.fill",
+                                    placeholder: bundle.loc("Password"),
+                                    text: $password,
+                                    isSecure: true
+                                )
+                                fieldHint(passwordHint, isError: passwordError != nil)
+                            }
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                AuthTextField(
+                                    icon: "lock.fill",
+                                    placeholder: bundle.loc("Confirm password"),
+                                    text: $confirmPassword,
+                                    isSecure: true
+                                )
+                                if let confirmError {
+                                    fieldHint(confirmError, isError: true)
+                                }
+                            }
 
                             if showError {
                                 errorBanner
                             }
 
-                            GradientButton(title: bundle.loc("Create account"), isLoading: isLoading) {
+                            GradientButton(title: bundle.loc("Create account"), isLoading: isLoading, isEnabled: isFormValid) {
                                 handleRegister()
                             }
                         }
@@ -89,6 +105,50 @@ struct RegisterView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
         }
+    }
+
+    // MARK: Field validation
+
+    private var usernameError: String? {
+        guard !username.isEmpty else { return nil }
+        if username.contains(where: { !($0.isLetter || $0.isNumber || $0 == "_") }) {
+            return bundle.loc("Only letters, numbers, and underscore (_) are allowed")
+        }
+        if username.count < 3 {
+            return bundle.loc("Username must be at least 3 characters")
+        }
+        return nil
+    }
+
+    private var usernameHint: String {
+        usernameError ?? bundle.loc("Letters, numbers, and underscore (_) only, at least 3 characters")
+    }
+
+    private var passwordError: String? {
+        guard !password.isEmpty else { return nil }
+        return password.count < 8 ? bundle.loc("Password must be at least 8 characters") : nil
+    }
+
+    private var passwordHint: String {
+        passwordError ?? bundle.loc("At least 8 characters. Add symbols like !@#$%^&*_ for extra security.")
+    }
+
+    private var confirmError: String? {
+        guard !confirmPassword.isEmpty, confirmPassword != password else { return nil }
+        return bundle.loc("Passwords don't match")
+    }
+
+    private var isFormValid: Bool {
+        username.count >= 3 && usernameError == nil &&
+        password.count >= 8 &&
+        !confirmPassword.isEmpty && confirmPassword == password
+    }
+
+    private func fieldHint(_ text: String, isError: Bool) -> some View {
+        Text(text)
+            .font(.system(size: 12))
+            .foregroundColor(isError ? AppColors.danger(.light) : AppColors.textTertiary(.light))
+            .padding(.leading, 4)
     }
 
     // MARK: Error banner

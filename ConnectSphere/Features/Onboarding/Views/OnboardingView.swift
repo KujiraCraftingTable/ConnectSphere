@@ -13,15 +13,6 @@ struct OnboardingView: View {
     @State private var showDobPicker = false
     @State private var dobDraft = Date()
 
-    // Realtime username availability (only checks username — display_name doesn't need it
-    // since many people can share the same name, only username needs to be unique).
-    @State private var usernameAvailability: UsernameAvailability = .idle
-    @State private var usernameCheckTask: Task<Void, Never>?
-
-    private enum UsernameAvailability: Equatable {
-        case idle, checking, available, taken
-    }
-
     private let totalSteps = 4
 
     var body: some View {
@@ -46,6 +37,16 @@ struct OnboardingView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .transition(.opacity)
                 .animation(.easeInOut, value: step)
+            }
+        }
+        // Username was already chosen and validated at registration
+        // (RegisterView) — prefill it here instead of asking again, so
+        // step 1's form (and the final /auth/setup call) carries the real
+        // registered value forward rather than a blank field that would
+        // silently overwrite it.
+        .onAppear {
+            if form.username.isEmpty {
+                form.username = appState.currentUser?.username ?? ""
             }
         }
     }
@@ -127,20 +128,9 @@ struct OnboardingView: View {
     // MARK: Step 1 — Basic info
 
     private var step1: some View {
-        OnboardingCard(title: bundle.loc("Basic information"), subtitle: bundle.loc("Enter your display name and username")) {
+        OnboardingCard(title: bundle.loc("Basic information"), subtitle: bundle.loc("Enter your display name")) {
             VStack(spacing: 14) {
                 AuthTextField(icon: "textformat", placeholder: bundle.loc("Display name *"), text: $form.display_name)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    AuthTextField(icon: "at", placeholder: bundle.loc("Username * (a-z, 0-9, _ only)"), text: Binding(
-                        get: { form.username },
-                        set: {
-                            form.username = $0.lowercased().filter { $0.isLetter || $0.isNumber || $0 == "_" }
-                            scheduleUsernameCheck(form.username)
-                        }
-                    ))
-                    usernameStatusView
-                }
 
                 // Province picker (required)
                 Button { showProvincePicker = true } label: {
@@ -221,69 +211,12 @@ struct OnboardingView: View {
 
             nextButton(
                 enabled: !form.display_name.trimmingCharacters(in: .whitespaces).isEmpty &&
-                         form.username.count >= 3 &&
-                         usernameAvailability != .taken &&
+                         !form.username.isEmpty &&
                          !form.location.isEmpty &&
                          !form.gender.isEmpty &&
                          !form.dob.isEmpty,
                 label: bundle.loc("Continue")
             )
-        }
-    }
-
-    /// Availability status shown right below the username field: checking / taken / available.
-    @ViewBuilder
-    private var usernameStatusView: some View {
-        switch usernameAvailability {
-        case .idle:
-            EmptyView()
-        case .checking:
-            HStack(spacing: 6) {
-                ProgressView().scaleEffect(0.7)
-                Text("Checking availability...", bundle: bundle)
-                    .font(.system(size: 12))
-                    .foregroundColor(AppColors.textTertiary(.light))
-            }
-            .padding(.leading, 4)
-        case .available:
-            HStack(spacing: 6) {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(AppColors.success(.light))
-                Text("Username available", bundle: bundle)
-                    .font(.system(size: 12))
-                    .foregroundColor(AppColors.success(.light))
-            }
-            .padding(.leading, 4)
-        case .taken:
-            HStack(spacing: 6) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                Text("Username already taken", bundle: bundle)
-                    .font(.system(size: 12))
-            }
-            .foregroundColor(AppColors.danger(.light))
-            .padding(.leading, 4)
-        }
-    }
-
-    /// Debounces for 500ms then calls the check-username API; cancels the previous run if still in flight.
-    private func scheduleUsernameCheck(_ username: String) {
-        usernameCheckTask?.cancel()
-        guard username.count >= 3 else {
-            usernameAvailability = .idle
-            return
-        }
-        usernameAvailability = .checking
-        usernameCheckTask = Task {
-            try? await Task.sleep(for: .milliseconds(500))
-            guard !Task.isCancelled, let token = appState.authToken else { return }
-            do {
-                let available = try await AuthService.shared.checkUsernameAvailable(token: token, username: username)
-                guard !Task.isCancelled else { return }
-                usernameAvailability = available ? .available : .taken
-            } catch {
-                guard !Task.isCancelled else { return }
-                usernameAvailability = .idle
-            }
         }
     }
 

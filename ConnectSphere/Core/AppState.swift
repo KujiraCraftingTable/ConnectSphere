@@ -215,7 +215,17 @@ class AppState {
 
         do {
             let user = try await AuthService.shared.fetchMe(token: token)
-            await MainActor.run { finishLogin(token: token, user: user, isNew: !user.isSetup) }
+            if !user.isSetup {
+                // Account exists but onboarding was never finished (app was
+                // killed or lost connectivity mid-signup). This is a silent,
+                // non-interactive restore — not an explicit login — so
+                // require a fresh login instead of dropping the user
+                // straight back into OnboardingView with a token they
+                // never re-entered this launch.
+                await MainActor.run { logout() }
+                return
+            }
+            await MainActor.run { finishLogin(token: token, user: user, isNew: false) }
         } catch {
             // Only delete the token when the server explicitly confirms 401 (expired/invalid).
             // A network error or a temporarily-down server → KEEP the token so auto-login

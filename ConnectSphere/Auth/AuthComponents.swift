@@ -176,10 +176,11 @@ extension View {
 struct GradientButton: View {
     let title: String
     var isLoading: Bool = false
+    var isEnabled: Bool = true
     let action: () -> Void
 
     var body: some View {
-        PrimaryButton(title: title, isLoading: isLoading, action: action)
+        PrimaryButton(title: title, isLoading: isLoading, isEnabled: isEnabled, action: action)
     }
 }
 
