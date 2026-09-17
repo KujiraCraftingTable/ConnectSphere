@@ -140,13 +140,17 @@ struct SettingsView: View {
                 }
             }
         }
-        .confirmationDialog(bundle.loc("Log out of ConnectSphere?"),
-                            isPresented: $showLogoutConfirm, titleVisibility: .visible) {
+        // .alert (not .confirmationDialog) — always a centered box regardless
+        // of action count, matching the familiar Facebook-style "Log out of
+        // your account?" pattern. .confirmationDialog with just one
+        // destructive action rendered as an anchored popover bubble near the
+        // tapped row instead of a centered dialog.
+        .alert(bundle.loc("Log out of ConnectSphere?"), isPresented: $showLogoutConfirm) {
+            Button(bundle.loc("Cancel"), role: .cancel) {}
             Button(bundle.loc("Log out"), role: .destructive) {
                 appState.logout()
                 dismiss()
             }
-            Button(bundle.loc("Cancel"), role: .cancel) {}
         }
         .listStyle(.insetGrouped)
         .navigationTitle(bundle.loc("Settings"))

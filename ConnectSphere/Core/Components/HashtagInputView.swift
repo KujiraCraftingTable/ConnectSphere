@@ -150,12 +150,19 @@ struct HashtagInputView: View {
                         .focused($isFocused)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 9)
-                        .background(AppColors.surface(colorScheme))
-                        .overlay(
+                        // fill+stroke in one background (not .background + .overlay +
+                        // .clipShape) — clipping after an overlay stroke cuts off the
+                        // outer half of the 1pt line, since it's centered on the path,
+                        // which made this border nearly invisible. Same pattern as the
+                        // post-content textbox in CreatePostView.
+                        .background(
                             RoundedRectangle(cornerRadius: 10)
-                                .stroke(AppColors.borderDefault(colorScheme), lineWidth: 1)
+                                .fill(AppColors.surface(colorScheme))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(AppColors.borderDefault(colorScheme), lineWidth: 1)
+                                )
                         )
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
                         .onChange(of: controller.currentText) { _, newValue in
                             controller.handleTextChange(newValue, hashtags: &hashtags)
                         }
