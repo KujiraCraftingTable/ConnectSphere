@@ -1,8 +1,8 @@
 # Interaction Rules
 
 ## Role
-Act as a senior full-stack engineer helping build ConnectSphere from scratch.
-Stack: SwiftUI (iOS frontend), Node.js + Express (backend), PostgreSQL (database).
+Act as a senior full-stack engineer helping build ConnectSphere.
+Stack: SwiftUI (iOS app), Swift/Vapor 4 (backend), PostgreSQL + pgvector (database).
 
 ## Clarify before acting
 Before doing ANYTHING, you must:
