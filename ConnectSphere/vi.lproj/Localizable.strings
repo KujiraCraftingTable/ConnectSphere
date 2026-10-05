@@ -796,7 +796,8 @@
 // MARK: - Chat: quick-emoji send + floating composer
 "Quick emoji" = "Biểu tượng gửi nhanh";
 "Sent when the message box is empty" = "Gửi khi ô tin nhắn đang trống";
-"Open full chat" = "Mở cuộc trò chuyện đầy đủ";
 
 // MARK: - Chat: timeline separators
 "Yesterday" = "Hôm qua";
+"Pick any emoji from the keyboard" = "Chọn biểu tượng bất kỳ từ bàn phím";
+"Current quick emoji" = "Biểu tượng gửi nhanh hiện tại";

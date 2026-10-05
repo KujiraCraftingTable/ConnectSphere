@@ -66,7 +66,10 @@ extension View {
                     .transition(.move(edge: .bottom))
                 }
             }
-            .allowsHitTesting(!presenter.bubbles.isEmpty)
+            // Hidden, not removed, behind a full chat: positions and drafts survive.
+            .opacity(presenter.isHiddenByFullChat ? 0 : 1)
+            .allowsHitTesting(!presenter.bubbles.isEmpty && !presenter.isHiddenByFullChat)
+            .animation(.easeInOut(duration: 0.2), value: presenter.isHiddenByFullChat)
             .animation(.spring(response: 0.35, dampingFraction: 0.8), value: presenter.bubbles.map(\.id))
             .animation(.spring(response: 0.3, dampingFraction: 0.85), value: presenter.composingBubble?.id)
         }
