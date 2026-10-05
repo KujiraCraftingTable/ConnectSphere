@@ -796,7 +796,8 @@
 // MARK: - Chat: quick-emoji send + floating composer
 "Quick emoji" = "Quick emoji";
 "Sent when the message box is empty" = "Sent when the message box is empty";
-"Open full chat" = "Open full chat";
 
 // MARK: - Chat: timeline separators
 "Yesterday" = "Yesterday";
+"Pick any emoji from the keyboard" = "Pick any emoji from the keyboard";
+"Current quick emoji" = "Current quick emoji";

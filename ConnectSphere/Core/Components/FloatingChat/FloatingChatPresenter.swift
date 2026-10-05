@@ -75,6 +75,32 @@ final class FloatingChatPresenter {
         bubbles.first { $0.isComposing }
     }
 
+    /// Full `ChatView`s currently on screen. A count, not a flag: one chat can
+    /// appear before the previous one's `onDisappear` fires (chat → chat).
+    private var visibleFullChats = 0
+    /// Bubbles stay alive but out of sight while a full chat is open — they'd
+    /// otherwise sit on top of its messages and composer.
+    var isHiddenByFullChat: Bool { visibleFullChats > 0 }
+
+    /// Called by `ChatView` as it appears, *before* it joins its conversation.
+    /// A bubble for that same conversation is closed outright: two live views
+    /// of one chat is redundant, and worse, they share one socket — whichever
+    /// leaves last emits `leave_conversation` and silently kicks the other out
+    /// of the room. Closing first means this leave lands before the new join.
+    /// Bubbles for other people are only hidden, and return when the chat closes.
+    func fullChatDidAppear(conversationId: String) {
+        if let same = bubbles.first(where: { $0.id == conversationId }) {
+            close(same)
+        }
+        dismissAllComposing()
+        visibleFullChats += 1
+    }
+
+    /// Paired with `fullChatDidAppear` from `ChatView.onDisappear`.
+    func fullChatDidDisappear() {
+        visibleFullChats = max(0, visibleFullChats - 1)
+    }
+
     /// Whether `conversationId` already has an active bubble — callers (e.g.
     /// a conversation row tap) can check this to bring the existing bubble
     /// forward instead of opening a second, redundant live view.

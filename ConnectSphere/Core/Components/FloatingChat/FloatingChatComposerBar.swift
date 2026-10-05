@@ -12,10 +12,9 @@ import PhotosUI
 /// `ChatView.inputBar` and makes detaching structurally impossible, since the
 /// bar is no longer positioned relative to a freely-draggable card.
 ///
-/// Scope is still "keep the conversation going", not the full `ChatView`
-/// composer: photos send straight through, and anything needing ChatView-local
-/// state (voice, meeting proposals, replies) is one tap away behind the
-/// `ellipsis` button, which restores the full chat.
+/// Deliberately text and photos only — "keep the conversation going", not the
+/// full `ChatView` composer. Voice, meeting proposals and replies stay in the
+/// full chat, which a double-tap on the bubble restores.
 struct FloatingChatComposerBar: View {
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.colorScheme) var colorScheme
@@ -34,7 +33,7 @@ struct FloatingChatComposerBar: View {
         self.bubble = bubble
         self.presenter = presenter
         _quickEmoji = AppStorage(
-            wrappedValue: ReactionEmoji.thumbsUp.rawValue,
+            wrappedValue: QuickEmoji.defaultValue,
             quickEmojiStorageKey(conversationId: bubble.id)
         )
     }
@@ -57,16 +56,6 @@ struct FloatingChatComposerBar: View {
                     .foregroundColor(themeManager.theme.primary)
                     .padding(.bottom, 6)
             }
-
-            Button {
-                presenter.restore(bubble)
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .font(.system(size: 22))
-                    .foregroundColor(themeManager.theme.primary)
-                    .padding(.bottom, 6)
-            }
-            .accessibilityLabel(Text("Open full chat", bundle: bundle))
 
             TextField("", text: draftBinding,
                       prompt: Text("Message...", bundle: bundle), axis: .vertical)

@@ -125,7 +125,7 @@ struct ChatView: View {
             pinAutoDeleteCustomDateStorageKey(conversationId: conversationId)
         )
         _quickEmoji = AppStorage(
-            wrappedValue: ReactionEmoji.thumbsUp.rawValue,
+            wrappedValue: QuickEmoji.defaultValue,
             quickEmojiStorageKey(conversationId: conversationId)
         )
     }
@@ -264,6 +264,8 @@ struct ChatView: View {
             .environment(appState)
         }
         .task {
+            // Must run before `joinConversation()` — see `fullChatDidAppear`.
+            floatingChatPresenter.fullChatDidAppear(conversationId: conversationId)
             viewModel.joinConversation()
             if !isRestoredFromBubble {
                 await viewModel.loadMessages()
@@ -319,6 +321,7 @@ struct ChatView: View {
             if !isMinimizing {
                 viewModel.leaveConversation()
             }
+            floatingChatPresenter.fullChatDidDisappear()
             if let blockStatusObserver {
                 NotificationCenter.default.removeObserver(blockStatusObserver)
                 self.blockStatusObserver = nil

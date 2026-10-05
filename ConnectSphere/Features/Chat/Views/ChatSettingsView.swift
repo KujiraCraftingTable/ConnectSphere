@@ -84,7 +84,7 @@ struct ChatSettingsView: View {
             pinAutoDeleteCustomDateStorageKey(conversationId: conversationId)
         )
         _quickEmoji = AppStorage(
-            wrappedValue: ReactionEmoji.thumbsUp.rawValue,
+            wrappedValue: QuickEmoji.defaultValue,
             quickEmojiStorageKey(conversationId: conversationId)
         )
     }
@@ -203,11 +203,8 @@ struct ChatSettingsView: View {
             }
             Button(bundle.loc("Cancel"), role: .cancel) {}
         }
-        .confirmationDialog(bundle.loc("Quick emoji"), isPresented: $showQuickEmojiOptions, titleVisibility: .visible) {
-            ForEach(ReactionEmoji.allCases, id: \.self) { emoji in
-                Button(emoji.rawValue) { quickEmoji = emoji.rawValue }
-            }
-            Button(bundle.loc("Cancel"), role: .cancel) {}
+        .sheet(isPresented: $showQuickEmojiOptions) {
+            QuickEmojiPickerSheet(emoji: $quickEmoji)
         }
         .sheet(isPresented: $showThemePicker) { themePickerSheet }
         .sheet(isPresented: $showGroupColorPicker) { groupColorPickerSheet }
