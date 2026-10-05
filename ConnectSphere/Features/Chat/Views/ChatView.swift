@@ -68,6 +68,9 @@ struct ChatView: View {
     @State private var isJumping = false
     // The message currently being quoted for a reply — shows a preview bar above the input bar
     @State private var replyingTo: Message?
+    /// Raised when a reply starts (swipe or long-press), so the keyboard comes
+    /// up ready to type the way Messenger does.
+    @FocusState private var isComposerFocused: Bool
     @State private var messageToRecall: Message?
     // "Forward" — pick a target conversation, re-send this message's content there.
     @State private var forwardingMessage: Message?
@@ -782,6 +785,11 @@ struct ChatView: View {
                                                 message.id == highlightedMessageId ? 0.16 : 0))
                                             .padding(.horizontal, 6)
                                     )
+                                    .modifier(SwipeToReplyModifier(
+                                        direction: isOwn ? -1 : 1,
+                                        isEnabled: !message.isDeleted && !(isBlocked && !viewModel.isGroup),
+                                        onReply: { beginReply(to: message) }
+                                    ))
                                     .contextMenu {
                                         // The quick-react row must be a true top-level, unconditional
                                         // first item — a ControlGroup wrapped inside an `if` (as this
@@ -811,7 +819,7 @@ struct ChatView: View {
 
                                         if !message.isDeleted {
                                             Button {
-                                                replyingTo = message
+                                                beginReply(to: message)
                                             } label: {
                                                 Label(bundle.loc("Reply"), systemImage: "arrowshape.turn.up.left")
                                             }
@@ -977,6 +985,14 @@ struct ChatView: View {
         .padding(.bottom, 20)
     }
 
+    /// Starts replying to `message` — shared by swipe-to-reply and the
+    /// long-press "Reply" item so both show the "Replying to" bar and raise
+    /// the keyboard identically.
+    private func beginReply(to message: Message) {
+        replyingTo = message
+        isComposerFocused = true
+    }
+
     /// Centered time label between messages after 30+ minutes of silence (or a
     /// new day) — Messenger's convention. With it, each bubble no longer needs
     /// its own timestamp; see `ChatTimeline`.
@@ -1034,6 +1050,7 @@ struct ChatView: View {
                     VoiceRecorderControl(session: voiceSession, tint: chatPalette.primary)
 
                     TextField("", text: $inputText, prompt: Text("Message...", bundle: bundle), axis: .vertical)
+                        .focused($isComposerFocused)
                         .font(.system(size: 15))
                         .lineLimit(1...5)
                         .padding(.horizontal, 14)
