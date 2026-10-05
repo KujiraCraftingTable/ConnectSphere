@@ -322,6 +322,8 @@ struct ChatView: View {
                 viewModel.leaveConversation()
             }
             floatingChatPresenter.fullChatDidDisappear()
+            // Leaving mid-recording must not leave the mic running in the background.
+            voiceSession.cancel()
             if let blockStatusObserver {
                 NotificationCenter.default.removeObserver(blockStatusObserver)
                 self.blockStatusObserver = nil
@@ -1072,11 +1074,9 @@ struct ChatView: View {
                             }
                         }
                 } else {
-                    // Recording/paused — the text field's spot is taken by a
-                    // live timer + cancel button, and the mic control moves
-                    // to the right of it (now a pause/resume toggle).
-                    VoiceRecordingBar(session: voiceSession)
-                    VoiceRecorderControl(session: voiceSession, tint: chatPalette.primary)
+                    // Recording or reviewing — the voice pill takes the whole
+                    // row up to the send button, which sends the recording.
+                    VoiceComposerBar(session: voiceSession, tint: chatPalette.primary)
                 }
 
                 Button {
@@ -1124,6 +1124,8 @@ struct ChatView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(AppColors.surface(colorScheme))
+        // A light tap as recording starts and stops, so it registers without looking.
+        .sensoryFeedback(.impact(weight: .light), trigger: voiceSession.state)
     }
 
     /// Short notice shown above the composer while either side has blocked the other. 1:1 only.

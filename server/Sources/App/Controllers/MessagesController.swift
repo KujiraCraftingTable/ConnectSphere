@@ -163,22 +163,36 @@ struct MessagesController {
 
     struct UploadResult: Content { var data: Inner; struct Inner: Content { var url: String; var message_type: String } }
     static let uploadDir = "../backend/uploads/messages"
-    static let extByMime: [String: String] = [
-        "image/jpeg": ".jpg", "image/png": ".png", "image/gif": ".gif", "image/webp": ".webp",
-        "video/mp4": ".mp4", "video/quicktime": ".mov", "audio/m4a": ".m4a",
+    /// Allowed chat attachments, keyed on the filename extension — because that
+    /// is all Vapor's `File` exposes: `File.contentType` is derived from the
+    /// extension, not the part's Content-Type header, and it maps "m4a" to
+    /// audio/mpeg. Matching on that MIME silently rejected every voice note
+    /// (and iPhone HEIC photos) after the port from Node, whose multer trusted
+    /// the header. The stored extension still comes from this closed table,
+    /// never verbatim from the client.
+    static let attachmentTypes: [String: (ext: String, messageType: String)] = [
+        "jpg": (".jpg", "image"), "jpeg": (".jpg", "image"), "png": (".png", "image"),
+        "gif": (".gif", "image"), "webp": (".webp", "image"), "heic": (".heic", "image"),
+        "mp4": (".mp4", "video"), "mov": (".mov", "video"),
+        "m4a": (".m4a", "voice"),
     ]
+
+    /// The whitelist entry for an uploaded filename, or nil if it isn't allowed.
+    static func attachmentType(forFilename filename: String) -> (ext: String, messageType: String)? {
+        guard let dot = filename.lastIndex(of: ".") else { return nil }
+        return attachmentTypes[filename[filename.index(after: dot)...].lowercased()]
+    }
+
     static func upload(_ req: Request) async throws -> UploadResult {
         struct FileBody: Content { var file: File }
         guard let file = try? req.content.decode(FileBody.self).file,
-              let mime = file.contentType.map({ "\($0.type)/\($0.subType)" }),
-              let ext = extByMime[mime] else {
+              let kind = attachmentType(forFilename: file.filename) else {
             throw Abort(.badRequest, reason: "Invalid or missing file")
         }
-        let name = "\(Int(Date().timeIntervalSince1970 * 1000))-\(UUID().uuidString.prefix(8).lowercased())\(ext)"
+        let name = "\(Int(Date().timeIntervalSince1970 * 1000))-\(UUID().uuidString.prefix(8).lowercased())\(kind.ext)"
         try FileManager.default.createDirectory(atPath: uploadDir, withIntermediateDirectories: true)
         try await req.fileio.writeFile(file.data, at: "\(uploadDir)/\(name)")
-        let type = mime.hasPrefix("video/") ? "video" : (mime.hasPrefix("audio/") ? "voice" : "image")
-        return UploadResult(data: .init(url: "/uploads/messages/\(name)", message_type: type))
+        return UploadResult(data: .init(url: "/uploads/messages/\(name)", message_type: kind.messageType))
     }
 
     // MARK: conversations

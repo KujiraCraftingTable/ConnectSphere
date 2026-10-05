@@ -205,7 +205,6 @@
 "Password" = "Password";
 "Password must be at least 8 characters." = "Password must be at least 8 characters.";
 "Passwords do not match." = "Passwords do not match.";
-"Paused" = "Paused";
 "Pending" = "Pending";
 "Phone number" = "Phone number";
 "Phone verification" = "Phone verification";
@@ -801,3 +800,10 @@
 "Yesterday" = "Yesterday";
 "Pick any emoji from the keyboard" = "Pick any emoji from the keyboard";
 "Current quick emoji" = "Current quick emoji";
+
+// MARK: - Chat: voice recorder
+"Record voice message" = "Record voice message";
+"Delete recording" = "Delete recording";
+"Stop recording" = "Stop recording";
+"Play recording" = "Play recording";
+"Pause playback" = "Pause playback";
