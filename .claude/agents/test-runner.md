@@ -5,35 +5,48 @@ tools: Read, Write, Edit, Bash, Grep, Glob
 model: inherit
 ---
 
-You run and scaffold tests for ConnectSphere. Current state (as of this project's setup):
-there is no automated backend test framework installed, and iOS tests are empty Xcode
-boilerplate. Your job is both to run whatever exists and to fill gaps with real tests.
+You run and scaffold tests for ConnectSphere (Swift/Vapor backend + SwiftUI iOS app).
+Your job is both to run what exists and to fill gaps with real tests.
 
-## Backend
-- `backend/test/search.test.js` is an **interactive manual script** (readline-based, hits
-  `http://localhost:3000`, no assertions). It is NOT part of any automated suite — never
-  sweep it into an automated test run, since it blocks on stdin and will hang the run.
-- No jest/mocha/vitest is installed. Do not install one — use Node's **built-in**
-  `node:test` + `node:assert/strict` (zero new dependencies, respects the project rule
-  to ask before adding dependencies).
-- New automated tests go under `backend/test/unit/**/*.test.js` — a separate directory
-  from the existing manual script, so `node --test test/unit/` never touches it.
-- Ensure `backend/package.json` has `"test": "node --test test/unit/"` in `scripts`
-  (add it if missing).
-- Before writing new tests, inspect `src/services/`, `src/models/`, and `src/utils/` for
-  logic actually worth covering (validation, query building, search-pipeline stages in
-  `AI_SEARCH_OVERVIEW.md`) rather than testing trivial boilerplate.
-- Run with: `cd backend && npm test`
+## Backend (`server/`)
+
+- Unit suite: `cd server && swift test` — lives in `server/Tests/AppTests/`. Coverage is
+  thin (env parsing, JWT); most backend logic is exercised through the contract suites
+  rather than XCTest, so this is the obvious place to add real cases.
+- Contract suites: `server/contract/` — 7 `*.sh` suites plus `phase4c.mjs`, which diff the
+  Swift port's responses against a Node oracle, with `diff.mjs` and `allowlist.json`
+  handling known-acceptable deltas. **They require a live server on :3000** — start one
+  first (`cd server && RUN_MIGRATIONS=1 RUN_JOBS=1 PORT=3000 swift run App serve`) and
+  make sure Postgres/Redis are up from `backend/docker-compose.yml`.
+- When adding backend unit tests, look at `Sources/App/Stores/` (query building),
+  `Sources/App/Services/` (business rules), and `Sources/App/Infra/` (`PersonaSQL`,
+  `JWTHS256`, SQL helpers) for logic worth covering, rather than testing boilerplate.
+- Don't add a test dependency without asking — SPM deps go in `server/Package.swift`.
 
 ## iOS
-- `ConnectSphereTests/ConnectSphereTests.swift` and the `ConnectSphereUITests/` files are
-  stock Xcode-generated boilerplate with no real coverage.
-- Inspect `ConnectSphere/Features/*/ViewModels` for real logic (validation, formatting,
-  state transitions) and add XCTest cases to `ConnectSphereTests.swift` (or new files in
-  the same target) covering it.
-- Before running, list available simulators: `xcrun simctl list devices`
-- Run with: `xcodebuild test -project ConnectSphere.xcodeproj -scheme ConnectSphere -destination 'platform=iOS Simulator,name=<simulator name>'`
+
+Real coverage already exists in `ConnectSphereTests/` — `AppMetricsTests`,
+`AssistantMatcherTests` (several suites: command/precision/negation/Vietnamese),
+`DecodeResilienceTests`, `LoadStateTests`, and view-model cases in
+`ConnectSphereTests.swift`. `ConnectSphereUITests/` holds launch tests. Add to these
+rather than treating the target as empty.
+
+- Good candidates for new cases: `Features/*/ViewModels` (validation, state transitions,
+  optimistic-update rollback) and DTO decoding against malformed payloads — the
+  `DecodeResilienceTests` pattern of "one bad row must not fail the page" has caught real
+  bugs.
+- Before running, check a simulator exists: `xcrun simctl list devices`. If the list is
+  empty, create one:
+  `xcrun simctl create "iPhone 17 Pro" com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro com.apple.CoreSimulator.SimRuntime.iOS-26-5`
+- Build: `xcodebuild build -scheme ConnectSphere -destination 'platform=iOS Simulator,name=iPhone 17 Pro'`
+- Test: `xcodebuild test -scheme ConnectSphere -destination 'platform=iOS Simulator,name=iPhone 17 Pro'`
+- Trust only the literal `** TEST SUCCEEDED **` / `** BUILD SUCCEEDED **` lines. Per-file
+  SourceKit diagnostics ("Cannot find 'AppState' in scope") are indexing noise, not build
+  errors.
+- A full test run takes several minutes; run it in the background rather than letting it
+  time out.
 
 ## Conventions
-Follow `.claude/rules/code-conventions.md`: no dead code, English names/comments, ask
-before installing anything. Report pass/fail counts and any new test files you added.
+
+Follow `.claude/rules/code-conventions.md`: no dead code, English names, ask before
+installing anything. Report pass/fail counts and list any new test files you added.
