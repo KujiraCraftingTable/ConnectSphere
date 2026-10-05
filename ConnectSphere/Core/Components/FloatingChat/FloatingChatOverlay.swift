@@ -8,32 +8,67 @@ extension View {
     /// `.undoToastOverlay(_:)` is.
     func floatingChatOverlay(_ presenter: FloatingChatPresenter) -> some View {
         overlay {
-            GeometryReader { geo in
-                // Tap-outside-to-dismiss-keyboard catcher — only present (and
-                // only hit-testable) while some bubble's inline compose row
-                // is open; sits behind every bubble so tapping a bubble
-                // itself is unaffected.
-                if presenter.bubbles.contains(where: { $0.isComposing }) {
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .frame(width: geo.size.width, height: geo.size.height)
-                        .onTapGesture { presenter.dismissAllComposing() }
-                }
-                ForEach(Array(presenter.bubbles.enumerated()), id: \.element.id) { index, bubble in
-                    FloatingChatBubbleView(bubble: bubble, presenter: presenter, containerSize: geo.size)
-                        .position(bubble.position ?? FloatingChatLayout.defaultSpawn(index: index, in: geo.size))
-                        .zIndex(Double(index))
-                        .onAppear {
-                            if bubble.position == nil {
-                                bubble.position = FloatingChatLayout.defaultSpawn(index: index, in: geo.size)
+            ZStack {
+                GeometryReader { geo in
+                    // Tap-outside-to-dismiss-keyboard catcher — only present
+                    // (and only hit-testable) while some bubble is composing;
+                    // sits behind every bubble so tapping a bubble itself is
+                    // unaffected, and behind the composer bar (a later sibling
+                    // of this layer) so tapping the field doesn't dismiss it.
+                    if presenter.composingBubble != nil {
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .frame(width: geo.size.width, height: geo.size.height)
+                            .onTapGesture { presenter.dismissAllComposing() }
+                    }
+                    ForEach(Array(presenter.bubbles.enumerated()), id: \.element.id) { index, bubble in
+                        let center = bubble.position ?? FloatingChatLayout.defaultSpawn(index: index, in: geo.size)
+                        let lift: CGFloat = {
+                            guard bubble.isComposing, let top = presenter.composerTopY else { return 0 }
+                            return FloatingChatLayout.composeLift(cardCenterY: center.y, composerTopY: top)
+                        }()
+                        FloatingChatBubbleView(bubble: bubble, presenter: presenter, containerSize: geo.size)
+                            .position(center)
+                            .offset(y: -lift)
+                            .zIndex(Double(index))
+                            .onAppear {
+                                if bubble.position == nil {
+                                    bubble.position = FloatingChatLayout.defaultSpawn(index: index, in: geo.size)
+                                }
                             }
-                        }
-                        .transition(.scale(scale: 0.6).combined(with: .opacity))
-                        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: bubble.position)
+                            .transition(.scale(scale: 0.6).combined(with: .opacity))
+                            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: bubble.position)
+                            .animation(.spring(response: 0.3, dampingFraction: 0.85), value: lift)
+                    }
+                }
+                // Keyboard-independent coordinate space for the cards: without
+                // this `geo.size.height` shrinks when the keyboard appears, so
+                // both `defaultSpawn` and the `snapped(_:in:)` clamp fed from
+                // `containerSize` would compute against the wrong height — and
+                // an absolutely-positioned card would not move anyway. The
+                // cards rise instead via the measured `lift` above.
+                .ignoresSafeArea(.keyboard)
+
+                // The composer bar, in contrast, *does* take the keyboard safe
+                // area, which is what parks it directly on top of the keyboard.
+                if let composing = presenter.composingBubble {
+                    VStack(spacing: 0) {
+                        Spacer(minLength: 0)
+                        FloatingChatComposerBar(bubble: composing, presenter: presenter)
+                            // Identity per conversation: the bar's `init` is what
+                            // binds its `@AppStorage` quick-emoji key, so SwiftUI
+                            // must build a fresh one when composing moves to a
+                            // different bubble rather than reusing this instance
+                            // (which would keep the previous conversation's key,
+                            // draft focus and picker state).
+                            .id(composing.id)
+                    }
+                    .transition(.move(edge: .bottom))
                 }
             }
             .allowsHitTesting(!presenter.bubbles.isEmpty)
             .animation(.spring(response: 0.35, dampingFraction: 0.8), value: presenter.bubbles.map(\.id))
+            .animation(.spring(response: 0.3, dampingFraction: 0.85), value: presenter.composingBubble?.id)
         }
     }
 }
@@ -55,6 +90,22 @@ enum FloatingChatLayout {
             x: container.width - margin - CGFloat(index) * cascadeStep,
             y: container.height - bottomGutter - CGFloat(index) * cascadeStep
         )
+    }
+
+    /// How far to raise a composing bubble so its bottom edge clears the
+    /// docked composer bar, whose top edge is `composerTopY` (global coords —
+    /// the bar reports it itself, so this needs no keyboard-height guess).
+    ///
+    /// Clamped so the lift can never push the card's top above `minTop`: on a
+    /// short screen the keyboard plus the bar can demand more room than exists,
+    /// and a card shoved off the top edge is the bug this whole change fixes.
+    static func composeLift(cardCenterY: CGFloat, composerTopY: CGFloat) -> CGFloat {
+        let gap: CGFloat = 10
+        let needed = cardCenterY + bubbleHeight / 2 + gap - composerTopY
+        guard needed > 0 else { return 0 }
+        let minTop: CGFloat = 50   // clear the status bar
+        let available = max(0, cardCenterY - bubbleHeight / 2 - minTop)
+        return min(needed, available)
     }
 
     /// Snaps `point` to whichever horizontal edge it's closer to, clamping

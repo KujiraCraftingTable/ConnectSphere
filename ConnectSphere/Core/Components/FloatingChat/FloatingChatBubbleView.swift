@@ -7,10 +7,11 @@ import SwiftUI
 /// each message as one truncated line via `Message.preview`, the same
 /// type-appropriate summary `ConversationListView`'s rows already use.
 ///
-/// Single-tap toggles `bubble.isComposing` (Phase 4 wires the actual compose
-/// UI); double-tap restores to a full `ChatView` via
-/// `FloatingChatPresenter.restore(_:)`; drag repositions it, snapping to
-/// whichever screen edge it's released closer to.
+/// Single-tap toggles `bubble.isComposing`, which raises the keyboard and
+/// docks `FloatingChatComposerBar` above it — the input deliberately does not
+/// live in this view (see that type's doc comment); double-tap restores to a
+/// full `ChatView` via `FloatingChatPresenter.restore(_:)`; drag repositions
+/// it, snapping to whichever screen edge it's released closer to.
 struct FloatingChatBubbleView: View {
     @Environment(AppState.self) var appState
     @Environment(ThemeManager.self) var themeManager
@@ -25,8 +26,6 @@ struct FloatingChatBubbleView: View {
     /// Live finger-follow offset during a drag; committed into
     /// `bubble.position` (snapped) on release.
     @GestureState private var dragOffset: CGSize = .zero
-    @State private var draftText = ""
-    @FocusState private var isInputFocused: Bool
 
     private var width: CGFloat { FloatingChatLayout.bubbleWidth }
     private var height: CGFloat { FloatingChatLayout.bubbleHeight }
@@ -42,65 +41,12 @@ struct FloatingChatBubbleView: View {
         .clipShape(RoundedRectangle(cornerRadius: 18))
         .shadow(color: .black.opacity(0.22), radius: 10, y: 4)
         .overlay(RoundedRectangle(cornerRadius: 18).stroke(AppColors.borderDefault(colorScheme), lineWidth: 1))
-        // Above the bubble, not below — bubbles cascade near the bottom of
-        // the screen (see `FloatingChatLayout.defaultSpawn`), and the
-        // keyboard itself will occupy the bottom once this field is focused.
-        .overlay(alignment: .top) {
-            if bubble.isComposing {
-                composeRow
-                    .offset(y: -(height / 2 + 40))
-                    .transition(.move(edge: .top).combined(with: .opacity))
-            }
-        }
         .offset(dragOffset)
         .gesture(dragGesture)
         .simultaneousGesture(
             TapGesture(count: 2).onEnded { presenter.restore(bubble) }
                 .exclusively(before: TapGesture(count: 1).onEnded { presenter.toggleComposing(bubble) })
         )
-        .onChange(of: bubble.isComposing) { _, composing in
-            isInputFocused = composing
-        }
-        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: bubble.isComposing)
-    }
-
-    /// Small inline reply row shown just below the bubble while
-    /// `bubble.isComposing` — deliberately not the rich full `ChatView`
-    /// input bar (no attachments/voice/meeting here, matching the mini
-    /// message list's "just enough to keep the conversation going" scope).
-    private var composeRow: some View {
-        HStack(spacing: 6) {
-            TextField("", text: $draftText, prompt: Text("Message...", bundle: bundle))
-                .focused($isInputFocused)
-                .font(.system(size: 12))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .background(AppColors.surface(colorScheme))
-                .clipShape(Capsule())
-                .onSubmit { send() }
-            Button(action: send) {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 24))
-                    .foregroundColor(canSend ? themeManager.theme.primary : AppColors.textTertiary(colorScheme))
-            }
-            .disabled(!canSend)
-        }
-        .padding(6)
-        .background(AppColors.elevated(colorScheme))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.2), radius: 8, y: 3)
-        .frame(width: width + 46)
-    }
-
-    private var canSend: Bool {
-        !draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private func send() {
-        let trimmed = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        draftText = ""
-        Task { await bubble.viewModel.sendText(trimmed) }
     }
 
     private var dragGesture: some Gesture {

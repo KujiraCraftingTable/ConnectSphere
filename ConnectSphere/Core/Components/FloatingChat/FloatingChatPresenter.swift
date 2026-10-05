@@ -19,8 +19,13 @@ final class FloatingBubbleState: Identifiable {
     /// cascade-spawn position on first render (Phase 2+ then owns updates
     /// via drag).
     var position: CGPoint?
-    /// Single-tap state — shows an inline compose affordance (Phase 4).
+    /// Single-tap state — raises the keyboard and docks
+    /// `FloatingChatComposerBar` above it for this bubble.
     var isComposing = false
+    /// Unsent composer text. Lives here rather than in the composer view so it
+    /// survives the bar being dismissed and reopened, and so each bubble keeps
+    /// its own draft.
+    var draftText = ""
 
     init(conversationId: String, peer: ChatPeer, otherUserLocation: String?,
          currentUserId: String, token: String, viewModel: ChatViewModel) {
@@ -57,6 +62,18 @@ final class FloatingChatPresenter {
     /// currently active. Cleared automatically when that cover is dismissed
     /// (native swipe, or `ChatView`'s own shrink action re-minimizing it).
     var restoringBubble: FloatingBubbleState?
+    /// Top edge of the docked composer bar in global coordinates, reported by
+    /// `FloatingChatComposerBar` as it appears and as the keyboard animates.
+    /// The overlay lifts the composing bubble just far enough to clear this,
+    /// so nothing here has to guess a keyboard height. `nil` while no bar is
+    /// on screen.
+    var composerTopY: CGFloat?
+
+    /// The one bubble currently composing, if any — `toggleComposing` keeps
+    /// this exclusive, so the overlay renders a single composer bar for it.
+    var composingBubble: FloatingBubbleState? {
+        bubbles.first { $0.isComposing }
+    }
 
     /// Whether `conversationId` already has an active bubble — callers (e.g.
     /// a conversation row tap) can check this to bring the existing bubble

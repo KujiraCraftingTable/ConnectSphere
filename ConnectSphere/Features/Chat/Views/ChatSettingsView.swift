@@ -36,6 +36,11 @@ struct ChatSettingsView: View {
     @AppStorage private var pinAutoDeleteRaw: String
     @AppStorage private var pinAutoDeleteCustomDateRaw: Double
     @State private var showPinAutoDeleteOptions = false
+    // Quick-emoji send: the emoji the send button becomes while the message
+    // box is empty, so send is never a greyed-out dead control. Per-conversation,
+    // same dynamic-key pattern as the pin default above.
+    @AppStorage private var quickEmoji: String
+    @State private var showQuickEmojiOptions = false
     @State private var showPinCustomDatePicker = false
     @State private var pinCustomDateDraft = Date()
 
@@ -77,6 +82,10 @@ struct ChatSettingsView: View {
         _pinAutoDeleteCustomDateRaw = AppStorage(
             wrappedValue: 0,
             pinAutoDeleteCustomDateStorageKey(conversationId: conversationId)
+        )
+        _quickEmoji = AppStorage(
+            wrappedValue: ReactionEmoji.thumbsUp.rawValue,
+            quickEmojiStorageKey(conversationId: conversationId)
         )
     }
 
@@ -191,6 +200,12 @@ struct ChatSettingsView: View {
                     ? Date(timeIntervalSince1970: pinAutoDeleteCustomDateRaw)
                     : Date().addingTimeInterval(60 * 60 * 24 * 7)
                 showPinCustomDatePicker = true
+            }
+            Button(bundle.loc("Cancel"), role: .cancel) {}
+        }
+        .confirmationDialog(bundle.loc("Quick emoji"), isPresented: $showQuickEmojiOptions, titleVisibility: .visible) {
+            ForEach(ReactionEmoji.allCases, id: \.self) { emoji in
+                Button(emoji.rawValue) { quickEmoji = emoji.rawValue }
             }
             Button(bundle.loc("Cancel"), role: .cancel) {}
         }
@@ -366,6 +381,15 @@ struct ChatSettingsView: View {
                 SettingsRow(icon: "timer", iconColor: themeManager.theme.primary,
                             title: bundle.loc("Default auto-delete time"), colorScheme: colorScheme,
                             subtitle: pinAutoDeleteSubtitle)
+            }
+            .buttonStyle(.plain)
+            divider
+
+            Button { showQuickEmojiOptions = true } label: {
+                SettingsRow(icon: "hand.thumbsup.fill", iconColor: themeManager.theme.primary,
+                            title: bundle.loc("Quick emoji"), colorScheme: colorScheme,
+                            subtitle: bundle.loc("Sent when the message box is empty"),
+                            trailing: AnyView(Text(quickEmoji).font(.system(size: 22))))
             }
             .buttonStyle(.plain)
             divider
@@ -619,6 +643,9 @@ enum PinAutoDeleteOption: String, CaseIterable, Identifiable {
 /// default, so each conversation remembers its own preference independently.
 func pinAutoDeleteStorageKey(conversationId: String) -> String { "pinAutoDelete.\(conversationId)" }
 func pinAutoDeleteCustomDateStorageKey(conversationId: String) -> String { "pinAutoDeleteCustomDate.\(conversationId)" }
+/// Per-conversation quick-emoji send — the emoji the send button becomes while
+/// the message box is empty. Read by `ChatView` and `FloatingChatComposerBar`.
+func quickEmojiStorageKey(conversationId: String) -> String { "quickEmoji.\(conversationId)" }
 
 // MARK: - Reusable settings row
 

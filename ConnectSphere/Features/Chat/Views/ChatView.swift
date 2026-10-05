@@ -84,6 +84,9 @@ struct ChatView: View {
     @State private var pinCustomDate = Date()
     @AppStorage private var pinAutoDeleteRaw: String
     @AppStorage private var pinAutoDeleteCustomDateRaw: Double
+    /// The emoji the send button becomes while the composer is empty — shared
+    /// with the floating chat's composer bar, set in Chat settings.
+    @AppStorage private var quickEmoji: String
     // Pinned-messages list, opened from the pinned-banner when there's more
     // than one pin (a single pin jumps straight to it via `jumpToMessage`).
     @State private var showPinnedList = false
@@ -117,6 +120,10 @@ struct ChatView: View {
         _pinAutoDeleteCustomDateRaw = AppStorage(
             wrappedValue: 0,
             pinAutoDeleteCustomDateStorageKey(conversationId: conversationId)
+        )
+        _quickEmoji = AppStorage(
+            wrappedValue: ReactionEmoji.thumbsUp.rawValue,
+            quickEmojiStorageKey(conversationId: conversationId)
         )
     }
 
@@ -1046,18 +1053,29 @@ struct ChatView: View {
                                 try? FileManager.default.removeItem(at: fileURL)
                             }
                         }
-                    } else {
+                    } else if canSend {
                         sendPending()
+                    } else {
+                        sendQuickEmoji()
                     }
                 } label: {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 32))
-                        .foregroundColor((canSend || voiceSession.state != .idle)
-                                         ? chatPalette.primary
-                                         : AppColors.textTertiary(colorScheme))
-                        .padding(.bottom, 2)
+                    Group {
+                        if canSend || voiceSession.state != .idle {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.system(size: 32))
+                                .foregroundColor(chatPalette.primary)
+                        } else {
+                            // Never grey for an empty field: a grey control
+                            // reads as "this can't be used", so instead send
+                            // becomes a one-tap quick-emoji send.
+                            Text(quickEmoji)
+                                .font(.system(size: 27))
+                        }
+                    }
+                    .frame(width: 34, height: 34)
+                    .padding(.bottom, 2)
                 }
-                .disabled((!canSend && voiceSession.state == .idle) || viewModel.isSending || blocking)
+                .disabled(viewModel.isSending || blocking)
             }
             .disabled(blocking)
             .opacity(blocking ? 0.5 : 1)
@@ -1200,6 +1218,13 @@ struct ChatView: View {
         }
     }
 
+    /// Sends the configured quick emoji as an ordinary text message — there is
+    /// no sticker message type (`MessageType` is text/image/video/meeting/voice),
+    /// so Messenger-style one-tap send is simply a very short text.
+    private func sendQuickEmoji() {
+        Task { await viewModel.sendText(quickEmoji) }
+    }
+
     // MARK: - Helpers
 
     /// Re-fetches the bidirectional block state with the other 1:1 participant
@@ -1267,31 +1292,8 @@ struct ChatView: View {
     }
 }
 
-// MARK: - Pending media awaiting send
-
-/// A picked image/video held in the composer before the user taps send.
-private struct PendingMedia: Identifiable {
-    let id = UUID()
-    let url: URL
-    let image: Image?   // nil for videos / non-image files (shown as a placeholder)
-}
-
-// MARK: - Transferable wrapper for photos picker
-
-private struct MediaFileTransferable: Transferable {
-    let url: URL
-
-    static var transferRepresentation: some TransferRepresentation {
-        FileRepresentation(contentType: .item) { item in
-            SentTransferredFile(item.url)
-        } importing: { received in
-            let dest = FileManager.default.temporaryDirectory
-                .appendingPathComponent(received.file.lastPathComponent)
-            try? FileManager.default.copyItem(at: received.file, to: dest)
-            return MediaFileTransferable(url: dest)
-        }
-    }
-}
+// `PendingMedia` and `MediaFileTransferable` now live in
+// `ChatMediaTransferable.swift`, shared with the floating chat's docked composer.
 
 // MARK: - Message appear animation
 

@@ -792,3 +792,8 @@
 "This removes it for everyone in the conversation." = "This removes it for everyone in the conversation.";
 
 "e.g. %@" = "e.g. %@";
+
+// MARK: - Chat: quick-emoji send + floating composer
+"Quick emoji" = "Quick emoji";
+"Sent when the message box is empty" = "Sent when the message box is empty";
+"Open full chat" = "Open full chat";

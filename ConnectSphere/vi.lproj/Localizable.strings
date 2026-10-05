@@ -792,3 +792,8 @@
 "This removes it for everyone in the conversation." = "Thao tác này gỡ tin nhắn với tất cả mọi người trong cuộc trò chuyện.";
 
 "e.g. %@" = "ví dụ: %@";
+
+// MARK: - Chat: quick-emoji send + floating composer
+"Quick emoji" = "Biểu tượng gửi nhanh";
+"Sent when the message box is empty" = "Gửi khi ô tin nhắn đang trống";
+"Open full chat" = "Mở cuộc trò chuyện đầy đủ";
