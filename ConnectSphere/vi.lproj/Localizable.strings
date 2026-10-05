@@ -205,7 +205,6 @@
 "Password" = "Mật khẩu";
 "Password must be at least 8 characters." = "Mật khẩu phải có ít nhất 8 ký tự.";
 "Passwords do not match." = "Mật khẩu không khớp.";
-"Paused" = "Đã tạm dừng";
 "Pending" = "Đang chờ";
 "Phone number" = "Số điện thoại";
 "Phone verification" = "Xác minh số điện thoại";
@@ -801,3 +800,10 @@
 "Yesterday" = "Hôm qua";
 "Pick any emoji from the keyboard" = "Chọn biểu tượng bất kỳ từ bàn phím";
 "Current quick emoji" = "Biểu tượng gửi nhanh hiện tại";
+
+// MARK: - Chat: voice recorder
+"Record voice message" = "Ghi âm tin nhắn thoại";
+"Delete recording" = "Xoá bản ghi âm";
+"Stop recording" = "Dừng ghi âm";
+"Play recording" = "Phát bản ghi âm";
+"Pause playback" = "Tạm dừng phát";

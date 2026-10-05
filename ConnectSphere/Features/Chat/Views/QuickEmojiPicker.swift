@@ -25,8 +25,7 @@ enum QuickEmoji {
 }
 
 /// Picks the quick emoji from the full system emoji keyboard — every emoji
-/// Apple ships, with its own search, skin tones and recents — plus a row of
-/// common ones for a single tap.
+/// Apple ships, with its own search, skin tones and recents.
 struct QuickEmojiPickerSheet: View {
     @Binding var emoji: String
     @Environment(\.dismiss) private var dismiss
@@ -50,21 +49,6 @@ struct QuickEmojiPickerSheet: View {
                 Text("Pick any emoji from the keyboard", bundle: bundle)
                     .font(.system(size: 14))
                     .foregroundColor(AppColors.textSecondary(colorScheme))
-
-                HStack(spacing: 10) {
-                    ForEach(ReactionEmoji.allCases, id: \.rawValue) { option in
-                        Button { pick(option.rawValue) } label: {
-                            Text(option.rawValue)
-                                .font(.system(size: 28))
-                                .frame(width: 46, height: 46)
-                                .background(
-                                    Circle().fill(option.rawValue == emoji
-                                                  ? AppColors.elevated(colorScheme) : .clear)
-                                )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
 
                 // Hosts the keyboard only; it never shows text of its own.
                 EmojiKeyboardField(focusRequest: focusRequest, onPick: pick)
@@ -139,8 +123,7 @@ private struct EmojiKeyboardField: UIViewRepresentable {
 
 final class EmojiKeyboardTextField: UITextField {
     /// Opens on the emoji keyboard. Falls back to the default keyboard when
-    /// the user has removed the emoji keyboard in Settings; the shortcut row
-    /// still works then.
+    /// the user has removed the emoji keyboard in Settings.
     override var textInputMode: UITextInputMode? {
         UITextInputMode.activeInputModes.first { $0.primaryLanguage == "emoji" } ?? super.textInputMode
     }

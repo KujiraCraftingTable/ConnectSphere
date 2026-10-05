@@ -59,4 +59,19 @@ final class AppTests: XCTestCase {
         XCTAssertThrowsError(try JWTHS256.verify(token, secret: "wrong", now: now))
         XCTAssertThrowsError(try JWTHS256.verify(token, secret: "right", now: now.addingTimeInterval(7200)))
     }
+
+    /// Voice notes (.m4a) and iPhone photos (.heic) were rejected after the
+    /// Node→Swift port because the whitelist matched Vapor's extension-derived
+    /// MIME, which maps m4a to audio/mpeg.
+    func testChatAttachmentWhitelist() {
+        let kind = MessagesController.attachmentType(forFilename:)
+        XCTAssertEqual(kind("upload.m4a")?.messageType, "voice")
+        XCTAssertEqual(kind("upload.m4a")?.ext, ".m4a")
+        XCTAssertEqual(kind("IMG_0001.HEIC")?.messageType, "image")
+        XCTAssertEqual(kind("upload.jpeg")?.ext, ".jpg")
+        XCTAssertEqual(kind("clip.mov")?.messageType, "video")
+        for rejected in ["evil.exe", "x.svg", "page.html", "noextension", "archive.m4a.zip"] {
+            XCTAssertNil(kind(rejected), rejected)
+        }
+    }
 }
