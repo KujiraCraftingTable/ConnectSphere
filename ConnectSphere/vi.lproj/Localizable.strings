@@ -797,3 +797,6 @@
 "Quick emoji" = "Biểu tượng gửi nhanh";
 "Sent when the message box is empty" = "Gửi khi ô tin nhắn đang trống";
 "Open full chat" = "Mở cuộc trò chuyện đầy đủ";
+
+// MARK: - Chat: timeline separators
+"Yesterday" = "Hôm qua";

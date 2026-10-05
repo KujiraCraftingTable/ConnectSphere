@@ -741,106 +741,115 @@ struct ChatView: View {
                     } else if viewModel.messages.isEmpty {
                         emptyState
                     } else {
-                        ForEach(viewModel.messages) { message in
+                        // One view per row (separator + bubble) so `scrollTo` and the
+                        // appear animation keep targeting a single thing per message id.
+                        let messages = viewModel.messages
+                        ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
                             let isOwn = message.isOwn(userId: appState.currentUser?.id ?? "")
-                            MessageBubble(message: message, isOwn: isOwn, palette: chatPalette,
-                                          currentUserId: appState.currentUser?.id ?? "",
-                                          otherParticipantIds: otherParticipantIds,
-                                          isGroup: viewModel.isGroup,
-                                          isPlayful: appState.currentMode == .hobby,
-                                          onMediaTap: openMediaViewer,
-                                          onReplyPreviewTap: { messageId in
-                                              Task { await jumpToMessage(messageId) }
-                                          },
-                                          onMeetingRespond: { msg, status in
-                                              Task { await viewModel.respondToMeeting(messageId: msg.id, status: status) }
-                                          },
-                                          onMeetingEdit: { msg in
-                                              openMeetingEditor(for: msg)
-                                          },
-                                          onMeetingCancel: { msg in
-                                              Task { await viewModel.cancelMeeting(messageId: msg.id) }
-                                          })
-                                .modifier(MessageAppearModifier(
-                                    id: message.id,
-                                    appearedIDs: $appearedMessageIDs,
-                                    playful: appState.currentMode == .hobby,
-                                    onAnimationFinished: { playMessageSound(isOwn: isOwn) }
-                                ))
-                                // Flash the background when jumped to from a search result
-                                .background(
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .fill(chatPalette.primary.opacity(
-                                            message.id == highlightedMessageId ? 0.16 : 0))
-                                        .padding(.horizontal, 6)
-                                )
-                                .contextMenu {
-                                    // The quick-react row must be a true top-level, unconditional
-                                    // first item — a ControlGroup wrapped inside an `if` (as this
-                                    // was previously) can lose iOS's "first ControlGroup renders as
-                                    // its own horizontal strip, separate from the vertical action
-                                    // list below" behavior, since the menu content is then a
-                                    // conditional-content node rather than a plain ControlGroup.
-                                    // Reactions become an empty (so effectively invisible) group
-                                    // for a deleted message instead of wrapping the whole thing.
-                                    ControlGroup {
-                                        let myReaction = message.myReaction(userId: appState.currentUser?.id ?? "")
-                                        // Hobby keeps the full set (already the max the server
-                                        // allows); Work is curated to the two most professional-
-                                        // reading emoji in that same allowlist (server:
-                                        // ChatStore.reactionEmoji). Deleted messages get none.
-                                        let quickReactions: [ReactionEmoji] = message.isDeleted ? [] :
-                                            (appState.currentMode == .hobby ? ReactionEmoji.allCases : [.thumbsUp, .heart])
-                                        ForEach(quickReactions, id: \.rawValue) { r in
-                                            // Distinguish the current user's own reaction (if any)
-                                            // in the quick-react row, mirroring MessageBubble's
-                                            // highlighted pill for the same reaction.
-                                            Button(r.rawValue == myReaction ? "\(r.rawValue) ✓" : r.rawValue) {
-                                                Task { await viewModel.sendReaction(messageId: message.id, emoji: r.rawValue) }
-                                            }
-                                        }
-                                    }
-
-                                    if !message.isDeleted {
-                                        Button {
-                                            replyingTo = message
-                                        } label: {
-                                            Label(bundle.loc("Reply"), systemImage: "arrowshape.turn.up.left")
-                                        }
-
-                                        // Meeting proposals carry RSVP/reminder state tied to this
-                                        // specific conversation — forwarding one as-is wouldn't
-                                        // make sense, so it's excluded here.
-                                        if message.messageType != .meeting {
-                                            Button {
-                                                forwardingMessage = message
-                                            } label: {
-                                                Label(bundle.loc("Forward"), systemImage: "arrowshape.turn.up.right")
-                                            }
-                                        }
-
-                                        if viewModel.pinnedMessageIds.contains(message.id) {
-                                            Button {
-                                                Task { await viewModel.unpinMessage(message.id) }
-                                            } label: {
-                                                Label(bundle.loc("Unpin"), systemImage: "pin.slash")
-                                            }
-                                        } else {
-                                            Button {
-                                                beginPinning(message)
-                                            } label: {
-                                                Label(bundle.loc("Pin"), systemImage: "pin")
-                                            }
-                                        }
-                                    }
-                                    if isOwn && !message.isDeleted {
-                                        Button(role: .destructive) {
-                                            messageToRecall = message
-                                        } label: {
-                                            Label(bundle.loc("Unsend message"), systemImage: "arrow.uturn.backward")
-                                        }
-                                    }
+                            VStack(spacing: 0) {
+                                if ChatTimeline.showsSeparator(before: index, in: messages) {
+                                    timeSeparator(for: message.createdAt)
                                 }
+                                MessageBubble(message: message, isOwn: isOwn, palette: chatPalette,
+                                              currentUserId: appState.currentUser?.id ?? "",
+                                              otherParticipantIds: otherParticipantIds,
+                                              isGroup: viewModel.isGroup,
+                                              isPlayful: appState.currentMode == .hobby,
+                                              showsMeta: ChatTimeline.endsRun(at: index, in: messages),
+                                              onMediaTap: openMediaViewer,
+                                              onReplyPreviewTap: { messageId in
+                                                  Task { await jumpToMessage(messageId) }
+                                              },
+                                              onMeetingRespond: { msg, status in
+                                                  Task { await viewModel.respondToMeeting(messageId: msg.id, status: status) }
+                                              },
+                                              onMeetingEdit: { msg in
+                                                  openMeetingEditor(for: msg)
+                                              },
+                                              onMeetingCancel: { msg in
+                                                  Task { await viewModel.cancelMeeting(messageId: msg.id) }
+                                              })
+                                    .modifier(MessageAppearModifier(
+                                        id: message.id,
+                                        appearedIDs: $appearedMessageIDs,
+                                        playful: appState.currentMode == .hobby,
+                                        onAnimationFinished: { playMessageSound(isOwn: isOwn) }
+                                    ))
+                                    // Flash the background when jumped to from a search result
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .fill(chatPalette.primary.opacity(
+                                                message.id == highlightedMessageId ? 0.16 : 0))
+                                            .padding(.horizontal, 6)
+                                    )
+                                    .contextMenu {
+                                        // The quick-react row must be a true top-level, unconditional
+                                        // first item — a ControlGroup wrapped inside an `if` (as this
+                                        // was previously) can lose iOS's "first ControlGroup renders as
+                                        // its own horizontal strip, separate from the vertical action
+                                        // list below" behavior, since the menu content is then a
+                                        // conditional-content node rather than a plain ControlGroup.
+                                        // Reactions become an empty (so effectively invisible) group
+                                        // for a deleted message instead of wrapping the whole thing.
+                                        ControlGroup {
+                                            let myReaction = message.myReaction(userId: appState.currentUser?.id ?? "")
+                                            // Hobby keeps the full set (already the max the server
+                                            // allows); Work is curated to the two most professional-
+                                            // reading emoji in that same allowlist (server:
+                                            // ChatStore.reactionEmoji). Deleted messages get none.
+                                            let quickReactions: [ReactionEmoji] = message.isDeleted ? [] :
+                                                (appState.currentMode == .hobby ? ReactionEmoji.allCases : [.thumbsUp, .heart])
+                                            ForEach(quickReactions, id: \.rawValue) { r in
+                                                // Distinguish the current user's own reaction (if any)
+                                                // in the quick-react row, mirroring MessageBubble's
+                                                // highlighted pill for the same reaction.
+                                                Button(r.rawValue == myReaction ? "\(r.rawValue) ✓" : r.rawValue) {
+                                                    Task { await viewModel.sendReaction(messageId: message.id, emoji: r.rawValue) }
+                                                }
+                                            }
+                                        }
+
+                                        if !message.isDeleted {
+                                            Button {
+                                                replyingTo = message
+                                            } label: {
+                                                Label(bundle.loc("Reply"), systemImage: "arrowshape.turn.up.left")
+                                            }
+
+                                            // Meeting proposals carry RSVP/reminder state tied to this
+                                            // specific conversation — forwarding one as-is wouldn't
+                                            // make sense, so it's excluded here.
+                                            if message.messageType != .meeting {
+                                                Button {
+                                                    forwardingMessage = message
+                                                } label: {
+                                                    Label(bundle.loc("Forward"), systemImage: "arrowshape.turn.up.right")
+                                                }
+                                            }
+
+                                            if viewModel.pinnedMessageIds.contains(message.id) {
+                                                Button {
+                                                    Task { await viewModel.unpinMessage(message.id) }
+                                                } label: {
+                                                    Label(bundle.loc("Unpin"), systemImage: "pin.slash")
+                                                }
+                                            } else {
+                                                Button {
+                                                    beginPinning(message)
+                                                } label: {
+                                                    Label(bundle.loc("Pin"), systemImage: "pin")
+                                                }
+                                            }
+                                        }
+                                        if isOwn && !message.isDeleted {
+                                            Button(role: .destructive) {
+                                                messageToRecall = message
+                                            } label: {
+                                                Label(bundle.loc("Unsend message"), systemImage: "arrow.uturn.backward")
+                                            }
+                                        }
+                                    }
+                            }
                         }
                     }
 
@@ -966,6 +975,18 @@ struct ChatView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.bottom, 20)
+    }
+
+    /// Centered time label between messages after 30+ minutes of silence (or a
+    /// new day) — Messenger's convention. With it, each bubble no longer needs
+    /// its own timestamp; see `ChatTimeline`.
+    private func timeSeparator(for date: Date) -> some View {
+        Text(ChatTimeline.separatorLabel(for: date, yesterday: bundle.loc("Yesterday")))
+            .font(.system(size: 12, weight: .medium))
+            .foregroundColor(AppColors.textTertiary(colorScheme))
+            .frame(maxWidth: .infinity)
+            .padding(.top, 14)
+            .padding(.bottom, 6)
     }
 
     // MARK: - Input bar

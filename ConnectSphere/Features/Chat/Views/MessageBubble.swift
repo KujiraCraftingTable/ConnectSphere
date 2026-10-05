@@ -28,6 +28,11 @@ struct MessageBubble: View {
     /// bubble + today's tighter reaction-pill sizing. Threaded in from ChatView
     /// (`appState.currentMode == .hobby`), same convention as `palette`.
     var isPlayful: Bool = false
+    /// Whether this bubble shows its time + read receipt. `ChatView` turns it
+    /// off for all but the last message in a same-sender run
+    /// (`ChatTimeline.endsRun`), so a burst of messages carries one time
+    /// instead of a stamp on every line.
+    var showsMeta: Bool = true
     /// Tapping the image/video in the bubble — the parent opens the fullscreen viewer
     var onMediaTap: ((Message) -> Void)? = nil
     /// Tapping the quoted preview — the parent jumps to the original message (jump-to-message)
@@ -63,7 +68,9 @@ struct MessageBubble: View {
                 if !message.reactions.isEmpty {
                     reactionRow
                 }
-                metaRow
+                if showsMeta {
+                    metaRow
+                }
             }
 
             if !isOwn { Spacer(minLength: 60) }
