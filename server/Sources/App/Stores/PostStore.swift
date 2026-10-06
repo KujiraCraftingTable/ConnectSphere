@@ -192,9 +192,8 @@ enum PostStore {
         var mode: String?
         var authorID: String?
         var tag: String?
-        /// Free-text search against `p.content` — plain `ILIKE`, same
-        /// shape/helper (`UserStore.escapeLike`) user search and message
-        /// search already use, not full-text/tsvector search.
+        /// Keyword search over content and tags, ranked by `postRelevance`
+        /// (accent-insensitive, word by word) instead of newest-first.
         var search: String?
         var connectionsOnly: Bool
         var limit: Int
@@ -216,15 +215,67 @@ enum PostStore {
             w = w + " AND EXISTS (SELECT 1 FROM post_tags ptf WHERE ptf.post_id = p.id AND LOWER(ptf.tag) = LOWER(\(bind: t)) AND (ptf.source = 'user' OR p.show_ai_tags))"
         }
         if let s = f.search {
-            w = w + " AND p.content ILIKE '%' || \(bind: UserStore.escapeLike(s)) || '%'"
+            w = w + " AND " + postMatches(SearchTokenizer.words(s))
         }
         return w
     }
 
     static func findAll(viewer: String, _ f: FeedFilters, on db: any SQLDatabase) async throws -> [PostObject] {
+        // No usable words (e.g. only punctuation) → postMatches already
+        // filters everything out; don't emit a bare `0` either, which
+        // Postgres reads as ORDER BY column position 0 and rejects.
+        let words = f.search.map(SearchTokenizer.words) ?? []
+        let order: SQLQueryString = words.isEmpty
+            ? "p.created_at DESC"
+            : postRelevance(words) + " DESC, p.created_at DESC"
         let q = buildPostSelect(viewer) + " " + feedWhere(viewer, f)
-            + " GROUP BY p.id, u.id ORDER BY p.created_at DESC LIMIT \(bind: f.limit) OFFSET \(bind: f.offset)"
+            + " GROUP BY p.id, u.id ORDER BY " + order + " LIMIT \(bind: f.limit) OFFSET \(bind: f.offset)"
         return try await db.raw(q).all(decoding: PostRow.self).map(map)
+    }
+
+    // MARK: keyword relevance
+
+    /// Content folded for word matching: accents stripped, lowercased, and
+    /// every run of non-alphanumerics turned into one space, with a leading
+    /// space so "% word" matches the start of any word — including the first.
+    private static let contentWords = "(' ' || regexp_replace(unaccent(lower(coalesce(p.content, ''))), '[^[:alnum:]]+', ' ', 'g'))"
+
+    /// A tag counts only where the post shows it — user tags always, AI tags
+    /// only when `show_ai_tags` is on — same rule the tag filter above uses.
+    private static func tagIs(_ w: String) -> SQLQueryString {
+        "EXISTS (SELECT 1 FROM post_tags pts WHERE pts.post_id = p.id AND (pts.source = 'user' OR p.show_ai_tags) AND unaccent(lower(pts.tag)) = unaccent(\(bind: w)))"
+    }
+
+    private static func contentStarts(_ w: String) -> SQLQueryString {
+        "\(unsafeRaw: contentWords) LIKE '% ' || unaccent(\(bind: w)) || '%'"
+    }
+
+    private static func contentHas(_ w: String) -> SQLQueryString {
+        "\(unsafeRaw: contentWords) LIKE '%' || unaccent(\(bind: w)) || '%'"
+    }
+
+    /// At least one word appears in the content or equals a visible tag.
+    /// A query with no usable words (only punctuation) matches nothing.
+    private static func postMatches(_ words: [String]) -> SQLQueryString {
+        guard !words.isEmpty else { return "FALSE" }
+        var any: SQLQueryString = "FALSE"
+        for w in words { any = any + " OR " + tagIs(w) + " OR " + contentHas(w) }
+        return "(" + any + ")"
+    }
+
+    /// Per word: a matching tag +30, the start of a word in the content +10,
+    /// merely inside one +4; +15 when every word matched somewhere. Ties fall
+    /// to newest (see `findAll`). Callers pass at least one word.
+    static func postRelevance(_ words: [String]) -> SQLQueryString {
+        var score: SQLQueryString = "(0"
+        var everyWord: SQLQueryString = "TRUE"
+        for w in words {
+            score = score
+                + " + CASE WHEN " + tagIs(w) + " THEN 30 ELSE 0 END"
+                + " + CASE WHEN " + contentStarts(w) + " THEN 10 WHEN " + contentHas(w) + " THEN 4 ELSE 0 END"
+            everyWord = everyWord + " AND (" + tagIs(w) + " OR " + contentHas(w) + ")"
+        }
+        return score + " + CASE WHEN " + everyWord + " THEN 15 ELSE 0 END)"
     }
 
     static func countAll(viewer: String, _ f: FeedFilters, on db: any SQLDatabase) async throws -> Int {

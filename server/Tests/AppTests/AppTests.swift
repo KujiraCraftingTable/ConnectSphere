@@ -60,6 +60,25 @@ final class AppTests: XCTestCase {
         XCTAssertThrowsError(try JWTHS256.verify(token, secret: "right", now: now.addingTimeInterval(7200)))
     }
 
+    func testSearchTokenizerSplitsAndKeepsDiacritics() {
+        // Accent folding happens in SQL (unaccent), so the words keep theirs.
+        XCTAssertEqual(SearchTokenizer.words("Mèo méo meo!"), ["mèo", "méo", "meo"])
+        XCTAssertEqual(SearchTokenizer.words("anime,manga / JJK"), ["anime", "manga", "jjk"])
+    }
+
+    func testSearchTokenizerDropsNoiseAndCaps() {
+        XCTAssertEqual(SearchTokenizer.words("a I anime anime"), ["anime"], "1-char tokens and duplicates")
+        XCTAssertEqual(SearchTokenizer.words("%_\\'; -- !!"), [], "no letters or digits → no words")
+        let many = (1...12).map { "w\($0)" }.joined(separator: " ")
+        XCTAssertEqual(SearchTokenizer.words(many).count, SearchTokenizer.maxWords)
+    }
+
+    func testSearchTokenizerCannotCarryWildcards() {
+        for w in SearchTokenizer.words("50%_off c_a%t a\\b") {
+            XCTAssertTrue(w.allSatisfy { $0.isLetter || $0.isNumber }, w)
+        }
+    }
+
     /// Voice notes (.m4a) and iPhone photos (.heic) were rejected after the
     /// Node→Swift port because the whitelist matched Vapor's extension-derived
     /// MIME, which maps m4a to audio/mpeg.

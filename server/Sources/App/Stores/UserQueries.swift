@@ -82,9 +82,6 @@ extension UserStore {
     }
 
     static func findAll(_ f: ListFilters, on db: any SQLDatabase) async throws -> [SearchUserObject] {
-        let modeRef = f.mode.map { "'\($0)'" }
-        let (whereSQL, likeBind) = listWhere(mode: f.mode, search: f.search, viewerRef: "\\(uuid:viewer)", alias: "u")
-        _ = whereSQL; _ = likeBind
         // Build with SQLKit interpolation (auto-numbered binds).
         var q: SQLQueryString = """
             SELECT base.*, (
@@ -107,6 +104,28 @@ extension UserStore {
               ) mutual
             ) AS mutual_count
             FROM (
+            """
+        if let s = f.search, !s.isEmpty {
+            // Ranked by relevance, not recency: the score has to ride along
+            // as a column (`search_score`) so the outer ORDER BY keeps the
+            // order the LIMIT was taken in.
+            q = q + rankedSearchSQL(f, query: s)
+                + " ORDER BY r.search_score DESC, r.created_at DESC LIMIT \(bind: f.limit) OFFSET \(bind: f.offset)"
+                + ") base ORDER BY base.search_score DESC, base.created_at DESC"
+        } else {
+            q = q + eligibleUsersSQL(f)
+                + " ORDER BY u.created_at DESC LIMIT \(bind: f.limit) OFFSET \(bind: f.offset)"
+                + ") base ORDER BY base.created_at DESC"
+        }
+        return try await db.raw(q).all(decoding: SearchUserObject.self)
+    }
+
+    /// Users the viewer may see in a list: not deleted, not blocked either
+    /// way, set up in this mode, not already connected — one row per user
+    /// with `userSelectSQL`'s columns (alias-free; callers wrap it).
+    private static func eligibleUsersSQL(_ f: ListFilters) -> SQLQueryString {
+        let modeRef = f.mode.map { "'\($0)'" }
+        var q: SQLQueryString = """
             \(unsafeRaw: userSelectSQL(modeRef: modeRef))
             WHERE u.deleted_at IS NULL
               AND NOT EXISTS (SELECT 1 FROM user_blocks ub
@@ -124,34 +143,73 @@ extension UserStore {
         q = q + """
                  AND ((c.requester_id = \(uuid: f.viewerID) AND c.addressee_id = u.id)
                    OR (c.requester_id = u.id AND c.addressee_id = \(uuid: f.viewerID))))
-            """
-        if let s = f.search, !s.isEmpty {
-            let like = "%\(escapeLike(s))%"
-            let nameExpr = modeRef.map { PersonaSQL.expr("display_name", modeRef: $0) } ?? "u.display_name"
-            let bioExpr = modeRef.map { PersonaSQL.expr("bio", modeRef: $0) } ?? "u.bio"
-            q = q + " AND (\(unsafeRaw: nameExpr) ILIKE \(bind: like) OR u.username ILIKE \(bind: like) OR u.location ILIKE \(bind: like) OR \(unsafeRaw: bioExpr) ILIKE \(bind: like)"
-            if let m = f.mode {
-                if m == "work" {
-                    q = q + " OR u.job_title ILIKE \(bind: like) OR u.company ILIKE \(bind: like) OR EXISTS (SELECT 1 FROM user_skills us WHERE us.user_id = u.id AND us.skill ILIKE \(bind: like))"
-                } else {
-                    q = q + " OR EXISTS (SELECT 1 FROM user_interests ui WHERE ui.user_id = u.id AND ui.interest ILIKE \(bind: like))"
-                }
-            } else {
-                q = q + " OR u.job_title ILIKE \(bind: like) OR u.company ILIKE \(bind: like) OR EXISTS (SELECT 1 FROM user_interests ui WHERE ui.user_id = u.id AND ui.interest ILIKE \(bind: like)) OR EXISTS (SELECT 1 FROM user_skills us WHERE us.user_id = u.id AND us.skill ILIKE \(bind: like))"
-            }
-            q = q + ")"
-        }
-        q = q + """
              GROUP BY u.id
-              ORDER BY u.created_at DESC
-              LIMIT \(bind: f.limit) OFFSET \(bind: f.offset)
-            ) base
-            ORDER BY base.created_at DESC
             """
-        return try await db.raw(q).all(decoding: SearchUserObject.self)
+        return q
+    }
+
+    /// Eligible users that match `query`, each with a `search_score`, aliased
+    /// `r` and not yet ordered or limited. Shared by `findAll` and `countAll`
+    /// so the total always counts exactly what the list can page through.
+    private static func rankedSearchSQL(_ f: ListFilters, query: String) -> SQLQueryString {
+        "SELECT r.* FROM (SELECT c.*, "
+            + peopleRelevance(query: query, words: SearchTokenizer.words(query), mode: f.mode)
+            + " AS search_score FROM (" + eligibleUsersSQL(f) + ") c) r WHERE r.search_score > 0"
+    }
+
+    /// `unaccent(lower(coalesce(col, '')))` — both sides of every keyword
+    /// comparison are folded this way, so "meo" finds "Mèo".
+    private static func folded(_ col: String) -> String { "unaccent(lower(coalesce(\(col), '')))" }
+
+    /// Relevance of one `userSelectSQL` row (alias `c`) to a keyword search.
+    /// Rewards, in order: an exact name/username match, each word starting the
+    /// name or username, each word matching an interest/skill (exactly beats
+    /// contains), location, then bio/job/company — plus a bonus when every
+    /// word matched somewhere, and a typo-tolerant trigram nudge on the name.
+    /// Words come from `SearchTokenizer` (letters/digits only) and are bound.
+    static func peopleRelevance(query: String, words: [String], mode: String?) -> SQLQueryString {
+        let name = folded("c.display_name")
+        // Leading space + non-alphanumerics → spaces, so "% word" matches the
+        // start of any word in the name, including the first.
+        let nameWords = "(' ' || regexp_replace(\(name), '[^[:alnum:]]+', ' ', 'g'))"
+        let username = "lower(c.username)"
+        let tags = mode == "work" ? "c.skills" : mode == "hobby" ? "c.interests" : "array_cat(c.interests, c.skills)"
+        let blurb = mode == "hobby"
+            ? folded("c.bio")
+            : "(\(folded("c.bio")) || ' ' || \(folded("c.job_title")) || ' ' || \(folded("c.company")))"
+        let q = query.lowercased().trimmingCharacters(in: .whitespaces)
+
+        var score: SQLQueryString = "(CASE WHEN \(unsafeRaw: name) = unaccent(\(bind: q)) OR \(unsafeRaw: username) = \(bind: q) THEN 100 ELSE 0 END"
+        var everyWord: SQLQueryString = "TRUE"
+        for w in words {
+            let starts: SQLQueryString = "(\(unsafeRaw: nameWords) LIKE '% ' || unaccent(\(bind: w)) || '%' OR \(unsafeRaw: username) LIKE \(bind: w) || '%')"
+            let tagIs: SQLQueryString = "EXISTS (SELECT 1 FROM unnest(\(unsafeRaw: tags)) t WHERE unaccent(lower(t)) = unaccent(\(bind: w)))"
+            let tagHas: SQLQueryString = "EXISTS (SELECT 1 FROM unnest(\(unsafeRaw: tags)) t WHERE unaccent(lower(t)) LIKE '%' || unaccent(\(bind: w)) || '%')"
+            let place: SQLQueryString = "\(unsafeRaw: folded("c.location")) LIKE '%' || unaccent(\(bind: w)) || '%'"
+            let about: SQLQueryString = "\(unsafeRaw: blurb) LIKE '%' || unaccent(\(bind: w)) || '%'"
+            score = score
+                + " + CASE WHEN " + starts + " THEN 40 ELSE 0 END"
+                + " + CASE WHEN " + tagIs + " THEN 25 WHEN " + tagHas + " THEN 15 ELSE 0 END"
+                + " + CASE WHEN " + place + " THEN 10 ELSE 0 END"
+                + " + CASE WHEN " + about + " THEN 5 ELSE 0 END"
+            everyWord = everyWord + " AND (" + starts + " OR " + tagHas + " OR " + place + " OR " + about + ")"
+        }
+        if !words.isEmpty {
+            score = score + " + CASE WHEN " + everyWord + " THEN 15 ELSE 0 END"
+        }
+        return score
+            + " + CASE WHEN similarity(\(unsafeRaw: name), unaccent(\(bind: q))) >= 0.3"
+            + " THEN similarity(\(unsafeRaw: name), unaccent(\(bind: q))) * 20 ELSE 0 END)"
     }
 
     static func countAll(mode: String?, search: String?, viewerID: String, on db: any SQLDatabase) async throws -> Int {
+        struct N: Decodable { let n: Int }
+        if let s = search, !s.isEmpty {
+            // Count the same ranked set `findAll` pages through.
+            let f = ListFilters(mode: mode, search: s, viewerID: viewerID, limit: 0, offset: 0)
+            let q: SQLQueryString = "SELECT COUNT(*)::int AS n FROM (" + rankedSearchSQL(f, query: s) + ") counted"
+            return try await db.raw(q).first(decoding: N.self)?.n ?? 0
+        }
         var q: SQLQueryString = """
             SELECT COUNT(*)::int AS n FROM users
             WHERE deleted_at IS NULL
@@ -165,28 +223,8 @@ extension UserStore {
         q = q + " AND NOT EXISTS (SELECT 1 FROM connections c WHERE c.status = 'accepted'"
         if let m = mode { q = q + " AND c.mode = '\(unsafeRaw: m)'" }
         q = q + " AND ((c.requester_id = \(uuid: viewerID) AND c.addressee_id = users.id) OR (c.requester_id = users.id AND c.addressee_id = \(uuid: viewerID))))"
-        if let s = search, !s.isEmpty {
-            let like = "%\(escapeLike(s))%"
-            let nameExpr = mode.map { PersonaSQL.expr("display_name", modeRef: "'\($0)'", alias: "users") } ?? "display_name"
-            let bioExpr = mode.map { PersonaSQL.expr("bio", modeRef: "'\($0)'", alias: "users") } ?? "bio"
-            q = q + " AND (\(unsafeRaw: nameExpr) ILIKE \(bind: like) OR username ILIKE \(bind: like) OR location ILIKE \(bind: like) OR \(unsafeRaw: bioExpr) ILIKE \(bind: like)"
-            if let m = mode {
-                if m == "work" {
-                    q = q + " OR job_title ILIKE \(bind: like) OR company ILIKE \(bind: like) OR EXISTS (SELECT 1 FROM user_skills us WHERE us.user_id = users.id AND us.skill ILIKE \(bind: like))"
-                } else {
-                    q = q + " OR EXISTS (SELECT 1 FROM user_interests ui WHERE ui.user_id = users.id AND ui.interest ILIKE \(bind: like))"
-                }
-            } else {
-                q = q + " OR job_title ILIKE \(bind: like) OR company ILIKE \(bind: like) OR EXISTS (SELECT 1 FROM user_interests ui WHERE ui.user_id = users.id AND ui.interest ILIKE \(bind: like)) OR EXISTS (SELECT 1 FROM user_skills us WHERE us.user_id = users.id AND us.skill ILIKE \(bind: like))"
-            }
-            q = q + ")"
-        }
-        struct N: Decodable { let n: Int }
         return try await db.raw(q).first(decoding: N.self)?.n ?? 0
     }
-
-    // unused stub kept out of the build path
-    private static func listWhere(mode: String?, search: String?, viewerRef: String, alias: String) -> (String, String) { ("", "") }
 
     // MARK: block graph
 
