@@ -814,3 +814,12 @@
 "Describe who or what you're looking for…" = "Mô tả người hoặc nội dung bạn muốn tìm…";
 "Describe the posts you want to find, then tap Search." = "Mô tả bài viết bạn muốn tìm, rồi nhấn Tìm kiếm.";
 "Type a word or #tag to find posts." = "Nhập từ khoá hoặc #thẻ để tìm bài viết.";
+
+// MARK: - Cover photo editor
+"Adjust cover" = "Chỉnh ảnh bìa";
+"Reset" = "Đặt lại";
+"Drag to reposition · Pinch to zoom" = "Kéo để đổi vị trí · Chụm để thu phóng";
+"Adjust position" = "Chỉnh vị trí";
+"Choose new photo" = "Chọn ảnh mới";
+"Edit cover photo" = "Sửa ảnh bìa";
+"Add cover photo" = "Thêm ảnh bìa";
