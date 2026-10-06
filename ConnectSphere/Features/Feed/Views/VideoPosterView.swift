@@ -29,18 +29,14 @@ enum VideoFrame {
 struct VideoPosterView: View {
     let url: URL?
 
-    @State private var poster: UIImage?
-    @State private var seconds: Int?
-
-    /// Per-launch cache so scrolling back doesn't regenerate frames.
-    private static var cache: [URL: (UIImage?, Int?)] = [:]
+    @State private var model = VideoPosterModel()
 
     var body: some View {
         // The poster is an overlay, not a ZStack layer: a scaledToFill image
         // would size the view past its tile and push the length badge off-screen.
         Color.black
             .overlay {
-                if let poster {
+                if let poster = model.poster {
                     Image(uiImage: poster)
                         .resizable()
                         .scaledToFill()
@@ -54,7 +50,7 @@ struct VideoPosterView: View {
                     .shadow(color: .black.opacity(0.3), radius: 4)
             }
             .overlay(alignment: .bottomTrailing) {
-                if let seconds {
+                if let seconds = model.seconds {
                     Text(String(format: "%d:%02d", seconds / 60, seconds % 60))
                         .font(.system(size: 11, weight: .semibold))
                         .monospacedDigit()
@@ -65,23 +61,8 @@ struct VideoPosterView: View {
                         .padding(8)
                 }
             }
-            .task(id: url) { await load() }
+            .task(id: url) { await model.load(url) }
             .accessibilityElement()
             .accessibilityLabel(Text("Video"))
-    }
-
-    private func load() async {
-        guard let url else { return }
-        if let cached = Self.cache[url] {
-            poster = cached.0
-            seconds = cached.1
-            return
-        }
-        async let frame = VideoFrame.firstFrame(of: url)
-        async let length = VideoFrame.durationSeconds(of: url)
-        let result = (await frame, await length)
-        Self.cache[url] = result
-        poster = result.0
-        seconds = result.1
     }
 }

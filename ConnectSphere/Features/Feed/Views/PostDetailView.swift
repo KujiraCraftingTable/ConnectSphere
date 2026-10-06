@@ -27,13 +27,19 @@ struct PostDetailView: View {
     /// When opened from a comment button, focus the composer on appear.
     var focusComposer: Bool = false
 
-    @State private var post: Post?
-    @State private var loadFailed = false
+    @State private var viewModel: PostDetailViewModel
     @State private var commentVM = CommentViewModel()
     @State private var draft = ""
     @FocusState private var composerFocused: Bool
 
-    private let repository = PostRepository()
+    init(postId: String, scrollToCommentId: String? = nil, focusComposer: Bool = false) {
+        self.postId = postId
+        self.scrollToCommentId = scrollToCommentId
+        self.focusComposer = focusComposer
+        _viewModel = State(initialValue: PostDetailViewModel(postId: postId))
+    }
+
+    private var post: Post? { viewModel.post }
 
     var body: some View {
         // GeometryReader gives us the screen's own available height so the
@@ -62,7 +68,7 @@ struct PostDetailView: View {
                         PostCard(
                             post: post,
                             onPostDeleted: { dismiss() },
-                            onPostUpdated: { self.post = $0 },
+                            onPostUpdated: { viewModel.post = $0 },
                             collapsedTotalHeight: geo.size.height / 4,
                             expandedTotalHeight: geo.size.height / 2
                         )
@@ -89,7 +95,7 @@ struct PostDetailView: View {
                                     onReplyRequested: { composerFocused = true },
                                     onCommentCountChange: { delta in adjustCommentCount(by: delta) }
                                 )
-                            } else if loadFailed {
+                            } else if viewModel.loadFailed {
                                 errorState
                             } else {
                                 ProgressView().padding(.top, 80)
@@ -115,13 +121,9 @@ struct PostDetailView: View {
     // MARK: - Load
 
     private func loadAll(proxy: ScrollViewProxy) async {
-        // `.task` re-runs if the view identity is reused for another post id;
-        // guard so we don't refetch on every appearance.
-        if post == nil && !loadFailed {
-            do { post = try await repository.fetchPost(id: postId) }
-            catch { loadFailed = true; return }
-            await commentVM.load(postId: postId)
-        }
+        let firstLoad = viewModel.post == nil
+        guard await viewModel.loadPost() else { return }
+        if firstLoad { await commentVM.load(postId: postId) }
 
         if let target = scrollToCommentId {
             try? await Task.sleep(for: .milliseconds(300))
@@ -135,19 +137,7 @@ struct PostDetailView: View {
 
     // MARK: - Comment count
 
-    /// Adjusts the pinned post's displayed comment count by `delta` and
-    /// broadcasts it via `.postUpdated` so other already-loaded screens (the
-    /// Feed list, Profile, etc.) pick up the change too — a same-user,
-    /// same-session optimistic update, not a push to other viewers. The
-    /// server's own `comment_count` column is already updated synchronously
-    /// and remains the eventual, authoritative value the next full fetch
-    /// returns.
-    private func adjustCommentCount(by delta: Int) {
-        guard var p = post else { return }
-        p.commentCount = max(0, p.commentCount + delta)
-        post = p
-        NotificationCenter.default.post(name: .postUpdated, object: nil, userInfo: ["post": p])
-    }
+    private func adjustCommentCount(by delta: Int) { viewModel.adjustCommentCount(by: delta) }
 
     // MARK: - Comments header
 

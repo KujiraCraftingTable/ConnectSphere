@@ -10,13 +10,6 @@ struct FeedView: View {
     @State private var showMessages = false
     @State private var detailRoute: PostRoute?
     @Binding var selectedTab: Int
-    /// Mode-scoped "my" profile for the create-post bar's avatar — mirrors
-    /// StoriesRow.myProfile. appState.currentUser is a single unscoped cache
-    /// (never refetched on mode switch), so it can't be used directly for
-    /// any per-mode avatar/name display — see the StoriesRow fix for the
-    /// same bug in "Your Story".
-    @State private var myProfile: UserProfile?
-    private let profileRepo = ProfileRepository()
     var body: some View {
         NavigationStack {
             ScrollViewReader { proxy in
@@ -85,7 +78,7 @@ struct FeedView: View {
             }
             .task {
                 await viewModel.loadPostsIfNeeded(for: appState.currentMode)
-                await loadMyProfile(mode: appState.currentMode)
+                await viewModel.loadMyProfile(userId: appState.currentUser?.id, mode: appState.currentMode)
             }
             .onChange(of: appState.currentMode) { _, newMode in
                 withAnimation(.easeInOut(duration: 0.4)) {
@@ -94,14 +87,9 @@ struct FeedView: View {
                 Task {
                     await viewModel.loadPosts(for: newMode)
                 }
+                Task { await viewModel.refreshChatUnread(appState: appState) }
                 Task {
-                    guard let token = appState.authToken else { return }
-                    appState.chatUnreadCount = (try? await MessageRepository().fetchUnreadCount(
-                        mode: newMode.rawValue, token: token
-                    )) ?? 0
-                }
-                Task {
-                    await loadMyProfile(mode: newMode)
+                    await viewModel.loadMyProfile(userId: appState.currentUser?.id, mode: newMode)
                 }
             }
             .onChange(of: viewModel.feedScope) { _, _ in
@@ -159,39 +147,9 @@ struct FeedView: View {
                 }
             }
             .onAppear {
-                setupChatBadge()
+                viewModel.startChatBadge(appState: appState)
             }
-            .onDisappear {
-                WebSocketClient.shared.off("new_message", tag: "feedBadge")
-            }
-        }
-    }
-
-    /// Mode-scoped fetch for the create-post bar's own avatar — same pattern
-    /// as StoriesRow.load()'s profile fetch.
-    private func loadMyProfile(mode: AppMode) async {
-        guard let id = appState.currentUser?.id else { return }
-        myProfile = try? await profileRepo.fetchUser(userId: id, mode: mode.rawValue)
-    }
-
-    // MARK: Chat badge — connect socket, register real-time handler, fetch count
-
-    private func setupChatBadge() {
-        guard let token = appState.authToken else { return }
-        let mode = appState.currentMode.rawValue
-        WebSocketClient.shared.connect(token: token)
-        WebSocketClient.shared.on("new_message", tag: "feedBadge") { [appState] _ in
-            Task { @MainActor in
-                guard let t = appState.authToken else { return }
-                appState.chatUnreadCount = (try? await MessageRepository().fetchUnreadCount(
-                    mode: appState.currentMode.rawValue, token: t
-                )) ?? 0
-            }
-        }
-        Task {
-            appState.chatUnreadCount = (try? await MessageRepository().fetchUnreadCount(
-                mode: mode, token: token
-            )) ?? 0
+            .onDisappear { viewModel.stopChatBadge() }
         }
     }
 
@@ -260,7 +218,7 @@ struct FeedView: View {
 
     private var createPostBar: some View {
         HStack(spacing: 10) {
-            AvatarView(user: myProfile ?? appState.currentUser ?? MockData.currentUser, size: 40)
+            AvatarView(user: viewModel.myProfile ?? appState.currentUser ?? MockData.currentUser, size: 40)
 
             Button { showCreatePost = true } label: {
                 Text(appState.currentMode == .hobby

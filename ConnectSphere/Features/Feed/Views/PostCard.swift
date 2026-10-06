@@ -7,25 +7,16 @@ struct PostCard: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(UndoToastPresenter.self) var toastPresenter
     @Environment(\.openURL) private var openURL
-    @State private var isLiked:      Bool
-    @State private var isSaved:      Bool
-    @State private var likeCount:    Int
-    @State private var commentCount: Int
-    @State private var shareCount:   Int
+    @State private var actions: PostActionsViewModel
     @State private var showComments  = false
     @State private var showShareSheet = false
 
     // Action states
     @State private var showDeleteAlert = false
     @State private var showEditSheet   = false
-    @State private var isHidden        = false   // locally hides someone else's post
     @State private var showReportDialog  = false
-    @State private var showReportResult  = false
-    @State private var reportResultMessage = ""
     // Delete/hide/restore failures used to only #if DEBUG print — nothing
     // on screen, so a failed action looked identical to a successful one.
-    @State private var showActionError = false
-    @State private var actionErrorMessage = ""
 
     var post: Post
     var disableSelfNavigation: Bool = false
@@ -84,7 +75,6 @@ struct PostCard: View {
     /// Drives the in-app browser (see `openLink(_:)`) for a tapped http(s)
     /// link — the link-preview card or an in-text URL.
     @State private var inAppBrowserURL: URL?
-    private let repository = PostRepository()
 
     init(
         post: Post,
@@ -114,18 +104,17 @@ struct PostCard: View {
         self.cornerRadius = cornerRadius
         self.collapsedTotalHeight = collapsedTotalHeight
         self.expandedTotalHeight = expandedTotalHeight
-        _isLiked      = State(initialValue: post.isLiked)
-        _isSaved      = State(initialValue: post.isSaved)
-        _likeCount    = State(initialValue: post.likeCount)
-        _commentCount = State(initialValue: post.commentCount)
-        _shareCount   = State(initialValue: post.shareCount)
+        _actions = State(initialValue: PostActionsViewModel(post: post))
     }
 
     @ViewBuilder
     var body: some View {
-        if !isHidden {
-            mainCard
+        Group {
+            if !actions.isHidden {
+                mainCard
+            }
         }
+        .animation(.default, value: actions.isHidden)
     }
 
     private var mainCard: some View {
@@ -152,7 +141,7 @@ struct PostCard: View {
         // Comment sheet
         .sheet(isPresented: $showComments) {
             CommentSheet(postId: post.id, postAuthorId: post.author.id) { delta in
-                commentCount = max(0, commentCount + delta)
+                actions.adjustCommentCount(by: delta)
                 if delta > 0 { onCommentAdded?() }
             }
             .environment(appState)
@@ -168,7 +157,7 @@ struct PostCard: View {
         // Share sheet
         .sheet(isPresented: $showShareSheet) {
             SharePostSheet(post: post) {
-                shareCount += 1
+                actions.didShare()
             }
             .environment(appState)
             .environment(themeManager)
@@ -176,7 +165,15 @@ struct PostCard: View {
         // Delete confirmation alert
         .alert(bundle.loc("Delete post?"), isPresented: $showDeleteAlert) {
             Button(bundle.loc("Delete"), role: .destructive) {
-                Task { await handleDeletePost() }
+                Task {
+                    guard await actions.delete(post: post) else { return }
+                    onPostDeleted?()
+                    // Undo within a few seconds; after that it's in Recently Deleted for 30 days.
+                    let deletedPostId = post.id
+                    toastPresenter.show(message: bundle.loc("Post deleted")) {
+                        Task { await actions.restore(postId: deletedPostId) }
+                    }
+                }
             }
             Button(bundle.loc("Cancel"), role: .cancel) {}
         } message: {
@@ -190,17 +187,23 @@ struct PostCard: View {
         ) {
             ForEach(ReportReason.allCases, id: \.self) { reason in
                 Button(reason.displayName) {
-                    Task { await handleReportPost(reason: reason) }
+                    Task { await actions.report(postId: post.id, reason: reason) }
                 }
             }
             Button(bundle.loc("Cancel"), role: .cancel) {}
         }
         // Report result feedback
-        .alert(reportResultMessage, isPresented: $showReportResult) {
+        .alert(actions.reportResultMessage ?? "", isPresented: Binding(
+            get: { actions.reportResultMessage != nil },
+            set: { if !$0 { actions.reportResultMessage = nil } }
+        )) {
             Button(bundle.loc("Done")) {}
         }
         // Delete/hide/restore failures
-        .alert(actionErrorMessage, isPresented: $showActionError) {
+        .alert(actions.actionErrorMessage ?? "", isPresented: Binding(
+            get: { actions.actionErrorMessage != nil },
+            set: { if !$0 { actions.actionErrorMessage = nil } }
+        )) {
             Button(bundle.loc("OK")) {}
         }
         // Resyncs the locally-tracked count whenever a fresh `post` value
@@ -210,7 +213,7 @@ struct PostCard: View {
         // per view identity, so without this the row would keep showing a
         // stale count until the app fully reloads it. Mirrors the same
         // pattern already used in `CommunityPostCard`.
-        .onChange(of: post.commentCount) { _, newValue in commentCount = newValue }
+        .onChange(of: post.commentCount) { _, newValue in actions.syncCommentCount(newValue) }
     }
 
     // MARK: Body
@@ -398,94 +401,6 @@ struct PostCard: View {
         }
         .buttonStyle(.plain)
         .padding(8)
-    }
-
-    // MARK: Report
-
-    /// Submits a post report with the selected reason
-    private func handleReportPost(reason: ReportReason) async {
-        do {
-            try await repository.reportPost(postId: post.id, reason: reason)
-            reportResultMessage = bundle.loc("Report submitted")
-        } catch {
-            #if DEBUG
-            print("[PostCard] reportPost error: \(error)")
-            #endif
-            reportResultMessage = bundle.loc("Could not submit report. Please try again.")
-        }
-        showReportResult = true
-    }
-
-    // MARK: Delete
-
-    /// Calls the soft-delete API then notifies the parent feed to remove this card —
-    /// while also showing an Undo toast, letting the user restore it within a few
-    /// seconds before the post truly "disappears" from reach (it's still in Recently
-    /// Deleted for 30 days).
-    private func handleDeletePost() async {
-        do {
-            try await repository.deletePost(postId: post.id)
-            NotificationCenter.default.post(name: .postDeleted, object: nil, userInfo: [
-                "id": post.id,
-                "authorId": post.author.id
-            ])
-            onPostDeleted?()
-
-            let deletedPostId = post.id
-            toastPresenter.show(message: bundle.loc("Post deleted")) {
-                Task {
-                    let restoreRepository = PostRepository()
-                    do {
-                        let restored = try await restoreRepository.restorePost(postId: deletedPostId)
-                        NotificationCenter.default.post(name: .postRestored, object: nil, userInfo: [
-                            "post": restored
-                        ])
-                    } catch {
-                        actionErrorMessage = bundle.loc("Couldn't restore post, please try again")
-                        showActionError = true
-                    }
-                }
-            }
-        } catch {
-            #if DEBUG
-            print("[PostCard] deletePost error: \(error)")
-            #endif
-            actionErrorMessage = bundle.loc("Couldn't delete post, please try again")
-            showActionError = true
-        }
-    }
-
-    // MARK: Hide
-
-    /// Hides someone else's post from your feed (persisted server-side so a
-    /// reload doesn't bring it back) and shows an Undo toast — tapping Undo
-    /// un-hides it in place. Unlike delete, the post is never removed from the
-    /// feed's array, so flipping `isHidden` back to false fully restores the card.
-    private func handleHidePost() {
-        withAnimation { isHidden = true }
-        Task {
-            do {
-                try await repository.hidePost(postId: post.id)
-            } catch {
-                withAnimation { isHidden = false }
-                actionErrorMessage = bundle.loc("Couldn't hide post, please try again")
-                showActionError = true
-            }
-        }
-
-        let hiddenPostId = post.id
-        toastPresenter.show(message: bundle.loc("Post hidden")) {
-            withAnimation { isHidden = false }
-            Task {
-                let restoreRepository = PostRepository()
-                do {
-                    try await restoreRepository.unhidePost(postId: hiddenPostId)
-                } catch {
-                    actionErrorMessage = bundle.loc("Couldn't unhide post, please try again")
-                    showActionError = true
-                }
-            }
-        }
     }
 
     // MARK: Shake
@@ -764,7 +679,12 @@ struct PostCard: View {
                 }
             } else {
                 Button {
-                    handleHidePost()
+                    // Undo un-hides in place: the post never left the list.
+                    Task { await actions.hide(postId: post.id) }
+                    let hiddenPostId = post.id
+                    toastPresenter.show(message: bundle.loc("Post hidden")) {
+                        Task { await actions.unhide(postId: hiddenPostId) }
+                    }
                 } label: {
                     Label(bundle.loc("Hide post"), systemImage: "eye.slash")
                 }
@@ -817,28 +737,13 @@ struct PostCard: View {
             // Like + Comment — bottom left
             HStack(spacing: 16) {
                 Button {
-                    Task {
-                        // Optimistic toggle, then reconcile with the server —
-                        // and roll back (like the Save button below) if it fails.
-                        let wasLiked = isLiked
-                        let wasCount = likeCount
-                        isLiked   = !isLiked
-                        likeCount += isLiked ? 1 : -1
-                        do {
-                            let res = try await repository.toggleLike(postId: post.id)
-                            isLiked   = res.liked
-                            likeCount = res.likeCount
-                        } catch {
-                            isLiked   = wasLiked
-                            likeCount = wasCount
-                        }
-                    }
+                    Task { await actions.toggleLike(postId: post.id) }
                 } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: isLiked ? "hand.thumbsup.fill" : "hand.thumbsup")
+                        Image(systemName: actions.isLiked ? "hand.thumbsup.fill" : "hand.thumbsup")
                             .font(.system(size: 20))
-                            .foregroundColor(isLiked ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
-                        actionCount(likeCount)
+                            .foregroundColor(actions.isLiked ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
+                        actionCount(actions.likeCount)
                     }
                 }
 
@@ -849,7 +754,7 @@ struct PostCard: View {
                         Image(systemName: "bubble.left")
                             .font(.system(size: 20))
                             .foregroundColor(AppColors.textSecondary(colorScheme))
-                        actionCount(commentCount)
+                        actionCount(actions.commentCount)
                     }
                 }
             }
@@ -859,22 +764,11 @@ struct PostCard: View {
             // Save + Share — bottom right
             HStack(spacing: 16) {
                 Button {
-                    Task {
-                        isSaved.toggle()
-                        do {
-                            if isSaved { try await repository.savePost(postId: post.id) }
-                            else       { try await repository.unsavePost(postId: post.id) }
-                            var updated = post
-                            updated.isSaved = isSaved
-                            NotificationCenter.default.post(name: .postUpdated, object: nil, userInfo: ["post": updated])
-                        } catch {
-                            isSaved.toggle() // revert on failure
-                        }
-                    }
+                    Task { await actions.toggleSave(post: post) }
                 } label: {
-                    Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                    Image(systemName: actions.isSaved ? "bookmark.fill" : "bookmark")
                         .font(.system(size: 20))
-                        .foregroundColor(isSaved ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
+                        .foregroundColor(actions.isSaved ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
                 }
 
                 Button { showShareSheet = true } label: {
@@ -882,7 +776,7 @@ struct PostCard: View {
                         Image(systemName: "arrowshape.turn.up.right")
                             .font(.system(size: 20))
                             .foregroundColor(AppColors.textSecondary(colorScheme))
-                        actionCount(shareCount)
+                        actionCount(actions.shareCount)
                     }
                 }
             }

@@ -11,23 +11,21 @@ struct TagFeedView: View {
     /// mode-scoped, instead of mixing hobby and work posts together.
     let mode: AppMode
 
-    @State private var posts: [Post] = []
-    @State private var isLoading = false
-    @State private var isLoadingMore = false
-    @State private var loadError: String?
-    @State private var offset = 0
-    @State private var hasMore = true
+    @State private var viewModel: TagFeedViewModel
     @State private var detailRoute: PostRoute?
 
-    private let repository = PostRepository()
-    private let pageSize = 20
+    init(tag: String, mode: AppMode) {
+        self.tag = tag
+        self.mode = mode
+        _viewModel = State(initialValue: TagFeedViewModel(tag: tag, mode: mode))
+    }
 
     var body: some View {
         ScrollView {
             LazyVStack(spacing: AppSpacing.sm) {
-                if isLoading && posts.isEmpty {
+                if viewModel.isLoading && viewModel.posts.isEmpty {
                     ProgressView().padding(.top, 60)
-                } else if let loadError, posts.isEmpty {
+                } else if let loadError = viewModel.loadError, viewModel.posts.isEmpty {
                     VStack(spacing: 10) {
                         Image(systemName: "wifi.exclamationmark")
                             .font(.system(size: 36))
@@ -37,11 +35,11 @@ struct TagFeedView: View {
                             .multilineTextAlignment(.center)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                             .padding(.horizontal, 32)
-                        Button(bundle.loc("Retry")) { Task { await load() } }
+                        Button(bundle.loc("Retry")) { Task { await viewModel.load() } }
                             .font(.system(size: 14, weight: .semibold))
                     }
                     .padding(.top, 60)
-                } else if posts.isEmpty {
+                } else if viewModel.posts.isEmpty {
                     VStack(spacing: 10) {
                         Image(systemName: "number")
                             .font(.system(size: 36))
@@ -52,15 +50,11 @@ struct TagFeedView: View {
                     }
                     .padding(.top, 60)
                 } else {
-                    ForEach(posts) { post in
+                    ForEach(viewModel.posts) { post in
                         PostCard(
                             post: post,
-                            onPostDeleted: { posts.removeAll { $0.id == post.id } },
-                            onPostUpdated: { updated in
-                                if let i = posts.firstIndex(where: { $0.id == updated.id }) {
-                                    posts[i] = updated
-                                }
-                            },
+                            onPostDeleted: { viewModel.remove(id: post.id) },
+                            onPostUpdated: { viewModel.update($0) },
                             onOpenDetail: { focus in
                                 detailRoute = PostRoute(postId: post.id, focusComposer: focus)
                             }
@@ -68,13 +62,13 @@ struct TagFeedView: View {
                         .cardStyle()
                         .onAppear {
                             // Scrolled to the last post → load the next page
-                            if post.id == posts.last?.id {
-                                Task { await loadMore() }
+                            if post.id == viewModel.posts.last?.id {
+                                Task { await viewModel.loadMore() }
                             }
                         }
                     }
 
-                    if isLoadingMore {
+                    if viewModel.isLoadingMore {
                         ProgressView().padding(.vertical, 12)
                     }
                 }
@@ -97,36 +91,7 @@ struct TagFeedView: View {
                 PostDetailView(postId: route.postId, focusComposer: route.focusComposer)
             }
         }
-        .task { await load() }
-        .refreshable { await load() }
-    }
-
-    /// Loads the first page (resets pagination)
-    private func load() async {
-        isLoading = true
-        loadError = nil
-        defer { isLoading = false }
-        offset = 0
-        hasMore = true
-        do {
-            let fetched = try await repository.fetchPostsByTag(tag, mode: mode, limit: pageSize, offset: 0)
-            posts = fetched
-            offset = fetched.count
-            hasMore = fetched.count == pageSize
-        } catch {
-            loadError = friendlyError(error)
-        }
-    }
-
-    /// Loads the next page when the user scrolls to the end of the list
-    private func loadMore() async {
-        guard !isLoadingMore, hasMore else { return }
-        isLoadingMore = true
-        defer { isLoadingMore = false }
-        let fetched = (try? await repository.fetchPostsByTag(tag, mode: mode, limit: pageSize, offset: offset)) ?? []
-        let existingIds = Set(posts.map(\.id))
-        posts += fetched.filter { !existingIds.contains($0.id) }
-        offset += fetched.count
-        hasMore = fetched.count == pageSize
+        .task { await viewModel.load() }
+        .refreshable { await viewModel.load() }
     }
 }
