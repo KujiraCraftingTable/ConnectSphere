@@ -26,7 +26,13 @@ struct EditProfileView: View {
     @State private var pickerItem: PhotosPickerItem?
     @State private var pickedImage: UIImage?
     @State private var coverPickerItem: PhotosPickerItem?
+    /// The framed cover from `CoverCropView` — exactly what gets uploaded.
     @State private var pickedCover: UIImage?
+    /// The photo as picked, kept until Save so the framing can be adjusted again.
+    @State private var coverOriginal: UIImage?
+    @State private var showCoverPicker = false
+    @State private var showCoverCrop = false
+    @State private var showCoverOptions = false
     @State private var isSaving = false
     @State private var errorMessage: String?
 
@@ -38,14 +44,19 @@ struct EditProfileView: View {
             Form {
                 // ── Cover photo ──────────────────────────────────────────────
                 Section(bundle.loc("Cover photo")) {
-                    PhotosPicker(selection: $coverPickerItem, matching: .images) {
+                    Button {
+                        // A photo picked this session can be re-framed; otherwise
+                        // go straight to choosing one.
+                        if coverOriginal != nil { showCoverOptions = true } else { showCoverPicker = true }
+                    } label: {
                         ZStack(alignment: .bottomTrailing) {
                             coverPreview
                             ZStack {
                                 Circle().fill(themeManager.theme.primary)
                                     .frame(width: 28, height: 28)
-                                Image(systemName: "camera.fill")
-                                    .font(.system(size: 13))
+                                // Pencil once there's a cover to edit; camera to add the first one.
+                                Image(systemName: hasCover ? "pencil" : "camera.fill")
+                                    .font(.system(size: 13, weight: .semibold))
                                     .foregroundColor(.white)
                             }
                             .padding(8)
@@ -53,6 +64,7 @@ struct EditProfileView: View {
                     }
                     .buttonStyle(.plain)
                     .listRowInsets(EdgeInsets())
+                    .accessibilityLabel(Text(hasCover ? "Edit cover photo" : "Add cover photo", bundle: bundle))
                 }
 
                 // ── Avatar ────────────────────────────────────────────────────
@@ -151,14 +163,29 @@ struct EditProfileView: View {
                     }
                 }
             }
+            .photosPicker(isPresented: $showCoverPicker, selection: $coverPickerItem, matching: .images)
             .onChange(of: coverPickerItem) { _, item in
                 guard let item else { return }
                 Task {
                     if let data = try? await item.loadTransferable(type: Data.self),
                        let image = UIImage(data: data) {
-                        pickedCover = image
+                        coverOriginal = image
+                        showCoverCrop = true
                     }
+                    // Cleared so picking the same photo again still fires.
+                    coverPickerItem = nil
                 }
+            }
+            .fullScreenCover(isPresented: $showCoverCrop) {
+                if let coverOriginal {
+                    CoverCropView(image: coverOriginal) { pickedCover = $0 }
+                        .environment(themeManager)
+                }
+            }
+            .confirmationDialog(bundle.loc("Cover photo"), isPresented: $showCoverOptions) {
+                Button(bundle.loc("Adjust position")) { showCoverCrop = true }
+                Button(bundle.loc("Choose new photo")) { showCoverPicker = true }
+                Button(bundle.loc("Cancel"), role: .cancel) {}
             }
             .onAppear { loadCurrentValues() }
         }
@@ -166,17 +193,21 @@ struct EditProfileView: View {
 
     // MARK: - Cover preview
 
+    private var hasCover: Bool {
+        pickedCover != nil || !(appState.currentUser?.coverUrl ?? "").isEmpty
+    }
+
+    /// Same shape as the profile's cover, so the preview is what the profile shows.
     @ViewBuilder
     private var coverPreview: some View {
         if let pickedCover {
-            Image(uiImage: pickedCover)
-                .resizable()
-                .scaledToFill()
-                .frame(height: 120)
+            Color.clear
+                .aspectRatio(CoverPhotoView.aspectRatio, contentMode: .fit)
                 .frame(maxWidth: .infinity)
+                .overlay { Image(uiImage: pickedCover).resizable().scaledToFill() }
                 .clipped()
         } else {
-            CoverPhotoView(coverUrl: appState.currentUser?.coverUrl, height: 120)
+            CoverPhotoView(coverUrl: appState.currentUser?.coverUrl)
         }
     }
 

@@ -5,26 +5,33 @@ import SwiftUI
 struct CoverPhotoView: View {
     @Environment(ThemeManager.self) var themeManager
 
+    /// Width : height of every cover. A fixed shape (not a fixed height) so the
+    /// crop editor's frame (`CoverCropView`) shows exactly what the profile will,
+    /// on any phone width. 2.5 : 1 keeps today's look — 402 pt wide → ~161 pt.
+    static let aspectRatio: CGFloat = 2.5
+
     let coverUrl: String?
-    var height: CGFloat = 160
 
     var body: some View {
-        Group {
-            if let coverUrl, let url = URL(string: coverUrl) {
-                AsyncImage(url: url) { phase in
-                    if let image = phase.image {
-                        image.resizable().scaledToFill()
-                    } else {
-                        fallbackGradient
+        // Shape comes from the clear base; the photo fills it in an overlay so
+        // `scaledToFill` can't push the layout wider or taller than the cover.
+        Color.clear
+            .aspectRatio(Self.aspectRatio, contentMode: .fit)
+            .frame(maxWidth: .infinity)
+            .overlay {
+                if let coverUrl, let url = URL(string: coverUrl) {
+                    AsyncImage(url: url) { phase in
+                        if let image = phase.image {
+                            image.resizable().scaledToFill()
+                        } else {
+                            fallbackGradient
+                        }
                     }
+                } else {
+                    fallbackGradient
                 }
-            } else {
-                fallbackGradient
             }
-        }
-        .frame(height: height)
-        .frame(maxWidth: .infinity)
-        .clipped()
+            .clipped()
     }
 
     private var fallbackGradient: some View {

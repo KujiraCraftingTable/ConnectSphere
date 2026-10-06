@@ -152,21 +152,29 @@ struct ProfileView: View {
                     .offset(y: 45)
                     .padding(.leading, 16)
                 Spacer()
-                // Edit profile button
-                Button { showEditProfile = true } label: {
-                    Text("Edit profile", bundle: bundle)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(AppColors.textPrimary(colorScheme))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 7)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(AppColors.borderDefault(colorScheme), lineWidth: 1.5)
-                        )
-                }
-                .padding(.trailing, 16)
-                .padding(.bottom, 12)
             }
+        }
+        // Edit button on the cover itself. White on a dark translucent disc so
+        // it reads over any photo — the old outlined text button used the body
+        // text colour with no fill and all but vanished on a cover photo.
+        // Bottom of this ZStack is the cover's bottom edge (the avatar only
+        // overhangs it via `.offset`), so this sits in the cover's corner.
+        .overlay(alignment: .bottomTrailing) {
+            let hasCover = !(user.coverUrl ?? "").isEmpty
+            Button { showEditProfile = true } label: {
+                Image(systemName: hasCover ? "pencil" : "camera.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 34, height: 34)
+                    .background(Color.black.opacity(0.45), in: Circle())
+                    .overlay(Circle().stroke(Color.white.opacity(0.35), lineWidth: 1))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("Edit profile", bundle: bundle))
+            .padding(.trailing, 8)
+            .padding(.bottom, 4)
         }
         .padding(.bottom, 50)
         .background(AppColors.surface(colorScheme))

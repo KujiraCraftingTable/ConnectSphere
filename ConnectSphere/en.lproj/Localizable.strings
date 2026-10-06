@@ -814,3 +814,12 @@
 "Describe who or what you're looking for…" = "Describe who or what you're looking for…";
 "Describe the posts you want to find, then tap Search." = "Describe the posts you want to find, then tap Search.";
 "Type a word or #tag to find posts." = "Type a word or #tag to find posts.";
+
+// MARK: - Cover photo editor
+"Adjust cover" = "Adjust cover";
+"Reset" = "Reset";
+"Drag to reposition · Pinch to zoom" = "Drag to reposition · Pinch to zoom";
+"Adjust position" = "Adjust position";
+"Choose new photo" = "Choose new photo";
+"Edit cover photo" = "Edit cover photo";
+"Add cover photo" = "Add cover photo";
