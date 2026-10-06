@@ -6,6 +6,7 @@ class JobViewModel {
     var jobData: JobData
     var isUpdating = false
     var errorMessage: String?
+    private(set) var isOpeningChat = false
 
     private let token: String
     private let client = NetworkClient.shared
@@ -35,5 +36,13 @@ class JobViewModel {
             errorMessage = friendlyError(error)
         }
         isUpdating = false
+    }
+
+    /// The conversation with the job's poster, or nil (fails silently — the
+    /// user can tap Message again).
+    func openConversation(with posterId: String, mode: AppMode) async -> String? {
+        isOpeningChat = true
+        defer { isOpeningChat = false }
+        return try? await MessageRepository().openConversation(otherUserId: posterId, mode: mode.rawValue, token: token)
     }
 }

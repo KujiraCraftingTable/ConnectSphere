@@ -252,6 +252,25 @@ struct CommunityRepository {
                                     path: "/communities/\(communityId)/members/\(userId)/report",
                                     method: "POST", token: token, bodyData: body)
     }
+
+    // MARK: - Reports
+
+    /// Reports a community member — or a post in the community
+    /// (`targetType == "post"`). `detail` is optional free text.
+    func report(targetType: String, targetId: String, communityId: String,
+                reason: String, detail: String?, token: String) async throws {
+        var body: [String: Any] = ["reason": reason]
+        if let detail { body["detail"] = detail }
+        let path: String
+        if targetType == "post" {
+            path = "/posts/\(targetId)/report"
+            body["communityId"] = communityId
+        } else {
+            path = "/communities/\(communityId)/members/\(targetId)/report"
+        }
+        _ = try await client.fetch(OKResponse.self, path: path, method: "POST", token: token,
+                                   bodyData: try? JSONSerialization.data(withJSONObject: body))
+    }
 }
 
 // MARK: - Private DTOs (only used inside this repository)

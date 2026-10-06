@@ -15,21 +15,17 @@ struct ReportSheet: View {
     let communityId: String
     let token: String
 
-    @State private var selectedReason: ReportReason? = nil
-    @State private var detail: String = ""
-    @State private var isSubmitting = false
-    @State private var submitted = false
-    @State private var errorMessage: String?
+    @State private var viewModel = ReportViewModel()
 
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 0) {
-                if submitted {
+                if viewModel.submitted {
                     submittedState
                 } else {
                     reasonList
                     detailField
-                    if let err = errorMessage {
+                    if let err = viewModel.errorMessage {
                         Text(err)
                             .font(.system(size: 13))
                             .foregroundColor(.red)
@@ -44,13 +40,16 @@ struct ReportSheet: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(bundle.loc("Cancel")) { dismiss() }
                 }
-                if !submitted {
+                if !viewModel.submitted {
                     ToolbarItem(placement: .confirmationAction) {
                         Button(bundle.loc("Submit report")) {
-                            Task<Void, Never>(name: nil) { await submit() }
+                            Task<Void, Never>(name: nil) {
+                                await viewModel.submit(targetType: targetType, targetId: targetId,
+                                                       communityId: communityId, token: token)
+                            }
                         }
                         .font(.system(size: 15, weight: .semibold))
-                        .disabled(selectedReason == nil || isSubmitting)
+                        .disabled(!viewModel.canSubmit)
                     }
                 }
             }
@@ -71,14 +70,14 @@ struct ReportSheet: View {
 
             ForEach(ReportReason.allCases, id: \.self) { reason in
                 Button {
-                    selectedReason = reason
+                    viewModel.selectedReason = reason
                 } label: {
                     HStack {
                         Text(bundle.loc(reason.displayName))
                             .font(.system(size: 16))
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                         Spacer()
-                        if selectedReason == reason {
+                        if viewModel.selectedReason == reason {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundColor(themeManager.theme.primary)
                         } else {
@@ -104,7 +103,7 @@ struct ReportSheet: View {
                 .font(.system(size: 13, weight: .medium))
                 .foregroundColor(AppColors.textSecondary(colorScheme))
 
-            TextEditor(text: $detail)
+            TextEditor(text: $viewModel.detail)
                 .font(.system(size: 15))
                 .frame(height: 80)
                 .padding(10)
@@ -142,40 +141,5 @@ struct ReportSheet: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 60)
-    }
-
-    // MARK: - Submit
-
-    private func submit() async {
-        guard let reason = selectedReason else { return }
-        isSubmitting = true
-        errorMessage = nil
-
-        let path: String
-        var body: [String: Any] = ["reason": reason.rawValue]
-        if !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            body["detail"] = detail.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-
-        if targetType == "post" {
-            path = "/posts/\(targetId)/report"
-            body["communityId"] = communityId
-        } else {
-            path = "/communities/\(communityId)/members/\(targetId)/report"
-        }
-
-        do {
-            let bodyData = try? JSONSerialization.data(withJSONObject: body)
-            _ = try await NetworkClient.shared.fetch(
-                OKResponse.self,
-                path: path,
-                method: "POST", token: token, bodyData: bodyData
-            )
-            submitted = true
-        } catch {
-            if case APIError.serverError(_, let msg) = error { errorMessage = msg }
-            else { errorMessage = bundle.loc("Could not submit report. Please try again.") }
-        }
-        isSubmitting = false
     }
 }
