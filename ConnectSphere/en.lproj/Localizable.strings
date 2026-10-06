@@ -823,3 +823,11 @@
 "Choose new photo" = "Choose new photo";
 "Edit cover photo" = "Edit cover photo";
 "Add cover photo" = "Add cover photo";
+
+// MARK: - Post detail
+"Comments · %d" = "Comments · %d";
+
+// MARK: - Post media upload errors
+"Couldn't post" = "Couldn't post";
+"This video is too large to upload (max 50 MB)." = "This video is too large to upload (max 50 MB).";
+"Couldn't upload one of your photos or videos. Please try again." = "Couldn't upload one of your photos or videos. Please try again.";

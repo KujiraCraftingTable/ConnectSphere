@@ -343,6 +343,19 @@ struct CreatePostView: View {
             .sheet(isPresented: $showPrivacyPicker) {
                 PrivacyPickerSheet(selected: $privacy, mode: appState.currentMode)
             }
+            // Upload or post failure (feed text posts) — the composer stays open
+            // with everything intact so the user can retry or remove the media.
+            .alert(
+                bundle.loc("Couldn't post"),
+                isPresented: Binding(
+                    get: { viewModel.errorMessage != nil },
+                    set: { if !$0 { viewModel.errorMessage = nil } }
+                )
+            ) {
+                Button(bundle.loc("OK"), role: .cancel) {}
+            } message: {
+                Text(viewModel.errorMessage ?? "")
+            }
         }
     }
 

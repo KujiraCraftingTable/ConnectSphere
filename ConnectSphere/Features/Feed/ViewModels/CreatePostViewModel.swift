@@ -2,7 +2,6 @@ import Foundation
 import PhotosUI
 import SwiftUI
 import UserNotifications
-import AVFoundation
 
 /// Media picked for a post: image (upload as jpeg) or video (upload as mp4/mov file)
 struct PickedPostMedia: Identifiable {
@@ -37,6 +36,10 @@ class CreatePostViewModel {
     var isPosting = false
     var isFetchingLink = false
     var isUploadingMedia = false
+    /// Shown by `CreatePostView` when media upload or the post itself fails —
+    /// previously both failed silently (the post went out without its video,
+    /// or the composer just sat there).
+    var errorMessage: String?
     var linkPreview: LinkPreviewDTO? = nil
 
     private let repository     = PostRepository()
@@ -75,7 +78,7 @@ class CreatePostViewModel {
                let image = UIImage(data: data) {
                 result.append(PickedPostMedia(image: image, videoURL: nil, thumbnail: nil))
             } else if let file = try? await item.loadTransferable(type: PostMediaFileTransferable.self) {
-                let thumbnail = await Self.videoThumbnail(for: file.url)
+                let thumbnail = await VideoFrame.firstFrame(of: file.url, maxSide: 600)
                 result.append(PickedPostMedia(image: nil, videoURL: file.url, thumbnail: thumbnail))
             }
         }
@@ -87,34 +90,28 @@ class CreatePostViewModel {
         return try? await repository.uploadImage(data)
     }
 
-    /// Uploads all selected media in order; a failed item is skipped, order is preserved
-    func uploadMedia(_ media: [PickedPostMedia]) async -> [String] {
+    /// The server's upload cap (`POST /uploads`, `collect(maxSize: "50mb")`).
+    static let maxUploadBytes = 50 * 1024 * 1024
+
+    /// Uploads all selected media in order. Throws if any item fails rather
+    /// than skipping it — a skipped video meant the post published without it,
+    /// silently. A video over the server's cap is refused before uploading.
+    func uploadMedia(_ media: [PickedPostMedia]) async throws -> [String] {
         isUploadingMedia = true
         defer { isUploadingMedia = false }
         var urls: [String] = []
         for item in media {
             if let image = item.image {
-                if let url = await uploadImage(image) { urls.append(url) }
+                guard let url = await uploadImage(image) else { throw MediaUploadError.failed }
+                urls.append(url)
             } else if let fileURL = item.videoURL {
-                if let url = try? await repository.uploadVideo(fileURL: fileURL) {
-                    urls.append(url)
-                }
+                let size = (try? fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+                guard size <= Self.maxUploadBytes else { throw MediaUploadError.tooLarge }
+                guard let url = try? await repository.uploadVideo(fileURL: fileURL) else { throw MediaUploadError.failed }
+                urls.append(url)
             }
         }
         return urls
-    }
-
-    /// The video's first frame, used as the thumbnail preview in the composer
-    nonisolated private static func videoThumbnail(for url: URL) async -> UIImage? {
-        let asset = AVURLAsset(url: url)
-        let generator = AVAssetImageGenerator(asset: asset)
-        generator.appliesPreferredTrackTransform = true
-        generator.maximumSize = CGSize(width: 600, height: 600)
-        return await withCheckedContinuation { continuation in
-            generator.generateCGImageAsynchronously(for: .zero) { cgImage, _, _ in
-                continuation.resume(returning: cgImage.map(UIImage.init(cgImage:)))
-            }
-        }
     }
 
     // MARK: - Submit
@@ -137,7 +134,12 @@ class CreatePostViewModel {
             // New media selected → replace all of it; none selected → keep the old media
             let imageUrls: [String]
             if !selectedMedia.isEmpty {
-                imageUrls = await uploadMedia(selectedMedia)
+                do {
+                    imageUrls = try await uploadMedia(selectedMedia)
+                } catch {
+                    errorMessage = error.localizedDescription
+                    return
+                }
             } else {
                 imageUrls = existingImageUrls
             }
@@ -197,7 +199,13 @@ class CreatePostViewModel {
 
             // Upload ALL selected media (images + video);
             // for a link post with no media, the link's thumbnail goes through image_url
-            let imageUrls = selectedMedia.isEmpty ? [] : await uploadMedia(selectedMedia)
+            let imageUrls: [String]
+            do {
+                imageUrls = selectedMedia.isEmpty ? [] : try await uploadMedia(selectedMedia)
+            } catch {
+                errorMessage = error.localizedDescription
+                return
+            }
             let imageUrl: String? = selectedMedia.isEmpty ? capturedPreview?.image : nil
 
             guard let post = try? await repository.createPost(
@@ -210,6 +218,7 @@ class CreatePostViewModel {
                 articleTitle: capturedPreview?.title,
                 hashtags: hashtags
             ) else {
+                errorMessage = Bundle.app.loc("Could not post. Please try again.")
                 return
             }
             let postId = post.id
@@ -253,5 +262,17 @@ class CreatePostViewModel {
             trigger: nil // deliver immediately
         )
         try? await center.add(request)
+    }
+}
+
+/// Why a post's media couldn't be uploaded — localized for the composer's alert.
+enum MediaUploadError: LocalizedError {
+    case tooLarge, failed
+
+    var errorDescription: String? {
+        switch self {
+        case .tooLarge: return Bundle.app.loc("This video is too large to upload (max 50 MB).")
+        case .failed:   return Bundle.app.loc("Couldn't upload one of your photos or videos. Please try again.")
+        }
     }
 }

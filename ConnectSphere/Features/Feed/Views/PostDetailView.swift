@@ -54,46 +54,51 @@ struct PostDetailView: View {
             // on the initial load too; see PostCard/CommentSheet history).
             ScrollViewReader { proxy in
                 VStack(spacing: 0) {
-                    // Pinned header — the post itself never scrolls away; only the
-                    // comment list below it does. Square corners (cornerRadius: 0)
-                    // so it reads as a panel at the top of the screen, not a
-                    // floating card.
+                    // Pinned header — the post itself never scrolls away, so it can
+                    // be read side by side with the comments; only the comment
+                    // list below it scrolls. A rounded card like everywhere else
+                    // in the app (same as FeedView's post cards).
                     if let post {
                         PostCard(
                             post: post,
                             onPostDeleted: { dismiss() },
                             onPostUpdated: { self.post = $0 },
-                            cornerRadius: 0,
                             collapsedTotalHeight: geo.size.height / 4,
                             expandedTotalHeight: geo.size.height / 2
                         )
-                        .padding(.top, 8)
-
-                        Divider().padding(.top, 4)
+                        .cardStyle()
+                        .padding(.horizontal, AppSpacing.sm)
+                        .padding(.top, AppSpacing.sm)
                     }
 
-                    ScrollView {
+                    // Comments panel: its own rounded card filling the rest of the
+                    // height. The ScrollView always takes its full proposed height,
+                    // so the card's fill covers the whole panel even with 0-1
+                    // comments; the list scrolls inside the rounded corners.
+                    VStack(spacing: 0) {
                         if let post {
-                            CommentsSection(
-                                postId: postId,
-                                postAuthorId: post.author.id,
-                                viewModel: commentVM,
-                                toastPresenter: toastPresenter,
-                                onReplyRequested: { composerFocused = true },
-                                onCommentCountChange: { delta in adjustCommentCount(by: delta) }
-                            )
-                        } else if loadFailed {
-                            errorState
-                        } else {
-                            ProgressView().padding(.top, 80)
+                            commentsHeader(count: post.commentCount)
+                        }
+                        ScrollView {
+                            if let post {
+                                CommentsSection(
+                                    postId: postId,
+                                    postAuthorId: post.author.id,
+                                    viewModel: commentVM,
+                                    toastPresenter: toastPresenter,
+                                    onReplyRequested: { composerFocused = true },
+                                    onCommentCountChange: { delta in adjustCommentCount(by: delta) }
+                                )
+                            } else if loadFailed {
+                                errorState
+                            } else {
+                                ProgressView().padding(.top, 80)
+                            }
                         }
                     }
-                    // A ScrollView always fills its parent's full proposed height
-                    // regardless of content size, so this background covers the
-                    // whole comments panel edge-to-edge even with 0-1 comments —
-                    // backgrounding CommentsSection itself would only paint its own
-                    // (possibly short) content height.
-                    .background(AppColors.surface(colorScheme))
+                    .cardStyle()
+                    .padding(.horizontal, AppSpacing.sm)
+                    .padding(.top, AppSpacing.sm)
                     .task { await loadAll(proxy: proxy) }
 
                     if post != nil {
@@ -144,12 +149,25 @@ struct PostDetailView: View {
         NotificationCenter.default.post(name: .postUpdated, object: nil, userInfo: ["post": p])
     }
 
+    // MARK: - Comments header
+
+    private func commentsHeader(count: Int) -> some View {
+        Text(String(format: bundle.loc("Comments · %d"), count))
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundColor(AppColors.textPrimary(colorScheme))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, AppSpacing.md)
+            .padding(.top, AppSpacing.md)
+            .padding(.bottom, AppSpacing.xs)
+    }
+
     // MARK: - Composer
 
+    /// Floating on the grey background — a rounded "Replying to" chip (when
+    /// replying) above an avatar + pill field + send row, instead of a
+    /// full-width slab with a divider.
     private func composerBar(proxy: ScrollViewProxy) -> some View {
-        VStack(spacing: 0) {
-            Divider()
-
+        VStack(spacing: AppSpacing.xs) {
             if let replying = commentVM.replyingTo {
                 HStack(spacing: 8) {
                     Image(systemName: "arrowshape.turn.up.left.fill")
@@ -165,9 +183,10 @@ struct PostDetailView: View {
                             .foregroundColor(AppColors.textSecondary(colorScheme).opacity(0.6))
                     }
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(themeManager.theme.primary.opacity(0.06))
+                .padding(.horizontal, AppSpacing.md)
+                .padding(.vertical, 6)
+                .background(themeManager.theme.primary.opacity(0.10), in: Capsule())
+                .padding(.horizontal, AppSpacing.sm)
             }
 
             HStack(spacing: 10) {
@@ -179,10 +198,10 @@ struct PostDetailView: View {
                     .font(.system(size: 15))
                     .lineLimit(4)
                     .focused($composerFocused)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(AppColors.base(colorScheme))
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(AppColors.surface(colorScheme), in: Capsule())
+                    .overlay(Capsule().stroke(AppColors.borderDefault(colorScheme), lineWidth: 1))
 
                 Button {
                     Task {
@@ -205,10 +224,9 @@ struct PostDetailView: View {
                 }
                 .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty || commentVM.isSending)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(AppColors.surface(colorScheme))
+            .padding(.horizontal, AppSpacing.md)
         }
+        .padding(.vertical, AppSpacing.sm)
     }
 
     // MARK: - Error state

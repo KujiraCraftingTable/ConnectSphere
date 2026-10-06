@@ -823,3 +823,11 @@
 "Choose new photo" = "Chọn ảnh mới";
 "Edit cover photo" = "Sửa ảnh bìa";
 "Add cover photo" = "Thêm ảnh bìa";
+
+// MARK: - Post detail
+"Comments · %d" = "Bình luận · %d";
+
+// MARK: - Post media upload errors
+"Couldn't post" = "Không thể đăng bài";
+"This video is too large to upload (max 50 MB)." = "Video quá lớn để tải lên (tối đa 50 MB).";
+"Couldn't upload one of your photos or videos. Please try again." = "Không thể tải lên một ảnh hoặc video. Vui lòng thử lại.";
