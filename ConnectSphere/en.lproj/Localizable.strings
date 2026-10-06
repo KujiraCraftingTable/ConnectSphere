@@ -41,7 +41,6 @@
 "Almost there" = "Almost there";
 "Analyzing your description" = "Analyzing your description";
 "Appearance" = "Appearance";
-"Appearance · %@" = "Appearance · %@";
 "Author" = "Author";
 "Background highlight" = "Background highlight";
 "Basic information" = "Basic information";
@@ -806,3 +805,6 @@
 "Stop recording" = "Stop recording";
 "Play recording" = "Play recording";
 "Pause playback" = "Pause playback";
+
+// MARK: - Settings: theme vs appearance
+"Theme color · %@" = "Theme color · %@";

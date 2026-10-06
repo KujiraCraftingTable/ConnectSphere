@@ -41,7 +41,6 @@
 "Almost there" = "Chút xíu nữa thôi";
 "Analyzing your description" = "Đang nỗ lực phân tích mô tả đây";
 "Appearance" = "Giao diện";
-"Appearance · %@" = "Giao diện · %@";
 "Author" = "Tác giả";
 "Background highlight" = "Nền nổi bật";
 "Basic information" = "Thông tin cơ bản";
@@ -806,3 +805,6 @@
 "Stop recording" = "Dừng ghi âm";
 "Play recording" = "Phát bản ghi âm";
 "Pause playback" = "Tạm dừng phát";
+
+// MARK: - Settings: theme vs appearance
+"Theme color · %@" = "Màu chủ đề · %@";
