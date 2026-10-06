@@ -385,97 +385,112 @@ struct CommentRow: View {
     var onCancelEdit: (() -> Void)? = nil
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: 8) {
             avatar
 
             VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 4) {
-                    NavigationLink(destination: UserProfileView(userId: comment.author.id).environment(appState)) {
-                        Text(comment.author.displayName)
+                if isEditing {
+                    editRow
+                } else {
+                    bubble
+                        .contextMenu {
+                            if isOwn, let onEdit {
+                                Button(action: onEdit) {
+                                    Label(bundle.loc("Edit comment"), systemImage: "pencil")
+                                }
+                            }
+                            if isOwn, let onDelete {
+                                Button(role: .destructive, action: onDelete) {
+                                    Label(bundle.loc("Delete comment"), systemImage: "trash")
+                                }
+                            }
+                        }
+                }
+                metaRow
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
+
+    /// Name line + text in a rounded bubble that hugs its content
+    /// (Messenger/Facebook style, like the chat screen's bubbles). The grey
+    /// `base` fill stands out on the white comments card in both modes.
+    private var bubble: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 4) {
+                NavigationLink(destination: UserProfileView(userId: comment.author.id).environment(appState)) {
+                    Text(comment.author.displayName)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(AppColors.textPrimary(colorScheme))
+                }
+                .buttonStyle(.plain)
+
+                if let replyTarget {
+                    Text("replied to", bundle: bundle)
+                        .font(.system(size: 13))
+                        .foregroundColor(AppColors.textSecondary(colorScheme))
+                    NavigationLink(destination: UserProfileView(userId: replyTarget.userId).environment(appState)) {
+                        Text(replyTarget.name)
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                     }
                     .buttonStyle(.plain)
-
-                    if let replyTarget {
-                        Text("replied to", bundle: bundle)
-                            .font(.system(size: 13))
-                            .foregroundColor(AppColors.textSecondary(colorScheme))
-                        NavigationLink(destination: UserProfileView(userId: replyTarget.userId).environment(appState)) {
-                            Text(replyTarget.name)
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(AppColors.textPrimary(colorScheme))
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    if isPostAuthor {
-                        Text("Author", bundle: bundle)
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(themeManager.theme.primary)
-                            .clipShape(Capsule())
-                    }
-
-                    Text(comment.createdAt.timeAgoString)
-                        .font(.system(size: 12))
-                        .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
 
-                if isEditing {
-                    editRow
-                } else {
-                    Text(comment.content)
-                        .font(.system(size: 14))
-                        .foregroundColor(AppColors.textPrimary(colorScheme))
-                        .fixedSize(horizontal: false, vertical: true)
+                if isPostAuthor {
+                    Text("Author", bundle: bundle)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(themeManager.theme.primary)
+                        .clipShape(Capsule())
                 }
-
-                // Action row: like + reply
-                HStack(spacing: 16) {
-                    if let onLike {
-                        Button(action: onLike) {
-                            HStack(spacing: 3) {
-                                Image(systemName: comment.isLiked ? "heart.fill" : "heart")
-                                    .font(.system(size: 12))
-                                if comment.likeCount > 0 {
-                                    Text("\(comment.likeCount)").font(.system(size: 12))
-                                }
-                            }
-                            .foregroundColor(comment.isLiked ? AppColors.danger(colorScheme) : AppColors.textSecondary(colorScheme))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    if let onReply {
-                        Button(action: onReply) {
-                            Text("Reply", bundle: bundle)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(AppColors.textSecondary(colorScheme))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.top, 2)
             }
 
-            Spacer()
+            Text(comment.content)
+                .font(.system(size: 14))
+                .foregroundColor(AppColors.textPrimary(colorScheme))
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .contextMenu {
-            if isOwn, let onEdit {
-                Button(action: onEdit) {
-                    Label(bundle.loc("Edit comment"), systemImage: "pencil")
+        .padding(.vertical, 8)
+        .background(AppColors.base(colorScheme), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    /// Time · like · Reply under the bubble, inset to line up with its text.
+    private var metaRow: some View {
+        HStack(spacing: 14) {
+            Text(comment.createdAt.timeAgoString)
+                .font(.system(size: 12))
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+
+            if let onLike {
+                Button(action: onLike) {
+                    HStack(spacing: 3) {
+                        Image(systemName: comment.isLiked ? "heart.fill" : "heart")
+                            .font(.system(size: 12))
+                        if comment.likeCount > 0 {
+                            Text("\(comment.likeCount)").font(.system(size: 12))
+                        }
+                    }
+                    .foregroundColor(comment.isLiked ? AppColors.danger(colorScheme) : AppColors.textSecondary(colorScheme))
                 }
+                .buttonStyle(.plain)
             }
-            if isOwn, let onDelete {
-                Button(role: .destructive, action: onDelete) {
-                    Label(bundle.loc("Delete comment"), systemImage: "trash")
+            if let onReply {
+                Button(action: onReply) {
+                    Text("Reply", bundle: bundle)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
+                .buttonStyle(.plain)
             }
         }
+        .padding(.leading, 12)
     }
 
     /// Compact inline edit UI — replaces the static content `Text` while

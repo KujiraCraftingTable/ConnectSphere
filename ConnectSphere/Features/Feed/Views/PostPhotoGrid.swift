@@ -89,12 +89,7 @@ struct PostPhotoGrid: View {
                 .frame(height: height)
                 .overlay {
                     if urls[index].isVideoURL {
-                        ZStack {
-                            Color.black.opacity(0.85)
-                            Image(systemName: "play.circle.fill")
-                                .font(.system(size: 34))
-                                .foregroundColor(.white.opacity(0.92))
-                        }
+                        VideoPosterView(url: URL(string: urls[index]))
                     } else {
                         AsyncImage(url: URL(string: urls[index])) { phase in
                             switch phase {

@@ -115,6 +115,7 @@ class PostComposerViewModel {
             onSuccess(post)
         } catch {
             if case APIError.serverError(_, let msg) = error { errorMessage = msg }
+            else if let upload = error as? MediaUploadError { errorMessage = upload.errorDescription }
             else { errorMessage = Bundle.app.loc("Could not post. Please try again.") }
         }
         isPosting = false
@@ -129,12 +130,12 @@ class PostComposerViewModel {
     }
 
     /// Uploads all selected media through the same multipart route Feed uses
-    /// (POST /uploads); a failed item is skipped, order is preserved.
-    private func uploadSelectedMedia() async -> [String] {
+    /// (POST /uploads), in order. Throws `MediaUploadError` if any item fails.
+    private func uploadSelectedMedia() async throws -> [String] {
         guard !selectedMedia.isEmpty else { return [] }
         isUploadingMedia = true
         defer { isUploadingMedia = false }
-        return await mediaHelper.uploadMedia(selectedMedia)
+        return try await mediaHelper.uploadMedia(selectedMedia)
     }
 
     // MARK: - Link preview (debounced)
@@ -184,7 +185,7 @@ class PostComposerViewModel {
             }
         }
 
-        let imageUrls = await uploadSelectedMedia()
+        let imageUrls = try await uploadSelectedMedia()
 
         var dict: [String: Any] = [
             "content":      finalContent,
