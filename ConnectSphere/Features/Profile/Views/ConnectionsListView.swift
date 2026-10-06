@@ -8,28 +8,22 @@ struct ConnectionsListView: View {
     @Environment(\.appBundle) var bundle
     @Environment(\.colorScheme) var colorScheme
 
-    @State private var pendingRequests: [ConnectionItemDTO] = []
-    @State private var friends: [ConnectionItemDTO] = []
-    @State private var isLoading = false
-    @State private var processingIds: Set<String> = []
-    @State private var errorMessage: String?
-
-    private let repository = ConnectionRepository()
+    @State private var viewModel = ConnectionsListViewModel()
 
     var body: some View {
         List {
             // ── Received requests ──────────────────────────────────────────────
-            if !pendingRequests.isEmpty {
+            if !viewModel.pendingRequests.isEmpty {
                 Section(bundle.loc("Connection request")) {
-                    ForEach(pendingRequests) { item in
+                    ForEach(viewModel.pendingRequests) { item in
                         HStack(spacing: 12) {
                             userRow(item.user)
                             Spacer()
-                            if processingIds.contains(item.connectionId) {
+                            if viewModel.processingIds.contains(item.connectionId) {
                                 ProgressView().scaleEffect(0.8)
                             } else {
                                 Button {
-                                    Task { await respond(item, accept: true) }
+                                    Task { await viewModel.respond(item, accept: true, mode: appState.currentMode) }
                                 } label: {
                                     Image(systemName: "checkmark.circle.fill")
                                         .font(.system(size: 28))
@@ -37,7 +31,7 @@ struct ConnectionsListView: View {
                                 }
                                 .buttonStyle(.plain)
                                 Button {
-                                    Task { await respond(item, accept: false) }
+                                    Task { await viewModel.respond(item, accept: false, mode: appState.currentMode) }
                                 } label: {
                                     Image(systemName: "xmark.circle.fill")
                                         .font(.system(size: 28))
@@ -53,12 +47,12 @@ struct ConnectionsListView: View {
 
             // ── Connected ───────────────────────────────────────────────────
             Section(bundle.loc("Friends")) {
-                if friends.isEmpty && !isLoading {
+                if viewModel.friends.isEmpty && !viewModel.isLoading {
                     Text("No connections yet — try searching and sending a request", bundle: bundle)
                         .font(.system(size: 14))
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 } else {
-                    ForEach(friends) { item in
+                    ForEach(viewModel.friends) { item in
                         NavigationLink {
                             UserProfileView(userId: item.user.id, preloadedUser: item.user.toUserProfile())
                         } label: {
@@ -71,12 +65,12 @@ struct ConnectionsListView: View {
         .listStyle(.insetGrouped)
         .navigationTitle(bundle.loc("Connect"))
         .navigationBarTitleDisplayMode(.inline)
-        .task { await load() }
-        .refreshable { await load() }
-        .alert(bundle.loc("Error"), isPresented: .constant(errorMessage != nil)) {
-            Button(bundle.loc("OK")) { errorMessage = nil }
+        .task { await viewModel.load(mode: appState.currentMode) }
+        .refreshable { await viewModel.load(mode: appState.currentMode) }
+        .alert(bundle.loc("Error"), isPresented: .constant(viewModel.errorMessage != nil)) {
+            Button(bundle.loc("OK")) { viewModel.errorMessage = nil }
         } message: {
-            Text(errorMessage ?? "")
+            Text(viewModel.errorMessage ?? "")
         }
     }
 
@@ -99,34 +93,6 @@ struct ConnectionsListView: View {
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
             }
-        }
-    }
-
-    // MARK: - Data
-
-    private func load() async {
-        isLoading = true
-        defer { isLoading = false }
-        let mode = appState.currentMode.rawValue
-        async let pending = repository.fetchConnections(mode: mode, status: "pending_received")
-        async let accepted = repository.fetchConnections(mode: mode, status: "accepted")
-        pendingRequests = (try? await pending) ?? []
-        friends         = (try? await accepted) ?? []
-    }
-
-    private func respond(_ item: ConnectionItemDTO, accept: Bool) async {
-        processingIds.insert(item.connectionId)
-        defer { processingIds.remove(item.connectionId) }
-        do {
-            if accept {
-                try await repository.accept(connectionId: item.connectionId)
-            } else {
-                try await repository.decline(connectionId: item.connectionId)
-            }
-            await load()
-        } catch {
-            // Leave the list as-is; surface the error so the user knows to retry
-            errorMessage = friendlyError(error)
         }
     }
 }

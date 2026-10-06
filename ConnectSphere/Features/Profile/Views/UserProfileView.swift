@@ -12,15 +12,11 @@ struct UserProfileView: View {
 
     @State private var chatConversationId: String?
     @State private var navigateToChat = false
-    @State private var isOpeningChat = false
     // Tap-to-open-post-detail — same PostRoute/PostDetailView navigation Feed uses.
     @State private var detailRoute: PostRoute?
 
     // Block state
-    @State private var isBlocked = false
     @State private var showBlockConfirm = false
-    @State private var errorMessage: String?
-    private let userRepo = UserRepository()
 
     init(userId: String, preloadedUser: UserProfile? = nil) {
         self.userId = userId
@@ -50,9 +46,9 @@ struct UserProfileView: View {
             if userId != appState.currentUser?.id {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
-                        if isBlocked {
+                        if viewModel.isBlocked {
                             Button {
-                                Task { await toggleBlock() }
+                                Task { await viewModel.toggleBlock(userId: userId) }
                             } label: {
                                 Label(bundle.loc("Unblock"), systemImage: "person.crop.circle.badge.checkmark")
                             }
@@ -77,16 +73,16 @@ struct UserProfileView: View {
             titleVisibility: .visible
         ) {
             Button(bundle.loc("Block"), role: .destructive) {
-                Task { await toggleBlock() }
+                Task { await viewModel.toggleBlock(userId: userId) }
             }
             Button(bundle.loc("Cancel"), role: .cancel) {}
         } message: {
             Text("You two will no longer see each other's posts, all connections will be removed, and you won't be able to message each other.", bundle: bundle)
         }
-        .alert(bundle.loc("Error"), isPresented: .constant(errorMessage != nil)) {
-            Button(bundle.loc("OK")) { errorMessage = nil }
+        .alert(bundle.loc("Error"), isPresented: .constant(viewModel.actionError != nil)) {
+            Button(bundle.loc("OK")) { viewModel.actionError = nil }
         } message: {
-            Text(errorMessage ?? "")
+            Text(viewModel.actionError ?? "")
         }
         .navigationDestination(isPresented: Binding(
             get: { detailRoute != nil },
@@ -111,32 +107,11 @@ struct UserProfileView: View {
         .task {
             await viewModel.load(userId: userId, mode: appState.currentMode.rawValue)
             if userId != appState.currentUser?.id {
-                isBlocked = (try? await userRepo.fetchBlockStatus(userId: userId)) ?? false
+                await viewModel.loadBlockStatus(userId: userId)
             }
         }
         .onChange(of: appState.currentMode) { _, newMode in
             Task { await viewModel.load(userId: userId, mode: newMode.rawValue) }
-        }
-    }
-
-    /// Blocks / unblocks the user currently being viewed
-    private func toggleBlock() async {
-        do {
-            if isBlocked {
-                try await userRepo.unblockUser(userId: userId)
-                isBlocked = false
-            } else {
-                try await userRepo.blockUser(userId: userId)
-                isBlocked = true
-            }
-            // Any open ChatView for this user (e.g. blocking from the profile
-            // while its chat is already open elsewhere) refreshes live.
-            NotificationCenter.default.post(
-                name: .userBlockStatusChanged, object: nil, userInfo: ["userId": userId]
-            )
-        } catch {
-            // Leave the state as-is; surface the error so the user knows to retry from the menu
-            errorMessage = friendlyError(error)
         }
     }
 
@@ -154,7 +129,7 @@ struct UserProfileView: View {
                 Spacer()
                 if userId != appState.currentUser?.id {
                     Group {
-                        if isBlocked {
+                        if viewModel.isBlocked {
                             // Blocked → can no longer connect/message this user
                             Text("Blocked", bundle: bundle)
                                 .font(.system(size: 12, weight: .semibold))
@@ -266,10 +241,15 @@ struct UserProfileView: View {
 
     private var messageButton: some View {
         Button {
-            Task { await openChat() }
+            Task {
+                guard let convId = await viewModel.openConversation(
+                    with: userId, mode: appState.currentMode, token: appState.authToken) else { return }
+                chatConversationId = convId
+                navigateToChat = true
+            }
         } label: {
             HStack(spacing: 4) {
-                if isOpeningChat {
+                if viewModel.isOpeningChat {
                     ProgressView().scaleEffect(0.7).tint(.white)
                 } else {
                     Image(systemName: "message.fill")
@@ -286,24 +266,7 @@ struct UserProfileView: View {
             .background(Capsule().fill(themeManager.theme.primary))
         }
         .buttonStyle(.plain)
-        .disabled(isOpeningChat)
-    }
-
-    private func openChat() async {
-        guard let token = appState.authToken else { return }
-        isOpeningChat = true
-        defer { isOpeningChat = false }
-        do {
-            let convId = try await MessageRepository().openConversation(
-                otherUserId: userId,
-                mode: appState.currentMode.rawValue,
-                token: token
-            )
-            chatConversationId = convId
-            navigateToChat = true
-        } catch {
-            // silently fail — user can retry
-        }
+        .disabled(viewModel.isOpeningChat)
     }
 
     // MARK: Posts
