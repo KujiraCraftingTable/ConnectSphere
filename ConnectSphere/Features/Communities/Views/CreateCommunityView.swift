@@ -38,19 +38,10 @@ struct CreateCommunityView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.appBundle) var bundle
 
-    @State private var name        = ""
-    @State private var description = ""
-    @State private var type: CommunityType       = .fandom
-    @State private var privacy: CommunityPrivacy = .public
-    @State private var selectedEmoji = fandomEmojis[0]
-    @State private var selectedColor = "#7F5AF0"
-    @State private var isCreating    = false
-    @State private var errorMessage: String?
+    @State private var viewModel = CreateCommunityViewModel(defaultEmoji: fandomEmojis[0])
 
     // Real uploaded photo, same pick-now/upload-at-save pattern as EditProfileView.
     @State private var pickerItem: PhotosPickerItem?
-    @State private var pickedImage: UIImage?
-    private let postRepo = PostRepository()
 
     @State private var customEmoji: String?  = nil
     @State private var showCustomEmojiInput  = false
@@ -64,29 +55,25 @@ struct CreateCommunityView: View {
     var existingCommunities: [Community] = []
     let onCreated: (Community) -> Void
 
-    private var isDuplicateName: Bool {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard trimmed.count >= 3 else { return false }
-        return existingCommunities.contains { $0.name.lowercased() == trimmed && $0.type == type }
-    }
+    private var isDuplicateName: Bool { viewModel.isDuplicateName(among: existingCommunities) }
 
     private var duplicateWarning: String {
-        let pool = type == .work ? workDuplicateWarnings : fandomDuplicateWarnings
+        let pool = viewModel.type == .work ? workDuplicateWarnings : fandomDuplicateWarnings
         return bundle.loc(pool[warningIndex % pool.count])
     }
 
     private var nameError: String? {
         guard showValidation else { return nil }
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = viewModel.name.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty   { return bundle.loc("Please enter a community name") }
         if trimmed.count < 3 { return bundle.loc("Name must be at least 3 characters") }
         if trimmed.count > 100 { return bundle.loc("Name must not exceed 100 characters") }
         return nil
     }
 
-    var canCreate: Bool { name.trimmingCharacters(in: .whitespacesAndNewlines).count >= 3 }
+    var canCreate: Bool { viewModel.canCreate }
 
-    private var currentEmojiSet: [String] { type == .work ? workEmojis : fandomEmojis }
+    private var currentEmojiSet: [String] { viewModel.type == .work ? workEmojis : fandomEmojis }
 
     var body: some View {
         NavigationStack {
@@ -96,7 +83,7 @@ struct CreateCommunityView: View {
                     HStack(spacing: 10) {
                         PhotosPicker(selection: $pickerItem, matching: .images) {
                             ZStack(alignment: .bottomTrailing) {
-                                if let pickedImage {
+                                if let pickedImage = viewModel.pickedImage {
                                     Image(uiImage: pickedImage)
                                         .resizable()
                                         .scaledToFill()
@@ -105,9 +92,9 @@ struct CreateCommunityView: View {
                                 } else {
                                     ZStack {
                                         RoundedRectangle(cornerRadius: 10)
-                                            .fill(Color(hex: selectedColor).opacity(0.18))
+                                            .fill(Color(hex: viewModel.selectedColor).opacity(0.18))
                                             .frame(width: 44, height: 44)
-                                        Text(selectedEmoji).font(.system(size: 22))
+                                        Text(viewModel.selectedEmoji).font(.system(size: 22))
                                     }
                                 }
                                 ZStack {
@@ -121,14 +108,14 @@ struct CreateCommunityView: View {
                         }
                         .buttonStyle(.plain)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(name.isEmpty ? bundle.loc("Community name") : name)
+                            Text(viewModel.name.isEmpty ? bundle.loc("Community name") : viewModel.name)
                                 .font(.system(size: 15, weight: .semibold))
-                                .foregroundColor(name.isEmpty
+                                .foregroundColor(viewModel.name.isEmpty
                                     ? AppColors.textTertiary(colorScheme)
                                     : AppColors.textPrimary(colorScheme))
-                            Text(bundle.loc(type.label))
+                            Text(bundle.loc(viewModel.type.label))
                                 .font(.system(size: 12))
-                                .foregroundColor(Color(hex: selectedColor))
+                                .foregroundColor(Color(hex: viewModel.selectedColor))
                         }
                         Spacer()
                     }
@@ -137,7 +124,7 @@ struct CreateCommunityView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 14))
 
                     formSection(title: bundle.loc("Name")) {
-                        TextField(bundle.loc("3–100 characters"), text: $name)
+                        TextField(bundle.loc("3–100 characters"), text: $viewModel.name)
                             .font(.system(size: 15))
                             .padding(12)
                             .background(AppColors.surface(colorScheme))
@@ -147,11 +134,11 @@ struct CreateCommunityView: View {
                             )
                             .clipShape(RoundedRectangle(cornerRadius: 10))
                             .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
-                            .onChange(of: name) { _, _ in
+                            .onChange(of: viewModel.name) { _, _ in
                                 if showValidation && canCreate { showValidation = false }
                                 refreshWarning()
                             }
-                            .onChange(of: type) { _, _ in refreshWarning() }
+                            .onChange(of: viewModel.type) { _, _ in refreshWarning() }
 
                         if let err = nameError {
                             Text(err)
@@ -162,7 +149,7 @@ struct CreateCommunityView: View {
                         } else if isDuplicateName {
                             Text(duplicateWarning)
                                 .font(.system(size: 13))
-                                .foregroundColor(type == .fandom
+                                .foregroundColor(viewModel.type == .fandom
                                     ? themeManager.theme.primary
                                     : Color.red)
                                 .padding(.horizontal, 4)
@@ -173,7 +160,7 @@ struct CreateCommunityView: View {
                     .animation(.easeInOut(duration: 0.2), value: isDuplicateName)
 
                     formSection(title: bundle.loc("Description (optional)")) {
-                        TextEditor(text: $description)
+                        TextEditor(text: $viewModel.description)
                             .font(.system(size: 15))
                             .scrollContentBackground(.hidden)
                             .padding(8)
@@ -181,9 +168,6 @@ struct CreateCommunityView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 10))
                             .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
                             .frame(height: 80)
-                            .onChange(of: description) { _, new in
-                                if new.count > 500 { description = String(new.prefix(500)) }
-                            }
                     }
 
                     // Privacy picker
@@ -225,7 +209,7 @@ struct CreateCommunityView: View {
                                         guard !new.isEmpty else { return }
                                         let picked = String(new.prefix(1))
                                         customEmoji          = picked
-                                        selectedEmoji        = picked
+                                        viewModel.selectedEmoji        = picked
                                         showCustomEmojiInput = false
                                         customEmojiDraft     = ""
                                     }
@@ -263,13 +247,13 @@ struct CreateCommunityView: View {
                         LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 10), spacing: 10) {
                             ForEach(colorPreset, id: \.self) { hex in
                                 Button {
-                                    selectedColor = hex
+                                    viewModel.selectedColor = hex
                                 } label: {
                                     Circle()
                                         .fill(Color(hex: hex))
                                         .frame(width: 28, height: 28)
                                         .overlay(
-                                            Circle().stroke(.white, lineWidth: selectedColor == hex ? 3 : 0)
+                                            Circle().stroke(.white, lineWidth: viewModel.selectedColor == hex ? 3 : 0)
                                         )
                                         .shadow(color: Color(hex: hex).opacity(0.5), radius: 4)
                                 }
@@ -277,8 +261,8 @@ struct CreateCommunityView: View {
                             }
                         }
                         ColorPicker(selection: Binding(
-                            get: { Color(hex: selectedColor) },
-                            set: { selectedColor = $0.toHex() ?? selectedColor }
+                            get: { Color(hex: viewModel.selectedColor) },
+                            set: { viewModel.selectedColor = $0.toHex() ?? viewModel.selectedColor }
                         ), supportsOpacity: false) {
                             Text("Custom color", bundle: bundle)
                                 .font(.system(size: 13))
@@ -287,7 +271,7 @@ struct CreateCommunityView: View {
                         .padding(.top, 4)
                     }
 
-                    if let err = errorMessage {
+                    if let err = viewModel.errorMessage {
                         Text(err)
                             .font(.system(size: 13))
                             .foregroundColor(.red)
@@ -305,12 +289,16 @@ struct CreateCommunityView: View {
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    if isCreating {
+                    if viewModel.isCreating {
                         ProgressView().tint(themeManager.theme.primary)
                     } else {
                         Button(bundle.loc("Create")) {
                             guard canCreate else { showValidation = true; return }
-                            Task<Void, Never>(name: nil) { await create() }
+                            Task<Void, Never>(name: nil) {
+                                guard let community = await viewModel.create(token: appState.authToken) else { return }
+                                onCreated(community)
+                                dismiss()
+                            }
                         }
                         .foregroundColor(canCreate ? themeManager.theme.primary : AppColors.textTertiary(colorScheme))
                     }
@@ -318,21 +306,16 @@ struct CreateCommunityView: View {
             }
             .onChange(of: pickerItem) { _, item in
                 guard let item else { return }
-                Task {
-                    if let data = try? await item.loadTransferable(type: Data.self),
-                       let image = UIImage(data: data) {
-                        pickedImage = image
-                    }
-                }
+                Task { await viewModel.loadPhoto(from: item) }
             }
             .onAppear {
-                type = appState.currentMode == .hobby ? .fandom : .work
+                viewModel.type = appState.currentMode == .hobby ? .fandom : .work
             }
-            .onChange(of: type) { _, newType in
+            .onChange(of: viewModel.type) { _, newType in
                 // Reset to first emoji of new type if current selection doesn't belong
                 let set = newType == .work ? workEmojis : fandomEmojis
-                if !set.contains(selectedEmoji) && customEmoji != selectedEmoji {
-                    selectedEmoji = set[0]
+                if !set.contains(viewModel.selectedEmoji) && customEmoji != viewModel.selectedEmoji {
+                    viewModel.selectedEmoji = set[0]
                 }
                 customEmoji         = nil
                 showCustomEmojiInput = false
@@ -352,12 +335,12 @@ struct CreateCommunityView: View {
 
     @ViewBuilder
     private func emojiCell(_ emoji: String) -> some View {
-        Button { selectedEmoji = emoji } label: {
+        Button { viewModel.selectedEmoji = emoji } label: {
             Text(emoji)
                 .font(.system(size: 22))
                 .frame(width: 34, height: 34)
-                .background(selectedEmoji == emoji
-                    ? Color(hex: selectedColor).opacity(0.18)
+                .background(viewModel.selectedEmoji == emoji
+                    ? Color(hex: viewModel.selectedColor).opacity(0.18)
                     : Color.clear)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
         }
@@ -376,54 +359,16 @@ struct CreateCommunityView: View {
 
     @ViewBuilder
     private func privacyTab(_ p: CommunityPrivacy, label: String, icon: String) -> some View {
-        Button { privacy = p } label: {
+        Button { viewModel.privacy = p } label: {
             Label(label, systemImage: icon)
-                .font(.system(size: 14, weight: privacy == p ? .semibold : .regular))
-                .foregroundColor(privacy == p ? .white : AppColors.textSecondary(colorScheme))
+                .font(.system(size: 14, weight: viewModel.privacy == p ? .semibold : .regular))
+                .foregroundColor(viewModel.privacy == p ? .white : AppColors.textSecondary(colorScheme))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
-                .background(privacy == p ? themeManager.theme.primary : Color.clear)
+                .background(viewModel.privacy == p ? themeManager.theme.primary : Color.clear)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
     }
 
-    private func create() async {
-        guard canCreate else { return }
-        isCreating = true
-        errorMessage = nil
-
-        // Upload the picked photo first (if any) — same pick-now/upload-at-save
-        // ordering EditProfileView uses, so nothing's uploaded until Create is
-        // actually confirmed.
-        var avatarUrl: String? = nil
-        if let pickedImage, let data = pickedImage.jpegData(compressionQuality: 0.8) {
-            avatarUrl = try? await postRepo.uploadImage(data)
-            if avatarUrl == nil {
-                errorMessage = bundle.loc("Couldn't upload photo, please try again")
-                isCreating = false
-                return
-            }
-        }
-
-        let descTrimmed = description.trimmingCharacters(in: .whitespacesAndNewlines)
-        do {
-            let community = try await CommunityRepository().createCommunity(
-                name:        name.trimmingCharacters(in: .whitespacesAndNewlines),
-                type:        type.rawValue,
-                privacy:     privacy.rawValue,
-                iconEmoji:   selectedEmoji,
-                coverColor:  selectedColor,
-                avatarUrl:   avatarUrl,
-                description: descTrimmed.isEmpty ? nil : descTrimmed,
-                token:       appState.authToken ?? ""
-            )
-            onCreated(community)
-            dismiss()
-        } catch {
-            if case APIError.serverError(_, let msg) = error { errorMessage = msg }
-            else { errorMessage = bundle.loc("Could not create community. Please try again.") }
-        }
-        isCreating = false
-    }
 }

@@ -12,7 +12,6 @@ struct JobPostCard: View {
     let poster: UserProfile
     var accentColor: Color
 
-    @State private var isOpeningChat = false
     @State private var chatConversationId: String?
     @State private var navigateToChat = false
 
@@ -122,7 +121,11 @@ struct JobPostCard: View {
 
     private var messageButton: some View {
         Button {
-            Task<Void, Never>(name: nil) { await openChat() }
+            Task<Void, Never>(name: nil) {
+                guard let convId = await vm.openConversation(with: poster.id, mode: appState.currentMode) else { return }
+                chatConversationId = convId
+                navigateToChat = true
+            }
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "message")
@@ -137,24 +140,7 @@ struct JobPostCard: View {
             .clipShape(Capsule())
         }
         .buttonStyle(.plain)
-        .disabled(isOpeningChat)
-    }
-
-    private func openChat() async {
-        guard let token = appState.authToken else { return }
-        isOpeningChat = true
-        defer { isOpeningChat = false }
-        do {
-            let convId = try await MessageRepository().openConversation(
-                otherUserId: poster.id,
-                mode: appState.currentMode.rawValue,
-                token: token
-            )
-            chatConversationId = convId
-            navigateToChat = true
-        } catch {
-            // silently fail — user can retry, mirrors UserProfileView.openChat
-        }
+        .disabled(vm.isOpeningChat)
     }
 
     private func formattedDeadline(_ date: Date) -> String {
