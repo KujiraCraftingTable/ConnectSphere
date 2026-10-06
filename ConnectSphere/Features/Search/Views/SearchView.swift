@@ -174,7 +174,11 @@ struct SearchView: View {
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 10)
-        .background(AppColors.base(colorScheme))
+        // `ignoresSafeAreaEdges: []` keeps the fill inside the header. A plain
+        // `.background(color)` extends into the safe area by default, so this
+        // pinned header painted up behind the navigation bar and hid the large
+        // "Search" title.
+        .background(AppColors.base(colorScheme), ignoresSafeAreaEdges: [])
         .animation(.easeInOut(duration: 0.15), value: aiEnabled)
     }
 
