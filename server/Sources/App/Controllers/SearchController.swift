@@ -263,8 +263,12 @@ struct SearchController {
         }
 
         let visible = try await PostStore.findVisible(Array(best.keys), viewer: req.userID, on: db)
+        // Engagement only reorders; `match_scores` below stays the pure match.
+        func rank(_ p: PostObject) -> Double {
+            PostRanking.rankScore(similarity: best[p.id] ?? 0, likes: p.like_count, comments: p.comment_count)
+        }
         let ranked = visible
-            .sorted { (best[$0.id] ?? 0) > (best[$1.id] ?? 0) }
+            .sorted { rank($0) > rank($1) }
             .prefix(20)
         try? await SearchStore.logSearch(userQuery, mode: b.mode, on: db)
         return AIPostSearchResponse(

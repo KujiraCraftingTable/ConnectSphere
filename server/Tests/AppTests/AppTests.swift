@@ -93,4 +93,32 @@ final class AppTests: XCTestCase {
             XCTAssertNil(kind(rejected), rejected)
         }
     }
+
+    // MARK: PostRanking — popularity only nudges AI post search order.
+
+    func testRankScoreWithoutEngagementIsPureSimilarity() {
+        XCTAssertEqual(PostRanking.rankScore(similarity: 0.72, likes: 0, comments: 0), 0.72, accuracy: 1e-12)
+    }
+
+    func testRankScoreBoostIsCapped() {
+        let huge = PostRanking.rankScore(similarity: 0.6, likes: 1_000_000, comments: 1_000_000)
+        XCTAssertEqual(huge, 0.6 + PostRanking.maxBoost, accuracy: 1e-12)
+        XCTAssertEqual(PostRanking.rankScore(similarity: 0.6, likes: 50, comments: 0), 0.6 + PostRanking.maxBoost, accuracy: 1e-12)
+    }
+
+    func testRankScoreCommentsCountDouble() {
+        XCTAssertEqual(PostRanking.rankScore(similarity: 0.7, likes: 0, comments: 3),
+                       PostRanking.rankScore(similarity: 0.7, likes: 6, comments: 0), accuracy: 1e-12)
+    }
+
+    func testRankScorePopularityBreaksTiesButNeverBeatsAClearlyBetterMatch() {
+        XCTAssertGreaterThan(PostRanking.rankScore(similarity: 0.75, likes: 10, comments: 2),
+                             PostRanking.rankScore(similarity: 0.76, likes: 0, comments: 0))
+        XCTAssertGreaterThan(PostRanking.rankScore(similarity: 0.70, likes: 0, comments: 0),
+                             PostRanking.rankScore(similarity: 0.60, likes: 1_000, comments: 1_000))
+    }
+
+    func testRankScoreIgnoresNegativeCounts() {
+        XCTAssertEqual(PostRanking.rankScore(similarity: 0.65, likes: -5, comments: -1), 0.65, accuracy: 1e-12)
+    }
 }

@@ -239,7 +239,9 @@ struct PostsController {
     // MARK: POST /api/posts/:id/restore
 
     static func restore(_ req: Request) async throws -> DataResponse<PostObject> {
-        DataResponse(data: try await PostService.restorePost(requesterID: req.userID, postID: req.parameters.get("id")!, on: req.db))
+        let post = try await PostService.restorePost(requesterID: req.userID, postID: req.parameters.get("id")!, on: req.db)
+        await BackgroundJobs.refreshEmbedding(req, .post, id: post.id)
+        return DataResponse(data: post)
     }
 
     // MARK: PATCH /api/posts/:id
@@ -257,6 +259,8 @@ struct PostsController {
         let sdb = req.db.sql()
         guard let meta = try await PostStore.findMeta(id, on: sdb) else { throw Abort(.notFound, reason: "Post not found") }
         guard meta.author_id == req.userID else { throw Abort(.forbidden, reason: "Forbidden") }
+        struct Old: Decodable { let content: String? }
+        let oldContent = try await sdb.raw("SELECT content FROM posts WHERE id = \(uuid: id)").first(decoding: Old.self)?.content
 
         let b = try req.content.decode(UpdateBody.self)
         let contentProvided = (try? req.content.decode([String: AnyCodableValue].self))?.keys.contains("content") ?? false
@@ -273,7 +277,13 @@ struct PostsController {
         switch result {
         case .empty: throw Abort(.badRequest, reason: "A post must have a caption, image, or link")
         case .notFound: throw Abort(.notFound, reason: "Post not found or already deleted")
-        case .updated(let post): return DataResponse(data: post)
+        case .updated(let post):
+            if (post.content ?? "") != (oldContent ?? "") {
+                await BackgroundJobs.refreshPostAfterContentEdit(req, postID: post.id, content: post.content ?? "")
+            } else {
+                await BackgroundJobs.refreshEmbedding(req, .post, id: post.id)   // e.g. article title
+            }
+            return DataResponse(data: post)
         }
     }
 

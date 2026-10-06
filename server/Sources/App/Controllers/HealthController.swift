@@ -2,10 +2,12 @@ import Vapor
 import AsyncHTTPClient
 import NIOCore
 import NIOPosix
+import SQLKit
 
 /// `GET /health` — always 200 (liveness; the Docker healthcheck depends on it).
 /// `checks` reports best-effort reachability of Postgres, Redis and Ollama,
-/// matching the Node `/health` shape exactly: `{ status, env, checks }`.
+/// in the Node `/health` shape `{ status, env, checks }`, plus how far AI-search
+/// embeddings are behind (`embeddings`, nil if the DB can't say).
 struct HealthController {
     struct Body: Content {
         let status = "ok"
@@ -15,6 +17,13 @@ struct HealthController {
             var db: Bool
             var redis: Bool
             var ollama: Bool
+            var embeddings: Embeddings?
+        }
+        /// Items whose text changed (or is new) but isn't embedded yet, and how
+        /// long the oldest has waited — must stay under the 6-hour promise.
+        struct Embeddings: Content {
+            var out_of_date: Int
+            var oldest_out_of_date_minutes: Int?
         }
     }
 
@@ -24,8 +33,20 @@ struct HealthController {
             async let db = app.db.healthCheck()
             async let redis = pingRedis(host: env.redis.host, port: env.redis.port, on: req.eventLoop)
             async let ollama = pingOllama(url: env.ollama.url, client: app.http.client.shared)
-            return Body(env: env.nodeEnv, checks: .init(db: await db, redis: await redis, ollama: await ollama))
+            async let embeddings = embeddingFreshness(app.db.sql())
+            return Body(env: env.nodeEnv, checks: .init(db: await db, redis: await redis, ollama: await ollama,
+                                                       embeddings: await embeddings))
         }
+    }
+
+    private static func embeddingFreshness(_ db: any SQLDatabase) async -> Body.Embeddings? {
+        try? await db.raw("""
+            SELECT (SELECT COUNT(*) FROM embedding_out_of_date)::int AS out_of_date,
+                   (SELECT (EXTRACT(EPOCH FROM NOW() - MIN(b.first_seen_at)) / 60)::int
+                    FROM embedding_backlog b
+                    JOIN embedding_out_of_date o ON o.source_type = b.source_type AND o.source_id = b.source_id
+                   ) AS oldest_out_of_date_minutes
+            """).first(decoding: Body.Embeddings.self)
     }
 
     private static func pingOllama(url: String, client: HTTPClient) async -> Bool {

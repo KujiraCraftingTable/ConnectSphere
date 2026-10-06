@@ -5,8 +5,24 @@ import SQLKit
 /// pipeline. One `user_embedding_chunks` row per embeddable unit:
 ///   • `user_profile` (source_id NULL): normalised profile fields
 ///   • `post` (source_id = posts.id): one post's content + article title + tags
+///
+/// Each chunk stores `source_hash`, the fingerprint of the text it was built
+/// from (`post_embed_source_hash` / `profile_embed_source_hash`, migration 033).
+/// A build whose source hasn't changed is skipped before any LLM call, so
+/// duplicate jobs from edits and the sweep cost nothing.
 enum ChunkService {
     static let modelName = "mxbai-embed-large"
+
+    private struct Hash: Decodable { let h: String? }
+    private struct Stored: Decodable { let source_hash: String? }
+
+    static func postSourceHash(_ postID: String, on db: any SQLDatabase) async throws -> String? {
+        try await db.raw("SELECT post_embed_source_hash(\(uuid: postID)) AS h").first(decoding: Hash.self)?.h
+    }
+
+    static func profileSourceHash(_ userID: String, on db: any SQLDatabase) async throws -> String? {
+        try await db.raw("SELECT profile_embed_source_hash(\(uuid: userID)) AS h").first(decoding: Hash.self)?.h
+    }
 
     /// Attach the canonical name when the term is a known alias (Tier-1 exact, pure SQL).
     static func canonicalizeTerm(_ cfg: OllamaService.Config, _ term: String, on db: any SQLDatabase) async -> String {
@@ -25,7 +41,7 @@ enum ChunkService {
     /// Embed `content` and upsert one chunk row. `sourceID == nil` = profile chunk.
     @discardableResult
     static func upsertChunk(userID: String, sourceType: String, sourceID: String?, chunkIndex: Int = 0,
-                            topic: String?, content: String, cfg: OllamaService.Config,
+                            topic: String?, content: String, sourceHash: String?, cfg: OllamaService.Config,
                             on db: any SQLDatabase, logger: Logger) async -> Bool {
         guard let embedding = await OllamaService.embedText(cfg, content, logger: logger) else {
             logger.warning("chunkService: embed failed (\(sourceType) \(sourceID ?? "profile"))")
@@ -36,24 +52,30 @@ enum ChunkService {
             if sourceID == nil {
                 try await db.raw("""
                     INSERT INTO user_embedding_chunks
-                      (user_id, source_type, source_id, chunk_index, topic, content, embedding, model_name)
+                      (user_id, source_type, source_id, chunk_index, topic, content, embedding, model_name, source_hash)
                     VALUES (\(uuid: userID), \(bind: sourceType), NULL, \(bind: chunkIndex), \(bind: topic),
-                            \(bind: content), \(bind: vec)::vector, \(bind: modelName))
+                            \(bind: content), \(bind: vec)::vector, \(bind: modelName), \(bind: sourceHash))
                     ON CONFLICT (user_id, source_type, chunk_index) WHERE source_id IS NULL
                     DO UPDATE SET topic = EXCLUDED.topic, content = EXCLUDED.content,
-                                  embedding = EXCLUDED.embedding, model_name = EXCLUDED.model_name
+                                  embedding = EXCLUDED.embedding, model_name = EXCLUDED.model_name,
+                                  source_hash = EXCLUDED.source_hash
                     """).run()
             } else {
                 try await db.raw("""
                     INSERT INTO user_embedding_chunks
-                      (user_id, source_type, source_id, chunk_index, topic, content, embedding, model_name)
+                      (user_id, source_type, source_id, chunk_index, topic, content, embedding, model_name, source_hash)
                     VALUES (\(uuid: userID), \(bind: sourceType), \(uuid: sourceID), \(bind: chunkIndex), \(bind: topic),
-                            \(bind: content), \(bind: vec)::vector, \(bind: modelName))
+                            \(bind: content), \(bind: vec)::vector, \(bind: modelName), \(bind: sourceHash))
                     ON CONFLICT (user_id, source_type, source_id, chunk_index) WHERE source_id IS NOT NULL
                     DO UPDATE SET topic = EXCLUDED.topic, content = EXCLUDED.content,
-                                  embedding = EXCLUDED.embedding, model_name = EXCLUDED.model_name
+                                  embedding = EXCLUDED.embedding, model_name = EXCLUDED.model_name,
+                                  source_hash = EXCLUDED.source_hash
                     """).run()
             }
+            let backlogID = sourceID ?? userID
+            try? await db.raw("""
+                DELETE FROM embedding_backlog WHERE source_type = \(bind: sourceType) AND source_id = \(uuid: backlogID)
+                """).run()
             return true
         } catch {
             logger.warning("chunkService: upsert failed: \(error)")
@@ -65,6 +87,16 @@ enum ChunkService {
 
     @discardableResult
     static func buildProfileChunk(_ userID: String, cfg: OllamaService.Config, on db: any SQLDatabase, logger: Logger) async throws -> Bool {
+        guard let hash = try await profileSourceHash(userID, on: db) else {
+            try await db.raw("DELETE FROM user_embedding_chunks WHERE user_id = \(uuid: userID) AND source_type = 'user_profile'").run()
+            return false
+        }
+        let stored = try await db.raw("""
+            SELECT source_hash FROM user_embedding_chunks
+            WHERE user_id = \(uuid: userID) AND source_type = 'user_profile' AND source_id IS NULL AND chunk_index = 0
+            """).first(decoding: Stored.self)
+        if stored?.source_hash == hash { return true }
+
         struct P: Decodable {
             let hobby_bio: String?; let work_bio: String?; let job_title: String?
             let company: String?; let location: String?; let interests: String; let skills: String
@@ -103,13 +135,23 @@ enum ChunkService {
             return false
         }
         return await upsertChunk(userID: userID, sourceType: "user_profile", sourceID: nil, topic: nil,
-                                 content: content, cfg: cfg, on: db, logger: logger)
+                                 content: content, sourceHash: hash, cfg: cfg, on: db, logger: logger)
     }
 
     // MARK: post chunk
 
     @discardableResult
     static func buildPostChunk(_ postID: String, cfg: OllamaService.Config, on db: any SQLDatabase, logger: Logger) async throws -> Bool {
+        guard let hash = try await postSourceHash(postID, on: db) else {
+            try await deletePostChunks(postID, on: db)
+            return false
+        }
+        let stored = try await db.raw("""
+            SELECT source_hash FROM user_embedding_chunks
+            WHERE source_type = 'post' AND source_id = \(uuid: postID) AND chunk_index = 0
+            """).first(decoding: Stored.self)
+        if stored?.source_hash == hash { return true }
+
         struct R: Decodable {
             let author_id: String; let content: String?; let article_title: String?
             let status: String; let tags: String
@@ -140,7 +182,7 @@ enum ChunkService {
         if content.isEmpty { return false }
 
         return await upsertChunk(userID: post.author_id, sourceType: "post", sourceID: postID,
-                                 topic: tags.first, content: content, cfg: cfg, on: db, logger: logger)
+                                 topic: tags.first, content: content, sourceHash: hash, cfg: cfg, on: db, logger: logger)
     }
 
     static func deletePostChunks(_ postID: String, on db: any SQLDatabase) async throws {
