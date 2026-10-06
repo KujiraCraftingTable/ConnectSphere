@@ -1,5 +1,4 @@
 import SwiftUI
-import GoogleSignIn
 
 // MARK: - LoginView
 
@@ -7,11 +6,7 @@ struct LoginView: View {
     @Environment(AppState.self) var appState
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
-    @State private var username: String = ""
-    @State private var password: String = ""
-    @State private var isLoading: Bool = false
-    @State private var showError: Bool = false
-    @State private var errorMessage: String = ""
+    @State private var viewModel = LoginViewModel()
     @State private var navigateToRegister: Bool = false
     @State private var showForgotPassword: Bool = false
     @State private var logoScale: CGFloat = 0.6
@@ -100,12 +95,12 @@ struct LoginView: View {
             AuthTextField(
                 icon: "person.fill",
                 placeholder: bundle.loc("Username"),
-                text: $username
+                text: $viewModel.username
             )
             AuthTextField(
                 icon: "lock.fill",
                 placeholder: bundle.loc("Password"),
-                text: $password,
+                text: $viewModel.password,
                 isSecure: true
             )
 
@@ -117,7 +112,7 @@ struct LoginView: View {
             }
 
             // Error banner
-            if showError {
+            if let errorMessage = viewModel.errorMessage {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
                     Text(errorMessage)
@@ -131,10 +126,11 @@ struct LoginView: View {
                 .transition(.scale.combined(with: .opacity))
             }
 
-            GradientButton(title: bundle.loc("Log in"), isLoading: isLoading) {
-                handleLogin()
+            GradientButton(title: bundle.loc("Log in"), isLoading: viewModel.isLoading) {
+                Task { await viewModel.loginWithPassword(appState: appState) }
             }
         }
+        .animation(.default, value: viewModel.errorMessage)
     }
 
     // MARK: Social Section
@@ -142,7 +138,9 @@ struct LoginView: View {
     private var socialSection: some View {
         VStack(spacing: 12) {
             // Google Sign-In button following Google brand guidelines
-            Button(action: handleGoogleSignIn) {
+            Button {
+                Task { await viewModel.loginWithGoogle(presenting: presentingViewController(), appState: appState) }
+            } label: {
                 HStack {
                     Spacer()
                     HStack(spacing: 10) {
@@ -182,93 +180,14 @@ struct LoginView: View {
         .padding(.top, 4)
     }
 
-    // MARK: Handlers
+    // MARK: Google presenter
 
-    private func handleLogin() {
-        guard !username.isEmpty, !password.isEmpty else {
-            triggerError(bundle.loc("Please fill in all fields."))
-            return
-        }
-        isLoading = true
-        showError = false
-        Task {
-            do {
-                try await appState.loginWithPassword(
-                    username: username.trimmingCharacters(in: .whitespaces),
-                    password: password
-                )
-            } catch {
-                await MainActor.run {
-                    isLoading = false
-                    triggerError(loginErrorMessage(error))
-                }
-            }
-        }
-    }
-
-    /// Maps an HTTP status from the server to a localized message.
-    private func loginErrorMessage(_ error: Error) -> String {
-        if let networkMessage = networkErrorMessage(error) { return networkMessage }
-        switch (error as NSError).code {
-        case 401: return bundle.loc("Invalid username or password")
-        case 429: return bundle.loc("Too many attempts, please try again later")
-        default:  return bundle.loc("Couldn't sign in, please try again")
-        }
-    }
-
-    /// The request never reached the server (wrong IP/no network/server not running) → a
-    /// dedicated message, to avoid showing a raw system error or a generic message that could
-    /// be mistaken for a wrong password.
-    private func networkErrorMessage(_ error: Error) -> String? {
-        (error as NSError).domain == NSURLErrorDomain
-            ? bundle.loc("Cannot reach the server, please check your connection")
-            : nil
-    }
-
-    private func handleGoogleSignIn() {
-        guard let windowScene = UIApplication.shared.connectedScenes
-                  .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene
-                  ?? UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let rootVC = (windowScene.windows.first(where: \.isKeyWindow) ?? windowScene.windows.first)?.rootViewController
-        else {
-            triggerError(bundle.loc("Couldn't sign in, please try again"))
-            return
-        }
-
-        isLoading = true
-        showError = false
-
-        GIDSignIn.sharedInstance.signIn(withPresenting: rootVC) { result, error in
-            if let error {
-                isLoading = false
-                if (error as NSError).code != GIDSignInError.canceled.rawValue {
-                    triggerError(error.localizedDescription)
-                }
-                return
-            }
-            guard let idToken = result?.user.idToken?.tokenString else {
-                isLoading = false
-                triggerError(bundle.loc("Could not get Google token"))
-                return
-            }
-            Task {
-                do {
-                    try await appState.loginWithGoogle(idToken: idToken)
-                } catch {
-                    await MainActor.run {
-                        isLoading = false
-                        // If the server returns an error (e.g. "Invalid Google token"), show it
-                        // verbatim; a connection failure gets mapped to the localized network message.
-                        triggerError(networkErrorMessage(error) ?? error.localizedDescription)
-                    }
-                }
-            }
-        }
-    }
-
-    private func triggerError(_ message: String) {
-        errorMessage = message
-        withAnimation { showError = true }
+    /// The window's root controller — Google's sign-in sheet is presented from it.
+    private func presentingViewController() -> UIViewController? {
+        let scene = UIApplication.shared.connectedScenes
+            .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene
+            ?? UIApplication.shared.connectedScenes.first as? UIWindowScene
+        return (scene?.windows.first(where: \.isKeyWindow) ?? scene?.windows.first)?.rootViewController
     }
 }
 

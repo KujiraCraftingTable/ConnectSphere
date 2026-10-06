@@ -4,16 +4,12 @@ struct OnboardingView: View {
     @Environment(AppState.self) var appState
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
-    @State private var step    = 0
-    @State private var form    = OnboardingForm()
-    @State private var isLoading = false
-    @State private var error: String? = nil
-    @State private var selectedInterests: [InterestItem] = []
+    @State private var viewModel = OnboardingViewModel()
     @State private var showProvincePicker = false
     @State private var showDobPicker = false
     @State private var dobDraft = Date()
 
-    private let totalSteps = 4
+    private let totalSteps = OnboardingViewModel.totalSteps
 
     var body: some View {
         ZStack {
@@ -27,7 +23,7 @@ struct OnboardingView: View {
                 // user can't swipe past a step's required-field validation and
                 // submit an incomplete form. Navigation is Next/Back only.
                 Group {
-                    switch step {
+                    switch viewModel.step {
                     case 0:  step0
                     case 1:  step1
                     case 2:  step2
@@ -36,19 +32,10 @@ struct OnboardingView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .transition(.opacity)
-                .animation(.easeInOut, value: step)
+                .animation(.easeInOut, value: viewModel.step)
             }
         }
-        // Username was already chosen and validated at registration
-        // (RegisterView) — prefill it here instead of asking again, so
-        // step 1's form (and the final /auth/setup call) carries the real
-        // registered value forward rather than a blank field that would
-        // silently overwrite it.
-        .onAppear {
-            if form.username.isEmpty {
-                form.username = appState.currentUser?.username ?? ""
-            }
-        }
+        .onAppear { viewModel.prefill(username: appState.currentUser?.username) }
     }
 
     // MARK: Progress
@@ -60,7 +47,7 @@ struct OnboardingView: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(AppColors.textSecondary(.light))
                 Spacer()
-                Text("\(step + 1)/\(totalSteps)")
+                Text("\(viewModel.step + 1)/\(totalSteps)")
                     .font(.system(size: 13))
                     .foregroundColor(AppColors.textSecondary(.light))
             }
@@ -69,8 +56,8 @@ struct OnboardingView: View {
                     Capsule().fill(AppColors.borderDefault(.light)).frame(height: 4)
                     Capsule()
                         .fill(themeManager.theme.primary)
-                        .frame(width: geo.size.width * CGFloat(step + 1) / CGFloat(totalSteps), height: 4)
-                        .animation(.spring(), value: step)
+                        .frame(width: geo.size.width * CGFloat(viewModel.step + 1) / CGFloat(totalSteps), height: 4)
+                        .animation(.spring(), value: viewModel.step)
                 }
             }
             .frame(height: 4)
@@ -97,8 +84,8 @@ struct OnboardingView: View {
     }
 
     private func modeCard(mode: String, icon: String, title: String, desc: String, color: Color) -> some View {
-        let selected = form.default_mode == mode
-        return Button { form.default_mode = mode } label: {
+        let selected = viewModel.form.default_mode == mode
+        return Button { viewModel.form.default_mode = mode } label: {
             HStack(spacing: 14) {
                 ZStack {
                     Circle().fill(color.opacity(0.15)).frame(width: 50, height: 50)
@@ -130,7 +117,7 @@ struct OnboardingView: View {
     private var step1: some View {
         OnboardingCard(title: bundle.loc("Basic information"), subtitle: bundle.loc("Enter your display name")) {
             VStack(spacing: 14) {
-                AuthTextField(icon: "textformat", placeholder: bundle.loc("Display name *"), text: $form.display_name)
+                AuthTextField(icon: "textformat", placeholder: bundle.loc("Display name *"), text: $viewModel.form.display_name)
 
                 // Province picker (required)
                 Button { showProvincePicker = true } label: {
@@ -138,7 +125,7 @@ struct OnboardingView: View {
                         Image(systemName: "mappin.circle")
                             .foregroundColor(AppColors.textSecondary(.light))
                         Text(selectedProvinceDisplay)
-                            .foregroundColor(form.location.isEmpty
+                            .foregroundColor(viewModel.form.location.isEmpty
                                 ? AppColors.textTertiary(.light)
                                 : AppColors.textPrimary(.light))
                             .font(.system(size: 15))
@@ -154,7 +141,7 @@ struct OnboardingView: View {
                 }
                 .buttonStyle(.plain)
                 .sheet(isPresented: $showProvincePicker) {
-                    ProvincePickerSheet(selectedId: $form.location)
+                    ProvincePickerSheet(selectedId: $viewModel.form.location)
                 }
 
                 // Gender picker (required)
@@ -164,8 +151,8 @@ struct OnboardingView: View {
                         .foregroundColor(AppColors.textSecondary(.light))
                     HStack(spacing: 10) {
                         ForEach([("male", "Male"), ("female", "Female"), ("other", "Other")], id: \.0) { value, label in
-                            let selected = form.gender == value
-                            Button { form.gender = value } label: {
+                            let selected = viewModel.form.gender == value
+                            Button { viewModel.form.gender = value } label: {
                                 Text(bundle.loc(label))
                                     .font(.system(size: 14, weight: selected ? .semibold : .regular))
                                     .foregroundColor(selected ? .white : AppColors.textSecondary(.light))
@@ -188,8 +175,8 @@ struct OnboardingView: View {
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: "calendar").foregroundColor(AppColors.textSecondary(.light))
-                        Text(form.dob.isEmpty ? bundle.loc("Date of birth *") : String(format: bundle.loc("Date of birth: %@"), form.dob))
-                            .foregroundColor(form.dob.isEmpty ? AppColors.textTertiary(.light) : AppColors.textPrimary(.light))
+                        Text(viewModel.form.dob.isEmpty ? bundle.loc("Date of birth *") : String(format: bundle.loc("Date of birth: %@"), viewModel.form.dob))
+                            .foregroundColor(viewModel.form.dob.isEmpty ? AppColors.textTertiary(.light) : AppColors.textPrimary(.light))
                             .font(.system(size: 15))
                         Spacer()
                     }
@@ -204,48 +191,44 @@ struct OnboardingView: View {
                 }
 
                 // Who can see the age — defaults to Private, doesn't affect age-based search
-                DobVisibilityToggle(visibility: $form.dob_visibility, accentColor: themeManager.theme.primary)
+                DobVisibilityToggle(visibility: $viewModel.form.dob_visibility, accentColor: themeManager.theme.primary)
             }
 
-            if let e = error { errorBanner(e) }
+            if let e = viewModel.errorMessage { errorBanner(e) }
 
             nextButton(
-                enabled: !form.display_name.trimmingCharacters(in: .whitespaces).isEmpty &&
-                         !form.username.isEmpty &&
-                         !form.location.isEmpty &&
-                         !form.gender.isEmpty &&
-                         !form.dob.isEmpty,
+                enabled: viewModel.basicsComplete,
                 label: bundle.loc("Continue")
             )
         }
     }
 
     private var selectedProvinceDisplay: String {
-        guard !form.location.isEmpty else { return bundle.loc("Province / City *") }
-        return VietnamProvinces.all.first(where: { $0.id == form.location })?.displayName ?? form.location
+        guard !viewModel.form.location.isEmpty else { return bundle.loc("Province / City *") }
+        return VietnamProvinces.all.first(where: { $0.id == viewModel.form.location })?.displayName ?? viewModel.form.location
     }
 
     // MARK: Step 2 — Interests / Skills
 
     private var step2: some View {
         OnboardingCard(
-            title: form.default_mode == "hobby" ? bundle.loc("Your interests") : bundle.loc("Skills & Company"),
+            title: viewModel.form.default_mode == "hobby" ? bundle.loc("Your interests") : bundle.loc("Skills & Company"),
             subtitle: bundle.loc("Help ConnectSphere find the right people for you")
         ) {
-            if form.default_mode == "hobby" {
+            if viewModel.form.default_mode == "hobby" {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Select what you like", bundle: bundle)
                         .font(.system(size: 13))
                         .foregroundColor(AppColors.textSecondary(.light))
-                    InterestPickerView(selectedInterests: $selectedInterests)
+                    InterestPickerView(selectedInterests: $viewModel.selectedInterests)
                 }
             } else {
                 VStack(spacing: 14) {
-                    AuthTextField(icon: "briefcase", placeholder: bundle.loc("Job title (iOS Developer...)"), text: $form.job_title)
-                    AuthTextField(icon: "building.2", placeholder: bundle.loc("Company / School"), text: $form.company)
+                    AuthTextField(icon: "briefcase", placeholder: bundle.loc("Job title (iOS Developer...)"), text: $viewModel.form.job_title)
+                    AuthTextField(icon: "building.2", placeholder: bundle.loc("Company / School"), text: $viewModel.form.company)
                     AuthTextField(icon: "sparkles", placeholder: bundle.loc("Skills (Swift, Python, UI/UX...)"), text: Binding(
-                        get: { form.skills.joined(separator: ", ") },
-                        set: { form.skills = $0.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }
+                        get: { viewModel.skillsText },
+                        set: { viewModel.skillsText = $0 }
                     ))
                 }
             }
@@ -262,13 +245,13 @@ struct OnboardingView: View {
                 RoundedRectangle(cornerRadius: 14)
                     .fill(AppColors.surface(.light))
                     .frame(minHeight: 120)
-                if form.bio.isEmpty {
+                if viewModel.form.bio.isEmpty {
                     Text("e.g. iOS Developer | Love coffee and anime ☕🌸", bundle: bundle)
                         .font(.system(size: 14))
                         .foregroundColor(AppColors.textDisabled(.light))
                         .padding(14)
                 }
-                TextEditor(text: $form.bio)
+                TextEditor(text: $viewModel.form.bio)
                     .font(.system(size: 15))
                     .foregroundColor(AppColors.textPrimary(.light))
                     .scrollContentBackground(.hidden)
@@ -278,10 +261,10 @@ struct OnboardingView: View {
             }
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(AppColors.borderDefault(.light), lineWidth: 1))
 
-            if let e = error { errorBanner(e) }
+            if let e = viewModel.errorMessage { errorBanner(e) }
 
-            GradientButton(title: isLoading ? bundle.loc("Saving...") : bundle.loc("Complete 🎉"), isLoading: isLoading) {
-                Task { await finish() }
+            GradientButton(title: viewModel.isLoading ? bundle.loc("Saving...") : bundle.loc("Complete 🎉"), isLoading: viewModel.isLoading) {
+                Task { await viewModel.finish(appState: appState) }
             }
 
             // Bio is optional — finish() never validates it — but nothing
@@ -290,13 +273,13 @@ struct OnboardingView: View {
             // a second, lower-emphasis entry point that makes "leave this
             // blank" an obvious, explicit choice.
             Button {
-                Task { await finish() }
+                Task { await viewModel.finish(appState: appState) }
             } label: {
                 Text("Skip for now", bundle: bundle)
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(AppColors.textSecondary(.light))
             }
-            .disabled(isLoading)
+            .disabled(viewModel.isLoading)
             .frame(maxWidth: .infinity)
             .padding(.top, 4)
         }
@@ -306,7 +289,7 @@ struct OnboardingView: View {
 
     private func nextButton(enabled: Bool, label: String) -> some View {
         GradientButton(title: label, isLoading: false) {
-            withAnimation { step = min(step + 1, totalSteps - 1) }
+            withAnimation { viewModel.next() }
         }
         .opacity(enabled ? 1 : 0.5)
         .disabled(!enabled)
@@ -325,7 +308,7 @@ struct OnboardingView: View {
     }
 
     private var dobDate: Date {
-        dobFormatter.date(from: form.dob) ?? Calendar.current.date(byAdding: .year, value: -20, to: Date())!
+        dobFormatter.date(from: viewModel.form.dob) ?? Calendar.current.date(byAdding: .year, value: -20, to: Date())!
     }
 
     private let dobFormatter: DateFormatter = {
@@ -343,27 +326,13 @@ struct OnboardingView: View {
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
                         Button(bundle.loc("Done")) {
-                            form.dob = dobFormatter.string(from: dobDraft)
+                            viewModel.form.dob = dobFormatter.string(from: dobDraft)
                             showDobPicker = false
                         }
                     }
                 }
         }
         .presentationDetents([.height(340)])
-    }
-
-    private func finish() async {
-        // Sync selectedInterests → form.interests
-        form.interests = selectedInterests.map { $0.displayText }
-
-        isLoading = true
-        error = nil
-        do {
-            try await appState.completeOnboarding(form: form)
-        } catch {
-            self.error = error.localizedDescription
-        }
-        isLoading = false
     }
 }
 
