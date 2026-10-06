@@ -8,48 +8,39 @@ struct ChangePasswordView: View {
     @Environment(\.appBundle) var bundle
     @Environment(\.dismiss) private var dismiss
 
-    @State private var currentPassword = ""
-    @State private var newPassword = ""
-    @State private var confirmPassword = ""
-    @State private var isSaving = false
-    @State private var errorMessage: String?
+    @State private var viewModel: ChangePasswordViewModel
     @State private var showSuccess = false
 
-    private var hasPassword: Bool { appState.currentUser?.hasPassword ?? true }
-
-    private var canSave: Bool {
-        (!hasPassword || !currentPassword.isEmpty)
-            && newPassword.count >= 8
-            && newPassword == confirmPassword
-            && !isSaving
+    init(hasPassword: Bool) {
+        _viewModel = State(initialValue: ChangePasswordViewModel(hasPassword: hasPassword))
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                if hasPassword {
+                if viewModel.hasPassword {
                     Section {
-                        SecureField(bundle.loc("Current password"), text: $currentPassword)
+                        SecureField(bundle.loc("Current password"), text: $viewModel.currentPassword)
                     } header: {
                         Text("Current password", bundle: bundle)
                     }
                 }
 
                 Section {
-                    SecureField(bundle.loc("New password (at least 8 characters)"), text: $newPassword)
-                    SecureField(bundle.loc("Confirm new password"), text: $confirmPassword)
+                    SecureField(bundle.loc("New password (at least 8 characters)"), text: $viewModel.newPassword)
+                    SecureField(bundle.loc("Confirm new password"), text: $viewModel.confirmPassword)
                 } header: {
                     Text("New password", bundle: bundle)
                 } footer: {
-                    if !hasPassword {
+                    if !viewModel.hasPassword {
                         Text("Set a password to also sign in without Google.", bundle: bundle)
-                    } else if !confirmPassword.isEmpty && newPassword != confirmPassword {
+                    } else if viewModel.passwordsMismatch {
                         Text("Passwords do not match", bundle: bundle)
                             .foregroundColor(.red)
                     }
                 }
 
-                if let errorMessage {
+                if let errorMessage = viewModel.errorMessage {
                     Section {
                         Text(errorMessage)
                             .font(.system(size: 13))
@@ -57,7 +48,7 @@ struct ChangePasswordView: View {
                     }
                 }
             }
-            .navigationTitle(bundle.loc(hasPassword ? "Change password" : "Set password"))
+            .navigationTitle(bundle.loc(viewModel.hasPassword ? "Change password" : "Set password"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -65,42 +56,25 @@ struct ChangePasswordView: View {
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
-                        Task { await save() }
+                        Task {
+                            guard await viewModel.save(token: appState.authToken) else { return }
+                            // A Google account may have just set its first password.
+                            appState.currentUser?.hasPassword = true
+                            showSuccess = true
+                        }
                     } label: {
-                        if isSaving {
+                        if viewModel.isSaving {
                             ProgressView().scaleEffect(0.8)
                         } else {
                             Text("Save", bundle: bundle).fontWeight(.semibold)
                         }
                     }
-                    .disabled(!canSave)
+                    .disabled(!viewModel.canSave)
                 }
             }
             .alert(bundle.loc("Password changed"), isPresented: $showSuccess) {
                 Button(bundle.loc("OK")) { dismiss() }
             }
-        }
-    }
-
-    private func save() async {
-        guard let token = appState.authToken else { return }
-        isSaving = true
-        errorMessage = nil
-        defer { isSaving = false }
-
-        do {
-            try await AuthService.shared.changePassword(
-                token: token,
-                currentPassword: hasPassword ? currentPassword : nil,
-                newPassword: newPassword
-            )
-            // Google account just set a password for the first time → update local state
-            appState.currentUser?.hasPassword = true
-            showSuccess = true
-        } catch {
-            errorMessage = (error as NSError).code == 401
-                ? bundle.loc("Current password is incorrect")
-                : bundle.loc("Couldn't change password, please try again")
         }
     }
 }

@@ -91,12 +91,12 @@ struct PrivacySecurityView: View {
         .navigationTitle(bundle.loc("Privacy & Security"))
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showChangePassword) {
-            ChangePasswordView()
+            ChangePasswordView(hasPassword: hasPassword)
                 .environment(appState)
                 .environment(themeManager)
         }
         .sheet(isPresented: $showDeleteAccount) {
-            DeleteAccountView()
+            DeleteAccountView(hasPassword: hasPassword)
                 .environment(appState)
         }
         .task { consumePendingAssistantSheet() }

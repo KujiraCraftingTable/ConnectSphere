@@ -9,18 +9,11 @@ struct DeleteAccountView: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) private var dismiss
 
-    @State private var password = ""
-    @State private var confirmationText = ""
-    @State private var isDeleting = false
-    @State private var errorMessage: String?
+    @State private var viewModel: DeleteAccountViewModel
     @State private var showFinalConfirm = false
 
-    private let profileRepo = ProfileRepository()
-
-    private var hasPassword: Bool { appState.currentUser?.hasPassword ?? true }
-
-    private var canDelete: Bool {
-        !isDeleting && (hasPassword ? !password.isEmpty : confirmationText == "DELETE")
+    init(hasPassword: Bool) {
+        _viewModel = State(initialValue: DeleteAccountViewModel(hasPassword: hasPassword))
     }
 
     var body: some View {
@@ -39,16 +32,16 @@ struct DeleteAccountView: View {
                 }
 
                 Section {
-                    if hasPassword {
-                        SecureField(bundle.loc("Enter your password to confirm"), text: $password)
+                    if viewModel.hasPassword {
+                        SecureField(bundle.loc("Enter your password to confirm"), text: $viewModel.password)
                     } else {
-                        TextField(bundle.loc("Type DELETE to confirm"), text: $confirmationText)
+                        TextField(bundle.loc("Type DELETE to confirm"), text: $viewModel.confirmationText)
                             .textInputAutocapitalization(.characters)
                             .autocorrectionDisabled()
                     }
                 }
 
-                if let errorMessage {
+                if let errorMessage = viewModel.errorMessage {
                     Section {
                         Text(errorMessage)
                             .font(.system(size: 13))
@@ -60,7 +53,7 @@ struct DeleteAccountView: View {
                     Button(role: .destructive) {
                         showFinalConfirm = true
                     } label: {
-                        if isDeleting {
+                        if viewModel.isDeleting {
                             ProgressView().frame(maxWidth: .infinity)
                         } else {
                             Text("Delete my account", bundle: bundle)
@@ -68,7 +61,7 @@ struct DeleteAccountView: View {
                                 .frame(maxWidth: .infinity)
                         }
                     }
-                    .disabled(!canDelete)
+                    .disabled(!viewModel.canDelete)
                 }
             }
             .navigationTitle(bundle.loc("Delete account"))
@@ -84,32 +77,16 @@ struct DeleteAccountView: View {
                 titleVisibility: .visible
             ) {
                 Button(bundle.loc("Delete my account"), role: .destructive) {
-                    Task { await deleteAccount() }
+                    Task {
+                        // The token is now invalid — back to sign-in.
+                        if await viewModel.deleteAccount() { appState.logout() }
+                    }
                 }
                 Button(bundle.loc("Cancel"), role: .cancel) {}
             } message: {
                 Text("This can't be undone.", bundle: bundle)
             }
         }
-        .interactiveDismissDisabled(isDeleting)
-    }
-
-    private func deleteAccount() async {
-        isDeleting = true
-        errorMessage = nil
-        defer { isDeleting = false }
-
-        do {
-            try await profileRepo.deleteAccount(
-                password: hasPassword ? password : nil,
-                confirmation: hasPassword ? nil : confirmationText
-            )
-            // Account is now disabled — the token is no longer valid, so go back to sign-in
-            appState.logout()
-        } catch {
-            errorMessage = (error as NSError).code == 401
-                ? bundle.loc("Password is incorrect")
-                : bundle.loc("Couldn't delete account, please try again")
-        }
+        .interactiveDismissDisabled(viewModel.isDeleting)
     }
 }
