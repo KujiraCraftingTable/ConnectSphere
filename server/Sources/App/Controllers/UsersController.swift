@@ -168,6 +168,7 @@ struct UsersController {
         _ = try await UserStore.updateProfile(
             userID: req.userID, fields: fields,
             interests: raw.interests, skills: raw.skills, mode: mode, on: req.db)
+        await BackgroundJobs.refreshEmbedding(req, .profile, id: req.userID)
 
         guard let pub = try await UserStore.findById(req.userID, mode: mode, on: sdb) else {
             throw Abort(.internalServerError)
@@ -244,6 +245,7 @@ struct UsersController {
         }
 
         guard let user = try await UserStore.findById(req.userID, mode: mode, on: sdb) else { throw Abort(.internalServerError) }
+        await BackgroundJobs.refreshEmbedding(req, .profile, id: req.userID)
         let res = try await DataResponse(data: user).encodeResponse(for: req)
         res.status = .created
         return res

@@ -2,6 +2,7 @@ import Vapor
 import Queues
 import QueuesRedisDriver
 import SQLKit
+import NIOConcurrencyHelpers
 
 /// Port of `backend/src/jobs/*` + `queues/*`. BullMQ → Vapor Queues.
 ///
@@ -21,7 +22,18 @@ enum BackgroundJobs {
     /// `configure` only when `enabled`.
     static func register(_ app: Application) throws {
         let r = app.appEnv.redis
-        try app.queues.use(.redis(url: "redis://\(r.host):\(r.port)"))
+        // Vapor's default pool holds 2 connections and waits only 10 ms for a
+        // free one (nil `connectionRetryTimeout` → RediStack's floor), while
+        // Queues starts a worker per CPU core. Workers starved, logging
+        // `timedOutWaitingForConnection` every few seconds — and one that
+        // failed after popping a job lost that job.
+        let redis = try RedisConfiguration(url: "redis://\(r.host):\(r.port)", pool: .init(
+            maximumConnectionCount: .maximumActiveConnections(4),
+            connectionRetryTimeout: .seconds(5)))
+        app.queues.use(.redis(redis))
+        // Embedding jobs all funnel into the one local Ollama; more workers
+        // would only contend for connections.
+        app.queues.configuration.workerCount = .custom(2)
 
         app.queues.add(TagExtractionJob())
         app.queues.add(ChunkEmbedJob())
@@ -36,7 +48,8 @@ enum BackgroundJobs {
         app.queues.schedule(DataCleanupJob()).using(utc).daily().at(0, 30)
         // Sub-daily.
         app.queues.schedule(TrendingJob()).using(utc).hourly().at(0)
-        app.queues.schedule(ChunkSweepJob()).using(utc).hourly().at(15)
+        // Safety net for the 6-hour freshness promise (see `chunkSweep`).
+        app.queues.schedule(ChunkSweepJob()).every(minutes: 30)
         app.queues.schedule(MeetingReminderJob()).every(minutes: 5)   // matches Node's */5 cron; atomic claim makes it idempotent
 
         try app.queues.startInProcessJobs(on: .default)
@@ -203,11 +216,39 @@ enum BackgroundJobs {
         enum Kind: String, Codable, Sendable { case post, profile }
         struct Payload: Codable, Sendable { let kind: Kind; let id: String }
         func dequeue(_ context: QueueContext, _ payload: Payload) async throws {
-            let app = context.application
-            switch payload.kind {
-            case .post:    _ = try await ChunkService.buildPostChunk(payload.id, cfg: app.ollama, on: app.db.sql(), logger: context.logger)
-            case .profile: _ = try await ChunkService.buildProfileChunk(payload.id, cfg: app.ollama, on: app.db.sql(), logger: context.logger)
+            _ = try await Self.build(payload.kind, id: payload.id, app: context.application, logger: context.logger)
+        }
+
+        /// Also called directly by `chunkSweep` when the queue isn't getting through.
+        static func build(_ kind: Kind, id: String, app: Application, logger: Logger) async throws -> Bool {
+            switch kind {
+            case .post:    return try await ChunkService.buildPostChunk(id, cfg: app.ollama, on: app.db.sql(), logger: logger)
+            case .profile: return try await ChunkService.buildProfileChunk(id, cfg: app.ollama, on: app.db.sql(), logger: logger)
             }
+        }
+    }
+
+    // MARK: embedding refresh on edit
+
+    /// A post's or profile's text just changed: re-embed now instead of waiting
+    /// for the sweep. Never fails the request — a failed dispatch is caught by
+    /// the next sweep. Calling it when nothing relevant changed is cheap: the
+    /// build sees the same source hash and stops before any LLM call.
+    static func refreshEmbedding(_ req: Request, _ kind: ChunkEmbedJob.Kind, id: String) async {
+        guard enabled else { return }
+        try? await req.queue.dispatch(ChunkEmbedJob.self, .init(kind: kind, id: id), maxRetryCount: 3)
+    }
+
+    /// A post's content was edited. Its AI tags described the old text and are
+    /// part of what gets embedded, so drop them and re-extract — extraction
+    /// chains into the re-embed.
+    static func refreshPostAfterContentEdit(_ req: Request, postID: String, content: String) async {
+        guard enabled else { return }
+        try? await req.db.sql().raw("DELETE FROM post_tags WHERE post_id = \(uuid: postID) AND source = 'ai'").run()
+        if content.trimmingCharacters(in: .whitespaces).isEmpty {
+            await refreshEmbedding(req, .post, id: postID)
+        } else {
+            try? await req.queue.dispatch(TagExtractionJob.self, .init(postId: postID, content: content), maxRetryCount: 3)
         }
     }
 
@@ -392,37 +433,80 @@ enum BackgroundJobs {
         }
     }
 
-    /// Enqueue embed jobs for posts/users missing their chunk; delete orphan
-    /// post chunks. Runs hourly + once at boot.
+    /// The freshness promise: a change to a post's or profile's text is
+    /// embedded within this many hours.
+    static let freshnessDeadlineHours = 6
+    /// An out-of-date item still waiting after this long means the queue path
+    /// is failing (Redis down, job lost) — the sweep then builds it itself.
+    static let directBuildAfter: TimeInterval = 60 * 60
+
+    private static let sweepRunning = NIOLockedValueBox(false)
+
+    /// Reconciles every embedding with its source (every 30 min + at boot):
+    /// drops chunks whose source is gone or emptied, queues everything out of
+    /// date (no batch cap — the hash makes duplicate jobs free), and builds
+    /// directly anything the queue hasn't managed within an hour. Items are
+    /// tracked in `embedding_backlog`; one still pending past the deadline is
+    /// logged as an error.
     static func chunkSweep(_ app: Application) async throws {
+        // A long direct-build pass can outlast the interval; never overlap.
+        let claimed = sweepRunning.withLockedValue { running -> Bool in
+            if running { return false }
+            running = true
+            return true
+        }
+        guard claimed else { return }
+        defer { sweepRunning.withLockedValue { $0 = false } }
+
         let db = app.db.sql()
-        let batch = 100
-        struct I: Decodable { let id: String }
-        let pendingPosts = try await db.raw("""
-            SELECT p.id::text AS id FROM posts p
-            WHERE p.status = 'posted'
-              AND NOT EXISTS (SELECT 1 FROM user_embedding_chunks c WHERE c.source_type = 'post' AND c.source_id = p.id)
-            ORDER BY p.created_at DESC LIMIT \(unsafeRaw: String(batch))
-            """).all(decoding: I.self)
-        let pendingUsers = try await db.raw("""
-            SELECT u.id::text AS id FROM users u
-            WHERE u.deleted_at IS NULL
-              AND NOT EXISTS (SELECT 1 FROM user_embedding_chunks c WHERE c.user_id = u.id AND c.source_type = 'user_profile')
-            LIMIT \(unsafeRaw: String(batch))
-            """).all(decoding: I.self)
         try await db.raw("""
             DELETE FROM user_embedding_chunks c
-            WHERE c.source_type = 'post'
-              AND NOT EXISTS (SELECT 1 FROM posts p WHERE p.id = c.source_id AND p.status = 'posted')
+            WHERE (c.source_type = 'post' AND post_embed_source_hash(c.source_id) IS NULL)
+               OR (c.source_type = 'user_profile' AND profile_embed_source_hash(c.user_id) IS NULL)
             """).run()
-        for p in pendingPosts {
-            try? await app.queues.queue.dispatch(ChunkEmbedJob.self, .init(kind: .post, id: p.id), maxRetryCount: 3)
+        try await db.raw("""
+            DELETE FROM embedding_backlog b
+            WHERE NOT EXISTS (SELECT 1 FROM embedding_out_of_date o
+                              WHERE o.source_type = b.source_type AND o.source_id = b.source_id)
+            """).run()
+        try await db.raw("""
+            INSERT INTO embedding_backlog (source_type, source_id)
+            SELECT source_type, source_id FROM embedding_out_of_date
+            ON CONFLICT DO NOTHING
+            """).run()
+        struct Item: Decodable { let source_type: String; let source_id: String; let waited: Double }
+        let items = try await db.raw("""
+            SELECT source_type, source_id::text AS source_id,
+                   EXTRACT(EPOCH FROM NOW() - first_seen_at)::float8 AS waited
+            FROM embedding_backlog ORDER BY first_seen_at
+            """).all(decoding: Item.self)
+        guard !items.isEmpty else { return }
+
+        let deadline = TimeInterval(freshnessDeadlineHours * 3600)
+        let overdue = items.filter { $0.waited >= deadline }.count
+        if overdue > 0 {
+            app.logger.error("""
+                chunkSweep: \(overdue) embedding(s) out of date for over \(freshnessDeadlineHours)h. \
+                Building needs Ollama at \(app.appEnv.ollama.url); queued builds also need Redis.
+                """)
         }
-        for u in pendingUsers {
-            try? await app.queues.queue.dispatch(ChunkEmbedJob.self, .init(kind: .profile, id: u.id), maxRetryCount: 3)
+
+        var queued = 0, built = 0
+        for item in items {
+            let kind: ChunkEmbedJob.Kind = item.source_type == "post" ? .post : .profile
+            if item.waited < directBuildAfter {
+                do {
+                    try await app.queues.queue.dispatch(ChunkEmbedJob.self, .init(kind: kind, id: item.source_id), maxRetryCount: 3)
+                    queued += 1
+                    continue
+                } catch {
+                    app.logger.warning("chunkSweep: queue unavailable (\(error)); building directly")
+                }
+            }
+            if (try? await ChunkEmbedJob.build(kind, id: item.source_id, app: app, logger: app.logger)) == true {
+                built += 1
+            }
         }
-        if !pendingPosts.isEmpty || !pendingUsers.isEmpty {
-            app.logger.info("chunkSweep: enqueued \(pendingPosts.count) posts, \(pendingUsers.count) profiles")
-        }
+        app.logger.info("chunkSweep: \(items.count) out of date — queued \(queued), built \(built) directly")
     }
 }
