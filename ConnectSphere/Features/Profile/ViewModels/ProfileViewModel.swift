@@ -11,7 +11,16 @@ class ProfileViewModel {
     var hasMore = true
     var error: String?
 
+    // Viewing someone else's profile:
+    /// Whether the current user has blocked this profile's user.
+    private(set) var isBlocked = false
+    /// Block/unblock failure, shown as an alert (load errors use `error`).
+    var actionError: String?
+    private(set) var isOpeningChat = false
+
     private let repository = ProfileRepository()
+    private let userRepository = UserRepository()
+    private let messageRepository = MessageRepository()
     private let pageSize = 20
     /// The mode `posts`/`user` were last loaded for — guards addNewPost/
     /// restorePost from splicing in a post from the other mode (mirrors
@@ -141,5 +150,35 @@ class ProfileViewModel {
         } catch {
             // Scrolling further retries — don't block the already-loaded list.
         }
+    }
+
+    // MARK: Another user's profile
+
+    func loadBlockStatus(userId: String) async {
+        isBlocked = (try? await userRepository.fetchBlockStatus(userId: userId)) ?? false
+    }
+
+    /// Blocks or unblocks. Any open ChatView with this user refreshes live via
+    /// `.userBlockStatusChanged`. On failure the state stays and the error shows.
+    func toggleBlock(userId: String) async {
+        do {
+            if isBlocked {
+                try await userRepository.unblockUser(userId: userId)
+            } else {
+                try await userRepository.blockUser(userId: userId)
+            }
+            isBlocked.toggle()
+            NotificationCenter.default.post(name: .userBlockStatusChanged, object: nil, userInfo: ["userId": userId])
+        } catch {
+            actionError = friendlyError(error)
+        }
+    }
+
+    /// The conversation to open, or nil (fails silently — the user can tap again).
+    func openConversation(with userId: String, mode: AppMode, token: String?) async -> String? {
+        guard let token else { return nil }
+        isOpeningChat = true
+        defer { isOpeningChat = false }
+        return try? await messageRepository.openConversation(otherUserId: userId, mode: mode.rawValue, token: token)
     }
 }
