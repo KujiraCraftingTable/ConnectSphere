@@ -15,6 +15,18 @@
 - Constants: camelCase in enum/struct, UPPER_SNAKE_CASE only for global
 - Follow Apple's Swift API Design Guidelines
 
+## Architecture (iOS: MVVM)
+Full description in [`ARCHITECTURE.md`](../../ARCHITECTURE.md). In short:
+- **Views** hold layout, bindings and presentation state only (sheet/alert flags,
+  focus, animation, navigation). A view never calls a repository, `NetworkClient`,
+  `AuthService` or `KeychainHelper`, and never holds loading/error state
+- **ViewModels** (`@MainActor @Observable final class …ViewModel`, in the feature's
+  `ViewModels/` or `Core/ViewModels/`) own screen state, async work, validation,
+  error messages (`friendlyError` / `Bundle.app.loc`), optimistic updates and
+  `NotificationCenter` broadcasts; they return results the view needs to navigate
+- **Repositories** do HTTP + decoding only; **`AppState`** holds app-wide session state
+- The check in `ARCHITECTURE.md` ("Checking the rule") must stay empty
+
 ## Error handling & logging
 
 ### Backend (Swift/Vapor)
