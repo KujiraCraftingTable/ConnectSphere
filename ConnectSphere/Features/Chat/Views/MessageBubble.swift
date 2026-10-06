@@ -97,37 +97,45 @@ struct MessageBubble: View {
     // MARK: - Quoted reply preview
 
     /// Compact quoted block above the bubble content — tap jumps to the original message.
+    ///
+    /// It sits on the chat background, not inside the colored bubble, so it
+    /// is a fixed light-grey chip with dark text in both light and dark mode.
+    /// Colors that assumed the blue bubble behind it (white text on a 15%
+    /// white wash) made it all but invisible on a light background.
     private func replyPreview(_ replied: RepliedMessage, replyToId: String) -> some View {
         Button {
             onReplyPreviewTap?(replyToId)
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(isOwn ? Color.white.opacity(0.6) : palette.primary)
+                    .fill(palette.primary)
                     .frame(width: 3)
 
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(replied.senderName)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(isOwn ? .white.opacity(0.85) : palette.primary)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Self.replyChipName)
                         .lineLimit(1)
                     Text(replied.isDeleted ? bundle.loc("Message unsent") : (replied.content ?? ""))
-                        .font(.system(size: 12))
+                        .font(.system(size: 13))
                         .italic(replied.isDeleted)
-                        .foregroundColor(isOwn ? .white.opacity(0.75) : AppColors.textSecondary(colorScheme))
-                        .lineLimit(1)
+                        .foregroundColor(Self.replyChipText)
+                        .lineLimit(2)
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .frame(maxWidth: 220, alignment: .leading)
-            .background(
-                (isOwn ? Color.white.opacity(0.15) : AppColors.elevated(colorScheme)),
-                in: RoundedRectangle(cornerRadius: 8)
-            )
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .frame(maxWidth: 240, alignment: .leading)
+            .background(Self.replyChipBackground, in: RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)
     }
+
+    // Deliberately not theme-adaptive: the chip stays light grey with dark
+    // text in both modes, so the quote stands out on any chat background.
+    private static let replyChipBackground = Color(white: 0.91)
+    private static let replyChipName = Color(white: 0.15)
+    private static let replyChipText = Color(white: 0.32)
 
     // MARK: - Reaction pills
 
@@ -431,25 +439,34 @@ struct MessageBubble: View {
     /// Only the played-vs-unplayed bar color split is driven by local
     /// playback state.
     private var voiceBubble: some View {
-        HStack(spacing: 10) {
-            Button {
-                toggleVoicePlayback()
-            } label: {
-                Image(systemName: voiceIsPlaying ? "pause.circle.fill" : "play.circle.fill")
-                    .font(.system(size: 30))
-                    .foregroundColor(isOwn ? .white : palette.primary)
-            }
-            .buttonStyle(.plain)
+        // The duration gets its own line at the bottom right rather than
+        // sharing the row: beside a fixed-width waveform it was squeezed to
+        // a few points and wrapped one character per line.
+        VStack(alignment: .trailing, spacing: 1) {
+            HStack(spacing: 10) {
+                Button {
+                    toggleVoicePlayback()
+                } label: {
+                    Image(systemName: voiceIsPlaying ? "pause.circle.fill" : "play.circle.fill")
+                        .font(.system(size: 30))
+                        .foregroundColor(isOwn ? .white : palette.primary)
+                }
+                .buttonStyle(.plain)
 
-            voiceWaveformView
+                voiceWaveformView
+            }
 
             Text(voiceDurationLabel)
-                .font(.system(size: 11))
-                .foregroundColor(isOwn ? .white.opacity(0.8) : AppColors.textSecondary(colorScheme))
+                .font(.system(size: 10, weight: .medium))
+                .monospacedDigit()
+                .lineLimit(1)
+                .fixedSize()
+                .foregroundColor(isOwn ? .white.opacity(0.85) : AppColors.textSecondary(colorScheme))
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .frame(minWidth: 180, maxWidth: 240)
+        .padding(.top, 10)
+        .padding(.bottom, 6)
+        .frame(width: 230)
         .background(bubbleBackground)
         .clipShape(bubbleShape)
         .onDisappear { stopVoicePlayback() }
@@ -468,14 +485,23 @@ struct MessageBubble: View {
         let activeColor = isOwn ? Color.white : palette.primary
         let mutedColor = isOwn ? Color.white.opacity(0.4) : AppColors.textTertiary(colorScheme)
 
-        return HStack(alignment: .center, spacing: 2) {
-            ForEach(Array(samples.enumerated()), id: \.offset) { index, sample in
-                RoundedRectangle(cornerRadius: 1)
-                    .fill(index < playedBars ? activeColor : mutedColor)
-                    .frame(width: 2, height: max(3, CGFloat(sample) * 24))
+        // Bars are spread across whatever width is left beside the play
+        // button, instead of a fixed 40 × (2pt + 2pt gap) that could crowd
+        // out its neighbours.
+        return Canvas { context, size in
+            let step = size.width / CGFloat(samples.count)
+            let barWidth = max(1.5, step - 2)
+            for (index, sample) in samples.enumerated() {
+                let barHeight = max(3, CGFloat(sample) * size.height)
+                let rect = CGRect(x: CGFloat(index) * step, y: (size.height - barHeight) / 2,
+                                  width: barWidth, height: barHeight)
+                context.fill(Path(roundedRect: rect, cornerRadius: barWidth / 2),
+                             with: .color(index < playedBars ? activeColor : mutedColor))
             }
         }
+        .frame(maxWidth: .infinity)
         .frame(height: 26)
+        .accessibilityHidden(true)
     }
 
     private var voiceDurationLabel: String {
