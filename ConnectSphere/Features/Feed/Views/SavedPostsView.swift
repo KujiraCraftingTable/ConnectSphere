@@ -11,20 +11,16 @@ struct SavedPostsView: View {
     @Environment(\.appBundle) var bundle
     @Environment(\.colorScheme) var colorScheme
 
-    @State private var savedPosts: [Post] = []
-    @State private var isLoading = false
-    @State private var errorMessage: String?
+    @State private var viewModel = SavedPostsViewModel()
     @State private var detailRoute: PostRoute?
-
-    private let repository = PostRepository()
 
     var body: some View {
         ScrollView {
             LazyVStack(spacing: AppSpacing.sm) {
-                if savedPosts.isEmpty && !isLoading {
+                if viewModel.posts.isEmpty && !viewModel.isLoading {
                     emptyState
                 } else {
-                    ForEach(savedPosts) { post in
+                    ForEach(viewModel.posts) { post in
                         PostCard(post: post, onOpenDetail: { focus in
                             detailRoute = PostRoute(postId: post.id, focusComposer: focus)
                         })
@@ -47,41 +43,26 @@ struct SavedPostsView: View {
             }
         }
         .overlay {
-            if isLoading && savedPosts.isEmpty {
+            if viewModel.isLoading && viewModel.posts.isEmpty {
                 ProgressView()
             }
         }
-        .task { await load() }
-        .refreshable { await load() }
+        .task { await viewModel.load() }
+        .refreshable { await viewModel.load() }
         .alert(
-            errorMessage ?? "",
+            viewModel.errorMessage ?? "",
             isPresented: Binding(
-                get: { errorMessage != nil },
-                set: { if !$0 { errorMessage = nil } }
+                get: { viewModel.errorMessage != nil },
+                set: { if !$0 { viewModel.errorMessage = nil } }
             )
         ) {
             Button(bundle.loc("Done")) {}
         }
-        // A post's isSaved flips to false (unsaved from its own bookmark
-        // button, wherever it's rendered) — this list must drop it right
-        // away rather than waiting for a manual refresh. "Patch or remove" is
-        // an asymmetry a generic post-list observer (e.g. FeedViewModel's,
-        // which only ever patches an existing entry) doesn't need, but a
-        // Saved list does — same asymmetry RecentlyDeletedView already
-        // handles for delete/restore.
         .onReceive(NotificationCenter.default.publisher(for: .postUpdated)) { note in
-            guard let updated = note.userInfo?["post"] as? Post else { return }
-            if updated.isSaved {
-                if let idx = savedPosts.firstIndex(where: { $0.id == updated.id }) {
-                    savedPosts[idx] = updated
-                }
-            } else {
-                savedPosts.removeAll { $0.id == updated.id }
-            }
+            if let updated = note.userInfo?["post"] as? Post { viewModel.postUpdated(updated) }
         }
         .onReceive(NotificationCenter.default.publisher(for: .postDeleted)) { note in
-            guard let id = note.userInfo?["id"] as? String else { return }
-            savedPosts.removeAll { $0.id == id }
+            if let id = note.userInfo?["id"] as? String { viewModel.postDeleted(id: id) }
         }
     }
 
@@ -96,16 +77,5 @@ struct SavedPostsView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 60)
-    }
-
-    private func load() async {
-        isLoading = true
-        errorMessage = nil
-        do {
-            savedPosts = try await repository.fetchSavedPosts()
-        } catch {
-            errorMessage = friendlyError(error)
-        }
-        isLoading = false
     }
 }

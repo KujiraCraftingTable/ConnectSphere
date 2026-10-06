@@ -11,16 +11,12 @@ struct SharePostSheet: View {
     let post: Post
     var onShared: (() -> Void)? = nil
 
-    @State private var comment = ""
-    @State private var isSharing = false
-    @State private var shareFailed = false
-
-    private let repository = PostRepository()
+    @State private var viewModel = SharePostViewModel()
 
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 14) {
-                TextField(bundle.loc("Say something about this post..."), text: $comment, axis: .vertical)
+                TextField(bundle.loc("Say something about this post..."), text: $viewModel.comment, axis: .vertical)
                     .font(.system(size: 15))
                     .lineLimit(3...6)
                     .padding(12)
@@ -51,7 +47,7 @@ struct SharePostSheet: View {
                         .stroke(AppColors.borderDefault(colorScheme), lineWidth: 1)
                 )
 
-                if shareFailed {
+                if viewModel.shareFailed {
                     Text("Couldn't share, please try again", bundle: bundle)
                         .font(.system(size: 13))
                         .foregroundColor(.red)
@@ -69,37 +65,23 @@ struct SharePostSheet: View {
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
-                        Task { await share() }
+                        Task {
+                        guard await viewModel.share(postId: post.id, mode: appState.currentMode) else { return }
+                        onShared?()
+                        dismiss()
+                    }
                     } label: {
-                        if isSharing {
+                        if viewModel.isSharing {
                             ProgressView().scaleEffect(0.8)
                         } else {
                             Text("Share", bundle: bundle).fontWeight(.semibold)
                         }
                     }
-                    .disabled(isSharing)
+                    .disabled(viewModel.isSharing)
                 }
             }
         }
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
-    }
-
-    private func share() async {
-        isSharing = true
-        shareFailed = false
-        defer { isSharing = false }
-        do {
-            // Backend automatically points to the original post if this post is itself a share
-            _ = try await repository.sharePost(
-                postId: post.id,
-                content: comment.trimmingCharacters(in: .whitespaces),
-                mode: appState.currentMode
-            )
-            onShared?()
-            dismiss()
-        } catch {
-            shareFailed = true
-        }
     }
 }

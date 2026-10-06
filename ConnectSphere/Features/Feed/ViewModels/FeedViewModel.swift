@@ -190,4 +190,40 @@ class FeedViewModel {
     private func appendPosts(_ newPosts: [Post], for mode: AppMode) {
         if mode == .hobby { friendPosts += newPosts } else { colleaguePosts += newPosts }
     }
+
+    // MARK: - Create-post bar avatar & chat badge
+
+    /// This mode's persona for the create-post bar's avatar. `AppState.currentUser`
+    /// is one unscoped cache that isn't refetched on mode switch, so it can't
+    /// show a per-mode avatar (the same fix as StoriesViewModel).
+    private(set) var myProfile: UserProfile?
+    private let profileRepository = ProfileRepository()
+    private let messageRepository = MessageRepository()
+
+    func loadMyProfile(userId: String?, mode: AppMode) async {
+        guard let userId else { return }
+        myProfile = try? await profileRepository.fetchUser(userId: userId, mode: mode.rawValue)
+    }
+
+    /// Unread chats in the current mode → the Messages badge (kept on AppState,
+    /// which the tab bar also reads).
+    func refreshChatUnread(appState: AppState) async {
+        guard let token = appState.authToken else { return }
+        appState.chatUnreadCount = (try? await messageRepository.fetchUnreadCount(
+            mode: appState.currentMode.rawValue, token: token)) ?? 0
+    }
+
+    /// Connects the socket and keeps the badge live on every new message.
+    func startChatBadge(appState: AppState) {
+        guard let token = appState.authToken else { return }
+        WebSocketClient.shared.connect(token: token)
+        WebSocketClient.shared.on("new_message", tag: "feedBadge") { [weak self, appState] _ in
+            Task { @MainActor in await self?.refreshChatUnread(appState: appState) }
+        }
+        Task { await refreshChatUnread(appState: appState) }
+    }
+
+    func stopChatBadge() {
+        WebSocketClient.shared.off("new_message", tag: "feedBadge")
+    }
 }
