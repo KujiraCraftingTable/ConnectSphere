@@ -43,14 +43,12 @@ struct StoryComposerView: View {
     @State private var replacingFrameIndex: Int?
     @State private var replacementItem: PhotosPickerItem?
     @State private var pickerItems: [PhotosPickerItem] = []
-    @State private var isPosting = false
+    @State private var viewModel = StoryComposerViewModel()
     /// Drag-to-delete: while any text is being dragged, a trash icon shows
     /// at the bottom of the canvas; dropping the text near it deletes it.
     @State private var isDraggingText = false
     @State private var isNearTrash = false
 
-    private let storyRepo = StoryRepository()
-    private let postRepo = PostRepository()
 
     /// Design-time canvas size the collage is laid out and rendered at —
     /// roughly a 9:16 story frame. `ImageRenderer`'s `scale` (see `post()`)
@@ -101,13 +99,13 @@ struct StoryComposerView: View {
                     Button {
                         Task { await post() }
                     } label: {
-                        if isPosting {
+                        if viewModel.isPosting {
                             ProgressView().tint(.white)
                         } else {
                             Text("Post", bundle: bundle).bold().foregroundColor(.white)
                         }
                     }
-                    .disabled(frames.isEmpty || isPosting)
+                    .disabled(frames.isEmpty || viewModel.isPosting)
                 }
             }
         }
@@ -529,14 +527,7 @@ struct StoryComposerView: View {
     // MARK: - Picking
 
     private func loadPicked(_ items: [PhotosPickerItem]) async {
-        var newFrames: [ComposerFrame] = []
-        for item in items.prefix(4) {
-            if let data = try? await item.loadTransferable(type: Data.self),
-               let image = UIImage(data: data) {
-                newFrames.append(ComposerFrame(image: image))
-            }
-        }
-        frames = newFrames
+        frames = await viewModel.loadImages(from: items).map { ComposerFrame(image: $0) }
         layoutVariant = .a
         ratios = [0.5, 0.5]
         pickerItems = []
@@ -544,18 +535,15 @@ struct StoryComposerView: View {
 
     private func loadReplacement(_ item: PhotosPickerItem, at index: Int) async {
         defer { replacingFrameIndex = nil; replacementItem = nil }
-        guard let data = try? await item.loadTransferable(type: Data.self),
-              let image = UIImage(data: data),
+        guard let image = await viewModel.loadImage(from: item),
               frames.indices.contains(index) else { return }
         frames[index] = ComposerFrame(image: image)
     }
 
-    // MARK: - Compositing + posting
+    // MARK: - Compositing + posting (the render needs the view; the upload doesn't)
 
     private func post() async {
-        guard !frames.isEmpty, !isPosting else { return }
-        isPosting = true
-        defer { isPosting = false }
+        guard !frames.isEmpty, !viewModel.isPosting else { return }
 
         // `composedContent`, not `canvas` — the latter also includes the
         // per-frame "replace photo" buttons, which must never end up baked
@@ -565,11 +553,8 @@ struct StoryComposerView: View {
         // fixed design-time size (`canvasSize`), so a flat 1x render would
         // look soft once viewed full-screen in `StoryViewerView`.
         renderer.scale = 3
-        guard let flattened = renderer.uiImage,
-              let jpeg = flattened.jpegData(compressionQuality: 0.9),
-              let imageUrl = try? await postRepo.uploadImage(jpeg) else { return }
-
-        guard (try? await storyRepo.createStory(imageUrl: imageUrl, mode: mode)) != nil else { return }
+        guard let jpeg = renderer.uiImage?.jpegData(compressionQuality: 0.9),
+              await viewModel.publish(jpeg: jpeg, mode: mode) else { return }
         onPosted()
         dismiss()
     }
