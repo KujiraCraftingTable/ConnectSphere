@@ -92,10 +92,11 @@ struct MiniCVCard: View {
         .buttonStyle(.plain)
     }
 
-    /// Icon based on evidence type: profile / post / community.
+    /// Icon based on evidence type: profile / post / engagement / community.
     private func icon(for item: MatchEvidenceDTO) -> String {
         switch item.type {
-        case "post":      return "text.bubble"
+        case "post":       return "text.bubble"
+        case "engagement": return "heart.text.square"
         case "community": return "person.3"
         default:          return "person.text.rectangle"
         }
@@ -124,12 +125,34 @@ struct MiniCVCard: View {
             }
             return bundle.loc("Has a post closely related to your search")
 
+        case "engagement":
+            return engagementText(for: item, terms: terms)
+
         case "community":
             return String(format: bundle.loc("Member of the \"%@\" community"), item.communityName ?? "")
 
         default:
             return bundle.loc("Closely matches your search")
         }
+    }
+
+    /// Reacted to posts matching the search. Names only public actions —
+    /// comments, then shares. Likes are private in the app, so a like-only
+    /// match reads "Engages with…" and never says what they liked.
+    private func engagementText(for item: MatchEvidenceDTO, terms: String) -> String {
+        let subject = item.topic.flatMap { $0.isEmpty ? nil : $0 } ?? (terms.isEmpty ? nil : terms)
+        let comments = item.commentedCount ?? 0
+        let shares = item.sharedCount ?? 0
+        guard let subject else {
+            if comments > 0 { return bundle.loc("Commented on posts related to your search") }
+            if shares > 0 { return bundle.loc("Shared posts related to your search") }
+            return bundle.loc("Engages with posts related to your search")
+        }
+        if comments == 1 { return String(format: bundle.loc("Commented on a post about %@"), subject) }
+        if comments > 1 { return String(format: bundle.loc("Commented on %d posts about %@"), comments, subject) }
+        if shares == 1 { return String(format: bundle.loc("Shared a post about %@"), subject) }
+        if shares > 1 { return String(format: bundle.loc("Shared %d posts about %@"), shares, subject) }
+        return String(format: bundle.loc("Engages with posts about %@"), subject)
     }
 
     /// Multiple posts on the same topic, merged: "N posts about X in the last 7 days".

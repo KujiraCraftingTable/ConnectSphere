@@ -34,7 +34,7 @@ struct AISearchCriteriaDTO: Decodable {
 /// A "match reason" in the mini CV — pre-built by the backend from a chunk/community, no LLM call.
 /// Posts are already grouped by topic on the backend: postCount posts, newest/oldest timestamps.
 struct MatchEvidenceDTO: Decodable, Hashable {
-    let type:           String     // "profile" | "post" | "community"
+    let type:           String     // "profile" | "post" | "engagement" | "community"
     let topic:          String?
     let similarity:     Double?
     let matchedTerms:   [String]
@@ -42,6 +42,10 @@ struct MatchEvidenceDTO: Decodable, Hashable {
     let latestPostAt:   Date?
     let oldestPostAt:   Date?
     let communityName:  String?
+    /// "engagement" only — public reactions (comments / public shares) on
+    /// matching posts. Likes are private, so the server never sends them.
+    let commentedCount: Int?
+    let sharedCount:    Int?
 
     private enum CodingKeys: String, CodingKey {
         case type, topic, similarity
@@ -50,6 +54,8 @@ struct MatchEvidenceDTO: Decodable, Hashable {
         case latestPostAt  = "latest_post_at"
         case oldestPostAt  = "oldest_post_at"
         case communityName = "community_name"
+        case commentedCount = "commented_count"
+        case sharedCount    = "shared_count"
     }
 
     init(from decoder: Decoder) throws {
@@ -62,6 +68,8 @@ struct MatchEvidenceDTO: Decodable, Hashable {
         latestPostAt  = try? c.decodeIfPresent(Date.self, forKey: .latestPostAt)
         oldestPostAt  = try? c.decodeIfPresent(Date.self, forKey: .oldestPostAt)
         communityName = try c.decodeIfPresent(String.self, forKey: .communityName)
+        commentedCount = try? c.decodeIfPresent(Int.self, forKey: .commentedCount)
+        sharedCount    = try? c.decodeIfPresent(Int.self, forKey: .sharedCount)
     }
 }
 

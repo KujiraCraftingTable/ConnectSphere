@@ -121,4 +121,45 @@ final class AppTests: XCTestCase {
     func testRankScoreIgnoresNegativeCounts() {
         XCTAssertEqual(PostRanking.rankScore(similarity: 0.65, likes: -5, comments: -1), 0.65, accuracy: 1e-12)
     }
+
+    // MARK: People search — reactions as evidence, never revealing likes.
+
+    private func rawUser(evidence: String) -> SearchStore.RawUser {
+        SearchStore.RawUser(
+            id: "u1", username: "lurker", display_name: nil, bio: nil, avatar_url: nil, cover_url: nil,
+            avatar_color: nil, location: nil, job_title: nil, company: nil, default_mode: "hobby",
+            gender: nil, age: nil, follower_count: 0, following_count: 0, post_count: 0,
+            interests: "[]", skills: "[]", score: 0.6, match_evidence: evidence, mutual_count: 0)
+    }
+
+    func testEngagementEvidenceMapsToItsOwnType() {
+        let raw = #"[{"source_type":"engagement","topic":"rock climbing","content":"Climbing granite in Yosemite","similarity":0.68,"commented_count":2,"shared_count":0}]"#
+        let out = SearchController.finalize([rawUser(evidence: raw)], terms: ["climbing"], communityByUser: [:])
+        let ev = out[0].match_evidence[0]
+        XCTAssertEqual(ev.type, "engagement")
+        XCTAssertEqual(ev.commented_count, 2)
+        XCTAssertEqual(ev.shared_count, 0)
+        XCTAssertEqual(ev.matched_terms, ["climbing"])
+    }
+
+    func testSearchResultJSONNeverCarriesLikesOrReactedPostText() throws {
+        // A like-only reactor: counts are 0 and nothing names a like or the post.
+        let raw = #"[{"source_type":"engagement","topic":"rock climbing","content":"Secret liked post text","similarity":0.6,"commented_count":0,"shared_count":0}]"#
+        let out = SearchController.finalize([rawUser(evidence: raw)], terms: [], communityByUser: [:])
+        let json = String(data: try JSONEncoder().encode(out), encoding: .utf8)!.lowercased()
+        XCTAssertFalse(json.contains("like"))
+        XCTAssertFalse(json.contains("secret liked post text"))
+    }
+
+    func testEngagementAndAuthoredEvidenceStaySeparate() {
+        let authored = SearchStore.RawEvidence(source_type: "post", topic: "hiking", similarity: 0.7)
+        let reacted = SearchStore.RawEvidence(source_type: "engagement", topic: "hiking", similarity: 0.6)
+        XCTAssertNotEqual(SearchController.evidenceKey(authored), SearchController.evidenceKey(reacted))
+        XCTAssertEqual(SearchController.mergeEvidence([authored], [reacted]).count, 2)
+    }
+
+    func testOneReactionScoresBelowAuthoringTheSameMatch() {
+        XCTAssertLessThan(SearchStore.wReactLike, SearchStore.wReactCommentOrShare)
+        XCTAssertLessThan(SearchStore.wReactCommentOrShare, 1)
+    }
 }

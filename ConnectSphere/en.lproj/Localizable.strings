@@ -831,3 +831,13 @@
 "Couldn't post" = "Couldn't post";
 "This video is too large to upload (max 50 MB)." = "This video is too large to upload (max 50 MB).";
 "Couldn't upload one of your photos or videos. Please try again." = "Couldn't upload one of your photos or videos. Please try again.";
+
+// MARK: - AI search: reaction evidence (likes are never named)
+"Commented on a post about %@" = "Commented on a post about %@";
+"Commented on %d posts about %@" = "Commented on %d posts about %@";
+"Shared a post about %@" = "Shared a post about %@";
+"Shared %d posts about %@" = "Shared %d posts about %@";
+"Engages with posts about %@" = "Engages with posts about %@";
+"Commented on posts related to your search" = "Commented on posts related to your search";
+"Shared posts related to your search" = "Shared posts related to your search";
+"Engages with posts related to your search" = "Engages with posts related to your search";
