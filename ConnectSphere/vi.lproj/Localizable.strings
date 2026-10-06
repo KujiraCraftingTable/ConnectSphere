@@ -831,3 +831,13 @@
 "Couldn't post" = "Không thể đăng bài";
 "This video is too large to upload (max 50 MB)." = "Video quá lớn để tải lên (tối đa 50 MB).";
 "Couldn't upload one of your photos or videos. Please try again." = "Không thể tải lên một ảnh hoặc video. Vui lòng thử lại.";
+
+// MARK: - AI search: reaction evidence (likes are never named)
+"Commented on a post about %@" = "Đã bình luận một bài viết về %@";
+"Commented on %d posts about %@" = "Đã bình luận %d bài viết về %@";
+"Shared a post about %@" = "Đã chia sẻ một bài viết về %@";
+"Shared %d posts about %@" = "Đã chia sẻ %d bài viết về %@";
+"Engages with posts about %@" = "Thường tương tác với bài viết về %@";
+"Commented on posts related to your search" = "Đã bình luận các bài viết gần với điều bạn tìm";
+"Shared posts related to your search" = "Đã chia sẻ các bài viết gần với điều bạn tìm";
+"Engages with posts related to your search" = "Thường tương tác với bài viết gần với điều bạn tìm";

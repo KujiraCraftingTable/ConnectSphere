@@ -14,6 +14,10 @@ import SQLKit
 enum SearchStore {
     static let chunkPoolSize = 200
     static let wMax = 0.7, wAvg = 0.3, wRetrieval = 0.85, wPersonal = 0.15
+    /// Reacting to a matching post is evidence of interest, but weaker than
+    /// writing about it: a reactor is credited the post's match × this weight.
+    /// A comment or share takes more effort than a like.
+    static let wReactLike = 0.8, wReactCommentOrShare = 0.9
     static let evidencePerUser = 5
     static let highConfidenceThreshold = 0.8
     static let suggestThreshold = 0.6
@@ -141,6 +145,10 @@ enum SearchStore {
         var post_count: Int?
         var latest_post_at: Date?
         var oldest_post_at: Date?
+        /// Engagement evidence only, and only public reactions — like counts
+        /// are never selected, so they can't reach the client.
+        var commented_count: Int?
+        var shared_count: Int?
     }
     struct RawUser: Decodable {
         var id: String; var username: String
@@ -172,8 +180,12 @@ enum SearchStore {
             JOIN users a ON a.id = c.user_id AND a.deleted_at IS NULL
             WHERE (c.source_type = 'user_profile'
                    OR EXISTS (SELECT 1 FROM posts pp WHERE pp.id = c.source_id
-                              AND pp.status = 'posted' AND pp.privacy = 'public'))
+                              AND pp.status = 'posted' AND pp.privacy = 'public'
             """
+        // Hobby and Work are separate worlds: a post only counts as evidence
+        // (for its author, or for anyone who reacted to it) in its own mode.
+        if let m = p.mode { pool = pool + " AND pp.mode = \(bind: m)" }
+        pool = pool + "))"
         if let sid = p.excludeUserID {
             pool = pool + """
                  AND NOT EXISTS (SELECT 1 FROM user_blocks ub
@@ -184,7 +196,8 @@ enum SearchStore {
         pool = pool + " ORDER BY c.embedding <=> \(bind: lit)::vector LIMIT \(unsafeRaw: String(chunkPoolSize))"
 
         // ── user-level hard filters (setup clause inlined with the bound mode) ──
-        var wheres: [SQLQueryString] = []
+        // Reactors can be any user, not just chunk owners from the pool.
+        var wheres: [SQLQueryString] = ["u.deleted_at IS NULL"]
         if let m = p.mode {
             wheres.append("(CASE WHEN \(bind: m) = 'work' THEN u.work_display_name ELSE u.hobby_display_name END) IS NOT NULL")
         }
@@ -224,13 +237,20 @@ enum SearchStore {
         if let groups = p.interestGroups {
             for group in groups where !group.isEmpty {
                 var ors: [SQLQueryString] = []
+                var shown: [SQLQueryString] = []
                 for kw in group {
                     let k = kw.lowercased()
                     ors.append("(LOWER(uix.interest) LIKE \(bind: "%\(k)%") OR \(bind: k) LIKE '%' || LOWER(uix.interest) || '%')")
+                    shown.append("LOWER(hx.content) LIKE \(bind: "%\(k)%")")
                 }
-                var clause: SQLQueryString = "EXISTS (SELECT 1 FROM user_interests uix WHERE uix.user_id = u.id AND ("
+                // A declared interest satisfies the group — and so does shown
+                // interest: a matching post they wrote or reacted to. Otherwise
+                // people who never filled in their interests could never match.
+                var clause: SQLQueryString = "(EXISTS (SELECT 1 FROM user_interests uix WHERE uix.user_id = u.id AND ("
                 for (i, o) in ors.enumerated() { clause = clause + (i == 0 ? "" : " OR ") + o }
-                clause = clause + "))"
+                clause = clause + ")) OR EXISTS (SELECT 1 FROM hits hx WHERE hx.user_id = u.id AND hx.source_type IN ('post', 'engagement') AND ("
+                for (i, o) in shown.enumerated() { clause = clause + (i == 0 ? "" : " OR ") + o }
+                clause = clause + ")))"
                 wheres.append(clause)
             }
         }
@@ -284,10 +304,33 @@ enum SearchStore {
 
         var sql: SQLQueryString = "WITH chunk_pool AS (" + pool + "),\n"
         sql = sql + """
+            authored AS (
+              SELECT user_id, source_type, source_id, topic, content, sim
+              FROM chunk_pool WHERE sim >= \(bind: p.threshold)
+            ),
+            engaged AS (
+              -- Everyone who reacted to a matching post (not its author), once
+              -- per post at their strongest reaction's weight.
+              SELECT r.user_id, h.source_id, h.topic, h.content,
+                     h.sim * MAX(CASE WHEN r.kind = 'like' THEN \(bind: wReactLike)::float8
+                                      ELSE \(bind: wReactCommentOrShare)::float8 END) AS sim,
+                     bool_or(r.kind = 'comment' AND r.is_public) AS commented,
+                     bool_or(r.kind = 'share' AND r.is_public) AS shared
+              FROM authored h
+              JOIN post_reactions r ON r.post_id = h.source_id
+              WHERE h.source_type = 'post' AND r.user_id <> h.user_id
+              GROUP BY r.user_id, h.source_id, h.topic, h.content, h.sim
+            ),
             hits AS (
+              -- Authored and reaction hits rank together, so several reactions
+              -- add up through the top-3 average.
               SELECT user_id, source_type, source_id, topic, content, sim,
                      ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY sim DESC) AS rn
-              FROM chunk_pool WHERE sim >= \(bind: p.threshold)
+              FROM (
+                SELECT user_id, source_type, source_id, topic, content, sim FROM authored
+                UNION ALL
+                SELECT user_id, 'engagement', source_id, topic, content, sim FROM engaged
+              ) combined
             ),
             user_scores AS (
               SELECT user_id,
@@ -313,6 +356,15 @@ enum SearchStore {
                 FROM hits h JOIN posts p2 ON p2.id = h.source_id
                 WHERE h.source_type = 'post' AND p2.status = 'posted' AND p2.privacy = 'public'
                 GROUP BY h.user_id, h.topic
+                UNION ALL
+                SELECT e.user_id, MAX(e.sim) AS sim,
+                       jsonb_build_object('source_type', 'engagement', 'topic', e.topic,
+                         'content', string_agg(e.content, ' '),
+                         'similarity', ROUND(MAX(e.sim)::numeric, 4),
+                         'commented_count', COUNT(*) FILTER (WHERE e.commented),
+                         'shared_count', COUNT(*) FILTER (WHERE e.shared)) AS ev
+                FROM engaged e
+                GROUP BY e.user_id, e.topic
               ) grouped
               GROUP BY user_id
             ),

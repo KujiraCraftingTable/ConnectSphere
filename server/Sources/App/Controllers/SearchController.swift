@@ -71,6 +71,9 @@ struct SearchController {
         @NullCoded var latest_post_at: Date?
         @NullCoded var oldest_post_at: Date?
         var community_name: String?
+        /// Engagement evidence: public reactions only (likes are never sent).
+        var commented_count: Int? = nil
+        var shared_count: Int? = nil
     }
     struct SearchUser: Content {
         var id: String; var username: String
@@ -330,7 +333,11 @@ struct SearchController {
     // MARK: merge
 
     static func evidenceKey(_ e: SearchStore.RawEvidence) -> String {
-        e.source_type == "user_profile" ? "profile" : "post|\(e.topic ?? "")"
+        switch e.source_type {
+        case "user_profile": return "profile"
+        case "engagement":   return "engagement|\(e.topic ?? "")"
+        default:             return "post|\(e.topic ?? "")"
+        }
     }
     static func mergeEvidence(_ a: [SearchStore.RawEvidence], _ b: [SearchStore.RawEvidence]) -> [SearchStore.RawEvidence] {
         var byKey: [String: SearchStore.RawEvidence] = [:]
@@ -391,12 +398,19 @@ struct SearchController {
             let chunkEv: [EvidenceItem] = raw.map { ev in
                 let content = (ev.content ?? "").lowercased()
                 let matched = terms.filter { content.contains($0.lowercased()) }
+                let type: String
+                switch ev.source_type {
+                case "user_profile": type = "profile"
+                case "engagement":   type = "engagement"
+                default:             type = "post"
+                }
                 return EvidenceItem(
-                    type: ev.source_type == "user_profile" ? "profile" : "post",
+                    type: type,
                     topic: ev.topic, similarity: ev.similarity,
                     matched_terms: Array(matched.prefix(3)),
                     post_count: ev.post_count, latest_post_at: ev.latest_post_at, oldest_post_at: ev.oldest_post_at,
-                    community_name: nil)
+                    community_name: nil,
+                    commented_count: ev.commented_count, shared_count: ev.shared_count)
             }
             let commEv: [EvidenceItem] = (communityByUser[u.id] ?? []).map { name in
                 EvidenceItem(type: "community", topic: nil, similarity: nil, matched_terms: [],
