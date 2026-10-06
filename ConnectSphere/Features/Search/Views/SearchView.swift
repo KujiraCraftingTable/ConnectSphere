@@ -69,7 +69,8 @@ struct SearchView: View {
             .safeAreaInset(edge: .top, spacing: 0) { searchHeader }
             .background(AppColors.base(colorScheme))
             .navigationTitle(bundle.loc("Search"))
-            .navigationBarTitleDisplayMode(.inline)
+            // Large, like the Notifications tab's title.
+            .navigationBarTitleDisplayMode(.large)
             .toolbarBackground(AppColors.base(colorScheme), for: .navigationBar)
             .overlay {
                 // The Kujira loading scene, shown while an AI search runs.
