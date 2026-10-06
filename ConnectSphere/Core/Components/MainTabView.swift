@@ -16,7 +16,7 @@ struct MainTabView: View {
     /// Injected into the environment for `ConversationListView` to present.
     @State private var assistantViewModel: AssistantViewModel?
 
-    private let userNotifRepo = UserNotificationRepository()
+    @State private var notificationBadge = NotificationBadgeViewModel()
 
     // Custom binding: TabView always calls the setter when a tab is tapped, even when
     // re-tapping the tab that's already active (the setter runs even if the value doesn't
@@ -83,8 +83,8 @@ struct MainTabView: View {
             if assistantViewModel == nil {
                 assistantViewModel = AssistantViewModel(appState: appState)
             }
-            await fetchUserNotifCount()
-            setupRealtimeBadges()
+            await notificationBadge.refresh(appState: appState)
+            notificationBadge.startRealtime(appState: appState)
             consumePendingDeepLink()
             consumePendingAssistantNavigation()
         }
@@ -200,34 +200,11 @@ struct MainTabView: View {
         case 2:
             communityNavPath = NavigationPath()
         case 3:
-            Task { await fetchUserNotifCount() }
+            Task { await notificationBadge.refresh(appState: appState) }
         case 4:
             profileNavPath = NavigationPath()
         default:
             break
-        }
-    }
-
-    /// Connects the socket and updates the badge as soon as a new notification arrives
-    /// (like/comment/connection) — no need to wait for the user to open the Notifications tab.
-    private func setupRealtimeBadges() {
-        guard let token = appState.authToken else { return }
-        WebSocketClient.shared.connect(token: token)
-        // The backend emits notification_count after every create/read/delete,
-        // so the badge follows without refetching the list. `notification` is
-        // still observed for older backends that only send that event.
-        WebSocketClient.shared.on("notification_count", tag: "mainTabBadge") { _ in
-            Task { @MainActor in await fetchUserNotifCount() }
-        }
-        WebSocketClient.shared.on("notification", tag: "mainTabBadge") { _ in
-            Task { @MainActor in await fetchUserNotifCount() }
-        }
-    }
-
-    private func fetchUserNotifCount() async {
-        guard let token = appState.authToken else { return }
-        if let count = try? await userNotifRepo.unreadCount(token: token) {
-            appState.notificationUnreadCount = count
         }
     }
 

@@ -9,34 +9,29 @@ struct WardPickerView: View {
     @Binding var selectedProvinceCode: String?
     @Binding var selectedWardId: String?
 
-    @State private var provinces: [ProvinceDTO] = []
-    @State private var wards:     [WardDTO]     = []
-    @State private var isLoadingProvinces = false
-    @State private var isLoadingWards     = false
-
-    private let repository = WardRepository()
+    @State private var viewModel = WardPickerViewModel()
 
     var selectedProvinceName: String {
-        provinces.first { $0.province_code == selectedProvinceCode }?.province_name ?? bundle.loc("Select province")
+        viewModel.provinceName(code: selectedProvinceCode) ?? bundle.loc("Select province")
     }
 
     var selectedWardName: String {
-        wards.first { $0.id == selectedWardId }?.full_name ?? bundle.loc("Select ward")
+        viewModel.wardName(id: selectedWardId) ?? bundle.loc("Select ward")
     }
 
     var body: some View {
         VStack(spacing: 12) {
             // Province picker
             Menu {
-                if isLoadingProvinces {
+                if viewModel.isLoadingProvinces {
                     Text("Loading...", bundle: bundle).foregroundColor(.secondary)
                 } else {
-                    ForEach(provinces) { province in
+                    ForEach(viewModel.provinces) { province in
                         Button(province.province_name) {
                             if selectedProvinceCode != province.province_code {
                                 selectedProvinceCode = province.province_code
                                 selectedWardId = nil
-                                loadWards(provinceCode: province.province_code)
+                                Task { await viewModel.loadWards(provinceCode: province.province_code) }
                             }
                         }
                     }
@@ -51,12 +46,12 @@ struct WardPickerView: View {
 
             // Ward picker — only enabled after province selected
             Menu {
-                if isLoadingWards {
+                if viewModel.isLoadingWards {
                     Text("Loading...", bundle: bundle).foregroundColor(.secondary)
-                } else if wards.isEmpty {
+                } else if viewModel.wards.isEmpty {
                     Text("Select a province first", bundle: bundle).foregroundColor(.secondary)
                 } else {
-                    ForEach(wards) { ward in
+                    ForEach(viewModel.wards) { ward in
                         Button(ward.full_name) {
                             selectedWardId = ward.id
                         }
@@ -72,7 +67,7 @@ struct WardPickerView: View {
             .disabled(selectedProvinceCode == nil)
             .opacity(selectedProvinceCode == nil ? 0.5 : 1)
         }
-        .task { await loadProvinces() }
+        .task { await viewModel.loadProvinces(selectedProvinceCode: selectedProvinceCode) }
     }
 
     // MARK: - Row UI
@@ -96,30 +91,5 @@ struct WardPickerView: View {
         .background(Color(.systemBackground).opacity(0.5))
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(.separator), lineWidth: 0.5))
-    }
-
-    // MARK: - Data loading
-
-    private func loadProvinces() async {
-        guard provinces.isEmpty else { return }
-        isLoadingProvinces = true
-        if let fetched = try? await repository.fetchProvinces() {
-            provinces = fetched
-        }
-        isLoadingProvinces = false
-
-        // If province already selected (edit mode), pre-load wards
-        if let code = selectedProvinceCode { loadWards(provinceCode: code) }
-    }
-
-    private func loadWards(provinceCode: String) {
-        isLoadingWards = true
-        wards = []
-        Task {
-            if let fetched = try? await repository.fetchWards(provinceCode: provinceCode) {
-                wards = fetched
-            }
-            isLoadingWards = false
-        }
     }
 }
