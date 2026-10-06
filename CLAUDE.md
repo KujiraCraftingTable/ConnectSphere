@@ -13,6 +13,10 @@ query pipeline and chunk-based pgvector embeddings — see `AI_SEARCH_OVERVIEW.m
 - Fast inner loop: `cd server && PORT=3000 swift run App serve` (host, reads `../backend/.env`)
 - Contract tests: `server/contract/*.sh` diff the port against a Node oracle on :3000 — 179 checks, 8 suites
 
+## Architecture
+iOS app is MVVM (views → `@Observable` ViewModels → repositories); backend is
+Controller → Service/Store → SQL. See [`ARCHITECTURE.md`](ARCHITECTURE.md).
+
 ## Known gaps
 Deliberately deferred scope (e.g. push notifications) is tracked in [`KNOWN_GAPS.md`](KNOWN_GAPS.md) — check it before assuming a missing feature is an oversight.
 
