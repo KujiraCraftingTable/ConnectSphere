@@ -21,14 +21,21 @@ struct SettingsView: View {
 
     var body: some View {
         List {
-            // Appearance: theme picker + System/Light/Dark, one section, one
-            // header — previously split across two sections that both ended
-            // up headed "Appearance".
+            // Two sections, not one: the theme color is per mode, Light/Dark
+            // is app-wide. Sharing a section also made the transparent
+            // segmented row own the card's rounded bottom, so the color row
+            // ended square with a stray divider and the picker looked laid
+            // over it.
             Section {
                 themePickerRow
+            } header: {
+                Text(String(format: bundle.loc("Theme color · %@"), appState.currentMode == .hobby ? bundle.loc("Hobby Mode") : bundle.loc("Work Mode")))
+            }
+
+            Section {
                 appearancePicker
             } header: {
-                Text(String(format: bundle.loc("Appearance · %@"), appState.currentMode == .hobby ? bundle.loc("Hobby Mode") : bundle.loc("Work Mode")))
+                Text("Appearance", bundle: bundle)
             }
 
             // Language
