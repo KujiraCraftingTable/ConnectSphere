@@ -13,6 +13,7 @@ struct SearchController {
     static func register(routes: any RoutesBuilder) {
         let s = routes.grouped("search").grouped(AuthMiddleware())
         s.grouped(RateLimitMiddleware.aiSearch()).post("ai", use: aiSearch)
+        s.grouped(RateLimitMiddleware.aiSearch()).post("ai", "posts", use: aiPostSearch)
         s.get("suggestions", use: suggestions)
         s.post("lookup", use: lookup)
 
@@ -203,6 +204,73 @@ struct SearchController {
 
         return AISearchResponse(data: finalUsers, criteria: criteria,
                                 entity_suggestions: entitySuggestions, warnings: warnings)
+    }
+
+    // MARK: POST /api/search/ai/posts
+
+    struct AIPostSearchResponse: Content {
+        var data: [PostObject]
+        var criteria: OllamaService.SearchCriteria
+        var warnings: [Warning]
+        /// Post id → cosine similarity (0…1) of its best-matching query vector.
+        /// It is both the ranking key and the match % the app shows, so the
+        /// order and the percentages can never disagree.
+        var match_scores: [String: Double]
+    }
+
+    /// AI search over posts: the same LLM breakdown and query vectors as
+    /// people search, then nearest post chunks. Each post keeps its best
+    /// similarity across the vectors. Radius/location filters don't apply —
+    /// posts carry no location.
+    static func aiPostSearch(_ req: Request) async throws -> AIPostSearchResponse {
+        let b = try req.content.decode(AIBody.self)
+        guard let userQuery = b.query?.trimmingCharacters(in: .whitespaces), !userQuery.isEmpty else {
+            throw StatusMessageError(.badRequest, "query is required")
+        }
+        if let m = b.mode, !["hobby", "work"].contains(m) {
+            throw StatusMessageError(.badRequest, "mode must be hobby or work")
+        }
+        let db = req.db.sql()
+        let cfg = req.ollama
+        let log = req.logger
+
+        let criteria = await OllamaService.extractSearchCriteria(cfg, userQuery, mode: b.mode, logger: log)
+        async let entityTask = buildEntityVector(cfg, criteria, on: db, logger: log)
+        async let generalTask = buildGeneralVector(cfg, criteria, logger: log)
+        var vectors = [await entityTask.vec, await generalTask].compactMap { $0 }
+
+        // The breakdown prompt is written for finding *people*, so a post query
+        // ("posts about …") often yields no interests/entity. Embedding the
+        // whole query is then the normal path, not a failure — only warn when
+        // no vector could be built at all.
+        var warnings: [Warning] = []
+        if vectors.isEmpty {
+            if let fv = await OllamaService.embedText(cfg, criteria.intent_en.isEmpty ? userQuery : criteria.intent_en, logger: log) {
+                vectors = [fv]
+            } else {
+                warnings.append(Warning(code: "query_unclear", value: nil))
+            }
+        }
+        let mode = b.mode ?? criteria.mode
+        var best: [String: Double] = [:]
+        try await withThrowingTaskGroup(of: [SearchStore.PostHit].self) { group in
+            for v in vectors {
+                group.addTask { try await SearchStore.nearestPosts(v, mode: mode, on: db) }
+            }
+            for try await hits in group {
+                for h in hits { best[h.id] = max(best[h.id] ?? 0, h.sim) }
+            }
+        }
+
+        let visible = try await PostStore.findVisible(Array(best.keys), viewer: req.userID, on: db)
+        let ranked = visible
+            .sorted { (best[$0.id] ?? 0) > (best[$1.id] ?? 0) }
+            .prefix(20)
+        try? await SearchStore.logSearch(userQuery, mode: b.mode, on: db)
+        return AIPostSearchResponse(
+            data: Array(ranked), criteria: criteria, warnings: warnings,
+            match_scores: Dictionary(uniqueKeysWithValues: ranked.map { ($0.id, best[$0.id] ?? 0) })
+        )
     }
 
     // MARK: query builder
