@@ -106,6 +106,27 @@ struct AISearchResponseDTO: Decodable {
     }
 }
 
+/// POST /search/ai/posts. `match_scores` maps post id → similarity (0…1);
+/// the server already sorted `data` by it, so it doubles as the match %.
+struct AIPostSearchResponseDTO: Decodable {
+    let data:         [PostDTO]
+    let criteria:     AISearchCriteriaDTO
+    let warnings:     [SearchWarningDTO]
+    let match_scores: [String: Double]
+
+    private enum CodingKeys: String, CodingKey {
+        case data, criteria, warnings, match_scores
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        data         = try c.decode([PostDTO].self, forKey: .data)
+        criteria     = try c.decode(AISearchCriteriaDTO.self, forKey: .criteria)
+        warnings     = (try? c.decode([SearchWarningDTO].self, forKey: .warnings)) ?? []
+        match_scores = (try? c.decode([String: Double].self, forKey: .match_scores)) ?? [:]
+    }
+}
+
 struct SearchSuggestionsDTO: Decodable {
     let suggestions: [String]
 }

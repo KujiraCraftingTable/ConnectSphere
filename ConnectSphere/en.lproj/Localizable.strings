@@ -143,8 +143,6 @@
 "Hobby" = "Hobby";
 "Hobby Mode" = "Hobby Mode";
 "Home" = "Home";
-"I just helped you search~\nAlways here for you! 💕" = "I just helped you search~\nAlways here for you! 💕";
-"I want to find someone who likes jjk..." = "I want to find someone who likes jjk...";
 "Icon" = "Icon";
 "Incorrect code. Please try again." = "Incorrect code. Please try again.";
 "Interests" = "Interests";
@@ -163,7 +161,6 @@
 "Kujira only suggests people within %dkm when searching with location." = "Kujira only suggests people within %dkm when searching with location.";
 "Kujira ran into a problem!" = "Kujira ran into a problem!";
 "Language" = "Language";
-"Let Kujira help you search more effectively~" = "Let Kujira help you search more effectively~";
 "Load older messages" = "Load older messages";
 "Loading link preview..." = "Loading link preview...";
 "Loading..." = "Loading...";
@@ -257,8 +254,6 @@
 "Search posts" = "Search posts";
 "Search province / city" = "Search province / city";
 "Search radius" = "Search radius";
-"Search with Kujira" = "Search with Kujira";
-"Searching the high seas..." = "Searching the high seas...";
 "Select a province first" = "Select a province first";
 "Select province" = "Select province";
 "Select province / city" = "Select province / city";
@@ -808,3 +803,14 @@
 
 // MARK: - Settings: theme vs appearance
 "Theme color · %@" = "Theme color · %@";
+
+// MARK: - Unified search (people + posts, AI toggle)
+"People" = "People";
+"AI" = "AI";
+"AI search" = "AI search";
+"On" = "On";
+"Off" = "Off";
+"%d%% match" = "%d%% match";
+"Describe who or what you're looking for…" = "Describe who or what you're looking for…";
+"Describe the posts you want to find, then tap Search." = "Describe the posts you want to find, then tap Search.";
+"Type a word or #tag to find posts." = "Type a word or #tag to find posts.";
