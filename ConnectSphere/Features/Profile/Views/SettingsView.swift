@@ -12,7 +12,6 @@ struct SettingsView: View {
     @State private var showLogoutConfirm = false
     @AppStorage("searchRadiusKm") private var searchRadiusKm: Int = 0
 
-    private let radiusOptions = [0, 1, 5, 10, 15, 20, 25, 30]
 
     /// Read from the bundle rather than hardcoded, so it can't silently go
     /// stale on the next release.
@@ -241,29 +240,7 @@ struct SettingsView: View {
                     .foregroundColor(themeManager.theme.primary)
             }
 
-            Slider(
-                value: Binding(
-                    get: { Double(radiusOptions.firstIndex(of: searchRadiusKm) ?? 0) },
-                    set: { searchRadiusKm = radiusOptions[Int($0.rounded())] }
-                ),
-                in: 0...Double(radiusOptions.count - 1),
-                step: 1
-            )
-            .tint(themeManager.theme.primary)
-
-            HStack {
-                Text("No\nlimit", bundle: bundle)
-                    .font(.system(size: 10))
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-                    .multilineTextAlignment(.center)
-                Spacer()
-                ForEach([5, 10, 20, 30], id: \.self) { km in
-                    Text("\(km)km")
-                        .font(.system(size: 10))
-                        .foregroundColor(AppColors.textSecondary(colorScheme))
-                    if km != 30 { Spacer() }
-                }
-            }
+            SearchRadiusSlider(km: $searchRadiusKm, tint: themeManager.theme.primary)
         }
         .padding(.vertical, 4)
     }
