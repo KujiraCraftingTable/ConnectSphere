@@ -6,36 +6,32 @@ struct BlockedUsersView: View {
     @Environment(\.appBundle) var bundle
     @Environment(\.colorScheme) var colorScheme
 
-    @State private var blockedUsers: [BlockedUserDTO] = []
-    @State private var isLoading = false
-    @State private var loadError: String?
-    @State private var unblockingIds: Set<String> = []
-
-    private let userRepo = UserRepository()
+    @State private var viewModel = BlockedUsersViewModel()
 
     var body: some View {
         Group {
-            if isLoading && blockedUsers.isEmpty {
+            if viewModel.isLoading && viewModel.blockedUsers.isEmpty {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let loadError, blockedUsers.isEmpty {
+            } else if let loadError = viewModel.loadError, viewModel.blockedUsers.isEmpty {
                 errorState(loadError)
-            } else if blockedUsers.isEmpty {
+            } else if viewModel.blockedUsers.isEmpty {
                 emptyState
             } else {
                 List {
-                    ForEach(blockedUsers) { user in
+                    ForEach(viewModel.blockedUsers) { user in
                         row(user)
                             .listRowBackground(AppColors.surface(colorScheme))
                     }
                 }
                 .listStyle(.plain)
+                .animation(.default, value: viewModel.blockedUsers.map(\.id))
             }
         }
         .background(AppColors.base(colorScheme))
         .navigationTitle(bundle.loc("Blocked users"))
         .navigationBarTitleDisplayMode(.inline)
-        .task { await load() }
-        .refreshable { await load() }
+        .task { await viewModel.load() }
+        .refreshable { await viewModel.load() }
     }
 
     // MARK: - Rows
@@ -56,9 +52,9 @@ struct BlockedUsersView: View {
             Spacer()
 
             Button {
-                Task { await unblock(user) }
+                Task { await viewModel.unblock(user) }
             } label: {
-                if unblockingIds.contains(user.id) {
+                if viewModel.unblockingIds.contains(user.id) {
                     ProgressView().scaleEffect(0.7)
                         .frame(width: 70, height: 28)
                 } else {
@@ -71,7 +67,7 @@ struct BlockedUsersView: View {
                 }
             }
             .buttonStyle(.plain)
-            .disabled(unblockingIds.contains(user.id))
+            .disabled(viewModel.unblockingIds.contains(user.id))
         }
         .padding(.vertical, 4)
     }
@@ -119,33 +115,9 @@ struct BlockedUsersView: View {
                 .multilineTextAlignment(.center)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .padding(.horizontal, 32)
-            Button(bundle.loc("Retry")) { Task { await load() } }
+            Button(bundle.loc("Retry")) { Task { await viewModel.load() } }
                 .font(.system(size: 14, weight: .semibold))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    // MARK: - Data
-
-    private func load() async {
-        isLoading = true
-        loadError = nil
-        defer { isLoading = false }
-        do {
-            blockedUsers = try await userRepo.fetchBlockedUsers()
-        } catch {
-            loadError = friendlyError(error)
-        }
-    }
-
-    private func unblock(_ user: BlockedUserDTO) async {
-        unblockingIds.insert(user.id)
-        defer { unblockingIds.remove(user.id) }
-        do {
-            try await userRepo.unblockUser(userId: user.id)
-            withAnimation { blockedUsers.removeAll { $0.id == user.id } }
-        } catch {
-            // Leave the row as-is; the user can try again
-        }
     }
 }

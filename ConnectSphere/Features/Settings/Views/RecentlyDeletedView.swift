@@ -8,19 +8,12 @@ struct RecentlyDeletedView: View {
     @Environment(\.appBundle) var bundle
     @Environment(\.colorScheme) var colorScheme
 
-    @State private var deletedPosts: [Post] = []
-    @State private var deletedComments: [DeletedComment] = []
-    @State private var isLoading = false
-    @State private var restoringPostIds: Set<String> = []
-    @State private var restoringCommentIds: Set<String> = []
-    @State private var errorMessage: String?
+    @State private var viewModel = RecentlyDeletedViewModel()
     /// Post/comment awaiting restore confirmation — this screen's "Restore"
     /// button used to restore on a single tap; per your decision, confirming
     /// applies here (browsed anytime, well after the fact) but NOT the quick
     /// Undo toast right after deleting, which stays a single instant tap.
     @State private var pendingRestore: PendingRestore? = nil
-
-    private let repository = PostRepository()
 
     private enum PendingRestore: Identifiable {
         case post(Post)
@@ -48,17 +41,17 @@ struct RecentlyDeletedView: View {
         .navigationTitle(bundle.loc("Recently Deleted"))
         .navigationBarTitleDisplayMode(.inline)
         .overlay {
-            if isLoading && deletedPosts.isEmpty && deletedComments.isEmpty {
+            if viewModel.isLoading && viewModel.isEmpty {
                 ProgressView()
             }
         }
-        .task { await load() }
-        .refreshable { await load() }
+        .task { await viewModel.load() }
+        .refreshable { await viewModel.load() }
         .alert(
-            errorMessage ?? "",
+            viewModel.errorMessage ?? "",
             isPresented: Binding(
-                get: { errorMessage != nil },
-                set: { if !$0 { errorMessage = nil } }
+                get: { viewModel.errorMessage != nil },
+                set: { if !$0 { viewModel.errorMessage = nil } }
             )
         ) {
             Button(bundle.loc("Done")) {}
@@ -74,8 +67,8 @@ struct RecentlyDeletedView: View {
             Button(bundle.loc("Restore")) {
                 pendingRestore = nil
                 switch item {
-                case .post(let post):       Task { await restorePost(post) }
-                case .comment(let comment): Task { await restoreComment(comment) }
+                case .post(let post):       Task { await viewModel.restorePost(post) }
+                case .comment(let comment): Task { await viewModel.restoreComment(comment) }
                 }
             }
             Button(bundle.loc("Cancel"), role: .cancel) {}
@@ -88,10 +81,10 @@ struct RecentlyDeletedView: View {
 
     private var postsSection: some View {
         Section {
-            if deletedPosts.isEmpty {
+            if viewModel.deletedPosts.isEmpty {
                 emptyRow(bundle.loc("No recently deleted posts"))
             } else {
-                ForEach(deletedPosts) { post in
+                ForEach(viewModel.deletedPosts) { post in
                     deletedPostRow(post)
                 }
             }
@@ -104,10 +97,10 @@ struct RecentlyDeletedView: View {
 
     private var commentsSection: some View {
         Section {
-            if deletedComments.isEmpty {
+            if viewModel.deletedComments.isEmpty {
                 emptyRow(bundle.loc("No recently deleted comments"))
             } else {
-                ForEach(deletedComments) { comment in
+                ForEach(viewModel.deletedComments) { comment in
                     deletedCommentRow(comment)
                 }
             }
@@ -140,7 +133,7 @@ struct RecentlyDeletedView: View {
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }
             Spacer(minLength: 8)
-            restoreButton(isLoading: restoringPostIds.contains(post.id)) {
+            restoreButton(isLoading: viewModel.restoringPostIds.contains(post.id)) {
                 pendingRestore = .post(post)
             }
         }
@@ -159,7 +152,7 @@ struct RecentlyDeletedView: View {
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }
             Spacer(minLength: 8)
-            restoreButton(isLoading: restoringCommentIds.contains(comment.id)) {
+            restoreButton(isLoading: viewModel.restoringCommentIds.contains(comment.id)) {
                 pendingRestore = .comment(comment)
             }
         }
@@ -186,44 +179,5 @@ struct RecentlyDeletedView: View {
         }
         .buttonStyle(.plain)
         .disabled(isLoading)
-    }
-
-    // MARK: - Data
-
-    private func load() async {
-        isLoading = true
-        async let postsTask    = try? repository.fetchDeletedPosts()
-        async let commentsTask = try? repository.fetchDeletedComments()
-        deletedPosts    = await postsTask ?? []
-        deletedComments = await commentsTask ?? []
-        isLoading = false
-    }
-
-    /// Restores a post and removes it from this list; also notifies
-    /// Feed/Profile (via `.postRestored`) so it reappears there without a
-    /// manual refresh — same convention the Undo toast uses (see `PostCard`).
-    private func restorePost(_ post: Post) async {
-        restoringPostIds.insert(post.id)
-        defer { restoringPostIds.remove(post.id) }
-        do {
-            let restored = try await repository.restorePost(postId: post.id)
-            deletedPosts.removeAll { $0.id == post.id }
-            NotificationCenter.default.post(name: .postRestored, object: nil, userInfo: [
-                "post": restored
-            ])
-        } catch {
-            errorMessage = bundle.loc("Could not restore this post. Please try again.")
-        }
-    }
-
-    private func restoreComment(_ comment: DeletedComment) async {
-        restoringCommentIds.insert(comment.id)
-        defer { restoringCommentIds.remove(comment.id) }
-        do {
-            try await repository.restoreComment(postId: comment.postId, commentId: comment.id)
-            deletedComments.removeAll { $0.id == comment.id }
-        } catch {
-            errorMessage = bundle.loc("Could not restore this comment. Please try again.")
-        }
     }
 }
