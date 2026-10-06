@@ -53,11 +53,7 @@ struct ChatSettingsView: View {
     /// once the current user leaves the group.
     @State private var leftGroupObserver: NSObjectProtocol?
 
-    // Block state (1:1 only) — ported from `UserProfileView`'s existing block pattern
-    @State private var isBlocked = false
     @State private var showBlockConfirm = false
-    @State private var blockErrorMessage: String?
-    private let userRepo = UserRepository()
 
     private let groupColorSwatches = [
         "#7F5AF0", "#2CB67D", "#FF8906", "#E53170", "#3DA9FC",
@@ -121,7 +117,7 @@ struct ChatSettingsView: View {
         .task {
             await viewModel.load()
             if !isGroup, let otherId = peer.otherUserId {
-                isBlocked = (try? await userRepo.fetchBlockStatus(userId: otherId)) ?? false
+                await viewModel.loadBlockStatus(otherUserId: otherId)
             }
             // If I leave the group from the pushed `GroupParticipantsView`,
             // close this sheet too instead of leaving it stranded underneath.
@@ -151,10 +147,10 @@ struct ChatSettingsView: View {
         } message: {
             Text("You two will no longer see each other's posts, all connections will be removed, and you won't be able to message each other.", bundle: bundle)
         }
-        .alert(bundle.loc("Error"), isPresented: .constant(blockErrorMessage != nil)) {
-            Button(bundle.loc("OK")) { blockErrorMessage = nil }
+        .alert(bundle.loc("Error"), isPresented: .constant(viewModel.blockErrorMessage != nil)) {
+            Button(bundle.loc("OK")) { viewModel.blockErrorMessage = nil }
         } message: {
-            Text(blockErrorMessage ?? "")
+            Text(viewModel.blockErrorMessage ?? "")
         }
         .alert(bundle.loc("Nickname"), isPresented: $showNicknameEditor) {
             TextField(bundle.loc("Nickname"), text: $nicknameDraft)
@@ -405,16 +401,16 @@ struct ChatSettingsView: View {
             // `GroupParticipantsView`, using `UserProfileView`'s block flow unchanged.
             if !isGroup {
                 Button {
-                    if isBlocked {
+                    if viewModel.isBlocked {
                         Task { await toggleBlock() }
                     } else {
                         showBlockConfirm = true
                     }
                 } label: {
-                    SettingsRow(icon: isBlocked ? "person.crop.circle.badge.checkmark" : "nosign",
-                                iconColor: isBlocked ? themeManager.theme.primary : .red,
-                                title: bundle.loc(isBlocked ? "Unblock" : "Block user"),
-                                colorScheme: colorScheme, destructive: !isBlocked)
+                    SettingsRow(icon: viewModel.isBlocked ? "person.crop.circle.badge.checkmark" : "nosign",
+                                iconColor: viewModel.isBlocked ? themeManager.theme.primary : .red,
+                                title: bundle.loc(viewModel.isBlocked ? "Unblock" : "Block user"),
+                                colorScheme: colorScheme, destructive: !viewModel.isBlocked)
                 }
                 .buttonStyle(.plain)
                 divider
@@ -436,28 +432,11 @@ struct ChatSettingsView: View {
         Divider().padding(.leading, 56)
     }
 
-    /// Block / unblock the other person in the conversation — ported from
-    /// `UserProfileView.toggleBlock()`, notifies `ChatView` via `onBlockStatusChanged`.
-    /// 1:1 only.
+    /// 1:1 only. Tells the presenting ChatView through `onBlockStatusChanged`.
     private func toggleBlock() async {
-        guard let otherId = peer.otherUserId else { return }
-        do {
-            if isBlocked {
-                try await userRepo.unblockUser(userId: otherId)
-                isBlocked = false
-            } else {
-                try await userRepo.blockUser(userId: otherId)
-                isBlocked = true
-            }
-            onBlockStatusChanged?(isBlocked)
-            // Lets this conversation's own ChatView (and any other open ChatView
-            // for the same person) refresh its bidirectional block state live.
-            NotificationCenter.default.post(
-                name: .userBlockStatusChanged, object: nil, userInfo: ["userId": otherId]
-            )
-        } catch {
-            blockErrorMessage = friendlyError(error)
-        }
+        guard let otherId = peer.otherUserId,
+              let blocked = await viewModel.toggleBlock(otherUserId: otherId) else { return }
+        onBlockStatusChanged?(blocked)
     }
 
     /// Subtitle under "Default auto-delete time" describing the current preference.

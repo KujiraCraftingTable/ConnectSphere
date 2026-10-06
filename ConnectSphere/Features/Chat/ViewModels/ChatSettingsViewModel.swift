@@ -171,4 +171,33 @@ class ChatSettingsViewModel {
             return false
         }
     }
+
+    // MARK: - Block (1:1 only)
+
+    private(set) var isBlocked = false
+    var blockErrorMessage: String?
+    private let userRepository = UserRepository()
+
+    func loadBlockStatus(otherUserId: String) async {
+        isBlocked = (try? await userRepository.fetchBlockStatus(userId: otherUserId)) ?? false
+    }
+
+    /// Blocks or unblocks; returns the new state on success (nil on failure,
+    /// with `blockErrorMessage` set). Any open ChatView for this person
+    /// refreshes live via `.userBlockStatusChanged`.
+    func toggleBlock(otherUserId: String) async -> Bool? {
+        do {
+            if isBlocked {
+                try await userRepository.unblockUser(userId: otherUserId)
+            } else {
+                try await userRepository.blockUser(userId: otherUserId)
+            }
+            isBlocked.toggle()
+            NotificationCenter.default.post(name: .userBlockStatusChanged, object: nil, userInfo: ["userId": otherUserId])
+            return isBlocked
+        } catch {
+            blockErrorMessage = friendlyError(error)
+            return nil
+        }
+    }
 }

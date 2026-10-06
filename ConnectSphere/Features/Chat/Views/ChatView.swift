@@ -42,7 +42,6 @@ struct ChatView: View {
     // shows an inline notice; set from Chat Settings' block toggle or fetched
     // on load. 1:1 only — groups use `viewModel.blockAlertState` instead
     // (alert-only, input bar stays enabled).
-    @State private var isBlocked = false
     /// Token for the `.userBlockStatusChanged` observer registered in `.task`;
     /// removed symmetrically in `.onDisappear`.
     @State private var blockStatusObserver: NSObjectProtocol?
@@ -74,7 +73,6 @@ struct ChatView: View {
     @State private var messageToRecall: Message?
     // "Forward" — pick a target conversation, re-send this message's content there.
     @State private var forwardingMessage: Message?
-    @State private var isForwarding = false
     @State private var connectVM = ConnectViewModel()
     @AppStorage("messageSoundEnabled") private var messageSoundEnabled = true
     private let bottomID = "chatBottom"
@@ -258,7 +256,7 @@ struct ChatView: View {
                     Task { await jumpToMessage(messageId) }
                 },
                 onBlockStatusChanged: { blocked in
-                    isBlocked = blocked
+                    viewModel.isBlocked = blocked
                 }
             )
             .environment(appState)
@@ -294,7 +292,7 @@ struct ChatView: View {
                 // Chat Settings — fetch the current state so the input bar reflects it.
                 // Uses the bidirectional value: the input bar must stay disabled even
                 // when *they* blocked *me*, not just when I blocked them.
-                await refreshBlockedState()
+                await viewModel.refreshBlockedState()
                 if let me = appState.currentUser?.id {
                     await connectVM.load(
                         viewerId: me,
@@ -310,7 +308,7 @@ struct ChatView: View {
                 ) { note in
                     guard let changedUserId = note.userInfo?["userId"] as? String,
                           changedUserId == otherId else { return }
-                    Task { await refreshBlockedState() }
+                    Task { await viewModel.refreshBlockedState() }
                 }
             }
         }
@@ -352,7 +350,7 @@ struct ChatView: View {
         }
         .sheet(item: $forwardingMessage) { message in
             ForwardMessagePickerView(excludeConversationId: conversationId) { targetConversationId in
-                Task { await forward(message, to: targetConversationId) }
+                Task { await viewModel.forward(message, to: targetConversationId) }
             }
             .environment(appState)
             .environment(themeManager)
@@ -654,28 +652,6 @@ struct ChatView: View {
     /// the per-conversation default auto-delete preference — always shown
     /// rather than silently applying a hidden default, so the user can see/
     /// adjust the expiry before confirming.
-    /// Re-sends `message`'s content/media to a different conversation. No
-    /// re-upload needed — the server never ties `media_url` to the sender or
-    /// conversation it was originally uploaded in (`MessagesController.sendMessage`),
-    /// so the existing URL is reused as-is. Not threaded as a reply in the
-    /// target conversation (`replyToMessageId: nil`) since the original
-    /// message doesn't exist there.
-    private func forward(_ message: Message, to targetConversationId: String) async {
-        guard !isForwarding else { return }
-        isForwarding = true
-        defer { isForwarding = false }
-        _ = try? await MessageRepository().sendMessage(
-            conversationId: targetConversationId,
-            content: message.content,
-            messageType: message.messageType,
-            mediaUrl: message.mediaUrl,
-            replyToMessageId: nil,
-            voiceDurationSeconds: message.voiceDurationSeconds,
-            voiceWaveform: message.voiceWaveform,
-            token: appState.authToken ?? ""
-        )
-    }
-
     private func beginPinning(_ message: Message) {
         pinExpiryChoice = PinAutoDeleteOption(rawValue: pinAutoDeleteRaw) ?? .never
         pinCustomDate = pinAutoDeleteCustomDateRaw > 0
@@ -792,7 +768,7 @@ struct ChatView: View {
                                     )
                                     .modifier(SwipeToReplyModifier(
                                         direction: isOwn ? -1 : 1,
-                                        isEnabled: !message.isDeleted && !(isBlocked && !viewModel.isGroup),
+                                        isEnabled: !message.isDeleted && !(viewModel.isBlocked && !viewModel.isGroup),
                                         onReply: { beginReply(to: message) }
                                     ))
                                     .contextMenu {
@@ -1015,7 +991,7 @@ struct ChatView: View {
     private var inputBar: some View {
         // Groups are alert-only (Leave/Stay) — the input bar always stays
         // enabled there. The existing hard-block disabling/notice is 1:1 only.
-        let blocking = isBlocked && !viewModel.isGroup
+        let blocking = viewModel.isBlocked && !viewModel.isGroup
         return VStack(spacing: 8) {
             if blocking {
                 blockedNotice
@@ -1269,16 +1245,6 @@ struct ChatView: View {
     }
 
     // MARK: - Helpers
-
-    /// Re-fetches the bidirectional block state with the other 1:1 participant
-    /// and applies it to `isBlocked` — used on load and whenever
-    /// `.userBlockStatusChanged` fires for this person, so the input bar
-    /// reflects either direction of a block. 1:1 only.
-    private func refreshBlockedState() async {
-        guard let otherId = peer.otherUserId else { return }
-        let status = try? await UserRepository().fetchBlockStatusDetailed(userId: otherId)
-        isBlocked = status?.blockedEitherWay ?? isBlocked
-    }
 
     /// Jump to a message from search results: load older history until the
     /// message is found (up to 10 pages), scroll it to the middle of the screen and flash-highlight it.

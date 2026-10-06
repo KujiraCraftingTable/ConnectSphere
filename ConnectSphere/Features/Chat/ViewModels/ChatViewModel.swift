@@ -953,4 +953,38 @@ class ChatViewModel {
         guard let json = try? JSONSerialization.data(withJSONObject: proposalDict) else { return nil }
         return try? JSONDecoder.makeISO8601().decode(MeetingProposal.self, from: json)
     }
+
+    // MARK: - Block state & forwarding
+
+    /// A block in either direction with the other 1:1 participant — the input
+    /// bar is disabled while it holds. Refreshed on load and whenever
+    /// `.userBlockStatusChanged` fires for that person.
+    var isBlocked = false
+    private(set) var isForwarding = false
+    private let userRepository = UserRepository()
+
+    func refreshBlockedState() async {
+        guard let otherUserId else { return }
+        let status = try? await userRepository.fetchBlockStatusDetailed(userId: otherUserId)
+        isBlocked = status?.blockedEitherWay ?? isBlocked
+    }
+
+    /// Re-sends `message`'s content/media to another conversation. No re-upload:
+    /// the server doesn't tie `media_url` to the original sender or conversation,
+    /// so the URL is reused. Not threaded as a reply there — the original
+    /// message doesn't exist in the target conversation.
+    func forward(_ message: Message, to targetConversationId: String) async {
+        guard !isForwarding else { return }
+        isForwarding = true
+        defer { isForwarding = false }
+        _ = try? await repository.sendMessage(
+            conversationId: targetConversationId,
+            content: message.content,
+            messageType: message.messageType,
+            mediaUrl: message.mediaUrl,
+            replyToMessageId: nil,
+            voiceDurationSeconds: message.voiceDurationSeconds,
+            voiceWaveform: message.voiceWaveform,
+            token: token)
+    }
 }
