@@ -1,5 +1,9 @@
 import SwiftUI
 
+/// The app's single search (the Search tab): people and posts, with an AI
+/// toggle. Off — keyword search as you type, ranked by relevance on the
+/// server. On — the prompt is broken down by the local LLM and results come
+/// back with a match %, run on submit since each search is an LLM call.
 struct SearchView: View {
     @Environment(AppState.self) var appState
     @Environment(ThemeManager.self) var themeManager
@@ -9,21 +13,25 @@ struct SearchView: View {
     @State private var searchText = ""
     /// What the user types when telling us what an unrecognized place actually is.
     @State private var clarifyText = ""
-    @State private var showAISearch = false
-    @State private var isSearchPresented = false
     @State private var isResettingSearch = false
+    @State private var detailRoute: PostRoute?
+    @FocusState private var isFieldFocused: Bool
+    @AppStorage("aiSearchEnabled") private var aiEnabled = false
+    @AppStorage("searchRadiusKm") private var searchRadiusKm: Int = 0
 
     /// Binding from MainTabView — resets to root whenever the tab is re-selected
     @Binding var navPath: NavigationPath
+
+    private var trimmedText: String { searchText.trimmingCharacters(in: .whitespaces) }
+    private var showsAIResults: Bool { !viewModel.lastAIPrompt.isEmpty }
 
     var body: some View {
         NavigationStack(path: $navPath) {
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    // AI Search banner — scrolls with content
-                    aiSearchBanner
-                        .onTapGesture { showAISearch = true }
-                    Divider()
+                    if aiEnabled && trimmedText.isEmpty && !showsAIResults && !viewModel.suggestions.isEmpty {
+                        trendingSection
+                    }
 
                     // Warning: parts of the prompt the AI didn't understand / couldn't apply.
                     // Only shown when there's an actual specific error — not a generic suggestion.
@@ -42,54 +50,14 @@ struct SearchView: View {
                     }
 
                     LazyVStack(spacing: appState.currentMode == .hobby ? 10 : 8) {
-                        if viewModel.isLoading {
+                        if viewModel.isLoading && !showsAIResults {
                             ProgressView().padding(.top, 40)
                         } else if viewModel.error != nil {
                             networkErrorState
+                        } else if viewModel.scope == .people {
+                            peopleResults
                         } else {
-                            // lastAIPrompt marks "an AI search has run" — gated on
-                            // having results so this doesn't collide with the
-                            // empty/retry states below.
-                            if !searchText.isEmpty || (!viewModel.lastAIPrompt.isEmpty && !viewModel.results.isEmpty) {
-                                Text(String(format: bundle.loc("%d results"), viewModel.results.count))
-                                    .font(.system(size: 13))
-                                    .foregroundColor(AppColors.textSecondary(colorScheme))
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.horizontal, 16)
-                                    .padding(.top, 4)
-                            }
-                            if viewModel.results.isEmpty && !viewModel.lastAIPrompt.isEmpty {
-                                if viewModel.aiSearchFailed {
-                                    kujiraRetryState
-                                } else {
-                                    kujiraEmptyState
-                                }
-                            } else {
-                                ForEach(viewModel.results) { user in
-                                    Group {
-                                        // AI search results → mini CV with match reasons; regular search keeps the old card
-                                        if !viewModel.lastAIPrompt.isEmpty {
-                                            MiniCVCard(user: user, evidence: viewModel.matchEvidence[user.id] ?? [])
-                                        } else if appState.currentMode == .hobby {
-                                            FriendSearchCard(user: user)
-                                        } else {
-                                            ColleagueSearchCard(user: user)
-                                        }
-                                    }
-                                    .onAppear {
-                                        // Last row appearing → fetch the next page
-                                        // (loadMore itself no-ops mid-AI-search).
-                                        if user.id == viewModel.results.last?.id {
-                                            Task { await viewModel.loadMore(mode: appState.currentMode) }
-                                        }
-                                    }
-                                }
-                                if viewModel.isLoadingMore {
-                                    ProgressView()
-                                        .padding(.vertical, 16)
-                                        .frame(maxWidth: .infinity)
-                                }
-                            }
+                            postResults
                         }
                     }
                     .padding(.horizontal, 12)
@@ -97,75 +65,347 @@ struct SearchView: View {
                     .padding(.bottom, 20)
                 }
             }
-            .background(AppColors.base(colorScheme))
+            .scrollDismissesKeyboard(.interactively)
+            .safeAreaInset(edge: .top, spacing: 0) { searchHeader }
             .background(AppColors.base(colorScheme))
             .navigationTitle(bundle.loc("Search"))
+            .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(AppColors.base(colorScheme), for: .navigationBar)
-            .navigationBarTitleDisplayMode(.large)
-            .searchable(
-                text: $searchText,
-                isPresented: $isSearchPresented,
-                placement: .navigationBarDrawer(displayMode: .always),
-                prompt: appState.currentMode == .hobby
-                    ? bundle.loc("Search by name, interests, location...")
-                    : bundle.loc("Search by name, skills, company...")
-            )
-            .onChange(of: appState.shouldFocusSearch) { _, newValue in
-                if newValue {
-                    isSearchPresented = true
-                    appState.shouldFocusSearch = false
+            .overlay {
+                // The Kujira loading scene, shown while an AI search runs.
+                if viewModel.isLoading && showsAIResults {
+                    AISearchLoadingView()
+                        .environment(appState)
+                        .transition(.opacity.animation(.easeInOut(duration: 0.25)))
+                }
+            }
+            // `isPresented:` (not `item:`), same reason as FeedView: other
+            // screens on this stack may declare the same PostRoute type.
+            .navigationDestination(isPresented: Binding(
+                get: { detailRoute != nil },
+                set: { if !$0 { detailRoute = nil } }
+            )) {
+                if let route = detailRoute {
+                    PostDetailView(postId: route.postId, focusComposer: route.focusComposer)
                 }
             }
             .onChange(of: appState.shouldResetSearch) { _, newValue in
                 // Re-tapping the "Search" tab while already active → return to the default
                 // browse state, clearing all accumulated search/AI search state
                 guard newValue else { return }
-                isResettingSearch = true   // prevent onChange(searchText) from triggering a redundant search()
-                searchText = ""
-                isSearchPresented = false
-                Task { await viewModel.loadAll(mode: appState.currentMode) }
+                resetToBrowse()
                 appState.shouldResetSearch = false
             }
-            .onChange(of: searchText) { query in
-                // Skip if this is a programmatic clear right after AI search
+            .onChange(of: searchText) { _, query in
                 if isResettingSearch { isResettingSearch = false; return }
-                guard query != viewModel.lastAIPrompt else { return }
+                // AI runs on submit, not per keystroke — but clearing the field
+                // still returns to the browse state.
+                if aiEnabled && !query.trimmingCharacters(in: .whitespaces).isEmpty { return }
                 viewModel.search(query: query, mode: appState.currentMode)
             }
-            .onChange(of: appState.currentMode) { mode in
-                Task { await viewModel.loadAll(mode: mode) }
+            .onChange(of: aiEnabled) { _, isOn in
+                // Turning AI off re-runs the text as a keyword search; turning
+                // it on waits for the user to submit.
+                if !isOn { viewModel.search(query: searchText, mode: appState.currentMode) }
             }
-            .onChange(of: showAISearch) { isPresented in
-                // When the sheet closes after an AI search → clear the search bar (without triggering a regular search)
-                if !isPresented && !viewModel.lastAIPrompt.isEmpty {
-                    isResettingSearch = true
-                    searchText = ""
-                }
-            }
+            .onChange(of: viewModel.scope) { _, _ in rerunInCurrentScope() }
+            .onChange(of: appState.currentMode) { _, _ in rerunInCurrentScope() }
             .task {
                 // .task re-runs when the view "reappears" (e.g. popping back from a pushed profile).
                 // If this is because the Search tab was re-tapped (shouldResetSearch = true) →
                 // reset fully right here rather than waiting on onChange (which could be missed
                 // because the view is covered by the pushed profile when the flag was set).
+                viewModel.currentUserId = appState.currentUser?.id
                 if appState.shouldResetSearch {
                     appState.shouldResetSearch = false
-                    isResettingSearch = true
-                    searchText = ""
-                    isSearchPresented = false
-                    viewModel.currentUserId = appState.currentUser?.id
-                    await viewModel.loadAll(mode: appState.currentMode)
+                    resetToBrowse()
                     return
                 }
                 // Only load on the first pass — avoids resetting AI results when backing out of a profile via swipe/back button
-                guard viewModel.results.isEmpty else { return }
-                viewModel.currentUserId = appState.currentUser?.id
+                guard viewModel.results.isEmpty, viewModel.postResults.isEmpty else { return }
                 await viewModel.loadAll(mode: appState.currentMode)
             }
-            .sheet(isPresented: $showAISearch) {
-                AISearchSheet(viewModel: viewModel)
-                    .environment(appState)
+        }
+    }
+
+    // MARK: Header — field, AI toggle, scope
+
+    private var searchHeader: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    Image(systemName: aiEnabled ? "sparkles" : "magnifyingglass")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(aiEnabled ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
+                    TextField("", text: $searchText, prompt: Text(placeholder))
+                        .font(.system(size: 15))
+                        .focused($isFieldFocused)
+                        .submitLabel(.search)
+                        .onSubmit(runAI)
+                    if !searchText.isEmpty {
+                        Button {
+                            searchText = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(AppColors.textTertiary(colorScheme))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(Text("Clear", bundle: bundle))
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(AppColors.elevated(colorScheme), in: Capsule())
+                .overlay(
+                    Capsule().stroke(aiEnabled ? themeManager.theme.primary : AppColors.borderDefault(colorScheme),
+                                     lineWidth: aiEnabled ? 1.5 : 1)
+                )
+
+                aiToggle
+            }
+
+            Picker("", selection: Bindable(viewModel).scope) {
+                Text("People", bundle: bundle).tag(SearchScope.people)
+                Text("Posts", bundle: bundle).tag(SearchScope.posts)
+            }
+            .pickerStyle(.segmented)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
+        .background(AppColors.base(colorScheme))
+        .animation(.easeInOut(duration: 0.15), value: aiEnabled)
+    }
+
+    /// Capsule switch between keyword and AI search, tinted when on.
+    private var aiToggle: some View {
+        Button {
+            aiEnabled.toggle()
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "sparkles")
+                Text("AI", bundle: bundle)
+            }
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundColor(aiEnabled ? .white : AppColors.textSecondary(colorScheme))
+            .padding(.horizontal, 12)
+            .frame(height: 40)
+            .background(aiEnabled ? AnyShapeStyle(themeManager.theme.primary) : AnyShapeStyle(AppColors.elevated(colorScheme)),
+                        in: Capsule())
+            .overlay(Capsule().stroke(aiEnabled ? .clear : AppColors.borderDefault(colorScheme), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("AI search", bundle: bundle))
+        .accessibilityValue(Text(aiEnabled ? "On" : "Off", bundle: bundle))
+    }
+
+    private var placeholder: String {
+        if aiEnabled { return bundle.loc("Describe who or what you're looking for…") }
+        if viewModel.scope == .posts { return bundle.loc("Search posts") }
+        return appState.currentMode == .hobby
+            ? bundle.loc("Search by name, interests, location...")
+            : bundle.loc("Search by name, skills, company...")
+    }
+
+    // MARK: Actions
+
+    private func runAI() {
+        guard aiEnabled, !trimmedText.isEmpty else { return }
+        isFieldFocused = false
+        let radius = searchRadiusKm > 0 ? searchRadiusKm : nil
+        Task { await viewModel.submitAI(prompt: trimmedText, mode: appState.currentMode, radiusKm: radius) }
+    }
+
+    /// Scope or mode changed: run the same query again where it now applies.
+    private func rerunInCurrentScope() {
+        if aiEnabled && !trimmedText.isEmpty {
+            runAI()
+        } else {
+            viewModel.search(query: searchText, mode: appState.currentMode)
+        }
+    }
+
+    private func resetToBrowse() {
+        isResettingSearch = !searchText.isEmpty
+        searchText = ""
+        isFieldFocused = false
+        viewModel.scope = .people
+        viewModel.currentUserId = appState.currentUser?.id
+        Task { await viewModel.loadAll(mode: appState.currentMode) }
+    }
+
+    // MARK: Results
+
+    @ViewBuilder
+    private var peopleResults: some View {
+        // lastAIPrompt marks "an AI search has run" — gated on having results
+        // so this doesn't collide with the empty/retry states below.
+        if !trimmedText.isEmpty && !viewModel.results.isEmpty {
+            resultCount(viewModel.results.count)
+        }
+        if viewModel.results.isEmpty && showsAIResults && !viewModel.isLoading {
+            if viewModel.aiSearchFailed {
+                kujiraRetryState
+            } else {
+                kujiraEmptyState
+            }
+        } else if viewModel.results.isEmpty && !trimmedText.isEmpty && !viewModel.isLoading {
+            emptyKeywordState
+        } else {
+            ForEach(viewModel.results) { user in
+                Group {
+                    // AI search results → mini CV with match reasons; regular search keeps the old card
+                    if showsAIResults {
+                        MiniCVCard(user: user, evidence: viewModel.matchEvidence[user.id] ?? [])
+                    } else if appState.currentMode == .hobby {
+                        FriendSearchCard(user: user)
+                    } else {
+                        ColleagueSearchCard(user: user)
+                    }
+                }
+                .onAppear {
+                    // Last row appearing → fetch the next page
+                    // (loadMore itself no-ops mid-AI-search).
+                    if user.id == viewModel.results.last?.id {
+                        Task { await viewModel.loadMore(mode: appState.currentMode) }
+                    }
+                }
+            }
+            if viewModel.isLoadingMore {
+                ProgressView()
+                    .padding(.vertical, 16)
+                    .frame(maxWidth: .infinity)
             }
         }
+    }
+
+    @ViewBuilder
+    private var postResults: some View {
+        if trimmedText.isEmpty && !showsAIResults {
+            searchHint(aiEnabled
+                       ? bundle.loc("Describe the posts you want to find, then tap Search.")
+                       : bundle.loc("Type a word or #tag to find posts."))
+        } else if viewModel.postResults.isEmpty && !viewModel.isLoading {
+            if viewModel.aiSearchFailed {
+                kujiraRetryState
+            } else {
+                emptyKeywordState
+            }
+        } else {
+            resultCount(viewModel.postResults.count)
+            ForEach(viewModel.postResults) { post in
+                VStack(alignment: .leading, spacing: 6) {
+                    if let score = viewModel.postMatchScores[post.id] {
+                        matchPill(score)
+                    }
+                    PostCard(
+                        post: post,
+                        onPostDeleted: { viewModel.removePost(id: post.id) },
+                        onOpenDetail: { focus in
+                            detailRoute = PostRoute(postId: post.id, focusComposer: focus)
+                        }
+                    )
+                    .cardStyle()
+                }
+                .onAppear {
+                    if post.id == viewModel.postResults.last?.id {
+                        Task { await viewModel.loadMore(mode: appState.currentMode) }
+                    }
+                }
+            }
+            if viewModel.isLoadingMore {
+                ProgressView()
+                    .padding(.vertical, 16)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    private func resultCount(_ count: Int) -> some View {
+        Text(String(format: bundle.loc("%d results"), count))
+            .font(.system(size: 13))
+            .foregroundColor(AppColors.textSecondary(colorScheme))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 4)
+            .padding(.top, 4)
+    }
+
+    /// "72% match" above an AI post result — the same number the server
+    /// ranked by, so the order and the percentages always agree.
+    private func matchPill(_ score: Double) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: "sparkles")
+            Text(String(format: bundle.loc("%d%% match"), Int((score * 100).rounded())))
+        }
+        .font(.system(size: 12, weight: .semibold))
+        .foregroundColor(themeManager.theme.primary)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .background(themeManager.theme.primary.opacity(0.12), in: Capsule())
+        .padding(.leading, 4)
+    }
+
+    private func searchHint(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 14))
+            .foregroundColor(AppColors.textSecondary(colorScheme))
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 32)
+            .padding(.top, 48)
+    }
+
+    private var emptyKeywordState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 36))
+                .foregroundColor(AppColors.textSecondary(colorScheme).opacity(0.4))
+            Text("No results found", bundle: bundle)
+                .font(.system(size: 14))
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 48)
+    }
+
+    // MARK: Trending prompts (AI on, empty field)
+
+    private var trendingSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 4) {
+                Image(systemName: "flame.fill")
+                    .font(.system(size: 12))
+                    .foregroundColor(themeManager.theme.primary)
+                Text("Trending", bundle: bundle)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
+            }
+            ForEach(viewModel.suggestions.prefix(4), id: \.self) { suggestion in
+                Button {
+                    isResettingSearch = true
+                    searchText = suggestion
+                    runAI()
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 12))
+                            .foregroundColor(themeManager.theme.primary)
+                        Text(suggestion)
+                            .font(.system(size: 14))
+                            .foregroundColor(AppColors.textPrimary(colorScheme))
+                            .multilineTextAlignment(.leading)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(RoundedRectangle(cornerRadius: 10)
+                        .fill(themeManager.theme.primary.opacity(0.06)))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
     }
 
     private func aiKeywordsBadge(_ criteria: AISearchCriteriaDTO) -> some View {
@@ -374,8 +614,6 @@ struct SearchView: View {
         Task { await viewModel.clarifyLocation(alias: place, canonical: answer) }
     }
 
-    // MARK: AI Search Banner
-
     private var kujiraEmptyState: some View {
         VStack(spacing: 16) {
             Text("🐳")
@@ -449,208 +687,6 @@ struct SearchView: View {
         .padding(.horizontal, 32)
         .padding(.vertical, 40)
         .frame(maxWidth: .infinity)
-    }
-
-    private var aiSearchBanner: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(themeManager.theme.primary.opacity(0.12))
-                    .frame(width: 44, height: 44)
-                Text("🐳")
-                    .font(.system(size: 22))
-            }
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Kujira")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(AppColors.textPrimary(colorScheme))
-                Text(viewModel.lastAIPrompt.isEmpty
-                    ? bundle.loc("Let Kujira help you search more effectively~")
-                    : bundle.loc("I just helped you search~\nAlways here for you! 💕"))
-                    .font(.system(size: 12))
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer()
-            Image(systemName: "chevron.right")
-                .font(.system(size: 13))
-                .foregroundColor(AppColors.textSecondary(colorScheme))
-        }
-        .padding(14)
-        .background(AppColors.surface(colorScheme))
-    }
-}
-
-// MARK: - AI Search Sheet
-
-struct AISearchSheet: View {
-    @Environment(AppState.self) var appState
-    @Environment(ThemeManager.self) var themeManager
-    @Environment(\.appBundle) var bundle
-    @Environment(\.colorScheme) var colorScheme
-    var viewModel: SearchViewModel
-    @State private var prompt = ""
-    @FocusState private var isPromptFocused: Bool
-    @Environment(\.dismiss) private var dismiss
-    @AppStorage("searchRadiusKm") private var searchRadiusKm: Int = 0
-
-    // Pre-fill with last AI prompt so user can refine it
-    private var initialPrompt: String { viewModel.lastAIPrompt }
-
-    private var isPromptEmpty: Bool { prompt.trimmingCharacters(in: .whitespaces).isEmpty }
-
-    // MARK: Hero header — mascot Kujira + greeting
-
-    private var heroHeader: some View {
-        VStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(themeManager.theme.primary.opacity(0.12))
-                    .frame(width: 76, height: 76)
-                Text("🐳").font(.system(size: 40))
-            }
-            Text("Let Kujira help you search more effectively~", bundle: bundle)
-                .font(.system(size: 15, weight: .medium))
-                .foregroundColor(AppColors.textPrimary(colorScheme))
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 4)
-    }
-
-    // MARK: Description input field — background like a post card, moderate height, bright border when focused
-
-    private var promptInput: some View {
-        ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 14)
-                .fill(AppColors.surface(colorScheme))
-            if prompt.isEmpty {
-                Text("I want to find someone who likes jjk...", bundle: bundle)
-                    .font(.system(size: 15))
-                    .foregroundColor(AppColors.textSecondary(colorScheme).opacity(0.6))
-                    .padding(.horizontal, 13)
-                    .padding(.vertical, 14)
-            }
-            TextEditor(text: $prompt)
-                .font(.system(size: 15))
-                .scrollContentBackground(.hidden)
-                .background(Color.clear)
-                .padding(8)
-                .focused($isPromptFocused)
-        }
-        .frame(minHeight: 120, maxHeight: 150)
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(isPromptFocused ? themeManager.theme.primary : AppColors.borderDefault(colorScheme),
-                        lineWidth: isPromptFocused ? 1.5 : 1)
-        )
-        .contentShape(RoundedRectangle(cornerRadius: 14))
-        .onTapGesture { isPromptFocused = true }
-        .animation(.easeInOut(duration: 0.15), value: isPromptFocused)
-    }
-
-    // MARK: Trending suggestions — tappable pills for quick-fill
-
-    private var trendingSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 4) {
-                Image(systemName: "flame.fill")
-                    .font(.system(size: 12))
-                    .foregroundColor(themeManager.theme.primary)
-                Text("Trending", bundle: bundle)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-            }
-
-            ForEach(viewModel.suggestions.prefix(4), id: \.self) { suggestion in
-                Button {
-                    prompt = suggestion
-                    isPromptFocused = true
-                } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 12))
-                            .foregroundColor(themeManager.theme.primary)
-                        Text(suggestion)
-                            .font(.system(size: 14))
-                            .foregroundColor(AppColors.textPrimary(colorScheme))
-                            .multilineTextAlignment(.leading)
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(RoundedRectangle(cornerRadius: 10)
-                        .fill(themeManager.theme.primary.opacity(0.06)))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    // MARK: Search button — pinned to the bottom, floats above the keyboard
-
-    private var searchButtonBar: some View {
-        Button {
-            Task {
-                let radius = searchRadiusKm > 0 ? searchRadiusKm : nil
-                await viewModel.aiSearch(prompt: prompt, mode: appState.currentMode, radiusKm: radius)
-                dismiss()
-            }
-        } label: {
-            HStack(spacing: 8) {
-                if viewModel.isLoading {
-                    ProgressView().tint(.white).scaleEffect(0.8)
-                } else {
-                    Image(systemName: "sparkles")
-                }
-                Text(viewModel.isLoading ? bundle.loc("Searching the high seas...") : bundle.loc("Search with Kujira"))
-                    .font(.system(size: 16, weight: .semibold))
-            }
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(isPromptEmpty ? AppColors.borderDefault(colorScheme) : themeManager.theme.primary,
-                        in: RoundedRectangle(cornerRadius: 12))
-        }
-        .disabled(isPromptEmpty || viewModel.isLoading)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(AppColors.base(colorScheme))
-    }
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-            VStack(alignment: .leading, spacing: 20) {
-                heroHeader
-                promptInput
-                if !viewModel.suggestions.isEmpty {
-                    trendingSection
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .top)
-            .background(AppColors.base(colorScheme))
-            .safeAreaInset(edge: .bottom) { searchButtonBar }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(bundle.loc("Cancel")) { dismiss() }
-                }
-            }
-
-            // Loading overlay
-            if viewModel.isLoading {
-                AISearchLoadingView()
-                    .environment(appState)
-                    .transition(.opacity.animation(.easeInOut(duration: 0.25)))
-            }
-            } // ZStack
-        }
-        .onAppear { if prompt.isEmpty { prompt = initialPrompt } }
     }
 }
 

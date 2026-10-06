@@ -17,19 +17,6 @@ struct FeedView: View {
     /// same bug in "Your Story".
     @State private var myProfile: UserProfile?
     private let profileRepo = ProfileRepository()
-    @State private var searchText = ""
-    @State private var searchTask: Task<Void, Never>?
-    /// Icon-triggered search — collapsed by default (a pill in the toolbar,
-    /// left of the message pill, deliberately not combined into one
-    /// control); tapping it reveals a focused text field in place of the
-    /// composer/stories/feed-scope row.
-    @State private var showSearchField = false
-    @FocusState private var isSearchFieldFocused: Bool
-
-    private var isSearchActive: Bool {
-        !searchText.trimmingCharacters(in: .whitespaces).isEmpty
-    }
-
     var body: some View {
         NavigationStack {
             ScrollViewReader { proxy in
@@ -37,12 +24,6 @@ struct FeedView: View {
                 LazyVStack(spacing: AppSpacing.sm) {
                     Color.clear.frame(height: 0).id("feedTop")
 
-                    if showSearchField {
-                        searchFieldRow
-                        if isSearchActive {
-                            searchResultsSection
-                        }
-                    } else {
                     createPostBar
                         .cardStyle()
 
@@ -92,7 +73,6 @@ struct FeedView: View {
                             ProgressView().padding(.vertical, 12)
                         }
                     }
-                    } // isSearchActive
                 }
                 .padding(.horizontal, AppSpacing.sm)
                 .padding(.bottom, AppSpacing.lg)
@@ -155,36 +135,11 @@ struct FeedView: View {
                 .environment(appState)
             }
             } // ScrollViewReader
-            .onChange(of: searchText) { _, newValue in
-                searchTask?.cancel()
-                let trimmed = newValue.trimmingCharacters(in: .whitespaces)
-                guard !trimmed.isEmpty else { return }
-                searchTask = Task {
-                    try? await Task.sleep(nanoseconds: 300_000_000)
-                    guard !Task.isCancelled else { return }
-                    await viewModel.searchPosts(query: trimmed, mode: appState.currentMode)
-                }
-            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     modeSwitchPill
                 }
-                // Two separate ToolbarItems so each pill keeps its own
-                // independent Liquid Glass background — grouping them in
-                // one HStack/ToolbarItem instead made iOS 26 fuse both
-                // into a single shared glass shape. ToolbarSpacer(.fixed)
-                // is the system's own way to pull two adjacent items
-                // closer than its default toolbar spacing while still
-                // forcing the glass-background split between them.
-                // ToolbarSpacer itself is iOS 26+ only; below that there's
-                // no Liquid Glass grouping to split apart, so the two
-                // items just sit at the system's default spacing.
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    searchIconButton
-                }
-                if #available(iOS 26.0, *) {
-                    ToolbarSpacer(.fixed, placement: .navigationBarTrailing)
-                }
+                // Search lives only in the Search tab — no second entry here.
                 ToolbarItem(placement: .navigationBarTrailing) {
                     chatIconButton
                 }
@@ -340,44 +295,6 @@ struct FeedView: View {
         }
     }
 
-    private var searchIconButton: some View {
-        Button {
-            showSearchField = true
-            isSearchFieldFocused = true
-        } label: {
-            ZStack {
-                Circle().fill(AppColors.elevated(colorScheme)).frame(width: 36, height: 36)
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(AppColors.textPrimary(colorScheme))
-            }
-        }
-    }
-
-    /// Replaces the composer/stories/feed-scope row while `showSearchField`
-    /// is true — focused text field + Cancel.
-    private var searchFieldRow: some View {
-        HStack(spacing: 10) {
-            TextField("", text: $searchText, prompt: Text(bundle.loc("Search posts")))
-                .focused($isSearchFieldFocused)
-                .font(.system(size: 15))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 20))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(AppColors.borderStrong(colorScheme), lineWidth: 1)
-                )
-
-            Button(bundle.loc("Cancel")) {
-                searchText = ""
-                showSearchField = false
-                isSearchFieldFocused = false
-            }
-            .font(.system(size: 15, weight: .medium))
-        }
-    }
-
     @ViewBuilder
     private func feedPostCard(_ post: Post, isLast: Bool) -> some View {
         PostCard(
@@ -399,36 +316,6 @@ struct FeedView: View {
             // Scrolled to the last post → load the next page
             if isLast {
                 Task { await viewModel.loadMorePosts(for: appState.currentMode) }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var searchResultsSection: some View {
-        if viewModel.isSearching && viewModel.searchResults.isEmpty {
-            ProgressView().padding(.top, 40)
-        } else if viewModel.searchResults.isEmpty {
-            VStack(spacing: 10) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 36))
-                    .foregroundColor(AppColors.textSecondary(colorScheme).opacity(0.4))
-                Text(bundle.loc("No results found"))
-                    .font(.system(size: 14))
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-            }
-            .padding(.top, 40)
-        } else {
-            ForEach(viewModel.searchResults) { post in
-                PostCard(
-                    post: post,
-                    onOwnAvatarTapped: { selectedTab = 4 },
-                    onPostDeleted: { viewModel.searchResults.removeAll { $0.id == post.id } },
-                    onOpenDetail: { focus in
-                        detailRoute = PostRoute(postId: post.id, focusComposer: focus)
-                    },
-                    showConnectButton: false
-                )
-                .cardStyle()
             }
         }
     }

@@ -143,8 +143,6 @@
 "Hobby" = "Sở thích";
 "Hobby Mode" = "Chế độ Sở thích";
 "Home" = "Trang chủ";
-"I just helped you search~\nAlways here for you! 💕" = "Mình vừa giúp bạn tìm rồi á~ \nBạn mình luôn sẵn lòng giúp bạn! 💕";
-"I want to find someone who likes jjk..." = "Tui muốn tìm bạn thích xem jjk...";
 "Icon" = "Biểu tượng";
 "Incorrect code. Please try again." = "Mã không đúng. Vui lòng thử lại.";
 "Interests" = "Sở thích";
@@ -163,7 +161,6 @@
 "Kujira only suggests people within %dkm when searching with location." = "Kujira chỉ gợi ý người trong vòng %dkm khi bạn tìm kiếm có địa điểm.";
 "Kujira ran into a problem!" = "Kujira gặp chút sự cố rồi!";
 "Language" = "Ngôn ngữ";
-"Let Kujira help you search more effectively~" = "Hãy để Kujira giúp bạn tìm hiệu quả hơn nha~";
 "Load older messages" = "Tải tin nhắn cũ hơn";
 "Loading link preview..." = "Đang tải link preview...";
 "Loading..." = "Đang tải...";
@@ -257,8 +254,6 @@
 "Search posts" = "Tìm bài viết";
 "Search province / city" = "Tìm tỉnh / thành phố";
 "Search radius" = "Bán kính tìm kiếm";
-"Search with Kujira" = "Tìm cùng Kujira";
-"Searching the high seas..." = "Đang trên đại hải trình...";
 "Select a province first" = "Chọn tỉnh/thành trước";
 "Select province" = "Chọn tỉnh/thành";
 "Select province / city" = "Chọn tỉnh / thành phố";
@@ -808,3 +803,14 @@
 
 // MARK: - Settings: theme vs appearance
 "Theme color · %@" = "Màu chủ đề · %@";
+
+// MARK: - Unified search (people + posts, AI toggle)
+"People" = "Mọi người";
+"AI" = "AI";
+"AI search" = "Tìm kiếm AI";
+"On" = "Bật";
+"Off" = "Tắt";
+"%d%% match" = "Khớp %d%%";
+"Describe who or what you're looking for…" = "Mô tả người hoặc nội dung bạn muốn tìm…";
+"Describe the posts you want to find, then tap Search." = "Mô tả bài viết bạn muốn tìm, rồi nhấn Tìm kiếm.";
+"Type a word or #tag to find posts." = "Nhập từ khoá hoặc #thẻ để tìm bài viết.";

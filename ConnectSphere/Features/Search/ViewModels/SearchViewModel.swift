@@ -1,10 +1,21 @@
 import Foundation
 import Observation
 
+/// What the Search tab is looking for.
+enum SearchScope: String, CaseIterable, Identifiable {
+    case people, posts
+    var id: String { rawValue }
+}
+
 @MainActor
 @Observable
 class SearchViewModel {
+    var scope: SearchScope = .people
     var results: [UserProfile] = []
+    /// Posts scope. Keyword search arrives relevance-ranked from the server;
+    /// AI search adds `postMatchScores` (post id → 0…1), already sorted by it.
+    var postResults: [Post] = []
+    var postMatchScores: [String: Double] = [:]
     var isLoading = false
     var error: String?
     var aiCriteria: AISearchCriteriaDTO? = nil
@@ -39,6 +50,7 @@ class SearchViewModel {
     private var lastQuery: String? = nil
 
     private let repository = UserRepository()
+    private let postRepository = PostRepository()
     private var searchTask: Task<Void, Never>?
     /// Incremented every time a new load starts — a late response from an older load
     /// (e.g. switching modes in quick succession) is discarded instead of overwriting newer results
@@ -46,16 +58,37 @@ class SearchViewModel {
 
     // MARK: - Basic text search (debounced)
 
+    /// Keyword search for the current `scope`, 300 ms after typing stops. An
+    /// empty query returns People to the browse list and clears Posts.
     func search(query: String, mode: AppMode) {
         searchTask?.cancel()
         guard !query.trimmingCharacters(in: .whitespaces).isEmpty else {
-            Task { await loadAll(mode: mode) }
+            if scope == .people {
+                Task { await loadAll(mode: mode) }
+            } else {
+                clearPosts()
+            }
             return
         }
         searchTask = Task {
             try? await Task.sleep(nanoseconds: 300_000_000)
             guard !Task.isCancelled else { return }
-            await performTextSearch(query: query, mode: mode)
+            if scope == .people {
+                await performTextSearch(query: query, mode: mode)
+            } else {
+                await performPostSearch(query: query, mode: mode)
+            }
+        }
+    }
+
+    /// AI search for the current `scope` — run on submit, not per keystroke,
+    /// since each run is an LLM call.
+    func submitAI(prompt: String, mode: AppMode, radiusKm: Int?) async {
+        searchTask?.cancel()
+        if scope == .people {
+            await aiSearch(prompt: prompt, mode: mode, radiusKm: radiusKm)
+        } else {
+            await aiPostSearch(prompt: prompt, mode: mode)
         }
     }
 
@@ -100,6 +133,10 @@ class SearchViewModel {
     /// path has no pagination; see this file's paging-state doc comment).
     func loadMore(mode: AppMode) async {
         guard !isLoadingMore, hasMore, lastAIPrompt.isEmpty else { return }
+        if scope == .posts {
+            await loadMorePosts(mode: mode)
+            return
+        }
         loadGeneration += 1
         let generation = loadGeneration
         isLoadingMore = true
@@ -191,7 +228,103 @@ class SearchViewModel {
         }
     }
 
+    // MARK: - Posts
+
+    func clearPosts() {
+        loadGeneration += 1
+        postResults = []
+        postMatchScores = [:]
+        resetAIState()
+        isLoading = false
+        hasMore = false
+    }
+
+    /// Removes a post the user just deleted from whichever list shows it.
+    func removePost(id: String) {
+        postResults.removeAll { $0.id == id }
+    }
+
+    private func performPostSearch(query: String, mode: AppMode) async {
+        loadGeneration += 1
+        let generation = loadGeneration
+        isLoading = true
+        error = nil
+        resetAIState()
+        postMatchScores = [:]
+        offset = 0
+        lastQuery = query
+        do {
+            let posts = try await postRepository.searchPosts(query, mode: mode, limit: pageSize, offset: 0)
+            guard generation == loadGeneration else { return }
+            postResults = posts
+            offset = pageSize
+            hasMore = posts.count == pageSize
+        } catch {
+            guard generation == loadGeneration else { return }
+            if !(error is CancellationError) {
+                postResults = []
+                hasMore = false
+                self.error = error.localizedDescription
+            }
+        }
+        if generation == loadGeneration { isLoading = false }
+    }
+
+    private func loadMorePosts(mode: AppMode) async {
+        guard let query = lastQuery else { return }
+        loadGeneration += 1
+        let generation = loadGeneration
+        isLoadingMore = true
+        defer { isLoadingMore = false }
+        do {
+            let fetched = try await postRepository.searchPosts(query, mode: mode, limit: pageSize, offset: offset)
+            guard generation == loadGeneration else { return }
+            postResults.append(contentsOf: fetched)
+            offset += pageSize
+            hasMore = fetched.count == pageSize
+        } catch {
+            guard generation == loadGeneration else { return }
+            hasMore = false
+        }
+    }
+
+    private func aiPostSearch(prompt: String, mode: AppMode) async {
+        guard !prompt.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        loadGeneration += 1
+        let generation = loadGeneration
+        isLoading = true
+        error = nil
+        resetAIState()
+        lastAIPrompt = prompt.trimmingCharacters(in: .whitespaces)
+        lastMode = mode
+        do {
+            let result = try await postRepository.aiSearchPosts(prompt, mode: mode)
+            guard generation == loadGeneration else { return }
+            postResults = result.posts
+            postMatchScores = result.scores
+            aiCriteria = result.criteria
+            searchWarnings = result.warnings
+        } catch {
+            guard generation == loadGeneration else { return }
+            postResults = []
+            postMatchScores = [:]
+            aiSearchFailed = true
+        }
+        if generation == loadGeneration { isLoading = false }
+    }
+
     // MARK: - Private
+
+    /// Clears everything a previous AI search left on screen.
+    private func resetAIState() {
+        aiCriteria = nil
+        searchWarnings = []
+        aiSearchFailed = false
+        lastAIPrompt = ""
+        entitySuggestions = []
+        matchEvidence = [:]
+        clarifyUnconfirmed = false
+    }
 
     private func excluding(_ list: [UserProfile]) -> [UserProfile] {
         guard let id = currentUserId else { return list }

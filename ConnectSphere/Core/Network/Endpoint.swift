@@ -10,6 +10,9 @@ enum Endpoint {
     case getPost(id: String)
     case recommendedFeed(mode: String, cursor: String? = nil, limit: Int = 20)
     case aiSearch(query: String, mode: String? = nil, radiusKm: Int? = nil)
+    /// AI search over posts — same body as `aiSearch` minus the radius
+    /// (posts carry no location). POST /search/ai/posts.
+    case aiPostSearch(query: String, mode: String? = nil)
     case listProvinces
     case listWards(provinceCode: String)
     case analyzePost(content: String, currentMode: String)
@@ -26,7 +29,7 @@ enum Endpoint {
     /// Per-endpoint timeout. AI search allows up to 90 s for LLM inference.
     var timeoutInterval: TimeInterval {
         switch self {
-        case .aiSearch: return 90
+        case .aiSearch, .aiPostSearch: return 90
         default:        return 30
         }
     }
@@ -39,7 +42,7 @@ enum Endpoint {
 
     var httpMethod: String {
         switch self {
-        case .aiSearch, .analyzePost, .linkPreview: return "POST"
+        case .aiSearch, .aiPostSearch, .analyzePost, .linkPreview: return "POST"
         default:                                    return "GET"
         }
     }
@@ -50,6 +53,10 @@ enum Endpoint {
             var dict: [String: Any] = ["query": q]
             if let mode     = mode     { dict["mode"]     = mode }
             if let radiusKm = radiusKm { dict["radiusKm"] = radiusKm }
+            return try? JSONSerialization.data(withJSONObject: dict)
+        case .aiPostSearch(let q, let mode):
+            var dict: [String: Any] = ["query": q]
+            if let mode = mode { dict["mode"] = mode }
             return try? JSONSerialization.data(withJSONObject: dict)
         case .analyzePost(let content, let mode):
             return try? JSONEncoder().encode(["content": content, "currentMode": mode])
@@ -71,6 +78,7 @@ enum Endpoint {
         case .linkPreview:              return "/link-preview"
         case .listComments(let postId): return "/posts/\(postId)/comments"
         case .aiSearch:                 return "/search/ai"
+        case .aiPostSearch:             return "/search/ai/posts"
         case .searchSuggestions:        return "/search/suggestions"
         case .suggestTags:              return "/tags/suggest"
         case .listProvinces:            return "/wards/provinces"

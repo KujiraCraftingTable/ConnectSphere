@@ -78,6 +78,16 @@ struct PostRepository {
         return response.data.map { $0.toPost() }
     }
 
+    /// AI search over posts (local-LLM breakdown + embeddings server-side).
+    /// Returns posts in ranked order plus post id → match score (0…1).
+    func aiSearchPosts(_ prompt: String, mode: AppMode) async throws -> (posts: [Post], criteria: AISearchCriteriaDTO, warnings: [SearchWarningDTO], scores: [String: Double]) {
+        let response = try await client.fetch(
+            AIPostSearchResponseDTO.self,
+            from: .aiPostSearch(query: prompt, mode: mode.rawValue)
+        )
+        return (response.data.map { $0.toPost() }, response.criteria, response.warnings, response.match_scores)
+    }
+
     /// Shares/reposts a post; returns the new shared post
     func sharePost(postId: String, content: String, mode: AppMode) async throws -> Post {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {

@@ -112,81 +112,81 @@ struct MainTabView: View {
     /// iOS 26+: the new Tab API with role .search — Liquid Glass automatically splits the
     /// Search tab into its own floating round button next to the 4-tab pill (Telegram-style),
     /// no need to draw a custom bottom bar ourselves.
+    ///
+    /// Order is Home · Community · Profile · Notifications · Search. Tab
+    /// *values* are unchanged from before the reorder, so everything that
+    /// switches tabs by value (deep links, the assistant, `resetTabState`)
+    /// still lands on the same screen.
     @available(iOS 26.0, *)
     private var modernTabs: some View {
         TabView(selection: tabSelection) {
             Tab(value: 0) {
                 FeedView(selectedTab: $selectedTab)
             } label: {
-                Label { Text("Home", bundle: bundle) } icon: { Image(systemName: "house") }
+                tabIcon("house", "Home")
             }
 
             Tab(value: 2) {
                 CommunitiesView(navPath: $communityNavPath)
             } label: {
-                Label { Text("Community", bundle: bundle) } icon: { Image(systemName: "person.3") }
+                tabIcon("person.3", "Community")
+            }
+
+            Tab(value: 4) {
+                ProfileView(navPath: $profileNavPath)
+            } label: {
+                tabIcon("person", "Profile")
             }
 
             Tab(value: 3) {
                 NotificationsView()
             } label: {
-                Label { Text("Notifications", bundle: bundle) } icon: { Image(systemName: "bell") }
+                tabIcon("bell", "Notifications")
             }
             .badge(appState.notificationUnreadCount > 0 ? appState.notificationUnreadCount : 0)
 
-            Tab(value: 4) {
-                ProfileView(navPath: $profileNavPath)
-            } label: {
-                Label { Text("Profile", bundle: bundle) } icon: { Image(systemName: "person") }
-            }
-
-            // Placed last so the system splits it off into a floating search button to the
-            // right of the pill; SearchView already wraps NavigationStack + .searchable internally
+            // The app's one search entry (people + posts). Last, so the system
+            // splits it off into a floating search button to the right of the
+            // pill; SearchView wraps its own NavigationStack internally.
             Tab(value: 1, role: .search) {
                 SearchView(navPath: $searchNavPath)
+            } label: {
+                tabIcon("magnifyingglass", "Search")
             }
         }
     }
 
-    /// iOS < 26: keeps the original evenly-spaced 5-tab TabView layout
+    /// iOS < 26: same order and icon-only look as `modernTabs`.
     private var legacyTabs: some View {
         TabView(selection: tabSelection) {
             FeedView(selectedTab: $selectedTab)
-                .tabItem {
-                    Image(systemName: selectedTab == 0 ? "house.fill" : "house")
-                    Text("Home", bundle: bundle)
-                }
+                .tabItem { tabIcon(selectedTab == 0 ? "house.fill" : "house", "Home") }
                 .tag(0)
 
-            SearchView(navPath: $searchNavPath)
-                .tabItem {
-                    Image(systemName: "magnifyingglass")
-                    Text("Search", bundle: bundle)
-                }
-                .tag(1)
-
             CommunitiesView(navPath: $communityNavPath)
-                .tabItem {
-                    Image(systemName: selectedTab == 2 ? "person.3.fill" : "person.3")
-                    Text("Community", bundle: bundle)
-                }
+                .tabItem { tabIcon(selectedTab == 2 ? "person.3.fill" : "person.3", "Community") }
                 .tag(2)
 
+            ProfileView(navPath: $profileNavPath)
+                .tabItem { tabIcon(selectedTab == 4 ? "person.fill" : "person", "Profile") }
+                .tag(4)
+
             NotificationsView()
-                .tabItem {
-                    Image(systemName: selectedTab == 3 ? "bell.fill" : "bell")
-                    Text("Notifications", bundle: bundle)
-                }
+                .tabItem { tabIcon(selectedTab == 3 ? "bell.fill" : "bell", "Notifications") }
                 .badge(appState.notificationUnreadCount > 0 ? appState.notificationUnreadCount : 0)
                 .tag(3)
 
-            ProfileView(navPath: $profileNavPath)
-                .tabItem {
-                    Image(systemName: selectedTab == 4 ? "person.fill" : "person")
-                    Text("Profile", bundle: bundle)
-                }
-                .tag(4)
+            SearchView(navPath: $searchNavPath)
+                .tabItem { tabIcon("magnifyingglass", "Search") }
+                .tag(1)
         }
+    }
+
+    /// Icon-only tab label. The name lives on as the accessibility label so
+    /// VoiceOver still says "Home" rather than the symbol's name.
+    private func tabIcon(_ symbol: String, _ title: LocalizedStringKey) -> some View {
+        Image(systemName: symbol)
+            .accessibilityLabel(Text(title, bundle: bundle))
     }
 
     /// Resets tab state to its default — runs both when SWITCHING to this tab (onChange)

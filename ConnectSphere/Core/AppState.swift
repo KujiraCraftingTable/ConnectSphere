@@ -114,7 +114,6 @@ class AppState {
     /// Mode the user wants to switch to but hasn't set up a persona for yet — triggers the
     /// PersonaSetupView sheet; only completing the form actually switches, canceling keeps the old mode
     var pendingPersonaMode: AppMode? = nil
-    var shouldFocusSearch: Bool = false
     /// Tapping the "Search" tab again while already on it → SearchView resets to its default browse state
     var shouldResetSearch: Bool = false
     var chatUnreadCount: Int = 0
