@@ -28,6 +28,30 @@ enum SearchStore {
         "[" + v.map { String($0) }.joined(separator: ",") + "]"
     }
 
+    // MARK: nearestPosts (AI post search)
+
+    struct PostHit: Decodable { let id: String; let sim: Double }
+
+    /// Posted posts in `mode` whose embedded chunk is closest to `vector`
+    /// (cosine), keeping those at or above `threshold` — the same 0.6 bar
+    /// people search uses for chunk hits. Visibility (privacy, blocks,
+    /// communities, hidden, muted) is deliberately not checked here: callers
+    /// hydrate through `PostStore.findVisible`, which applies the feed's own
+    /// rules, so the two can't drift apart.
+    static func nearestPosts(_ vector: [Double], mode: String?, threshold: Double = 0.6,
+                             limit: Int = 60, on db: any SQLDatabase) async throws -> [PostHit] {
+        let lit = vecLiteral(vector)
+        var q: SQLQueryString = """
+            SELECT c.source_id::text AS id, (1 - (c.embedding <=> \(bind: lit)::vector))::float AS sim
+            FROM user_embedding_chunks c
+            JOIN posts p ON p.id = c.source_id
+            WHERE c.source_type = 'post' AND p.status = 'posted'
+            """
+        if let m = mode { q = q + " AND p.mode = \(bind: m)" }
+        q = q + " ORDER BY c.embedding <=> \(bind: lit)::vector LIMIT \(bind: limit)"
+        return try await db.raw(q).all(decoding: PostHit.self).filter { $0.sim >= threshold }
+    }
+
     // MARK: getUserContext / logSearch
 
     struct UserContext: Decodable { let gender: String?; let location: String? }

@@ -278,6 +278,17 @@ enum PostStore {
         return score + " + CASE WHEN " + everyWord + " THEN 15 ELSE 0 END)"
     }
 
+    /// Loads `ids` as full feed posts, keeping only those `viewer` may see
+    /// under exactly the feed's rules (status, privacy, blocks, community
+    /// visibility, hidden, muted). Order is not preserved — callers re-sort.
+    static func findVisible(_ ids: [String], viewer: String, on db: any SQLDatabase) async throws -> [PostObject] {
+        guard !ids.isEmpty else { return [] }
+        let all = FeedFilters(mode: nil, authorID: nil, tag: nil, search: nil, connectionsOnly: false, limit: 0, offset: 0)
+        let q = buildPostSelect(viewer) + " " + feedWhere(viewer, all)
+            + " AND p.id = ANY(\(bind: ids)::uuid[]) GROUP BY p.id, u.id"
+        return try await db.raw(q).all(decoding: PostRow.self).map(map)
+    }
+
     static func countAll(viewer: String, _ f: FeedFilters, on db: any SQLDatabase) async throws -> Int {
         struct N: Decodable { let n: Int }
         let q: SQLQueryString = "SELECT COUNT(*)::int AS n FROM posts p " + feedWhere(viewer, f)
