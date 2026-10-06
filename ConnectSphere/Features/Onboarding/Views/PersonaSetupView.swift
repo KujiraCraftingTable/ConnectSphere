@@ -12,18 +12,11 @@ struct PersonaSetupView: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) private var dismiss
 
-    @State private var displayName = ""
-    @State private var jobTitle    = ""
-    @State private var company     = ""
-    @State private var skillsText  = ""
-    @State private var selectedInterests: [InterestItem] = []
-    @State private var isSaving = false
-    @State private var error: String? = nil
+    @State private var viewModel: PersonaSetupViewModel
 
-    private let repository = ProfileRepository()
-
-    private var isValid: Bool {
-        !displayName.trimmingCharacters(in: .whitespaces).isEmpty
+    init(mode: AppMode) {
+        self.mode = mode
+        _viewModel = State(initialValue: PersonaSetupViewModel(mode: mode))
     }
 
     var body: some View {
@@ -36,31 +29,31 @@ struct PersonaSetupView: View {
                         AuthTextField(
                             icon: "textformat",
                             placeholder: bundle.loc("Display name *"),
-                            text: $displayName
+                            text: $viewModel.displayName
                         )
 
                         if mode == .work {
                             AuthTextField(icon: "briefcase",
                                           placeholder: bundle.loc("Job title (iOS Developer...)"),
-                                          text: $jobTitle)
+                                          text: $viewModel.jobTitle)
                             AuthTextField(icon: "building.2",
                                           placeholder: bundle.loc("Company / School"),
-                                          text: $company)
+                                          text: $viewModel.company)
                             AuthTextField(icon: "sparkles",
                                           placeholder: bundle.loc("Skills (Swift, Python, UI/UX...)"),
-                                          text: $skillsText)
+                                          text: $viewModel.skillsText)
                         } else {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Select what you like", bundle: bundle)
                                     .font(.system(size: 13))
                                     .foregroundColor(AppColors.textSecondary(colorScheme))
-                                InterestPickerView(selectedInterests: $selectedInterests,
+                                InterestPickerView(selectedInterests: $viewModel.selectedInterests,
                                                    colorScheme: colorScheme)
                             }
                         }
                     }
 
-                    if let e = error {
+                    if let e = viewModel.errorMessage {
                         HStack(spacing: 8) {
                             Image(systemName: "exclamationmark.triangle.fill")
                             Text(e).font(.system(size: 13))
@@ -73,20 +66,24 @@ struct PersonaSetupView: View {
                     }
 
                     Button {
-                        Task { await save() }
+                        Task {
+                            guard let user = await viewModel.save() else { return }
+                            appState.personaCreated(user, mode: mode)
+                            dismiss()
+                        }
                     } label: {
                         HStack(spacing: 8) {
-                            if isSaving { ProgressView().tint(.white).scaleEffect(0.8) }
-                            Text(isSaving ? bundle.loc("Saving...") : bundle.loc("Start"))
+                            if viewModel.isSaving { ProgressView().tint(.white).scaleEffect(0.8) }
+                            Text(viewModel.isSaving ? bundle.loc("Saving...") : bundle.loc("Start"))
                                 .font(.system(size: 16, weight: .semibold))
                         }
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(isValid ? themeManager.theme.primary : AppColors.borderDefault(colorScheme),
+                        .background(viewModel.isValid ? themeManager.theme.primary : AppColors.borderDefault(colorScheme),
                                     in: RoundedRectangle(cornerRadius: 12))
                     }
-                    .disabled(!isValid || isSaving)
+                    .disabled(!viewModel.isValid || viewModel.isSaving)
                 }
                 .padding(16)
             }
@@ -101,7 +98,7 @@ struct PersonaSetupView: View {
                 }
             }
         }
-        .interactiveDismissDisabled(isSaving)
+        .interactiveDismissDisabled(viewModel.isSaving)
     }
 
     // MARK: Header — explains why this form is needed
@@ -132,37 +129,5 @@ struct PersonaSetupView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 12)
-    }
-
-    // MARK: Save
-
-    private func save() async {
-        isSaving = true
-        error = nil
-        do {
-            let skills = skillsText
-                .components(separatedBy: ",")
-                .map { $0.trimmingCharacters(in: .whitespaces) }
-                .filter { !$0.isEmpty }
-            let body = ProfileRepository.PersonaCreate(
-                mode: mode.rawValue,
-                display_name: displayName.trimmingCharacters(in: .whitespaces),
-                job_title: mode == .work && !jobTitle.trimmingCharacters(in: .whitespaces).isEmpty
-                    ? jobTitle.trimmingCharacters(in: .whitespaces) : nil,
-                company: mode == .work && !company.trimmingCharacters(in: .whitespaces).isEmpty
-                    ? company.trimmingCharacters(in: .whitespaces) : nil,
-                skills: mode == .work && !skills.isEmpty ? skills : nil,
-                interests: mode == .hobby && !selectedInterests.isEmpty
-                    ? selectedInterests.map { $0.displayText } : nil
-            )
-            let user = try await repository.createPersona(body)
-            await MainActor.run {
-                appState.personaCreated(user, mode: mode)
-                dismiss()
-            }
-        } catch {
-            self.error = bundle.loc("Couldn't save, please try again")
-        }
-        isSaving = false
     }
 }

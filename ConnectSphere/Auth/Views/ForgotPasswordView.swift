@@ -8,28 +8,18 @@ struct ForgotPasswordView: View {
     @Environment(\.appBundle) var bundle
     @Environment(\.dismiss) private var dismiss
 
-    private enum Step {
-        case requestCode, resetPassword, done
-    }
-
-    @State private var step: Step = .requestCode
-    @State private var identifier = ""
-    @State private var otp = ""
-    @State private var newPassword = ""
-    @State private var confirmPassword = ""
-    @State private var isLoading = false
-    @State private var errorMessage: String?
+    @State private var viewModel = ForgotPasswordViewModel()
 
     var body: some View {
         NavigationStack {
             Form {
-                switch step {
+                switch viewModel.step {
                 case .requestCode:  requestCodeSection
                 case .resetPassword: resetSection
                 case .done:          doneSection
                 }
 
-                if let errorMessage {
+                if let errorMessage = viewModel.errorMessage {
                     Section {
                         Text(errorMessage)
                             .font(.system(size: 13))
@@ -51,14 +41,14 @@ struct ForgotPasswordView: View {
 
     private var requestCodeSection: some View {
         Section {
-            TextField(bundle.loc("Username or email"), text: $identifier)
+            TextField(bundle.loc("Username or email"), text: $viewModel.identifier)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
 
             Button {
-                Task { await sendCode() }
+                Task { await viewModel.sendCode() }
             } label: {
-                if isLoading {
+                if viewModel.isLoading {
                     ProgressView().frame(maxWidth: .infinity)
                 } else {
                     Text("Send code", bundle: bundle)
@@ -66,7 +56,7 @@ struct ForgotPasswordView: View {
                         .frame(maxWidth: .infinity)
                 }
             }
-            .disabled(identifier.trimmingCharacters(in: .whitespaces).isEmpty || isLoading)
+            .disabled(!viewModel.canSendCode)
         } footer: {
             Text("If the account has an email on file, a 6-digit code has been sent.", bundle: bundle)
         }
@@ -76,15 +66,15 @@ struct ForgotPasswordView: View {
 
     private var resetSection: some View {
         Section {
-            TextField(bundle.loc("Verification code"), text: $otp)
+            TextField(bundle.loc("Verification code"), text: $viewModel.otp)
                 .keyboardType(.numberPad)
-            SecureField(bundle.loc("New password (at least 8 characters)"), text: $newPassword)
-            SecureField(bundle.loc("Confirm new password"), text: $confirmPassword)
+            SecureField(bundle.loc("New password (at least 8 characters)"), text: $viewModel.newPassword)
+            SecureField(bundle.loc("Confirm new password"), text: $viewModel.confirmPassword)
 
             Button {
-                Task { await resetPassword() }
+                Task { await viewModel.resetPassword() }
             } label: {
-                if isLoading {
+                if viewModel.isLoading {
                     ProgressView().frame(maxWidth: .infinity)
                 } else {
                     Text("Reset password", bundle: bundle)
@@ -92,22 +82,15 @@ struct ForgotPasswordView: View {
                         .frame(maxWidth: .infinity)
                 }
             }
-            .disabled(!canReset)
+            .disabled(!viewModel.canReset)
         } footer: {
-            if !confirmPassword.isEmpty && newPassword != confirmPassword {
+            if viewModel.passwordsMismatch {
                 Text("Passwords do not match", bundle: bundle)
                     .foregroundColor(.red)
             } else {
                 Text("If the account has an email on file, a 6-digit code has been sent.", bundle: bundle)
             }
         }
-    }
-
-    private var canReset: Bool {
-        otp.trimmingCharacters(in: .whitespaces).count == 6
-            && newPassword.count >= 8
-            && newPassword == confirmPassword
-            && !isLoading
     }
 
     // MARK: - Step 3: done
@@ -134,37 +117,4 @@ struct ForgotPasswordView: View {
         }
     }
 
-    // MARK: - Actions
-
-    private func sendCode() async {
-        isLoading = true
-        errorMessage = nil
-        defer { isLoading = false }
-        do {
-            try await AuthService.shared.forgotPassword(
-                identifier: identifier.trimmingCharacters(in: .whitespaces)
-            )
-            step = .resetPassword
-        } catch {
-            errorMessage = bundle.loc("Couldn't send code, please try again")
-        }
-    }
-
-    private func resetPassword() async {
-        isLoading = true
-        errorMessage = nil
-        defer { isLoading = false }
-        do {
-            try await AuthService.shared.resetPassword(
-                identifier: identifier.trimmingCharacters(in: .whitespaces),
-                otp: otp.trimmingCharacters(in: .whitespaces),
-                newPassword: newPassword
-            )
-            step = .done
-        } catch {
-            errorMessage = (error as NSError).code == 401
-                ? bundle.loc("Invalid or expired code")
-                : bundle.loc("Couldn't reset password, please try again")
-        }
-    }
 }
