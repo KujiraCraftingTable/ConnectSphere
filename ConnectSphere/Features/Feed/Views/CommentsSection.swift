@@ -295,6 +295,18 @@ struct CommentRow: View {
                 }
                 .buttonStyle(.plain)
 
+                // Right beside the name it describes — after "replied to X"
+                // it read as if X were the post's author.
+                if isPostAuthor {
+                    Text("Author", bundle: bundle)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(themeManager.theme.primary)
+                        .clipShape(Capsule())
+                }
+
                 if let replyTarget {
                     Text("replied to", bundle: bundle)
                         .font(.system(size: 13))
@@ -305,16 +317,6 @@ struct CommentRow: View {
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                     }
                     .buttonStyle(.plain)
-                }
-
-                if isPostAuthor {
-                    Text("Author", bundle: bundle)
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(themeManager.theme.primary)
-                        .clipShape(Capsule())
                 }
             }
 
