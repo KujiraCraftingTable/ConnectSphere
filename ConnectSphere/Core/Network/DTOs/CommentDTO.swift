@@ -36,9 +36,14 @@ struct CommentDTO: Decodable, Identifiable {
     var likeCount: Int
     var isLiked: Bool
     let author: CommentAuthorDTO
+    /// Who this reply answers (nil on a top-level comment). Can differ from
+    /// the parent's author: a reply to a third-level reply is stored beside
+    /// it, under the same parent, but still answers that reply's author.
+    let replyTo: CommentReplyToDTO?
 
     enum CodingKeys: String, CodingKey {
         case id, content, author
+        case replyTo         = "reply_to"
         case createdAt       = "created_at"
         case parentCommentId = "parent_comment_id"
         case likeCount       = "like_count"
@@ -54,6 +59,17 @@ struct CommentDTO: Decodable, Identifiable {
         likeCount       = try c.decodeIfPresent(Int.self, forKey: .likeCount) ?? 0
         isLiked         = try c.decodeIfPresent(Bool.self, forKey: .isLiked) ?? false
         author          = try c.decodeIfPresent(CommentAuthorDTO.self, forKey: .author) ?? .deleted
+        replyTo         = try c.decodeIfPresent(CommentReplyToDTO.self, forKey: .replyTo)
+    }
+}
+
+struct CommentReplyToDTO: Decodable {
+    let id: String
+    let displayName: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case displayName = "display_name"
     }
 }
 

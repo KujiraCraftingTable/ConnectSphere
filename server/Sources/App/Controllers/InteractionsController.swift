@@ -78,6 +78,23 @@ struct InteractionsController {
 
     // MARK: comments list / add / delete / edit / restore / like
 
+    struct ReplyPlacement: Equatable {
+        let parentID: String
+        let replyToID: String
+    }
+
+    /// Where a reply is stored. Threads are three levels deep (comment →
+    /// reply → reply-to-reply): answering a top-level comment or a reply nests
+    /// under it, but answering a third-level reply keeps the new one at that
+    /// level, beside it, under the same parent. `replyToID` is always the
+    /// comment answered.
+    static func replyPlacement(targetID: String, targetParentID: String?, targetDepth: Int) -> ReplyPlacement {
+        if targetDepth >= 3, let targetParentID {
+            return ReplyPlacement(parentID: targetParentID, replyToID: targetID)
+        }
+        return ReplyPlacement(parentID: targetID, replyToID: targetID)
+    }
+
     static func clampLimit(_ v: Int?, _ def: Int, _ hi: Int) -> Int { min(max(v ?? def, 1), hi) }
 
     static func listComments(_ req: Request) async throws -> CommentsListResponse {
@@ -91,13 +108,18 @@ struct InteractionsController {
         struct Row: Decodable {
             let id: String; let content: String?; let created_at: Date
             let parent_comment_id: String?; let like_count: Int; let is_liked: Bool; let author: String
+            let reply_to: String?
         }
         let rows = try await db.raw("""
             SELECT c.id, c.content, c.created_at, c.parent_comment_id, c.like_count,
               EXISTS(SELECT 1 FROM comment_likes cl WHERE cl.comment_id = c.id AND cl.user_id = \(uuid: req.userID)) AS is_liked,
               json_build_object('id', u.id, 'display_name', \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "p.mode")),
-                'avatar_color', u.avatar_color, 'avatar_url', \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: "p.mode")))::text AS author
+                'avatar_color', u.avatar_color, 'avatar_url', \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: "p.mode")))::text AS author,
+              CASE WHEN rc.id IS NULL THEN NULL ELSE json_build_object('id', ru.id,
+                'display_name', \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "p.mode", alias: "ru")))::text END AS reply_to
             FROM comments c JOIN posts p ON p.id = c.post_id JOIN users u ON u.id = c.author_id
+            LEFT JOIN comments rc ON rc.id = COALESCE(c.reply_to_comment_id, c.parent_comment_id)
+            LEFT JOIN users ru ON ru.id = rc.author_id
             WHERE c.post_id = \(uuid: postID) AND c.status = 'posted'
             ORDER BY c.created_at ASC LIMIT \(bind: limit) OFFSET \(bind: offset)
             """).all(decoding: Row.self)
@@ -108,7 +130,8 @@ struct InteractionsController {
         let comments = try rows.map { r -> CommentObject in
             CommentObject(id: r.id, content: r.content, created_at: r.created_at,
                           parent_comment_id: r.parent_comment_id, like_count: r.like_count, is_liked: r.is_liked,
-                          author: try dec.decode(CommentObject.CommentAuthor.self, from: Data(r.author.utf8)))
+                          author: try dec.decode(CommentObject.CommentAuthor.self, from: Data(r.author.utf8)),
+                          reply_to: try r.reply_to.map { try dec.decode(CommentObject.ReplyTo.self, from: Data($0.utf8)) })
         }
         return CommentsListResponse(data: comments, total: total)
     }
@@ -125,35 +148,42 @@ struct InteractionsController {
         guard let meta = try await visibleMeta(postID, viewer: req.userID, db) else {
             throw InlineError(.notFound, "Post not found")
         }
-        if let parentID = b.parent_comment_id {
-            // Replies nest two levels deep (root → reply → reply-to-reply):
-            // if the parent is itself a reply, its own parent must be a root,
-            // or this new comment would land at depth 3.
-            struct P: Decodable { let id: String; let parent_comment_id: String? }
-            guard let parent = try await db.raw("SELECT id, parent_comment_id FROM comments WHERE id = \(uuid: parentID) AND post_id = \(uuid: postID) AND status = 'posted'")
-                .first(decoding: P.self) else { throw InlineError(.notFound, "Parent comment not found") }
-            if let grandparentID = parent.parent_comment_id {
-                let grandparent = try await db.raw("SELECT id, parent_comment_id FROM comments WHERE id = \(uuid: grandparentID)")
+        // `parent_comment_id` in the body is the comment being answered; where
+        // the reply is stored can differ (see `replyPlacement`).
+        var placement: ReplyPlacement? = nil
+        var answeredAuthorID: String? = nil
+        if let targetID = b.parent_comment_id {
+            struct P: Decodable { let id: String; let parent_comment_id: String?; let author_id: String }
+            guard let target = try await db.raw("""
+                SELECT id, parent_comment_id, author_id::text AS author_id FROM comments
+                WHERE id = \(uuid: targetID) AND post_id = \(uuid: postID) AND status = 'posted'
+                """).first(decoding: P.self) else { throw InlineError(.notFound, "Parent comment not found") }
+            var targetDepth = 1
+            if let parentID = target.parent_comment_id {
+                let parent = try await db.raw("SELECT id, parent_comment_id, author_id::text AS author_id FROM comments WHERE id = \(uuid: parentID)")
                     .first(decoding: P.self)
-                guard grandparent?.parent_comment_id == nil else {
-                    throw InlineError(.badRequest, "Replies can only be two levels deep")
-                }
+                targetDepth = parent?.parent_comment_id == nil ? 2 : 3
             }
+            placement = replyPlacement(targetID: target.id, targetParentID: target.parent_comment_id, targetDepth: targetDepth)
+            answeredAuthorID = target.author_id
         }
         struct C: Decodable { let id: String; let content: String?; let created_at: Date; let parent_comment_id: String?; let like_count: Int }
         var created: C!
         try await req.db.tx { t in
             created = try await t.raw("""
-                INSERT INTO comments (post_id, author_id, content, parent_comment_id)
-                VALUES (\(uuid: postID), \(uuid: req.userID), \(bind: content), \(uuid: b.parent_comment_id))
+                INSERT INTO comments (post_id, author_id, content, parent_comment_id, reply_to_comment_id)
+                VALUES (\(uuid: postID), \(uuid: req.userID), \(bind: content), \(uuid: placement?.parentID), \(uuid: placement?.replyToID))
                 RETURNING id, content, created_at, parent_comment_id, like_count
                 """).first(decoding: C.self)
             try await t.raw("UPDATE posts SET comment_count = comment_count + 1 WHERE id = \(uuid: postID)").run()
         }
         let author = try await personaAuthor(req.userID, mode: meta.mode, db)
+        var answered: CommentObject.CommentAuthor? = nil
+        if let answeredAuthorID { answered = try await personaAuthor(answeredAuthorID, mode: meta.mode, db) }
         let payload = CommentObject(id: created.id, content: created.content, created_at: created.created_at,
                                     parent_comment_id: created.parent_comment_id, like_count: created.like_count,
-                                    is_liked: false, author: author)
+                                    is_liked: false, author: author,
+                                    reply_to: answered.map { .init(id: $0.id, display_name: $0.display_name) })
 
         // Notify the post's author for any comment (grouped by post so several
         // collapse), plus the parent comment's author when this is a reply —
@@ -161,14 +191,12 @@ struct InteractionsController {
         NotifyService.dispatchSocial(req, .init(
             type: "post_commented", actorID: req.userID, recipientID: meta.authorID,
             postID: postID, commentID: created.id))
-        if let parentID = b.parent_comment_id {
-            struct PA: Decodable { let author_id: String }
-            if let pa = try? await db.raw("SELECT author_id::text AS author_id FROM comments WHERE id = \(uuid: parentID) AND post_id = \(uuid: postID)")
-                .first(decoding: PA.self), pa.author_id != meta.authorID {
-                NotifyService.dispatchSocial(req, .init(
-                    type: "comment_replied", actorID: req.userID, recipientID: pa.author_id,
-                    postID: postID, commentID: created.id, parentCommentID: parentID))
-            }
+        // The person actually answered — for a flattened third-level reply
+        // that's the reply it answers, not the comment it's stored under.
+        if let placement, let answeredAuthorID, answeredAuthorID != meta.authorID {
+            NotifyService.dispatchSocial(req, .init(
+                type: "comment_replied", actorID: req.userID, recipientID: answeredAuthorID,
+                postID: postID, commentID: created.id, parentCommentID: placement.replyToID))
         }
         // TODO(phase 4): community_post_commented socket emit for open community viewers
         let res = try await DataResponse(data: payload).encodeResponse(for: req)
@@ -335,6 +363,13 @@ struct CommentObject: Content {
     var like_count: Int
     var is_liked: Bool
     var author: CommentAuthor
+    /// Who a reply is answering — the author of `reply_to_comment_id` (or of
+    /// the parent, for replies written before that column). Null on top-level comments.
+    @NullCoded var reply_to: ReplyTo? = nil
+    struct ReplyTo: Content {
+        var id: String
+        var display_name: String
+    }
     struct CommentAuthor: Content {
         var id: String
         var display_name: String
