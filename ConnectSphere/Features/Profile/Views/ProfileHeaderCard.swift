@@ -24,8 +24,9 @@ struct ProfileHeaderCard<Actions: View>: View {
 
     private let avatarSize: CGFloat = 132
     private let cardRadius: CGFloat = 24
-    /// How far the card rises over the cover's (already fading) bottom.
-    private let cardOverlap: CGFloat = 40
+    /// How far the card rises over the cover's bottom. 0 = the whole framed
+    /// cover stays visible (only the avatar overlaps it), so the photo reads big.
+    private let cardOverlap: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -64,7 +65,7 @@ struct ProfileHeaderCard<Actions: View>: View {
         CoverPhotoView(coverUrl: user.coverUrl)
             .mask(LinearGradient(stops: [
                 .init(color: .black, location: 0),
-                .init(color: .black, location: 0.62),
+                .init(color: .black, location: 0.85),
                 .init(color: .clear, location: 1),
             ], startPoint: .top, endPoint: .bottom))
             .overlay(alignment: .top) {
