@@ -142,14 +142,44 @@ struct CommentsSection: View {
 
     // MARK: - Comment block (root + indented replies)
 
+    /// A thread is three levels deep: comment → reply → reply-to-reply. A reply
+    /// to a third-level reply is stored beside it (the server places it under
+    /// the same parent), so every row can be replied to and the tree never
+    /// grows a fourth level. Every reply says who it answers.
     @ViewBuilder
     private func commentBlock(_ comment: CommentDTO) -> some View {
-        CommentRow(
+        let replies = viewModel.replies(for: comment.id)
+        let subReplies = replies.map { viewModel.replies(for: $0.id) }
+        let lines = ThreadDecoration.layout(replyCounts: subReplies.map(\.count))
+        let lineColor = AppColors.borderDefault(colorScheme)
+
+        row(comment, level: 0, answering: nil)
+            .threadLines(lines.root, level: 0, color: lineColor)
+
+        ForEach(Array(replies.enumerated()), id: \.element.id) { index, reply in
+            row(reply, level: 1, answering: comment)
+                .threadLines(lines.replies[index].0, level: 1, color: lineColor)
+
+            ForEach(Array(subReplies[index].enumerated()), id: \.element.id) { subIndex, subReply in
+                row(subReply, level: 2, answering: reply)
+                    .threadLines(lines.replies[index].1[subIndex], level: 2, color: lineColor)
+            }
+        }
+    }
+
+    /// One row at `level` (0–2), indented to match the thread lines.
+    /// `answering` is the comment it sits under — the fallback for "replied
+    /// to" when the server didn't say (replies written before it recorded it).
+    private func row(_ comment: CommentDTO, level: Int, answering parent: CommentDTO?) -> some View {
+        let target = comment.replyTo.map { CommentReplyTarget(name: $0.displayName, userId: $0.id) }
+            ?? parent.map { CommentReplyTarget(name: $0.author.displayName, userId: $0.author.id) }
+        return CommentRow(
             comment: comment,
             isOwn: comment.author.id == appState.currentUser?.id,
             isPostAuthor: comment.author.id == postAuthorId,
             isEditing: editingCommentId == comment.id,
             editingText: $editingText,
+            replyTarget: target,
             onLike:   { Task { await viewModel.toggleLike(postId: postId, commentId: comment.id) } },
             onReply:  {
                 viewModel.replyingTo = comment
@@ -161,48 +191,7 @@ struct CommentsSection: View {
             onCancelEdit: { editingCommentId = nil }
         )
         .id(comment.id)
-
-        ForEach(viewModel.replies(for: comment.id)) { reply in
-            CommentRow(
-                comment: reply,
-                isOwn: reply.author.id == appState.currentUser?.id,
-                isPostAuthor: reply.author.id == postAuthorId,
-                isEditing: editingCommentId == reply.id,
-                editingText: $editingText,
-                onLike:   { Task { await viewModel.toggleLike(postId: postId, commentId: reply.id) } },
-                onReply:  {
-                    // A reply to a reply nests one level deeper (staircase
-                    // indent below) — the backend caps depth at 2.
-                    viewModel.replyingTo = reply
-                    onReplyRequested()
-                },
-                onDelete: { pendingDeleteCommentId = reply.id },
-                onEdit: { beginEditing(reply) },
-                onSaveEdit: { Task { await saveEdit(commentId: reply.id) } },
-                onCancelEdit: { editingCommentId = nil }
-            )
-            .id(reply.id)
-            .padding(.leading, 44)
-
-            ForEach(viewModel.replies(for: reply.id)) { subReply in
-                CommentRow(
-                    comment: subReply,
-                    isOwn: subReply.author.id == appState.currentUser?.id,
-                    isPostAuthor: subReply.author.id == postAuthorId,
-                    isEditing: editingCommentId == subReply.id,
-                    editingText: $editingText,
-                    replyTarget: CommentReplyTarget(name: reply.author.displayName, userId: reply.author.id),
-                    onLike:   { Task { await viewModel.toggleLike(postId: postId, commentId: subReply.id) } },
-                    onReply:  nil,   // max depth reached — can't reply to a reply-of-a-reply
-                    onDelete: { pendingDeleteCommentId = subReply.id },
-                    onEdit: { beginEditing(subReply) },
-                    onSaveEdit: { Task { await saveEdit(commentId: subReply.id) } },
-                    onCancelEdit: { editingCommentId = nil }
-                )
-                .id(subReply.id)
-                .padding(.leading, 88)
-            }
-        }
+        .padding(.leading, CGFloat(level) * ThreadLinesShape.indentStep)
     }
 
     // MARK: - Edit comment (inline)
@@ -221,17 +210,21 @@ struct CommentsSection: View {
 
 // MARK: - Comment Row
 
-/// The person a depth-2 reply is answering — a depth-1 comment can have
-/// several depth-2 replies, and the shared indent alone doesn't say which one
-/// they're addressing, so the row spells it out as "[replier] replied to
-/// [name]". Paired name+id (not a bare `String?`) so the attribution text and
-/// its `NavigationLink` destination can never drift apart.
+/// The person a reply is answering, spelled out as "[replier] replied to
+/// [name]" — the indent alone can't say which of several siblings a reply
+/// addresses. Paired name+id (not a bare `String?`) so the attribution text
+/// and its `NavigationLink` destination can never drift apart.
 struct CommentReplyTarget {
     let name: String
     let userId: String
 }
 
 struct CommentRow: View {
+    /// Row geometry shared with `ThreadLinesShape`, which draws to the avatar.
+    static let avatarSize: CGFloat = 36
+    static let horizontalInset: CGFloat = 12
+    static let verticalInset: CGFloat = 6
+
     @Environment(AppState.self) private var appState
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
@@ -248,9 +241,8 @@ struct CommentRow: View {
     /// Shared editing-text binding, owned by the host — only meaningful while
     /// `isEditing` is true.
     var editingText: Binding<String> = .constant("")
-    /// Set only on a depth-2 reply (a reply to a reply) — renders "replied to
-    /// [name]" after this row's own name, both independently tappable to their
-    /// own profiles.
+    /// Set on every reply — renders "replied to [name]" after this row's own
+    /// name, both independently tappable to their own profiles.
     var replyTarget: CommentReplyTarget? = nil
     var onLike:   (() -> Void)? = nil
     var onReply:  (() -> Void)? = nil
@@ -286,8 +278,8 @@ struct CommentRow: View {
 
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.horizontal, Self.horizontalInset)
+        .padding(.vertical, Self.verticalInset)
     }
 
     /// Name line + text in a rounded bubble that hugs its content
@@ -405,7 +397,7 @@ struct CommentRow: View {
                     initialCircle
                 }
             }
-            .frame(width: 36, height: 36)
+            .frame(width: Self.avatarSize, height: Self.avatarSize)
             .clipShape(Circle())
         } else {
             initialCircle
@@ -416,7 +408,7 @@ struct CommentRow: View {
         ZStack {
             Circle()
                 .fill(Color(hex: comment.author.avatarColor))
-                .frame(width: 36, height: 36)
+                .frame(width: Self.avatarSize, height: Self.avatarSize)
             Text(String(comment.author.displayName.prefix(1)).uppercased())
                 .font(.system(size: 14, weight: .bold))
                 .foregroundColor(.white)
