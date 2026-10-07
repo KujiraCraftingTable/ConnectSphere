@@ -35,6 +35,51 @@ struct NotificationGroup: Identifiable {
     var otherActorCount: Int { max(actorNames.count - 1, 0) }
 }
 
+/// A day-range heading on the notifications list; each is its own rounded card.
+enum NotificationDateBucket: Int, CaseIterable {
+    case today, yesterday, thisWeek, earlier
+
+    var titleKey: String {
+        switch self {
+        case .today:     return "Today"
+        case .yesterday: return "Yesterday"
+        case .thisWeek:  return "This week"
+        case .earlier:   return "Earlier"
+        }
+    }
+
+    static func bucket(for date: Date, now: Date, calendar: Calendar) -> NotificationDateBucket {
+        if calendar.isDate(date, inSameDayAs: now) { return .today }
+        if let y = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(date, inSameDayAs: y) {
+            return .yesterday
+        }
+        if let weekAgo = calendar.date(byAdding: .day, value: -7, to: calendar.startOfDay(for: now)), date >= weekAgo {
+            return .thisWeek
+        }
+        return .earlier
+    }
+}
+
+struct NotificationSection: Identifiable {
+    let bucket: NotificationDateBucket
+    let groups: [NotificationGroup]
+    var id: Int { bucket.rawValue }
+
+    /// Splits newest-first groups into day ranges, keeping their order; empty
+    /// ranges are left out.
+    static func make(from groups: [NotificationGroup], now: Date = Date(),
+                     calendar: Calendar = .current) -> [NotificationSection] {
+        var byBucket: [NotificationDateBucket: [NotificationGroup]] = [:]
+        for group in groups {
+            let b = NotificationDateBucket.bucket(for: group.representative.sortDate, now: now, calendar: calendar)
+            byBucket[b, default: []].append(group)
+        }
+        return NotificationDateBucket.allCases.compactMap { b in
+            byBucket[b].map { NotificationSection(bucket: b, groups: $0) }
+        }
+    }
+}
+
 @Observable
 @MainActor
 final class NotificationsViewModel {
@@ -49,6 +94,9 @@ final class NotificationsViewModel {
     private var hasMore = false
     private let repo = UserNotificationRepository()
     private let socketTag = "notificationsView"
+
+    /// `groups` split into Today / Yesterday / This week / Earlier.
+    var sections: [NotificationSection] { NotificationSection.make(from: groups) }
 
     /// Rows collapsed into display groups, newest first.
     var groups: [NotificationGroup] {
