@@ -75,6 +75,7 @@ struct PostDetailView: View {
                         .cardStyle()
                         .padding(.horizontal, AppSpacing.sm)
                         .padding(.top, AppSpacing.sm)
+                        .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
                     }
 
                     // Comments panel: its own rounded card filling the rest of the
@@ -92,7 +93,9 @@ struct PostDetailView: View {
                                     postAuthorId: post.author.id,
                                     viewModel: commentVM,
                                     toastPresenter: toastPresenter,
-                                    onReplyRequested: { composerFocused = true },
+                                    // Next run-loop turn: the panel's dismiss-on-tap fires
+                                    // for this same tap and would otherwise win.
+                                    onReplyRequested: { Task { @MainActor in composerFocused = true } },
                                     onCommentCountChange: { delta in adjustCommentCount(by: delta) }
                                 )
                             } else if viewModel.loadFailed {
@@ -101,7 +104,9 @@ struct PostDetailView: View {
                                 ProgressView().padding(.top, 80)
                             }
                         }
+                        .scrollDismissesKeyboard(.interactively)
                     }
+                    .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
                     .cardStyle()
                     .padding(.horizontal, AppSpacing.sm)
                     .padding(.top, AppSpacing.sm)

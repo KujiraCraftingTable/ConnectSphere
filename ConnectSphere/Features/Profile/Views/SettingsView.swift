@@ -22,10 +22,7 @@ struct SettingsView: View {
     var body: some View {
         List {
             // Two sections, not one: the theme color is per mode, Light/Dark
-            // is app-wide. Sharing a section also made the transparent
-            // segmented row own the card's rounded bottom, so the color row
-            // ended square with a stray divider and the picker looked laid
-            // over it.
+            // is app-wide.
             Section {
                 themePickerRow
             } header: {
@@ -200,14 +197,7 @@ struct SettingsView: View {
     // MARK: Appearance Picker
 
     private var appearancePicker: some View {
-        Picker("", selection: Bindable(appState).appearanceMode) {
-            ForEach(AppearanceMode.allCases, id: \.self) { mode in
-                Text(bundle.loc(mode.label)).tag(mode)
-            }
-        }
-        .pickerStyle(.segmented)
-        .listRowBackground(Color.clear)
-        .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+        AppearancePicker(selection: Bindable(appState).appearanceMode)
     }
 
     // MARK: Theme Picker Row

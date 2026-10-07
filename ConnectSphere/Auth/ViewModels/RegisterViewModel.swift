@@ -6,7 +6,6 @@ import Observation
 @MainActor
 @Observable
 final class RegisterViewModel {
-    static let minUsername = 3
     static let minPassword = 8
 
     /// Lowercased as typed — the only silent normalization; anything else
@@ -21,20 +20,9 @@ final class RegisterViewModel {
 
     // MARK: Live validation (nil = fine, or nothing typed yet)
 
-    var usernameError: String? {
-        guard !username.isEmpty else { return nil }
-        if username.contains(where: { !($0.isLetter || $0.isNumber || $0 == "_") }) {
-            return Bundle.app.loc("Only letters, numbers, and underscore (_) are allowed")
-        }
-        if username.count < Self.minUsername {
-            return Bundle.app.loc("Username must be at least 3 characters")
-        }
-        return nil
-    }
+    var usernameError: String? { UsernameRules.problem(username) }
 
-    var usernameHint: String {
-        usernameError ?? Bundle.app.loc("Letters, numbers, and underscore (_) only, at least 3 characters")
-    }
+    var usernameHint: String { usernameError ?? UsernameRules.hint }
 
     var passwordError: String? {
         guard !password.isEmpty else { return nil }
@@ -51,7 +39,7 @@ final class RegisterViewModel {
     }
 
     var isFormValid: Bool {
-        username.count >= Self.minUsername && usernameError == nil
+        UsernameRules.isValid(username)
             && password.count >= Self.minPassword
             && !confirmPassword.isEmpty && confirmPassword == password
     }
@@ -60,8 +48,8 @@ final class RegisterViewModel {
 
     func register(appState: AppState) async {
         let name = username.trimmingCharacters(in: .whitespaces)
-        guard name.count >= Self.minUsername else {
-            errorMessage = Bundle.app.loc("Username must be at least 3 characters"); return
+        if let problem = UsernameRules.problem(name) ?? (name.isEmpty ? UsernameRules.hint : nil) {
+            errorMessage = problem; return
         }
         guard password.count >= Self.minPassword else {
             errorMessage = Bundle.app.loc("Password must be at least 8 characters"); return

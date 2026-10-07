@@ -124,6 +124,19 @@ class AuthService {
         }
     }
 
+    /// Whether `username` is free (the caller's own current name counts as free).
+    func isUsernameAvailable(_ username: String, token: String) async throws -> Bool {
+        var comps = URLComponents(string: APIConfig.baseURL + "/auth/check-username")
+        comps?.queryItems = [URLQueryItem(name: "username", value: username)]
+        guard let url = comps?.url else { throw URLError(.badURL) }
+        var req = URLRequest(url: url)
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        guard (resp as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+        struct Available: Decodable { let available: Bool }
+        return try JSONDecoder().decode(Available.self, from: data).available
+    }
+
     func setup(token: String, form: OnboardingForm) async throws -> AuthUserDTO {
         guard let url = URL(string: APIConfig.baseURL + "/auth/setup") else { throw URLError(.badURL) }
         var req = URLRequest(url: url)
