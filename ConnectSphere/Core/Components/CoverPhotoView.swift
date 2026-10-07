@@ -3,8 +3,6 @@ import SwiftUI
 /// Profile cover photo: the real photo if the user has uploaded one, otherwise a
 /// theme-based gradient fallback (matches the original look before a photo exists).
 struct CoverPhotoView: View {
-    @Environment(ThemeManager.self) var themeManager
-
     /// Width : height of every cover. A fixed shape (not a fixed height) so the
     /// crop editor's frame (`CoverCropView`) shows exactly what the profile will,
     /// on any phone width. 3 : 2 — the profile runs the cover up under the status
@@ -22,20 +20,31 @@ struct CoverPhotoView: View {
         Color.clear
             .aspectRatio(Self.aspectRatio, contentMode: .fit)
             .frame(maxWidth: .infinity)
-            .overlay {
-                if let coverUrl, let url = URL(string: coverUrl) {
-                    AsyncImage(url: url) { phase in
-                        if let image = phase.image {
-                            image.resizable().scaledToFill()
-                        } else {
-                            fallbackGradient
-                        }
-                    }
+            .overlay { CoverArtwork(coverUrl: coverUrl) }
+            .clipped()
+    }
+}
+
+/// What a cover shows, filling whatever frame it's given: the photo, or the
+/// theme gradient when there's none. Shared by `CoverPhotoView` and the
+/// profile header's blurred backdrop, so both fade the same way.
+struct CoverArtwork: View {
+    @Environment(ThemeManager.self) private var themeManager
+
+    let coverUrl: String?
+
+    var body: some View {
+        if let coverUrl, let url = URL(string: coverUrl) {
+            AsyncImage(url: url) { phase in
+                if let image = phase.image {
+                    image.resizable().scaledToFill()
                 } else {
                     fallbackGradient
                 }
             }
-            .clipped()
+        } else {
+            fallbackGradient
+        }
     }
 
     private var fallbackGradient: some View {

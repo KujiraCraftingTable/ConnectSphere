@@ -7,9 +7,11 @@ enum ProfileStat {
 
 /// A profile's whole header as one component, Facebook-style: the cover runs
 /// edge to edge up under the status bar (its top fades into the page so the
-/// clock and nav buttons stay legible), a rounded sheet rises over its bottom
-/// edge carrying a large centred avatar, then name, job, the four counts, the
-/// full bio, the action buttons and this mode's interests or skills.
+/// clock and nav buttons stay legible) and melts into a blurred copy of itself
+/// that carries on behind a floating rounded card — inset like the post cards —
+/// fading to the page colour just below it. The card holds a large centred
+/// avatar, name, job, the four counts, the full bio, this mode's interests or
+/// skills, and the action buttons.
 /// Shared by your own `ProfileView` and other people's `UserProfileView`.
 struct ProfileHeaderCard<Actions: View>: View {
     @Environment(\.appBundle) private var bundle
@@ -21,20 +23,50 @@ struct ProfileHeaderCard<Actions: View>: View {
     @ViewBuilder let actions: () -> Actions
 
     private let avatarSize: CGFloat = 132
-    private let sheetRadius: CGFloat = 28
+    private let cardRadius: CGFloat = 24
+    /// How far the card rises over the cover's (already fading) bottom.
+    private let cardOverlap: CGFloat = 40
 
     var body: some View {
         VStack(spacing: 0) {
             cover
             sheet
-                .padding(.top, -sheetRadius)   // the sheet rises over the cover's bottom edge
+                .padding(.horizontal, AppSpacing.sm)    // same inset as the post cards
+                .padding(.top, -cardOverlap)
+                .padding(.bottom, AppSpacing.md)        // a strip of faded cover under the card
         }
+        .background(alignment: .top) { backdrop }
+    }
+
+    // MARK: Backdrop
+
+    /// The cover again, heavily blurred so stretching it can't look pixelated
+    /// or mis-framed, filling the whole header and fading out by its bottom —
+    /// what shows in the margins around the card.
+    private var backdrop: some View {
+        Color.clear
+            .overlay { CoverArtwork(coverUrl: user.coverUrl) }
+            .blur(radius: 40, opaque: true)
+            .mask(LinearGradient(stops: [
+                .init(color: .black, location: 0),
+                .init(color: .black.opacity(0.6), location: 0.5),
+                .init(color: .clear, location: 1),
+            ], startPoint: .top, endPoint: .bottom))
+            .clipped()
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     // MARK: Cover
 
+    /// The framed cover, exactly as cropped; its lower part melts into the backdrop.
     private var cover: some View {
         CoverPhotoView(coverUrl: user.coverUrl)
+            .mask(LinearGradient(stops: [
+                .init(color: .black, location: 0),
+                .init(color: .black, location: 0.62),
+                .init(color: .clear, location: 1),
+            ], startPoint: .top, endPoint: .bottom))
             .overlay(alignment: .top) {
                 GeometryReader { geo in
                     LinearGradient(
@@ -65,17 +97,17 @@ struct ProfileHeaderCard<Actions: View>: View {
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)   // always in full
             }
+            tags
             actions()
                 .padding(.top, 4)
-            tags
         }
         .padding(.horizontal, AppSpacing.lg)
         .padding(.bottom, AppSpacing.lg)
         .frame(maxWidth: .infinity)
-        .background(
-            AppColors.surface(colorScheme),
-            in: UnevenRoundedRectangle(topLeadingRadius: sheetRadius, topTrailingRadius: sheetRadius,
-                                       style: .continuous))
+        .background(AppColors.surface(colorScheme),
+                    in: RoundedRectangle(cornerRadius: cardRadius, style: .continuous))
+        .shadow(color: AppElevation.overlay.color(colorScheme), radius: AppElevation.overlay.radius,
+                y: AppElevation.overlay.y)
     }
 
     private var identity: some View {
