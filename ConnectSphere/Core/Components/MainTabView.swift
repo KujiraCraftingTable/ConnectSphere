@@ -17,7 +17,6 @@ struct MainTabView: View {
     @State private var assistantViewModel: AssistantViewModel?
 
     @State private var notificationBadge = NotificationBadgeViewModel()
-    @State private var tabBarVisibility = AppTabBarVisibility()
 
     // Custom binding: TabView always calls the setter when a tab is tapped, even when
     // re-tapping the tab that's already active (the setter runs even if the value doesn't
@@ -110,10 +109,10 @@ struct MainTabView: View {
         }
     }
 
-    /// iOS 26+: the system tab bar is hidden and `AppTabBar` draws a Liquid
-    /// Glass pill with Home · Community · Notifications · Profile plus a
-    /// separate round Search button — iOS keeps a `.search`-role tab inside the
-    /// pill on iPhone, so the split has to be drawn ourselves.
+    /// iOS 26+: the system Liquid Glass tab bar — Home · Community ·
+    /// Notifications · Profile in the pill, Search detached beside it.
+    /// System `Tab(_:systemImage:)` labels (titles stay for VoiceOver;
+    /// `.iconOnly` hides them on screen).
     ///
     /// Tab *values* are unchanged from before the reorder, so everything that
     /// switches tabs by value (deep links, the assistant, `resetTabState`)
@@ -121,30 +120,37 @@ struct MainTabView: View {
     @available(iOS 26.0, *)
     private var modernTabs: some View {
         TabView(selection: tabSelection) {
-            Tab(value: 0) { FeedView(selectedTab: $selectedTab).toolbar(.hidden, for: .tabBar) }
-            Tab(value: 2) { CommunitiesView(navPath: $communityNavPath).toolbar(.hidden, for: .tabBar) }
-            Tab(value: 3) { NotificationsView().toolbar(.hidden, for: .tabBar) }
-            Tab(value: 4) { ProfileView(navPath: $profileNavPath).toolbar(.hidden, for: .tabBar) }
-            Tab(value: 1) { SearchView(navPath: $searchNavPath).toolbar(.hidden, for: .tabBar) }
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if !tabBarVisibility.isHidden {
-                AppTabBar(
-                    selection: tabSelection,
-                    items: [
-                        .init(value: 0, icon: "house", selectedIcon: "house.fill", title: "Home"),
-                        .init(value: 2, icon: "person.3", selectedIcon: "person.3.fill", title: "Community"),
-                        .init(value: 3, icon: "bell", selectedIcon: "bell.fill", title: "Notifications",
-                              badge: appState.notificationUnreadCount),
-                        .init(value: 4, icon: "person", selectedIcon: "person.fill", title: "Profile"),
-                    ],
-                    searchValue: 1,
-                    accent: themeManager.theme.primary)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+            Tab(bundle.loc("Home"), systemImage: "house", value: 0) {
+                FeedView(selectedTab: $selectedTab)
+            }
+            Tab(bundle.loc("Community"), systemImage: "person.3", value: 2) {
+                CommunitiesView(navPath: $communityNavPath)
+            }
+            Tab(bundle.loc("Notifications"), systemImage: "bell", value: 3) {
+                NotificationsView()
+            }
+            .badge(appState.notificationUnreadCount > 0 ? appState.notificationUnreadCount : 0)
+            Tab(bundle.loc("Profile"), systemImage: "person", value: 4) {
+                ProfileView(navPath: $profileNavPath)
+            }
+            // The app's one search entry (people + posts); SearchView keeps
+            // its own field and AI toggle inside its NavigationStack.
+            Tab(bundle.loc("Search"), systemImage: "magnifyingglass", value: 1, role: searchTabRole) {
+                SearchView(navPath: $searchNavPath)
             }
         }
-        .animation(.easeOut(duration: 0.2), value: tabBarVisibility.isHidden)
-        .environment(tabBarVisibility)
+        .labelStyle(.iconOnly)
+    }
+
+    /// Which role detaches Search into its own glass circle. iOS 26 detaches a
+    /// `.search` tab by itself; from the iOS 27 SDK only the tab bar's
+    /// *prominent* tab is detached, and a search tab is only made prominent
+    /// when it auto-activates a system search field — which SearchView, with
+    /// its own field, doesn't use. So on 27 it's marked prominent explicitly.
+    @available(iOS 26.0, *)
+    private var searchTabRole: TabRole {
+        if #available(iOS 27.0, *) { return .prominent }
+        return .search
     }
 
     /// iOS < 26: same order and icon-only look as `modernTabs`.

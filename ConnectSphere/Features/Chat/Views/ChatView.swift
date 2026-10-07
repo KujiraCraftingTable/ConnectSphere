@@ -180,7 +180,7 @@ struct ChatView: View {
         .background(AppColors.base(colorScheme).ignoresSafeArea())
         .navigationBarBackButtonHidden(true)
         .navigationBarTitleDisplayMode(.inline)
-        .hidesAppTabBar()
+        .toolbar(.hidden, for: .tabBar)
         .toolbar {
             // Back button
             ToolbarItem(placement: .navigationBarLeading) {
