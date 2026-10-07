@@ -33,6 +33,10 @@ extension UserStore {
         let postCount = modeRef.map {
             "(SELECT COUNT(*)::int FROM posts p WHERE p.author_id = u.id AND p.mode = \($0) AND p.status = 'posted' AND p.community_id IS NULL) AS post_count"
         } ?? "u.post_count"
+        // Mode-scoped and friends-excluded (FollowStore); the legacy
+        // users.follower_count/following_count columns only mirrored friends.
+        let followCounts = modeRef.map { FollowStore.countColumns(userRef: "u.id", modeRef: $0) }
+            ?? "u.follower_count, u.following_count"
         return """
         SELECT
           u.id::text AS id, u.username,
@@ -43,7 +47,7 @@ extension UserStore {
           (u.hobby_display_name IS NOT NULL) AS hobby_setup,
           (u.work_display_name  IS NOT NULL) AS work_setup,
           u.hobby_theme, u.work_theme,
-          u.follower_count, u.following_count, \(postCount),
+          \(followCounts), \(postCount),
           u.created_at,
           COALESCE(array_agg(DISTINCT ui.interest) FILTER (WHERE ui.interest IS NOT NULL), ARRAY[]::text[]) AS interests,
           COALESCE(array_agg(DISTINCT us.skill)    FILTER (WHERE us.skill    IS NOT NULL), ARRAY[]::text[]) AS skills
@@ -279,6 +283,7 @@ extension UserStore {
                 WHERE (requester_id = \(uuid: blocker) AND addressee_id = \(uuid: blocked))
                    OR (requester_id = \(uuid: blocked) AND addressee_id = \(uuid: blocker))
                 """).run()
+            try await FollowStore.removeBetween(blocker, blocked, on: t)
         }
     }
 

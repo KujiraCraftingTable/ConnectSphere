@@ -36,11 +36,13 @@ struct PostsController {
         let authorID = try? req.query.get(String.self, at: "author_id")
         let tag = (try? req.query.get(String.self, at: "tag")).flatMap { $0.isEmpty ? nil : $0 }
         let search = (try? req.query.get(String.self, at: "search")).flatMap { $0.isEmpty ? nil : $0 }
-        let connections = (try? req.query.get(String.self, at: "filter")) == "connections"
+        let filter = try? req.query.get(String.self, at: "filter")
+        let connections = filter == "connections"
         let limit = clamp(try? req.query.get(Int.self, at: "limit"), 20, 1, 50)
         let offset = max((try? req.query.get(Int.self, at: "offset")) ?? 0, 0)
         let f = PostStore.FeedFilters(mode: mode, authorID: authorID, tag: tag, search: search,
-                                      connectionsOnly: connections, limit: limit, offset: offset)
+                                      connectionsOnly: connections, followingOnly: filter == "following",
+                                      limit: limit, offset: offset)
         async let rows = PostStore.findAll(viewer: req.userID, f, on: db)
         async let total = PostStore.countAll(viewer: req.userID, f, on: db)
         return PaginatedResponse(data: try await rows, pagination: .init(total: try await total, limit: limit, offset: offset))

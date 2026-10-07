@@ -103,6 +103,8 @@ struct UsersController {
         var skills: [String]?
         var email: String?
         var mode: String?
+        /// Privacy: off = strangers can only follow, not send friend requests.
+        var allow_friend_requests: Bool?
     }
 
     static func updateMe(_ req: Request) async throws -> DataResponse<PrivateUserObject> {
@@ -165,6 +167,9 @@ struct UsersController {
         if sent("gender")       { fields.append(("gender", raw.gender)) }
         if sent("dob_visibility") { fields.append(("dob_visibility", raw.dob_visibility)) }
 
+        if sent("allow_friend_requests"), let allow = raw.allow_friend_requests {
+            try await sdb.raw("UPDATE users SET allow_friend_requests = \(bind: allow) WHERE id = \(uuid: req.userID)").run()
+        }
         _ = try await UserStore.updateProfile(
             userID: req.userID, fields: fields,
             interests: raw.interests, skills: raw.skills, mode: mode, on: req.db)
