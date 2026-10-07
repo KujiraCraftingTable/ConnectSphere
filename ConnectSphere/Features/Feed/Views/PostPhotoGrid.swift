@@ -19,6 +19,7 @@ struct PostPhotoGrid: View {
     var gridHeight: CGFloat = 300
 
     @State private var viewerTarget: ViewerTarget?
+    @State private var saver = MediaSaveViewModel()
 
     private struct ViewerTarget: Identifiable {
         let id = UUID()
@@ -62,6 +63,7 @@ struct PostPhotoGrid: View {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 4))
+        .mediaSaveStatus(saver)
         .fullScreenCover(item: $viewerTarget) { target in
             ChatMediaViewerView(items: viewerItems, startIndex: target.index)
         }
@@ -124,6 +126,14 @@ struct PostPhotoGrid: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button {
+                guard let url = URL(string: urls[index]) else { return }
+                Task { await saver.save([.init(url: url, isVideo: urls[index].isVideoURL)]) }
+            } label: {
+                Label(Bundle.app.loc("Save to Photos"), systemImage: "square.and.arrow.down")
+            }
+        }
     }
 }
 

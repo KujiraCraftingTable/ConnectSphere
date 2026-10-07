@@ -95,6 +95,9 @@
 	</array>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>ConnectSphere cần truy cập thư viện ảnh để bạn có thể đăng ảnh và video lên bài viết.</string>
+	<!-- Add-only: "Save to Photos" on shared media never needs to read the library. -->
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>ConnectSphere cần quyền thêm vào thư viện ảnh để lưu ảnh và video bạn chọn.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>ConnectSphere cần quyền truy cập micro để bạn có thể gửi tin nhắn thoại.</string>
 	<!-- Lets canOpenURL(_:) probe for the Google Maps app (comgooglemaps://) when

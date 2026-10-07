@@ -299,6 +299,9 @@ enum NotifyService {
     static func messagePreview(_ m: MessageObject) -> String? {
         switch m.message_type {
         case "image": return "📷 Photo"
+        case "album":
+            if let c = m.content, !c.isEmpty { return "📷 " + String(c.prefix(previewLength)) }
+            return "📷 \(m.media_items?.count ?? 2) photos"
         case "video": return "🎥 Video"
         case "voice": return "🎤 Voice message"
         default:

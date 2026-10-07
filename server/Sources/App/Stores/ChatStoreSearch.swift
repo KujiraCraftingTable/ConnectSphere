@@ -86,7 +86,7 @@ extension ChatStore {
             FROM messages m
             JOIN conversations c ON c.id = m.conversation_id
             JOIN conversation_participants cp ON cp.conversation_id = c.id AND cp.user_id = \(uuid: userID)
-            WHERE c.mode = \(bind: mode) AND m.deleted_at IS NULL AND m.message_type = 'text'
+            WHERE c.mode = \(bind: mode) AND m.deleted_at IS NULL AND m.message_type IN ('text', 'album')
               AND m.content ILIKE '%' || \(bind: escaped) || '%'
               AND m.created_at > COALESCE(cp.cleared_at, '-infinity'::timestamptz)
             ORDER BY m.created_at DESC

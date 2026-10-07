@@ -1,7 +1,7 @@
 import Foundation
 
 enum MessageType: String, Decodable {
-    case text, image, video, meeting, voice
+    case text, image, video, meeting, voice, album
     /// Any type a newer server introduced (sticker, file, system…). Decoding
     /// falls back here so an unknown message renders as plain text rather than
     /// failing the whole history fetch.
@@ -164,8 +164,10 @@ struct PinnedMessage: Identifiable, Decodable, Equatable {
         case .video:   return "📹 " + Bundle.app.loc("Video")
         case .meeting: return "📅 " + Bundle.app.loc("Meeting")
         case .voice:   return "🎤 " + Bundle.app.loc("Voice message")
+        case .album:   return Message.albumPreview(caption: content, count: nil)
         }
     }
+
 }
 
 /// Meeting/appointment proposal embedded in a `.meeting` message — mirrors
@@ -243,6 +245,12 @@ struct MeetingProposal: Decodable, Equatable {
     }
 }
 
+/// One photo of an album message — `{ "url": "/uploads/messages/…", "type": "image" }`.
+struct MessageMediaItem: Codable, Equatable {
+    let url: String
+    let type: String
+}
+
 struct Message: Identifiable, Decodable, Equatable {
     let id: String
     let conversationId: String
@@ -250,6 +258,9 @@ struct Message: Identifiable, Decodable, Equatable {
     var content: String?
     let messageType: MessageType
     var mediaUrl: String?
+    /// Present only when `messageType == .album` — its photos, in order
+    /// (`mediaUrl` is the first one). Any caption is in `content`.
+    var mediaItems: [MessageMediaItem]?
     /// User ids who have received (delivered) this message — same map-shaped
     /// convention as `reactions`/`MeetingProposal.rsvps`, unified onto a single
     /// per-participant model instead of a `sent/delivered/read` enum so groups
@@ -282,6 +293,7 @@ struct Message: Identifiable, Decodable, Equatable {
         deletedFlag = true
         content  = nil
         mediaUrl = nil
+        mediaItems = nil
     }
 
     enum CodingKeys: String, CodingKey {
@@ -290,6 +302,7 @@ struct Message: Identifiable, Decodable, Equatable {
         case senderId         = "sender_id"
         case messageType      = "message_type"
         case mediaUrl         = "media_url"
+        case mediaItems       = "media_items"
         case deliveredTo      = "delivered_to"
         case readBy           = "read_by"
         case createdAt        = "created_at"
@@ -309,6 +322,7 @@ struct Message: Identifiable, Decodable, Equatable {
         content = try c.decodeIfPresent(String.self, forKey: .content)
         messageType = try c.decodeIfPresent(MessageType.self, forKey: .messageType) ?? .text
         mediaUrl = try c.decodeIfPresent(String.self, forKey: .mediaUrl)
+        mediaItems = try c.decodeIfPresent([MessageMediaItem].self, forKey: .mediaItems)
         // Default to [] for decode-safety — absent on some embed shapes
         // (e.g. a just-sent optimistic echo) rather than always present.
         deliveredTo = try c.decodeIfPresent([String].self, forKey: .deliveredTo) ?? []
@@ -331,6 +345,23 @@ struct Message: Identifiable, Decodable, Equatable {
     func absoluteMediaURL() -> URL? {
         guard let path = mediaUrl else { return nil }
         return APIConfig.mediaURL(path)
+    }
+
+    /// "📷 Trip photos" when the album has a caption, else "📷 4 photos"
+    /// ("📷 Album" where the count isn't known, e.g. a pinned message).
+    var albumPreview: String {
+        Message.albumPreview(caption: content, count: mediaItems?.count)
+    }
+
+    static func albumPreview(caption: String?, count: Int?) -> String {
+        if let caption, !caption.isEmpty { return "📷 " + caption }
+        guard let count else { return "📷 " + Bundle.app.loc("Album") }
+        return "📷 " + String(format: Bundle.app.loc("%lld photos"), count)
+    }
+
+    /// Absolute URLs of an album's photos, in order.
+    func albumURLs() -> [URL] {
+        (mediaItems ?? []).compactMap { APIConfig.mediaURL($0.url) }
     }
 
     /// The current user's own reaction emoji on this message, if any — used to

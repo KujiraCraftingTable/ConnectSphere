@@ -199,6 +199,7 @@ struct MessageRepository {
         content: String?,
         messageType: MessageType,
         mediaUrl: String? = nil,
+        mediaItems: [MessageMediaItem]? = nil,
         replyToMessageId: String? = nil,
         voiceDurationSeconds: Int? = nil,
         voiceWaveform: [Float]? = nil,
@@ -208,6 +209,7 @@ struct MessageRepository {
             let content: String?
             let message_type: String
             let media_url: String?
+            let media_items: [MessageMediaItem]?
             let reply_to_message_id: String?
             let voice_duration_seconds: Int?
             let voice_waveform: [Float]?
@@ -216,6 +218,7 @@ struct MessageRepository {
             content: content,
             message_type: messageType.rawValue,
             media_url: mediaUrl,
+            media_items: mediaItems,
             reply_to_message_id: replyToMessageId,
             voice_duration_seconds: voiceDurationSeconds,
             voice_waveform: voiceWaveform
@@ -237,11 +240,20 @@ struct MessageRepository {
             let message_type: String
         }
 
-        let data = try Data(contentsOf: fileURL)
-        let ext  = fileURL.pathExtension.lowercased()
-        let mime = ["mp4", "mov"].contains(ext) ? "video/mp4"
-                 : ext == "m4a" ? "audio/m4a"
-                 : "image/jpeg"
+        // Photos and videos lose their GPS/camera/date metadata before they
+        // leave the phone. Voice notes come from our own recorder and carry none.
+        let data: Data, ext: String, mime: String
+        switch fileURL.pathExtension.lowercased() {
+        case "m4a":
+            (data, ext, mime) = (try Data(contentsOf: fileURL), "m4a", "audio/m4a")
+        case "mp4", "mov":
+            let clean = try await MediaSanitizer.cleanVideo(at: fileURL)
+            defer { try? FileManager.default.removeItem(at: clean.url) }
+            (data, ext, mime) = (try Data(contentsOf: clean.url), clean.url.pathExtension, clean.mimeType)
+        default:
+            let clean = try await MediaSanitizer.cleanImage(try Data(contentsOf: fileURL))
+            (data, ext, mime) = (clean.data, clean.fileExtension, clean.mimeType)
+        }
 
         let boundary = UUID().uuidString
         var body = Data()

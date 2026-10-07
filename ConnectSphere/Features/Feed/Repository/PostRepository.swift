@@ -474,12 +474,15 @@ struct PostRepository {
     func uploadImage(_ imageData: Data) async throws -> String? {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else { return nil }
 
+        // No GPS/camera/date metadata leaves the phone.
+        let clean = try await MediaSanitizer.cleanImage(imageData)
+
         let boundary = UUID().uuidString
         var body = Data()
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"photo.jpg\"\r\n".data(using: .utf8)!)
-        body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
-        body.append(imageData)
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"photo.\(clean.fileExtension)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: \(clean.mimeType)\r\n\r\n".data(using: .utf8)!)
+        body.append(clean.data)
         body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
 
         guard let url = URL(string: APIConfig.baseURL + "/uploads") else { return nil }
@@ -505,11 +508,13 @@ struct PostRepository {
     /// Uploads a video post (mp4/mov) through the same /uploads endpoint; returns an absolute URL
     func uploadVideo(fileURL: URL) async throws -> String? {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else { return nil }
-        guard let videoData = try? Data(contentsOf: fileURL) else { return nil }
+        // No GPS/camera/date metadata leaves the phone.
+        let clean = try await MediaSanitizer.cleanVideo(at: fileURL)
+        defer { try? FileManager.default.removeItem(at: clean.url) }
+        guard let videoData = try? Data(contentsOf: clean.url) else { return nil }
 
-        let ext = fileURL.pathExtension.lowercased()
-        let mime = ext == "mov" ? "video/quicktime" : "video/mp4"
-        let filename = "video.\(ext.isEmpty ? "mp4" : ext)"
+        let mime = clean.mimeType
+        let filename = "video.\(clean.url.pathExtension)"
 
         let boundary = UUID().uuidString
         var body = Data()

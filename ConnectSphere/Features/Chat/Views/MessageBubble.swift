@@ -217,6 +217,20 @@ struct MessageBubble: View {
                 }
             }
 
+        case .album:
+            VStack(alignment: isOwn ? .trailing : .leading, spacing: 4) {
+                AlbumStackBubble(urls: message.albumURLs(), isOwn: isOwn) { onMediaTap?(message) }
+                if let caption = message.content, !caption.isEmpty {
+                    Text(caption)
+                        .font(.system(size: 15))
+                        .foregroundColor(isOwn ? .white : AppColors.textPrimary(colorScheme))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(bubbleBackground)
+                        .clipShape(bubbleShape)
+                }
+            }
+
         case .video:
             videoBubble
 

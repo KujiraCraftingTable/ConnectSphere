@@ -134,6 +134,7 @@ struct FloatingChatBubbleView: View {
         case .video:   return "📹 " + bundle.loc("Video")
         case .meeting: return "📅 " + bundle.loc("Meeting")
         case .voice:   return "🎤 " + bundle.loc("Voice message")
+        case .album:   return message.albumPreview
         }
     }
 }

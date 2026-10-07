@@ -327,6 +327,62 @@ class ChatViewModel {
         }
     }
 
+    // MARK: - Albums
+
+    static let maxAlbumPhotos = 10
+
+    /// Splits what's in the composer the way it gets sent: 2–10 photos travel
+    /// together as one album (carrying the typed text as its caption); a lone
+    /// photo and every video go one per message, as before.
+    static func plan(mediaFiles: [URL]) -> (album: [URL], singles: [URL]) {
+        let isVideo = { (url: URL) in ["mp4", "mov"].contains(url.pathExtension.lowercased()) }
+        let photos = mediaFiles.filter { !isVideo($0) }
+        guard photos.count >= 2 else { return ([], mediaFiles) }
+        let album = Array(photos.prefix(maxAlbumPhotos))
+        return (album, mediaFiles.filter { !album.contains($0) })
+    }
+
+    /// Uploads the photos side by side (order kept), then sends them as one
+    /// album message with an optional caption.
+    func sendAlbum(fileURLs: [URL], caption: String?, replyTo replyToMessageId: String? = nil) async {
+        isSending = true
+        defer { isSending = false }
+        let repository = repository, token = token
+        do {
+            let uploaded = try await withThrowingTaskGroup(of: (Int, String).self) { group in
+                for (index, file) in fileURLs.enumerated() {
+                    group.addTask { (index, try await repository.uploadMedia(fileURL: file, token: token).url) }
+                }
+                var results: [(Int, String)] = []
+                for try await result in group { results.append(result) }
+                return results.sorted { $0.0 < $1.0 }.map(\.1)
+            }
+            let items = uploaded.map { MessageMediaItem(url: $0, type: "image") }
+            let text = caption?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let content = (text?.isEmpty ?? true) ? nil : text
+            if ws.connectionState == .connected {
+                var payload: [String: Any] = [
+                    "conversationId": conversationId,
+                    "messageType": MessageType.album.rawValue,
+                    "mediaItems": items.map { ["url": $0.url, "type": $0.type] },
+                ]
+                if let content { payload["content"] = content }
+                if let replyToMessageId { payload["replyToMessageId"] = replyToMessageId }
+                if case .failure(let err) = await emitWithAck("send_message", payload) {
+                    self.error = friendlyError(err)
+                }
+            } else {
+                let msg = try await repository.sendMessage(
+                    conversationId: conversationId, content: content, messageType: .album,
+                    mediaUrl: items.first?.url, mediaItems: items,
+                    replyToMessageId: replyToMessageId, token: token)
+                messages.append(msg)
+            }
+        } catch {
+            self.error = Bundle.app.loc("Failed to upload media")
+        }
+    }
+
     // MARK: - Meeting proposals
 
     /// Propose a meeting (title/location/starts_at/ends_at + a mandatory
@@ -982,6 +1038,7 @@ class ChatViewModel {
             content: message.content,
             messageType: message.messageType,
             mediaUrl: message.mediaUrl,
+            mediaItems: message.mediaItems,
             replyToMessageId: nil,
             voiceDurationSeconds: message.voiceDurationSeconds,
             voiceWaveform: message.voiceWaveform,

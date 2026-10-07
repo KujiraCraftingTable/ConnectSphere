@@ -37,7 +37,8 @@ struct ChatView: View {
     @State private var isTyping = false
     @State private var appearedMessageIDs: Set<String> = []
     @State private var showChatSettings = false
-    @State private var mediaViewerItem: ChatMediaViewerItem?
+    @State private var mediaViewer: MediaViewerSelection?
+    @State private var mediaSaver = MediaSaveViewModel()
     // Whether either side has blocked the other — disables the input bar and
     // shows an inline notice; set from Chat Settings' block toggle or fetched
     // on load. 1:1 only — groups use `viewModel.blockAlertState` instead
@@ -339,8 +340,8 @@ struct ChatView: View {
             // Refresh mute/theme/nickname/group info after closing the settings sheet.
             if !isShowing { Task { await viewModel.loadSettings() } }
         }
-        .fullScreenCover(item: $mediaViewerItem) { item in
-            ChatMediaViewerView(items: [item])
+        .fullScreenCover(item: $mediaViewer) { selection in
+            ChatMediaViewerView(items: selection.items, startIndex: selection.startIndex)
         }
         .sheet(isPresented: $showMeetingComposer) {
             meetingComposerSheet
@@ -368,6 +369,7 @@ struct ChatView: View {
                 }
             }
         }
+        .mediaSaveStatus(mediaSaver)
         // Surfaces both socket-ack rejections (send/react/reply/meeting actions)
         // and REST-fallback failures — previously `viewModel.error` was set but
         // never read anywhere, so every one of those failures was silent.
@@ -816,6 +818,15 @@ struct ChatView: View {
                                                 }
                                             }
 
+                                            if !saveItems(for: message).isEmpty {
+                                                Button {
+                                                    let items = saveItems(for: message)
+                                                    Task { await mediaSaver.save(items) }
+                                                } label: {
+                                                    Label(bundle.loc("Save to Photos"), systemImage: "square.and.arrow.down")
+                                                }
+                                            }
+
                                             if viewModel.pinnedMessageIds.contains(message.id) {
                                                 Button {
                                                     Task { await viewModel.unpinMessage(message.id) }
@@ -1121,6 +1132,7 @@ struct ChatView: View {
             case .video:   return bundle.loc("Video")
             case .meeting: return bundle.loc("Meeting")
             case .voice:   return bundle.loc("Voice message")
+            case .album:   return message.albumPreview
             }
         }()
 
@@ -1214,7 +1226,8 @@ struct ChatView: View {
         }
     }
 
-    /// Sends every pending media item (if any) and the text, then clears the composer.
+    /// Sends every pending media item (if any) and the text, then clears the composer:
+    /// 2–10 photos go as one album captioned with the text (see `ChatViewModel.plan`).
     /// The reply reference (if any) is attached only to the first item sent, then cleared.
     private func sendPending() {
         let text = inputText
@@ -1225,14 +1238,21 @@ struct ChatView: View {
         replyingTo = nil
         isTyping = false
         viewModel.sendTyping(false)
+        let plan = ChatViewModel.plan(mediaFiles: media.map(\.url))
         Task {
             var replyTo = replyToId
-            for item in media {
-                await viewModel.sendMedia(fileURL: item.url, replyTo: replyTo)
+            var caption: String? = text
+            if !plan.album.isEmpty {
+                await viewModel.sendAlbum(fileURLs: plan.album, caption: caption, replyTo: replyTo)
+                replyTo = nil
+                caption = nil   // the album carried it
+            }
+            for url in plan.singles {
+                await viewModel.sendMedia(fileURL: url, replyTo: replyTo)
                 replyTo = nil
             }
-            if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                await viewModel.sendText(text, replyTo: replyTo)
+            if let caption, !caption.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                await viewModel.sendText(caption, replyTo: replyTo)
             }
         }
     }
@@ -1262,14 +1282,30 @@ struct ChatView: View {
         pendingScrollTarget = messageId
     }
 
-    /// Open the fullscreen viewer for a bubble's image/video.
+    /// What "Save to Photos" saves for a bubble — nothing for text, voice or meetings.
+    private func saveItems(for message: Message) -> [MediaSaveViewModel.Item] {
+        if message.messageType == .album {
+            return message.albumURLs().map { .init(url: $0, isVideo: false) }
+        }
+        guard [.image, .video].contains(message.messageType), let url = message.absoluteMediaURL() else { return [] }
+        return [.init(url: url, isVideo: message.messageType == .video)]
+    }
+
+    /// Open the fullscreen viewer for a bubble's image/video, or for every
+    /// photo of an album (swipeable, starting at the first).
     private func openMediaViewer(_ message: Message) {
+        if message.messageType == .album {
+            let items = message.albumURLs().enumerated().map { index, url in
+                ChatMediaViewerItem(id: "\(message.id):\(index)", url: url, isVideo: false)
+            }
+            guard !items.isEmpty else { return }
+            mediaViewer = MediaViewerSelection(items: items, startIndex: 0)
+            return
+        }
         guard let url = message.absoluteMediaURL() else { return }
-        mediaViewerItem = ChatMediaViewerItem(
-            id: message.id,
-            url: url,
-            isVideo: message.messageType == .video
-        )
+        mediaViewer = MediaViewerSelection(
+            items: [ChatMediaViewerItem(id: message.id, url: url, isVideo: message.messageType == .video)],
+            startIndex: 0)
     }
 
     /// Plays a short system sound once a message finishes its appear animation.
@@ -1344,4 +1380,11 @@ private struct MessageAppearModifier: ViewModifier {
                 }
             }
     }
+}
+
+/// What the full-screen media viewer shows: one photo/video, or an album.
+private struct MediaViewerSelection: Identifiable {
+    let id = UUID()
+    let items: [ChatMediaViewerItem]
+    let startIndex: Int
 }

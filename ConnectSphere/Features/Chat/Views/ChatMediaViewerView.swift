@@ -15,6 +15,7 @@ struct ChatMediaViewerView: View {
 
     let items: [ChatMediaViewerItem]
     @State private var currentIndex: Int
+    @State private var saver = MediaSaveViewModel()
 
     init(items: [ChatMediaViewerItem], startIndex: Int = 0) {
         self.items = items
@@ -35,6 +36,13 @@ struct ChatMediaViewerView: View {
                         }
                     }
                     .tag(index)
+                    .contextMenu {
+                        Button {
+                            save(item)
+                        } label: {
+                            Label(Bundle.app.loc("Save to Photos"), systemImage: "square.and.arrow.down")
+                        }
+                    }
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
@@ -50,6 +58,17 @@ struct ChatMediaViewerView: View {
                             .background(Circle().fill(Color.black.opacity(0.45)))
                     }
                     Spacer()
+                    if items.indices.contains(currentIndex) {
+                        Button { save(items[currentIndex]) } label: {
+                            Image(systemName: "arrow.down.to.line")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(10)
+                                .background(Circle().fill(Color.black.opacity(0.45)))
+                        }
+                        .disabled(saver.isSaving)
+                        .accessibilityLabel(Text(Bundle.app.loc("Save to Photos")))
+                    }
                     if items.count > 1 {
                         Text("\(currentIndex + 1)/\(items.count)")
                             .font(.system(size: 14, weight: .semibold))
@@ -64,7 +83,12 @@ struct ChatMediaViewerView: View {
                 Spacer()
             }
         }
+        .mediaSaveStatus(saver)
         .statusBarHidden()
+    }
+
+    private func save(_ item: ChatMediaViewerItem) {
+        Task { await saver.save([.init(url: item.url, isVideo: item.isVideo)]) }
     }
 }
 
@@ -115,7 +139,9 @@ private struct ZoomableAsyncImage: View {
                         .scaleEffect(scale)
                         .offset(offset)
                         .gesture(zoomGesture)
-                        .simultaneousGesture(panGesture)
+                        // Only while zoomed: an always-on drag claimed every
+                        // horizontal swipe, so the pager couldn't leave a photo.
+                        .simultaneousGesture(panGesture, including: scale > 1 ? .all : .none)
                         .onTapGesture(count: 2) { toggleZoom() }
                 case .failure:
                     failurePlaceholder
