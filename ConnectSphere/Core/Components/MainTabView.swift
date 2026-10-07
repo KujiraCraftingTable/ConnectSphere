@@ -17,6 +17,7 @@ struct MainTabView: View {
     @State private var assistantViewModel: AssistantViewModel?
 
     @State private var notificationBadge = NotificationBadgeViewModel()
+    @State private var tabBarVisibility = AppTabBarVisibility()
 
     // Custom binding: TabView always calls the setter when a tab is tapped, even when
     // re-tapping the tab that's already active (the setter runs even if the value doesn't
@@ -109,51 +110,41 @@ struct MainTabView: View {
         }
     }
 
-    /// iOS 26+: the new Tab API with role .search — Liquid Glass automatically splits the
-    /// Search tab into its own floating round button next to the 4-tab pill (Telegram-style),
-    /// no need to draw a custom bottom bar ourselves.
+    /// iOS 26+: the system tab bar is hidden and `AppTabBar` draws a Liquid
+    /// Glass pill with Home · Community · Notifications · Profile plus a
+    /// separate round Search button — iOS keeps a `.search`-role tab inside the
+    /// pill on iPhone, so the split has to be drawn ourselves.
     ///
-    /// Order is Home · Community · Profile · Notifications · Search. Tab
-    /// *values* are unchanged from before the reorder, so everything that
+    /// Tab *values* are unchanged from before the reorder, so everything that
     /// switches tabs by value (deep links, the assistant, `resetTabState`)
     /// still lands on the same screen.
     @available(iOS 26.0, *)
     private var modernTabs: some View {
         TabView(selection: tabSelection) {
-            Tab(value: 0) {
-                FeedView(selectedTab: $selectedTab)
-            } label: {
-                tabIcon("house", "Home")
-            }
-
-            Tab(value: 2) {
-                CommunitiesView(navPath: $communityNavPath)
-            } label: {
-                tabIcon("person.3", "Community")
-            }
-
-            Tab(value: 4) {
-                ProfileView(navPath: $profileNavPath)
-            } label: {
-                tabIcon("person", "Profile")
-            }
-
-            Tab(value: 3) {
-                NotificationsView()
-            } label: {
-                tabIcon("bell", "Notifications")
-            }
-            .badge(appState.notificationUnreadCount > 0 ? appState.notificationUnreadCount : 0)
-
-            // The app's one search entry (people + posts). Last, so the system
-            // splits it off into a floating search button to the right of the
-            // pill; SearchView wraps its own NavigationStack internally.
-            Tab(value: 1, role: .search) {
-                SearchView(navPath: $searchNavPath)
-            } label: {
-                tabIcon("magnifyingglass", "Search")
+            Tab(value: 0) { FeedView(selectedTab: $selectedTab).toolbar(.hidden, for: .tabBar) }
+            Tab(value: 2) { CommunitiesView(navPath: $communityNavPath).toolbar(.hidden, for: .tabBar) }
+            Tab(value: 3) { NotificationsView().toolbar(.hidden, for: .tabBar) }
+            Tab(value: 4) { ProfileView(navPath: $profileNavPath).toolbar(.hidden, for: .tabBar) }
+            Tab(value: 1) { SearchView(navPath: $searchNavPath).toolbar(.hidden, for: .tabBar) }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !tabBarVisibility.isHidden {
+                AppTabBar(
+                    selection: tabSelection,
+                    items: [
+                        .init(value: 0, icon: "house", selectedIcon: "house.fill", title: "Home"),
+                        .init(value: 2, icon: "person.3", selectedIcon: "person.3.fill", title: "Community"),
+                        .init(value: 3, icon: "bell", selectedIcon: "bell.fill", title: "Notifications",
+                              badge: appState.notificationUnreadCount),
+                        .init(value: 4, icon: "person", selectedIcon: "person.fill", title: "Profile"),
+                    ],
+                    searchValue: 1,
+                    accent: themeManager.theme.primary)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .animation(.easeOut(duration: 0.2), value: tabBarVisibility.isHidden)
+        .environment(tabBarVisibility)
     }
 
     /// iOS < 26: same order and icon-only look as `modernTabs`.
@@ -167,14 +158,14 @@ struct MainTabView: View {
                 .tabItem { tabIcon(selectedTab == 2 ? "person.3.fill" : "person.3", "Community") }
                 .tag(2)
 
-            ProfileView(navPath: $profileNavPath)
-                .tabItem { tabIcon(selectedTab == 4 ? "person.fill" : "person", "Profile") }
-                .tag(4)
-
             NotificationsView()
                 .tabItem { tabIcon(selectedTab == 3 ? "bell.fill" : "bell", "Notifications") }
                 .badge(appState.notificationUnreadCount > 0 ? appState.notificationUnreadCount : 0)
                 .tag(3)
+
+            ProfileView(navPath: $profileNavPath)
+                .tabItem { tabIcon(selectedTab == 4 ? "person.fill" : "person", "Profile") }
+                .tag(4)
 
             SearchView(navPath: $searchNavPath)
                 .tabItem { tabIcon("magnifyingglass", "Search") }
