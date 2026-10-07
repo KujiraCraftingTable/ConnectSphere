@@ -860,3 +860,8 @@
 "Delete request" = "Delete request";
 "Follow" = "Follow";
 "Unfollow" = "Unfollow";
+
+// MARK: - Notification date sections
+"Today" = "Today";
+"This week" = "This week";
+"Earlier" = "Earlier";

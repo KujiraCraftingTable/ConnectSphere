@@ -99,38 +99,47 @@ struct NotificationsView: View {
                 filterPicker
 
                 List {
-                    // A single time-ordered list. The previous version split
-                    // rows into three hardcoded type buckets, which silently
-                    // dropped any type not named in one of them.
-                    ForEach(viewModel.groups) { group in
-                        row(for: group)
-                            .listRowBackground(
-                                group.isRead
-                                    ? AppColors.surface(colorScheme)
-                                    : unreadTint(for: group)
-                            )
-                            .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
-                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                                Button {
-                                    Task { await viewModel.toggleRead(group: group, token: token, appState: appState) }
-                                } label: {
-                                    Label(
-                                        group.isRead ? bundle.loc("Mark unread") : bundle.loc("Mark read"),
-                                        systemImage: group.isRead ? "envelope.badge" : "envelope.open"
+                    // One time-ordered list, split only by day range. (An older
+                    // version split rows into hardcoded type buckets, which
+                    // silently dropped any type not named in one of them.)
+                    ForEach(viewModel.sections) { section in
+                        Section {
+                            ForEach(section.groups) { group in
+                                row(for: group)
+                                    .listRowBackground(
+                                        group.isRead
+                                            ? AppColors.surface(colorScheme)
+                                            : unreadTint(for: group)
                                     )
-                                }
-                                .tint(themeManager.theme.primary)
+                                    .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
+                                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                        Button {
+                                            Task { await viewModel.toggleRead(group: group, token: token, appState: appState) }
+                                        } label: {
+                                            Label(
+                                                group.isRead ? bundle.loc("Mark unread") : bundle.loc("Mark read"),
+                                                systemImage: group.isRead ? "envelope.badge" : "envelope.open"
+                                            )
+                                        }
+                                        .tint(themeManager.theme.primary)
+                                    }
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                        Button(role: .destructive) {
+                                            Task { await viewModel.delete(group: group, token: token, appState: appState) }
+                                        } label: {
+                                            Label(bundle.loc("Delete"), systemImage: "trash")
+                                        }
+                                    }
+                                    .task {
+                                        await viewModel.loadMoreIfNeeded(currentGroup: group, token: token)
+                                    }
                             }
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
-                                    Task { await viewModel.delete(group: group, token: token, appState: appState) }
-                                } label: {
-                                    Label(bundle.loc("Delete"), systemImage: "trash")
-                                }
-                            }
-                            .task {
-                                await viewModel.loadMoreIfNeeded(currentGroup: group, token: token)
-                            }
+                        } header: {
+                            Text(bundle.loc(section.bucket.titleKey))
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(AppColors.textSecondary(colorScheme))
+                                .textCase(nil)
+                        }
                     }
 
                     if viewModel.isLoadingMore {
@@ -145,7 +154,12 @@ struct NotificationsView: View {
 
                     if viewModel.isEmpty { emptyState }
                 }
-                .listStyle(.plain)
+                // Rounded section cards like the rest of the app, inset 8 pt
+                // like the post cards; still a List so swipe actions stay native.
+                .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)
+                .contentMargins(.horizontal, AppSpacing.sm, for: .scrollContent)
+                .listSectionSpacing(AppSpacing.md)
             }
             .background(AppColors.base(colorScheme))
             .navigationTitle(bundle.loc("Notifications"))

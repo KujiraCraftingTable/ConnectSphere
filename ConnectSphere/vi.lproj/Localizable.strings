@@ -860,3 +860,8 @@
 "Delete request" = "Xóa lời mời";
 "Follow" = "Theo dõi";
 "Unfollow" = "Bỏ theo dõi";
+
+// MARK: - Notification date sections
+"Today" = "Hôm nay";
+"This week" = "Tuần này";
+"Earlier" = "Trước đó";

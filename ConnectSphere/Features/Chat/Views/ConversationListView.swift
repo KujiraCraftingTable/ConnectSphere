@@ -37,7 +37,6 @@ struct ConversationListView: View {
             // Hidden while searching so the results list has full room.
             if !viewModel.activeConnections.isEmpty && !isSearchActive {
                 activeConnectionsBar
-                Divider()
             }
 
             if !isSearchActive {
@@ -226,10 +225,12 @@ struct ConversationListView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 12)
             .padding(.vertical, 10)
         }
-        .background(AppColors.surface(colorScheme))
+        .cardStyle()
+        .padding(.horizontal, AppSpacing.sm)
+        .padding(.top, AppSpacing.sm)
     }
 
     /// Open (or create) a conversation with an active connection, then navigate to ChatView.
@@ -291,27 +292,42 @@ struct ConversationListView: View {
 
     private var conversationList: some View {
         ScrollView {
-            LazyVStack(spacing: 1) {
-                ForEach(visibleConversations) { conversation in
-                    NavigationLink {
-                        ChatView(
-                            conversationId: conversation.id,
-                            peer: ChatPeer(conversation),
-                            currentUserId: appState.currentUser?.id ?? "",
-                            token: appState.authToken ?? ""
-                        )
-                    } label: {
-                        ConversationRow(
-                            conversation: conversation,
-                            currentUserId: appState.currentUser?.id ?? "",
-                            accentColor: themeManager.theme.primary
-                        )
-                    }
-                    .buttonStyle(.plain)
+            roundedRows(visibleConversations) { conversation in
+                NavigationLink {
+                    ChatView(
+                        conversationId: conversation.id,
+                        peer: ChatPeer(conversation),
+                        currentUserId: appState.currentUser?.id ?? "",
+                        token: appState.authToken ?? ""
+                    )
+                } label: {
+                    ConversationRow(
+                        conversation: conversation,
+                        currentUserId: appState.currentUser?.id ?? "",
+                        accentColor: themeManager.theme.primary
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    /// Rows inside one rounded card (8 pt side margins like the post cards),
+    /// with hairline dividers that start after the avatar, iMessage-style.
+    private func roundedRows<Item: Identifiable, Row: View>(
+        _ items: [Item], @ViewBuilder row: @escaping (Item) -> Row
+    ) -> some View {
+        LazyVStack(spacing: 0) {
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                row(item)
+                if index < items.count - 1 {
+                    Divider().padding(.leading, ConversationRow.textInset)
                 }
             }
-            .padding(.top, 8)
         }
+        .cardStyle()
+        .padding(.horizontal, AppSpacing.sm)
+        .padding(.vertical, AppSpacing.sm)
     }
 
     // MARK: - Search (name + message content)
@@ -324,22 +340,19 @@ struct ConversationListView: View {
                 searchEmptyState
             } else {
                 ScrollView {
-                    LazyVStack(spacing: 1) {
-                        ForEach(viewModel.searchResults) { hit in
-                            Button { openSearchHit(hit) } label: {
-                                ConversationRow(
-                                    conversation: hit.conversation,
-                                    currentUserId: appState.currentUser?.id ?? "",
-                                    accentColor: themeManager.theme.primary,
-                                    previewOverride: hit.matchType == "message"
-                                        ? highlighted(hit.matchedSnippet ?? "", term: searchQuery)
-                                        : nil
-                                )
-                            }
-                            .buttonStyle(.plain)
+                    roundedRows(viewModel.searchResults) { hit in
+                        Button { openSearchHit(hit) } label: {
+                            ConversationRow(
+                                conversation: hit.conversation,
+                                currentUserId: appState.currentUser?.id ?? "",
+                                accentColor: themeManager.theme.primary,
+                                previewOverride: hit.matchType == "message"
+                                    ? highlighted(hit.matchedSnippet ?? "", term: searchQuery)
+                                    : nil
+                            )
                         }
+                        .buttonStyle(.plain)
                     }
-                    .padding(.top, 8)
                 }
             }
         }
@@ -483,8 +496,12 @@ private struct ConversationRow: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .background(AppColors.surface(colorScheme))
+        .contentShape(Rectangle())   // the card behind supplies the surface colour
     }
+
+    /// Where the name/preview column starts (padding + avatar + spacing) —
+    /// dividers between rows start here.
+    static let textInset: CGFloat = 16 + 52 + 12
 
     @ViewBuilder
     private var avatar: some View {
