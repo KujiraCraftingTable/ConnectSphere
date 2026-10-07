@@ -83,9 +83,9 @@ enum FollowStore {
         let modeRef = "'\(mode)'"   // allowlisted by the caller
         return try await db.raw("""
             SELECT u.id::text AS id, u.username,
-                   \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: modeRef)) AS display_name,
+                   COALESCE(\(unsafeRaw: PersonaSQL.expr("display_name", modeRef: modeRef)), u.username) AS display_name,
                    \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: modeRef)) AS avatar_url,
-                   u.avatar_color, u.job_title, u.company, u.location
+                   COALESCE(u.avatar_color, '#7F5AF0') AS avatar_color, u.job_title, u.company, u.location
             FROM follows f JOIN users u ON u.id = \(unsafeRaw: other) AND u.deleted_at IS NULL
             WHERE \(unsafeRaw: me) = \(uuid: userID) AND f.mode = \(unsafeRaw: modeRef)
               AND NOT \(unsafeRaw: areFriends(other, me, modeRef: modeRef))

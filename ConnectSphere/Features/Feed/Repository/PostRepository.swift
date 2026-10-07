@@ -5,16 +5,18 @@ import Foundation
 struct PostRepository {
     private let client = NetworkClient.shared
 
-    func fetchPosts(mode: AppMode, connectionsOnly: Bool = false, limit: Int = 20, offset: Int = 0) async throws -> [Post] {
+    /// `filter`: nil = everything, "connections" = friends, "following" =
+    /// people you follow who aren't friends.
+    func fetchPosts(mode: AppMode, filter: String? = nil, limit: Int = 20, offset: Int = 0) async throws -> [Post] {
         let endpoint = Endpoint.listPosts(
             mode: mode.rawValue,
-            filter: connectionsOnly ? "connections" : nil,
+            filter: filter,
             limit: limit,
             offset: offset
         )
         // Only the first page of the unfiltered main feed is cached — that is
         // the airplane-mode landing surface. Filtered / paged requests skip it.
-        let cacheable = !connectionsOnly && offset == 0
+        let cacheable = filter == nil && offset == 0
         let key = CacheStore.Key.feed(mode.rawValue)
         do {
             let (response, body) = try await client.fetchRaw(PaginatedResponse<PostDTO>.self, from: endpoint)

@@ -18,15 +18,24 @@ class ConnectViewModel {
     var connectionId: String? = nil
     var isLoading = false
     var errorMessage: String?
+    /// Following is independent of friendship: friends can unfollow each
+    /// other and stay friends.
+    private(set) var isFollowing = false
+    /// False when the person turned friend requests off — offer Follow instead.
+    private(set) var acceptsRequests = true
 
     private let client = NetworkClient.shared
 
     private struct StatusResponse: Decodable {
         let status: String
         let connectionId: String?
+        let isFollowing: Bool?
+        let acceptsRequests: Bool?
         enum CodingKeys: String, CodingKey {
             case status
             case connectionId = "connection_id"
+            case isFollowing = "is_following"
+            case acceptsRequests = "accepts_requests"
         }
     }
 
@@ -36,6 +45,8 @@ class ConnectViewModel {
 
     private func apply(_ res: StatusResponse) {
         connectionId = res.connectionId
+        if let f = res.isFollowing { isFollowing = f }
+        if let a = res.acceptsRequests { acceptsRequests = a }
         switch res.status {
         case "accepted":         status = .accepted
         case "pending_sent":     status = .pendingSent
@@ -76,6 +87,7 @@ class ConnectViewModel {
                 bodyData: body
             )
             apply(res)
+            isFollowing = true   // adding a friend includes following them
         } catch {
             errorMessage = friendlyError(error)
         }
@@ -94,6 +106,7 @@ class ConnectViewModel {
                 Res.self, path: "/connections/accept", method: "POST", token: token, bodyData: body
             )
             status = .accepted
+            isFollowing = true   // friends start out following each other
         } catch {
             errorMessage = friendlyError(error)
         }
@@ -152,6 +165,23 @@ class ConnectViewModel {
             status = .none
             connectionId = nil
         } catch {
+            errorMessage = friendlyError(error)
+        }
+    }
+
+    // MARK: Follow (instant, per mode)
+
+    private let followRepository = ConnectionRepository()
+
+    /// Optimistic; rolled back with an error if the server refuses.
+    func setFollowing(_ follow: Bool, targetId: String, mode: String) async {
+        let previous = isFollowing
+        isFollowing = follow
+        do {
+            if follow { try await followRepository.follow(userId: targetId, mode: mode) }
+            else      { try await followRepository.unfollow(userId: targetId, mode: mode) }
+        } catch {
+            isFollowing = previous
             errorMessage = friendlyError(error)
         }
     }

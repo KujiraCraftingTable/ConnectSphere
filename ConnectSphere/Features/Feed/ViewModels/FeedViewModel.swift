@@ -1,10 +1,21 @@
 import Foundation
 import Observation
 
-/// The feed's data source: personalized recommendations (default) or connections-only posts.
+/// The feed's data source: personalized recommendations (default), friends' posts, or posts from people you follow.
 enum FeedScope: String {
     case forYou
     case connections
+    /// People you follow who aren't your friends.
+    case following
+
+    /// The posts-list filter for the offset-paged scopes.
+    var listFilter: String? {
+        switch self {
+        case .forYou: return nil
+        case .connections: return "connections"
+        case .following: return "following"
+        }
+    }
 }
 
 @MainActor
@@ -24,7 +35,7 @@ class FeedViewModel {
     private var hasMore: [AppMode: Bool] = [:]
     /// Next-page cursor for the .forYou scope (personalized feed); nil = start from the beginning
     private var nextCursor: [AppMode: String?] = [:]
-    /// Next-page offset for the .connections scope (offset-style pagination, no cursor)
+    /// Next-page offset for the .connections / .following scopes (offset-style pagination, no cursor)
     private var connectionsOffset: [AppMode: Int] = [:]
     nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
 
@@ -75,9 +86,9 @@ class FeedViewModel {
                 nextCursor[mode] = page.nextCursor
                 hasMore[mode]    = page.nextCursor != nil
                 setPosts(page.posts, for: mode)
-            case .connections:
+            case .connections, .following:
                 let fetched = try await repository.fetchPosts(
-                    mode: mode, connectionsOnly: true, limit: pageSize, offset: 0
+                    mode: mode, filter: feedScope.listFilter, limit: pageSize, offset: 0
                 )
                 connectionsOffset[mode] = fetched.count
                 hasMore[mode] = fetched.count == pageSize
@@ -107,10 +118,10 @@ class FeedViewModel {
                 hasMore[mode]    = page.nextCursor != nil
                 // Avoid duplicates when a new post slips in between two fetches
                 appendPosts(page.posts.filter { !existingIds.contains($0.id) }, for: mode)
-            case .connections:
+            case .connections, .following:
                 let offset = connectionsOffset[mode] ?? 0
                 let fetched = try await repository.fetchPosts(
-                    mode: mode, connectionsOnly: true, limit: pageSize, offset: offset
+                    mode: mode, filter: feedScope.listFilter, limit: pageSize, offset: offset
                 )
                 connectionsOffset[mode] = offset + fetched.count
                 hasMore[mode] = fetched.count == pageSize

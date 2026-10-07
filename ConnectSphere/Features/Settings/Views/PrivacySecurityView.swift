@@ -10,6 +10,7 @@ struct PrivacySecurityView: View {
 
     @State private var showChangePassword = false
     @State private var showDeleteAccount = false
+    @State private var friendRequests = FriendRequestSettingViewModel()
 
     private var hasPassword: Bool { appState.currentUser?.hasPassword ?? true }
 
@@ -40,6 +41,32 @@ struct PrivacySecurityView: View {
                 if !hasPassword {
                     Text("Set a password to also sign in without Google.", bundle: bundle)
                 }
+            }
+
+            // Who can send friend requests
+            Section {
+                Toggle(isOn: Binding(
+                    get: { appState.currentUser?.allowFriendRequests ?? true },
+                    set: { allow in Task { await friendRequests.set(allow, appState: appState) } }
+                )) {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 7)
+                                .fill(themeManager.theme.primary)
+                                .frame(width: 30, height: 30)
+                            Image(systemName: "person.badge.plus")
+                                .font(.system(size: 14))
+                                .foregroundColor(.white)
+                        }
+                        Text("Allow friend requests", bundle: bundle)
+                            .font(.system(size: 16))
+                            .foregroundColor(AppColors.textPrimary(colorScheme))
+                    }
+                }
+                .tint(themeManager.theme.primary)
+                .disabled(friendRequests.isSaving)
+            } footer: {
+                Text("When off, people who aren't your friends can only follow you. You can still send friend requests yourself.", bundle: bundle)
             }
 
             Section {
@@ -86,6 +113,12 @@ struct PrivacySecurityView: View {
             } footer: {
                 Text("Your profile will be anonymized and you won't be able to sign in again. Posts and messages you sent will remain, shown as \"Deleted User\".", bundle: bundle)
             }
+        }
+        .alert(friendRequests.errorMessage ?? "", isPresented: Binding(
+            get: { friendRequests.errorMessage != nil },
+            set: { if !$0 { friendRequests.errorMessage = nil } }
+        )) {
+            Button(bundle.loc("OK")) {}
         }
         .listStyle(.insetGrouped)
         .navigationTitle(bundle.loc("Privacy & Security"))
