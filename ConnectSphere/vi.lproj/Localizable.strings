@@ -849,3 +849,14 @@
 "Allow friend requests" = "Cho phép lời mời kết bạn";
 "When off, people who aren't your friends can only follow you. You can still send friend requests yourself." = "Khi tắt, những người chưa là bạn bè chỉ có thể theo dõi bạn. Bạn vẫn có thể tự gửi lời mời kết bạn.";
 "Couldn't update this setting, please try again" = "Không thể cập nhật cài đặt này, vui lòng thử lại";
+
+// MARK: - Profile header & relationship
+"Requested" = "Đã gửi lời mời";
+"Respond" = "Phản hồi";
+"Unfriend" = "Hủy kết bạn";
+"Unfriend %@?" = "Hủy kết bạn với %@?";
+"Cancel request" = "Hủy lời mời";
+"Confirm" = "Xác nhận";
+"Delete request" = "Xóa lời mời";
+"Follow" = "Theo dõi";
+"Unfollow" = "Bỏ theo dõi";

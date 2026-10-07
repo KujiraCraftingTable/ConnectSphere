@@ -13,6 +13,9 @@ enum ProfileRoute: Hashable {
     case privacySecurity
     case blockedUsers
     case notificationSettings
+    case friends
+    case followers
+    case following
 }
 
 struct ProfileView: View {
@@ -45,35 +48,43 @@ struct ProfileView: View {
 
     var body: some View {
         NavigationStack(path: $navPath) {
-            ScrollView {
-                VStack(spacing: 8) {
-                    if let user {
-                        profileHeader(user)
-                        statsRow(user)
-                        infoSection(user)
-                    } else {
-                        ProgressView().padding(.top, 60).frame(maxWidth: .infinity)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 8) {
+                        if let user {
+                            ProfileHeaderCard(user: user, mode: appState.currentMode, onStatTap: { stat in
+                                switch stat {
+                                case .posts:     withAnimation { proxy.scrollTo("posts", anchor: .top) }
+                                case .friends:   navPath.append(ProfileRoute.friends)
+                                case .followers: navPath.append(ProfileRoute.followers)
+                                case .following: navPath.append(ProfileRoute.following)
+                                }
+                            }) {
+                                HStack(spacing: AppSpacing.sm) {
+                                    ProfileCardButton(title: bundle.loc("Edit profile"), icon: "pencil",
+                                                      prominent: true) { showEditProfile = true }
+                                    ProfileCardButton(title: bundle.loc("New post"), icon: "plus") { showCreatePost = true }
+                                }
+                            }
+                        } else {
+                            ProgressView().padding(.top, 120).frame(maxWidth: .infinity)
+                        }
+                        postsSection.id("posts")
                     }
-                    postsSection
                 }
+                // The cover runs up under the status bar; its own fade keeps
+                // the clock and the floating nav button legible.
+                .ignoresSafeArea(edges: .top)
             }
             .background(AppColors.base(colorScheme))
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    if let user {
-                        AvatarView(user: user, size: 32)
-                    }
-                }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    HStack(spacing: 6) {
-                        Button { showCreatePost = true } label: {
-                            navIconButton(icon: "plus.square")
-                        }
-                        Button { navPath.append(ProfileRoute.settings) } label: {
-                            navIconButton(icon: "line.3.horizontal")
-                        }
+                    Button { navPath.append(ProfileRoute.settings) } label: {
+                        navIconButton(icon: "line.3.horizontal")
                     }
+                    .accessibilityLabel(Text("Settings", bundle: bundle))
                 }
             }
             .navigationDestination(for: ProfileRoute.self) { route in
@@ -86,6 +97,12 @@ struct ProfileView: View {
                     BlockedUsersView().environment(appState).environment(themeManager)
                 case .notificationSettings:
                     NotificationSettingsView().environment(appState).environment(themeManager)
+                case .friends:
+                    ConnectionsListView()
+                case .followers:
+                    FollowListView(userId: currentUserId, showsFollowers: true)
+                case .following:
+                    FollowListView(userId: currentUserId, showsFollowers: false)
                 }
             }
             .sheet(isPresented: $showCreatePost) {
@@ -136,127 +153,6 @@ struct ProfileView: View {
         guard appState.pendingAssistantSheet == .editProfile else { return }
         appState.pendingAssistantSheet = nil
         showEditProfile = true
-    }
-
-    // MARK: Profile Header (cover + avatar)
-
-    private func profileHeader(_ user: UserProfile) -> some View {
-        ZStack(alignment: .bottomLeading) {
-            // Cover photo — real image if available, otherwise fall back to a gradient
-            CoverPhotoView(coverUrl: user.coverUrl)
-
-            // Avatar overlapping cover
-            HStack(alignment: .bottom) {
-                AvatarView(user: user, size: 90)
-                    .overlay(Circle().stroke(Color.white, lineWidth: 4))
-                    .offset(y: 45)
-                    .padding(.leading, 16)
-                Spacer()
-            }
-        }
-        // Edit button on the cover itself. White on a dark translucent disc so
-        // it reads over any photo — the old outlined text button used the body
-        // text colour with no fill and all but vanished on a cover photo.
-        // Bottom of this ZStack is the cover's bottom edge (the avatar only
-        // overhangs it via `.offset`), so this sits in the cover's corner.
-        .overlay(alignment: .bottomTrailing) {
-            let hasCover = !(user.coverUrl ?? "").isEmpty
-            Button { showEditProfile = true } label: {
-                Image(systemName: hasCover ? "pencil" : "camera.fill")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(width: 34, height: 34)
-                    .background(Color.black.opacity(0.45), in: Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.35), lineWidth: 1))
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Text("Edit profile", bundle: bundle))
-            .padding(.trailing, 8)
-            .padding(.bottom, 4)
-        }
-        .padding(.bottom, 50)
-        .background(AppColors.surface(colorScheme))
-    }
-
-    // MARK: Stats
-
-    private func statsRow(_ user: UserProfile) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(user.name)
-                .font(.system(size: 22, weight: .bold))
-                .foregroundColor(AppColors.textPrimary(colorScheme))
-
-            if appState.currentMode == .work,
-               let title = user.jobTitle, let company = user.company {
-                Text("\(title) · \(company)")
-                    .font(.system(size: 15))
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-            } else {
-                Text(user.bio)
-                    .font(.system(size: 14))
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-            }
-
-            HStack(spacing: 20) {
-                statItem(count: user.postCount, label: bundle.loc("Posts"))
-                // Tapping the connections stat opens the friends list + pending requests
-                NavigationLink {
-                    ConnectionsListView()
-                } label: {
-                    statItem(count: user.connectionCount,
-                             label: appState.currentMode == .hobby
-                                 ? bundle.loc("Friends") : bundle.loc("Connections"))
-                }
-                .buttonStyle(.plain)
-                Spacer()
-            }
-            .padding(.top, 4)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(AppColors.surface(colorScheme))
-    }
-
-    private func statItem(count: Int, label: String) -> some View {
-        VStack(spacing: 1) {
-            Text("\(count)")
-                .font(.system(size: 17, weight: .bold))
-                .foregroundColor(AppColors.textPrimary(colorScheme))
-            Text(label)
-                .font(.system(size: 12))
-                .foregroundColor(AppColors.textSecondary(colorScheme))
-        }
-    }
-
-    // MARK: Info Section (skills or interests)
-
-    @ViewBuilder
-    private func infoSection(_ user: UserProfile) -> some View {
-        if appState.currentMode == .work {
-            tagSection(title: bundle.loc("Skills"), items: user.skills)
-        } else {
-            tagSection(title: bundle.loc("Interests"), items: user.interests)
-        }
-    }
-
-    private func tagSection(title: String, items: [String]) -> some View {
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            Text(title)
-                .appFont(.headline)
-                .foregroundColor(AppColors.textPrimary(colorScheme))
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: AppSpacing.sm) {
-                    ForEach(items, id: \.self) { item in
-                        Chip(text: item, style: .neutral)
-                    }
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(AppSpacing.lg)
-        .background(AppColors.surface(colorScheme))
     }
 
     // MARK: Posts Section

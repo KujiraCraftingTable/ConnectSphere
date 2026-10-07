@@ -3,6 +3,8 @@ import SwiftUI
 /// Wraps chips onto a new line automatically when horizontal space runs out
 struct FlowLayout: Layout {
     var spacing: CGFloat = 8
+    /// Centre each row instead of left-aligning it.
+    var centered = false
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let maxWidth = proposal.width ?? .infinity
@@ -32,20 +34,28 @@ struct FlowLayout: Layout {
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var x = bounds.minX
-        var y = bounds.minY
-        var rowHeight: CGFloat = 0
-
+        // Break into rows first so a centred layout can offset each row by its slack.
+        var rows: [[(LayoutSubview, CGSize)]] = [[]]
+        var rowWidth: CGFloat = 0
         for view in subviews {
             let size = view.sizeThatFits(.unspecified)
-            if x + size.width > bounds.maxX && x > bounds.minX {
-                y += rowHeight + spacing
-                x = bounds.minX
-                rowHeight = 0
+            if rowWidth + size.width > bounds.width && rowWidth > 0 {
+                rows.append([])
+                rowWidth = 0
             }
-            view.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
-            x += size.width + spacing
-            rowHeight = max(rowHeight, size.height)
+            rows[rows.count - 1].append((view, size))
+            rowWidth += size.width + spacing
+        }
+        var y = bounds.minY
+        for row in rows where !row.isEmpty {
+            let width = row.reduce(0) { $0 + $1.1.width } + spacing * CGFloat(row.count - 1)
+            var x = centered ? bounds.minX + max(0, (bounds.width - width) / 2) : bounds.minX
+            let rowHeight = row.map(\.1.height).max() ?? 0
+            for (view, size) in row {
+                view.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+            y += rowHeight + spacing
         }
     }
 }
