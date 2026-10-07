@@ -85,20 +85,38 @@ struct ConnectionsController {
 
     // MARK: GET /api/connections/status/:targetId
 
-    struct StatusResponse: Content { var status: String; @NullCoded var connection_id: String? }
+    struct StatusResponse: Content {
+        var status: String
+        @NullCoded var connection_id: String?
+        /// Whether the viewer follows the target in this mode (independent of friendship).
+        var is_following = false
+        /// False when the target turned friend requests off — the app offers Follow instead.
+        var accepts_requests = true
+    }
 
     static func status(_ req: Request) async throws -> StatusResponse {
         let targetID = req.parameters.get("targetId")!
         let mode = ["hobby", "work"].contains((try? req.query.get(String.self, at: "mode")) ?? "") ? (try! req.query.get(String.self, at: "mode")) : "hobby"
         if req.userID == targetID { return StatusResponse(status: "self", connection_id: nil) }
-        guard let conn = try await findConnection(req.userID, targetID, mode: mode, on: req.db.sql()) else {
-            return StatusResponse(status: "none", connection_id: nil)
+        let db = req.db.sql()
+        async let following = FollowStore.isFollowing(req.userID, targetID, mode: mode, on: db)
+        async let accepts = acceptsRequests(targetID, on: db)
+        guard let conn = try await findConnection(req.userID, targetID, mode: mode, on: db) else {
+            return StatusResponse(status: "none", connection_id: nil,
+                                  is_following: try await following, accepts_requests: try await accepts)
         }
         let s: String
         if conn.status == "accepted" { s = "accepted" }
         else if conn.status == "pending" { s = conn.requester_id == req.userID ? "pending_sent" : "pending_received" }
         else { s = conn.status }
-        return StatusResponse(status: s, connection_id: conn.id)
+        return StatusResponse(status: s, connection_id: conn.id,
+                              is_following: try await following, accepts_requests: try await accepts)
+    }
+
+    static func acceptsRequests(_ userID: String, on db: any SQLDatabase) async throws -> Bool {
+        struct A: Decodable { let allow_friend_requests: Bool }
+        return try await db.raw("SELECT allow_friend_requests FROM users WHERE id = \(uuid: userID)")
+            .first(decoding: A.self)?.allow_friend_requests ?? true
     }
 
     // MARK: POST /api/connections/request
@@ -125,7 +143,17 @@ struct ConnectionsController {
             """).first(decoding: One.self) != nil {
             throw InlineError(.forbidden, "Cannot send request to this user")
         }
-        if let existing = try await findConnection(req.userID, addresseeID, mode: mode, on: db) {
+        let existingConnection = try await findConnection(req.userID, addresseeID, mode: mode, on: db)
+        // Turned off → strangers can only follow. A request they already
+        // sent us can still be answered (that's handled as "pending_received").
+        if existingConnection == nil || existingConnection?.status == "rejected",
+           !(try await acceptsRequests(addresseeID, on: db)) {
+            throw InlineError(.forbidden, "This person isn't accepting friend requests")
+        }
+        // Adding a friend includes following them (they may unfollow later
+        // and stay friends).
+        try await FollowStore.follow(req.userID, addresseeID, mode: mode, on: db)
+        if let existing = existingConnection {
             switch existing.status {
             case "accepted":
                 return try await encode(ConnResult(connection_id: existing.id, status: "accepted"), req, .ok)
@@ -193,6 +221,9 @@ struct ConnectionsController {
                 """).first(decoding: C.self)
             guard let c = conn else { return }
             try await t.raw("UPDATE users SET follower_count = follower_count + 1, following_count = following_count + 1 WHERE id IN (\(uuid: c.requester_id), \(uuid: c.addressee_id))").run()
+            // Friends follow each other from the start.
+            try await FollowStore.follow(c.requester_id, c.addressee_id, mode: c.mode, on: t)
+            try await FollowStore.follow(c.addressee_id, c.requester_id, mode: c.mode, on: t)
         }
         guard let c = conn else { throw InlineError(.conflict, "Request not found, not yours, or already handled") }
         NotifyService.dispatchSocial(req, .init(

@@ -48,6 +48,7 @@ struct AuthUserObject: Content {
     var hobby_setup: Bool
     var work_setup: Bool
     var has_password: Bool
+    var allow_friend_requests: Bool
     var interests: [String]
     var skills: [String]
 }

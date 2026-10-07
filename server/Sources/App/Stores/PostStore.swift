@@ -134,6 +134,20 @@ enum PostStore {
         """
     }
 
+    /// The Following feed: personal posts by people the viewer follows in that
+    /// mode who aren't their friends there (friends have the Connections feed).
+    /// privacyClause already limits these to public posts.
+    static func followingOnlyClause(_ v: String) -> SQLQueryString {
+        """
+        (p.community_id IS NULL
+         AND EXISTS (SELECT 1 FROM follows fw WHERE fw.follower_id = \(uuid: v)
+                     AND fw.followee_id = p.author_id AND fw.mode = p.mode)
+         AND NOT EXISTS (SELECT 1 FROM connections c3 WHERE c3.status = 'accepted' AND c3.mode = p.mode
+              AND ((c3.requester_id = p.author_id AND c3.addressee_id = \(uuid: v))
+                OR (c3.addressee_id = p.author_id AND c3.requester_id = \(uuid: v)))))
+        """
+    }
+
     // MARK: row → PostObject
 
     struct PostRow: Decodable {
@@ -196,6 +210,8 @@ enum PostStore {
         /// (accent-insensitive, word by word) instead of newest-first.
         var search: String?
         var connectionsOnly: Bool
+        /// People the viewer follows (in the post's mode) but isn't friends with.
+        var followingOnly = false
         var limit: Int
         var offset: Int
     }
@@ -205,6 +221,7 @@ enum PostStore {
         w = w + communityVisibilityClause(v) + " AND " + notMutedClause(v) + " AND "
         w = w + privacyClause(v) + " AND " + notBlockedClause(v) + " AND " + notHiddenClause(v)
         if f.connectionsOnly { w = w + " AND " + connectionsOnlyClause(v) }
+        if f.followingOnly { w = w + " AND " + followingOnlyClause(v) }
         if let m = f.mode { w = w + " AND p.mode = \(bind: m)" }
         // Author-scoped listing is only ever a Profile screen (own or someone
         // else's) — community posts belong on that community's own page, not
