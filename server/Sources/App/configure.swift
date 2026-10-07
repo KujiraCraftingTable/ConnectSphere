@@ -29,6 +29,8 @@ public func configure(_ app: Application) async throws {
     app.middleware.use(SecurityHeadersMiddleware())
     app.middleware.use(RateLimitMiddleware.global())
 
+    app.asyncCommands.use(StripUploadMetadataCommand(), as: "strip-upload-metadata")
+
     // 5. Routes.
     HealthController.register(app)
     try routes(app)

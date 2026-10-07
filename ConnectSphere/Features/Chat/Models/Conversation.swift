@@ -36,6 +36,8 @@ struct Conversation: Identifiable, Decodable, Equatable {
 
     let lastMessageContent: String?
     let lastMessageType: String?
+    /// Photo count when the last message is an album.
+    let lastMessageMediaCount: Int?
     let lastMessageSenderId: String?
     let lastMessageAt: Date?
 
@@ -62,6 +64,7 @@ struct Conversation: Identifiable, Decodable, Equatable {
 
         case lastMessageContent  = "last_message_content"
         case lastMessageType     = "last_message_type"
+        case lastMessageMediaCount = "last_message_media_count"
         case lastMessageSenderId = "last_message_sender_id"
         case lastMessageAt       = "last_message_at"
         case unreadCount         = "unread_count"
@@ -102,6 +105,7 @@ struct Conversation: Identifiable, Decodable, Equatable {
 
         lastMessageContent = try c.decodeIfPresent(String.self, forKey: .lastMessageContent)
         lastMessageType = try c.decodeIfPresent(String.self, forKey: .lastMessageType)
+        lastMessageMediaCount = try c.decodeIfPresent(Int.self, forKey: .lastMessageMediaCount)
         lastMessageSenderId = try c.decodeIfPresent(String.self, forKey: .lastMessageSenderId)
         lastMessageAt = try c.decodeIfPresent(Date.self, forKey: .lastMessageAt)
         unreadCount = try c.decodeIfPresent(Int.self, forKey: .unreadCount) ?? 0
@@ -160,6 +164,7 @@ struct Conversation: Identifiable, Decodable, Equatable {
         switch lastMessageType {
         case "image":   return "\(prefix)📷 " + Bundle.app.loc("Photo")
         case "video":   return "\(prefix)🎥 " + Bundle.app.loc("Video")
+        case "album":   return prefix + Message.albumPreview(caption: lastMessageContent, count: lastMessageMediaCount)
         // Meeting proposals carry no text content, so this must be checked before
         // the nil-content guard below (which would otherwise show "No messages yet").
         case "meeting": return "\(prefix)📅 " + Bundle.app.loc("Meeting proposal")

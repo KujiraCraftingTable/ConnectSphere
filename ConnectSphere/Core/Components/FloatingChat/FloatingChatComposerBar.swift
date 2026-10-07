@@ -131,19 +131,24 @@ struct FloatingChatComposerBar: View {
 
     /// Sends the configured quick emoji as an ordinary text message — there is
     /// no sticker message type (`MessageType` is text/image/video/meeting/
-    /// voice, and the DB CHECK allows only those), so one-tap send is simply a
+    /// voice/album, and the DB CHECK allows only those), so one-tap send is simply a
     /// very short text.
     private func sendQuickEmoji() {
         Task { await bubble.viewModel.sendText(quickEmoji) }
     }
 
-    /// Sends each picked photo/video immediately — the mini composer has no
+    /// Sends the picked photos/videos immediately — the mini composer has no
     /// staging strip to preview them in, unlike `ChatView`'s `mediaPreview`.
+    /// Several photos go as one album, same as the full chat.
     private func sendPickedMedia(_ items: [PhotosPickerItem]) async {
+        var files: [URL] = []
         for item in items {
             guard let media = try? await item.loadTransferable(type: MediaFileTransferable.self) else { continue }
-            await bubble.viewModel.sendMedia(fileURL: media.url)
+            files.append(media.url)
         }
         pickerItems = []
+        let plan = ChatViewModel.plan(mediaFiles: files)
+        if !plan.album.isEmpty { await bubble.viewModel.sendAlbum(fileURLs: plan.album, caption: nil) }
+        for url in plan.singles { await bubble.viewModel.sendMedia(fileURL: url) }
     }
 }

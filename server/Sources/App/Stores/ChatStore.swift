@@ -20,7 +20,7 @@ enum ChatStore {
           'sender_name', \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "c.mode", alias: "ru")),
           'message_type', rm.message_type, 'is_deleted', (rm.deleted_at IS NOT NULL),
           'content', CASE WHEN rm.deleted_at IS NOT NULL THEN NULL ELSE LEFT(COALESCE(rm.content,
-            CASE rm.message_type WHEN 'image' THEN '📷 Photo' WHEN 'video' THEN '🎥 Video'
+            CASE rm.message_type WHEN 'image' THEN '📷 Photo' WHEN 'album' THEN '📷 Album' WHEN 'video' THEN '🎥 Video'
               WHEN 'voice' THEN '🎤 Voice message' ELSE '' END), 120) END
         ) ELSE NULL END)::text AS replied_message,
         COALESCE((SELECT jsonb_object_agg(agg.emoji, agg.user_ids) FROM (
@@ -42,6 +42,7 @@ enum ChatStore {
     struct MessageRow: Decodable {
         var id: String; var conversation_id: String; var sender_id: String
         var content: String?; var message_type: String; var media_url: String?
+        var media_items: String?
         var voice_duration_seconds: Int?; var voice_waveform: [Double]?
         var created_at: Date; var reply_to_message_id: String?; var is_deleted: Bool
         var replied_message: String?; var reactions: String; var meeting_proposal: String?
@@ -57,6 +58,7 @@ enum ChatStore {
         return MessageObject(
             id: r.id, conversation_id: r.conversation_id, sender_id: r.sender_id, content: r.content,
             message_type: r.message_type, media_url: r.media_url,
+            media_items: obj(r.media_items, [MessageObject.MediaItem].self),
             voice_duration_seconds: r.voice_duration_seconds, voice_waveform: r.voice_waveform,
             created_at: r.created_at, reply_to_message_id: r.reply_to_message_id, is_deleted: r.is_deleted,
             replied_message: obj(r.replied_message, MessageObject.RepliedMessage.self),
@@ -71,6 +73,7 @@ enum ChatStore {
         SELECT m.id::text AS id, m.conversation_id::text AS conversation_id, m.sender_id::text AS sender_id,
           CASE WHEN m.deleted_at IS NULL THEN m.content ELSE NULL END AS content, m.message_type,
           CASE WHEN m.deleted_at IS NULL THEN m.media_url ELSE NULL END AS media_url,
+          CASE WHEN m.deleted_at IS NULL THEN m.media_items::text ELSE NULL END AS media_items,
           CASE WHEN m.deleted_at IS NULL THEN m.voice_duration_seconds ELSE NULL END AS voice_duration_seconds,
           CASE WHEN m.deleted_at IS NULL THEN m.voice_waveform ELSE NULL END AS voice_waveform,
           m.created_at, m.reply_to_message_id::text AS reply_to_message_id, (m.deleted_at IS NOT NULL) AS is_deleted,
@@ -152,13 +155,15 @@ enum ChatStore {
     }
 
     static func insertMessage(_ conversationID: String, senderID: String, content: String?, messageType: String,
-                              mediaUrl: String?, replyToMessageID: String?, voiceDuration: Int?, voiceWaveform: [Double]?,
+                              mediaUrl: String?, mediaItems: [MessageObject.MediaItem]? = nil,
+                              replyToMessageID: String?, voiceDuration: Int?, voiceWaveform: [Double]?,
                               on db: any SQLDatabase) async throws -> String {
         struct R: Decodable { let id: String }
+        let itemsJSON = try mediaItems.map { String(decoding: try JSONEncoder().encode($0), as: UTF8.self) }
         let id = try await db.raw("""
-            INSERT INTO messages (conversation_id, sender_id, content, message_type, media_url, reply_to_message_id, voice_duration_seconds, voice_waveform)
+            INSERT INTO messages (conversation_id, sender_id, content, message_type, media_url, media_items, reply_to_message_id, voice_duration_seconds, voice_waveform)
             VALUES (\(uuid: conversationID), \(uuid: senderID), \(bind: content), \(bind: messageType), \(bind: mediaUrl),
-                    \(uuid: replyToMessageID), \(bind: voiceDuration), \(bind: voiceWaveform))
+                    \(bind: itemsJSON)::jsonb, \(uuid: replyToMessageID), \(bind: voiceDuration), \(bind: voiceWaveform))
             RETURNING id::text AS id
             """).first(decoding: R.self)!.id
         try await db.raw("UPDATE conversations SET updated_at = NOW() WHERE id = \(uuid: conversationID)").run()
@@ -261,13 +266,27 @@ enum ChatStore {
         var id: String; var conversation_id: String; var sender_id: String
         var message_type: String; var media_url: String?; var created_at: Date
     }
+    /// Every photo/video in the chat, newest first — an album contributes each
+    /// of its photos (id `<message id>:<index>`, in album order).
     static func media(_ conversationID: String, userID: String, on db: any SQLDatabase) async throws -> [MediaItem] {
         try await db.raw("""
-            SELECT m.id::text AS id, m.conversation_id::text AS conversation_id, m.sender_id::text AS sender_id,
-              m.message_type, m.media_url, m.created_at
-            FROM messages m WHERE m.conversation_id = \(uuid: conversationID) AND m.message_type IN ('image', 'video') AND m.deleted_at IS NULL
-              AND m.created_at > COALESCE((SELECT cleared_at FROM conversation_participants WHERE conversation_id = \(uuid: conversationID) AND user_id = \(uuid: userID)), '-infinity'::timestamptz)
-            ORDER BY m.created_at DESC
+            WITH visible AS (
+              SELECT m.* FROM messages m
+              WHERE m.conversation_id = \(uuid: conversationID) AND m.deleted_at IS NULL
+                AND m.message_type IN ('image', 'video', 'album')
+                AND m.created_at > COALESCE((SELECT cleared_at FROM conversation_participants WHERE conversation_id = \(uuid: conversationID) AND user_id = \(uuid: userID)), '-infinity'::timestamptz)
+            )
+            SELECT id, conversation_id, sender_id, message_type, media_url, created_at FROM (
+              SELECT v.id::text AS id, v.conversation_id::text AS conversation_id, v.sender_id::text AS sender_id,
+                v.message_type, v.media_url, v.created_at, 0::bigint AS ord
+              FROM visible v WHERE v.message_type IN ('image', 'video')
+              UNION ALL
+              SELECT v.id::text || ':' || (it.ord - 1) AS id, v.conversation_id::text, v.sender_id::text,
+                it.item->>'type', it.item->>'url', v.created_at, it.ord
+              FROM visible v CROSS JOIN LATERAL jsonb_array_elements(v.media_items) WITH ORDINALITY AS it(item, ord)
+              WHERE v.message_type = 'album'
+            ) all_media
+            ORDER BY created_at DESC, ord
             """).all(decoding: MediaItem.self)
     }
     /// Node's `searchMessages` SELECT omits the two voice columns, so the search
@@ -287,7 +306,7 @@ enum ChatStore {
               (m.deleted_at IS NOT NULL) AS is_deleted,
             """
         q = q + embed + " " + msgFrom
-        q = q + " WHERE m.conversation_id = \(uuid: conversationID) AND m.deleted_at IS NULL AND m.message_type = 'text'"
+        q = q + " WHERE m.conversation_id = \(uuid: conversationID) AND m.deleted_at IS NULL AND m.message_type IN ('text', 'album')"
         q = q + " AND m.content ILIKE '%' || \(bind: escaped) || '%'"
         q = q + " AND m.created_at > COALESCE((SELECT cleared_at FROM conversation_participants WHERE conversation_id = \(uuid: conversationID) AND user_id = \(uuid: userID)), '-infinity'::timestamptz)"
         q = q + " ORDER BY m.created_at DESC LIMIT 50"
@@ -355,6 +374,8 @@ struct MessageObject: Content {
     @NullCoded var content: String?
     var message_type: String
     @NullCoded var media_url: String?
+    /// An album's photos in order (`message_type == "album"`); null otherwise.
+    @NullCoded var media_items: [MediaItem]?
     @NullCoded var voice_duration_seconds: Int?
     @NullCoded var voice_waveform: [Double]?
     var created_at: Date
@@ -367,6 +388,10 @@ struct MessageObject: Content {
     var delivered_to: [String]
     var read_by: [String]
 
+    struct MediaItem: Content, Equatable {
+        var url: String
+        var type: String
+    }
     struct RepliedMessage: Content {
         var id: String; var sender_id: String; var sender_name: String
         var message_type: String; var is_deleted: Bool; @NullCoded var content: String?

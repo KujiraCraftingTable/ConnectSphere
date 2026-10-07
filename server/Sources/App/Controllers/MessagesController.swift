@@ -191,7 +191,9 @@ struct MessagesController {
         }
         let name = "\(Int(Date().timeIntervalSince1970 * 1000))-\(UUID().uuidString.prefix(8).lowercased())\(kind.ext)"
         try FileManager.default.createDirectory(atPath: uploadDir, withIntermediateDirectories: true)
-        try await req.fileio.writeFile(file.data, at: "\(uploadDir)/\(name)")
+        // GPS, camera and other identifying metadata never reach the disk.
+        let cleaned = ByteBuffer(bytes: MetadataStripper.strip(Array(file.data.readableBytesView)))
+        try await req.fileio.writeFile(cleaned, at: "\(uploadDir)/\(name)")
         return UploadResult(data: .init(url: "/uploads/messages/\(name)", message_type: kind.messageType))
     }
 
@@ -244,11 +246,37 @@ struct MessagesController {
         var content: String?
         var message_type: String?
         var media_url: String?
+        var media_items: [MessageObject.MediaItem]?
         var reply_to_message_id: String?
         var meeting_proposal: MeetingProposalIn?
         var voice_duration_seconds: Int?
         var voice_waveform: [Double]?
     }
+    static let maxAlbumPhotos = 10
+    /// One of our own chat uploads, image types only — an album can't point
+    /// at another site or at a path outside the uploads folder.
+    static let albumPhotoURL = try! NSRegularExpression(
+        pattern: "^/uploads/messages/[A-Za-z0-9_-][A-Za-z0-9._-]*\\.(jpg|jpeg|png|webp|heic)$", options: [.caseInsensitive])
+
+    /// `media_items` is only for albums, and an album is 2–10 of our own
+    /// uploaded photos. Returns the items to store (nil for any other type).
+    static func validateAlbum(type: String, items: [MessageObject.MediaItem]?) throws -> [MessageObject.MediaItem]? {
+        guard type == "album" else {
+            if items != nil { throw Abort(.badRequest, reason: "Only an album can carry several photos") }
+            return nil
+        }
+        guard let items, (2...maxAlbumPhotos).contains(items.count) else {
+            throw Abort(.badRequest, reason: "An album needs 2 to \(maxAlbumPhotos) photos")
+        }
+        for item in items {
+            guard item.type == "image", !item.url.contains(".."),
+                  AuthController.matches(albumPhotoURL, item.url) else {
+                throw Abort(.badRequest, reason: "Invalid album photo")
+            }
+        }
+        return items
+    }
+
     static func sendMessage(_ req: Request) async throws -> Response {
         let id = req.parameters.get("id")!
         let db = req.db.sql()
@@ -262,6 +290,7 @@ struct MessagesController {
             throw Abort(.badRequest, reason: "Media URL is required")
         }
         if let c = b.content, c.count > 2000 { throw Abort(.badRequest, reason: "Message is too long") }
+        let album = try validateAlbum(type: type, items: b.media_items)
 
         var validated: ValidatedMeeting? = nil
         if type == "meeting" {
@@ -283,7 +312,7 @@ struct MessagesController {
         let storedContent = b.content?.trimmingCharacters(in: .whitespaces).nilIfEmpty ?? validated?.title
         let newID = try await ChatStore.insertMessage(id, senderID: req.userID,
             content: storedContent, messageType: type,
-            mediaUrl: b.media_url, replyToMessageID: replyTo,
+            mediaUrl: album?.first?.url ?? b.media_url, mediaItems: album, replyToMessageID: replyTo,
             voiceDuration: b.voice_duration_seconds, voiceWaveform: b.voice_waveform, on: db)
         if let v = validated {
             try await ChatStore.createMeetingProposalRow(messageID: newID, v, on: db)

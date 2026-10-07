@@ -865,3 +865,31 @@
 "Today" = "Hôm nay";
 "This week" = "Tuần này";
 "Earlier" = "Trước đó";
+
+// MARK: - Albums, saving media, onboarding username
+"%lld photos" = "%lld ảnh";
+"Album" = "Album ảnh";
+"Album, %lld photos" = "Album, %lld ảnh";
+"Allow ConnectSphere to add photos in Settings to save" = "Cho phép ConnectSphere thêm ảnh trong Cài đặt để lưu";
+"At least 8 characters. Add symbols like !@#$%^&*_ for extra security." = "Ít nhất 8 ký tự. Thêm ký hiệu như !@#$%^&*_ để an toàn hơn.";
+"Back" = "Quay lại";
+"Checking…" = "Đang kiểm tra…";
+"Couldn't check the username — try again" = "Không kiểm tra được tên người dùng — hãy thử lại";
+"Couldn't save — please try again" = "Không lưu được — vui lòng thử lại";
+"Developer" = "Nhà phát triển";
+"Enter your display name" = "Nhập tên hiển thị của bạn";
+"Letters, numbers, and underscore (_) only, at least 3 characters" = "Chỉ chữ cái, số và dấu gạch dưới (_), ít nhất 3 ký tự";
+"No results" = "Không có kết quả";
+"No unread chats" = "Không có cuộc trò chuyện chưa đọc";
+"Only letters, numbers, and underscore (_) are allowed" = "Chỉ được dùng chữ cái, số và dấu gạch dưới (_)";
+"Opens the photos" = "Mở các ảnh";
+"Save to Photos" = "Lưu vào Ảnh";
+"Saved %lld items to Photos" = "Đã lưu %lld mục vào Ảnh";
+"Saved to Photos" = "Đã lưu vào Ảnh";
+"Saving…" = "Đang lưu…";
+"Search chats and messages" = "Tìm cuộc trò chuyện và tin nhắn";
+"Server address" = "Địa chỉ máy chủ";
+"Skip for now" = "Bỏ qua lúc này";
+"That username is taken" = "Tên người dùng này đã được sử dụng";
+"Username *" = "Tên người dùng *";
+"Username must be at most 30 characters" = "Tên người dùng tối đa 30 ký tự";

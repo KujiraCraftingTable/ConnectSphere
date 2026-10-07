@@ -88,8 +88,10 @@ struct UploadsController {
         }
         let name = "\(UUID().uuidString).\(ext)"
         try FileManager.default.createDirectory(atPath: uploadDir, withIntermediateDirectories: true)
-        let size = file.data.readableBytes
-        try await req.fileio.writeFile(file.data, at: "\(uploadDir)/\(name)")
+        // GPS, camera and other identifying metadata never reach the disk.
+        let cleaned = ByteBuffer(bytes: MetadataStripper.strip(Array(file.data.readableBytesView)))
+        try await req.fileio.writeFile(cleaned, at: "\(uploadDir)/\(name)")
+        let size = cleaned.readableBytes
         return UploadResponse(
             url: "/uploads/\(name)", filename: name,
             type: mime.hasPrefix("video/") ? "video" : "image",

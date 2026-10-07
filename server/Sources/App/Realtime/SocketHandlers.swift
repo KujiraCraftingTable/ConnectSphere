@@ -116,7 +116,8 @@ enum SocketHandlers {
     }
     private struct SendArg: Decodable {
         var conversationId: String?; var content: String?; var messageType: String?
-        var mediaUrl: String?; var replyToMessageId: String?; var meetingProposal: MeetingArg?
+        var mediaUrl: String?; var mediaItems: [MessageObject.MediaItem]?
+        var replyToMessageId: String?; var meetingProposal: MeetingArg?
         var voiceDurationSeconds: Int?; var voiceWaveform: [Double]?
     }
     private static func sendMessage(_ arg: Any?, ackID: Int?, conn: SocketConn, session: SocketSession) async {
@@ -132,6 +133,10 @@ enum SocketHandlers {
             if type == "text", (b.content?.trimmingCharacters(in: .whitespaces).isEmpty ?? true) {
                 await session.ackError(ackID, "Content required"); return
             }
+            if let c = b.content, c.count > 2000 { await session.ackError(ackID, "Message is too long"); return }
+            let album: [MessageObject.MediaItem]?
+            do { album = try MessagesController.validateAlbum(type: type, items: b.mediaItems) }
+            catch { await session.ackError(ackID, reason(error)); return }
             var validated: ValidatedMeeting? = nil
             if type == "meeting" {
                 do {
@@ -151,7 +156,7 @@ enum SocketHandlers {
 
             let stored = b.content?.trimmingCharacters(in: .whitespaces).nilIfEmpty ?? validated?.title
             let newID = try await ChatStore.insertMessage(cid, senderID: conn.userID, content: stored, messageType: type,
-                mediaUrl: b.mediaUrl, replyToMessageID: replyTo,
+                mediaUrl: album?.first?.url ?? b.mediaUrl, mediaItems: album, replyToMessageID: replyTo,
                 voiceDuration: b.voiceDurationSeconds, voiceWaveform: b.voiceWaveform, on: db)
             if let v = validated { try await ChatStore.createMeetingProposalRow(messageID: newID, v, on: db) }
             guard let msg = try await ChatStore.messageByID(newID, on: db) else {

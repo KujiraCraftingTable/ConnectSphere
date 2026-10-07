@@ -23,6 +23,8 @@ extension ChatStore {
         @NullCoded var muted_until: Date?
         @NullCoded var last_message_content: String?
         @NullCoded var last_message_type: String?
+        /// Photo count when the last message is an album ("📷 4 photos").
+        @NullCoded var last_message_media_count: Int?
         @NullCoded var last_message_sender_id: String?
         @NullCoded var last_message_at: Date?
         var unread_count: Int
@@ -41,6 +43,7 @@ extension ChatStore {
                 NULL::text AS name, NULL::text AS avatar_url, NULL::text AS avatar_color, NULL::int AS member_count,
                 my_cp.muted_until AS muted_until,
                 lm.content AS last_message_content, lm.message_type AS last_message_type,
+                jsonb_array_length(lm.media_items) AS last_message_media_count,
                 lm.sender_id::text AS last_message_sender_id, lm.created_at AS last_message_at,
                 (SELECT COUNT(*)::INT FROM messages m WHERE m.conversation_id = c.id AND m.sender_id != \(uuid: userID)
                   AND (my_cp.last_read_at IS NULL OR m.created_at > my_cp.last_read_at)
@@ -50,7 +53,8 @@ extension ChatStore {
               JOIN conversation_participants other_cp ON other_cp.conversation_id = c.id AND other_cp.user_id != \(uuid: userID)
               JOIN users u ON u.id = other_cp.user_id
               LEFT JOIN LATERAL (
-                SELECT CASE WHEN deleted_at IS NULL THEN content ELSE NULL END AS content, message_type, sender_id, created_at
+                SELECT CASE WHEN deleted_at IS NULL THEN content ELSE NULL END AS content, message_type, sender_id, created_at,
+                  CASE WHEN deleted_at IS NULL THEN media_items ELSE NULL END AS media_items
                 FROM messages WHERE conversation_id = c.id AND created_at > COALESCE(my_cp.cleared_at, '-infinity'::timestamptz)
                 ORDER BY created_at DESC LIMIT 1
               ) lm ON true
@@ -66,6 +70,7 @@ extension ChatStore {
                 (SELECT COUNT(*)::INT FROM conversation_participants cp2 WHERE cp2.conversation_id = c.id) AS member_count,
                 my_cp.muted_until AS muted_until,
                 lm.content AS last_message_content, lm.message_type AS last_message_type,
+                jsonb_array_length(lm.media_items) AS last_message_media_count,
                 lm.sender_id::text AS last_message_sender_id, lm.created_at AS last_message_at,
                 (SELECT COUNT(*)::INT FROM messages m WHERE m.conversation_id = c.id AND m.sender_id != \(uuid: userID)
                   AND (my_cp.last_read_at IS NULL OR m.created_at > my_cp.last_read_at)
@@ -73,7 +78,8 @@ extension ChatStore {
               FROM conversations c
               JOIN conversation_participants my_cp ON my_cp.conversation_id = c.id AND my_cp.user_id = \(uuid: userID)
               LEFT JOIN LATERAL (
-                SELECT CASE WHEN deleted_at IS NULL THEN content ELSE NULL END AS content, message_type, sender_id, created_at
+                SELECT CASE WHEN deleted_at IS NULL THEN content ELSE NULL END AS content, message_type, sender_id, created_at,
+                  CASE WHEN deleted_at IS NULL THEN media_items ELSE NULL END AS media_items
                 FROM messages WHERE conversation_id = c.id AND created_at > COALESCE(my_cp.cleared_at, '-infinity'::timestamptz)
                 ORDER BY created_at DESC LIMIT 1
               ) lm ON true

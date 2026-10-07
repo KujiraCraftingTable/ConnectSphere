@@ -74,6 +74,22 @@ on any non-401 error instead of showing an offline/retry state).
 
 ---
 
+## Upload metadata — the server's safety net covers JPEG/PNG only
+
+The app strips GPS, capture date, camera model and other metadata from every
+photo and video before upload (`Core/Media/MediaSanitizer.swift`), and the
+server strips JPEG/PNG again on arrival (`Infra/MetadataStripper.swift`). Two
+deliberate limits on the server side, which only matter for a client other
+than this app:
+
+- HEIC, WebP, MP4 and MOV are stored as received — stripping them server-side
+  needs an image/video library (a new dependency).
+- Stripping a JPEG's EXIF also drops its orientation flag; the app bakes the
+  rotation into the pixels first, but another client's sideways-flagged JPEG
+  would be stored sideways.
+
+---
+
 ## Push notifications (APNs)
 
 **Status:** out of scope for this pass. In-app notifications (polling + WebSocket

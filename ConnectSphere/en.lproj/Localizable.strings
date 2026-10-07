@@ -865,3 +865,31 @@
 "Today" = "Today";
 "This week" = "This week";
 "Earlier" = "Earlier";
+
+// MARK: - Albums, saving media, onboarding username
+"%lld photos" = "%lld photos";
+"Album" = "Album";
+"Album, %lld photos" = "Album, %lld photos";
+"Allow ConnectSphere to add photos in Settings to save" = "Allow ConnectSphere to add photos in Settings to save";
+"At least 8 characters. Add symbols like !@#$%^&*_ for extra security." = "At least 8 characters. Add symbols like !@#$%^&*_ for extra security.";
+"Back" = "Back";
+"Checking…" = "Checking…";
+"Couldn't check the username — try again" = "Couldn't check the username — try again";
+"Couldn't save — please try again" = "Couldn't save — please try again";
+"Developer" = "Developer";
+"Enter your display name" = "Enter your display name";
+"Letters, numbers, and underscore (_) only, at least 3 characters" = "Letters, numbers, and underscore (_) only, at least 3 characters";
+"No results" = "No results";
+"No unread chats" = "No unread chats";
+"Only letters, numbers, and underscore (_) are allowed" = "Only letters, numbers, and underscore (_) are allowed";
+"Opens the photos" = "Opens the photos";
+"Save to Photos" = "Save to Photos";
+"Saved %lld items to Photos" = "Saved %lld items to Photos";
+"Saved to Photos" = "Saved to Photos";
+"Saving…" = "Saving…";
+"Search chats and messages" = "Search chats and messages";
+"Server address" = "Server address";
+"Skip for now" = "Skip for now";
+"That username is taken" = "That username is taken";
+"Username *" = "Username *";
+"Username must be at most 30 characters" = "Username must be at most 30 characters";
