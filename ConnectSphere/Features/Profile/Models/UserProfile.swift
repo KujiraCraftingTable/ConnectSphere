@@ -26,6 +26,8 @@ struct UserProfile: Identifiable {
     /// Whether a password has been set yet (Google-only accounts = false) — decides which
     /// flow to show (set password vs. change password)
     var hasPassword: Bool = false
+    /// Self-only. Off = strangers can only follow; this user sends requests themselves.
+    var allowFriendRequests: Bool = true
     // Displayed age — present in both public and self views, null from server when dob_visibility = private
     var age: Int? = nil
     // Self-only field (server only returns this in /auth/me and PATCH /users/me),

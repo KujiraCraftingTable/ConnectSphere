@@ -94,4 +94,26 @@ struct ConnectionRepository {
             bodyData: NetworkClient.encode(["connection_id": connectionId])
         )
     }
+
+    // MARK: Follows
+
+    private struct FollowState: Decodable { let is_following: Bool }
+    private struct PeopleResponse: Decodable { let data: [ConnectionUserDTO] }
+
+    func follow(userId: String, mode: String) async throws {
+        _ = try await client.fetch(FollowState.self, path: "/follows/\(userId)", method: "POST", token: try token(),
+                                   queryItems: [URLQueryItem(name: "mode", value: mode)])
+    }
+
+    func unfollow(userId: String, mode: String) async throws {
+        _ = try await client.fetch(FollowState.self, path: "/follows/\(userId)", method: "DELETE", token: try token(),
+                                   queryItems: [URLQueryItem(name: "mode", value: mode)])
+    }
+
+    /// `followers` or `following` of a user in one mode — friends excluded.
+    func fetchFollows(userId: String, followers: Bool, mode: String) async throws -> [ConnectionUserDTO] {
+        try await client.fetch(PeopleResponse.self, path: "/follows/\(userId)", token: try token(),
+                               queryItems: [URLQueryItem(name: "type", value: followers ? "followers" : "following"),
+                                            URLQueryItem(name: "mode", value: mode)]).data
+    }
 }

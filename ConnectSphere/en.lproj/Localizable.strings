@@ -841,3 +841,11 @@
 "Commented on posts related to your search" = "Commented on posts related to your search";
 "Shared posts related to your search" = "Shared posts related to your search";
 "Engages with posts related to your search" = "Engages with posts related to your search";
+
+// MARK: - Follow
+"No followers yet" = "No followers yet";
+"Not following anyone yet" = "Not following anyone yet";
+"Follow people to see their public posts here" = "Follow people to see their public posts here";
+"Allow friend requests" = "Allow friend requests";
+"When off, people who aren't your friends can only follow you. You can still send friend requests yourself." = "When off, people who aren't your friends can only follow you. You can still send friend requests yourself.";
+"Couldn't update this setting, please try again" = "Couldn't update this setting, please try again";

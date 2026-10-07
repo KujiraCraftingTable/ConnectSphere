@@ -43,6 +43,16 @@ struct ProfileRepository {
         var email: String?        = nil   // "" = remove email from the account
     }
 
+    /// Privacy: off = strangers can only follow, not send friend requests.
+    func setAllowFriendRequests(_ allow: Bool) async throws {
+        guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
+            throw APIError.serverError(statusCode: 401, message: "Not authenticated")
+        }
+        struct Body: Encodable { let allow_friend_requests: Bool }
+        _ = try await client.fetch(SingleResponse<UserDTO>.self, path: "/users/me", method: "PATCH", token: token,
+                                   bodyData: NetworkClient.encode(Body(allow_friend_requests: allow)))
+    }
+
     func updateProfile(_ update: ProfileUpdate) async throws -> UserProfile {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")

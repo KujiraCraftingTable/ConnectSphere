@@ -51,7 +51,9 @@ struct FeedView: View {
                             Image(systemName: "person.2")
                                 .font(.system(size: 36))
                                 .foregroundColor(AppColors.textSecondary(colorScheme).opacity(0.4))
-                            Text(bundle.loc("No posts yet"))
+                            Text(bundle.loc(viewModel.feedScope == .following
+                                            ? "Follow people to see their public posts here"
+                                            : "No posts yet"))
                                 .font(.system(size: 14))
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
                         }
@@ -183,12 +185,13 @@ struct FeedView: View {
         .accessibilityLabel(label)
     }
 
-    // MARK: Feed Scope Row ("For you" / "Connections")
+    // MARK: Feed Scope Row ("For you" / "Connections" / "Following")
 
     private var feedScopeRow: some View {
         HStack(spacing: 8) {
             feedScopeButton(.forYou, label: bundle.loc("For you"))
             feedScopeButton(.connections, label: bundle.loc("Connections"))
+            feedScopeButton(.following, label: bundle.loc("Following"))
             Spacer()
         }
         .padding(.horizontal, 12)
