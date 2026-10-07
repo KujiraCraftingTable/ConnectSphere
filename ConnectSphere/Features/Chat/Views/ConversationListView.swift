@@ -107,7 +107,7 @@ struct ConversationListView: View {
         .onChange(of: searchQuery) { _, newValue in
             viewModel.search(query: newValue, mode: appState.currentMode.rawValue, token: appState.authToken ?? "")
         }
-        .toolbar(.hidden, for: .tabBar)
+        .hidesAppTabBar()
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button { showGroupMemberPicker = true } label: {
