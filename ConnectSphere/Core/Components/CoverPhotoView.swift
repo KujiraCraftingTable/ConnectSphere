@@ -7,8 +7,12 @@ struct CoverPhotoView: View {
 
     /// Width : height of every cover. A fixed shape (not a fixed height) so the
     /// crop editor's frame (`CoverCropView`) shows exactly what the profile will,
-    /// on any phone width. 2.5 : 1 keeps today's look — 402 pt wide → ~161 pt.
-    static let aspectRatio: CGFloat = 2.5
+    /// on any phone width. 3 : 2 — the profile runs the cover up under the status
+    /// bar (Facebook-style), so this includes the faded top band: 402 pt → 268 pt.
+    static let aspectRatio: CGFloat = 1.5
+    /// Share of the cover's height that sits under the status bar on the profile
+    /// and fades into the page — the crop editor hints the same band.
+    static let fadedTopFraction: CGFloat = 0.32
 
     let coverUrl: String?
 

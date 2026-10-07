@@ -2,8 +2,8 @@ import CoreGraphics
 import Testing
 @testable import ConnectSphere
 
-/// A 400 × 160 frame — the 2.5 : 1 cover shape, as on a ~430 pt-wide phone.
-private let frame = CGSize(width: 400, height: 160)
+/// A 300 × 200 frame — the 3 : 2 cover shape.
+private let frame = CGSize(width: 300, height: 200)
 
 struct CoverCropTests {
     @Test func coverShapeMatchesTheFrameUsedHere() {
@@ -26,18 +26,18 @@ struct CoverCropTests {
 
     @Test func dragPastTheEdgeIsClampedBack() {
         let image = CGSize(width: 1000, height: 2000)
-        let s = CoverCrop.minScale(image: image, frame: frame)   // 0.4 → 400 × 800
+        let s = CoverCrop.minScale(image: image, frame: frame)   // 0.3 → 300 × 600
         let o = CoverCrop.clampedOffset(CGSize(width: 50, height: 9_999), scale: s, image: image, frame: frame)
         #expect(o.width == 0)          // no horizontal overhang to move into
-        #expect(o.height == 320)       // (800 − 160) / 2
+        #expect(abs(o.height - 200) < 0.001)   // (600 − 200) / 2
     }
 
     @Test func centredUnzoomedCropOfAMatchingPhotoIsTheWholePhoto() {
-        let image = CGSize(width: 2500, height: 1000)
+        let image = CGSize(width: 1500, height: 1000)
         let s = CoverCrop.minScale(image: image, frame: frame)
         let r = CoverCrop.cropRect(scale: s, offset: .zero, image: image, frame: frame)
         #expect(abs(r.minX) < 0.001 && abs(r.minY) < 0.001)
-        #expect(abs(r.width - 2500) < 0.001 && abs(r.height - 1000) < 0.001)
+        #expect(abs(r.width - 1500) < 0.001 && abs(r.height - 1000) < 0.001)
     }
 
     @Test func draggingDownRevealsTheTopOfAVerticalPhoto() {

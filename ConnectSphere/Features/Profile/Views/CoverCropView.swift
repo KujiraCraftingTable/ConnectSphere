@@ -8,8 +8,8 @@ import UIKit
 enum CoverCrop {
     /// Pinching can go this far past "just fills the frame".
     static let maxZoom: CGFloat = 4
-    /// What a cover is rendered to on Done — 2.5 : 1, matching `CoverPhotoView`.
-    static let outputSize = CGSize(width: 1500, height: 600)
+    /// What a cover is rendered to on Done — 3 : 2, matching `CoverPhotoView`.
+    static let outputSize = CGSize(width: 1500, height: 1000)
 
     /// The smallest scale at which the image still covers the whole frame
     /// (aspect fill). A vertical or small photo therefore starts zoomed in to
@@ -92,6 +92,13 @@ struct CoverCropView: View {
                     photo(scale: scale, offset: shown)
                         .mask(Rectangle().frame(width: frame.width, height: frame.height))
 
+                    // The top of the cover sits under the status bar and fades on
+                    // the profile — hinted here so nothing important gets framed there.
+                    LinearGradient(colors: [Color.white.opacity(0.35), .clear],
+                                   startPoint: .top, endPoint: .bottom)
+                        .frame(width: frame.width, height: frame.height * CoverPhotoView.fadedTopFraction)
+                        .frame(width: frame.width, height: frame.height, alignment: .top)
+                        .allowsHitTesting(false)
                     Rectangle()
                         .stroke(Color.white, lineWidth: 1.5)
                         .frame(width: frame.width, height: frame.height)

@@ -17,6 +17,12 @@ struct UserProfileView: View {
 
     // Block state
     @State private var showBlockConfirm = false
+    /// Relationship (friend / request / follow) with this person — shared by
+    /// the card's buttons and the ••• menu's Follow item.
+    @State private var connect = ConnectViewModel()
+    @State private var listRoute: ProfileStat?
+
+    private var isSelf: Bool { userId == appState.currentUser?.id }
 
     init(userId: String, preloadedUser: UserProfile? = nil) {
         self.userId = userId
@@ -28,24 +34,49 @@ struct UserProfileView: View {
     }
 
     var body: some View {
-        ScrollView {
-            if let user = user {
-                VStack(spacing: 8) {
-                    profileHeader(user: user)
-                    statsRow(user: user)
-                    infoSection(user: user)
-                    postsSection
+        ScrollViewReader { proxy in
+            ScrollView {
+                if let user = user {
+                    VStack(spacing: 8) {
+                        ProfileHeaderCard(user: user, mode: appState.currentMode, onStatTap: { stat in
+                            if stat == .posts { withAnimation { proxy.scrollTo("posts", anchor: .top) } }
+                            else { listRoute = stat }
+                        }) {
+                            actions(for: user)
+                        }
+                        postsSection.id("posts")
+                    }
+                } else {
+                    ProgressView().padding(.top, 120)
                 }
-            } else {
-                ProgressView().padding(.top, 60)
             }
+            // The cover runs up under the status bar; its fade keeps it legible.
+            .ignoresSafeArea(edges: .top)
         }
         .background(AppColors.base(colorScheme))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .navigationDestination(item: $listRoute) { stat in
+            switch stat {
+            case .followers: FollowListView(userId: userId, showsFollowers: true)
+            case .following: FollowListView(userId: userId, showsFollowers: false)
+            default:         ConnectionsListView()
+            }
+        }
         .toolbar {
-            if userId != appState.currentUser?.id {
+            if !isSelf {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
+                        if !viewModel.isBlocked {
+                            Button {
+                                Task { await connect.setFollowing(!connect.isFollowing, targetId: userId,
+                                                                  mode: appState.currentMode.rawValue) }
+                            } label: {
+                                Label(bundle.loc(connect.isFollowing ? "Unfollow" : "Follow"),
+                                      systemImage: connect.isFollowing ? "person.crop.circle.badge.xmark"
+                                                                       : "person.crop.circle.badge.plus")
+                            }
+                        }
                         if viewModel.isBlocked {
                             Button {
                                 Task { await viewModel.toggleBlock(userId: userId) }
@@ -115,158 +146,33 @@ struct UserProfileView: View {
         }
     }
 
-    // MARK: Header
-
-    private func profileHeader(user: UserProfile) -> some View {
-        ZStack(alignment: .bottomLeading) {
-            CoverPhotoView(coverUrl: user.coverUrl)
-
-            HStack(alignment: .bottom) {
-                AvatarView(user: user, size: 90)
-                    .overlay(Circle().stroke(Color.white, lineWidth: 4))
-                    .offset(y: 45)
-                    .padding(.leading, 16)
-                Spacer()
-                if userId != appState.currentUser?.id {
-                    Group {
-                        if viewModel.isBlocked {
-                            // Blocked → can no longer connect/message this user
-                            Text("Blocked", bundle: bundle)
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(.red)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(Capsule().fill(Color.red.opacity(0.12)))
-                        } else {
-                            // The companion (Message button) wraps to its own row below
-                            // when Accept + Decline both need to be shown at the same time.
-                            ConnectButton(targetUserId: userId) { AnyView(messageButton) }
-                        }
-                    }
-                    .padding(.trailing, 16)
-                    .padding(.bottom, 12)
-                }
-            }
-        }
-        .padding(.bottom, 50)
-        .background(AppColors.surface(colorScheme))
-    }
-
-    // MARK: Stats
-
-    private func statsRow(user: UserProfile) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(user.name)
-                .font(.system(size: 22, weight: .bold))
-                .foregroundColor(AppColors.textPrimary(colorScheme))
-
-            if let title = user.jobTitle, let company = user.company {
-                Text("\(title) · \(company)")
-                    .font(.system(size: 15))
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-            }
-
-            if !user.bio.isEmpty {
-                Text(user.bio)
-                    .font(.system(size: 14))
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-            }
-
-            if let location = user.location {
-                HStack(spacing: 4) {
-                    Image(systemName: "mappin.circle.fill")
-                        .font(.system(size: 13))
-                    Text(location)
-                        .font(.system(size: 13))
-                }
-                .foregroundColor(AppColors.textSecondary(colorScheme))
-            }
-
-            HStack(spacing: 20) {
-                statItem(count: user.postCount, label: bundle.loc("Posts"))
-                statItem(count: user.connectionCount,
-                         label: appState.currentMode == .hobby
-                             ? bundle.loc("Friends") : bundle.loc("Connections"))
-                Spacer()
-            }
-            .padding(.top, 4)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(AppColors.surface(colorScheme))
-    }
-
-    private func statItem(count: Int, label: String) -> some View {
-        VStack(spacing: 1) {
-            Text("\(count)")
-                .font(.system(size: 17, weight: .bold))
-                .foregroundColor(AppColors.textPrimary(colorScheme))
-            Text(label)
-                .font(.system(size: 12))
-                .foregroundColor(AppColors.textSecondary(colorScheme))
-        }
-    }
-
-    // MARK: Info
+    // MARK: Card buttons
 
     @ViewBuilder
-    private func infoSection(user: UserProfile) -> some View {
-        if !user.skills.isEmpty {
-            chipSection(title: bundle.loc("Skills"), items: user.skills)
-        }
-        if !user.interests.isEmpty {
-            chipSection(title: bundle.loc("Interests"), items: user.interests)
+    private func actions(for user: UserProfile) -> some View {
+        if isSelf {
+            EmptyView()
+        } else if viewModel.isBlocked {
+            // Blocked → can no longer connect with or message this person.
+            Text("Blocked", bundle: bundle)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(AppColors.danger(colorScheme))
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(AppColors.danger(colorScheme).opacity(0.12),
+                            in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
+        } else {
+            ProfileActionBar(targetUserId: userId, targetName: user.name, connect: connect,
+                             isOpeningChat: viewModel.isOpeningChat) { openChat() }
         }
     }
 
-    private func chipSection(title: String, items: [String]) -> some View {
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            Text(title)
-                .appFont(.headline)
-                .foregroundColor(AppColors.textPrimary(colorScheme))
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: AppSpacing.sm) {
-                    ForEach(items, id: \.self) { item in
-                        Chip(text: item, style: .neutral)
-                    }
-                }
-            }
+    private func openChat() {
+        Task {
+            guard let convId = await viewModel.openConversation(
+                with: userId, mode: appState.currentMode, token: appState.authToken) else { return }
+            chatConversationId = convId
+            navigateToChat = true
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(AppSpacing.lg)
-        .background(AppColors.surface(colorScheme))
-    }
-
-    // MARK: Message button
-
-    private var messageButton: some View {
-        Button {
-            Task {
-                guard let convId = await viewModel.openConversation(
-                    with: userId, mode: appState.currentMode, token: appState.authToken) else { return }
-                chatConversationId = convId
-                navigateToChat = true
-            }
-        } label: {
-            HStack(spacing: 4) {
-                if viewModel.isOpeningChat {
-                    ProgressView().scaleEffect(0.7).tint(.white)
-                } else {
-                    Image(systemName: "message.fill")
-                        .font(.system(size: 11, weight: .semibold))
-                }
-                Text("Message", bundle: bundle)
-                    .font(.system(size: 13, weight: .semibold))
-                    .lineLimit(1)
-                    .fixedSize()
-            }
-            .foregroundColor(.white)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
-            .background(Capsule().fill(themeManager.theme.primary))
-        }
-        .buttonStyle(.plain)
-        .disabled(viewModel.isOpeningChat)
     }
 
     // MARK: Posts

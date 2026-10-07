@@ -849,3 +849,14 @@
 "Allow friend requests" = "Allow friend requests";
 "When off, people who aren't your friends can only follow you. You can still send friend requests yourself." = "When off, people who aren't your friends can only follow you. You can still send friend requests yourself.";
 "Couldn't update this setting, please try again" = "Couldn't update this setting, please try again";
+
+// MARK: - Profile header & relationship
+"Requested" = "Requested";
+"Respond" = "Respond";
+"Unfriend" = "Unfriend";
+"Unfriend %@?" = "Unfriend %@?";
+"Cancel request" = "Cancel request";
+"Confirm" = "Confirm";
+"Delete request" = "Delete request";
+"Follow" = "Follow";
+"Unfollow" = "Unfollow";
