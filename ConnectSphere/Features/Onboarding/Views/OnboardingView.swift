@@ -8,6 +8,8 @@ struct OnboardingView: View {
     @State private var showProvincePicker = false
     @State private var showDobPicker = false
     @State private var dobDraft = Date()
+    /// Bumped on a blocked forward swipe/tap — drives the shake + haptic.
+    @State private var blockedAttempts = 0
 
     private let totalSteps = OnboardingViewModel.totalSteps
 
@@ -19,30 +21,69 @@ struct OnboardingView: View {
                 // Progress bar
                 progressBar.padding(.horizontal, 24).padding(.top, 16)
 
-                // Step content — a plain switch, not a swipeable TabView, so the
-                // user can't swipe past a step's required-field validation and
-                // submit an incomplete form. Navigation is Next/Back only.
-                Group {
-                    switch viewModel.step {
-                    case 0:  step0
-                    case 1:  step1
-                    case 2:  step2
-                    default: step3
-                    }
+                // Step content. Swiping right-to-left goes on, left-to-right goes
+                // back; going on is refused (shake) until the step's required
+                // fields are filled, so an incomplete form can't be submitted.
+                ZStack {
+                    stepContent
+                        .id(viewModel.step)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: viewModel.movedForward ? .trailing : .leading),
+                            removal: .move(edge: viewModel.movedForward ? .leading : .trailing)))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .transition(.opacity)
-                .animation(.easeInOut, value: viewModel.step)
+                .clipped()
+                .modifier(ShakeEffect(shakes: CGFloat(blockedAttempts)))
+                .sensoryFeedback(.error, trigger: blockedAttempts)
+                .gesture(StepSwipe(direction: .left, action: goForward))
+                .gesture(StepSwipe(direction: .right, action: goBack))
             }
         }
-        .onAppear { viewModel.prefill(username: appState.currentUser?.username) }
+        .onAppear {
+            viewModel.prefill(username: appState.currentUser?.username,
+                              hasPassword: appState.currentUser?.hasPassword ?? true)
+        }
+    }
+
+    @ViewBuilder
+    private var stepContent: some View {
+        switch viewModel.step {
+        case 0:  step0
+        case 1:  step1
+        case 2:  step2
+        default: step3
+        }
+    }
+
+    private func goForward() {
+        guard viewModel.step < totalSteps - 1 else { return }
+        if viewModel.canAdvance {
+            withAnimation(.snappy) { _ = viewModel.next() }
+        } else {
+            withAnimation(.linear(duration: 0.35)) { blockedAttempts += 1 }
+        }
+    }
+
+    private func goBack() {
+        withAnimation(.snappy) { viewModel.back() }
     }
 
     // MARK: Progress
 
     private var progressBar: some View {
         VStack(spacing: 8) {
-            HStack {
+            HStack(spacing: 6) {
+                if viewModel.canGoBack {
+                    Button(action: goBack) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(AppColors.textSecondary(.light))
+                            .frame(width: 28, height: 28)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text("Back", bundle: bundle))
+                }
                 Text("Set up profile", bundle: bundle)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(AppColors.textSecondary(.light))
@@ -117,6 +158,8 @@ struct OnboardingView: View {
     private var step1: some View {
         OnboardingCard(title: bundle.loc("Basic information"), subtitle: bundle.loc("Enter your display name")) {
             VStack(spacing: 14) {
+                if viewModel.needsUsername { usernameField }
+
                 AuthTextField(icon: "textformat", placeholder: bundle.loc("Display name *"), text: $viewModel.form.display_name)
 
                 // Province picker (required)
@@ -141,7 +184,9 @@ struct OnboardingView: View {
                 }
                 .buttonStyle(.plain)
                 .sheet(isPresented: $showProvincePicker) {
+                    // Sheets don't inherit the screen's forced light scheme.
                     ProvincePickerSheet(selectedId: $viewModel.form.location)
+                        .preferredColorScheme(.light)
                 }
 
                 // Gender picker (required)
@@ -188,6 +233,7 @@ struct OnboardingView: View {
                 .buttonStyle(.plain)
                 .sheet(isPresented: $showDobPicker) {
                     dobPickerSheet
+                        .preferredColorScheme(.light)
                 }
 
                 // Who can see the age — defaults to Private, doesn't affect age-based search
@@ -197,9 +243,43 @@ struct OnboardingView: View {
             if let e = viewModel.errorMessage { errorBanner(e) }
 
             nextButton(
-                enabled: viewModel.basicsComplete,
+                enabled: viewModel.canAdvance,
                 label: bundle.loc("Continue")
             )
+        }
+    }
+
+    /// Google accounts only: choose the @name people find you by.
+    private var usernameField: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            AuthTextField(icon: "at", placeholder: bundle.loc("Username *"), text: $viewModel.username)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            usernameStatusLine
+                .font(.system(size: 12))
+                .padding(.leading, 4)
+        }
+        .task(id: viewModel.form.username) { await viewModel.checkUsername(token: appState.authToken) }
+    }
+
+    @ViewBuilder
+    private var usernameStatusLine: some View {
+        if let problem = viewModel.usernameProblem {
+            Text(problem).foregroundColor(AppColors.danger(.light))
+        } else {
+            switch viewModel.usernameStatus {
+            case .checking:
+                Text("Checking…", bundle: bundle).foregroundColor(AppColors.textTertiary(.light))
+            case .available:
+                Label(bundle.loc("Username available"), systemImage: "checkmark.circle.fill")
+                    .foregroundColor(AppColors.success(.light))
+            case .taken:
+                Text("That username is taken", bundle: bundle).foregroundColor(AppColors.danger(.light))
+            case .failed:
+                Text("Couldn't check the username — try again", bundle: bundle).foregroundColor(AppColors.danger(.light))
+            case .idle:
+                Text(UsernameRules.hint).foregroundColor(AppColors.textTertiary(.light))
+            }
         }
     }
 
@@ -288,9 +368,7 @@ struct OnboardingView: View {
     // MARK: Helpers
 
     private func nextButton(enabled: Bool, label: String) -> some View {
-        GradientButton(title: label, isLoading: false) {
-            withAnimation { viewModel.next() }
-        }
+        GradientButton(title: label, isLoading: false) { goForward() }
         .opacity(enabled ? 1 : 0.5)
         .disabled(!enabled)
     }
@@ -415,5 +493,57 @@ struct ProvincePickerSheet: View {
                 }
             }
         }
+    }
+}
+
+/// Horizontal wobble, one full shake per unit of `shakes`.
+private struct ShakeEffect: GeometryEffect {
+    var shakes: CGFloat
+    var animatableData: CGFloat {
+        get { shakes }
+        set { shakes = newValue }
+    }
+
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        ProjectionTransform(CGAffineTransform(translationX: 8 * sin(shakes * .pi * 4), y: 0))
+    }
+}
+
+/// A step-to-step page swipe. UIKit's swipe recognizer rather than a SwiftUI
+/// `DragGesture`: it only ever fires on a horizontal flick, so the step's own
+/// vertical scrolling is untouched, and taps underneath wait for it to fail —
+/// a swipe that starts on a full-width row (Province, Date of birth) no
+/// longer also taps it open.
+private struct StepSwipe: UIGestureRecognizerRepresentable {
+    let direction: UISwipeGestureRecognizer.Direction
+    let action: () -> Void
+
+    func makeUIGestureRecognizer(context: Context) -> UISwipeGestureRecognizer {
+        let recognizer = UISwipeGestureRecognizer()
+        recognizer.direction = direction
+        recognizer.delegate = context.coordinator
+        return recognizer
+    }
+
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator { Coordinator() }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        /// The step's scroll view grabs every pan first; without this the
+        /// swipe never got to recognize at all.
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
+
+        /// Taps underneath (a row's button) wait until this swipe has failed —
+        /// which a plain tap does the moment the finger lifts — so a swipe
+        /// starting on the Province row no longer also opens its picker.
+        /// Scrolling is left alone so it never waits on the swipe.
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                               shouldBeRequiredToFailBy other: UIGestureRecognizer) -> Bool {
+            !(other is UIPanGestureRecognizer) && !(other is UISwipeGestureRecognizer)
+        }
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: UISwipeGestureRecognizer, context: Context) {
+        if recognizer.state == .ended { action() }
     }
 }

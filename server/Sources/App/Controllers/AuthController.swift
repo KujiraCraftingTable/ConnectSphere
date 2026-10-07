@@ -199,10 +199,14 @@ struct AuthController {
 
     static func setup(_ req: Request) async throws -> MeResponse {
         let b = try req.content.decode(SetupBody.self)
-        let username = (b.username ?? "").trimmingCharacters(in: .whitespaces)
+        let username = (b.username ?? "").trimmingCharacters(in: .whitespaces).lowercased()
         let displayName = (b.display_name ?? "").trimmingCharacters(in: .whitespaces)
         let location = (b.location ?? "").trimmingCharacters(in: .whitespaces)
         guard !username.isEmpty else { throw InlineError(.badRequest, "username is required") }
+        // Same format as /register — a Google account picks its name here.
+        guard matches(usernameRegex, username) else {
+            throw InlineError(.badRequest, "Username must be 3-30 characters: lowercase letters, numbers, underscore")
+        }
         guard !displayName.isEmpty else { throw InlineError(.badRequest, "display_name is required") }
         guard !location.isEmpty else { throw InlineError(.badRequest, "location is required") }
 

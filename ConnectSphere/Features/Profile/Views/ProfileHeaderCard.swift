@@ -7,8 +7,8 @@ enum ProfileStat {
 
 /// A profile's whole header as one component, Facebook-style: the cover runs
 /// edge to edge up under the status bar (its top fades into the page so the
-/// clock and nav buttons stay legible) and melts into a blurred copy of itself
-/// that carries on behind a floating rounded card — inset like the post cards —
+/// clock and nav buttons stay legible) and stays sharp down to a blurred copy
+/// of itself that carries on behind a floating rounded card — inset like the post cards —
 /// fading to the page colour just below it. The card holds a large centred
 /// avatar, name, job, the four counts, the full bio, this mode's interests or
 /// skills, and the action buttons.
@@ -60,14 +60,9 @@ struct ProfileHeaderCard<Actions: View>: View {
 
     // MARK: Cover
 
-    /// The framed cover, exactly as cropped; its lower part melts into the backdrop.
+    /// The framed cover, exactly as cropped and sharp right down to the card.
     private var cover: some View {
         CoverPhotoView(coverUrl: user.coverUrl)
-            .mask(LinearGradient(stops: [
-                .init(color: .black, location: 0),
-                .init(color: .black, location: 0.85),
-                .init(color: .clear, location: 1),
-            ], startPoint: .top, endPoint: .bottom))
             .overlay(alignment: .top) {
                 GeometryReader { geo in
                     LinearGradient(

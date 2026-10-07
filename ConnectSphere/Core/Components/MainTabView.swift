@@ -112,7 +112,9 @@ struct MainTabView: View {
     /// iOS 26+: the system Liquid Glass tab bar — Home · Community ·
     /// Notifications · Profile in the pill, Search detached beside it.
     /// System `Tab(_:systemImage:)` labels (titles stay for VoiceOver;
-    /// `.iconOnly` hides them on screen).
+    /// `.iconOnly` hides them on screen). `.labelStyle` is inherited, so each
+    /// tab's content resets it to `.automatic` — otherwise every `Label`
+    /// inside the app (a profile's location, a job's place) lost its text.
     ///
     /// Tab *values* are unchanged from before the reorder, so everything that
     /// switches tabs by value (deep links, the assistant, `resetTabState`)
@@ -122,21 +124,26 @@ struct MainTabView: View {
         TabView(selection: tabSelection) {
             Tab(bundle.loc("Home"), systemImage: "house", value: 0) {
                 FeedView(selectedTab: $selectedTab)
+                    .labelStyle(.automatic)
             }
             Tab(bundle.loc("Community"), systemImage: "person.3", value: 2) {
                 CommunitiesView(navPath: $communityNavPath)
+                    .labelStyle(.automatic)
             }
             Tab(bundle.loc("Notifications"), systemImage: "bell", value: 3) {
                 NotificationsView()
+                    .labelStyle(.automatic)
             }
             .badge(appState.notificationUnreadCount > 0 ? appState.notificationUnreadCount : 0)
             Tab(bundle.loc("Profile"), systemImage: "person", value: 4) {
                 ProfileView(navPath: $profileNavPath)
+                    .labelStyle(.automatic)
             }
             // The app's one search entry (people + posts); SearchView keeps
             // its own field and AI toggle inside its NavigationStack.
             Tab(bundle.loc("Search"), systemImage: "magnifyingglass", value: 1, role: searchTabRole) {
                 SearchView(navPath: $searchNavPath)
+                    .labelStyle(.automatic)
             }
         }
         .labelStyle(.iconOnly)

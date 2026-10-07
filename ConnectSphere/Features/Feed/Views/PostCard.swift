@@ -72,6 +72,9 @@ struct PostCard: View {
     /// The content region's true natural height, kept live via `readHeight`
     /// while it fits the budget; `nil` until first measured.
     @State private var measuredContentHeight: CGFloat? = nil
+    /// Natural height of the body while expanded — the expanded region shrinks
+    /// to it, so short media doesn't leave a blank band under itself.
+    @State private var expandedContentHeight: CGFloat? = nil
     /// Drives the in-app browser (see `openLink(_:)`) for a tapped http(s)
     /// link — the link-preview card or an in-text URL.
     @State private var inAppBrowserURL: URL?
@@ -338,15 +341,23 @@ struct PostCard: View {
                     contentBudget,
                     (expandedTotalHeight ?? totalBudget * 2) - measuredHeaderHeight - measuredActionsHeight - 9
                 )
+                let expandedCap = min(expandedBudget, 480)
                 ZStack(alignment: .bottomTrailing) {
                     ScrollView {
+                        // Not `readHeight`: its shared preference key also carries
+                        // the heights of views inside the post, and the last one
+                        // reported (a single text line) won — collapsing the region.
                         postBody
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                                expandedContentHeight = $0
+                            }
                     }
                     // Generous but still bounded — even a very long post stays
                     // scrollable within its own region instead of swallowing
                     // the whole screen (and pushing the comments panel away,
                     // which is exactly the problem this feature avoids).
-                    .frame(height: min(expandedBudget, 480))
+                    // Collapse floats over the content's corner, never its own row.
+                    .frame(height: min(expandedContentHeight ?? expandedCap, expandedCap))
                     expandCollapseButton(systemImage: "chevron.up", label: "Collapse") {
                         withAnimation(.easeInOut(duration: 0.22)) { isContentExpanded = false }
                     }
@@ -394,10 +405,9 @@ struct PostCard: View {
                 Image(systemName: systemImage)
                     .font(.system(size: 10, weight: .semibold))
             }
-            .foregroundColor(.white)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(Color.black.opacity(0.55), in: Capsule())
+            .modifier(FloatingCapsuleStyle())
         }
         .buttonStyle(.plain)
         .padding(8)
@@ -852,5 +862,21 @@ private extension View {
             }
         )
         .onPreferenceChange(HeightPreferenceKey.self, perform: onChange)
+    }
+}
+
+/// Expand / Collapse capsule floating over media: Liquid Glass on iOS 26+,
+/// a dark translucent capsule before.
+private struct FloatingCapsuleStyle: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .foregroundStyle(.primary)
+                .glassEffect(.regular.interactive(), in: Capsule())
+        } else {
+            content
+                .foregroundColor(.white)
+                .background(Color.black.opacity(0.55), in: Capsule())
+        }
     }
 }

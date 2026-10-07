@@ -260,8 +260,10 @@ struct ConversationListView: View {
             unreadFilterButton(true, label: bundle.loc("Unread"))
             Spacer()
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 2)
+        // Feed's scope row sits 12 pt inside an 8 pt-inset stack — same here,
+        // so the pills line up with the cards' content instead of their edges.
+        .padding(.horizontal, AppSpacing.sm + 12)
+        .padding(.top, AppSpacing.sm)
     }
 
     private func unreadFilterButton(_ value: Bool, label: String) -> some View {

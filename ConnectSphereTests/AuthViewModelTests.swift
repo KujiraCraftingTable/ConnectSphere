@@ -47,7 +47,7 @@ struct AuthViewModelTests {
 
     @Test func onboardingBasicsAndSkillsParsing() {
         let vm = OnboardingViewModel()
-        vm.prefill(username: "kujira")
+        vm.prefill(username: "kujira", hasPassword: true)
         #expect(vm.form.username == "kujira")
         #expect(!vm.basicsComplete)
         vm.form.display_name = "Kujira"
@@ -59,6 +59,39 @@ struct AuthViewModelTests {
         #expect(vm.form.skills == ["Swift", "Python", "UI/UX"])
         for _ in 0..<10 { vm.next() }
         #expect(vm.step == OnboardingViewModel.totalSteps - 1)
+    }
+
+    @Test func onboardingBlocksIncompleteStepAndGoesBack() {
+        let vm = OnboardingViewModel()
+        vm.prefill(username: "kujira", hasPassword: true)
+        #expect(!vm.canGoBack)
+        #expect(vm.next())                 // mode → basics
+        #expect(!vm.canAdvance)
+        #expect(!vm.next())                // basics incomplete: stays
+        #expect(vm.step == 1)
+        vm.back()
+        #expect(vm.step == 0 && !vm.movedForward)
+    }
+
+    @Test func googleAccountMustChooseAvailableUsername() {
+        let vm = OnboardingViewModel()
+        vm.prefill(username: "user_1a2b3c4d", hasPassword: false)
+        #expect(vm.needsUsername)
+        #expect(vm.form.username.isEmpty)   // the placeholder isn't kept
+        vm.form.display_name = "K"; vm.form.location = "79"; vm.form.gender = "male"; vm.form.dob = "2000-01-01"
+        vm.username = "Kujira_Dev"
+        #expect(vm.form.username == "kujira_dev")
+        #expect(!vm.basicsComplete)        // not confirmed available yet
+    }
+
+    @Test func usernameRulesMatchServerFormat() {
+        #expect(UsernameRules.problem("") == nil)
+        #expect(UsernameRules.isValid("kujira_99"))
+        #expect(!UsernameRules.isValid("ab"))
+        #expect(!UsernameRules.isValid("café"))
+        #expect(!UsernameRules.isValid("has space"))
+        #expect(!UsernameRules.isValid(String(repeating: "a", count: 31)))
+        #expect(UsernameRules.isValid(String(repeating: "a", count: 30)))
     }
 
     @Test func personaSetupNeedsDisplayName() {

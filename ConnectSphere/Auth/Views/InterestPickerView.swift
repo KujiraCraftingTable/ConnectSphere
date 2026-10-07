@@ -53,6 +53,8 @@ struct InterestPickerView: View {
     @State private var showSubItemSheet = false
     @State private var pendingCategory  = ""
     @State private var subItemInput     = ""
+    /// The sheet hugs its content instead of a guessed fixed height.
+    @State private var subItemSheetHeight: CGFloat = 220
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -78,8 +80,13 @@ struct InterestPickerView: View {
         }
         .sheet(isPresented: $showSubItemSheet) {
             subItemSheet
-                .presentationDetents([.height(280)])
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { subItemSheetHeight = $0 }
+                .presentationDetents([.height(subItemSheetHeight)])
                 .presentationDragIndicator(.visible)
+                // A sheet doesn't inherit the host's forced scheme (onboarding is
+                // always light), so without this the field's text came out white
+                // on the light background under a dark system appearance.
+                .preferredColorScheme(colorScheme)
         }
     }
 
@@ -143,20 +150,21 @@ struct InterestPickerView: View {
             VStack(spacing: 4) {
                 Text(pendingCategory)
                     .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(AppColors.textPrimary(.light))
+                    .foregroundColor(AppColors.textPrimary(colorScheme))
                 Text(String(format: bundle.loc("Specifically which %@? (optional)"), pendingCategory.lowercased()))
                     .font(.system(size: 14))
-                    .foregroundColor(AppColors.textSecondary(.light))
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
             }
-            .padding(.top, 8)
+            .padding(.top, AppSpacing.xl)
 
             TextField(String(format: bundle.loc("e.g. %@"), subItemPlaceholder(pendingCategory)), text: $subItemInput)
                 .font(.system(size: 16))
+                .foregroundColor(AppColors.textPrimary(colorScheme))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 13)
-                .background(AppColors.surface(.light))
+                .background(AppColors.surface(colorScheme))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(AppColors.borderDefault(.light), lineWidth: 1))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(AppColors.borderDefault(colorScheme), lineWidth: 1))
                 .padding(.horizontal, 20)
                 .submitLabel(.done)
                 .onSubmit { confirmSubItem() }
@@ -168,10 +176,10 @@ struct InterestPickerView: View {
                     showSubItemSheet = false
                 }
                 .font(.system(size: 15, weight: .medium))
-                .foregroundColor(AppColors.textSecondary(.light))
+                .foregroundColor(AppColors.textSecondary(colorScheme))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 13)
-                .background(AppColors.surface(.light))
+                .background(AppColors.surface(colorScheme))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
 
                 // Add with sub-item
@@ -185,10 +193,10 @@ struct InterestPickerView: View {
                 .background(themeManager.theme.primary, in: RoundedRectangle(cornerRadius: 12))
             }
             .padding(.horizontal, 20)
-
-            Spacer()
         }
-        .background(AppColors.base(.light).ignoresSafeArea())
+        .padding(.bottom, AppSpacing.lg)
+        .frame(maxWidth: .infinity)
+        .background(AppColors.base(colorScheme).ignoresSafeArea())
     }
 
     // MARK: Helpers
