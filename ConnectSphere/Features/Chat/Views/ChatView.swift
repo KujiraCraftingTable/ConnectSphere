@@ -7,6 +7,7 @@ struct ChatView: View {
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) private var dismiss
+    @State private var showDeleteRequestConfirm = false
     @Environment(\.appBundle) var bundle
     @Environment(FloatingChatPresenter.self) var floatingChatPresenter
 
@@ -174,7 +175,21 @@ struct ChatView: View {
             }
             messageList
             Divider()
-            inputBar
+            // Message requests (someone who isn't a friend yet): the recipient
+            // decides here; the starter sees how many messages they have left,
+            // and once they're used up, waits instead of typing.
+            if viewModel.requestState == .waiting {
+                requestDecisionBar
+            } else if viewModel.isWaitingForAcceptance {
+                requestNotice(String(format: bundle.loc("Waiting for %@ to accept your messages"), headerName),
+                              icon: "hourglass")
+            } else {
+                if viewModel.requestState == .sent, let left = viewModel.requestsLeft {
+                    requestNotice(String(format: bundle.loc("You can send %lld more messages until %@ accepts"), left, headerName),
+                                  icon: "exclamationmark.bubble")
+                }
+                inputBar
+            }
         }
         // ignoresSafeArea (which covers .keyboard by default) so the background extends behind
         // iOS 26's floating keyboard — otherwise there's a system black bar between the input bar and the keyboard
@@ -998,6 +1013,56 @@ struct ChatView: View {
     }
 
     // MARK: - Input bar
+
+    // MARK: - Message requests
+
+    private func requestNotice(_ text: String, icon: String) -> some View {
+        Label(text, systemImage: icon)
+            .labelStyle(.titleAndIcon)
+            .font(.system(size: 13, weight: .medium))
+            .foregroundColor(AppColors.textSecondary(colorScheme))
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, AppSpacing.lg)
+            .padding(.vertical, AppSpacing.sm)
+            .background(AppColors.elevated(colorScheme))
+    }
+
+    private var requestDecisionBar: some View {
+        VStack(spacing: AppSpacing.sm) {
+            Text(String(format: bundle.loc("%@ isn't your friend yet. Accept to move this chat to your inbox and reply."), headerName))
+                .font(.system(size: 13))
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+                .multilineTextAlignment(.center)
+            HStack(spacing: AppSpacing.sm) {
+                Button(role: .destructive) { showDeleteRequestConfirm = true } label: {
+                    Text("Delete", bundle: bundle)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(AppColors.danger(colorScheme))
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
+                }
+                Button { Task { await viewModel.acceptRequest() } } label: {
+                    Text("Accept", bundle: bundle)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .background(chatPalette.primary, in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
+                }
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(AppSpacing.md)
+        .background(AppColors.surface(colorScheme))
+        .alert(bundle.loc("Delete this chat?"), isPresented: $showDeleteRequestConfirm) {
+            Button(bundle.loc("Delete"), role: .destructive) {
+                Task { if await viewModel.deleteChatForMe() { dismiss() } }
+            }
+            Button(bundle.loc("Cancel"), role: .cancel) {}
+        } message: {
+            Text("Its messages are removed for you only. It comes back if a new message arrives.", bundle: bundle)
+        }
+    }
 
     private var inputBar: some View {
         // Groups are alert-only (Leave/Stay) — the input bar always stays

@@ -22,6 +22,14 @@ enum ConversationPeer: Equatable {
     )
 }
 
+/// A 1-on-1 chat with someone who isn't a friend yet (migration 040).
+enum MessageRequestState: String, Decodable {
+    /// They wrote to me; it sits in Waiting until I accept, reply, or we become friends.
+    case waiting
+    /// I wrote to them; I can send `MessageRequests.limit` messages until they accept.
+    case sent
+}
+
 /// A row from `GET /messages/conversations` — either a 1:1 or a group
 /// conversation. The "irrelevant half" of the backend row (direct-only or
 /// group-only columns) is NULL and folded into `peer` at decode time.
@@ -31,7 +39,15 @@ struct Conversation: Identifiable, Decodable, Equatable {
     let isGroup: Bool
     let theme: String?
     let updatedAt: Date
-    let mutedUntil: Date?
+    // `var`: the Messages swipe actions update these in place before the server answers.
+    var mutedUntil: Date?
+    /// Pinned to the top of *my* list (each participant pins independently).
+    var isPinned: Bool
+    /// Moved out of *my* main list; a new message brings it back.
+    var isArchived: Bool
+    var requestState: MessageRequestState?
+    /// How many more messages I can send before they accept (`.sent` only).
+    var requestsLeft: Int?
     let peer: ConversationPeer
 
     let lastMessageContent: String?
@@ -41,13 +57,17 @@ struct Conversation: Identifiable, Decodable, Equatable {
     let lastMessageSenderId: String?
     let lastMessageAt: Date?
 
-    let unreadCount: Int
+    var unreadCount: Int
 
     enum CodingKeys: String, CodingKey {
         case id, mode, theme
         case isGroup   = "is_group"
         case updatedAt = "updated_at"
         case mutedUntil = "muted_until"
+        case pinnedAt   = "pinned_at"
+        case archivedAt = "archived_at"
+        case requestState = "request_state"
+        case requestsLeft = "requests_left"
 
         case otherUserId          = "other_user_id"
         case otherUserUsername    = "other_user_username"
@@ -78,6 +98,10 @@ struct Conversation: Identifiable, Decodable, Equatable {
         theme = try c.decodeIfPresent(String.self, forKey: .theme)
         updatedAt = try c.decode(Date.self, forKey: .updatedAt)
         mutedUntil = try c.decodeIfPresent(Date.self, forKey: .mutedUntil)
+        isPinned = try c.decodeIfPresent(Date.self, forKey: .pinnedAt) != nil
+        isArchived = try c.decodeIfPresent(Date.self, forKey: .archivedAt) != nil
+        requestState = try? c.decodeIfPresent(MessageRequestState.self, forKey: .requestState)
+        requestsLeft = try c.decodeIfPresent(Int.self, forKey: .requestsLeft)
 
         if isGroup {
             let name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
@@ -113,6 +137,8 @@ struct Conversation: Identifiable, Decodable, Equatable {
 
     /// True when the current user has unread messages in this conversation.
     var hasUnread: Bool { unreadCount > 0 }
+
+    var isMuted: Bool { mutedUntil.map { $0 > Date() } ?? false }
 
     /// The other 1:1 participant's id — nil for groups (no single "other person").
     var otherUserId: String? {

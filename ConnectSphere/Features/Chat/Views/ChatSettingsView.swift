@@ -55,6 +55,14 @@ struct ChatSettingsView: View {
 
     @State private var showBlockConfirm = false
 
+    // Spaces + "Create group with …" (1-on-1 only)
+    @State private var spacesViewModel = SpacesViewModel()
+    @State private var showSpaceMembership = false
+    @State private var showNewSpaceForPerson = false
+    @State private var showGroupPicker = false
+    @State private var pendingGroupMemberIds: Set<String> = []
+    @State private var showNewGroupDetails = false
+
     private let groupColorSwatches = [
         "#7F5AF0", "#2CB67D", "#FF8906", "#E53170", "#3DA9FC",
         "#F25F4C", "#8A8F98", "#0F4C5C", "#EF7674", "#5C6BC0",
@@ -99,6 +107,7 @@ struct ChatSettingsView: View {
             ScrollView {
                 VStack(spacing: 24) {
                     header
+                    if !isGroup { peopleCard }
                     actionsList
                 }
                 .padding(.top, 16)
@@ -324,6 +333,114 @@ struct ChatSettingsView: View {
     }
 
     // MARK: - Actions list
+
+    // MARK: - Spaces + group (1-on-1)
+
+    private var personSpaces: [ChatSpace] {
+        peer.otherUserId.map(spacesViewModel.spaces(containing:)) ?? []
+    }
+
+    private var peopleCard: some View {
+        VStack(spacing: 0) {
+            Button { showSpaceMembership = true } label: {
+                SettingsRow(icon: "square.grid.2x2.fill", iconColor: personSpaces.first?.color.color ?? .teal,
+                            title: bundle.loc("Spaces"), colorScheme: colorScheme,
+                            subtitle: personSpaces.isEmpty
+                                ? bundle.loc("Not in a space yet")
+                                : personSpaces.map(\.name).joined(separator: " · "),
+                            showsChevron: true)
+            }
+            .buttonStyle(.plain)
+            divider
+            Button { showGroupPicker = true } label: {
+                SettingsRow(icon: "person.3.fill", iconColor: themeManager.theme.primary,
+                            title: String(format: bundle.loc("Create group with %@"), displayName),
+                            colorScheme: colorScheme, showsChevron: true)
+            }
+            .buttonStyle(.plain)
+        }
+        .background(AppColors.surface(colorScheme))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .padding(.horizontal, 16)
+        .task {
+            await spacesViewModel.load(mode: appState.currentMode.rawValue, token: token)
+        }
+        .sheet(isPresented: $showSpaceMembership) {
+            SpaceMembershipSheet(
+                personName: displayName,
+                spaces: spacesViewModel.spaces,
+                personId: peer.otherUserId ?? "",
+                onToggle: { space, isIn in
+                    Task {
+                        await spacesViewModel.setMembership(of: peer.otherUserId ?? "", in: space,
+                                                            isMember: isIn, token: token)
+                    }
+                },
+                onNewSpace: {
+                    showSpaceMembership = false
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(450))
+                        showNewSpaceForPerson = true
+                    }
+                }
+            )
+        }
+        .sheet(isPresented: $showNewSpaceForPerson) {
+            SpaceEditorSheet(title: bundle.loc("New space"), confirmTitle: bundle.loc("Create"),
+                             isSaving: spacesViewModel.isSaving) { name, color in
+                await spacesViewModel.create(name: name, color: color, memberIds: [peer.otherUserId ?? ""],
+                                             mode: appState.currentMode.rawValue, token: token) != nil
+            }
+        }
+        .sheet(isPresented: $showGroupPicker) {
+            GroupMemberPickerView(
+                excludedUserIds: Set([peer.otherUserId ?? ""]),
+                remainingSlots: 98,  // 100-member cap minus me and this person
+                confirmTitle: bundle.loc("Next"),
+                minimumSelection: 1,
+                note: String(format: bundle.loc("With %@ — add at least 1 more person. A group needs 3 people or more."), displayName),
+                onConfirm: { ids in
+                    pendingGroupMemberIds = ids
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(450))
+                        showNewGroupDetails = true
+                    }
+                }
+            )
+            .environment(appState)
+        }
+        .sheet(isPresented: $showNewGroupDetails) {
+            NewGroupDetailsSheet(memberCount: pendingGroupMemberIds.count + 1,
+                                 isCreating: viewModel.isCreatingGroup) { name in
+                Task { await createGroup(name: name) }
+            }
+        }
+        .alert(bundle.loc("Error"), isPresented: Binding(
+            get: { spacesViewModel.error != nil || viewModel.error != nil },
+            set: { if !$0 { spacesViewModel.error = nil; viewModel.error = nil } }
+        )) {
+            Button(bundle.loc("OK")) {}
+        } message: {
+            Text(spacesViewModel.error ?? viewModel.error ?? "")
+        }
+    }
+
+    private func createGroup(name: String) async {
+        guard let otherId = peer.otherUserId,
+              let id = await viewModel.createGroup(with: otherId, plus: pendingGroupMemberIds,
+                                                   name: name.isEmpty ? nil : name,
+                                                   mode: appState.currentMode.rawValue) else { return }
+        let memberCount = pendingGroupMemberIds.count + 2
+        showNewGroupDetails = false
+        pendingGroupMemberIds = []
+        dismiss()
+        // Messages opens the new group in place of this chat.
+        NotificationCenter.default.post(name: .openConversation, object: ChatRoute(
+            conversationId: id,
+            peer: .group(name: name.isEmpty ? bundle.loc("Group") : name, avatarUrl: nil, avatarColor: nil,
+                         memberCount: memberCount),
+            location: nil))
+    }
 
     private var actionsList: some View {
         VStack(spacing: 0) {

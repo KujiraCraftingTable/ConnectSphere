@@ -6,6 +6,9 @@ import Foundation
 /// `.userBlockStatusChanged` cross-screen sync pattern. `userInfo["conversationId"]`
 /// carries which conversation was left.
 extension Notification.Name {
+    /// Ask Messages to open a conversation; `object` is a `ChatRoute` (e.g. a
+    /// group just created from a 1-on-1 chat's settings).
+    static let openConversation = Notification.Name("openConversation")
     static let userLeftGroupConversation = Notification.Name("MessageRepository.userLeftGroupConversation")
 }
 
@@ -489,6 +492,29 @@ struct MessageRepository {
     }
 
     /// Total unread message count for the badge on the chat icon.
+    /// Accept a message request — the chat moves from Waiting to my inbox.
+    func acceptRequest(conversationId: String, token: String) async throws {
+        struct Accepted: Decodable { let accepted: Bool }
+        _ = try await client.fetch(Accepted.self, path: "/messages/conversations/\(conversationId)/accept",
+                                   method: "POST", token: token)
+    }
+
+    /// Pin or unpin a conversation at the top of my own list.
+    func setPinned(conversationId: String, pinned: Bool, token: String) async throws {
+        struct Body: Encodable { let pinned: Bool }
+        struct State: Decodable { let pinned: Bool? }
+        _ = try await client.fetch(State.self, path: "/messages/conversations/\(conversationId)/pin", method: "PUT",
+                                   token: token, bodyData: try JSONEncoder().encode(Body(pinned: pinned)))
+    }
+
+    /// Archive or unarchive a conversation in my own list.
+    func setArchived(conversationId: String, archived: Bool, token: String) async throws {
+        struct Body: Encodable { let archived: Bool }
+        struct State: Decodable { let archived: Bool? }
+        _ = try await client.fetch(State.self, path: "/messages/conversations/\(conversationId)/archive", method: "PUT",
+                                   token: token, bodyData: try JSONEncoder().encode(Body(archived: archived)))
+    }
+
     func fetchUnreadCount(mode: String, token: String) async throws -> Int {
         struct CountResponse: Decodable { let count: Int }
         let response = try await client.fetch(

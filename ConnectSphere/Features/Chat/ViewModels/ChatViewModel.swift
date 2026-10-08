@@ -20,6 +20,12 @@ class ChatViewModel {
 
     // 1:1-only settings
     var otherNickname: String?
+    /// Message request state for this 1-on-1 chat (nil once it's a normal chat).
+    var requestState: MessageRequestState?
+    /// Messages I can still send before they accept (`.sent` only).
+    var requestsLeft: Int?
+    /// I started this chat with someone who isn't a friend and used up my messages.
+    var isWaitingForAcceptance: Bool { requestState == .sent && (requestsLeft ?? 1) <= 0 }
 
     // Group-only settings (populated when `isGroup`)
     var groupName: String?
@@ -198,6 +204,39 @@ class ChatViewModel {
             groupMembers     = s.members
         } else {
             otherNickname = s.otherUserNickname
+            requestState = s.requestState
+            requestsLeft = s.requestsLeft
+        }
+    }
+
+    /// Clears this chat for me (it leaves my list until a new message arrives).
+    func deleteChatForMe() async -> Bool {
+        do {
+            try await repository.clearConversation(conversationId: conversationId, token: token)
+            return true
+        } catch {
+            self.error = friendlyError(error)
+            return false
+        }
+    }
+
+    /// Accept their message request (I'm the recipient) — same as replying.
+    func acceptRequest() async {
+        do {
+            try await repository.acceptRequest(conversationId: conversationId, token: token)
+            requestState = nil
+        } catch {
+            self.error = friendlyError(error)
+        }
+    }
+
+    /// Keeps the "N messages left" warning in step after each send, and treats
+    /// my reply to a waiting request as accepting it (the server does the same).
+    private func noteMessageSent() {
+        switch requestState {
+        case .sent: requestsLeft = max(0, (requestsLeft ?? 0) - 1)
+        case .waiting: requestState = nil
+        case nil: break
         }
     }
 
@@ -263,7 +302,10 @@ class ChatViewModel {
             ]
             if let replyToMessageId { payload["replyToMessageId"] = replyToMessageId }
             if case .failure(let err) = await emitWithAck("send_message", payload) {
-                self.error = friendlyError(err)
+                // Server reasons (e.g. the message-request limit) have vi entries.
+                self.error = Bundle.app.loc(friendlyError(err))
+            } else {
+                noteMessageSent()
             }
         } else {
             do {
@@ -275,8 +317,13 @@ class ChatViewModel {
                     token: token
                 )
                 messages.append(msg)
+                noteMessageSent()
             } catch {
-                self.error = Bundle.app.loc("Failed to send message")
+                if case APIError.serverError(403, _) = error {
+                    self.error = Bundle.app.loc(friendlyError(error))
+                } else {
+                    self.error = Bundle.app.loc("Failed to send message")
+                }
             }
         }
     }
@@ -307,7 +354,9 @@ class ChatViewModel {
                 if let voiceDurationSeconds { payload["voiceDurationSeconds"] = voiceDurationSeconds }
                 if let voiceWaveform { payload["voiceWaveform"] = voiceWaveform }
                 if case .failure(let err) = await emitWithAck("send_message", payload) {
-                    self.error = friendlyError(err)
+                    self.error = Bundle.app.loc(friendlyError(err))
+                } else {
+                    noteMessageSent()
                 }
             } else {
                 let msg = try await repository.sendMessage(
@@ -321,6 +370,7 @@ class ChatViewModel {
                     token: token
                 )
                 messages.append(msg)
+                noteMessageSent()
             }
         } catch {
             self.error = Bundle.app.loc("Failed to upload media")
@@ -369,7 +419,9 @@ class ChatViewModel {
                 if let content { payload["content"] = content }
                 if let replyToMessageId { payload["replyToMessageId"] = replyToMessageId }
                 if case .failure(let err) = await emitWithAck("send_message", payload) {
-                    self.error = friendlyError(err)
+                    self.error = Bundle.app.loc(friendlyError(err))
+                } else {
+                    noteMessageSent()
                 }
             } else {
                 let msg = try await repository.sendMessage(
@@ -377,6 +429,7 @@ class ChatViewModel {
                     mediaUrl: items.first?.url, mediaItems: items,
                     replyToMessageId: replyToMessageId, token: token)
                 messages.append(msg)
+                noteMessageSent()
             }
         } catch {
             self.error = Bundle.app.loc("Failed to upload media")

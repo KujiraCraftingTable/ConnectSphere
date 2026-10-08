@@ -20,11 +20,17 @@ struct GroupMemberPickerView: View {
     let remainingSlots: Int
     /// Label for the confirm button ("Next" for creation, "Add" for an existing group).
     let confirmTitle: String
+    /// Confirm stays disabled until at least this many are picked.
+    var minimumSelection = 1
+    /// A line above the list (e.g. "With Minh — add at least 1 more person").
+    var note: String? = nil
     /// Called with the chosen user ids once the user taps confirm; the sheet
     /// dismisses itself right after.
     let onConfirm: (Set<String>) -> Void
 
     @State private var viewModel = GroupMemberPickerViewModel()
+
+    private var canConfirm: Bool { viewModel.selectedIds.count >= max(1, minimumSelection) }
 
     var body: some View {
         NavigationStack {
@@ -34,7 +40,16 @@ struct GroupMemberPickerView: View {
                 } else if viewModel.connections.isEmpty {
                     emptyState
                 } else {
-                    List(viewModel.connections) { item in
+                    List {
+                        if let note {
+                            Section {
+                                Text(note)
+                                    .font(.system(size: 13))
+                                    .foregroundColor(AppColors.textSecondary(colorScheme))
+                                    .listRowBackground(Color.clear)
+                            }
+                        }
+                        ForEach(viewModel.connections) { item in
                         Button {
                             viewModel.toggle(item.user.id, cap: remainingSlots)
                         } label: {
@@ -42,6 +57,7 @@ struct GroupMemberPickerView: View {
                         }
                         .buttonStyle(.plain)
                         .listRowBackground(AppColors.surface(colorScheme))
+                        }
                     }
                     .listStyle(.plain)
                 }
@@ -58,8 +74,9 @@ struct GroupMemberPickerView: View {
                         onConfirm(viewModel.selectedIds)
                         dismiss()
                     }
-                    .disabled(viewModel.selectedIds.isEmpty)
-                    .foregroundColor(themeManager.theme.primary)
+                    .disabled(!canConfirm)
+                    // An explicit colour would hide the disabled state, so it follows it.
+                    .foregroundColor(canConfirm ? themeManager.theme.primary : AppColors.textTertiary(colorScheme))
                 }
                 ToolbarItem(placement: .principal) {
                     if !viewModel.selectedIds.isEmpty {

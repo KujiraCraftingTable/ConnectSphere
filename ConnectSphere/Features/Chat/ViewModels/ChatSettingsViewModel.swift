@@ -10,6 +10,7 @@ class ChatSettingsViewModel {
     var settings: ConversationSettings?
     var isLoading = false
     var error: String?
+    private(set) var isCreatingGroup = false
 
     // Media gallery
     var media: [ChatMediaItem] = []
@@ -197,6 +198,23 @@ class ChatSettingsViewModel {
             return isBlocked
         } catch {
             blockErrorMessage = friendlyError(error)
+            return nil
+        }
+    }
+
+    // MARK: - Group from this chat
+
+    /// Makes a group of me, the person in this chat and the people picked
+    /// (the server needs at least 3 people in total). Returns the new id.
+    func createGroup(with otherUserId: String, plus memberIds: Set<String>, name: String?,
+                     mode: String) async -> String? {
+        isCreatingGroup = true
+        defer { isCreatingGroup = false }
+        do {
+            return try await repository.createGroup(memberIds: [otherUserId] + memberIds.sorted(),
+                                                    mode: mode, name: name, token: token)
+        } catch {
+            self.error = friendlyError(error)
             return nil
         }
     }

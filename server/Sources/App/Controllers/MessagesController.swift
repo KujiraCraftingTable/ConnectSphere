@@ -19,6 +19,9 @@ struct MessagesController {
         m.post("conversations", use: openConversation)
         m.post("conversations", "group", use: createGroupConversation)
         m.get("conversations", use: listConversations)
+        m.put("conversations", ":id", "pin", use: setPinned)
+        m.put("conversations", ":id", "archive", use: setArchived)
+        m.post("conversations", ":id", "accept", use: acceptRequest)
         m.get("conversations", ":id", "settings", use: getSettings)
         m.patch("conversations", ":id", "settings", use: updateSettings)
         m.put("conversations", ":id", "mute", use: setMute)
@@ -214,7 +217,10 @@ struct MessagesController {
         if let existing = try await ChatStore.findConversation(req.userID, other, mode: mode, on: req.db.sql()) {
             return IDData(data: .init(id: existing))
         }
-        let id = try await ChatStore.createConversation(req.userID, other, mode: mode, on: req.db)
+        // Not friends in this mode → the chat waits for them to accept.
+        let connected = try await MessageRequests.areConnected(req.userID, other, mode: mode, on: req.db.sql())
+        let id = try await ChatStore.createConversation(req.userID, other, mode: mode,
+                                                        requestFrom: connected ? nil : req.userID, on: req.db)
         return IDData(data: .init(id: id))
     }
 
@@ -308,6 +314,9 @@ struct MessagesController {
             replyTo = rid
         }
         try await assertNotBlockedInConversation(id, req.userID, on: db)
+        if try await MessageRequests.gate(conversationID: id, senderID: req.userID, on: db) == .limitReached {
+            throw Abort(.forbidden, reason: MessageRequests.limitReason)
+        }
 
         let storedContent = b.content?.trimmingCharacters(in: .whitespaces).nilIfEmpty ?? validated?.title
         let newID = try await ChatStore.insertMessage(id, senderID: req.userID,
@@ -533,6 +542,41 @@ struct MessagesController {
         return AckedData(data: .init())
     }
 
+    // MARK: pin / archive
+
+    struct PinConversationBody: Content { var pinned: Bool? }
+    struct ArchiveBody: Content { var archived: Bool? }
+    struct InboxState: Content { var pinned: Bool?; var archived: Bool? }
+
+    static func setPinned(_ req: Request) async throws -> InboxState {
+        let id = req.parameters.get("id")!
+        try await requireParticipant(id, req)
+        guard let pinned = try req.content.decode(PinConversationBody.self).pinned else {
+            throw Abort(.badRequest, reason: "pinned is required")
+        }
+        try await ChatStore.setPinned(id, userID: req.userID, pinned: pinned, on: req.db.sql())
+        return InboxState(pinned: pinned, archived: nil)
+    }
+
+    static func setArchived(_ req: Request) async throws -> InboxState {
+        let id = req.parameters.get("id")!
+        try await requireParticipant(id, req)
+        guard let archived = try req.content.decode(ArchiveBody.self).archived else {
+            throw Abort(.badRequest, reason: "archived is required")
+        }
+        try await ChatStore.setArchived(id, userID: req.userID, archived: archived, on: req.db.sql())
+        return InboxState(pinned: archived ? false : nil, archived: archived)
+    }
+
+    /// Accept a message request (the recipient moves it from Waiting to the inbox).
+    struct Accepted: Content { var accepted: Bool }
+    static func acceptRequest(_ req: Request) async throws -> Accepted {
+        let id = req.parameters.get("id")!
+        try await requireParticipant(id, req)
+        try await MessageRequests.accept(conversationID: id, by: req.userID, on: req.db.sql())
+        return Accepted(accepted: true)
+    }
+
     // MARK: group conversations
 
     struct GroupCreateBody: Content { var member_ids: [String]?; var mode: String?; var name: String? }
@@ -548,6 +592,8 @@ struct MessagesController {
         for x in memberIDs where seen.insert(x).inserted { unique.append(x) }
         if unique.count != memberIDs.count { throw Abort(.badRequest, reason: "Duplicate member ids are not allowed") }
         if unique.contains(req.userID) { throw Abort(.badRequest, reason: "Creator should not be listed in member_ids") }
+        // Two people is just the 1-on-1 chat they already have.
+        if unique.count < 2 { throw Abort(.badRequest, reason: "A group needs at least 3 people, including you") }
         if unique.count + 1 > 100 { throw Abort(.badRequest, reason: "A group cannot have more than 100 members") }
 
         var groupName = "New group"

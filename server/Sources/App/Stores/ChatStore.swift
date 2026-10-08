@@ -120,13 +120,19 @@ enum ChatStore {
             WHERE c.mode = \(bind: mode) AND c.is_group = FALSE LIMIT 1
             """).first(decoding: R.self)?.id
     }
-    static func createConversation(_ a: String, _ b: String, mode: String, on db: AppDatabase) async throws -> String {
+    /// `requestFrom`: the starter when the two aren't friends — the chat then
+    /// waits for the other person to accept (migration 040).
+    static func createConversation(_ a: String, _ b: String, mode: String, requestFrom: String? = nil,
+                                   on db: AppDatabase) async throws -> String {
         var id = ""
         try await db.tx { t in
             struct R: Decodable { let id: String }
             // Folded review fix: single INSERT ... ON CONFLICT so a double-tap
             // can't make two threads / orphan participants.
-            id = try await t.raw("INSERT INTO conversations (mode) VALUES (\(bind: mode)) RETURNING id::text AS id").first(decoding: R.self)!.id
+            id = try await t.raw("""
+                INSERT INTO conversations (mode, request_from) VALUES (\(bind: mode), \(uuid: requestFrom))
+                RETURNING id::text AS id
+                """).first(decoding: R.self)!.id
             try await t.raw("INSERT INTO conversation_participants (conversation_id, user_id) VALUES (\(uuid: id), \(uuid: a)), (\(uuid: id), \(uuid: b))").run()
         }
         return id
@@ -167,6 +173,11 @@ enum ChatStore {
             RETURNING id::text AS id
             """).first(decoding: R.self)!.id
         try await db.raw("UPDATE conversations SET updated_at = NOW() WHERE id = \(uuid: conversationID)").run()
+        // A new message brings an archived chat back for everyone in it.
+        try await db.raw("""
+            UPDATE conversation_participants SET archived_at = NULL
+            WHERE conversation_id = \(uuid: conversationID) AND archived_at IS NOT NULL
+            """).run()
         return id
     }
 
@@ -219,6 +230,12 @@ enum ChatStore {
             FROM conversations c
             JOIN conversation_participants cp ON cp.conversation_id = c.id AND cp.user_id = \(uuid: userID)
             WHERE c.mode = \(bind: mode)
+              -- Waiting requests don't count until accepted.
+              AND NOT (c.request_from IS NOT NULL AND c.request_from <> \(uuid: userID) AND c.request_accepted_at IS NULL
+                       AND NOT \(unsafeRaw: MessageRequests.connectedSQL(
+                           "\(MessageRequests.quoted(userID))",
+                           "(SELECT o.user_id FROM conversation_participants o WHERE o.conversation_id = c.id AND o.user_id <> cp.user_id LIMIT 1)",
+                           mode: "c.mode")))
             """).first(decoding: N.self)?.total ?? 0
     }
 

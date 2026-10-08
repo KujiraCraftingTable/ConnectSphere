@@ -153,6 +153,9 @@ enum SocketHandlers {
             do {
                 try await MessagesController.assertNotBlockedInConversation(cid, conn.userID, on: db)
             } catch { await session.ackError(ackID, "Cannot message this user"); return }
+            if try await MessageRequests.gate(conversationID: cid, senderID: conn.userID, on: db) == .limitReached {
+                await session.ackError(ackID, MessageRequests.limitReason); return
+            }
 
             let stored = b.content?.trimmingCharacters(in: .whitespaces).nilIfEmpty ?? validated?.title
             let newID = try await ChatStore.insertMessage(cid, senderID: conn.userID, content: stored, messageType: type,
