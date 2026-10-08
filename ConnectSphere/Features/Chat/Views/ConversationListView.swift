@@ -270,7 +270,11 @@ struct ConversationListView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: AppSpacing.sm) {
                 Toggle(isOn: $spacesOn.animation(.snappy)) {
-                    Label(bundle.loc("Spaces"), systemImage: "square.grid.2x2")
+                    Label {
+                        Text("Spaces", bundle: bundle)
+                    } icon: {
+                        SpacePlanetIcon(color: themeManager.theme.primary, size: 18)
+                    }
                         .labelStyle(.titleAndIcon)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(AppColors.textPrimary(colorScheme))
@@ -290,7 +294,7 @@ struct ConversationListView: View {
                 NavigationLink {
                     WaitingChatsView(viewModel: viewModel, onOpen: open)
                 } label: {
-                    inboxButtonLabel(icon: "tray.full", title: bundle.loc("Waiting"))
+                    inboxButtonLabel(icon: "tray.full")
                         .overlay(alignment: .topTrailing) {
                             if !viewModel.waiting.isEmpty {
                                 Text("\(viewModel.waiting.count)")
@@ -324,7 +328,7 @@ struct ConversationListView: View {
                 }
             }
             if !spacesOn && !spacesIntroSeen && spacesViewModel.hasLoaded && spacesViewModel.spaces.isEmpty {
-                Text("New: sort the people you chat with into Spaces, like “Greenwich Uni”.", bundle: bundle)
+                Text("New: keep chats in Spaces — folders for the people you talk to.", bundle: bundle)
                     .font(.system(size: 12))
                     .foregroundColor(AppColors.textTertiary(colorScheme))
             }
@@ -335,18 +339,14 @@ struct ConversationListView: View {
         .padding(.top, AppSpacing.sm)
     }
 
-    private func inboxButtonLabel(icon: String, title: String? = nil) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-            if let title { Text(title).lineLimit(1) }
-        }
-        .fixedSize()
-        .font(.system(size: 13, weight: .semibold))
-        .foregroundColor(AppColors.textSecondary(colorScheme))
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(AppColors.surface(colorScheme), in: Capsule())
-        .overlay(Capsule().stroke(AppColors.borderDefault(colorScheme), lineWidth: 1))
+    private func inboxButtonLabel(icon: String) -> some View {
+        Image(systemName: icon)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundColor(AppColors.textSecondary(colorScheme))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(AppColors.surface(colorScheme), in: Capsule())
+            .overlay(Capsule().stroke(AppColors.borderDefault(colorScheme), lineWidth: 1))
     }
 
     // MARK: - Conversation list
@@ -363,15 +363,16 @@ struct ConversationListView: View {
                         .listRowBackground(Color.clear)
                 }
                 ForEach(SpaceSection.make(conversations: viewModel.inbox, spaces: spacesViewModel.spaces)) { section in
-                    Section {
-                        if !isCollapsed(section.id) {
-                            if section.conversations.isEmpty, case .space(let space) = section.kind {
-                                emptySpaceRow(space)
+                    if case .space(let space) = section.kind {
+                        spaceFolder(section, space: space)
+                    } else {
+                        Section {
+                            if !isCollapsed(section.id) {
+                                ForEach(section.conversations) { conversationRow($0, showSpaces: false) }
                             }
-                            ForEach(section.conversations) { conversationRow($0, showSpaces: false) }
+                        } header: {
+                            sectionHeader(section)
                         }
-                    } header: {
-                        sectionHeader(section)
                     }
                 }
             } else {
@@ -390,7 +391,7 @@ struct ConversationListView: View {
         }
     }
 
-    private func conversationRow(_ conversation: Conversation, showSpaces: Bool) -> some View {
+    private func conversationRow(_ conversation: Conversation, showSpaces: Bool, folder: FolderSlot? = nil) -> some View {
         Button { open(conversation) } label: {
             ConversationRow(
                 conversation: conversation,
@@ -400,8 +401,7 @@ struct ConversationListView: View {
             )
         }
         .buttonStyle(.plain)
-        .listRowInsets(EdgeInsets())
-        .listRowBackground(AppColors.surface(colorScheme))
+        .inFolder(folder, surface: AppColors.surface(colorScheme))
         .alignmentGuide(.listRowSeparatorLeading) { _ in ConversationRow.textInset }
         // Order matters: the first button sits at the edge and is the one a
         // full (strong) swipe triggers — Archive.
@@ -463,14 +463,14 @@ struct ConversationListView: View {
                 HStack(spacing: 8) {
                     switch section.kind {
                     case .space(let space):
-                        Circle().fill(space.color.color).frame(width: 10, height: 10)
+                        SpacePlanetIcon(color: space.color.color, size: 18)
                         Text(space.name)
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                     case .others:
                         Text("Other chats", bundle: bundle)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
-                    Text("\(section.conversations.count)")
+                    Text("\(section.rows.count)")
                         .foregroundColor(AppColors.textTertiary(colorScheme))
                     // Folded: still say there's something new inside.
                     if collapsed && section.unreadCount > 0 {
@@ -517,24 +517,99 @@ struct ConversationListView: View {
         .textCase(nil)
     }
 
-    /// A space with no chats to show: invite the user to fill it, or explain.
-    private func emptySpaceRow(_ space: ChatSpace) -> some View {
-        Button { peoplePickerSpace = space } label: {
-            HStack(spacing: 10) {
-                Image(systemName: space.memberIds.isEmpty ? "person.badge.plus" : "bubble.left")
-                    .foregroundColor(space.color.color)
-                Text(space.memberIds.isEmpty
-                     ? bundle.loc("Add people")
-                     : bundle.loc("No chats with these people yet"))
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(space.memberIds.isEmpty ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
-                Spacer()
+    /// One space drawn as a coloured folder: its header and a white card of
+    /// rows sit on a soft wash of the space's colour, which shows as a margin
+    /// all round the card — the colour is the layer the chats rest on.
+    @ViewBuilder
+    private func spaceFolder(_ section: SpaceSection, space: ChatSpace) -> some View {
+        let tint = space.color.color.opacity(colorScheme == .dark ? 0.22 : 0.14)
+        let rows = section.rows
+        Section {
+            sectionHeader(section)
+                .listRowInsets(EdgeInsets(top: 10, leading: 14, bottom: 8, trailing: 10))
+                .listRowBackground(tint)
+                .listRowSeparator(.hidden)
+            if !isCollapsed(section.id) {
+                if rows.isEmpty {
+                    addPeopleRow(space)
+                        .inFolder(FolderSlot(tint: tint, isFirst: true, isLast: true), surface: AppColors.surface(colorScheme))
+                }
+                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                    let slot = FolderSlot(tint: tint, isFirst: index == 0, isLast: index == rows.count - 1)
+                    switch row {
+                    case .chat(let conversation):
+                        conversationRow(conversation, showSpaces: false, folder: slot)
+                    case .person(let member):
+                        personRow(member, in: space, folder: slot)
+                    }
+                }
             }
-            .padding(.vertical, 4)
+        }
+    }
+
+    /// Someone in the space you haven't messaged yet: tap to start the chat.
+    private func personRow(_ member: SpaceMember, in space: ChatSpace, folder: FolderSlot) -> some View {
+        Button { openChat(with: member) } label: {
+            HStack(spacing: 12) {
+                Avatar(name: member.displayName, colorHex: member.avatarColor, imageURL: member.avatarUrl, diameter: 52)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(member.displayName)
+                        .font(.system(size: 15))
+                        .foregroundColor(AppColors.textPrimary(colorScheme))
+                        .lineLimit(1)
+                    Text("No messages yet — say hi", bundle: bundle)
+                        .font(.system(size: 13))
+                        .foregroundColor(AppColors.textTertiary(colorScheme))
+                        .lineLimit(1)
+                }
+                Spacer()
+                Image(systemName: "bubble.left")
+                    .font(.system(size: 15))
+                    .foregroundColor(space.color.color)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .listRowBackground(AppColors.surface(colorScheme))
+        .inFolder(folder, surface: AppColors.surface(colorScheme))
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+                Task { await spacesViewModel.setMembership(of: member.id, in: space, isMember: false, token: token) }
+            } label: {
+                Label(bundle.loc("Remove from space"), systemImage: "minus.circle.fill")
+            }
+        }
+    }
+
+    /// A space nobody's in yet.
+    private func addPeopleRow(_ space: ChatSpace) -> some View {
+        Button { peoplePickerSpace = space } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "person.badge.plus")
+                    .foregroundColor(space.color.color)
+                Text("Add people", bundle: bundle)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(themeManager.theme.primary)
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func openChat(with member: SpaceMember) {
+        Task {
+            guard let id = try? await viewModel.openConversation(with: member.id, mode: mode, token: token) else { return }
+            activeRoute = ChatRoute(
+                conversationId: id,
+                peer: .direct(otherUserId: member.id, name: member.displayName,
+                              avatarColor: member.avatarColor ?? AppColors.avatarFallback,
+                              avatarUrl: member.avatarUrl),
+                location: nil)
+        }
     }
 
     // MARK: - Space sheets
@@ -762,25 +837,25 @@ struct ConversationRow: View {
     /// dividers between rows start here.
     static let textInset: CGFloat = 16 + 52 + 12
 
+    /// The person's (or group's) photo when there is one, else initials or the
+    /// group icon on their colour.
     @ViewBuilder
     private var avatar: some View {
-        if conversation.isGroup {
-            ZStack {
-                Circle()
-                    .fill(Color(hex: conversation.avatarColor))
-                    .frame(width: 52, height: 52)
-                Image(systemName: "person.3.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.white)
-            }
-        } else {
-            ZStack {
-                Circle()
-                    .fill(Color(hex: conversation.avatarColor))
-                    .frame(width: 52, height: 52)
-                Text(String(conversation.displayName.prefix(1)))
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(.white)
+        switch conversation.peer {
+        case .direct(_, _, let name, let color, let url, _, _):
+            Avatar(name: name, colorHex: color, imageURL: url, diameter: 52)
+        case .group(_, let url, _, _):
+            if let url, !url.isEmpty {
+                Avatar(name: conversation.displayName, colorHex: conversation.avatarColor, imageURL: url, diameter: 52)
+            } else {
+                ZStack {
+                    Circle()
+                        .fill(Color(hex: conversation.avatarColor))
+                        .frame(width: 52, height: 52)
+                    Image(systemName: "person.3.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.white)
+                }
             }
         }
     }

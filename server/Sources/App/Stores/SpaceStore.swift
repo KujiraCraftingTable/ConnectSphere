@@ -17,6 +17,44 @@ enum SpaceStore {
         var color: String
         var position: Int
         var member_ids: [String]
+        /// The same people with their name/photo for the space's mode, so a
+        /// space can show someone you haven't chatted with yet.
+        var members: [Member]
+    }
+
+    struct Member: Content {
+        var id: String
+        var display_name: String
+        @NullCoded var avatar_url: String?
+        @NullCoded var avatar_color: String?
+    }
+
+    /// Raw row: `members` arrives as JSON text and is decoded into `Space`.
+    private struct Row: Decodable {
+        let id: String; let name: String; let color: String; let position: Int
+        let member_ids: [String]; let members: String
+    }
+
+    private static func space(_ r: Row) -> Space {
+        let members = (try? JSONCoding.makeDecoder().decode([Member].self, from: Data(r.members.utf8))) ?? []
+        return Space(id: r.id, name: r.name, color: r.color, position: r.position, member_ids: r.member_ids, members: members)
+    }
+
+    /// Columns shared by `list` and `find` (space alias `s`).
+    private static var columns: String {
+        """
+        s.id::text AS id, s.name, s.color, s.position,
+          COALESCE((SELECT array_agg(m.user_id::text ORDER BY m.added_at)
+                    FROM chat_space_members m JOIN users u ON u.id = m.user_id AND u.deleted_at IS NULL
+                    WHERE m.space_id = s.id), '{}') AS member_ids,
+          COALESCE((SELECT json_agg(json_build_object(
+                      'id', u.id::text,
+                      'display_name', \(PersonaSQL.expr("display_name", modeRef: "s.mode")),
+                      'avatar_url', \(PersonaSQL.expr("avatar_url", modeRef: "s.mode")),
+                      'avatar_color', u.avatar_color) ORDER BY m.added_at)
+                    FROM chat_space_members m JOIN users u ON u.id = m.user_id AND u.deleted_at IS NULL
+                    WHERE m.space_id = s.id), '[]'::json)::text AS members
+        """
     }
 
     /// The name to store, or nil when it's empty or too long once trimmed.
@@ -28,25 +66,19 @@ enum SpaceStore {
 
     static func list(owner: String, mode: String, on db: any SQLDatabase) async throws -> [Space] {
         try await db.raw("""
-            SELECT s.id::text AS id, s.name, s.color, s.position,
-              COALESCE((SELECT array_agg(m.user_id::text ORDER BY m.added_at)
-                        FROM chat_space_members m JOIN users u ON u.id = m.user_id AND u.deleted_at IS NULL
-                        WHERE m.space_id = s.id), '{}') AS member_ids
+            SELECT \(unsafeRaw: columns)
             FROM chat_spaces s
             WHERE s.owner_id = \(uuid: owner) AND s.mode = \(bind: mode)
             ORDER BY s.position, s.created_at
-            """).all(decoding: Space.self)
+            """).all(decoding: Row.self).map(space)
     }
 
     static func find(_ id: String, owner: String, on db: any SQLDatabase) async throws -> Space? {
         try await db.raw("""
-            SELECT s.id::text AS id, s.name, s.color, s.position,
-              COALESCE((SELECT array_agg(m.user_id::text ORDER BY m.added_at)
-                        FROM chat_space_members m JOIN users u ON u.id = m.user_id AND u.deleted_at IS NULL
-                        WHERE m.space_id = s.id), '{}') AS member_ids
+            SELECT \(unsafeRaw: columns)
             FROM chat_spaces s
             WHERE s.id = \(uuid: id) AND s.owner_id = \(uuid: owner)
-            """).first(decoding: Space.self)
+            """).first(decoding: Row.self).map(space)
     }
 
     static func mode(of id: String, owner: String, on db: any SQLDatabase) async throws -> String? {

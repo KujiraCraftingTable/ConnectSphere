@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - Explainer
 
 /// Shown in Messages while the Spaces view is on and the user has no spaces
-/// yet — says what a space is, with real examples, before asking for anything.
+/// yet — says what a space is (a folder for people) before asking for anything.
 struct SpacesIntroCard: View {
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.appBundle) private var bundle
@@ -14,25 +14,17 @@ struct SpacesIntroCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             HStack(spacing: AppSpacing.sm) {
-                Image(systemName: "square.grid.2x2.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(themeManager.theme.primary)
+                SpacePlanetIcon(color: themeManager.theme.primary, size: 22)
                     .frame(width: 36, height: 36)
                     .background(themeManager.theme.primary.opacity(0.14), in: Circle())
                 Text("Organise chats with Spaces", bundle: bundle)
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
             }
-            Text("A space groups people by where you know them from, so you can tell at a glance who's who.", bundle: bundle)
+            Text("Spaces work like folders for people. Make one, add the people you want in it, and their chats are kept together there.", bundle: bundle)
                 .font(.system(size: 14))
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .fixedSize(horizontal: false, vertical: true)
-
-            HStack(spacing: 6) {
-                exampleChip("Greenwich Uni", .teal)
-                exampleChip(bundle.loc("Badminton"), .orange)
-                exampleChip(bundle.loc("Family"), .pink)
-            }
 
             Label(bundle.loc("Only you can see your spaces."), systemImage: "lock.fill")
                 .labelStyle(.titleAndIcon)
@@ -53,17 +45,6 @@ struct SpacesIntroCard: View {
         .cardStyle()
         .padding(.horizontal, AppSpacing.sm)
         .padding(.top, AppSpacing.sm)
-    }
-
-    private func exampleChip(_ text: String, _ color: SpaceColor) -> some View {
-        HStack(spacing: 5) {
-            Circle().fill(color.color).frame(width: 8, height: 8)
-            Text(text).font(.system(size: 12, weight: .semibold))
-        }
-        .foregroundColor(AppColors.textPrimary(colorScheme))
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(color.color.opacity(0.14), in: Capsule())
     }
 }
 
@@ -94,22 +75,21 @@ struct SpaceEditorSheet: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: AppSpacing.lg) {
-                // Live preview of the label as it'll appear in Messages.
-                HStack(spacing: 8) {
-                    Circle().fill(color.color).frame(width: 12, height: 12)
-                    Text(trimmed.isEmpty ? bundle.loc("Space name") : trimmed)
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundColor(trimmed.isEmpty ? AppColors.textTertiary(colorScheme) : AppColors.textPrimary(colorScheme))
+                // The name is typed straight into the title, beside its planet.
+                HStack(spacing: 10) {
+                    SpacePlanetIcon(color: color.color, size: 26)
+                    TextField(bundle.loc("Space name"), text: $name)
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundColor(AppColors.textPrimary(colorScheme))
+                        .focused($nameFocused)
+                        .submitLabel(.done)
+                        .onChange(of: name) { _, new in if new.count > 30 { name = String(new.prefix(30)) } }
                 }
-
-                TextField(bundle.loc("e.g. Greenwich Uni"), text: $name)
-                    .font(.system(size: 16))
-                    .focused($nameFocused)
-                    .submitLabel(.done)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
-                    .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
-                    .onChange(of: name) { _, new in if new.count > 30 { name = String(new.prefix(30)) } }
+                .padding(.bottom, AppSpacing.sm)
+                .overlay(alignment: .bottom) {
+                    Rectangle().fill(nameFocused ? color.color : AppColors.borderDefault(colorScheme))
+                        .frame(height: nameFocused ? 2 : 1)
+                }
 
                 VStack(alignment: .leading, spacing: AppSpacing.sm) {
                     Text("Colour", bundle: bundle)
@@ -280,7 +260,7 @@ struct SpaceMembershipSheet: View {
                         let isIn = space.contains(personId)
                         Button { onToggle(space, !isIn) } label: {
                             HStack(spacing: 12) {
-                                Circle().fill(space.color.color).frame(width: 12, height: 12)
+                                SpacePlanetIcon(color: space.color.color, size: 20)
                                 Text(space.name)
                                     .font(.system(size: 16))
                                     .foregroundColor(AppColors.textPrimary(colorScheme))
