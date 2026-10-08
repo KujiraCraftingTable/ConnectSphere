@@ -107,7 +107,9 @@ struct ChatSettingsView: View {
             ScrollView {
                 VStack(spacing: 24) {
                     header
-                    if !isGroup { peopleCard }
+                    // Not while this chat is still a message request: neither side
+                    // can file the other into a space or group them until accepted.
+                    if !isGroup && viewModel.settings?.requestState == nil { peopleCard }
                     actionsList
                 }
                 .padding(.top, 16)

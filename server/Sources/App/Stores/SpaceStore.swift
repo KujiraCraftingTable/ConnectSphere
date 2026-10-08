@@ -73,9 +73,9 @@ enum SpaceStore {
         return rows.contains { $0.id.lowercased() != excluding?.lowercased() }
     }
 
-    /// The ids among `ids` that may sit in the owner's spaces: real, not
-    /// deleted, not the owner, and no block between them either way.
-    static func allowedMembers(_ ids: [UUID], owner: String, on db: any SQLDatabase) async throws -> Set<String> {
+    /// The ids among `ids` that may sit in the owner's spaces in `mode`: real,
+    /// not deleted, not the owner, no block between them either way…
+    static func allowedMembers(_ ids: [UUID], owner: String, mode: String, on db: any SQLDatabase) async throws -> Set<String> {
         guard !ids.isEmpty else { return [] }
         struct I: Decodable { let id: String }
         let rows = try await db.raw("""
@@ -85,7 +85,10 @@ enum SpaceStore {
                               WHERE (b.blocker_id = \(uuid: owner) AND b.blocked_id = u.id)
                                  OR (b.blocker_id = u.id AND b.blocked_id = \(uuid: owner)))
             """).all(decoding: I.self)
-        return Set(rows.map { $0.id.lowercased() })
+        // …and someone you're friends with or whose chat is past the request
+        // stage — a not-yet-accepted stranger can't be filed (or file you) yet.
+        let strangers = try await MessageRequests.unrelated(owner, ids, mode: mode, on: db)
+        return Set(rows.map { $0.id.lowercased() }).subtracting(strangers)
     }
 
     static func create(owner: String, mode: String, name: String, color: String,

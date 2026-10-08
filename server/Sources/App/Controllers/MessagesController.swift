@@ -602,6 +602,13 @@ struct MessagesController {
             if !trimmed.isEmpty { groupName = String(trimmed.prefix(100)) }
         }
 
+        // A stranger who hasn't been accepted can't pull you into a group —
+        // that would put them in your Messages without going through Waiting.
+        let memberUUIDs = unique.compactMap(UUID.init(uuidString:))
+        if try await !MessageRequests.unrelated(req.userID, memberUUIDs, mode: mode, on: req.db.sql()).isEmpty {
+            throw Abort(.forbidden, reason: MessageRequests.unrelatedReason)
+        }
+
         let conv = try await ChatStore.createGroupConversation(
             creatorID: req.userID, memberIDs: unique, mode: mode, name: groupName, on: req.db)
         return try await ConnectionsController.encode(DataResponse(data: conv), req, .created)
@@ -678,6 +685,11 @@ struct MessagesController {
         let toAdd = uniqueNew.filter { !currentSet.contains($0) }
         if !toAdd.isEmpty, current.count + toAdd.count > 100 {
             throw Abort(.badRequest, reason: "A group cannot have more than 100 members")
+        }
+        if !toAdd.isEmpty, let conv = try await ChatStore.conversationByID(id, on: db),
+           try await !MessageRequests.unrelated(req.userID, toAdd.compactMap(UUID.init(uuidString:)),
+                                                mode: conv.mode, on: db).isEmpty {
+            throw Abort(.forbidden, reason: MessageRequests.unrelatedReason)
         }
         if !toAdd.isEmpty { try await ChatStore.addParticipants(id, toAdd, on: db) }
         guard let s = try await ChatStore.groupSettings(id, on: db) else { throw Abort(.notFound, reason: "Conversation not found") }

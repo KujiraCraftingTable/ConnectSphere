@@ -104,8 +104,8 @@ struct SpaceSection: Identifiable, Equatable {
     }
 }
 
-/// Someone who can be put in a space: anyone you have a 1-on-1 chat with in
-/// this mode, plus your connections.
+/// Someone who can be put in a space: anyone you have an accepted 1-on-1 chat
+/// with in this mode, plus your connections (the server enforces the same).
 struct SpaceCandidate: Identifiable, Equatable {
     let id: String
     let name: String
@@ -117,7 +117,9 @@ struct SpaceCandidate: Identifiable, Equatable {
     static func merge(conversations: [Conversation], connections: [ConnectionItemDTO]) -> [SpaceCandidate] {
         var seen = Set<String>()
         var result: [SpaceCandidate] = []
-        for conversation in conversations {
+        // A chat still at the request stage (either way) doesn't qualify yet:
+        // nobody can be filed into a space before they've been accepted.
+        for conversation in conversations where conversation.requestState == nil {
             guard case .direct(let id, _, let name, let color, let avatar, let job, let nickname) = conversation.peer,
                   seen.insert(id.lowercased()).inserted else { continue }
             result.append(SpaceCandidate(id: id, name: nickname ?? name, avatarUrl: avatar,
