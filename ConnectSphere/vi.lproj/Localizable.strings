@@ -897,9 +897,7 @@
 // MARK: - Messages: spaces, swipe actions, archive, message requests
 "%@ isn't your friend yet. Accept to move this chat to your inbox and reply." = "%@ chưa là bạn bè của bạn. Chấp nhận để chuyển cuộc trò chuyện vào hộp thư và trả lời.";
 "%@ options" = "Tuỳ chọn %@";
-"%lld people" = "%lld người";
 "A space groups people by where you know them from, so you can tell at a glance who's who." = "Không gian nhóm mọi người theo nơi bạn quen họ, để bạn nhìn là biết ai là ai.";
-"Add people" = "Thêm người";
 "Archive" = "Lưu trữ";
 "Archived chats" = "Đoạn chat đã lưu trữ";
 "Badminton" = "Cầu lông";
@@ -911,7 +909,6 @@
 "Delete space?" = "Xoá không gian?";
 "Delete this chat?" = "Xoá đoạn chat này?";
 "Edit name & colour" = "Sửa tên & màu";
-"Edit people" = "Sửa thành viên";
 "Edit space" = "Sửa không gian";
 "Family" = "Gia đình";
 "Its messages are removed for you only. It comes back if a new message arrives." = "Tin nhắn chỉ bị xoá với bạn. Đoạn chat sẽ quay lại khi có tin nhắn mới.";
@@ -927,7 +924,6 @@
 "Only you can see your spaces." = "Chỉ bạn thấy được các không gian của mình.";
 "Organise chats with Spaces" = "Sắp xếp đoạn chat bằng Không gian";
 "Other chats" = "Đoạn chat khác";
-"Search people" = "Tìm người";
 "Space name" = "Tên không gian";
 "Spaces" = "Không gian";
 "Spaces for %@" = "Không gian của %@";
@@ -966,7 +962,6 @@
 "New: keep chats in Spaces — folders for the people you talk to." = "Mới: giữ đoạn chat trong Không gian — thư mục cho những người bạn trò chuyện.";
 "No messages yet — say hi" = "Chưa có tin nhắn — gửi lời chào nhé";
 "Remove from space" = "Xoá khỏi không gian";
-"Spaces work like folders for people. Make one, add the people you want in it, and their chats are kept together there." = "Không gian giống như thư mục dành cho mọi người. Tạo một không gian, thêm những người bạn muốn, và các đoạn chat của họ sẽ được giữ chung ở đó.";
 "Rose" = "Hồng sen";
 "Coral" = "San hô";
 "Amber" = "Hổ phách";
@@ -983,3 +978,13 @@
 "Fuchsia" = "Hồng tím";
 "Brown" = "Nâu";
 "Slate" = "Xám đá";
+
+/* Spaces: group chats */
+"%lld selected" = "Đã chọn %lld";
+"Search people and groups" = "Tìm người và nhóm";
+"Add people or groups" = "Thêm người hoặc nhóm";
+"Edit people & groups" = "Sửa người & nhóm";
+"Groups" = "Nhóm";
+"Spaces work like folders. Make one, add people and group chats to it, and those chats are kept together there." = "Không gian giống như thư mục. Tạo một không gian, thêm người và nhóm chat vào đó, và các đoạn chat ấy sẽ được giữ chung ở đó.";
+"Some of these groups can't be added to a space" = "Không thể thêm một số nhóm này vào không gian";
+"A space can hold up to 100 groups" = "Một không gian chứa tối đa 100 nhóm";

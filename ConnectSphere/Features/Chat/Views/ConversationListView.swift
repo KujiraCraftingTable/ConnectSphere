@@ -151,10 +151,12 @@ struct ConversationListView: View {
         .sheet(item: $peoplePickerSpace) { space in
             SpacePeoplePickerView(
                 spaceName: space.name,
-                candidates: SpaceCandidate.merge(conversations: viewModel.conversations, connections: viewModel.connections),
-                initialSelection: space.memberIds
-            ) { ids in
-                await spacesViewModel.setMembers(space, to: ids, token: token)
+                people: SpaceCandidate.merge(conversations: viewModel.conversations, connections: viewModel.connections),
+                groups: SpaceCandidate.groups(from: viewModel.conversations),
+                initialPeople: space.memberIds,
+                initialGroups: space.groupIds
+            ) { people, groups in
+                await spacesViewModel.setMembers(space, people: people, groups: groups, token: token)
             }
         }
         .confirmationDialog(moreActionsFor?.displayName ?? "", isPresented: Binding(
@@ -306,7 +308,7 @@ struct ConversationListView: View {
                         Image(systemName: "plus")
                             .font(.system(size: 13, weight: .bold))
                             .foregroundColor(.white)
-                            .frame(width: 28, height: 28)
+                            .frame(width: Self.barButtonHeight, height: Self.barButtonHeight)
                             .background(themeManager.theme.primary, in: Circle())
                     }
                     .buttonStyle(.plain)
@@ -340,8 +342,8 @@ struct ConversationListView: View {
             }
             .font(.system(size: 13, weight: .semibold))
             .foregroundColor(spacesOn ? .white : AppColors.textSecondary(colorScheme))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 14)
+            .frame(height: Self.barButtonHeight)
             .background(spacesOn ? AnyShapeStyle(themeManager.theme.primary) : AnyShapeStyle(AppColors.surface(colorScheme)),
                         in: Capsule())
             .overlay(Capsule().stroke(spacesOn ? .clear : AppColors.borderDefault(colorScheme), lineWidth: 1))
@@ -352,12 +354,15 @@ struct ConversationListView: View {
         .accessibilityValue(Text(spacesOn ? "On" : "Off", bundle: bundle))
     }
 
+    /// The Feed's "For you" pill height; every control in the bar shares it.
+    private static let barButtonHeight: CGFloat = 28
+
+    /// Icon-only, but sized like the Feed's scope pills rather than a bare glyph.
     private func inboxButtonLabel(icon: String) -> some View {
         Image(systemName: icon)
-            .font(.system(size: 13, weight: .semibold))
+            .font(.system(size: 15, weight: .semibold))
             .foregroundColor(AppColors.textSecondary(colorScheme))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .frame(width: 56, height: Self.barButtonHeight)
             .background(AppColors.surface(colorScheme), in: Capsule())
             .overlay(Capsule().stroke(AppColors.borderDefault(colorScheme), lineWidth: 1))
     }
@@ -414,7 +419,7 @@ struct ConversationListView: View {
                 conversation: conversation,
                 currentUserId: appState.currentUser?.id ?? "",
                 accentColor: themeManager.theme.primary,
-                spaces: showSpaces ? conversation.otherUserId.map(spacesViewModel.spaces(containing:)) ?? [] : []
+                spaces: showSpaces ? spacesViewModel.spaces(for: conversation) : []
             )
         }
         .buttonStyle(.plain)
@@ -515,7 +520,7 @@ struct ConversationListView: View {
                         Label(bundle.loc("Edit name & colour"), systemImage: "pencil")
                     }
                     Button { peoplePickerSpace = space } label: {
-                        Label(bundle.loc("Edit people"), systemImage: "person.2")
+                        Label(bundle.loc("Edit people & groups"), systemImage: "person.2")
                     }
                     Button(role: .destructive) { pendingDeleteSpace = space } label: {
                         Label(bundle.loc("Delete space"), systemImage: "trash")
@@ -605,7 +610,7 @@ struct ConversationListView: View {
             HStack(spacing: 10) {
                 Image(systemName: "person.badge.plus")
                     .foregroundColor(space.color.color)
-                Text("Add people", bundle: bundle)
+                Text("Add people or groups", bundle: bundle)
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(themeManager.theme.primary)
                 Spacer()
@@ -862,17 +867,29 @@ struct ConversationRow: View {
         case .direct(_, _, let name, let color, let url, _, _):
             Avatar(name: name, colorHex: color, imageURL: url, diameter: 52)
         case .group(_, let url, _, _):
-            if let url, !url.isEmpty {
-                Avatar(name: conversation.displayName, colorHex: conversation.avatarColor, imageURL: url, diameter: 52)
-            } else {
-                ZStack {
-                    Circle()
-                        .fill(Color(hex: conversation.avatarColor))
-                        .frame(width: 52, height: 52)
-                    Image(systemName: "person.3.fill")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.white)
-                }
+            GroupAvatar(name: conversation.displayName, colorHex: conversation.avatarColor, imageURL: url, size: 52)
+        }
+    }
+}
+
+/// A group chat's photo, or the group icon on its colour when it has none.
+struct GroupAvatar: View {
+    let name: String
+    let colorHex: String?
+    let imageURL: String?
+    let size: CGFloat
+
+    var body: some View {
+        if let imageURL, !imageURL.isEmpty {
+            Avatar(name: name, colorHex: colorHex, imageURL: imageURL, diameter: size)
+        } else {
+            ZStack {
+                Circle()
+                    .fill(Color(hex: colorHex ?? AppColors.avatarFallback))
+                    .frame(width: size, height: size)
+                Image(systemName: "person.3.fill")
+                    .font(.system(size: size * 0.35, weight: .semibold))
+                    .foregroundColor(.white)
             }
         }
     }

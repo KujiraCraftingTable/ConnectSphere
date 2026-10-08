@@ -21,7 +21,7 @@ struct SpacesIntroCard: View {
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
             }
-            Text("Spaces work like folders for people. Make one, add the people you want in it, and their chats are kept together there.", bundle: bundle)
+            Text("Spaces work like folders. Make one, add people and group chats to it, and those chats are kept together there.", bundle: bundle)
                 .font(.system(size: 14))
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .fixedSize(horizontal: false, vertical: true)
@@ -147,11 +147,12 @@ struct SpaceEditorSheet: View {
     }
 }
 
-// MARK: - People
+// MARK: - People and groups
 
 /// Choose who's in a space: people you chat with in this mode plus your
-/// connections. Members not in that list (e.g. someone you no longer chat
-/// with) are kept as they are rather than silently dropped.
+/// connections, and your group chats. Ids already in the space but not
+/// listed (e.g. someone you no longer chat with) are kept as they are rather
+/// than silently dropped.
 struct SpacePeoplePickerView: View {
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.appBundle) private var bundle
@@ -159,35 +160,47 @@ struct SpacePeoplePickerView: View {
     @Environment(\.dismiss) private var dismiss
 
     let spaceName: String
-    let candidates: [SpaceCandidate]
-    let initialSelection: [String]
-    /// Return false to keep the sheet open.
-    let onDone: ([String]) async -> Bool
+    let people: [SpaceCandidate]
+    let groups: [SpaceCandidate]
+    let initialPeople: [String]
+    let initialGroups: [String]
+    /// People ids, then group ids. Return false to keep the sheet open.
+    let onDone: ([String], [String]) async -> Bool
 
-    @State private var selected: Set<String> = []
+    @State private var selectedPeople: Set<String> = []
+    @State private var selectedGroups: Set<String> = []
     @State private var query = ""
 
-    private var shown: [SpaceCandidate] {
+    private func matching(_ list: [SpaceCandidate]) -> [SpaceCandidate] {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !q.isEmpty else { return candidates }
-        return candidates.filter { $0.name.lowercased().contains(q) }
+        guard !q.isEmpty else { return list }
+        return list.filter { $0.name.lowercased().contains(q) }
     }
 
     var body: some View {
         NavigationStack {
             Group {
-                if candidates.isEmpty {
+                if people.isEmpty && groups.isEmpty {
                     EmptyStateView(systemImage: "person.2",
                                    title: bundle.loc("No one to add yet"),
                                    message: bundle.loc("Start a chat or connect with someone, then add them here."))
                 } else {
-                    List(shown) { person in
-                        Button { toggle(person.id) } label: { row(person) }
-                            .buttonStyle(.plain)
-                            .listRowBackground(AppColors.surface(colorScheme))
+                    List {
+                        let shownPeople = matching(people)
+                        if !shownPeople.isEmpty {
+                            Section(bundle.loc("People")) {
+                                ForEach(shownPeople) { candidateRow($0, selection: $selectedPeople) }
+                            }
+                        }
+                        let shownGroups = matching(groups)
+                        if !shownGroups.isEmpty {
+                            Section(bundle.loc("Groups")) {
+                                ForEach(shownGroups) { candidateRow($0, selection: $selectedGroups) }
+                            }
+                        }
                     }
                     .listStyle(.plain)
-                    .searchable(text: $query, prompt: bundle.loc("Search people"))
+                    .searchable(text: $query, prompt: bundle.loc("Search people and groups"))
                 }
             }
             .background(AppColors.base(colorScheme))
@@ -200,63 +213,72 @@ struct SpacePeoplePickerView: View {
                 ToolbarItem(placement: .principal) {
                     VStack(spacing: 0) {
                         Text(spaceName).font(.system(size: 16, weight: .semibold))
-                        Text(String(format: bundle.loc("%lld people"), selected.count))
+                        Text(String(format: bundle.loc("%lld selected"), selectedPeople.count + selectedGroups.count))
                             .font(.system(size: 12))
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(bundle.loc("Done")) {
-                        Task { if await onDone(Array(selected)) { dismiss() } }
+                        Task { if await onDone(Array(selectedPeople), Array(selectedGroups)) { dismiss() } }
                     }
                 }
             }
         }
-        .onAppear { selected = Set(initialSelection.map { $0.lowercased() }) }
-    }
-
-    private func toggle(_ id: String) {
-        let key = id.lowercased()
-        if selected.contains(key) { selected.remove(key) } else { selected.insert(key) }
-    }
-
-    private func row(_ person: SpaceCandidate) -> some View {
-        let isOn = selected.contains(person.id.lowercased())
-        return HStack(spacing: 12) {
-            Avatar(name: person.name, colorHex: person.avatarColor, imageURL: person.avatarUrl, size: .md)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(person.name)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(AppColors.textPrimary(colorScheme))
-                if let subtitle = person.subtitle, !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.system(size: 13))
-                        .foregroundColor(AppColors.textSecondary(colorScheme))
-                }
-            }
-            Spacer()
-            Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 22))
-                .foregroundColor(isOn ? themeManager.theme.primary : AppColors.textTertiary(colorScheme))
+        .onAppear {
+            selectedPeople = Set(initialPeople.map { $0.lowercased() })
+            selectedGroups = Set(initialGroups.map { $0.lowercased() })
         }
-        .contentShape(Rectangle())
-        .padding(.vertical, 2)
+    }
+
+    private func candidateRow(_ candidate: SpaceCandidate, selection: Binding<Set<String>>) -> some View {
+        let key = candidate.id.lowercased()
+        let isOn = selection.wrappedValue.contains(key)
+        return Button {
+            if isOn { selection.wrappedValue.remove(key) } else { selection.wrappedValue.insert(key) }
+        } label: {
+            HStack(spacing: 12) {
+                if candidate.isGroup {
+                    GroupAvatar(name: candidate.name, colorHex: candidate.avatarColor, imageURL: candidate.avatarUrl, size: 44)
+                } else {
+                    Avatar(name: candidate.name, colorHex: candidate.avatarColor, imageURL: candidate.avatarUrl, size: .md)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(candidate.name)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(AppColors.textPrimary(colorScheme))
+                    if let subtitle = candidate.subtitle, !subtitle.isEmpty {
+                        Text(subtitle)
+                            .font(.system(size: 13))
+                            .foregroundColor(AppColors.textSecondary(colorScheme))
+                    }
+                }
+                Spacer()
+                Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 22))
+                    .foregroundColor(isOn ? themeManager.theme.primary : AppColors.textTertiary(colorScheme))
+            }
+            .contentShape(Rectangle())
+            .padding(.vertical, 2)
+        }
+        .buttonStyle(.plain)
+        .listRowBackground(AppColors.surface(colorScheme))
     }
 }
 
-// MARK: - One person's spaces (chat settings)
+// MARK: - One chat's spaces (chat settings)
 
-/// Checklist of the user's spaces for one person: tick to put them in,
-/// untick to take them out, or start a new space with them in it.
+/// Checklist of the user's spaces for one person or group chat: tick to put
+/// it in, untick to take it out, or start a new space with it in.
 struct SpaceMembershipSheet: View {
     @Environment(\.appBundle) private var bundle
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
     @Environment(ThemeManager.self) private var themeManager
 
-    let personName: String
+    let name: String
     let spaces: [ChatSpace]
-    let personId: String
+    let isIn: (ChatSpace) -> Bool
     let onToggle: (ChatSpace, Bool) -> Void
     let onNewSpace: () -> Void
 
@@ -265,7 +287,7 @@ struct SpaceMembershipSheet: View {
             List {
                 Section {
                     ForEach(spaces) { space in
-                        let isIn = space.contains(personId)
+                        let isIn = isIn(space)
                         Button { onToggle(space, !isIn) } label: {
                             HStack(spacing: 12) {
                                 SpacePlanetIcon(color: space.color.color, size: 20)
@@ -292,7 +314,7 @@ struct SpaceMembershipSheet: View {
                     Text("Only you can see your spaces.", bundle: bundle)
                 }
             }
-            .navigationTitle(String(format: bundle.loc("Spaces for %@"), personName))
+            .navigationTitle(String(format: bundle.loc("Spaces for %@"), name))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

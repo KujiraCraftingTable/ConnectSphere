@@ -13,6 +13,8 @@ struct SpacesController {
         s.put(":id", "members", use: setMembers)
         s.post(":id", "members", ":userId", use: addMember)
         s.delete(":id", "members", ":userId", use: removeMember)
+        s.post(":id", "groups", ":conversationId", use: addGroup)
+        s.delete(":id", "groups", ":conversationId", use: removeGroup)
     }
 
     struct ListResponse: Content { var data: [SpaceStore.Space] }
@@ -25,7 +27,10 @@ struct SpacesController {
         return ListResponse(data: try await SpaceStore.list(owner: req.userID, mode: mode, on: req.db.sql()))
     }
 
-    struct CreateBody: Content { var name: String?; var mode: String?; var color: String?; var member_ids: [String]? }
+    struct CreateBody: Content {
+        var name: String?; var mode: String?; var color: String?
+        var member_ids: [String]?; var conversation_ids: [String]?
+    }
 
     static func create(_ req: Request) async throws -> SpaceStore.Space {
         let b = try req.content.decode(CreateBody.self)
@@ -42,8 +47,10 @@ struct SpacesController {
             throw InlineError(.conflict, "You already have a space with that name")
         }
         let members = try await validMembers(b.member_ids ?? [], mode: mode, req)
+        let groups = try await validGroups(b.conversation_ids ?? [], mode: mode, req)
         let id = try await SpaceStore.create(owner: req.userID, mode: mode, name: name, color: color, on: db)
         try await SpaceStore.addMembers(id, members, on: db)
+        try await SpaceStore.addGroups(id, groups, on: db)
         return try await space(id, req)
     }
 
@@ -75,7 +82,9 @@ struct SpacesController {
         return OK(ok: true)
     }
 
-    struct MembersBody: Content { var member_ids: [String]? }
+    /// `conversation_ids` absent leaves the space's groups as they are, so an
+    /// older client that only knows about people can't wipe them.
+    struct MembersBody: Content { var member_ids: [String]?; var conversation_ids: [String]? }
 
     static func setMembers(_ req: Request) async throws -> SpaceStore.Space {
         let id = try spaceID(req)
@@ -83,8 +92,12 @@ struct SpacesController {
         guard let mode = try await SpaceStore.mode(of: id, owner: req.userID, on: db) else {
             throw InlineError(.notFound, "Space not found")
         }
-        let members = try await validMembers(try req.content.decode(MembersBody.self).member_ids ?? [], mode: mode, req)
+        let body = try req.content.decode(MembersBody.self)
+        let members = try await validMembers(body.member_ids ?? [], mode: mode, req)
+        var groups: [UUID]?
+        if let raw = body.conversation_ids { groups = try await validGroups(raw, mode: mode, req) }
         try await SpaceStore.replaceMembers(id, with: members, on: db)
+        if let groups { try await SpaceStore.replaceGroups(id, with: groups, on: db) }
         return try await space(id, req)
     }
 
@@ -112,6 +125,33 @@ struct SpacesController {
             throw InlineError(.badRequest, "Invalid user id")
         }
         try await SpaceStore.removeMember(id, member.uuidString, on: db)
+        return try await space(id, req)
+    }
+
+    static func addGroup(_ req: Request) async throws -> SpaceStore.Space {
+        let id = try spaceID(req)
+        let db = req.db.sql()
+        guard let mode = try await SpaceStore.mode(of: id, owner: req.userID, on: db) else {
+            throw InlineError(.notFound, "Space not found")
+        }
+        guard try await SpaceStore.groupCount(id, on: db) < SpaceStore.maxGroups else {
+            throw InlineError(.badRequest, "A space can hold up to \(SpaceStore.maxGroups) groups")
+        }
+        let groups = try await validGroups([req.parameters.get("conversationId") ?? ""], mode: mode, req)
+        try await SpaceStore.addGroups(id, groups, on: db)
+        return try await space(id, req)
+    }
+
+    static func removeGroup(_ req: Request) async throws -> SpaceStore.Space {
+        let id = try spaceID(req)
+        let db = req.db.sql()
+        guard try await SpaceStore.mode(of: id, owner: req.userID, on: db) != nil else {
+            throw InlineError(.notFound, "Space not found")
+        }
+        guard let group = UUID(uuidString: req.parameters.get("conversationId") ?? "") else {
+            throw InlineError(.badRequest, "Invalid conversation id")
+        }
+        try await SpaceStore.removeGroup(id, group.uuidString, on: db)
         return try await space(id, req)
     }
 
@@ -146,6 +186,25 @@ struct SpacesController {
         let allowed = try await SpaceStore.allowedMembers(ids, owner: req.userID, mode: mode, on: req.db.sql())
         guard allowed.count == ids.count else {
             throw InlineError(.badRequest, "Some of these people can't be added to a space")
+        }
+        return ids
+    }
+
+    /// Same all-or-nothing rule for group chats: each must be a group of the
+    /// space's mode that you're in.
+    private static func validGroups(_ raw: [String], mode: String, _ req: Request) async throws -> [UUID] {
+        var seen = Set<String>()
+        var ids: [UUID] = []
+        for value in raw {
+            guard let id = UUID(uuidString: value) else { throw InlineError(.badRequest, "Invalid conversation id") }
+            if seen.insert(id.uuidString.lowercased()).inserted { ids.append(id) }
+        }
+        guard ids.count <= SpaceStore.maxGroups else {
+            throw InlineError(.badRequest, "A space can hold up to \(SpaceStore.maxGroups) groups")
+        }
+        let allowed = try await SpaceStore.allowedGroups(ids, owner: req.userID, mode: mode, on: req.db.sql())
+        guard allowed.count == ids.count else {
+            throw InlineError(.badRequest, "Some of these groups can't be added to a space")
         }
         return ids
     }
