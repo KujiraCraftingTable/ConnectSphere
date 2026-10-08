@@ -208,7 +208,7 @@ struct SettingsView: View {
         } label: {
             HStack(spacing: 12) {
                 Circle()
-                    .fill(themeManager.theme.primaryGradient)
+                    .fill(themeManager.theme.primary)
                     .frame(width: 28, height: 28)
                 Text(themeManager.theme.name)
                     .font(.system(size: 16))

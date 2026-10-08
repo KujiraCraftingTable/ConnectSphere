@@ -236,12 +236,10 @@ struct ProfileView: View {
         .frame(maxWidth: .infinity)
     }
 
+    /// Bare glyph: the toolbar's Liquid Glass is its only background.
     private func navIconButton(icon: String) -> some View {
-        ZStack {
-            Circle().fill(AppColors.elevated(colorScheme)).frame(width: 34, height: 34)
-            Image(systemName: icon)
-                .font(.system(size: 15, weight: .medium))
-                .foregroundColor(AppColors.textPrimary(colorScheme))
-        }
+        Image(systemName: icon)
+            .font(.system(size: 15, weight: .medium))
+            .foregroundColor(AppColors.textPrimary(colorScheme))
     }
 }

@@ -3,8 +3,6 @@ import SwiftUI
 /// Wraps chips onto a new line automatically when horizontal space runs out
 struct FlowLayout: Layout {
     var spacing: CGFloat = 8
-    /// Centre each row instead of left-aligning it.
-    var centered = false
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let maxWidth = proposal.width ?? .infinity
@@ -48,8 +46,7 @@ struct FlowLayout: Layout {
         }
         var y = bounds.minY
         for row in rows where !row.isEmpty {
-            let width = row.reduce(0) { $0 + $1.1.width } + spacing * CGFloat(row.count - 1)
-            var x = centered ? bounds.minX + max(0, (bounds.width - width) / 2) : bounds.minX
+            var x = bounds.minX
             let rowHeight = row.map(\.1.height).max() ?? 0
             for (view, size) in row {
                 view.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))

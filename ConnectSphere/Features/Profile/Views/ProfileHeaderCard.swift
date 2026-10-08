@@ -166,8 +166,15 @@ struct ProfileHeaderCard<Actions: View>: View {
     private var tags: some View {
         let items = mode == .hobby ? user.interests : user.skills
         if !items.isEmpty {
-            FlowLayout(spacing: AppSpacing.sm, centered: true) {
+            let row = HStack(spacing: AppSpacing.sm) {
                 ForEach(items, id: \.self) { Chip(text: $0, style: .neutral) }
+            }
+            // Always one line: centred when it fits, otherwise it scrolls
+            // sideways instead of wrapping onto more lines.
+            ViewThatFits(in: .horizontal) {
+                row
+                ScrollView(.horizontal, showsIndicators: false) { row }
+                    .scrollClipDisabled()
             }
             .padding(.top, 4)
         }

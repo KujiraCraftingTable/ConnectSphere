@@ -57,8 +57,9 @@ struct CommunitiesView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button { showCreate = true } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 20))
+                        // Plain glyph — a filled disc read as a button inside the glass.
+                        Image(systemName: "plus")
+                            .font(.system(size: 17, weight: .semibold))
                             .foregroundColor(themeManager.theme.primary)
                     }
                 }

@@ -11,7 +11,9 @@ struct ThemePickerView: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) private var dismiss
 
-    private let previewUser = MockData.currentUser
+    /// The signed-in person, so the preview shows their own name and tags
+    /// (sample data only if there's somehow no profile loaded).
+    private var previewUser: UserProfile { appState.currentUser ?? MockData.currentUser }
 
     var body: some View {
         NavigationStack {
@@ -89,8 +91,10 @@ struct ThemePickerView: View {
             HStack(spacing: 14) {
                 // Avatar ring
                 ZStack {
+                    // Flat, like everywhere the theme colour is used in the app —
+                    // the preview shouldn't promise a gradient or glow it won't show.
                     Circle()
-                        .fill(themeManager.theme.primaryGradient)
+                        .fill(themeManager.theme.primary)
                         .frame(width: 54, height: 54)
                     Text(String(previewUser.name.prefix(1)))
                         .font(.system(size: 22, weight: .bold))
@@ -134,18 +138,16 @@ struct ThemePickerView: View {
                     .foregroundColor(.white)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
-                    .background(themeManager.theme.primaryGradient)
+                    .background(themeManager.theme.primary)
                     .clipShape(Capsule())
-                    .shadow(color: themeManager.theme.primary.opacity(0.35), radius: 6, x: 0, y: 3)
             }
             .padding(16)
             .background(Color(.systemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 18))
             .overlay(
                 RoundedRectangle(cornerRadius: 18)
-                    .stroke(themeManager.theme.softBorder, lineWidth: 1.5)
+                    .stroke(AppColors.borderDefault(colorScheme), lineWidth: 1)
             )
-            .shadow(color: themeManager.theme.primary.opacity(0.08), radius: 12, x: 0, y: 4)
         }
     }
 
@@ -224,15 +226,9 @@ struct ThemePickerView: View {
                             .stroke(palette.primary, lineWidth: 2.5)
                             .frame(width: 50, height: 50)
                     }
-                    // Gradient swatch
+                    // The colour exactly as the app uses it (flat, no gradient).
                     Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [palette.primary, palette.secondary],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                        .fill(palette.primary)
                         .frame(width: isSelected ? 40 : 44, height: isSelected ? 40 : 44)
                     if isSelected {
                         Image(systemName: "checkmark")
