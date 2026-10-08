@@ -59,6 +59,12 @@ struct SpacesInboxTests {
         #expect(candidates.map(\.id) == ["u-a", "u-z"])
     }
 
+    @Test func pendingRequestsCannotBeFiledIntoSpaces() throws {
+        let convs = [try conversation("1", other: "u-friend"), try conversation("2", other: "u-in", request: "waiting"),
+                     try conversation("3", other: "u-out", request: "sent")]
+        #expect(SpaceCandidate.merge(conversations: convs, connections: []).map(\.id) == ["u-friend"])
+    }
+
     @Test func inboxArchiveAndWaitingAreSeparate() throws {
         let vm = ConversationListViewModel()
         vm.conversations = [try conversation("1", pinned: true), try conversation("2", archived: true),

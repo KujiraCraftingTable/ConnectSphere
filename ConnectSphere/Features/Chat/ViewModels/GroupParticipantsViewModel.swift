@@ -63,7 +63,7 @@ class GroupParticipantsViewModel {
             let settings = try await repository.addMembers(conversationId: conversationId, memberIds: memberIds, token: token)
             members = settings.members
         } catch {
-            self.error = friendlyError(error)
+            self.error = Bundle.app.loc(friendlyError(error))
         }
     }
 

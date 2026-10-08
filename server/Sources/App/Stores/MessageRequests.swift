@@ -82,4 +82,27 @@ enum MessageRequests {
     }
 
     static let limitReason = "You can send up to 3 messages until they accept your request"
+    static let unrelatedReason = "You can only add friends or people who've accepted your messages"
+
+    /// Among `ids`, the people `actor` may NOT put in a group or a space in
+    /// `mode`: neither friends there, nor in a 1-on-1 chat that's past the
+    /// request stage. Until a stranger is accepted, these are how they'd
+    /// otherwise skip Waiting — straight into your Messages via a group.
+    static func unrelated(_ actor: String, _ ids: [UUID], mode: String, on db: any SQLDatabase) async throws -> Set<String> {
+        guard !ids.isEmpty, ["hobby", "work"].contains(mode) else { return [] }
+        let me = quoted(actor)
+        let modeRef = "'\(mode)'"   // allowlisted above
+        struct I: Decodable { let id: String }
+        let rows = try await db.raw("""
+            SELECT u.id::text AS id FROM unnest(\(bind: ids)) AS u(id)
+            WHERE NOT \(unsafeRaw: connectedSQL(me, "u.id", mode: modeRef))
+              AND NOT EXISTS (
+                SELECT 1 FROM conversations c
+                JOIN conversation_participants a ON a.conversation_id = c.id AND a.user_id = \(unsafeRaw: me)
+                JOIN conversation_participants b ON b.conversation_id = c.id AND b.user_id = u.id
+                WHERE c.is_group = FALSE AND c.mode = \(unsafeRaw: modeRef)
+                  AND NOT \(unsafeRaw: pendingSQL(me: me, other: "u.id")))
+            """).all(decoding: I.self)
+        return Set(rows.map { $0.id.lowercased() })
+    }
 }

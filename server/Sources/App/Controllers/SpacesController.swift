@@ -41,7 +41,7 @@ struct SpacesController {
         guard try await !SpaceStore.nameTaken(name, owner: req.userID, mode: mode, on: db) else {
             throw InlineError(.conflict, "You already have a space with that name")
         }
-        let members = try await validMembers(b.member_ids ?? [], req)
+        let members = try await validMembers(b.member_ids ?? [], mode: mode, req)
         let id = try await SpaceStore.create(owner: req.userID, mode: mode, name: name, color: color, on: db)
         try await SpaceStore.addMembers(id, members, on: db)
         return try await space(id, req)
@@ -80,10 +80,10 @@ struct SpacesController {
     static func setMembers(_ req: Request) async throws -> SpaceStore.Space {
         let id = try spaceID(req)
         let db = req.db.sql()
-        guard try await SpaceStore.mode(of: id, owner: req.userID, on: db) != nil else {
+        guard let mode = try await SpaceStore.mode(of: id, owner: req.userID, on: db) else {
             throw InlineError(.notFound, "Space not found")
         }
-        let members = try await validMembers(try req.content.decode(MembersBody.self).member_ids ?? [], req)
+        let members = try await validMembers(try req.content.decode(MembersBody.self).member_ids ?? [], mode: mode, req)
         try await SpaceStore.replaceMembers(id, with: members, on: db)
         return try await space(id, req)
     }
@@ -91,13 +91,13 @@ struct SpacesController {
     static func addMember(_ req: Request) async throws -> SpaceStore.Space {
         let id = try spaceID(req)
         let db = req.db.sql()
-        guard try await SpaceStore.mode(of: id, owner: req.userID, on: db) != nil else {
+        guard let mode = try await SpaceStore.mode(of: id, owner: req.userID, on: db) else {
             throw InlineError(.notFound, "Space not found")
         }
         guard try await SpaceStore.memberCount(id, on: db) < SpaceStore.maxMembers else {
             throw InlineError(.badRequest, "A space can hold up to \(SpaceStore.maxMembers) people")
         }
-        let members = try await validMembers([req.parameters.get("userId") ?? ""], req)
+        let members = try await validMembers([req.parameters.get("userId") ?? ""], mode: mode, req)
         try await SpaceStore.addMembers(id, members, on: db)
         return try await space(id, req)
     }
@@ -130,9 +130,10 @@ struct SpacesController {
     }
 
     /// Parses, de-duplicates and checks the ids: each must be a real person
-    /// who isn't you and isn't blocked either way. Any bad id refuses the
+    /// who isn't you, isn't blocked either way, and is a friend or has a chat
+    /// with you that's past the request stage. Any bad id refuses the
     /// whole request rather than silently dropping someone.
-    private static func validMembers(_ raw: [String], _ req: Request) async throws -> [UUID] {
+    private static func validMembers(_ raw: [String], mode: String, _ req: Request) async throws -> [UUID] {
         var seen = Set<String>()
         var ids: [UUID] = []
         for value in raw {
@@ -142,7 +143,7 @@ struct SpacesController {
         guard ids.count <= SpaceStore.maxMembers else {
             throw InlineError(.badRequest, "A space can hold up to \(SpaceStore.maxMembers) people")
         }
-        let allowed = try await SpaceStore.allowedMembers(ids, owner: req.userID, on: req.db.sql())
+        let allowed = try await SpaceStore.allowedMembers(ids, owner: req.userID, mode: mode, on: req.db.sql())
         guard allowed.count == ids.count else {
             throw InlineError(.badRequest, "Some of these people can't be added to a space")
         }

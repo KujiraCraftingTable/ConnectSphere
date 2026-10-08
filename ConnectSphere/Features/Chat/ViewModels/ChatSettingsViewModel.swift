@@ -214,7 +214,7 @@ class ChatSettingsViewModel {
             return try await repository.createGroup(memberIds: [otherUserId] + memberIds.sorted(),
                                                     mode: mode, name: name, token: token)
         } catch {
-            self.error = friendlyError(error)
+            self.error = Bundle.app.loc(friendlyError(error))   // server reasons have vi entries
             return nil
         }
     }
