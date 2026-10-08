@@ -897,9 +897,7 @@
 // MARK: - Messages: spaces, swipe actions, archive, message requests
 "%@ isn't your friend yet. Accept to move this chat to your inbox and reply." = "%@ isn't your friend yet. Accept to move this chat to your inbox and reply.";
 "%@ options" = "%@ options";
-"%lld people" = "%lld people";
 "A space groups people by where you know them from, so you can tell at a glance who's who." = "A space groups people by where you know them from, so you can tell at a glance who's who.";
-"Add people" = "Add people";
 "Archive" = "Archive";
 "Archived chats" = "Archived chats";
 "Badminton" = "Badminton";
@@ -911,7 +909,6 @@
 "Delete space?" = "Delete space?";
 "Delete this chat?" = "Delete this chat?";
 "Edit name & colour" = "Edit name & colour";
-"Edit people" = "Edit people";
 "Edit space" = "Edit space";
 "Family" = "Family";
 "Its messages are removed for you only. It comes back if a new message arrives." = "Its messages are removed for you only. It comes back if a new message arrives.";
@@ -927,7 +924,6 @@
 "Only you can see your spaces." = "Only you can see your spaces.";
 "Organise chats with Spaces" = "Organise chats with Spaces";
 "Other chats" = "Other chats";
-"Search people" = "Search people";
 "Space name" = "Space name";
 "Spaces" = "Spaces";
 "Spaces for %@" = "Spaces for %@";
@@ -966,7 +962,6 @@
 "New: keep chats in Spaces — folders for the people you talk to." = "New: keep chats in Spaces — folders for the people you talk to.";
 "No messages yet — say hi" = "No messages yet — say hi";
 "Remove from space" = "Remove from space";
-"Spaces work like folders for people. Make one, add the people you want in it, and their chats are kept together there." = "Spaces work like folders for people. Make one, add the people you want in it, and their chats are kept together there.";
 "Rose" = "Rose";
 "Coral" = "Coral";
 "Amber" = "Amber";
@@ -983,3 +978,13 @@
 "Fuchsia" = "Fuchsia";
 "Brown" = "Brown";
 "Slate" = "Slate";
+
+/* Spaces: group chats */
+"%lld selected" = "%lld selected";
+"Search people and groups" = "Search people and groups";
+"Add people or groups" = "Add people or groups";
+"Edit people & groups" = "Edit people & groups";
+"Groups" = "Groups";
+"Spaces work like folders. Make one, add people and group chats to it, and those chats are kept together there." = "Spaces work like folders. Make one, add people and group chats to it, and those chats are kept together there.";
+"Some of these groups can't be added to a space" = "Some of these groups can't be added to a space";
+"A space can hold up to 100 groups" = "A space can hold up to 100 groups";

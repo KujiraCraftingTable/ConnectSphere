@@ -50,6 +50,36 @@ struct SpacesInboxTests {
         #expect(sections[0].conversations.map(\.id) == ["1"])
     }
 
+    @Test func groupChatsInASpaceLeaveOtherChats() throws {
+        let uni = ChatSpace(id: "s1", name: "Uni", color: .teal, memberIds: ["u-a"], groupIds: ["G-1"])
+        let club = ChatSpace(id: "s2", name: "Club", color: .orange, groupIds: ["g-1"])
+        let convs = [try conversation("g-1", group: true), try conversation("1", other: "u-a"),
+                     try conversation("g-2", group: true)]
+        let sections = SpaceSection.make(conversations: convs, spaces: [uni, club])
+        #expect(sections[0].conversations.map(\.id) == ["g-1", "1"])   // list order kept, ids case-insensitive
+        #expect(sections[1].conversations.map(\.id) == ["g-1"])        // one group, two spaces
+        #expect(sections[2].conversations.map(\.id) == ["g-2"])        // only the unfiled group is left over
+        #expect(uni.contains(convs[0]) && !club.contains(convs[1]))
+    }
+
+    @Test func groupCandidatesComeFromGroupChatsOnly() throws {
+        let convs = [try conversation("1", other: "u-a"), try conversation("g-1", group: true)]
+        let groups = SpaceCandidate.groups(from: convs)
+        #expect(groups.map(\.id) == ["g-1"])
+        #expect(groups.allSatisfy { $0.isGroup })
+    }
+
+    @Test func spacesDecodeTheirGroups() throws {
+        let space = try JSONDecoder().decode(ChatSpace.self, from: Data("""
+            {"id":"s1","name":"Uni","color":"navy","position":0,"member_ids":[],"conversation_ids":["g-1"],"members":[]}
+            """.utf8))
+        #expect(space.groupIds == ["g-1"] && space.color == .navy)
+        let older = try JSONDecoder().decode(ChatSpace.self, from: Data("""
+            {"id":"s1","name":"Uni","color":"blue","member_ids":[]}
+            """.utf8))
+        #expect(older.groupIds.isEmpty)
+    }
+
     @Test func noSpacesMeansOneOtherChatsSection() throws {
         let sections = SpaceSection.make(conversations: [try conversation("1")], spaces: [])
         #expect(sections.count == 1 && sections[0].kind == .others)

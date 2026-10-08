@@ -1,14 +1,16 @@
 import SwiftUI
 
-/// A private label the user puts on people to organise Messages ("Greenwich
-/// Uni", "Badminton"). Per mode; one person can be in several spaces; nobody
-/// but the owner ever sees them.
+/// A private folder the user puts people and group chats in to organise
+/// Messages ("Greenwich Uni", "Badminton"). Per mode; a person or group can be
+/// in several spaces; nobody but the owner ever sees them.
 struct ChatSpace: Identifiable, Decodable, Equatable {
     let id: String
     var name: String
     var color: SpaceColor
     let position: Int
     var memberIds: [String]
+    /// Group chats in the space (only ones you're still in).
+    var groupIds: [String]
     /// The same people with name and photo — so someone you haven't chatted
     /// with yet still shows in the space.
     var members: [SpaceMember]
@@ -16,15 +18,17 @@ struct ChatSpace: Identifiable, Decodable, Equatable {
     enum CodingKeys: String, CodingKey {
         case id, name, color, position, members
         case memberIds = "member_ids"
+        case groupIds = "conversation_ids"
     }
 
     init(id: String, name: String, color: SpaceColor, position: Int = 0, memberIds: [String] = [],
-         members: [SpaceMember] = []) {
+         groupIds: [String] = [], members: [SpaceMember] = []) {
         self.id = id
         self.name = name
         self.color = color
         self.position = position
         self.memberIds = memberIds
+        self.groupIds = groupIds
         self.members = members
     }
 
@@ -35,6 +39,7 @@ struct ChatSpace: Identifiable, Decodable, Equatable {
         color = SpaceColor(rawValue: try c.decode(String.self, forKey: .color)) ?? .blue
         position = try c.decodeIfPresent(Int.self, forKey: .position) ?? 0
         memberIds = try c.decodeIfPresent([String].self, forKey: .memberIds) ?? []
+        groupIds = try c.decodeIfPresent([String].self, forKey: .groupIds) ?? []
         members = (try? c.decodeIfPresent([SpaceMember].self, forKey: .members)) ?? []
     }
 
@@ -42,6 +47,17 @@ struct ChatSpace: Identifiable, Decodable, Equatable {
     /// case, while ids that went through a Swift `UUID` come back upper case.
     func contains(_ userId: String) -> Bool {
         memberIds.contains { $0.caseInsensitiveCompare(userId) == .orderedSame }
+    }
+
+    func containsGroup(_ conversationId: String) -> Bool {
+        groupIds.contains { $0.caseInsensitiveCompare(conversationId) == .orderedSame }
+    }
+
+    /// Whether this chat sits in the space: a group by its own id, a 1-on-1
+    /// by the other person.
+    func contains(_ conversation: Conversation) -> Bool {
+        if conversation.isGroup { return containsGroup(conversation.id) }
+        return conversation.otherUserId.map(contains) ?? false
     }
 }
 
@@ -118,7 +134,7 @@ struct SpaceMember: Identifiable, Decodable, Equatable {
 struct SpaceSection: Identifiable, Equatable {
     enum Kind: Equatable {
         case space(ChatSpace)
-        /// Everyone in no space, plus every group chat.
+        /// Every chat in no space.
         case others
     }
 
@@ -152,16 +168,13 @@ struct SpaceSection: Identifiable, Equatable {
 
     /// Groups the conversation list by space, keeping the list's own order
     /// inside each section, then adds the space's people who have no chat
-    /// yet. A person in two spaces appears in both; a 1-on-1 chat with someone
-    /// in no space, and every group chat, go to the final "Other chats"
-    /// section — so turning the view on never hides a chat.
+    /// yet. A person or group in two spaces appears in both; every chat in no
+    /// space goes to the final "Other chats" section — so turning the view on
+    /// never hides a chat.
     static func make(conversations: [Conversation], spaces: [ChatSpace]) -> [SpaceSection] {
         var placed = Set<String>()
         var sections: [SpaceSection] = spaces.map { space in
-            let chats = conversations.filter { conversation in
-                guard let other = conversation.otherUserId else { return false }
-                return space.contains(other)
-            }
+            let chats = conversations.filter(space.contains)
             placed.formUnion(chats.map(\.id))
             let chatting = Set(chats.compactMap { $0.otherUserId?.lowercased() })
             let waiting = space.members.filter { !chatting.contains($0.id.lowercased()) }
@@ -183,6 +196,7 @@ struct SpaceCandidate: Identifiable, Equatable {
     let avatarUrl: String?
     let avatarColor: String?
     let subtitle: String?
+    var isGroup = false
 
     /// Chat partners first (most recent first), then connections not already listed.
     static func merge(conversations: [Conversation], connections: [ConnectionItemDTO]) -> [SpaceCandidate] {
@@ -202,5 +216,14 @@ struct SpaceCandidate: Identifiable, Equatable {
                                          subtitle: item.user.jobTitle ?? item.user.company))
         }
         return result
+    }
+
+    /// Your group chats in this mode, most recent first.
+    static func groups(from conversations: [Conversation]) -> [SpaceCandidate] {
+        conversations.compactMap { conversation in
+            guard case .group(let name, let avatar, let color, let count) = conversation.peer else { return nil }
+            return SpaceCandidate(id: conversation.id, name: name, avatarUrl: avatar, avatarColor: color,
+                                  subtitle: String(format: Bundle.app.loc("%lld members"), count), isGroup: true)
+        }
     }
 }

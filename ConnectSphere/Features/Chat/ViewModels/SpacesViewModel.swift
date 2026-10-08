@@ -1,8 +1,8 @@
 import Foundation
 import Observation
 
-/// The signed-in user's chat spaces for one mode. Messages and a 1-on-1
-/// chat's settings each own one and reload on appear, so a change made in one
+/// The signed-in user's chat spaces for one mode. Messages and a chat's
+/// settings each own one and reload on appear, so a change made in one
 /// screen shows in the other.
 @MainActor
 @Observable
@@ -28,10 +28,22 @@ final class SpacesViewModel {
         spaces.filter { $0.contains(userId) }
     }
 
+    /// Spaces this chat sits in — by its group, or by the other person.
+    func spaces(for conversation: Conversation) -> [ChatSpace] {
+        spaces.filter { $0.contains(conversation) }
+    }
+
+    /// Spaces this group chat is in.
+    func spaces(containingGroup conversationId: String) -> [ChatSpace] {
+        spaces.filter { $0.containsGroup(conversationId) }
+    }
+
     @discardableResult
-    func create(name: String, color: SpaceColor, memberIds: [String], mode: String, token: String) async -> ChatSpace? {
+    func create(name: String, color: SpaceColor, memberIds: [String] = [], groupIds: [String] = [],
+                mode: String, token: String) async -> ChatSpace? {
         await save {
-            let space = try await repository.create(name: name, color: color, mode: mode, memberIds: memberIds, token: token)
+            let space = try await repository.create(name: name, color: color, mode: mode, memberIds: memberIds,
+                                                    groupIds: groupIds, token: token)
             spaces.append(space)
             return space
         }
@@ -46,8 +58,10 @@ final class SpacesViewModel {
         } != nil
     }
 
-    func setMembers(_ space: ChatSpace, to memberIds: [String], token: String) async -> Bool {
-        await save { replace(try await repository.setMembers(space.id, memberIds: memberIds, token: token)) } != nil
+    func setMembers(_ space: ChatSpace, people memberIds: [String], groups groupIds: [String], token: String) async -> Bool {
+        await save {
+            replace(try await repository.setMembers(space.id, memberIds: memberIds, groupIds: groupIds, token: token))
+        } != nil
     }
 
     /// Puts this person in or takes them out of one space (chat settings checklist).
@@ -56,6 +70,15 @@ final class SpacesViewModel {
             replace(isMember
                 ? try await repository.addMember(space.id, userId: userId, token: token)
                 : try await repository.removeMember(space.id, userId: userId, token: token))
+        }
+    }
+
+    /// Puts this group chat in or takes it out of one space (group settings checklist).
+    func setGroupMembership(of conversationId: String, in space: ChatSpace, isMember: Bool, token: String) async {
+        _ = await save {
+            replace(isMember
+                ? try await repository.addGroup(space.id, conversationId: conversationId, token: token)
+                : try await repository.removeGroup(space.id, conversationId: conversationId, token: token))
         }
     }
 

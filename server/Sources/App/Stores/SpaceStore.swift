@@ -1,8 +1,8 @@
 import Vapor
 import SQLKit
 
-/// Chat spaces (migration 038): private, per-mode labels a user puts on people
-/// to organise Messages. Every query is scoped to the owner — nobody else can
+/// Chat spaces (migrations 038, 041): private, per-mode folders a user puts
+/// people and group chats in to organise Messages. Every query is scoped to the owner — nobody else can
 /// see or touch someone's spaces.
 enum SpaceStore {
     static let modes: Set<String> = ["hobby", "work"]
@@ -14,6 +14,7 @@ enum SpaceStore {
     ]
     static let maxSpacesPerMode = 20
     static let maxMembers = 200
+    static let maxGroups = 100
     static let maxNameLength = 30
 
     struct Space: Content {
@@ -22,6 +23,8 @@ enum SpaceStore {
         var color: String
         var position: Int
         var member_ids: [String]
+        /// Group chats in the space — only ones the owner is still in.
+        var conversation_ids: [String]
         /// The same people with their name/photo for the space's mode, so a
         /// space can show someone you haven't chatted with yet.
         var members: [Member]
@@ -37,12 +40,13 @@ enum SpaceStore {
     /// Raw row: `members` arrives as JSON text and is decoded into `Space`.
     private struct Row: Decodable {
         let id: String; let name: String; let color: String; let position: Int
-        let member_ids: [String]; let members: String
+        let member_ids: [String]; let conversation_ids: [String]; let members: String
     }
 
     private static func space(_ r: Row) -> Space {
         let members = (try? JSONCoding.makeDecoder().decode([Member].self, from: Data(r.members.utf8))) ?? []
-        return Space(id: r.id, name: r.name, color: r.color, position: r.position, member_ids: r.member_ids, members: members)
+        return Space(id: r.id, name: r.name, color: r.color, position: r.position, member_ids: r.member_ids,
+                     conversation_ids: r.conversation_ids, members: members)
     }
 
     /// Columns shared by `list` and `find` (space alias `s`).
@@ -52,6 +56,10 @@ enum SpaceStore {
           COALESCE((SELECT array_agg(m.user_id::text ORDER BY m.added_at)
                     FROM chat_space_members m JOIN users u ON u.id = m.user_id AND u.deleted_at IS NULL
                     WHERE m.space_id = s.id), '{}') AS member_ids,
+          COALESCE((SELECT array_agg(g.conversation_id::text ORDER BY g.added_at)
+                    FROM chat_space_conversations g
+                    JOIN conversation_participants p ON p.conversation_id = g.conversation_id AND p.user_id = s.owner_id
+                    WHERE g.space_id = s.id), '{}') AS conversation_ids,
           COALESCE((SELECT json_agg(json_build_object(
                       'id', u.id::text,
                       'display_name', \(PersonaSQL.expr("display_name", modeRef: "s.mode")),
@@ -128,6 +136,19 @@ enum SpaceStore {
         return Set(rows.map { $0.id.lowercased() }).subtracting(strangers)
     }
 
+    /// The ids among `ids` that may sit in the owner's space in `mode`: group
+    /// chats of that mode the owner is a member of.
+    static func allowedGroups(_ ids: [UUID], owner: String, mode: String, on db: any SQLDatabase) async throws -> Set<String> {
+        guard !ids.isEmpty else { return [] }
+        struct I: Decodable { let id: String }
+        let rows = try await db.raw("""
+            SELECT c.id::text AS id FROM conversations c
+            JOIN conversation_participants p ON p.conversation_id = c.id AND p.user_id = \(uuid: owner)
+            WHERE c.id = ANY(\(bind: ids)) AND c.is_group = TRUE AND c.mode = \(bind: mode)
+            """).all(decoding: I.self)
+        return Set(rows.map { $0.id.lowercased() })
+    }
+
     static func create(owner: String, mode: String, name: String, color: String,
                        on db: any SQLDatabase) async throws -> String {
         struct I: Decodable { let id: String }
@@ -162,6 +183,30 @@ enum SpaceStore {
             SELECT \(uuid: id), unnest(\(bind: members))
             ON CONFLICT DO NOTHING
             """).run()
+    }
+
+    static func replaceGroups(_ id: String, with groups: [UUID], on db: any SQLDatabase) async throws {
+        try await db.raw("DELETE FROM chat_space_conversations WHERE space_id = \(uuid: id)").run()
+        try await addGroups(id, groups, on: db)
+    }
+
+    static func addGroups(_ id: String, _ groups: [UUID], on db: any SQLDatabase) async throws {
+        guard !groups.isEmpty else { return }
+        try await db.raw("""
+            INSERT INTO chat_space_conversations (space_id, conversation_id)
+            SELECT \(uuid: id), unnest(\(bind: groups))
+            ON CONFLICT DO NOTHING
+            """).run()
+    }
+
+    static func removeGroup(_ id: String, _ conversation: String, on db: any SQLDatabase) async throws {
+        try await db.raw("DELETE FROM chat_space_conversations WHERE space_id = \(uuid: id) AND conversation_id = \(uuid: conversation)").run()
+    }
+
+    static func groupCount(_ id: String, on db: any SQLDatabase) async throws -> Int {
+        struct N: Decodable { let n: Int }
+        return try await db.raw("SELECT COUNT(*)::int AS n FROM chat_space_conversations WHERE space_id = \(uuid: id)")
+            .first(decoding: N.self)?.n ?? 0
     }
 
     static func removeMember(_ id: String, _ member: String, on db: any SQLDatabase) async throws {

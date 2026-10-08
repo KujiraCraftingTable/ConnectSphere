@@ -55,7 +55,7 @@ struct ChatSettingsView: View {
 
     @State private var showBlockConfirm = false
 
-    // Spaces + "Create group with …" (1-on-1 only)
+    // Spaces (1-on-1 and groups) + "Create group with …" (1-on-1 only)
     @State private var spacesViewModel = SpacesViewModel()
     @State private var showSpaceMembership = false
     @State private var showNewSpaceForPerson = false
@@ -109,7 +109,7 @@ struct ChatSettingsView: View {
                     header
                     // Not while this chat is still a message request: neither side
                     // can file the other into a space or group them until accepted.
-                    if !isGroup && viewModel.settings?.requestState == nil { peopleCard }
+                    if viewModel.settings?.requestState == nil { peopleCard }
                     actionsList
                 }
                 .padding(.top, 16)
@@ -336,10 +336,15 @@ struct ChatSettingsView: View {
 
     // MARK: - Actions list
 
-    // MARK: - Spaces + group (1-on-1)
+    // MARK: - Spaces (+ "Create group with …" for a 1-on-1)
 
-    private var personSpaces: [ChatSpace] {
-        peer.otherUserId.map(spacesViewModel.spaces(containing:)) ?? []
+    private var chatSpaces: [ChatSpace] {
+        isGroup ? spacesViewModel.spaces(containingGroup: conversationId)
+                : peer.otherUserId.map(spacesViewModel.spaces(containing:)) ?? []
+    }
+
+    private func isInSpace(_ space: ChatSpace) -> Bool {
+        isGroup ? space.containsGroup(conversationId) : space.contains(peer.otherUserId ?? "")
     }
 
     private var peopleCard: some View {
@@ -347,21 +352,23 @@ struct ChatSettingsView: View {
             Button { showSpaceMembership = true } label: {
                 SettingsRow(icon: "", iconColor: .clear,
                             title: bundle.loc("Spaces"), colorScheme: colorScheme,
-                            subtitle: personSpaces.isEmpty
+                            subtitle: chatSpaces.isEmpty
                                 ? bundle.loc("Not in a space yet")
-                                : personSpaces.map(\.name).joined(separator: " · "),
+                                : chatSpaces.map(\.name).joined(separator: " · "),
                             showsChevron: true,
-                            customIcon: AnyView(SpacePlanetIcon(color: personSpaces.first?.color.color
+                            customIcon: AnyView(SpacePlanetIcon(color: chatSpaces.first?.color.color
                                                                 ?? themeManager.theme.primary, size: 24)))
             }
             .buttonStyle(.plain)
-            divider
-            Button { showGroupPicker = true } label: {
-                SettingsRow(icon: "person.3.fill", iconColor: themeManager.theme.primary,
-                            title: String(format: bundle.loc("Create group with %@"), displayName),
-                            colorScheme: colorScheme, showsChevron: true)
+            if !isGroup {
+                divider
+                Button { showGroupPicker = true } label: {
+                    SettingsRow(icon: "person.3.fill", iconColor: themeManager.theme.primary,
+                                title: String(format: bundle.loc("Create group with %@"), displayName),
+                                colorScheme: colorScheme, showsChevron: true)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
         .background(AppColors.surface(colorScheme))
         .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -371,13 +378,18 @@ struct ChatSettingsView: View {
         }
         .sheet(isPresented: $showSpaceMembership) {
             SpaceMembershipSheet(
-                personName: displayName,
+                name: displayName,
                 spaces: spacesViewModel.spaces,
-                personId: peer.otherUserId ?? "",
+                isIn: isInSpace,
                 onToggle: { space, isIn in
                     Task {
-                        await spacesViewModel.setMembership(of: peer.otherUserId ?? "", in: space,
-                                                            isMember: isIn, token: token)
+                        if isGroup {
+                            await spacesViewModel.setGroupMembership(of: conversationId, in: space,
+                                                                     isMember: isIn, token: token)
+                        } else {
+                            await spacesViewModel.setMembership(of: peer.otherUserId ?? "", in: space,
+                                                                isMember: isIn, token: token)
+                        }
                     }
                 },
                 onNewSpace: {
@@ -392,7 +404,9 @@ struct ChatSettingsView: View {
         .sheet(isPresented: $showNewSpaceForPerson) {
             SpaceEditorSheet(title: bundle.loc("New space"), confirmTitle: bundle.loc("Create"),
                              isSaving: spacesViewModel.isSaving) { name, color in
-                await spacesViewModel.create(name: name, color: color, memberIds: [peer.otherUserId ?? ""],
+                await spacesViewModel.create(name: name, color: color,
+                                             memberIds: isGroup ? [] : [peer.otherUserId ?? ""],
+                                             groupIds: isGroup ? [conversationId] : [],
                                              mode: appState.currentMode.rawValue, token: token) != nil
             }
         }

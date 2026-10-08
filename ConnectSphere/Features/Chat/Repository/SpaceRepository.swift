@@ -11,11 +11,15 @@ struct SpaceRepository {
                                queryItems: [URLQueryItem(name: "mode", value: mode)]).data
     }
 
-    func create(name: String, color: SpaceColor, mode: String, memberIds: [String], token: String) async throws -> ChatSpace {
-        struct Body: Encodable { let name: String; let color: String; let mode: String; let member_ids: [String] }
+    func create(name: String, color: SpaceColor, mode: String, memberIds: [String], groupIds: [String],
+                token: String) async throws -> ChatSpace {
+        struct Body: Encodable {
+            let name: String; let color: String; let mode: String
+            let member_ids: [String]; let conversation_ids: [String]
+        }
         return try await client.fetch(ChatSpace.self, path: "/spaces", method: "POST", token: token,
-                                      bodyData: try JSONEncoder().encode(Body(name: name, color: color.rawValue,
-                                                                              mode: mode, member_ids: memberIds)))
+                                      bodyData: try JSONEncoder().encode(Body(name: name, color: color.rawValue, mode: mode,
+                                                                              member_ids: memberIds, conversation_ids: groupIds)))
     }
 
     func update(_ id: String, name: String?, color: SpaceColor?, token: String) async throws -> ChatSpace {
@@ -29,10 +33,10 @@ struct SpaceRepository {
         _ = try await client.fetch(OK.self, path: "/spaces/\(id)", method: "DELETE", token: token)
     }
 
-    func setMembers(_ id: String, memberIds: [String], token: String) async throws -> ChatSpace {
-        struct Body: Encodable { let member_ids: [String] }
+    func setMembers(_ id: String, memberIds: [String], groupIds: [String], token: String) async throws -> ChatSpace {
+        struct Body: Encodable { let member_ids: [String]; let conversation_ids: [String] }
         return try await client.fetch(ChatSpace.self, path: "/spaces/\(id)/members", method: "PUT", token: token,
-                                      bodyData: try JSONEncoder().encode(Body(member_ids: memberIds)))
+                                      bodyData: try JSONEncoder().encode(Body(member_ids: memberIds, conversation_ids: groupIds)))
     }
 
     func addMember(_ id: String, userId: String, token: String) async throws -> ChatSpace {
@@ -41,5 +45,13 @@ struct SpaceRepository {
 
     func removeMember(_ id: String, userId: String, token: String) async throws -> ChatSpace {
         try await client.fetch(ChatSpace.self, path: "/spaces/\(id)/members/\(userId)", method: "DELETE", token: token)
+    }
+
+    func addGroup(_ id: String, conversationId: String, token: String) async throws -> ChatSpace {
+        try await client.fetch(ChatSpace.self, path: "/spaces/\(id)/groups/\(conversationId)", method: "POST", token: token)
+    }
+
+    func removeGroup(_ id: String, conversationId: String, token: String) async throws -> ChatSpace {
+        try await client.fetch(ChatSpace.self, path: "/spaces/\(id)/groups/\(conversationId)", method: "DELETE", token: token)
     }
 }
