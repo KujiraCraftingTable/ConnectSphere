@@ -270,16 +270,10 @@ struct ConversationListView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: AppSpacing.sm) {
                 Toggle(isOn: $spacesOn.animation(.snappy)) {
-                    Label {
-                        Text("Spaces", bundle: bundle)
-                    } icon: {
-                        SpacePlanetIcon(color: themeManager.theme.primary, size: 18)
-                    }
-                        .labelStyle(.titleAndIcon)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(AppColors.textPrimary(colorScheme))
-                        .lineLimit(1)
-                        .fixedSize()
+                    // Just the planet — the word took room the bar doesn't have;
+                    // VoiceOver still reads "Spaces".
+                    SpacePlanetIcon(color: themeManager.theme.primary, size: 22)
+                        .accessibilityLabel(Text("Spaces", bundle: bundle))
                 }
                 .toggleStyle(LeadingSwitchStyle(tint: themeManager.theme.primary))
 
@@ -385,6 +379,10 @@ struct ConversationListView: View {
         .scrollContentBackground(.hidden)
         .contentMargins(.horizontal, AppSpacing.sm, for: .scrollContent)
         .listSectionSpacing(AppSpacing.md)
+        // The grouped list's own top inset left a wide gap under the bar.
+        // Match the gap above the bar instead: the search field's own bottom
+        // inset (~11 pt) plus the bar's 8 pt top padding.
+        .contentMargins(.top, 18, for: .scrollContent)
         .refreshable {
             await viewModel.load(mode: mode, token: token)
             await spacesViewModel.load(mode: mode, token: token)
