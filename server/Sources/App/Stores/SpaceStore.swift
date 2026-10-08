@@ -6,7 +6,12 @@ import SQLKit
 /// see or touch someone's spaces.
 enum SpaceStore {
     static let modes: Set<String> = ["hobby", "work"]
-    static let colors: Set<String> = ["blue", "green", "orange", "red", "purple", "pink", "teal", "gray"]
+    /// Same keys as the app's `SpaceColor`.
+    static let colors: Set<String> = [
+        "red", "rose", "coral", "orange", "amber", "yellow", "lime", "olive",
+        "green", "forest", "emerald", "teal", "cyan", "sky", "blue", "navy",
+        "indigo", "violet", "purple", "fuchsia", "pink", "brown", "slate", "gray",
+    ]
     static let maxSpacesPerMode = 20
     static let maxMembers = 200
     static let maxNameLength = 30

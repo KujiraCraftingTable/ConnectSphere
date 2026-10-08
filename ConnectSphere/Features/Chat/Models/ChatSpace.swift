@@ -48,25 +48,55 @@ struct ChatSpace: Identifiable, Decodable, Equatable {
 /// The preset colours a space can take — the same keys the server allowlists.
 /// System colours, so each stays legible in both light and dark mode.
 enum SpaceColor: String, CaseIterable, Identifiable {
-    case blue, green, orange, red, purple, pink, teal, gray
+    // Declared in hue order — the picker shows them in this order as a spectrum.
+    case red, rose, coral, orange, amber, yellow, lime, olive
+    case green, forest, emerald, teal, cyan, sky, blue, navy
+    case indigo, violet, purple, fuchsia, pink, brown, slate, gray
 
     var id: String { rawValue }
 
     var color: Color {
         switch self {
-        case .blue:   return .blue
-        case .green:  return .green
-        case .orange: return .orange
-        case .red:    return .red
-        case .purple: return .purple
-        case .pink:   return .pink
-        case .teal:   return .teal
-        case .gray:   return .gray
+        case .red:     return .red
+        case .orange:  return .orange
+        case .green:   return .green
+        case .teal:    return .teal
+        case .blue:    return .blue
+        case .purple:  return .purple
+        case .pink:    return .pink
+        case .gray:    return .gray
+        case .rose:    return Self.rgb(0xF43F5E)
+        case .coral:   return Self.rgb(0xFF7F50)
+        case .amber:   return Self.rgb(0xF59E0B)
+        case .yellow:  return Self.rgb(0xEAB308)
+        case .lime:    return Self.rgb(0x84CC16)
+        case .emerald: return Self.rgb(0x10B981)
+        case .cyan:    return Self.rgb(0x06B6D4)
+        case .sky:     return Self.rgb(0x38BDF8)
+        case .indigo:  return Self.rgb(0x6366F1)
+        case .violet:  return Self.rgb(0x8B5CF6)
+        case .fuchsia: return Self.rgb(0xD946EF)
+        // Deep shades that would vanish on a dark background get a lighter
+        // dark-mode twin, so the planet and the folder tint stay visible.
+        case .olive:   return Self.rgb(0x6B7A1F, dark: 0xA3B23A)
+        case .forest:  return Self.rgb(0x166534, dark: 0x2FAE5F)
+        case .navy:    return Self.rgb(0x1E3A8A, dark: 0x4F72E3)
+        case .brown:   return Self.rgb(0x8B5E3C, dark: 0xB98560)
+        case .slate:   return Self.rgb(0x475569, dark: 0x94A3B8)
         }
     }
 
     /// Localization key — callers wrap it in `bundle.loc(...)`.
     var label: String { rawValue.capitalized }
+
+    private static func rgb(_ hex: UInt32, dark: UInt32? = nil) -> Color {
+        func ui(_ v: UInt32) -> UIColor {
+            UIColor(red: CGFloat((v >> 16) & 0xFF) / 255, green: CGFloat((v >> 8) & 0xFF) / 255,
+                    blue: CGFloat(v & 0xFF) / 255, alpha: 1)
+        }
+        guard let dark else { return Color(uiColor: ui(hex)) }
+        return Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? ui(dark) : ui(hex) })
+    }
 }
 
 /// Someone in a space, as the server lists them (persona for the space's mode).

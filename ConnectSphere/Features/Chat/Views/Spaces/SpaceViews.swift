@@ -95,15 +95,23 @@ struct SpaceEditorSheet: View {
                     Text("Colour", bundle: bundle)
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(AppColors.textSecondary(colorScheme))
-                    HStack(spacing: 12) {
+                    // 24 colours: three rows of eight, in hue order.
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 8), spacing: 10) {
                         ForEach(SpaceColor.allCases) { option in
                             Button { color = option } label: {
-                                Circle()
-                                    .fill(option.color)
-                                    .frame(width: 30, height: 30)
-                                    .overlay(Circle().stroke(AppColors.surface(colorScheme), lineWidth: 2).padding(2))
-                                    .overlay(Circle().stroke(option == color ? option.color : .clear, lineWidth: 2))
-                                    .padding(2)
+                                // Unselected: a plain dot. Selected: a ring around it
+                                // and a check, so the choice stands out among 24.
+                                ZStack {
+                                    Circle().fill(option.color).frame(width: 28, height: 28)
+                                    if option == color {
+                                        Circle().stroke(option.color, lineWidth: 2.5).frame(width: 36, height: 36)
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 12, weight: .bold))
+                                            .foregroundColor(.white)
+                                    }
+                                }
+                                .frame(width: 38, height: 38)
+                                .contentShape(Circle())
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(Text(bundle.loc(option.label)))
