@@ -33,24 +33,6 @@ struct SpaceTag: View {
     }
 }
 
-/// A switch with its control on the leading side and the label after it.
-struct LeadingSwitchStyle: ToggleStyle {
-    let tint: Color
-
-    func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 8) {
-            Toggle("", isOn: configuration.$isOn)
-                .labelsHidden()
-                .tint(tint)
-                .fixedSize()
-            // The label is part of the control: tapping "Spaces" flips it too.
-            configuration.label
-                .contentShape(Rectangle())
-                .onTapGesture { configuration.isOn.toggle() }
-        }
-    }
-}
-
 /// Archived chats, with swipe-to-unarchive. A new message brings a chat back
 /// to the main list on its own.
 struct ArchivedChatsView: View {
