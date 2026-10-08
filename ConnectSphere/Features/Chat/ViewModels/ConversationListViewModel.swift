@@ -8,6 +8,8 @@ class ConversationListViewModel {
     var conversations: [Conversation] = []
     var isLoading = false
     var error: String?
+    /// A swipe action the server refused — shown as an alert over the list.
+    var actionError: String?
     var unreadCount: Int = 0
 
     // Active connections bar (accepted connections + realtime online status)
@@ -26,6 +28,7 @@ class ConversationListViewModel {
 
     private let repository = MessageRepository()
     private let connectionRepo = ConnectionRepository()
+    private let userRepository = UserRepository()
     private let ws = WebSocketClient.shared
 
     // MARK: - Load
@@ -50,6 +53,100 @@ class ConversationListViewModel {
             connections = try await connectionRepo.fetchConnections(mode: mode, status: "accepted")
         } catch {
             connections = []
+        }
+    }
+
+    // MARK: - Inbox (main list vs archive)
+
+    /// What the main list shows: not archived, not a waiting request; pinned first.
+    var inbox: [Conversation] { conversations.filter { !$0.isArchived && $0.requestState != .waiting } }
+    var archived: [Conversation] { conversations.filter { $0.isArchived && $0.requestState != .waiting } }
+    /// Chats from people who aren't friends yet, until accepted.
+    var waiting: [Conversation] { conversations.filter { $0.requestState == .waiting } }
+
+    func accept(_ conversation: Conversation, token: String) async {
+        await change(conversation.id, { $0.requestState = nil }) {
+            try await repository.acceptRequest(conversationId: conversation.id, token: token)
+        }
+    }
+
+    // MARK: - Swipe actions
+    //
+    // Each one updates the row at once, then asks the server; if the server
+    // refuses, the old state comes back and the error is shown.
+
+    func setPinned(_ conversation: Conversation, _ pinned: Bool, token: String) async {
+        await change(conversation.id, { $0.isPinned = pinned }) {
+            try await repository.setPinned(conversationId: conversation.id, pinned: pinned, token: token)
+        }
+    }
+
+    func setArchived(_ conversation: Conversation, _ archived: Bool, token: String) async {
+        await change(conversation.id, {
+            $0.isArchived = archived
+            if archived { $0.isPinned = false }
+        }) {
+            try await repository.setArchived(conversationId: conversation.id, archived: archived, token: token)
+        }
+    }
+
+    func markRead(_ conversation: Conversation, token: String) async {
+        guard conversation.hasUnread else { return }
+        unreadCount = max(0, unreadCount - conversation.unreadCount)
+        await change(conversation.id, { $0.unreadCount = 0 }) {
+            try await repository.markRead(conversationId: conversation.id, token: token)
+        }
+    }
+
+    /// Mute until turned back on, or unmute.
+    func setMuted(_ conversation: Conversation, _ muted: Bool, token: String) async {
+        await change(conversation.id, { $0.mutedUntil = muted ? .distantFuture : nil }) {
+            try await repository.setMute(conversationId: conversation.id, minutes: muted ? -1 : nil, token: token)
+        }
+    }
+
+    /// Clears the chat's history for me; it leaves the list until a new message arrives.
+    func delete(_ conversation: Conversation, token: String) async {
+        await remove(conversation) {
+            try await repository.clearConversation(conversationId: conversation.id, token: token)
+        }
+    }
+
+    func block(_ conversation: Conversation) async {
+        guard let otherId = conversation.otherUserId else { return }
+        await remove(conversation) { try await userRepository.blockUser(userId: otherId) }
+    }
+
+    private func change(_ id: String, _ edit: (inout Conversation) -> Void,
+                        request: () async throws -> Void) async {
+        guard let index = conversations.firstIndex(where: { $0.id == id }) else { return }
+        let before = conversations
+        edit(&conversations[index])
+        sortPinnedFirst()
+        do {
+            try await request()
+        } catch {
+            conversations = before
+            actionError = friendlyError(error)
+        }
+    }
+
+    private func remove(_ conversation: Conversation, request: () async throws -> Void) async {
+        let before = conversations
+        conversations.removeAll { $0.id == conversation.id }
+        do {
+            try await request()
+        } catch {
+            conversations = before
+            actionError = friendlyError(error)
+        }
+    }
+
+    /// Same order as the server: pinned first, then most recent.
+    private func sortPinnedFirst() {
+        conversations.sort { a, b in
+            if a.isPinned != b.isPinned { return a.isPinned }
+            return a.updatedAt > b.updatedAt
         }
     }
 
@@ -100,12 +197,6 @@ class ConversationListViewModel {
 
     func openConversation(with otherUserId: String, mode: String, token: String) async throws -> String {
         return try await repository.openConversation(otherUserId: otherUserId, mode: mode, token: token)
-    }
-
-    /// Create a new group conversation. Returns the new conversation's id so
-    /// the caller can navigate straight into its `ChatView`.
-    func createGroup(memberIds: [String], mode: String, name: String?, token: String) async throws -> String {
-        try await repository.createGroup(memberIds: memberIds, mode: mode, name: name, token: token)
     }
 
     // MARK: - Search

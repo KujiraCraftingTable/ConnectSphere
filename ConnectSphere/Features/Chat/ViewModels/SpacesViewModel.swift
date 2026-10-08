@@ -1,0 +1,97 @@
+import Foundation
+import Observation
+
+/// The signed-in user's chat spaces for one mode. Messages and a 1-on-1
+/// chat's settings each own one and reload on appear, so a change made in one
+/// screen shows in the other.
+@MainActor
+@Observable
+final class SpacesViewModel {
+    private(set) var spaces: [ChatSpace] = []
+    private(set) var hasLoaded = false
+    private(set) var isSaving = false
+    var error: String?
+
+    private let repository = SpaceRepository()
+
+    func load(mode: String, token: String) async {
+        do {
+            spaces = try await repository.list(mode: mode, token: token)
+            hasLoaded = true
+        } catch {
+            if !hasLoaded { self.error = Self.message(for: error) }
+        }
+    }
+
+    /// Spaces this person is in, in display order.
+    func spaces(containing userId: String) -> [ChatSpace] {
+        spaces.filter { $0.contains(userId) }
+    }
+
+    @discardableResult
+    func create(name: String, color: SpaceColor, memberIds: [String], mode: String, token: String) async -> ChatSpace? {
+        await save {
+            let space = try await repository.create(name: name, color: color, mode: mode, memberIds: memberIds, token: token)
+            spaces.append(space)
+            return space
+        }
+    }
+
+    func update(_ space: ChatSpace, name: String, color: SpaceColor, token: String) async -> Bool {
+        let changedName = name == space.name ? nil : name
+        let changedColor = color == space.color ? nil : color
+        guard changedName != nil || changedColor != nil else { return true }
+        return await save {
+            replace(try await repository.update(space.id, name: changedName, color: changedColor, token: token))
+        } != nil
+    }
+
+    func setMembers(_ space: ChatSpace, to memberIds: [String], token: String) async -> Bool {
+        await save { replace(try await repository.setMembers(space.id, memberIds: memberIds, token: token)) } != nil
+    }
+
+    /// Puts this person in or takes them out of one space (chat settings checklist).
+    func setMembership(of userId: String, in space: ChatSpace, isMember: Bool, token: String) async {
+        _ = await save {
+            replace(isMember
+                ? try await repository.addMember(space.id, userId: userId, token: token)
+                : try await repository.removeMember(space.id, userId: userId, token: token))
+        }
+    }
+
+    func delete(_ space: ChatSpace, token: String) async {
+        let before = spaces
+        spaces.removeAll { $0.id == space.id }      // optimistic: it disappears at once
+        do {
+            try await repository.delete(space.id, token: token)
+        } catch {
+            spaces = before
+            self.error = Self.message(for: error)
+        }
+    }
+
+    // MARK: Private
+
+    @discardableResult
+    private func replace(_ updated: ChatSpace) -> ChatSpace {
+        if let index = spaces.firstIndex(where: { $0.id == updated.id }) { spaces[index] = updated }
+        return updated
+    }
+
+    private func save<T>(_ work: () async throws -> T) async -> T? {
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            return try await work()
+        } catch {
+            self.error = Self.message(for: error)
+            return nil
+        }
+    }
+
+    /// Server reasons ("You already have a space with that name") are English
+    /// keys with Vietnamese entries in the strings files.
+    private static func message(for error: Error) -> String {
+        Bundle.app.loc(friendlyError(error))
+    }
+}

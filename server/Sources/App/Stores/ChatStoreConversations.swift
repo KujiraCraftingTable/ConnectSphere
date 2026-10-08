@@ -21,6 +21,13 @@ extension ChatStore {
         @NullCoded var avatar_color: String?
         @NullCoded var member_count: Int?
         @NullCoded var muted_until: Date?
+        @NullCoded var pinned_at: Date?
+        @NullCoded var archived_at: Date?
+        /// "waiting" (someone who isn't your friend wrote to you), "sent" (you
+        /// wrote to someone who isn't your friend), or null.
+        @NullCoded var request_state: String?
+        /// Messages you can still send before they accept ("sent" only).
+        @NullCoded var requests_left: Int?
         @NullCoded var last_message_content: String?
         @NullCoded var last_message_type: String?
         /// Photo count when the last message is an album ("📷 4 photos").
@@ -33,6 +40,7 @@ extension ChatStore {
     static func listConversations(_ userID: String, mode: String, on db: any SQLDatabase) async throws -> [ConversationSummary] {
         let dn = PersonaSQL.expr("display_name", modeRef: "c.mode")
         let av = PersonaSQL.expr("avatar_url", modeRef: "c.mode")
+        let pending = MessageRequests.pendingSQL(me: MessageRequests.quoted(userID), other: "u.id")
         return try await db.raw("""
             (
               SELECT c.id::text AS id, c.mode, c.is_group, c.theme, c.updated_at,
@@ -41,7 +49,12 @@ extension ChatStore {
                 \(unsafeRaw: av) AS other_user_avatar_url, u.job_title AS other_user_job_title,
                 other_cp.nickname AS other_user_nickname,
                 NULL::text AS name, NULL::text AS avatar_url, NULL::text AS avatar_color, NULL::int AS member_count,
-                my_cp.muted_until AS muted_until,
+                my_cp.muted_until AS muted_until, my_cp.pinned_at, my_cp.archived_at,
+                CASE WHEN \(unsafeRaw: pending) THEN
+                  CASE WHEN c.request_from = \(uuid: userID) THEN 'sent' ELSE 'waiting' END END AS request_state,
+                CASE WHEN \(unsafeRaw: pending) AND c.request_from = \(uuid: userID) THEN
+                  GREATEST(0, \(unsafeRaw: String(MessageRequests.limit)) - (SELECT COUNT(*)::int FROM messages mm
+                    WHERE mm.conversation_id = c.id AND mm.sender_id = \(uuid: userID))) END AS requests_left,
                 lm.content AS last_message_content, lm.message_type AS last_message_type,
                 jsonb_array_length(lm.media_items) AS last_message_media_count,
                 lm.sender_id::text AS last_message_sender_id, lm.created_at AS last_message_at,
@@ -59,6 +72,10 @@ extension ChatStore {
                 ORDER BY created_at DESC LIMIT 1
               ) lm ON true
               WHERE c.mode = \(bind: mode) AND c.is_group = FALSE
+                -- "Delete" (clear history) takes a chat off my list until a new message arrives.
+                AND (my_cp.cleared_at IS NULL OR lm.created_at IS NOT NULL)
+                -- A request with nothing in it yet isn't shown to its recipient.
+                AND NOT (\(unsafeRaw: pending) AND c.request_from <> \(uuid: userID) AND lm.created_at IS NULL)
             )
             UNION ALL
             (
@@ -68,7 +85,8 @@ extension ChatStore {
                 NULL::text AS other_user_nickname,
                 c.name AS name, c.avatar_url AS avatar_url, c.avatar_color AS avatar_color,
                 (SELECT COUNT(*)::INT FROM conversation_participants cp2 WHERE cp2.conversation_id = c.id) AS member_count,
-                my_cp.muted_until AS muted_until,
+                my_cp.muted_until AS muted_until, my_cp.pinned_at, my_cp.archived_at,
+                NULL::text AS request_state, NULL::int AS requests_left,
                 lm.content AS last_message_content, lm.message_type AS last_message_type,
                 jsonb_array_length(lm.media_items) AS last_message_media_count,
                 lm.sender_id::text AS last_message_sender_id, lm.created_at AS last_message_at,
@@ -84,9 +102,30 @@ extension ChatStore {
                 ORDER BY created_at DESC LIMIT 1
               ) lm ON true
               WHERE c.mode = \(bind: mode) AND c.is_group = TRUE
+                -- "Delete" (clear history) takes a chat off my list until a new message arrives.
+                AND (my_cp.cleared_at IS NULL OR lm.created_at IS NOT NULL)
             )
-            ORDER BY updated_at DESC
+            ORDER BY pinned_at DESC NULLS LAST, updated_at DESC
             """).all(decoding: ConversationSummary.self)
+    }
+
+    // MARK: pin / archive (each participant's own inbox)
+
+    static func setPinned(_ conversationID: String, userID: String, pinned: Bool, on db: any SQLDatabase) async throws {
+        try await db.raw("""
+            UPDATE conversation_participants SET pinned_at = CASE WHEN \(bind: pinned) THEN NOW() ELSE NULL END
+            WHERE conversation_id = \(uuid: conversationID) AND user_id = \(uuid: userID)
+            """).run()
+    }
+
+    /// Archiving also unpins: a pinned chat hidden in the archive would be a contradiction.
+    static func setArchived(_ conversationID: String, userID: String, archived: Bool, on db: any SQLDatabase) async throws {
+        try await db.raw("""
+            UPDATE conversation_participants
+            SET archived_at = CASE WHEN \(bind: archived) THEN NOW() ELSE NULL END,
+                pinned_at = CASE WHEN \(bind: archived) THEN NULL ELSE pinned_at END
+            WHERE conversation_id = \(uuid: conversationID) AND user_id = \(uuid: userID)
+            """).run()
     }
 
     // MARK: settings
@@ -100,14 +139,23 @@ extension ChatStore {
         @NullCoded var other_user_avatar_color: String?
         @NullCoded var other_user_job_title: String?
         @NullCoded var other_user_nickname: String?
+        /// Same meaning as in the conversation list: "waiting", "sent" or null.
+        @NullCoded var request_state: String?
+        @NullCoded var requests_left: Int?
     }
     static func settings1to1(_ conversationID: String, userID: String, on db: any SQLDatabase) async throws -> Settings1to1? {
-        try await db.raw("""
+        let pending = MessageRequests.pendingSQL(me: MessageRequests.quoted(userID), other: "u.id")
+        return try await db.raw("""
             SELECT c.theme, my.muted_until,
               u.id::text AS other_user_id, u.username AS other_user_username,
               \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "c.mode")) AS other_user_name,
               u.avatar_color AS other_user_avatar_color, u.job_title AS other_user_job_title,
-              other.nickname AS other_user_nickname
+              other.nickname AS other_user_nickname,
+              CASE WHEN \(unsafeRaw: pending) THEN
+                CASE WHEN c.request_from = \(uuid: userID) THEN 'sent' ELSE 'waiting' END END AS request_state,
+              CASE WHEN \(unsafeRaw: pending) AND c.request_from = \(uuid: userID) THEN
+                GREATEST(0, \(unsafeRaw: String(MessageRequests.limit)) - (SELECT COUNT(*)::int FROM messages mm
+                  WHERE mm.conversation_id = c.id AND mm.sender_id = \(uuid: userID))) END AS requests_left
             FROM conversations c
             JOIN conversation_participants my ON my.conversation_id = c.id AND my.user_id = \(uuid: userID)
             JOIN conversation_participants other ON other.conversation_id = c.id AND other.user_id != \(uuid: userID)

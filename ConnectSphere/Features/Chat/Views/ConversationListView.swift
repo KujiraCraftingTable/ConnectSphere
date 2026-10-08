@@ -12,24 +12,36 @@ struct ConversationListView: View {
     @Environment(AssistantViewModel.self) private var assistantViewModel: AssistantViewModel?
 
     @State private var viewModel = ConversationListViewModel()
+    @State private var spacesViewModel = SpacesViewModel()
     @State private var activeRoute: ChatRoute?
     @State private var showAssistantChat = false
 
-    // Search (name + message content, across all conversations) + read/unread filter
+    // Search (name + message content, across all conversations)
     @State private var searchQuery = ""
-    @State private var unreadOnly = false
 
-    // "New group" flow: pick members, then (optionally) name the group, then
-    // navigate straight into the freshly-created group's ChatView.
-    @State private var showGroupMemberPicker = false
-    @State private var pendingGroupMemberIds: Set<String> = []
-    @State private var showNewGroupDetails = false
-    @State private var isCreatingGroup = false
-    @State private var createGroupError: String?
+    /// Spaces view on/off — a per-device preference, not account data.
+    @AppStorage("chatSpacesView") private var spacesOn = false
+    /// Set once Spaces has been switched on; until then a one-line hint under
+    /// the switch says what it is.
+    @AppStorage("chatSpacesIntroSeen") private var spacesIntroSeen = false
+    /// Ids of folded space sections ("others" for Other chats), comma-joined.
+    @AppStorage("chatCollapsedSpaces") private var collapsedRaw = ""
+
+    // Spaces sheets
+    @State private var spaceEditor: SpaceEditorTarget?
+    @State private var peoplePickerSpace: ChatSpace?
+    @State private var pendingDeleteSpace: ChatSpace?
+
+    // Swipe actions
+    @State private var moreActionsFor: Conversation?
+    @State private var pendingDelete: Conversation?
+    @State private var pendingBlock: Conversation?
 
     private var isSearchActive: Bool {
         !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
+    private var mode: String { appState.currentMode.rawValue }
+    private var token: String { appState.authToken ?? "" }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -40,7 +52,7 @@ struct ConversationListView: View {
             }
 
             if !isSearchActive {
-                unreadFilterRow
+                spacesBar
             }
 
             Group {
@@ -60,20 +72,19 @@ struct ConversationListView: View {
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                             .padding(.horizontal, 32)
                         Button(bundle.loc("Retry")) {
-                            Task { await viewModel.load(mode: appState.currentMode.rawValue,
-                                                        token: appState.authToken ?? "") }
+                            Task { await viewModel.load(mode: mode, token: token) }
                         }
                         .font(.system(size: 14, weight: .semibold))
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if visibleConversations.isEmpty {
-                    if unreadOnly {
-                        unreadEmptyState
+                } else if viewModel.inbox.isEmpty && !(spacesOn && !spacesViewModel.spaces.isEmpty) {
+                    if spacesOn {
+                        ScrollView { SpacesIntroCard { spaceEditor = .create } }
                     } else {
                         emptyState
                     }
                 } else {
-                    conversationList
+                    inboxList
                 }
             }
         }
@@ -104,88 +115,90 @@ struct ConversationListView: View {
         .searchable(text: $searchQuery, placement: .navigationBarDrawer(displayMode: .always),
                     prompt: Text("Search chats and messages", bundle: bundle))
         .onChange(of: searchQuery) { _, newValue in
-            viewModel.search(query: newValue, mode: appState.currentMode.rawValue, token: appState.authToken ?? "")
+            viewModel.search(query: newValue, mode: mode, token: token)
         }
         .toolbar(.hidden, for: .tabBar)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button { showGroupMemberPicker = true } label: {
-                    Image(systemName: "person.3.fill")
-                }
-            }
-        }
         .navigationDestination(item: $activeRoute) { route in
             ChatView(
                 conversationId: route.conversationId,
                 peer: route.peer,
                 otherUserLocation: route.location,
                 currentUserId: appState.currentUser?.id ?? "",
-                token: appState.authToken ?? "",
+                token: token,
                 initialJumpMessageId: route.jumpToMessageId
             )
         }
         .onAppear {
-            guard let token = appState.authToken else { return }
-            let mode = appState.currentMode.rawValue
-            viewModel.connectSocket(token: token)
-            viewModel.registerNewMessageHandler(mode: mode, token: token)
+            guard let authToken = appState.authToken else { return }
+            viewModel.connectSocket(token: authToken)
+            viewModel.registerNewMessageHandler(mode: mode, token: authToken)
             viewModel.registerPresenceHandlers()
-            Task { await viewModel.load(mode: mode, token: token) }
+            Task { await viewModel.load(mode: mode, token: authToken) }
             Task { await viewModel.loadConnections(mode: mode) }
+            Task { await spacesViewModel.load(mode: mode, token: authToken) }
         }
         .onDisappear {
             viewModel.unregisterHandlers()
         }
-        .sheet(isPresented: $showGroupMemberPicker) {
-            GroupMemberPickerView(
-                excludedUserIds: [],
-                remainingSlots: 99, // 100-member cap minus the creator
-                confirmTitle: bundle.loc("Next"),
-                onConfirm: { ids in
-                    pendingGroupMemberIds = ids
-                    showNewGroupDetails = true
-                }
-            )
-            .environment(appState)
+        // A group made from a 1-on-1 chat's settings opens here.
+        .onReceive(NotificationCenter.default.publisher(for: .openConversation)) { note in
+            guard let route = note.object as? ChatRoute else { return }
+            activeRoute = route
+            Task { await viewModel.load(mode: mode, token: token) }
         }
-        .sheet(isPresented: $showNewGroupDetails) {
-            NewGroupDetailsSheet(
-                memberCount: pendingGroupMemberIds.count,
-                isCreating: isCreatingGroup,
-                onCreate: { name in
-                    Task { await createGroup(name: name) }
-                }
-            )
+        .onChange(of: spacesOn) { _, on in if on { spacesIntroSeen = true } }
+        .sheet(item: $spaceEditor) { target in spaceEditorSheet(target) }
+        .sheet(item: $peoplePickerSpace) { space in
+            SpacePeoplePickerView(
+                spaceName: space.name,
+                candidates: SpaceCandidate.merge(conversations: viewModel.conversations, connections: viewModel.connections),
+                initialSelection: space.memberIds
+            ) { ids in
+                await spacesViewModel.setMembers(space, to: ids, token: token)
+            }
         }
-        .alert(bundle.loc("Error"), isPresented: .constant(createGroupError != nil)) {
-            Button(bundle.loc("OK")) { createGroupError = nil }
+        .confirmationDialog(moreActionsFor?.displayName ?? "", isPresented: Binding(
+            get: { moreActionsFor != nil }, set: { if !$0 { moreActionsFor = nil } }
+        ), titleVisibility: .visible, presenting: moreActionsFor) { conversation in
+            moreActions(conversation)
+        }
+        .alert(bundle.loc("Delete this chat?"), isPresented: Binding(
+            get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }
+        ), presenting: pendingDelete) { conversation in
+            Button(bundle.loc("Delete"), role: .destructive) {
+                Task { await viewModel.delete(conversation, token: token) }
+            }
+            Button(bundle.loc("Cancel"), role: .cancel) {}
+        } message: { _ in
+            Text("Its messages are removed for you only. It comes back if a new message arrives.", bundle: bundle)
+        }
+        .alert(String(format: bundle.loc("Block %@?"), pendingBlock?.displayName ?? ""), isPresented: Binding(
+            get: { pendingBlock != nil }, set: { if !$0 { pendingBlock = nil } }
+        ), presenting: pendingBlock) { conversation in
+            Button(bundle.loc("Block"), role: .destructive) {
+                Task { await viewModel.block(conversation) }
+            }
+            Button(bundle.loc("Cancel"), role: .cancel) {}
+        } message: { _ in
+            Text("They won't be able to message you or see your profile.", bundle: bundle)
+        }
+        .alert(bundle.loc("Delete space?"), isPresented: Binding(
+            get: { pendingDeleteSpace != nil }, set: { if !$0 { pendingDeleteSpace = nil } }
+        ), presenting: pendingDeleteSpace) { space in
+            Button(bundle.loc("Delete"), role: .destructive) {
+                Task { await spacesViewModel.delete(space, token: token) }
+            }
+            Button(bundle.loc("Cancel"), role: .cancel) {}
+        } message: { space in
+            Text(String(format: bundle.loc("“%@” is removed. Your chats with its people stay."), space.name))
+        }
+        .alert(bundle.loc("Error"), isPresented: Binding(
+            get: { viewModel.actionError != nil || spacesViewModel.error != nil },
+            set: { if !$0 { viewModel.actionError = nil; spacesViewModel.error = nil } }
+        )) {
+            Button(bundle.loc("OK")) {}
         } message: {
-            Text(createGroupError ?? "")
-        }
-    }
-
-    // MARK: - New group creation
-
-    private func createGroup(name: String) async {
-        guard let token = appState.authToken, !isCreatingGroup else { return }
-        isCreatingGroup = true
-        defer { isCreatingGroup = false }
-        let mode = appState.currentMode.rawValue
-        do {
-            let convId = try await viewModel.createGroup(
-                memberIds: Array(pendingGroupMemberIds), mode: mode,
-                name: name.isEmpty ? nil : name, token: token
-            )
-            showNewGroupDetails = false
-            pendingGroupMemberIds = []
-            activeRoute = ChatRoute(
-                conversationId: convId,
-                peer: .group(name: name.isEmpty ? bundle.loc("Group") : name, avatarUrl: nil, avatarColor: nil,
-                             memberCount: pendingGroupMemberIds.count + 1),
-                location: nil
-            )
-        } catch {
-            createGroupError = friendlyError(error)
+            Text(viewModel.actionError ?? spacesViewModel.error ?? "")
         }
     }
 
@@ -250,68 +263,309 @@ struct ConversationListView: View {
         }
     }
 
-    // MARK: - Read/unread filter
+    // MARK: - Spaces bar
 
-    // Same visual language as FeedView's `feedScopeButton` ("For you"/"Connections")
-    // pill so this reads as the same control pattern across the app.
-    private var unreadFilterRow: some View {
-        HStack(spacing: 8) {
-            unreadFilterButton(false, label: bundle.loc("All"))
-            unreadFilterButton(true, label: bundle.loc("Unread"))
-            Spacer()
+    /// Left: the Spaces view switch and the Archive button. Right (Spaces on): "+ New space".
+    private var spacesBar: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: AppSpacing.sm) {
+                Toggle(isOn: $spacesOn.animation(.snappy)) {
+                    Label(bundle.loc("Spaces"), systemImage: "square.grid.2x2")
+                        .labelStyle(.titleAndIcon)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(AppColors.textPrimary(colorScheme))
+                        .lineLimit(1)
+                        .fixedSize()
+                }
+                .toggleStyle(LeadingSwitchStyle(tint: themeManager.theme.primary))
+
+                NavigationLink {
+                    ArchivedChatsView(viewModel: viewModel, onOpen: open)
+                } label: {
+                    inboxButtonLabel(icon: "archivebox")
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(bundle.loc("Archived chats")))
+
+                NavigationLink {
+                    WaitingChatsView(viewModel: viewModel, onOpen: open)
+                } label: {
+                    inboxButtonLabel(icon: "tray.full", title: bundle.loc("Waiting"))
+                        .overlay(alignment: .topTrailing) {
+                            if !viewModel.waiting.isEmpty {
+                                Text("\(viewModel.waiting.count)")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .frame(minWidth: 18, minHeight: 18)
+                                    .padding(.horizontal, viewModel.waiting.count > 9 ? 3 : 0)
+                                    .background(AppColors.danger(colorScheme), in: Capsule())
+                                    .offset(x: 6, y: -7)
+                            }
+                        }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(String(format: bundle.loc("Waiting, %lld"), viewModel.waiting.count)))
+
+                Spacer()
+
+                if spacesOn {
+                    // A round "+" rather than a labelled pill: with the switch,
+                    // Archive and Waiting there's no room for words on a phone.
+                    Button { spaceEditor = .create } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(width: 32, height: 32)
+                            .background(themeManager.theme.primary, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text(bundle.loc("New space")))
+                    .transition(.opacity.combined(with: .scale))
+                }
+            }
+            if !spacesOn && !spacesIntroSeen && spacesViewModel.hasLoaded && spacesViewModel.spaces.isEmpty {
+                Text("New: sort the people you chat with into Spaces, like “Greenwich Uni”.", bundle: bundle)
+                    .font(.system(size: 12))
+                    .foregroundColor(AppColors.textTertiary(colorScheme))
+            }
         }
         // Feed's scope row sits 12 pt inside an 8 pt-inset stack — same here,
-        // so the pills line up with the cards' content instead of their edges.
+        // so the controls line up with the cards' content instead of their edges.
         .padding(.horizontal, AppSpacing.sm + 12)
         .padding(.top, AppSpacing.sm)
     }
 
-    private func unreadFilterButton(_ value: Bool, label: String) -> some View {
-        let isActive = unreadOnly == value
-        return Button {
-            unreadOnly = value
-        } label: {
-            Text(label)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(isActive ? .white : AppColors.textSecondary(colorScheme))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 6)
-                .background(isActive ? themeManager.theme.primary : AppColors.surface(colorScheme), in: Capsule())
-                .overlay(
-                    Capsule().stroke(AppColors.borderDefault(colorScheme), lineWidth: isActive ? 0 : 1)
-                )
+    private func inboxButtonLabel(icon: String, title: String? = nil) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+            if let title { Text(title).lineLimit(1) }
         }
-        .buttonStyle(.plain)
-    }
-
-    /// `viewModel.conversations` filtered by the read/unread toggle — purely
-    /// client-side, `Conversation.hasUnread` already comes with the list.
-    private var visibleConversations: [Conversation] {
-        viewModel.conversations.filter { !unreadOnly || $0.hasUnread }
+        .fixedSize()
+        .font(.system(size: 13, weight: .semibold))
+        .foregroundColor(AppColors.textSecondary(colorScheme))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(AppColors.surface(colorScheme), in: Capsule())
+        .overlay(Capsule().stroke(AppColors.borderDefault(colorScheme), lineWidth: 1))
     }
 
     // MARK: - Conversation list
 
-    private var conversationList: some View {
-        ScrollView {
-            roundedRows(visibleConversations) { conversation in
-                NavigationLink {
-                    ChatView(
-                        conversationId: conversation.id,
-                        peer: ChatPeer(conversation),
-                        currentUserId: appState.currentUser?.id ?? "",
-                        token: appState.authToken ?? ""
-                    )
-                } label: {
-                    ConversationRow(
-                        conversation: conversation,
-                        currentUserId: appState.currentUser?.id ?? "",
-                        accentColor: themeManager.theme.primary
-                    )
+    /// Inset-grouped `List` (rounded cards like the rest of the app) so each
+    /// row gets native swipe actions. Spaces off: one card. Spaces on: a card
+    /// per space, then "Other chats".
+    private var inboxList: some View {
+        List {
+            if spacesOn {
+                if spacesViewModel.spaces.isEmpty {
+                    SpacesIntroCard { spaceEditor = .create }
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
                 }
-                .buttonStyle(.plain)
+                ForEach(SpaceSection.make(conversations: viewModel.inbox, spaces: spacesViewModel.spaces)) { section in
+                    Section {
+                        if !isCollapsed(section.id) {
+                            if section.conversations.isEmpty, case .space(let space) = section.kind {
+                                emptySpaceRow(space)
+                            }
+                            ForEach(section.conversations) { conversationRow($0, showSpaces: false) }
+                        }
+                    } header: {
+                        sectionHeader(section)
+                    }
+                }
+            } else {
+                Section {
+                    ForEach(viewModel.inbox) { conversationRow($0, showSpaces: true) }
+                }
             }
         }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .contentMargins(.horizontal, AppSpacing.sm, for: .scrollContent)
+        .listSectionSpacing(AppSpacing.md)
+        .refreshable {
+            await viewModel.load(mode: mode, token: token)
+            await spacesViewModel.load(mode: mode, token: token)
+        }
+    }
+
+    private func conversationRow(_ conversation: Conversation, showSpaces: Bool) -> some View {
+        Button { open(conversation) } label: {
+            ConversationRow(
+                conversation: conversation,
+                currentUserId: appState.currentUser?.id ?? "",
+                accentColor: themeManager.theme.primary,
+                spaces: showSpaces ? conversation.otherUserId.map(spacesViewModel.spaces(containing:)) ?? [] : []
+            )
+        }
+        .buttonStyle(.plain)
+        .listRowInsets(EdgeInsets())
+        .listRowBackground(AppColors.surface(colorScheme))
+        .alignmentGuide(.listRowSeparatorLeading) { _ in ConversationRow.textInset }
+        // Order matters: the first button sits at the edge and is the one a
+        // full (strong) swipe triggers — Archive.
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button {
+                Task { await viewModel.setArchived(conversation, true, token: token) }
+            } label: {
+                Label(bundle.loc("Archive"), systemImage: "archivebox.fill")
+            }
+            .tint(.indigo)
+            Button {
+                Task { await viewModel.setPinned(conversation, !conversation.isPinned, token: token) }
+            } label: {
+                Label(bundle.loc(conversation.isPinned ? "Unpin" : "Pin"),
+                      systemImage: conversation.isPinned ? "pin.slash.fill" : "pin.fill")
+            }
+            .tint(.orange)
+            Button { moreActionsFor = conversation } label: {
+                Label(bundle.loc("More"), systemImage: "ellipsis.circle.fill")
+            }
+            .tint(.gray)
+        }
+    }
+
+    @ViewBuilder
+    private func moreActions(_ conversation: Conversation) -> some View {
+        if conversation.hasUnread {
+            Button(bundle.loc("Mark as read")) {
+                Task { await viewModel.markRead(conversation, token: token) }
+            }
+        }
+        Button(bundle.loc(conversation.isMuted ? "Unmute" : "Mute")) {
+            Task { await viewModel.setMuted(conversation, !conversation.isMuted, token: token) }
+        }
+        if !conversation.isGroup {
+            Button(bundle.loc("Block"), role: .destructive) { pendingBlock = conversation }
+        }
+        Button(bundle.loc("Delete"), role: .destructive) { pendingDelete = conversation }
+    }
+
+    // MARK: - Space sections
+
+    private var collapsedIds: Set<String> {
+        Set(collapsedRaw.split(separator: ",").map(String.init))
+    }
+
+    private func isCollapsed(_ id: String) -> Bool { collapsedIds.contains(id) }
+
+    private func toggleCollapsed(_ id: String) {
+        var ids = collapsedIds
+        if ids.contains(id) { ids.remove(id) } else { ids.insert(id) }
+        withAnimation(.snappy) { collapsedRaw = ids.sorted().joined(separator: ",") }
+    }
+
+    private func sectionHeader(_ section: SpaceSection) -> some View {
+        let collapsed = isCollapsed(section.id)
+        return HStack(spacing: 8) {
+            Button { toggleCollapsed(section.id) } label: {
+                HStack(spacing: 8) {
+                    switch section.kind {
+                    case .space(let space):
+                        Circle().fill(space.color.color).frame(width: 10, height: 10)
+                        Text(space.name)
+                            .foregroundColor(AppColors.textPrimary(colorScheme))
+                    case .others:
+                        Text("Other chats", bundle: bundle)
+                            .foregroundColor(AppColors.textSecondary(colorScheme))
+                    }
+                    Text("\(section.conversations.count)")
+                        .foregroundColor(AppColors.textTertiary(colorScheme))
+                    // Folded: still say there's something new inside.
+                    if collapsed && section.unreadCount > 0 {
+                        Text("\(section.unreadCount)")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(themeManager.theme.primary, in: Capsule())
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(AppColors.textTertiary(colorScheme))
+                        .rotationEffect(.degrees(collapsed ? -90 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text(collapsed ? bundle.loc("Expand") : bundle.loc("Collapse")))
+
+            if case .space(let space) = section.kind {
+                Menu {
+                    Button { spaceEditor = .edit(space) } label: {
+                        Label(bundle.loc("Edit name & colour"), systemImage: "pencil")
+                    }
+                    Button { peoplePickerSpace = space } label: {
+                        Label(bundle.loc("Edit people"), systemImage: "person.2")
+                    }
+                    Button(role: .destructive) { pendingDeleteSpace = space } label: {
+                        Label(bundle.loc("Delete space"), systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(AppColors.textSecondary(colorScheme))
+                        .frame(width: 32, height: 28)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel(Text(String(format: bundle.loc("%@ options"), space.name)))
+            }
+        }
+        .font(.system(size: 14, weight: .semibold))
+        .textCase(nil)
+    }
+
+    /// A space with no chats to show: invite the user to fill it, or explain.
+    private func emptySpaceRow(_ space: ChatSpace) -> some View {
+        Button { peoplePickerSpace = space } label: {
+            HStack(spacing: 10) {
+                Image(systemName: space.memberIds.isEmpty ? "person.badge.plus" : "bubble.left")
+                    .foregroundColor(space.color.color)
+                Text(space.memberIds.isEmpty
+                     ? bundle.loc("Add people")
+                     : bundle.loc("No chats with these people yet"))
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(space.memberIds.isEmpty ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
+                Spacer()
+            }
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .listRowBackground(AppColors.surface(colorScheme))
+    }
+
+    // MARK: - Space sheets
+
+    @ViewBuilder
+    private func spaceEditorSheet(_ target: SpaceEditorTarget) -> some View {
+        switch target {
+        case .create:
+            SpaceEditorSheet(title: bundle.loc("New space"), confirmTitle: bundle.loc("Next"),
+                             isSaving: spacesViewModel.isSaving) { name, color in
+                guard let space = await spacesViewModel.create(name: name, color: color, memberIds: [],
+                                                               mode: mode, token: token) else { return false }
+                spacesOn = true
+                // Straight on to choosing its people, once this sheet has gone.
+                Task {
+                    try? await Task.sleep(for: .milliseconds(450))
+                    peoplePickerSpace = space
+                }
+                return true
+            }
+        case .edit(let space):
+            SpaceEditorSheet(title: bundle.loc("Edit space"), confirmTitle: bundle.loc("Save"),
+                             initialName: space.name, initialColor: space.color,
+                             isSaving: spacesViewModel.isSaving) { name, color in
+                await spacesViewModel.update(space, name: name, color: color, token: token)
+            }
+        }
+    }
+
+    private func open(_ conversation: Conversation) {
+        activeRoute = ChatRoute(conversationId: conversation.id, peer: ChatPeer(conversation), location: nil)
     }
 
     /// Rows inside one rounded card (8 pt side margins like the post cards),
@@ -398,19 +652,6 @@ struct ConversationListView: View {
 
     // MARK: - Empty state
 
-    private var unreadEmptyState: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "checkmark.circle")
-                .font(.system(size: 52))
-                .foregroundColor(AppColors.textTertiary(colorScheme))
-            Text("No unread chats", bundle: bundle)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(AppColors.textPrimary(colorScheme))
-        }
-        .padding(40)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
     private var emptyState: some View {
         VStack(spacing: 16) {
             Image(systemName: appState.currentMode == .hobby ? "face.smiling" : "bubble.left.and.bubble.right")
@@ -435,13 +676,15 @@ struct ConversationListView: View {
 
 // MARK: - Conversation row
 
-private struct ConversationRow: View {
+struct ConversationRow: View {
     let conversation: Conversation
     let currentUserId: String
     let accentColor: Color
     /// Search results show the matched message (highlighted) here instead of
     /// the conversation's actual last-message preview.
     var previewOverride: AttributedString? = nil
+    /// This person's spaces, shown as small tags in the flat (Spaces off) list.
+    var spaces: [ChatSpace] = []
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.appBundle) var bundle
 
@@ -457,8 +700,22 @@ private struct ConversationRow: View {
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                         .lineLimit(1)
 
+                    ForEach(spaces.prefix(2)) { space in
+                        SpaceTag(space: space)
+                    }
+
                     Spacer()
 
+                    if conversation.isMuted {
+                        Image(systemName: "bell.slash.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(AppColors.textTertiary(colorScheme))
+                    }
+                    if conversation.isPinned {
+                        Image(systemName: "pin.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(AppColors.textTertiary(colorScheme))
+                    }
                     if let at = conversation.lastMessageAt {
                         Text(at.relativeShort(bundle: bundle))
                             .font(.system(size: 12))

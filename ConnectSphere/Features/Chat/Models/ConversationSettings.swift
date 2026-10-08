@@ -32,10 +32,15 @@ struct ConversationSettings: Decodable, Equatable {
     let theme: String?
     let mutedUntil: Date?
     let peer: ConversationSettingsPeer
+    /// 1-on-1 only: whether this chat is still a message request.
+    let requestState: MessageRequestState?
+    let requestsLeft: Int?
 
     enum CodingKeys: String, CodingKey {
         case id, theme, members
         case mutedUntil           = "muted_until"
+        case requestState         = "request_state"
+        case requestsLeft         = "requests_left"
         case otherUserId          = "other_user_id"
         case otherUserUsername    = "other_user_username"
         case otherUserName        = "other_user_name"
@@ -50,6 +55,8 @@ struct ConversationSettings: Decodable, Equatable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
+        requestState = try? c.decodeIfPresent(MessageRequestState.self, forKey: .requestState)
+        requestsLeft = try c.decodeIfPresent(Int.self, forKey: .requestsLeft)
         theme = try c.decodeIfPresent(String.self, forKey: .theme)
         mutedUntil = try c.decodeIfPresent(Date.self, forKey: .mutedUntil)
 
