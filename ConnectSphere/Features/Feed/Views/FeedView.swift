@@ -158,12 +158,12 @@ struct FeedView: View {
     // MARK: Mode Switch Pill (leading edge of nav bar, icon-only)
 
     private var modeSwitchPill: some View {
+        // No fill of our own: the toolbar's Liquid Glass is the only
+        // background; the active mode keeps its theme-colour highlight.
         HStack(spacing: 0) {
             modePillButton(mode: .hobby, icon: AppMode.hobby.glyph, label: bundle.loc("Hobby"))
             modePillButton(mode: .work, icon: AppMode.work.glyph, label: bundle.loc("Work"))
         }
-        .background(AppColors.surface(colorScheme), in: Capsule())
-        .padding(.vertical, 4)
     }
 
     private func modePillButton(mode: AppMode, icon: String, label: String) -> some View {
@@ -243,16 +243,14 @@ struct FeedView: View {
 
     private var chatIconButton: some View {
         Button { showMessages = true } label: {
-            ZStack(alignment: .topTrailing) {
-                ZStack {
-                    Circle().fill(AppColors.elevated(colorScheme)).frame(width: 36, height: 36)
-                    Image(systemName: "message.fill")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(AppColors.textPrimary(colorScheme))
+            // Bare glyph on the toolbar's glass (no circle of our own).
+            Image(systemName: "message.fill")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundColor(AppColors.textPrimary(colorScheme))
+                .overlay(alignment: .topTrailing) {
+                    CountBadge(count: appState.chatUnreadCount)
+                        .offset(x: 10, y: -10)
                 }
-                CountBadge(count: appState.chatUnreadCount)
-                    .offset(x: 6, y: -6)
-            }
         }
     }
 
