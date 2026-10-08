@@ -35,9 +35,19 @@ struct SpacesInboxTests {
         #expect(sections.map(\.id) == ["s1", "s2", "s3", "others"])
         #expect(sections[0].conversations.map(\.id) == ["1", "2"])   // ids match case-insensitively
         #expect(sections[1].conversations.map(\.id) == ["1"])        // one person, two spaces
-        #expect(sections[2].conversations.isEmpty)                   // empty space still shows
+        #expect(sections[2].rows.isEmpty)                           // empty space still shows
         #expect(sections[3].conversations.map(\.id) == ["3", "4"])   // the rest, groups included
         #expect(sections[0].unreadCount == 2)
+    }
+
+    @Test func peopleWithoutAChatStillShowInTheirSpace() throws {
+        let member = { (id: String) in SpaceMember(id: id, displayName: id, avatarUrl: nil, avatarColor: nil) }
+        let uni = ChatSpace(id: "s1", name: "Uni", color: .teal, memberIds: ["u-a", "u-new"],
+                            members: [member("U-A"), member("u-new")])
+        let sections = SpaceSection.make(conversations: [try conversation("1", other: "u-a")], spaces: [uni])
+        // The person you chat with appears once, as their chat; the other as a person.
+        #expect(sections[0].rows.map(\.id) == ["chat-1", "person-u-new"])
+        #expect(sections[0].conversations.map(\.id) == ["1"])
     }
 
     @Test func noSpacesMeansOneOtherChatsSection() throws {

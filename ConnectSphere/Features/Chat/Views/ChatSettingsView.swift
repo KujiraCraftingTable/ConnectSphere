@@ -345,12 +345,14 @@ struct ChatSettingsView: View {
     private var peopleCard: some View {
         VStack(spacing: 0) {
             Button { showSpaceMembership = true } label: {
-                SettingsRow(icon: "square.grid.2x2.fill", iconColor: personSpaces.first?.color.color ?? .teal,
+                SettingsRow(icon: "", iconColor: .clear,
                             title: bundle.loc("Spaces"), colorScheme: colorScheme,
                             subtitle: personSpaces.isEmpty
                                 ? bundle.loc("Not in a space yet")
                                 : personSpaces.map(\.name).joined(separator: " · "),
-                            showsChevron: true)
+                            showsChevron: true,
+                            customIcon: AnyView(SpacePlanetIcon(color: personSpaces.first?.color.color
+                                                                ?? themeManager.theme.primary, size: 24)))
             }
             .buttonStyle(.plain)
             divider
@@ -753,13 +755,21 @@ private struct SettingsRow: View {
     var destructive: Bool = false
     var showsChevron: Bool = false
     var trailing: AnyView? = nil
+    /// Drawn instead of the SF Symbol (e.g. the Spaces planet).
+    var customIcon: AnyView? = nil
 
     var body: some View {
         HStack(spacing: 14) {
-            Image(systemName: icon)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(iconColor)
-                .frame(width: 28, height: 28)
+            Group {
+                if let customIcon {
+                    customIcon
+                } else {
+                    Image(systemName: icon)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(iconColor)
+                }
+            }
+            .frame(width: 28, height: 28)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)

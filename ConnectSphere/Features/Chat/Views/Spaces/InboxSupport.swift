@@ -19,8 +19,8 @@ struct SpaceTag: View {
     let space: ChatSpace
 
     var body: some View {
-        HStack(spacing: 4) {
-            Circle().fill(space.color.color).frame(width: 6, height: 6)
+        HStack(spacing: 3) {
+            SpacePlanetIcon(color: space.color.color, size: 12)
             Text(space.name)
                 .font(.system(size: 11, weight: .semibold))
                 .lineLimit(1)
@@ -168,6 +168,52 @@ struct WaitingChatsView: View {
             Button(bundle.loc("Cancel"), role: .cancel) {}
         } message: { _ in
             Text("Its messages are removed for you only. It comes back if a new message arrives.", bundle: bundle)
+        }
+    }
+}
+
+/// Where a row sits inside a space's coloured folder (see `spaceFolder`).
+struct FolderSlot {
+    let tint: Color
+    let isFirst: Bool
+    let isLast: Bool
+}
+
+extension View {
+    /// Plain card row when `folder` is nil; otherwise a row of the white card
+    /// that floats on the space's tint — rounded at the card's top and
+    /// bottom, inset so the colour shows round it, with its own hairline
+    /// (the list's separators would run out across the colour margin).
+    @ViewBuilder
+    func inFolder(_ folder: FolderSlot?, surface: Color) -> some View {
+        if let folder {
+            let margin: CGFloat = 8
+            let radius: CGFloat = 14
+            self
+                .listRowInsets(EdgeInsets(top: 0, leading: margin, bottom: folder.isLast ? margin : 0, trailing: margin))
+                .listRowSeparator(.hidden)
+                .listRowBackground(
+                    ZStack {
+                        folder.tint
+                        UnevenRoundedRectangle(topLeadingRadius: folder.isFirst ? radius : 0,
+                                               bottomLeadingRadius: folder.isLast ? radius : 0,
+                                               bottomTrailingRadius: folder.isLast ? radius : 0,
+                                               topTrailingRadius: folder.isFirst ? radius : 0,
+                                               style: .continuous)
+                            .fill(surface)
+                            .overlay(alignment: .bottom) {
+                                if !folder.isLast {
+                                    Divider().padding(.leading, ConversationRow.textInset)
+                                }
+                            }
+                            .padding(.horizontal, margin)
+                            .padding(.bottom, folder.isLast ? margin : 0)
+                    }
+                )
+        } else {
+            self
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(surface)
         }
     }
 }

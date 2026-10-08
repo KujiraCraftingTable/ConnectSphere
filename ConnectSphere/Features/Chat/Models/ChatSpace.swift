@@ -9,18 +9,23 @@ struct ChatSpace: Identifiable, Decodable, Equatable {
     var color: SpaceColor
     let position: Int
     var memberIds: [String]
+    /// The same people with name and photo — so someone you haven't chatted
+    /// with yet still shows in the space.
+    var members: [SpaceMember]
 
     enum CodingKeys: String, CodingKey {
-        case id, name, color, position
+        case id, name, color, position, members
         case memberIds = "member_ids"
     }
 
-    init(id: String, name: String, color: SpaceColor, position: Int = 0, memberIds: [String] = []) {
+    init(id: String, name: String, color: SpaceColor, position: Int = 0, memberIds: [String] = [],
+         members: [SpaceMember] = []) {
         self.id = id
         self.name = name
         self.color = color
         self.position = position
         self.memberIds = memberIds
+        self.members = members
     }
 
     init(from decoder: Decoder) throws {
@@ -30,6 +35,7 @@ struct ChatSpace: Identifiable, Decodable, Equatable {
         color = SpaceColor(rawValue: try c.decode(String.self, forKey: .color)) ?? .blue
         position = try c.decodeIfPresent(Int.self, forKey: .position) ?? 0
         memberIds = try c.decodeIfPresent([String].self, forKey: .memberIds) ?? []
+        members = (try? c.decodeIfPresent([SpaceMember].self, forKey: .members)) ?? []
     }
 
     /// Ids compare case-insensitively: the server's text-cast ids are lower
@@ -63,6 +69,21 @@ enum SpaceColor: String, CaseIterable, Identifiable {
     var label: String { rawValue.capitalized }
 }
 
+/// Someone in a space, as the server lists them (persona for the space's mode).
+struct SpaceMember: Identifiable, Decodable, Equatable {
+    let id: String
+    let displayName: String
+    let avatarUrl: String?
+    let avatarColor: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case displayName = "display_name"
+        case avatarUrl   = "avatar_url"
+        case avatarColor = "avatar_color"
+    }
+}
+
 /// One section of Messages while the Spaces view is on.
 struct SpaceSection: Identifiable, Equatable {
     enum Kind: Equatable {
@@ -71,34 +92,54 @@ struct SpaceSection: Identifiable, Equatable {
         case others
     }
 
+    /// A space shows its people's chats, then the people you haven't
+    /// messaged yet — they're in the folder all the same.
+    enum Row: Identifiable, Equatable {
+        case chat(Conversation)
+        case person(SpaceMember)
+
+        var id: String {
+            switch self {
+            case .chat(let c): return "chat-\(c.id)"
+            case .person(let p): return "person-\(p.id.lowercased())"
+            }
+        }
+    }
+
     let kind: Kind
-    let conversations: [Conversation]
+    let rows: [Row]
 
     var id: String {
         if case .space(let space) = kind { return space.id }
         return "others"
     }
 
+    var conversations: [Conversation] {
+        rows.compactMap { if case .chat(let c) = $0 { return c } else { return nil } }
+    }
+
     var unreadCount: Int { conversations.reduce(0) { $0 + $1.unreadCount } }
 
     /// Groups the conversation list by space, keeping the list's own order
-    /// inside each section. A person in two spaces appears in both; a 1-on-1
-    /// chat with someone in no space, and every group chat, go to the final
-    /// "Other chats" section — so turning the view on never hides a chat.
-    /// Spaces with no matching chats still get a (empty) section.
+    /// inside each section, then adds the space's people who have no chat
+    /// yet. A person in two spaces appears in both; a 1-on-1 chat with someone
+    /// in no space, and every group chat, go to the final "Other chats"
+    /// section — so turning the view on never hides a chat.
     static func make(conversations: [Conversation], spaces: [ChatSpace]) -> [SpaceSection] {
         var placed = Set<String>()
         var sections: [SpaceSection] = spaces.map { space in
-            let inSpace = conversations.filter { conversation in
+            let chats = conversations.filter { conversation in
                 guard let other = conversation.otherUserId else { return false }
                 return space.contains(other)
             }
-            placed.formUnion(inSpace.map(\.id))
-            return SpaceSection(kind: .space(space), conversations: inSpace)
+            placed.formUnion(chats.map(\.id))
+            let chatting = Set(chats.compactMap { $0.otherUserId?.lowercased() })
+            let waiting = space.members.filter { !chatting.contains($0.id.lowercased()) }
+            return SpaceSection(kind: .space(space), rows: chats.map(Row.chat) + waiting.map(Row.person))
         }
         let others = conversations.filter { !placed.contains($0.id) }
         if !others.isEmpty || spaces.isEmpty {
-            sections.append(SpaceSection(kind: .others, conversations: others))
+            sections.append(SpaceSection(kind: .others, rows: others.map(Row.chat)))
         }
         return sections
     }
