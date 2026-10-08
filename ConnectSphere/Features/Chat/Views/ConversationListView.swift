@@ -265,18 +265,10 @@ struct ConversationListView: View {
 
     // MARK: - Spaces bar
 
-    /// Left: the Spaces view switch and the Archive button. Right (Spaces on): "+ New space".
+    /// Left: Archive and Waiting. Right: the Spaces toggle, with "+ New space" beside it while on.
     private var spacesBar: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: AppSpacing.sm) {
-                Toggle(isOn: $spacesOn.animation(.snappy)) {
-                    // Just the planet — the word took room the bar doesn't have;
-                    // VoiceOver still reads "Spaces".
-                    SpacePlanetIcon(color: themeManager.theme.primary, size: 22)
-                        .accessibilityLabel(Text("Spaces", bundle: bundle))
-                }
-                .toggleStyle(LeadingSwitchStyle(tint: themeManager.theme.primary))
-
                 NavigationLink {
                     ArchivedChatsView(viewModel: viewModel, onOpen: open)
                 } label: {
@@ -310,16 +302,19 @@ struct ConversationListView: View {
                     // A round "+" rather than a labelled pill: with the switch,
                     // Archive and Waiting there's no room for words on a phone.
                     Button { spaceEditor = .create } label: {
+                        // Capsule height, so the row doesn't grow when it appears.
                         Image(systemName: "plus")
-                            .font(.system(size: 15, weight: .bold))
+                            .font(.system(size: 13, weight: .bold))
                             .foregroundColor(.white)
-                            .frame(width: 32, height: 32)
+                            .frame(width: 28, height: 28)
                             .background(themeManager.theme.primary, in: Circle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(Text(bundle.loc("New space")))
                     .transition(.opacity.combined(with: .scale))
                 }
+
+                spacesToggle
             }
             if !spacesOn && !spacesIntroSeen && spacesViewModel.hasLoaded && spacesViewModel.spaces.isEmpty {
                 Text("New: keep chats in Spaces — folders for the people you talk to.", bundle: bundle)
@@ -331,6 +326,30 @@ struct ConversationListView: View {
         // so the controls line up with the cards' content instead of their edges.
         .padding(.horizontal, AppSpacing.sm + 12)
         .padding(.top, AppSpacing.sm)
+    }
+
+    /// Same capsule toggle as Search's AI button: theme-filled when on,
+    /// outlined like its neighbours when off.
+    private var spacesToggle: some View {
+        Button {
+            withAnimation(.snappy) { spacesOn.toggle() }
+        } label: {
+            HStack(spacing: 5) {
+                SpacePlanetIcon(color: spacesOn ? .white : themeManager.theme.primary, size: 16)
+                Text("Spaces", bundle: bundle)
+            }
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundColor(spacesOn ? .white : AppColors.textSecondary(colorScheme))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(spacesOn ? AnyShapeStyle(themeManager.theme.primary) : AnyShapeStyle(AppColors.surface(colorScheme)),
+                        in: Capsule())
+            .overlay(Capsule().stroke(spacesOn ? .clear : AppColors.borderDefault(colorScheme), lineWidth: 1))
+            .fixedSize()
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Spaces", bundle: bundle))
+        .accessibilityValue(Text(spacesOn ? "On" : "Off", bundle: bundle))
     }
 
     private func inboxButtonLabel(icon: String) -> some View {
