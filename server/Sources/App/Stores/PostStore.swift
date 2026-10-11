@@ -126,6 +126,38 @@ enum PostStore {
     static func notHiddenClause(_ v: String) -> SQLQueryString {
         "NOT EXISTS (SELECT 1 FROM hidden_posts hp WHERE hp.user_id = \(uuid: v) AND hp.post_id = p.id)"
     }
+    /// Muted words (migration 042): text folded the way post search folds it —
+    /// accents stripped, lowercased, every run of non-alphanumerics one space,
+    /// padded both ends — so `LIKE '% word %'` is a whole-word (or whole-phrase)
+    /// match: "chet" hides "chết", "ass" leaves "class" alone. The word is
+    /// folded the same way, which also strips any LIKE wildcards from it.
+    static func folded(_ textSQL: String) -> String {
+        "(' ' || regexp_replace(unaccent(lower(coalesce(\(textSQL), ''))), '[^[:alnum:]]+', ' ', 'g') || ' ')"
+    }
+    private static let mutedPattern = "'% ' || btrim(regexp_replace(unaccent(lower(mw.word)), '[^[:alnum:]]+', ' ', 'g')) || ' %'"
+
+    /// Whether `textSQL` contains one of the viewer's unexpired muted words for
+    /// the mode in `modeRef` (a SQL column reference, never user input).
+    static func mutedWordHit(_ v: String, textSQL: String, modeRef: String) -> SQLQueryString {
+        """
+        EXISTS (SELECT 1 FROM muted_words mw WHERE mw.user_id = \(uuid: v) AND mw.mode = \(unsafeRaw: modeRef)
+          AND (mw.expires_at IS NULL OR mw.expires_at > NOW())
+          AND \(unsafeRaw: folded(textSQL)) LIKE \(unsafeRaw: mutedPattern))
+        """
+    }
+
+    /// Hides a post when its text, title or a visible tag contains one of the
+    /// viewer's muted words for the post's mode. Never hides your own posts.
+    static func notMutedWordsClause(_ v: String) -> SQLQueryString {
+        """
+        (p.author_id = \(uuid: v) OR NOT EXISTS (SELECT 1 FROM muted_words mw
+          WHERE mw.user_id = \(uuid: v) AND mw.mode = p.mode AND (mw.expires_at IS NULL OR mw.expires_at > NOW())
+            AND (\(unsafeRaw: folded("coalesce(p.content, '') || ' ' || coalesce(p.article_title, '')")) LIKE \(unsafeRaw: mutedPattern)
+              OR EXISTS (SELECT 1 FROM post_tags ptm WHERE ptm.post_id = p.id AND (ptm.source = 'user' OR p.show_ai_tags)
+                         AND \(unsafeRaw: folded("ptm.tag")) LIKE \(unsafeRaw: mutedPattern)))))
+        """
+    }
+
     static func connectionsOnlyClause(_ v: String) -> SQLQueryString {
         """
         (p.author_id = \(uuid: v) OR EXISTS (SELECT 1 FROM connections c2 WHERE c2.status = 'accepted'
@@ -220,6 +252,7 @@ enum PostStore {
         var w: SQLQueryString = "WHERE p.status = 'posted' AND "
         w = w + communityVisibilityClause(v) + " AND " + notMutedClause(v) + " AND "
         w = w + privacyClause(v) + " AND " + notBlockedClause(v) + " AND " + notHiddenClause(v)
+        w = w + " AND " + notMutedWordsClause(v)
         if f.connectionsOnly { w = w + " AND " + connectionsOnlyClause(v) }
         if f.followingOnly { w = w + " AND " + followingOnlyClause(v) }
         if let m = f.mode { w = w + " AND p.mode = \(bind: m)" }
@@ -452,7 +485,7 @@ enum PostStore {
     /// its own outer wrapper to merge it in.
     static func getPostsByCommunity(_ communityID: String, viewer: String, tag: String?, search: String? = nil, limit: Int, offset: Int, on db: any SQLDatabase) async throws -> [PostObject] {
         var q = buildPostSelect(viewer)
-        q = q + " WHERE p.community_id = \(uuid: communityID) AND p.status = 'posted'"
+        q = q + " WHERE p.community_id = \(uuid: communityID) AND p.status = 'posted' AND " + notMutedWordsClause(viewer)
         if let tag {
             q = q + " AND EXISTS (SELECT 1 FROM post_tags ptf WHERE ptf.post_id = p.id AND LOWER(ptf.tag) = LOWER(\(bind: tag)) AND (ptf.source = 'user' OR p.show_ai_tags))"
         }

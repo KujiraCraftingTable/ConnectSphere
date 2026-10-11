@@ -13,6 +13,7 @@ import SwiftUI
 /// pushed screen, a private one inside a `.sheet`).
 struct CommentsSection: View {
     @Environment(AppState.self) private var appState
+    @Environment(ThemeManager.self) private var themeManager
     @Environment(\.appBundle) private var bundle
     @Environment(\.colorScheme) private var colorScheme
 
@@ -171,6 +172,39 @@ struct CommentsSection: View {
     /// `answering` is the comment it sits under — the fallback for "replied
     /// to" when the server didn't say (replies written before it recorded it).
     private func row(_ comment: CommentDTO, level: Int, answering parent: CommentDTO?) -> some View {
+        Group {
+            if viewModel.isCollapsed(comment) {
+                mutedRow(comment)
+            } else {
+                commentRow(comment, answering: parent)
+            }
+        }
+        .id(comment.id)
+        .padding(.leading, CGFloat(level) * ThreadLinesShape.indentStep)
+    }
+
+    /// Stands in for a comment containing a muted word: it keeps its place
+    /// (and the thread lines) but not its text, until the user asks.
+    private func mutedRow(_ comment: CommentDTO) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "speaker.slash")
+                .font(.system(size: 12))
+            Text("Hidden: contains a word you muted", bundle: bundle)
+                .font(.system(size: 13))
+            Text("·")
+            Button { withAnimation(.snappy) { viewModel.reveal(comment.id) } } label: {
+                Text("Show", bundle: bundle).font(.system(size: 13, weight: .semibold))
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(themeManager.theme.primary)
+            Spacer(minLength: 0)
+        }
+        .foregroundColor(AppColors.textTertiary(colorScheme))
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func commentRow(_ comment: CommentDTO, answering parent: CommentDTO?) -> some View {
         let target = comment.replyTo.map { CommentReplyTarget(name: $0.displayName, userId: $0.id) }
             ?? parent.map { CommentReplyTarget(name: $0.author.displayName, userId: $0.author.id) }
         return CommentRow(
@@ -190,8 +224,6 @@ struct CommentsSection: View {
             onSaveEdit: { Task { await saveEdit(commentId: comment.id) } },
             onCancelEdit: { editingCommentId = nil }
         )
-        .id(comment.id)
-        .padding(.leading, CGFloat(level) * ThreadLinesShape.indentStep)
     }
 
     // MARK: - Edit comment (inline)

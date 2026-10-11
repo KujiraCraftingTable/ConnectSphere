@@ -108,7 +108,7 @@ struct InteractionsController {
         struct Row: Decodable {
             let id: String; let content: String?; let created_at: Date
             let parent_comment_id: String?; let like_count: Int; let is_liked: Bool; let author: String
-            let reply_to: String?
+            let reply_to: String?; let muted: Bool
         }
         let rows = try await db.raw("""
             SELECT c.id, c.content, c.created_at, c.parent_comment_id, c.like_count,
@@ -116,7 +116,8 @@ struct InteractionsController {
               json_build_object('id', u.id, 'display_name', \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "p.mode")),
                 'avatar_color', u.avatar_color, 'avatar_url', \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: "p.mode")))::text AS author,
               CASE WHEN rc.id IS NULL THEN NULL ELSE json_build_object('id', ru.id,
-                'display_name', \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "p.mode", alias: "ru")))::text END AS reply_to
+                'display_name', \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "p.mode", alias: "ru")))::text END AS reply_to,
+              (c.author_id <> \(uuid: req.userID) AND \(PostStore.mutedWordHit(req.userID, textSQL: "c.content", modeRef: "p.mode"))) AS muted
             FROM comments c JOIN posts p ON p.id = c.post_id JOIN users u ON u.id = c.author_id
             LEFT JOIN comments rc ON rc.id = COALESCE(c.reply_to_comment_id, c.parent_comment_id)
             LEFT JOIN users ru ON ru.id = rc.author_id
@@ -131,7 +132,8 @@ struct InteractionsController {
             CommentObject(id: r.id, content: r.content, created_at: r.created_at,
                           parent_comment_id: r.parent_comment_id, like_count: r.like_count, is_liked: r.is_liked,
                           author: try dec.decode(CommentObject.CommentAuthor.self, from: Data(r.author.utf8)),
-                          reply_to: try r.reply_to.map { try dec.decode(CommentObject.ReplyTo.self, from: Data($0.utf8)) })
+                          reply_to: try r.reply_to.map { try dec.decode(CommentObject.ReplyTo.self, from: Data($0.utf8)) },
+                          muted: r.muted)
         }
         return CommentsListResponse(data: comments, total: total)
     }
@@ -366,6 +368,9 @@ struct CommentObject: Content {
     /// Who a reply is answering — the author of `reply_to_comment_id` (or of
     /// the parent, for replies written before that column). Null on top-level comments.
     @NullCoded var reply_to: ReplyTo? = nil
+    /// Contains one of the viewer's muted words: still listed so threads keep
+    /// their shape, but the app shows it collapsed.
+    var muted: Bool = false
     struct ReplyTo: Content {
         var id: String
         var display_name: String

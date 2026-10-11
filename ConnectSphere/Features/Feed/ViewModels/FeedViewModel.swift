@@ -58,6 +58,14 @@ class FeedViewModel {
             guard let post = note.userInfo?["post"] as? Post else { return }
             self?.restorePost(post)
         })
+        // Muting or unmuting changes what the server returns: the next time
+        // the feed shows (it's on another tab while Settings is open) it
+        // refetches instead of keeping posts that should now be hidden.
+        observers.append(NotificationCenter.default.addObserver(
+            forName: .mutedWordsChanged, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.loadedModes.removeAll()
+        })
     }
 
     deinit {

@@ -28,6 +28,15 @@ class CommentViewModel {
 
     private let repository = PostRepository()
 
+    /// Muted comments the user chose to show anyway (this screen only).
+    private(set) var revealed: Set<String> = []
+
+    func isCollapsed(_ comment: CommentDTO) -> Bool {
+        comment.muted && !revealed.contains(comment.id)
+    }
+
+    func reveal(_ commentId: String) { revealed.insert(commentId) }
+
     private func authToken() -> String? {
         KeychainHelper.load(forKey: KeychainHelper.tokenKey)
     }

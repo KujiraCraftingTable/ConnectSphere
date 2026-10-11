@@ -988,3 +988,33 @@
 "Spaces work like folders. Make one, add people and group chats to it, and those chats are kept together there." = "Spaces work like folders. Make one, add people and group chats to it, and those chats are kept together there.";
 "Some of these groups can't be added to a space" = "Some of these groups can't be added to a space";
 "A space can hold up to 100 groups" = "A space can hold up to 100 groups";
+
+/* Muted words */
+"Muted words" = "Muted words";
+"Posts, community posts and comments with these words are hidden. Accents and capitals don't matter, and only whole words count." = "Posts, community posts and comments with these words are hidden. Accents and capitals don't matter, and only whole words count.";
+"No muted words in Hobby mode." = "No muted words in Hobby mode.";
+"No muted words in Work mode." = "No muted words in Work mode.";
+"%lld muted" = "%lld muted";
+"Copy to Work mode" = "Copy to Work mode";
+"Copy to Hobby mode" = "Copy to Hobby mode";
+"Copy to Work mode?" = "Copy to Work mode?";
+"Copy to Hobby mode?" = "Copy to Hobby mode?";
+"Copy" = "Copy";
+"Words already muted there are kept as they are." = "Words already muted there are kept as they are.";
+"Word or phrase" = "Word or phrase";
+"24 hours" = "24 hours";
+"Forever" = "Forever";
+"%lld days left" = "%lld days left";
+"%lld hours left" = "%lld hours left";
+"Less than an hour left" = "Less than an hour left";
+"Added %lld to Work mode" = "Added %lld to Work mode";
+"Added %lld to Hobby mode" = "Added %lld to Hobby mode";
+"Hidden: contains a word you muted" = "Hidden: contains a word you muted";
+"Show" = "Show";
+"A muted word needs 1–50 characters, including a letter or number" = "A muted word needs 1–50 characters, including a letter or number";
+"Unknown duration" = "Unknown duration";
+"You can mute up to 200 words" = "You can mute up to 200 words";
+"Muted word not found" = "Muted word not found";
+"Choose the other mode to copy to" = "Choose the other mode to copy to";
+"Mute word" = "Mute";
+"Unmute word" = "Unmute";
