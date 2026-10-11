@@ -77,7 +77,7 @@ struct SettingsView: View {
                         .environment(appState)
                         .environment(themeManager)
                 } label: {
-                    settingsRow(icon: "doc.text.fill", label: bundle.loc("Drafts"), color: Color(hex: "#26A69A"), showsChevron: false)
+                    settingsRow(icon: "doc.text.fill", label: bundle.loc("Drafts & scheduled"), color: Color(hex: "#26A69A"), showsChevron: false)
                 }
                 NavigationLink {
                     MutedWordsView()

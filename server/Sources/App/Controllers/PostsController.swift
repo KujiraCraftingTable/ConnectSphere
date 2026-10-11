@@ -15,6 +15,8 @@ struct PostsController {
         posts.get("saved", use: listSaved)
         posts.get("drafts", use: listDrafts)
         posts.delete(":id", "draft", use: deleteDraft)
+        posts.post(":id", "unschedule", use: unschedule)
+        posts.post(":id", "publish", use: publishScheduled)
         posts.get("comments", "deleted", use: listDeletedComments)
         posts.get(":id", use: getOne)
         posts.delete(":id", use: softDelete)
@@ -94,8 +96,10 @@ struct PostsController {
         var link_url: String?
         var article_title: String?
         var hashtags: [String]?
-        /// now (default) | draft
+        /// now (default) | draft | schedule
         var publish: String?
+        /// When a scheduled post goes out (ISO 8601).
+        var publish_at: String?
         /// A draft (or scheduled post) of yours this one replaces: saving a
         /// draft again, or publishing it, sends the whole post plus this id,
         /// and the old version is removed once the new one is saved.
@@ -128,7 +132,7 @@ struct PostsController {
         }
         let mode = b.mode!
         let postType = b.post_type ?? "text"
-        let publishing = try Publishing.from(b.publish)
+        let publishing = try Publishing.from(b.publish, at: b.publish_at)
         try await checkReplacedDraft(b.replaces_draft, req)
 
         var post: PostObject
@@ -205,6 +209,39 @@ struct PostsController {
             throw InlineError(.notFound, "Draft not found")
         }
         return DeleteResponse(message: "Draft deleted")
+    }
+
+    /// A scheduled post back to a draft (not going out after all).
+    static func unschedule(_ req: Request) async throws -> DeleteResponse {
+        struct I: Decodable { let id: String }
+        guard let id = UUID(uuidString: req.parameters.get("id") ?? ""),
+              try await req.db.sql().raw("""
+                UPDATE posts SET status = 'draft', publish_at = NULL
+                WHERE id = \(uuid: id.uuidString) AND author_id = \(uuid: req.userID) AND status = 'scheduled'
+                RETURNING id::text AS id
+                """).first(decoding: I.self) != nil else {
+            throw InlineError(.notFound, "Scheduled post not found")
+        }
+        return DeleteResponse(message: "Moved to drafts")
+    }
+
+    /// "Publish now" on a scheduled post. Its dates were checked against the
+    /// scheduled time, so they're checked again against now first.
+    static func publishScheduled(_ req: Request) async throws -> DataResponse<PostObject> {
+        guard let id = UUID(uuidString: req.parameters.get("id") ?? "")?.uuidString else {
+            throw InlineError(.notFound, "Scheduled post not found")
+        }
+        let db = req.db.sql()
+        guard try await PostStore.isOwnUnpublished(id, author: req.userID, on: db) else {
+            throw InlineError(.notFound, "Scheduled post not found")
+        }
+        if let problem = try await PostPublisher.staleDates(id, on: db) { throw InlineError(.badRequest, problem) }
+        guard let live = try await PostPublisher.publishNow(id, author: req.userID, on: db) else {
+            throw InlineError(.notFound, "Scheduled post not found")
+        }
+        await PostPublisher.didGoLive(live, app: req.application, queue: req.queue, logger: req.logger, notify: false)
+        guard let post = try await PostStore.findById(id, viewer: req.userID, on: db) else { throw Abort(.internalServerError) }
+        return DataResponse(data: post)
     }
 
     /// Port of `utils/postInput.js#normalizeImageUrls`.

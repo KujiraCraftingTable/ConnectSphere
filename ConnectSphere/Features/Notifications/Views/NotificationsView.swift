@@ -336,6 +336,8 @@ struct ActorNotifRow: View {
             return String(format: bundle.loc("%@ liked your comment"), actorLabel)
         case "post_shared":
             return String(format: bundle.loc("%@ shared your post"), actorLabel)
+        case "scheduled_post_live":
+            return bundle.loc("Your scheduled post is live")
 
         // ── Chat ─────────────────────────────────────────────────────────
         case "message":
@@ -420,6 +422,7 @@ struct ActorNotifRow: View {
         case "post_commented":      return "bubble.left.fill"
         case "comment_replied":     return "arrowshape.turn.up.left.fill"
         case "post_shared":         return "arrowshape.turn.up.right.fill"
+        case "scheduled_post_live": return "clock.fill"
         case "message":             return "message.fill"
         case "message_reaction":    return "face.smiling.fill"
         case "meeting_proposed",

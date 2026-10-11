@@ -41,4 +41,25 @@ struct DraftsTests {
         let scheduled = try post(#","status":"scheduled","publish_at":"2026-10-20T02:00:00.000Z""#)
         #expect(scheduled.publishStatus == "scheduled" && scheduled.publishAt != nil)
     }
+
+    @Test func schedulingSendsTheTime() throws {
+        let at = Date(timeIntervalSince1970: 1_800_003_600)
+        var body: [String: Any] = [:]
+        PublishChoice.schedule(at).apply(to: &body, replacing: "d1")
+        #expect(body["publish"] as? String == "schedule")
+        #expect((body["publish_at"] as? String).flatMap(ISO8601DateFormatter().date(from:)) == at)
+        #expect(body["replaces_draft"] as? String == "d1")
+        #expect(!PublishChoice.schedule(at).isLive)
+    }
+
+    @Test func thePickerStaysInsideTheServersWindow() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)    // a whole hour, UTC
+        let range = ScheduleWindow.range(from: now)
+        #expect(range.lowerBound > now.addingTimeInterval(5 * 60))
+        #expect(range.upperBound < now.addingTimeInterval(180 * 86_400))
+        let suggested = ScheduleWindow.suggested(from: now.addingTimeInterval(10 * 60))
+        #expect(suggested >= now.addingTimeInterval(70 * 60))  // at least an hour away…
+        #expect(Calendar.current.component(.minute, from: suggested) == 0)   // …on the hour
+        #expect(range.contains(ScheduleWindow.suggested(from: now)))
+    }
 }

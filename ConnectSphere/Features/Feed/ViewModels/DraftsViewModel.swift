@@ -62,6 +62,25 @@ final class DraftsViewModel {
         }
     }
 
+    func unschedule(_ post: Post) async {
+        do {
+            try await repository.unschedule(post.id)
+            await load()
+        } catch {
+            self.error = Bundle.app.loc(friendlyError(error))
+        }
+    }
+
+    func publishNow(_ post: Post) async {
+        do {
+            let live = try await repository.publishNow(post.id)
+            posts.removeAll { $0.id == post.id }
+            NotificationCenter.default.post(name: .postCreated, object: nil, userInfo: ["post": live])
+        } catch {
+            self.error = Bundle.app.loc(friendlyError(error))
+        }
+    }
+
     func delete(_ post: Post) async {
         let before = posts
         posts.removeAll { $0.id == post.id }     // optimistic

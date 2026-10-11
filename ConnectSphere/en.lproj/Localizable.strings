@@ -1067,4 +1067,23 @@
 "Event must start after the post goes out" = "Event must start after the post goes out";
 "Event must end after it starts" = "Event must end after it starts";
 "Application deadline can't be before the post goes out" = "Application deadline can't be before the post goes out";
-"publish must be now or draft" = "publish must be now or draft";
+
+/* Scheduled posts */
+"Schedule post" = "Schedule post";
+"Schedule" = "Schedule";
+"Set" = "Set";
+"Remove schedule" = "Remove schedule";
+"Goes out %@" = "Goes out %@";
+"Your post goes out at this time, in your time zone. You can change or cancel it from Settings → Drafts." = "Your post goes out at this time, in your time zone. You can change or cancel it from Settings → Drafts.";
+"Scheduled (%lld)" = "Scheduled (%lld)";
+"Nothing scheduled" = "Nothing scheduled";
+"Tap the clock while writing a post to choose when it goes out." = "Tap the clock while writing a post to choose when it goes out.";
+"Move to drafts" = "Move to drafts";
+"Publish now" = "Publish now";
+"Drafts & scheduled" = "Drafts & scheduled";
+"Delete this scheduled post?" = "Delete this scheduled post?";
+"Your scheduled post is live" = "Your scheduled post is live";
+"Scheduled post not found" = "Scheduled post not found";
+"publish_at is required to schedule a post" = "publish_at is required to schedule a post";
+"A post can be scheduled from 5 minutes to 6 months ahead" = "A post can be scheduled from 5 minutes to 6 months ahead";
+"publish must be now, draft or schedule" = "publish must be now, draft or schedule";
