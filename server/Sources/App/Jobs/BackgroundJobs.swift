@@ -399,9 +399,9 @@ enum BackgroundJobs {
             struct S: Decodable { let new_posts_24h: Int; let new_members_24h: Int; let active_members_24h: Int }
             guard let s = try? await db.raw("""
                 SELECT
-                  (SELECT COUNT(*) FROM posts WHERE community_id = \(uuid: c.id) AND created_at >= NOW() - INTERVAL '24 hours')::int AS new_posts_24h,
+                  (SELECT COUNT(*) FROM posts WHERE status = 'posted' AND community_id = \(uuid: c.id) AND created_at >= NOW() - INTERVAL '24 hours')::int AS new_posts_24h,
                   (SELECT COUNT(*) FROM community_members WHERE community_id = \(uuid: c.id) AND joined_at >= NOW() - INTERVAL '24 hours')::int AS new_members_24h,
-                  (SELECT COUNT(DISTINCT author_id) FROM posts WHERE community_id = \(uuid: c.id) AND created_at >= NOW() - INTERVAL '24 hours')::int AS active_members_24h
+                  (SELECT COUNT(DISTINCT author_id) FROM posts WHERE status = 'posted' AND community_id = \(uuid: c.id) AND created_at >= NOW() - INTERVAL '24 hours')::int AS active_members_24h
                 """).first(decoding: S.self) else { continue }
             let score = s.new_posts_24h * 3 + s.new_members_24h * 5 + s.active_members_24h * 2
             try? await db.raw("""
@@ -421,10 +421,10 @@ enum BackgroundJobs {
                   (community_id, snapshot_date, member_count, post_count, new_members, new_posts, active_members)
                 SELECT \(uuid: c.id), CURRENT_DATE,
                   (SELECT COUNT(*) FROM community_members WHERE community_id = \(uuid: c.id)),
-                  (SELECT COUNT(*) FROM posts WHERE community_id = \(uuid: c.id)),
+                  (SELECT COUNT(*) FROM posts WHERE status = 'posted' AND community_id = \(uuid: c.id)),
                   (SELECT COUNT(*) FROM community_members WHERE community_id = \(uuid: c.id) AND joined_at >= CURRENT_DATE),
-                  (SELECT COUNT(*) FROM posts WHERE community_id = \(uuid: c.id) AND created_at >= CURRENT_DATE),
-                  (SELECT COUNT(DISTINCT author_id) FROM posts WHERE community_id = \(uuid: c.id) AND created_at >= NOW() - INTERVAL '24 hours')
+                  (SELECT COUNT(*) FROM posts WHERE status = 'posted' AND community_id = \(uuid: c.id) AND created_at >= CURRENT_DATE),
+                  (SELECT COUNT(DISTINCT author_id) FROM posts WHERE status = 'posted' AND community_id = \(uuid: c.id) AND created_at >= NOW() - INTERVAL '24 hours')
                 ON CONFLICT (community_id, snapshot_date) DO UPDATE SET
                   member_count = EXCLUDED.member_count, post_count = EXCLUDED.post_count,
                   new_members = EXCLUDED.new_members, new_posts = EXCLUDED.new_posts,

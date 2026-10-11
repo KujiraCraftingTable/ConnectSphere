@@ -237,28 +237,33 @@ struct CommunitiesController {
         let b = try req.content.decode(PostsController.CreateBody.self)
         let hashtags = b.hashtags ?? []
         let postType = b.post_type ?? "text"
+        let publishing = try Publishing.from(b.publish)
+        try await PostsController.checkReplacedDraft(b.replaces_draft, req)
         var post: PostObject
         if postType == "poll" {
             post = try await PostService.createPollPost(authorID: req.userID, communityID: id, content: b.content,
-                options: b.options, endsAt: b.endsAt, hashtags: hashtags, mode: nil, privacy: nil, on: req.db)
+                options: b.options, endsAt: b.endsAt, hashtags: hashtags, mode: nil, privacy: nil, publishing: publishing, on: req.db)
         } else if postType == "event" {
             post = try await PostService.createEventPost(authorID: req.userID, communityID: id, content: b.content,
                 eventTitle: b.eventData?.title, eventLocation: b.eventData?.location,
                 eventStartsAt: b.eventData?.startsAt, eventEndsAt: b.eventData?.endsAt,
-                hashtags: hashtags, mode: nil, privacy: nil, on: req.db)
+                hashtags: hashtags, mode: nil, privacy: nil, publishing: publishing, on: req.db)
         } else if postType == "job" {
             post = try await PostService.createJobPost(authorID: req.userID, communityID: id, content: b.content,
                 jobTitle: b.jobData?.title, jobCompany: b.jobData?.company, jobLocation: b.jobData?.location,
                 employmentType: b.jobData?.employmentType, salaryRange: b.jobData?.salaryRange,
                 applicationDeadline: b.jobData?.applicationDeadline,
-                hashtags: hashtags, mode: nil, privacy: nil, on: req.db)
+                hashtags: hashtags, mode: nil, privacy: nil, publishing: publishing, on: req.db)
         } else {
             post = try await PostService.createTextCommunityPost(userID: req.userID, content: b.content, communityID: id,
                 imageUrls: PostsController.normalizeImageUrls(b.image_urls), linkUrl: b.link_url?.nilIfEmpty,
-                articleTitle: b.article_title?.nilIfEmpty, hashtags: hashtags, mode: nil, privacy: nil, on: req.db)
+                articleTitle: b.article_title?.nilIfEmpty, hashtags: hashtags, mode: nil, privacy: nil, publishing: publishing, on: req.db)
         }
         if b.image_alts != nil {
             post.image_alts = try await PostStore.setImageAlts(post.id, b.image_alts, on: req.db.sql())
+        }
+        if let old = b.replaces_draft {
+            try await PostStore.deleteUnpublished(old, author: req.userID, on: req.db.sql())
         }
         return try await ConnectionsController.encode(DataResponse(data: post), req, .created)
     }

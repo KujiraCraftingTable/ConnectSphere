@@ -21,6 +21,11 @@ struct PostObject: Content {
     @NullCoded var image_alts: [String]?
     @NullCoded var article_title: String?
     @NullCoded var link_url: String?
+    /// Only on the author's own drafts ("draft") and scheduled posts
+    /// ("scheduled"); absent for published posts.
+    var status: String? = nil
+    /// When a scheduled post goes out.
+    var publish_at: Date? = nil
     var like_count: Int
     var comment_count: Int
     var share_count: Int

@@ -36,6 +36,12 @@ class PostComposerViewModel {
 
     // Media — text posts only, same field names/upload path Feed's
     // CreatePostView uses (backend only accepts image_urls on post_type='text').
+    /// Post now (default) or save as a draft.
+    var publish: PublishChoice = .now
+    /// The draft this post was opened from: saving or posting replaces it.
+    var replacesDraftId: String?
+    private var skipNextLinkDetect = false
+
     var selectedItems: [PhotosPickerItem] = []
     var selectedMedia: [PickedPostMedia] = []
     var isUploadingMedia = false
@@ -126,7 +132,7 @@ class PostComposerViewModel {
     /// Image → decode to UIImage; video → copy to a temp file + generate a thumbnail — the
     /// same logic Feed's composer uses (delegated through mediaHelper, not duplicated).
     func loadSelectedMedia(_ items: [PhotosPickerItem]) async {
-        selectedMedia = await mediaHelper.loadSelectedMedia(items)
+        selectedMedia = await mediaHelper.loadSelectedMedia(items, keeping: selectedMedia)
     }
 
     /// Uploads all selected media through the same multipart route Feed uses
@@ -144,6 +150,9 @@ class PostComposerViewModel {
     /// typing stops — mirrors CreatePostViewModel.detectAndFetchLink (Feed) 1:1 but
     /// uses PostRepository directly since it doesn't need Feed's VM's own state.
     func detectAndFetchLink(_ text: String) {
+        // A loaded draft's text has its URL stripped (the link lives in its
+        // card), so detecting on it would wrongly drop the card.
+        if skipNextLinkDetect { skipNextLinkDetect = false; return }
         let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
         let matches  = detector?.matches(in: text, range: NSRange(text.startIndex..., in: text))
         guard let urlString = matches?.first?.url?.absoluteString else {
@@ -159,6 +168,43 @@ class PostComposerViewModel {
             isFetchingLink = true
             linkPreview = try? await postRepository.fetchLinkPreview(url: urlString)
             isFetchingLink = false
+        }
+    }
+
+    // MARK: - Drafts
+
+    /// Fills the composer from a saved draft (any post type).
+    func load(_ draft: Post) {
+        replacesDraftId = draft.id
+        postType = draft.postType
+        skipNextLinkDetect = draft.linkUrl != nil && draft.content != content
+        content = draft.content
+        selectedItems = []
+        selectedMedia = PickedPostMedia.remote(draft.imageUrls, alts: draft.imageAlts)
+        linkPreview = draft.linkUrl.map {
+            LinkPreviewDTO(url: $0, title: draft.articleTitle ?? $0, description: nil, image: draft.imageUrl, siteName: nil)
+        }
+        if let poll = draft.pollData {
+            let texts = poll.options.sorted { $0.position < $1.position }.map(\.text)
+            pollOptions = texts.count >= 2 ? texts : texts + Array(repeating: "", count: 2 - texts.count)
+            pollEndsAt = poll.options.first?.endsAt
+            showPollEndDate = pollEndsAt != nil
+        }
+        if let event = draft.eventData {
+            eventTitle = event.title
+            eventLocation = event.location ?? ""
+            eventStartsAt = event.startsAt
+            eventEndsAt = event.endsAt
+            showEventEndDate = event.endsAt != nil
+        }
+        if let job = draft.jobData {
+            jobTitle = job.title
+            jobCompany = job.company ?? ""
+            jobLocation = job.location ?? ""
+            jobEmploymentType = job.employmentType
+            jobSalaryRange = job.salaryRange ?? ""
+            jobApplicationDeadline = job.applicationDeadline
+            showJobApplicationDeadline = job.applicationDeadline != nil
         }
     }
 
@@ -198,6 +244,7 @@ class PostComposerViewModel {
         if let url = capturedPreview?.url       { dict["link_url"]      = url }
         if let title = capturedPreview?.title   { dict["article_title"] = title }
         if !hashtags.isEmpty                    { dict["hashtags"]      = hashtags }
+        publish.apply(to: &dict, replacing: replacesDraftId)
 
         let body = try? JSONSerialization.data(withJSONObject: dict)
         let res = try await client.fetch(DataResponse<CommunityPostDTO>.self,
@@ -222,6 +269,7 @@ class PostComposerViewModel {
             dict["endsAt"] = ISO8601DateFormatter().string(from: endsAt)
         }
         if !hashtags.isEmpty { dict["hashtags"] = hashtags }
+        publish.apply(to: &dict, replacing: replacesDraftId)
         let body = try? JSONSerialization.data(withJSONObject: dict)
         let res = try await client.fetch(DataResponse<CommunityPostDTO>.self,
                                           path: postPath(communityId: communityId),
@@ -246,6 +294,7 @@ class PostComposerViewModel {
             "privacy":      privacy.rawValue,
         ]
         if !hashtags.isEmpty { dict["hashtags"] = hashtags }
+        publish.apply(to: &dict, replacing: replacesDraftId)
         let body = try? JSONSerialization.data(withJSONObject: dict)
         let res = try await client.fetch(DataResponse<CommunityPostDTO>.self,
                                           path: postPath(communityId: communityId),
@@ -280,6 +329,7 @@ class PostComposerViewModel {
             "privacy":      privacy.rawValue,
         ]
         if !hashtags.isEmpty { dict["hashtags"] = hashtags }
+        publish.apply(to: &dict, replacing: replacesDraftId)
         let body = try? JSONSerialization.data(withJSONObject: dict)
         let res = try await client.fetch(DataResponse<CommunityPostDTO>.self,
                                           path: postPath(communityId: communityId),

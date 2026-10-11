@@ -16,7 +16,63 @@ struct CommunityCreatePostView: View {
     @State private var hashtagController = HashtagInputController()
 
     let community: Community
+    /// Opens the composer on one of this community's saved drafts.
+    var draft: Post? = nil
     let onPostCreated: (Post) -> Void
+
+    @State private var drafts = DraftsViewModel()
+    @State private var showLeaveDialog = false
+    @State private var showDraftPicker = false
+
+    /// This community's other drafts (not the one already open).
+    private var communityDrafts: [Post] {
+        drafts.drafts(inCommunity: community.id).filter { $0.id != viewModel.replacesDraftId }
+    }
+
+    /// Anything typed or attached — closing would lose it, so ask first.
+    private var hasUnsavedWork: Bool {
+        !viewModel.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !viewModel.selectedMedia.isEmpty || viewModel.linkPreview != nil
+    }
+
+    private func loadDraft(_ d: Post) {
+        viewModel.load(d)
+        hashtags = d.tags
+    }
+
+    /// Posts now, or saves a draft (replacing the one it was opened from).
+    private func savePost(as publish: PublishChoice) {
+        // Flush whatever's still typed-but-uncommitted in the hashtag field
+        // before reading `hashtags` — otherwise a hashtag typed right before
+        // tapping Post (no space/return/suggestion tap) is silently dropped.
+        hashtagController.commitPending(into: &hashtags)
+        let replaced = viewModel.replacesDraftId
+        viewModel.publish = publish
+        Task<Void, Never>(name: nil) {
+            // mode/privacy here match exactly what the backend's own COALESCE
+            // fallback would have derived when these params were omitted
+            // (community.type -> hobby/work, privacy always 'public').
+            let mode: AppMode = community.type == .work ? .work : .hobby
+            await viewModel.submitPost(
+                communityId: community.id,
+                token: appState.authToken ?? "",
+                mode: mode,
+                privacy: .publicAll,
+                hashtags: hashtags
+            ) { communityPost in
+                if publish.isLive {
+                    onPostCreated(communityPost.toPost(
+                        author: appState.currentUser ?? MockData.currentUser,
+                        mode: mode, privacy: .publicAll
+                    ))
+                }
+                if !publish.isLive || replaced != nil {
+                    NotificationCenter.default.post(name: .draftsChanged, object: nil)
+                }
+                dismiss()
+            }
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -199,42 +255,36 @@ struct CommunityCreatePostView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(bundle.loc("Cancel")) { dismiss() }
-                        .foregroundColor(AppColors.textSecondary(colorScheme))
+                    Button(bundle.loc("Cancel")) {
+                        if hasUnsavedWork { showLeaveDialog = true } else { dismiss() }
+                    }
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(bundle.loc("Post")) {
-                        // Flush whatever's still typed-but-uncommitted in the hashtag
-                        // field before reading `hashtags` — otherwise a hashtag typed
-                        // right before tapping Post (no space/return/suggestion tap)
-                        // is silently dropped.
-                        hashtagController.commitPending(into: &hashtags)
-                        Task<Void, Never>(name: nil) {
-                            // mode/privacy here match exactly what the backend's
-                            // own COALESCE fallback would have derived when these
-                            // params were omitted (community.type -> hobby/work,
-                            // privacy always 'public') — passing them explicitly
-                            // keeps this call site's behavior identical to before
-                            // the Phase 2 mode/privacy override was added.
-                            let mode: AppMode = community.type == .work ? .work : .hobby
-                            await viewModel.submitPost(
-                                communityId: community.id,
-                                token: appState.authToken ?? "",
-                                mode: mode,
-                                privacy: .publicAll,
-                                hashtags: hashtags
-                            ) { communityPost in
-                                onPostCreated(communityPost.toPost(
-                                    author: appState.currentUser ?? MockData.currentUser,
-                                    mode: mode, privacy: .publicAll
-                                ))
-                                dismiss()
-                            }
-                        }
-                    }
-                    .font(.system(size: 15, weight: .bold))
-                    .disabled(!viewModel.isValid || viewModel.isPosting)
+                    Button(bundle.loc("Post")) { savePost(as: .now) }
+                        .font(.system(size: 15, weight: .bold))
+                        .disabled(!viewModel.isValid || viewModel.isPosting)
                 }
+                if !communityDrafts.isEmpty {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(String(format: bundle.loc("Drafts (%lld)"), communityDrafts.count)) { showDraftPicker = true }
+                    }
+                }
+            }
+            .confirmationDialog(bundle.loc(viewModel.replacesDraftId == nil ? "Save this post as a draft?" : "Save your changes to this draft?"),
+                                isPresented: $showLeaveDialog, titleVisibility: .visible) {
+                if viewModel.isValid {
+                    Button(bundle.loc("Save draft")) { savePost(as: .draft) }
+                }
+                Button(bundle.loc(viewModel.replacesDraftId == nil ? "Discard" : "Discard changes"), role: .destructive) { dismiss() }
+                Button(bundle.loc("Keep editing"), role: .cancel) {}
+            }
+            .sheet(isPresented: $showDraftPicker) {
+                DraftPickerSheet(drafts: communityDrafts) { picked in loadDraft(picked) }
+            }
+            .task { await drafts.load() }
+            .onAppear {
+                if let draft, viewModel.replacesDraftId == nil { loadDraft(draft) }
             }
         }
     }
@@ -262,6 +312,13 @@ struct CommunityCreatePostView: View {
                                 Image(uiImage: preview)
                                     .resizable()
                                     .scaledToFill()
+                            } else if let remote = media.remoteURL, !media.isVideo {
+                                // A draft's photo, already uploaded.
+                                AsyncImage(url: URL(string: remote)) { image in
+                                    image.resizable().scaledToFill()
+                                } placeholder: {
+                                    Rectangle().fill(Color.gray.opacity(0.2))
+                                }
                             } else {
                                 Rectangle().fill(Color.black.opacity(0.85))
                             }
@@ -280,12 +337,10 @@ struct CommunityCreatePostView: View {
                         }
 
                         Button {
-                            if let index = viewModel.selectedMedia.firstIndex(where: { $0.id == media.id }) {
-                                viewModel.selectedMedia.remove(at: index)
-                                if index < viewModel.selectedItems.count {
-                                    viewModel.selectedItems.remove(at: index)
-                                }
-                            }
+                            // A draft's media isn't in the picker selection, so
+                            // match the picker item itself, not the position.
+                            viewModel.selectedMedia.removeAll { $0.id == media.id }
+                            if let item = media.pickerItem { viewModel.selectedItems.removeAll { $0 == item } }
                         } label: {
                             Image(systemName: "xmark.circle.fill")
                                 .font(.system(size: 22))

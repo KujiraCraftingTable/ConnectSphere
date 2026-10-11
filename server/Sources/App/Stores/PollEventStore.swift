@@ -59,7 +59,7 @@ enum EventStore {
         try await db.raw("""
             SELECT e.id, e.post_id, e.rsvp_count, p.community_id
             FROM community_events e JOIN posts p ON p.id = e.post_id
-            WHERE e.id = \(uuid: eventID)
+            WHERE e.id = \(uuid: eventID) AND p.status = 'posted'
             """).first(decoding: EventByID.self)
     }
 
@@ -107,7 +107,7 @@ enum JobStore {
         try await db.raw("""
             SELECT j.id, j.post_id, j.interested_count, p.community_id
             FROM job_posts j JOIN posts p ON p.id = j.post_id
-            WHERE j.id = \(uuid: jobID)
+            WHERE j.id = \(uuid: jobID) AND p.status = 'posted'
             """).first(decoding: JobByID.self)
     }
 

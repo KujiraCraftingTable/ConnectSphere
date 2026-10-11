@@ -32,9 +32,16 @@ struct CreatePostView: View {
     @State private var hashtagController = HashtagInputController()
 
     @State private var viewModel = CreatePostViewModel()
+    @State private var drafts = DraftsViewModel()
+    /// The draft being continued: posting or saving again replaces it.
+    @State private var draftId: String?
+    @State private var showLeaveDialog = false
+    @State private var showDraftPicker = false
 
     /// When set, the view operates in Edit mode instead of Create
     var editingPost: Post? = nil
+    /// Opens the composer on a saved draft (Settings → Drafts).
+    var draft: Post? = nil
     /// Called with the freshly-created post so the caller can insert it
     /// straight into whatever list it's displaying, instead of the caller
     /// having to reload from the server (and the user having to notice a
@@ -43,6 +50,15 @@ struct CreatePostView: View {
     var onPostUpdated: ((Post) -> Void)?
 
     private var isEditMode: Bool { editingPost != nil }
+
+    /// Anything typed or attached — closing would lose it, so ask first.
+    private var hasUnsavedWork: Bool {
+        !isEditMode && (!content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || !selectedMedia.isEmpty || viewModel.linkPreview != nil)
+    }
+
+    /// The other feed drafts (not the one already open).
+    private var feedDrafts: [Post] { drafts.drafts(inCommunity: nil).filter { $0.id != draftId } }
 
     /// Edit mode only: does the post being edited ALREADY have media or a link that
     /// hasn't been changed? `selectedMedia`/`linkPreview` only ever reflect NEWLY
@@ -260,7 +276,7 @@ struct CreatePostView: View {
                                 )
                             }
                             .onChange(of: selectedItems) { items in
-                                Task { selectedMedia = await viewModel.loadSelectedMedia(items) }
+                                Task { selectedMedia = await viewModel.loadSelectedMedia(items, keeping: selectedMedia) }
                             }
                             .padding(.horizontal, 16)
                             .padding(.bottom, 8)
@@ -309,11 +325,35 @@ struct CreatePostView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(bundle.loc("Cancel")) { dismiss() }
-                        .foregroundColor(AppColors.textSecondary(colorScheme))
+                    Button(bundle.loc("Cancel")) {
+                        if hasUnsavedWork { showLeaveDialog = true } else { dismiss() }
+                    }
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
+                }
+                if !isEditMode && !feedDrafts.isEmpty {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(String(format: bundle.loc("Drafts (%lld)"), feedDrafts.count)) { showDraftPicker = true }
+                            .foregroundColor(themeManager.theme.primary)
+                    }
                 }
             }
+            .confirmationDialog(bundle.loc(draftId == nil ? "Save this post as a draft?" : "Save your changes to this draft?"),
+                                isPresented: $showLeaveDialog, titleVisibility: .visible) {
+                if !isPostDisabled {
+                    Button(bundle.loc("Save draft")) { savePost(as: .draft) }
+                }
+                Button(bundle.loc(draftId == nil ? "Discard" : "Discard changes"), role: .destructive) { dismiss() }
+                Button(bundle.loc("Keep editing"), role: .cancel) {}
+            }
+            .sheet(isPresented: $showDraftPicker) {
+                DraftPickerSheet(drafts: feedDrafts) { picked in loadDraft(picked) }
+            }
+            .task {
+                guard !isEditMode else { return }
+                await drafts.load()
+            }
             .onAppear {
+                if let draft, draftId == nil { loadDraft(draft) }
                 if let post = editingPost {
                     content = post.content
                     privacy = post.privacy
@@ -366,19 +406,20 @@ struct CreatePostView: View {
     private func handlePost() {
         if isEditMode {
             saveEdit()
-        } else if postType == .text {
-            // Flush whatever's still typed-but-uncommitted in the hashtag field
-            // before reading `hashtags` — otherwise a hashtag typed right before
-            // tapping Post (no space/return/suggestion tap) is silently dropped.
-            hashtagController.commitPending(into: &hashtags)
-            viewModel.submitPost(
-                content: content,
-                mode: appState.currentMode,
-                privacy: privacy,
-                authToken: appState.authToken,
-                selectedMedia: selectedMedia,
-                hashtags: hashtags
-            ) { post in
+        } else {
+            savePost(as: .now)
+        }
+    }
+
+    /// Posts now, or saves a draft. Opened from a draft, either one replaces
+    /// it on the server (`replaces_draft`).
+    private func savePost(as publish: PublishChoice) {
+        // Flush whatever's still typed-but-uncommitted in the hashtag field
+        // before reading `hashtags` — otherwise a hashtag typed right before
+        // tapping Post (no space/return/suggestion tap) is silently dropped.
+        hashtagController.commitPending(into: &hashtags)
+        let finish: (Post) -> Void = { post in
+            if publish.isLive {
                 // Broadcast beyond just this composer's own caller — e.g.
                 // `AppState.currentUser.postCount` and a `ProfileViewModel`
                 // that's still alive in memory (Profile tab visited earlier,
@@ -386,35 +427,53 @@ struct CreatePostView: View {
                 // when creation happens from a DIFFERENT screen (Home Feed).
                 NotificationCenter.default.post(name: .postCreated, object: nil, userInfo: ["post": post])
                 onPostCreated?(post)
-                dismiss()
             }
+            if !publish.isLive || draftId != nil {
+                NotificationCenter.default.post(name: .draftsChanged, object: nil)
+            }
+            dismiss()
+        }
+        if postType == .text {
+            viewModel.submitPost(
+                content: content,
+                mode: appState.currentMode,
+                privacy: privacy,
+                authToken: appState.authToken,
+                selectedMedia: selectedMedia,
+                hashtags: hashtags,
+                publish: publish,
+                replacesDraft: draftId,
+                onSuccess: finish
+            )
         } else {
-            handlePollOrEventPost()
+            composerViewModel.publish = publish
+            composerViewModel.replacesDraftId = draftId
+            Task<Void, Never>(name: nil) {
+                await composerViewModel.submitPost(
+                    communityId: nil,
+                    token: appState.authToken ?? "",
+                    mode: appState.currentMode,
+                    privacy: privacy,
+                    hashtags: hashtags
+                ) { communityPost in finish(feedPost(from: communityPost)) }
+            }
         }
     }
 
-    /// Poll/event submission — routed through PostComposerViewModel with
-    /// `communityId: nil` so it posts straight to the Feed (`POST /posts`)
-    /// instead of a community. The response decodes as `CommunityPost`
-    /// (composer's shared decode path across Feed/Community); converted to a
-    /// Feed `Post` here since that's what this screen's callbacks expect —
-    /// the author is always the current user, so no round-trip needed for it.
-    private func handlePollOrEventPost() {
-        hashtagController.commitPending(into: &hashtags)
-        Task<Void, Never>(name: nil) {
-            await composerViewModel.submitPost(
-                communityId: nil,
-                token: appState.authToken ?? "",
-                mode: appState.currentMode,
-                privacy: privacy,
-                hashtags: hashtags
-            ) { communityPost in
-                let post = feedPost(from: communityPost)
-                NotificationCenter.default.post(name: .postCreated, object: nil, userInfo: ["post": post])
-                onPostCreated?(post)
-                dismiss()
-            }
+    /// Fills the composer from a saved draft.
+    private func loadDraft(_ d: Post) {
+        draftId = d.id
+        suppressNextLinkDetect = d.linkUrl != nil
+        content = d.content
+        privacy = d.privacy
+        postType = d.postType
+        hashtags = d.tags
+        selectedItems = []
+        selectedMedia = PickedPostMedia.remote(d.imageUrls, alts: d.imageAlts)
+        viewModel.linkPreview = d.linkUrl.map {
+            LinkPreviewDTO(url: $0, title: d.articleTitle ?? $0, description: nil, image: d.imageUrl, siteName: nil)
         }
+        composerViewModel.load(d)
     }
 
     /// Adapts a `CommunityPost` (what PostComposerViewModel's shared submit
@@ -523,6 +582,13 @@ struct CreatePostView: View {
                                 Image(uiImage: preview)
                                     .resizable()
                                     .scaledToFill()
+                            } else if let remote = media.remoteURL, !media.isVideo {
+                                // A draft's photo, already uploaded.
+                                AsyncImage(url: URL(string: remote)) { image in
+                                    image.resizable().scaledToFill()
+                                } placeholder: {
+                                    Rectangle().fill(Color.gray.opacity(0.2))
+                                }
                             } else {
                                 Rectangle().fill(Color.black.opacity(0.85))
                             }
@@ -541,12 +607,10 @@ struct CreatePostView: View {
                         }
 
                         Button {
-                            if let index = selectedMedia.firstIndex(where: { $0.id == media.id }) {
-                                selectedMedia.remove(at: index)
-                                if index < selectedItems.count {
-                                    selectedItems.remove(at: index)
-                                }
-                            }
+                            // A draft's media isn't in the picker selection, so
+                            // match the picker item itself, not the position.
+                            selectedMedia.removeAll { $0.id == media.id }
+                            if let item = media.pickerItem { selectedItems.removeAll { $0 == item } }
                         } label: {
                             Image(systemName: "xmark.circle.fill")
                                 .font(.system(size: 22))

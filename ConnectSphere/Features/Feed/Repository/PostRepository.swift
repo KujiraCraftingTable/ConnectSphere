@@ -147,7 +147,9 @@ struct PostRepository {
         imageAlts: [String] = [],
         linkUrl: String? = nil,
         articleTitle: String? = nil,
-        hashtags: [String] = []
+        hashtags: [String] = [],
+        publish: PublishChoice = .now,
+        replacesDraft: String? = nil
     ) async throws -> Post {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")
@@ -164,6 +166,7 @@ struct PostRepository {
         if let lnk = linkUrl       { body["link_url"]      = lnk }
         if let ttl = articleTitle  { body["article_title"] = ttl }
         if !hashtags.isEmpty       { body["hashtags"]      = hashtags }
+        publish.apply(to: &body, replacing: replacesDraft)
 
         let bodyData = try? JSONSerialization.data(withJSONObject: body)
 

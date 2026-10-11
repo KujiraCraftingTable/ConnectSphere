@@ -36,7 +36,7 @@ enum PostStore {
         let avSp = PersonaSQL.expr("avatar_url", modeRef: "sp.mode", alias: "su")
         return """
         SELECT
-          p.id::text AS id, p.content, p.mode, p.privacy, p.image_urls[1] AS image_url, p.image_urls, p.image_alts, p.article_title, p.link_url,
+          p.id::text AS id, p.content, p.mode, p.privacy, p.image_urls[1] AS image_url, p.image_urls, p.image_alts, p.status::text AS status, p.publish_at, p.article_title, p.link_url,
           p.like_count, p.comment_count, p.share_count, p.created_at,
           p.post_type, p.is_pinned, p.pinned_at, p.shared_post_id::text AS shared_post_id,
           EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = \(uuid: v)) AS is_liked,
@@ -192,6 +192,8 @@ enum PostStore {
         var image_alts: [String]?
         var article_title: String?
         var link_url: String?
+        var status: String
+        var publish_at: Date?
         var like_count: Int
         var comment_count: Int
         var share_count: Int
@@ -219,7 +221,8 @@ enum PostStore {
         }
         return PostObject(
             id: r.id, content: r.content, mode: r.mode, privacy: r.privacy,
-            image_url: r.image_url, image_urls: r.image_urls, image_alts: r.image_alts, article_title: r.article_title, link_url: r.link_url,
+            image_url: r.image_url, image_urls: r.image_urls, image_alts: r.image_alts, article_title: r.article_title,
+            link_url: r.link_url, status: r.status == "posted" ? nil : r.status, publish_at: r.publish_at,
             like_count: r.like_count, comment_count: r.comment_count, share_count: r.share_count,
             created_at: r.created_at, post_type: r.post_type, is_pinned: r.is_pinned, pinned_at: r.pinned_at,
             shared_post_id: r.shared_post_id, is_liked: r.is_liked, is_saved: r.is_saved,
@@ -370,13 +373,51 @@ enum PostStore {
         return alts
     }
 
-    static func findById(_ id: String, viewer: String, on db: any SQLDatabase) async throws -> PostObject? {
+    /// `includeOwnUnpublished`: also return the viewer's own draft or
+    /// scheduled post — only for its author, right after saving it.
+    static func findById(_ id: String, viewer: String, includeOwnUnpublished: Bool = false,
+                         on db: any SQLDatabase) async throws -> PostObject? {
+        let status: SQLQueryString = includeOwnUnpublished
+            ? "(p.status = 'posted' OR (p.author_id = \(uuid: viewer) AND p.status IN ('draft', 'scheduled')))"
+            : "p.status = 'posted'"
         let q = buildPostSelect(viewer)
-            + " WHERE p.id = \(uuid: id) AND p.status = 'posted' AND "
+            + " WHERE p.id = \(uuid: id) AND " + status + " AND "
             + privacyClause(viewer) + " AND " + notBlockedClause(viewer) + " AND " + communityVisibilityClause(viewer)
             + " GROUP BY p.id, u.id"
         guard let row = try await db.raw(q).first(decoding: PostRow.self) else { return nil }
         return try map(row)
+    }
+
+    // MARK: drafts & scheduled (migration 047)
+
+    /// The author's drafts and scheduled posts, both modes, newest first —
+    /// with everything the composer needs to reopen one.
+    static func listUnpublished(_ author: String, on db: any SQLDatabase) async throws -> [PostObject] {
+        let q = buildPostSelect(author)
+            + " WHERE p.author_id = \(uuid: author) AND p.status IN ('draft', 'scheduled')"
+            + " GROUP BY p.id, u.id ORDER BY p.status DESC, COALESCE(p.publish_at, p.updated_at, p.created_at) DESC"
+        return try await db.raw(q).all(decoding: PostRow.self).map(map)
+    }
+
+    /// Whether `id` is one of `author`'s drafts or scheduled posts.
+    static func isOwnUnpublished(_ id: String, author: String, on db: any SQLDatabase) async throws -> Bool {
+        struct I: Decodable { let id: String }
+        return try await db.raw("""
+            SELECT id::text AS id FROM posts
+            WHERE id = \(uuid: id) AND author_id = \(uuid: author) AND status IN ('draft', 'scheduled')
+            """).first(decoding: I.self) != nil
+    }
+
+    /// Removes a draft or scheduled post outright (it was never public, so
+    /// there's no Recently Deleted for it). Its rows in poll_options,
+    /// community_events, job_posts and post_tags go with it (ON DELETE CASCADE).
+    @discardableResult
+    static func deleteUnpublished(_ id: String, author: String, on db: any SQLDatabase) async throws -> Bool {
+        struct I: Decodable { let id: String }
+        return try await db.raw("""
+            DELETE FROM posts WHERE id = \(uuid: id) AND author_id = \(uuid: author) AND status IN ('draft', 'scheduled')
+            RETURNING id::text AS id
+            """).first(decoding: I.self) != nil
     }
 
     struct PostMeta: Decodable {
@@ -392,7 +433,10 @@ enum PostStore {
         // (delete/edit/restore) can never match, silently 403ing for the
         // genuine owner. Same fix already applied to comments in
         // InteractionsController.swift.
-        try await db.raw("SELECT id::text AS id, author_id::text AS author_id, community_id::text AS community_id, post_type FROM posts WHERE id = \(uuid: id)")
+        // Drafts and scheduled posts are invisible here: nobody can vote on,
+        // report, like, edit or remove one through the normal post routes —
+        // they're managed only through the drafts endpoints.
+        try await db.raw("SELECT id::text AS id, author_id::text AS author_id, community_id::text AS community_id, post_type FROM posts WHERE id = \(uuid: id) AND status NOT IN ('draft', 'scheduled')")
             .first(decoding: PostMeta.self)
     }
 
@@ -409,6 +453,7 @@ enum PostStore {
         var articleTitle: String?
         var sharedPostID: String?
         var hashtags: [String]
+        var publishing: Publishing = .now
     }
 
     static func create(_ a: CreateArgs, on db: AppDatabase) async throws -> PostObject? {
@@ -418,13 +463,17 @@ enum PostStore {
         try await db.tx { t in
             struct R: Decodable { let id: String }
             let row = try await t.raw("""
-                INSERT INTO posts (author_id, content, mode, privacy, image_urls, link_url, article_title, shared_post_id)
+                INSERT INTO posts (author_id, content, mode, privacy, image_urls, link_url, article_title, shared_post_id,
+                                   status, publish_at)
                 VALUES (\(uuid: a.authorID), \(bind: a.content), \(bind: a.mode), \(bind: validPrivacy),
-                        \(bind: urls), \(bind: a.linkUrl), \(bind: a.articleTitle), \(uuid: a.sharedPostID))
+                        \(bind: urls), \(bind: a.linkUrl), \(bind: a.articleTitle), \(uuid: a.sharedPostID),
+                        \(bind: a.publishing.status)::post_status, \(bind: a.publishing.publishAt))
                 RETURNING id
                 """).first(decoding: R.self)
             newID = row!.id
-            try await t.raw("UPDATE users SET post_count = post_count + 1 WHERE id = \(uuid: a.authorID)").run()
+            if a.publishing.isLive {
+                try await t.raw("UPDATE users SET post_count = post_count + 1 WHERE id = \(uuid: a.authorID)").run()
+            }
             let clean = sanitizeHashtags(a.hashtags)
             if !clean.isEmpty {
                 try await t.raw("""
@@ -434,7 +483,7 @@ enum PostStore {
                     """).run()
             }
         }
-        return try await findById(newID, viewer: a.authorID, on: db.sql())
+        return try await findById(newID, viewer: a.authorID, includeOwnUnpublished: !a.publishing.isLive, on: db.sql())
     }
 
     // MARK: update / delete / restore / lists
