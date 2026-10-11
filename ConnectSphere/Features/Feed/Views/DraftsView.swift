@@ -53,7 +53,11 @@ struct DraftRow: View {
     }
 
     private var when: String {
-        String(format: bundle.loc("Saved %@"), post.timestamp.timeAgoString)
+        if post.publishStatus == "scheduled", let at = post.publishAt {
+            return String(format: bundle.loc("Goes out %@"),
+                          at.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute()))
+        }
+        return String(format: bundle.loc("Saved %@"), post.timestamp.timeAgoString)
     }
 }
 
@@ -85,8 +89,9 @@ struct DraftPickerSheet: View {
     }
 }
 
-/// Settings → Drafts: every draft, in both modes and every community. Tap to
-/// keep writing, swipe to delete.
+/// Settings → Drafts: every draft and scheduled post, in both modes and every
+/// community. Tap to keep writing; swipe to delete — or, for a scheduled
+/// post, to publish it now or move it back to drafts.
 struct DraftsView: View {
     @Environment(AppState.self) private var appState
     @Environment(ThemeManager.self) private var themeManager
@@ -96,22 +101,54 @@ struct DraftsView: View {
     @State private var viewModel = DraftsViewModel()
     @State private var opening: DraftsViewModel.Opened?
     @State private var pendingDelete: Post?
+    @State private var showScheduled = false
+
+    private var shown: [Post] { showScheduled ? viewModel.scheduled : viewModel.drafts }
 
     var body: some View {
-        Group {
-            if viewModel.hasLoaded && viewModel.drafts.isEmpty {
-                EmptyStateView(systemImage: "doc.text",
-                               title: bundle.loc("No drafts"),
-                               message: bundle.loc("When you're writing a post, tap Cancel and choose Save draft to keep it here."))
+        VStack(spacing: 0) {
+            Picker("", selection: $showScheduled) {
+                Text(String(format: bundle.loc("Drafts (%lld)"), viewModel.drafts.count)).tag(false)
+                Text(String(format: bundle.loc("Scheduled (%lld)"), viewModel.scheduled.count)).tag(true)
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, AppSpacing.md)
+            .padding(.top, AppSpacing.sm)
+
+            if viewModel.hasLoaded && shown.isEmpty {
+                if showScheduled {
+                    EmptyStateView(systemImage: "clock",
+                                   title: bundle.loc("Nothing scheduled"),
+                                   message: bundle.loc("Tap the clock while writing a post to choose when it goes out."))
+                } else {
+                    EmptyStateView(systemImage: "doc.text",
+                                   title: bundle.loc("No drafts"),
+                                   message: bundle.loc("When you're writing a post, tap Cancel and choose Save draft to keep it here."))
+                }
+                Spacer()
             } else {
                 List {
-                    ForEach(viewModel.drafts) { draft in
+                    ForEach(shown) { draft in
                         Button { Task { opening = await viewModel.open(draft) } } label: { DraftRow(post: draft) }
                             .buttonStyle(.plain)
                             .listRowBackground(AppColors.surface(colorScheme))
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button(role: .destructive) { pendingDelete = draft } label: {
                                     Label(bundle.loc("Delete"), systemImage: "trash")
+                                }
+                                if draft.publishStatus == "scheduled" {
+                                    Button { Task { await viewModel.unschedule(draft) } } label: {
+                                        Label(bundle.loc("Move to drafts"), systemImage: "doc.text")
+                                    }
+                                    .tint(.gray)
+                                }
+                            }
+                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                if draft.publishStatus == "scheduled" {
+                                    Button { Task { await viewModel.publishNow(draft) } } label: {
+                                        Label(bundle.loc("Publish now"), systemImage: "paperplane.fill")
+                                    }
+                                    .tint(themeManager.theme.primary)
                                 }
                             }
                     }
@@ -121,7 +158,7 @@ struct DraftsView: View {
             }
         }
         .background(AppColors.base(colorScheme))
-        .navigationTitle(bundle.loc("Drafts"))
+        .navigationTitle(bundle.loc("Drafts & scheduled"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await viewModel.load() }
         .refreshable { await viewModel.load() }
@@ -137,7 +174,7 @@ struct DraftsView: View {
                     .environment(themeManager)
             }
         }
-        .alert(bundle.loc("Delete this draft?"), isPresented: Binding(
+        .alert(bundle.loc(pendingDelete?.publishStatus == "scheduled" ? "Delete this scheduled post?" : "Delete this draft?"), isPresented: Binding(
             get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }
         ), presenting: pendingDelete) { draft in
             Button(bundle.loc("Delete"), role: .destructive) { Task { await viewModel.delete(draft) } }

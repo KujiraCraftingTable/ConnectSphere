@@ -23,6 +23,8 @@ struct CommunityCreatePostView: View {
     @State private var drafts = DraftsViewModel()
     @State private var showLeaveDialog = false
     @State private var showDraftPicker = false
+    @State private var scheduleAt: Date?
+    @State private var showSchedulePicker = false
 
     /// This community's other drafts (not the one already open).
     private var communityDrafts: [Post] {
@@ -38,6 +40,7 @@ struct CommunityCreatePostView: View {
     private func loadDraft(_ d: Post) {
         viewModel.load(d)
         hashtags = d.tags
+        scheduleAt = d.publishStatus == "scheduled" ? d.publishAt : nil
     }
 
     /// Posts now, or saves a draft (replacing the one it was opened from).
@@ -261,9 +264,15 @@ struct CommunityCreatePostView: View {
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(bundle.loc("Post")) { savePost(as: .now) }
+                    Button(bundle.loc(scheduleAt == nil ? "Post" : "Schedule")) {
+                        savePost(as: scheduleAt.map(PublishChoice.schedule) ?? .now)
+                    }
                         .font(.system(size: 15, weight: .bold))
                         .disabled(!viewModel.isValid || viewModel.isPosting)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showSchedulePicker = true } label: { Image(systemName: scheduleAt == nil ? "clock" : "clock.fill") }
+                        .accessibilityLabel(Text("Schedule post", bundle: bundle))
                 }
                 if !communityDrafts.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
@@ -278,6 +287,16 @@ struct CommunityCreatePostView: View {
                 }
                 Button(bundle.loc(viewModel.replacesDraftId == nil ? "Discard" : "Discard changes"), role: .destructive) { dismiss() }
                 Button(bundle.loc("Keep editing"), role: .cancel) {}
+            }
+            .safeAreaInset(edge: .bottom) {
+                if let scheduleAt {
+                    ScheduleLine(date: scheduleAt, onEdit: { showSchedulePicker = true },
+                                 onClear: { self.scheduleAt = nil })
+                        .padding(.bottom, 8)
+                }
+            }
+            .sheet(isPresented: $showSchedulePicker) {
+                SchedulePickerSheet(initial: scheduleAt) { scheduleAt = $0 }
             }
             .sheet(isPresented: $showDraftPicker) {
                 DraftPickerSheet(drafts: communityDrafts) { picked in loadDraft(picked) }

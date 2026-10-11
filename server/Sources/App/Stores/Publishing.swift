@@ -15,13 +15,26 @@ struct Publishing {
 
     static var now: Publishing { Publishing(status: "posted", publishAt: nil, datesAfter: Date()) }
     static let draft = Publishing(status: "draft", publishAt: nil, datesAfter: nil)
+    static func scheduled(at date: Date) -> Publishing {
+        Publishing(status: "scheduled", publishAt: date, datesAfter: date)
+    }
 
-    /// From a create body's `publish` field ("now" | "draft"; absent = now).
-    static func from(_ publish: String?) throws -> Publishing {
+    /// From a create body's `publish` ("now" | "draft" | "schedule"; absent =
+    /// now) and, for a schedule, `publish_at` (ISO 8601).
+    static func from(_ publish: String?, at publishAt: String? = nil, now: Date = Date()) throws -> Publishing {
         switch publish ?? "now" {
         case "now": return .now
         case "draft": return .draft
-        default: throw InlineError(.badRequest, "publish must be now or draft")
+        case "schedule":
+            guard let raw = publishAt,
+                  let date = JSONCoding.isoFractional.date(from: raw) ?? ISO8601DateFormatter().date(from: raw) else {
+                throw InlineError(.badRequest, "publish_at is required to schedule a post")
+            }
+            guard PostPublisher.validScheduleTime(date, now: now) else {
+                throw InlineError(.badRequest, "A post can be scheduled from 5 minutes to 6 months ahead")
+            }
+            return .scheduled(at: date)
+        default: throw InlineError(.badRequest, "publish must be now, draft or schedule")
         }
     }
 }

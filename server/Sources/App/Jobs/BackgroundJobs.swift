@@ -51,6 +51,7 @@ enum BackgroundJobs {
         // Safety net for the 6-hour freshness promise (see `chunkSweep`).
         app.queues.schedule(ChunkSweepJob()).every(minutes: 30)
         app.queues.schedule(MeetingReminderJob()).every(minutes: 5)   // matches Node's */5 cron; atomic claim makes it idempotent
+        app.queues.schedule(PublishScheduledJob()).every(minutes: 1)   // scheduled posts go out within a minute
 
         try app.queues.startInProcessJobs(on: .default)
         try app.queues.startScheduledJobs()
@@ -196,6 +197,20 @@ enum BackgroundJobs {
                 }
             }
             if !claimed.isEmpty { context.logger.info("MeetingReminderJob: \(claimed.count) reminders sent") }
+        }
+    }
+
+    /// Publishes scheduled posts that are due (claimed atomically, so it's
+    /// safe to overlap) and tells each author theirs is live. Anything due
+    /// while the server was down goes out on the first run after.
+    struct PublishScheduledJob: AsyncScheduledJob {
+        func run(context: QueueContext) async throws {
+            let app = context.application
+            let live = try await PostPublisher.claimScheduled(on: app.db.sql())
+            for post in live {
+                await PostPublisher.didGoLive(post, app: app, queue: context.queue, logger: context.logger, notify: true)
+            }
+            if !live.isEmpty { context.logger.info("PublishScheduledJob: \(live.count) scheduled post(s) published") }
         }
     }
 

@@ -12,12 +12,36 @@ extension Notification.Name {
 enum PublishChoice: Equatable {
     case now
     case draft
+    /// Goes out at this time (5 minutes to 6 months ahead).
+    case schedule(Date)
 
     var isLive: Bool { self == .now }
 
     func apply(to body: inout [String: Any], replacing draftId: String?) {
-        if self == .draft { body["publish"] = "draft" }
+        switch self {
+        case .now: break
+        case .draft: body["publish"] = "draft"
+        case .schedule(let date):
+            body["publish"] = "schedule"
+            body["publish_at"] = ISO8601DateFormatter().string(from: date)
+        }
         if let draftId { body["replaces_draft"] = draftId }
+    }
+}
+
+/// The times a post can be scheduled for — the server's window, with a
+/// minute's slack so a time picked right at the edge isn't refused.
+enum ScheduleWindow {
+    static func range(from now: Date = Date()) -> ClosedRange<Date> {
+        now.addingTimeInterval(6 * 60)...now.addingTimeInterval(180 * 86_400 - 60)
+    }
+
+    /// What the picker starts on: the next whole hour at least an hour away.
+    static func suggested(from now: Date = Date()) -> Date {
+        let cal = Calendar.current
+        let inAnHour = now.addingTimeInterval(3600)
+        let hour = cal.dateInterval(of: .hour, for: inAnHour)?.start ?? inAnHour
+        return hour < inAnHour ? hour.addingTimeInterval(3600) : hour
     }
 }
 

@@ -15,6 +15,17 @@ struct DraftRepository {
         _ = try await client.fetch(OK.self, path: "/posts/\(id)/draft", method: "DELETE", token: try token())
     }
 
+    /// A scheduled post back to a draft.
+    func unschedule(_ id: String) async throws {
+        struct OK: Decodable { let status: String }
+        _ = try await client.fetch(OK.self, path: "/posts/\(id)/unschedule", method: "POST", token: try token())
+    }
+
+    /// Publishes a scheduled post right away.
+    func publishNow(_ id: String) async throws -> Post {
+        try await client.fetch(DataResponse<PostDTO>.self, path: "/posts/\(id)/publish", method: "POST", token: try token()).data.toPost()
+    }
+
     private func token() throws -> String {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")

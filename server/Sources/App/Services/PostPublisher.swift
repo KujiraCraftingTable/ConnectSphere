@@ -1,35 +1,119 @@
 import Vapor
+import Queues
+import SQLKit
 
-/// What happens when a post goes live — at once, or later from a draft or a
-/// schedule. Kept in one place so a scheduled post gets exactly what an
-/// immediate one does.
+/// What happens when a post goes live — at once, or later from a schedule.
+/// Kept in one place so a scheduled post gets exactly what an immediate one does.
 enum PostPublisher {
+    /// A post that just went live, as `claimScheduled` / `publishNow` return it.
+    struct Live: Decodable {
+        let id: String
+        let author_id: String
+        let community_id: String?
+        let post_type: String
+        let mode: String
+        let content: String?
+    }
+
     /// For feed posts (community posts don't have these yet): the AI mode
     /// check, which notifies the author on a mismatch, and tag extraction →
     /// embedding (or a direct embed for a link/image-only post) — the queue
     /// part only when this server owns the job schedule.
     static func afterPublish(_ req: Request, post: PostObject) async {
-        let postID = post.id, postMode = post.mode, postText = post.content ?? "", authorID = req.userID
-        if !postText.isEmpty {
-            let cfg = req.ollama
-            NotifyService.fireAndForget(req) { d, h, l in
-                let r = await PostAnalyzeService.analyze(cfg, postText, logger: l)
-                if r.confidence >= 0.75, r.suggestedMode != "neutral", r.suggestedMode != postMode {
+        await afterPublish(req.application, queue: req.queue, logger: req.logger,
+                           postID: post.id, mode: post.mode, content: post.content ?? "", authorID: req.userID)
+    }
+
+    static func afterPublish(_ app: Application, queue: any Queue, logger: Logger,
+                             postID: String, mode: String, content: String, authorID: String) async {
+        if !content.isEmpty {
+            let cfg = app.ollama, db = app.db.sql(), hub = app.socketHub
+            Task {
+                let r = await PostAnalyzeService.analyze(cfg, content, logger: logger)
+                if r.confidence >= 0.75, r.suggestedMode != "neutral", r.suggestedMode != mode {
                     _ = await NotifyService.pushUserNotification(userID: authorID, type: "mode_mismatch",
                         postID: postID,
-                        payload: ["suggestedMode": r.suggestedMode, "currentMode": postMode, "reason": r.reason],
-                        on: d, hub: h, logger: l)
+                        payload: ["suggestedMode": r.suggestedMode, "currentMode": mode, "reason": r.reason],
+                        on: db, hub: hub, logger: logger)
                 }
             }
         }
         if BackgroundJobs.enabled {
-            if !postText.isEmpty {
-                try? await req.queue.dispatch(BackgroundJobs.TagExtractionJob.self,
-                    .init(postId: postID, content: postText), maxRetryCount: 3)
+            if !content.isEmpty {
+                try? await queue.dispatch(BackgroundJobs.TagExtractionJob.self,
+                    .init(postId: postID, content: content), maxRetryCount: 3)
             } else {
-                try? await req.queue.dispatch(BackgroundJobs.ChunkEmbedJob.self,
+                try? await queue.dispatch(BackgroundJobs.ChunkEmbedJob.self,
                     .init(kind: .post, id: postID), maxRetryCount: 3)
             }
         }
+    }
+
+    // MARK: scheduled posts
+
+    static let minLead: TimeInterval = 5 * 60
+    static let maxLead: TimeInterval = 180 * 86_400
+
+    /// A schedule time is between 5 minutes and 180 days from `now`.
+    static func validScheduleTime(_ date: Date, now: Date = Date()) -> Bool {
+        date >= now.addingTimeInterval(minLead) && date <= now.addingTimeInterval(maxLead)
+    }
+
+    /// Claims every scheduled post that's due, atomically — two job runs (or
+    /// two servers) can't both publish one. It takes its publish time as its
+    /// date, so it lands in feeds as new.
+    static func claimScheduled(on db: any SQLDatabase) async throws -> [Live] {
+        try await db.raw("""
+            UPDATE posts SET status = 'posted', created_at = COALESCE(publish_at, NOW()), publish_at = NULL
+            WHERE status = 'scheduled' AND publish_at <= NOW()
+            RETURNING id::text AS id, author_id::text AS author_id, community_id::text AS community_id,
+                      post_type, mode, content
+            """).all(decoding: Live.self)
+    }
+
+    /// "Publish now" on one of your scheduled posts.
+    static func publishNow(_ id: String, author: String, on db: any SQLDatabase) async throws -> Live? {
+        try await db.raw("""
+            UPDATE posts SET status = 'posted', created_at = NOW(), publish_at = NULL
+            WHERE id = \(uuid: id) AND author_id = \(uuid: author) AND status = 'scheduled'
+            RETURNING id::text AS id, author_id::text AS author_id, community_id::text AS community_id,
+                      post_type, mode, content
+            """).first(decoding: Live.self)
+    }
+
+    /// The counters a post bumps when it's created live, plus the feed side
+    /// effects and — for a scheduled one — "Your scheduled post is live".
+    static func didGoLive(_ post: Live, app: Application, queue: any Queue, logger: Logger, notify: Bool) async {
+        let db = app.db.sql()
+        do {
+            if let community = post.community_id {
+                try await CommunityMemberStore.incrementPostCount(community, 1, on: db)
+            } else if post.post_type == "text" {
+                try await db.raw("UPDATE users SET post_count = post_count + 1 WHERE id = \(uuid: post.author_id)").run()
+            }
+        } catch {
+            logger.warning("PostPublisher: counters for \(post.id) failed: \(error)")
+        }
+        if post.community_id == nil {
+            await afterPublish(app, queue: queue, logger: logger, postID: post.id, mode: post.mode,
+                               content: post.content ?? "", authorID: post.author_id)
+        }
+        if notify {
+            _ = await NotifyService.pushUserNotification(userID: post.author_id, type: "scheduled_post_live",
+                postID: post.id, payload: [:], on: db, hub: app.socketHub, logger: logger)
+        }
+    }
+
+    /// Something in the post that has gone stale while it waited (a poll that
+    /// already ended, an event that already started), or nil.
+    static func staleDates(_ id: String, on db: any SQLDatabase) async throws -> String? {
+        struct R: Decodable { let poll_over: Bool; let event_started: Bool }
+        let r = try await db.raw("""
+            SELECT EXISTS (SELECT 1 FROM poll_options WHERE post_id = \(uuid: id) AND ends_at <= NOW()) AS poll_over,
+                   EXISTS (SELECT 1 FROM community_events WHERE post_id = \(uuid: id) AND starts_at <= NOW()) AS event_started
+            """).first(decoding: R.self)
+        if r?.poll_over == true { return "Poll end date must be in the future" }
+        if r?.event_started == true { return "Event start time must be in the future" }
+        return nil
     }
 }

@@ -237,7 +237,7 @@ struct CommunitiesController {
         let b = try req.content.decode(PostsController.CreateBody.self)
         let hashtags = b.hashtags ?? []
         let postType = b.post_type ?? "text"
-        let publishing = try Publishing.from(b.publish)
+        let publishing = try Publishing.from(b.publish, at: b.publish_at)
         try await PostsController.checkReplacedDraft(b.replaces_draft, req)
         var post: PostObject
         if postType == "poll" {

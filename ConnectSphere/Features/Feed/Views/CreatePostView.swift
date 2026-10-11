@@ -37,6 +37,9 @@ struct CreatePostView: View {
     @State private var draftId: String?
     @State private var showLeaveDialog = false
     @State private var showDraftPicker = false
+    /// Set = the post is scheduled for this time instead of going out now.
+    @State private var scheduleAt: Date?
+    @State private var showSchedulePicker = false
 
     /// When set, the view operates in Edit mode instead of Create
     var editingPost: Post? = nil
@@ -287,6 +290,20 @@ struct CreatePostView: View {
                 // ── Bottom bar ────────────────────────────────────────────────
                 Divider()
                 HStack {
+                    if !isEditMode {
+                        if let scheduleAt {
+                            ScheduleLine(date: scheduleAt, onEdit: { showSchedulePicker = true },
+                                         onClear: { self.scheduleAt = nil })
+                        } else {
+                            Button { showSchedulePicker = true } label: {
+                                Image(systemName: "clock")
+                                    .font(.system(size: 18, weight: .medium))
+                                    .foregroundColor(AppColors.textSecondary(colorScheme))
+                                    .frame(width: 40, height: 40)
+                            }
+                            .accessibilityLabel(Text("Schedule post", bundle: bundle))
+                        }
+                    }
                     Spacer()
                     Button {
                         handlePost()
@@ -302,7 +319,7 @@ struct CreatePostView: View {
                             .padding(.vertical, 10)
                             .background(Capsule().fill(AppColors.textTertiary(colorScheme)))
                         } else {
-                            Text(isEditMode ? bundle.loc("Save") : bundle.loc("Post"))
+                            Text(isEditMode ? bundle.loc("Save") : bundle.loc(scheduleAt == nil ? "Post" : "Schedule"))
                                 .font(.system(size: 15, weight: .bold))
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 32)
@@ -344,6 +361,9 @@ struct CreatePostView: View {
                 }
                 Button(bundle.loc(draftId == nil ? "Discard" : "Discard changes"), role: .destructive) { dismiss() }
                 Button(bundle.loc("Keep editing"), role: .cancel) {}
+            }
+            .sheet(isPresented: $showSchedulePicker) {
+                SchedulePickerSheet(initial: scheduleAt) { scheduleAt = $0 }
             }
             .sheet(isPresented: $showDraftPicker) {
                 DraftPickerSheet(drafts: feedDrafts) { picked in loadDraft(picked) }
@@ -407,7 +427,7 @@ struct CreatePostView: View {
         if isEditMode {
             saveEdit()
         } else {
-            savePost(as: .now)
+            savePost(as: scheduleAt.map(PublishChoice.schedule) ?? .now)
         }
     }
 
@@ -474,6 +494,7 @@ struct CreatePostView: View {
             LinkPreviewDTO(url: $0, title: d.articleTitle ?? $0, description: nil, image: d.imageUrl, siteName: nil)
         }
         composerViewModel.load(d)
+        scheduleAt = d.publishStatus == "scheduled" ? d.publishAt : nil
     }
 
     /// Adapts a `CommunityPost` (what PostComposerViewModel's shared submit
