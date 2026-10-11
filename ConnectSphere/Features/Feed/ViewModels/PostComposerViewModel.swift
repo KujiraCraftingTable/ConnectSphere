@@ -194,6 +194,7 @@ class PostComposerViewModel {
             "privacy":      privacy.rawValue,
         ]
         if !imageUrls.isEmpty                   { dict["image_urls"]    = imageUrls }
+        if selectedMedia.contains(where: { !$0.altText.isEmpty }) { dict["image_alts"] = selectedMedia.map(\.altText) }
         if let url = capturedPreview?.url       { dict["link_url"]      = url }
         if let title = capturedPreview?.title   { dict["article_title"] = title }
         if !hashtags.isEmpty                    { dict["hashtags"]      = hashtags }

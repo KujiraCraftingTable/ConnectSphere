@@ -6,6 +6,8 @@ struct CommunityCreatePostView: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) var dismiss
     @Environment(\.appBundle) var bundle
+    /// The picked photo/video whose alt text is being written.
+    @State private var altTarget: PickedPostMedia?
     @State private var viewModel = PostComposerViewModel()
 
     // Hashtags — same field/caps as Feed's CreatePostView, reusing the shared
@@ -273,6 +275,9 @@ struct CommunityCreatePostView: View {
                                height: viewModel.selectedMedia.count == 1 ? 200 : 160)
                         .clipped()
                         .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .overlay(alignment: .bottomLeading) {
+                            AltTextChip(hasText: !media.altText.isEmpty) { altTarget = media }
+                        }
 
                         Button {
                             if let index = viewModel.selectedMedia.firstIndex(where: { $0.id == media.id }) {
@@ -290,6 +295,11 @@ struct CommunityCreatePostView: View {
                         .padding(6)
                     }
                 }
+            }
+        }
+        .sheet(item: $altTarget) { media in
+            AltTextEditorSheet(preview: media.previewImage, isVideo: media.isVideo, initialText: media.altText) { text in
+                if let index = viewModel.selectedMedia.firstIndex(where: { $0.id == media.id }) { viewModel.selectedMedia[index].altText = text }
             }
         }
     }

@@ -237,7 +237,7 @@ struct CommunitiesController {
         let b = try req.content.decode(PostsController.CreateBody.self)
         let hashtags = b.hashtags ?? []
         let postType = b.post_type ?? "text"
-        let post: PostObject
+        var post: PostObject
         if postType == "poll" {
             post = try await PostService.createPollPost(authorID: req.userID, communityID: id, content: b.content,
                 options: b.options, endsAt: b.endsAt, hashtags: hashtags, mode: nil, privacy: nil, on: req.db)
@@ -256,6 +256,9 @@ struct CommunitiesController {
             post = try await PostService.createTextCommunityPost(userID: req.userID, content: b.content, communityID: id,
                 imageUrls: PostsController.normalizeImageUrls(b.image_urls), linkUrl: b.link_url?.nilIfEmpty,
                 articleTitle: b.article_title?.nilIfEmpty, hashtags: hashtags, mode: nil, privacy: nil, on: req.db)
+        }
+        if b.image_alts != nil {
+            post.image_alts = try await PostStore.setImageAlts(post.id, b.image_alts, on: req.db.sql())
         }
         return try await ConnectionsController.encode(DataResponse(data: post), req, .created)
     }

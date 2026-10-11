@@ -77,11 +77,16 @@ struct SharedPostPreview {
     let content: String
     let imageUrl: String?
     var imageUrls: [String] = []
+    /// Alt text per `imageUrls` entry ('' = none).
+    var imageAlts: [String] = []
     let linkUrl: String?
     let articleTitle: String?
     let timestamp: Date
 
     /// Images to render the grid: prefer the new array, fall back to the old post's single image
+    /// Alt text lined up with `displayImageUrls` (the legacy single image has none).
+    var displayImageAlts: [String] { imageUrls.isEmpty ? [] : imageAlts }
+
     var displayImageUrls: [String] {
         if !imageUrls.isEmpty { return imageUrls }
         if linkUrl == nil, let imageUrl { return [imageUrl] }
@@ -99,6 +104,8 @@ struct Post: Identifiable {
     var linkUrl: String?         // original URL for the link preview
     var imageUrl: String?        // thumbnail URL (from link preview or upload) — legacy, = first image
     var imageUrls: [String] = [] // uploaded image array, ordered
+    /// Alt text per `imageUrls` entry ('' = none).
+    var imageAlts: [String] = []
     var likeCount: Int
     var commentCount: Int
     var shareCount: Int
@@ -126,6 +133,9 @@ struct Post: Identifiable {
 
     /// Images to render the grid: prefer the new array, fall back to the old post's single image.
     /// Posts with a link preview don't count (that image belongs to the link card).
+    /// Alt text lined up with `displayImageUrls` (the legacy single image has none).
+    var displayImageAlts: [String] { imageUrls.isEmpty ? [] : imageAlts }
+
     var displayImageUrls: [String] {
         if !imageUrls.isEmpty { return imageUrls }
         if linkUrl == nil, let imageUrl { return [imageUrl] }

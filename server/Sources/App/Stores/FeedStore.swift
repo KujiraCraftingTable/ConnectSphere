@@ -67,6 +67,7 @@ enum FeedStore {
         var privacy: String
         var image_url: String?
         var image_urls: [String]?
+        var image_alts: [String]?
         var article_title: String?
         var link_url: String?
         var like_count: Int
@@ -119,7 +120,7 @@ enum FeedStore {
                 : "0::float"
             var q: SQLQueryString = """
             WITH scored AS (
-              SELECT p.id::text AS id, p.content, p.mode, p.privacy, p.image_urls[1] AS image_url, p.image_urls, p.article_title, p.link_url,
+              SELECT p.id::text AS id, p.content, p.mode, p.privacy, p.image_urls[1] AS image_url, p.image_urls, p.image_alts, p.article_title, p.link_url,
                 p.like_count, p.comment_count, p.share_count, p.created_at, p.post_type, p.is_pinned, p.pinned_at, p.shared_post_id::text AS shared_post_id,
                 EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = \(uuid: userID)) AS is_liked,
                 EXISTS(SELECT 1 FROM connections co WHERE co.status = 'accepted' AND co.mode = \(bind: mode)
@@ -129,7 +130,7 @@ enum FeedStore {
                 EXP(- (EXTRACT(EPOCH FROM (\(bind: asOf) - p.created_at)) / 3600.0) / \(unsafeRaw: String(recencyTauHours)))::float AS recency,
                 LEAST(1, LN(1 + p.like_count + 2 * p.comment_count) / LN(1 + \(unsafeRaw: String(Int(engagementCap)))))::float AS engagement,
                 (CASE WHEN p.shared_post_id IS NOT NULL THEN (
-                  SELECT json_build_object('id', sp.id, 'content', sp.content, 'image_url', sp.image_urls[1], 'image_urls', sp.image_urls,
+                  SELECT json_build_object('id', sp.id, 'content', sp.content, 'image_url', sp.image_urls[1], 'image_urls', sp.image_urls, 'image_alts', sp.image_alts,
                     'link_url', sp.link_url, 'article_title', sp.article_title, 'created_at', sp.created_at,
                     'author', json_build_object('id', su.id, 'username', su.username,
                       'display_name', \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "sp.mode", alias: "su")),
@@ -234,7 +235,7 @@ enum FeedStore {
         let posts = try page.map { r -> FeedPostObject in
             FeedPostObject(
                 id: r.id, content: r.content, mode: r.mode, privacy: r.privacy,
-                image_url: r.image_url, image_urls: r.image_urls, article_title: r.article_title, link_url: r.link_url,
+                image_url: r.image_url, image_urls: r.image_urls, image_alts: r.image_alts, article_title: r.article_title, link_url: r.link_url,
                 like_count: r.like_count, comment_count: r.comment_count, share_count: r.share_count,
                 created_at: r.created_at, post_type: r.post_type, is_pinned: r.is_pinned, pinned_at: r.pinned_at,
                 shared_post_id: r.shared_post_id, is_liked: r.is_liked, is_connection: r.is_connection,
@@ -259,6 +260,7 @@ struct FeedPostObject: Content {
     var privacy: String
     @NullCoded var image_url: String?
     @NullCoded var image_urls: [String]?
+    @NullCoded var image_alts: [String]?
     @NullCoded var article_title: String?
     @NullCoded var link_url: String?
     var like_count: Int

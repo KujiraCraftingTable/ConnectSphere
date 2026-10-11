@@ -36,14 +36,14 @@ enum PostStore {
         let avSp = PersonaSQL.expr("avatar_url", modeRef: "sp.mode", alias: "su")
         return """
         SELECT
-          p.id::text AS id, p.content, p.mode, p.privacy, p.image_urls[1] AS image_url, p.image_urls, p.article_title, p.link_url,
+          p.id::text AS id, p.content, p.mode, p.privacy, p.image_urls[1] AS image_url, p.image_urls, p.image_alts, p.article_title, p.link_url,
           p.like_count, p.comment_count, p.share_count, p.created_at,
           p.post_type, p.is_pinned, p.pinned_at, p.shared_post_id::text AS shared_post_id,
           EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = \(uuid: v)) AS is_liked,
           EXISTS(SELECT 1 FROM saved_posts sp2 WHERE sp2.post_id = p.id AND sp2.user_id = \(uuid: v)) AS is_saved,
           (CASE WHEN p.shared_post_id IS NOT NULL THEN (
             SELECT json_build_object(
-              'id', sp.id, 'content', sp.content, 'image_url', sp.image_urls[1], 'image_urls', sp.image_urls,
+              'id', sp.id, 'content', sp.content, 'image_url', sp.image_urls[1], 'image_urls', sp.image_urls, 'image_alts', sp.image_alts,
               'link_url', sp.link_url, 'article_title', sp.article_title, 'created_at', sp.created_at,
               'author', json_build_object('id', su.id, 'username', su.username,
                 'display_name', \(unsafeRaw: dnSp), 'avatar_color', su.avatar_color, 'avatar_url', \(unsafeRaw: avSp)))
@@ -189,6 +189,7 @@ enum PostStore {
         var privacy: String
         var image_url: String?
         var image_urls: [String]?
+        var image_alts: [String]?
         var article_title: String?
         var link_url: String?
         var like_count: Int
@@ -218,7 +219,7 @@ enum PostStore {
         }
         return PostObject(
             id: r.id, content: r.content, mode: r.mode, privacy: r.privacy,
-            image_url: r.image_url, image_urls: r.image_urls, article_title: r.article_title, link_url: r.link_url,
+            image_url: r.image_url, image_urls: r.image_urls, image_alts: r.image_alts, article_title: r.article_title, link_url: r.link_url,
             like_count: r.like_count, comment_count: r.comment_count, share_count: r.share_count,
             created_at: r.created_at, post_type: r.post_type, is_pinned: r.is_pinned, pinned_at: r.pinned_at,
             shared_post_id: r.shared_post_id, is_liked: r.is_liked, is_saved: r.is_saved,
@@ -343,6 +344,30 @@ enum PostStore {
         struct N: Decodable { let n: Int }
         let q: SQLQueryString = "SELECT COUNT(*)::int AS n FROM posts p " + feedWhere(viewer, f)
         return try await db.raw(q).first(decoding: N.self)?.n ?? 0
+    }
+
+    static let maxAltLength = 300
+
+    /// Alt text lined up with `count` media items: each entry trimmed and
+    /// capped, missing ones ''. nil when there's no media or nothing written,
+    /// so posts without alt text store NULL rather than a row of blanks.
+    static func cleanAlts(_ raw: [String]?, count: Int) -> [String]? {
+        guard let raw, count > 0 else { return nil }
+        let alts = (0..<count).map { i -> String in
+            guard i < raw.count else { return "" }
+            return String(raw[i].trimmingCharacters(in: .whitespacesAndNewlines).prefix(maxAltLength))
+        }
+        return alts.allSatisfy(\.isEmpty) ? nil : alts
+    }
+
+    /// Sets a post's alt text to match its current media.
+    @discardableResult
+    static func setImageAlts(_ id: String, _ raw: [String]?, on db: any SQLDatabase) async throws -> [String]? {
+        struct U: Decodable { let image_urls: [String]? }
+        let urls = try await db.raw("SELECT image_urls FROM posts WHERE id = \(uuid: id)").first(decoding: U.self)?.image_urls
+        let alts = cleanAlts(raw, count: urls?.count ?? 0)
+        try await db.raw("UPDATE posts SET image_alts = \(bind: alts) WHERE id = \(uuid: id)").run()
+        return alts
     }
 
     static func findById(_ id: String, viewer: String, on db: any SQLDatabase) async throws -> PostObject? {

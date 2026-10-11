@@ -148,11 +148,16 @@ struct CommunityPost: Identifiable {
     var linkUrl: String? = nil
     var imageUrl: String? = nil
     var imageUrls: [String] = []
+    /// Alt text per `imageUrls` entry ('' = none).
+    var imageAlts: [String] = []
     var articleTitle: String? = nil
     var tags: [String] = []
 
     /// Images to render in the grid — same rule as `Post.displayImageUrls`: prefer
     /// the new array; posts with a link preview don't count (that image belongs to the link card).
+    /// Alt text lined up with `displayImageUrls` (the legacy single image has none).
+    var displayImageAlts: [String] { imageUrls.isEmpty ? [] : imageAlts }
+
     var displayImageUrls: [String] {
         if !imageUrls.isEmpty { return imageUrls }
         if linkUrl == nil, let imageUrl { return [imageUrl] }
@@ -203,6 +208,7 @@ extension CommunityPost {
             linkUrl:       linkUrl,
             imageUrl:      imageUrl,
             imageUrls:     imageUrls,
+            imageAlts:     imageAlts,
             likeCount:     likeCount,
             commentCount:  commentCount,
             shareCount:    0,
