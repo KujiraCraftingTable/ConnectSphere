@@ -60,7 +60,9 @@ struct ProfileHeaderCard<Actions: View>: View {
 
     // MARK: Cover
 
-    /// The framed cover, exactly as cropped and sharp right down to the card.
+    /// The framed cover as cropped: its top fades into the page (so the clock
+    /// and buttons stay legible) and, more gently, its bottom too, so the
+    /// photo softens into the card instead of ending on a hard line.
     private var cover: some View {
         CoverPhotoView(coverUrl: user.coverUrl)
             .overlay(alignment: .top) {
@@ -69,6 +71,16 @@ struct ProfileHeaderCard<Actions: View>: View {
                         colors: [AppColors.base(colorScheme).opacity(0.85), AppColors.base(colorScheme).opacity(0)],
                         startPoint: .top, endPoint: .bottom)
                         .frame(height: geo.size.height * CoverPhotoView.fadedTopFraction)
+                }
+                .allowsHitTesting(false)
+            }
+            .overlay(alignment: .bottom) {
+                GeometryReader { geo in
+                    LinearGradient(
+                        colors: [AppColors.base(colorScheme).opacity(0), AppColors.base(colorScheme).opacity(0.45)],
+                        startPoint: .top, endPoint: .bottom)
+                        .frame(height: geo.size.height * 0.22)
+                        .frame(maxHeight: .infinity, alignment: .bottom)
                 }
                 .allowsHitTesting(false)
             }

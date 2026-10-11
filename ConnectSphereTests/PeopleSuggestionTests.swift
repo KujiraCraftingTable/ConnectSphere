@@ -47,4 +47,16 @@ struct PeopleSuggestionTests {
         #expect(PeopleSuggestionText.reason(.interest("jpop"), mode: .hobby, bundle: en) == "Also into jpop")
         #expect(PeopleSuggestionText.reason(.similar, mode: .work, bundle: en) == "Similar background")
     }
+
+    @Test func suggestionsCarryTheSearchCardFieldsAndTheirMatch() throws {
+        let json = #"{"id":"u2","username":"lan","display_name":"Lan","mutual_count":1,"bio":"jpop fan","location":"Huế","tags":["jpop","badminton"],"match_percent":87,"reason":{"kind":"mutual","count":1}}"#
+        let person = try JSONDecoder().decode(PeopleSuggestion.self, from: Data(json.utf8))
+        #expect(person.matchPercent == 87)
+        let hobby = person.toUserProfile(mode: .hobby)
+        #expect(hobby.interests == ["jpop", "badminton"] && hobby.skills.isEmpty)
+        #expect(hobby.bio == "jpop fan" && hobby.location == "Huế" && hobby.mutualCount == 1)
+        #expect(person.toUserProfile(mode: .work).skills == ["jpop", "badminton"])
+        let bare = try JSONDecoder().decode(PeopleSuggestion.self, from: Data(#"{"id":"u3","username":"x","display_name":"X","reason":{"kind":"similar"}}"#.utf8))
+        #expect(bare.matchPercent == nil && bare.tags.isEmpty && bare.bio.isEmpty)
+    }
 }

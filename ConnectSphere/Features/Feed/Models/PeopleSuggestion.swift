@@ -10,7 +10,13 @@ struct PeopleSuggestion: Identifiable, Decodable, Equatable {
     let avatarColor: String?
     let jobTitle: String?
     let company: String?
+    let bio: String
+    let location: String?
+    /// Their interests (Hobby) or skills (Work).
+    let tags: [String]
     let mutualCount: Int
+    /// Profile-vector similarity × 100, as AI search shows it; nil without an embedding.
+    let matchPercent: Int?
     let reason: Reason
 
     enum Reason: Equatable {
@@ -23,7 +29,8 @@ struct PeopleSuggestion: Identifiable, Decodable, Equatable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, username, reason, company
+        case id, username, reason, company, bio, location, tags
+        case matchPercent = "match_percent"
         case displayName = "display_name"
         case avatarUrl = "avatar_url"
         case avatarColor = "avatar_color"
@@ -43,6 +50,10 @@ struct PeopleSuggestion: Identifiable, Decodable, Equatable {
         jobTitle = try c.decodeIfPresent(String.self, forKey: .jobTitle)
         company = try c.decodeIfPresent(String.self, forKey: .company)
         mutualCount = try c.decodeIfPresent(Int.self, forKey: .mutualCount) ?? 0
+        bio = try c.decodeIfPresent(String.self, forKey: .bio) ?? ""
+        location = try c.decodeIfPresent(String.self, forKey: .location)
+        tags = try c.decodeIfPresent([String].self, forKey: .tags) ?? []
+        matchPercent = try c.decodeIfPresent(Int.self, forKey: .matchPercent)
         let raw = try c.decode(RawReason.self, forKey: .reason)
         // An unknown or incomplete reason still shows the card, just generically.
         switch (raw.kind, raw.value, raw.count) {
@@ -53,6 +64,22 @@ struct PeopleSuggestion: Identifiable, Decodable, Equatable {
         case ("place", let v?, _): reason = .place(v)
         default: reason = .similar
         }
+    }
+}
+
+extension PeopleSuggestion {
+    /// The person as the search cards take them (`FriendSearchCard` /
+    /// `ColleagueSearchCard`): their tags land in interests or skills by mode.
+    func toUserProfile(mode: AppMode) -> UserProfile {
+        UserProfile(
+            id: id, name: displayName, username: username,
+            avatarColor: avatarColor ?? AppColors.avatarFallback, avatarUrl: avatarUrl,
+            bio: bio, jobTitle: jobTitle, company: company,
+            skills: mode == .work ? tags : [], interests: mode == .hobby ? tags : [],
+            location: location,
+            followerCount: 0, followingCount: 0, postCount: 0,
+            mutualCount: mutualCount
+        )
     }
 }
 

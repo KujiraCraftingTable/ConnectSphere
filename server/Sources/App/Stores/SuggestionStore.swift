@@ -29,7 +29,14 @@ enum SuggestionStore {
         @NullCoded var avatar_color: String?
         @NullCoded var job_title: String?
         @NullCoded var company: String?
+        @NullCoded var bio: String?
+        @NullCoded var location: String?
+        /// Their interests (Hobby) or skills (Work).
+        var tags: [String]
         var mutual_count: Int
+        /// How closely the two profiles match, as AI search measures it
+        /// (cosine of the profile embeddings × 100); null without an embedding.
+        @NullCoded var match_percent: Int?
         var reason: Reason
     }
 
@@ -42,6 +49,9 @@ enum SuggestionStore {
         let avatar_color: String?
         let job_title: String?
         let company: String?
+        let bio: String?
+        let location: String?
+        let tags: [String]
         let mutual_count: Int
         let similarity: Double?
         let shared: [String]
@@ -105,6 +115,9 @@ enum SuggestionStore {
               \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: modeLit)) AS display_name,
               \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: modeLit)) AS avatar_url,
               u.avatar_color, u.job_title, u.company,
+              \(unsafeRaw: PersonaSQL.expr("bio", modeRef: modeLit)) AS bio, u.location,
+              ARRAY(SELECT t.\(unsafeRaw: tags.1) FROM \(unsafeRaw: tags.0) t WHERE t.user_id = u.id
+                    ORDER BY t.\(unsafeRaw: tags.1)) AS tags,
               COALESCE(fof.mutual, 0) AS mutual_count,
               (SELECT (1 - (pc.embedding <=> my_vec.embedding))::float FROM user_embedding_chunks pc, my_vec
                 WHERE pc.user_id = u.id AND pc.source_type = 'user_profile' LIMIT 1) AS similarity,
@@ -146,8 +159,14 @@ enum SuggestionStore {
                              sameCompany: r.same_company, sameProvince: r.same_province)
             return Suggestion(id: r.id, username: r.username, display_name: r.display_name, avatar_url: r.avatar_url,
                               avatar_color: r.avatar_color, job_title: r.job_title, company: r.company,
-                              mutual_count: r.mutual_count, reason: why)
+                              bio: r.bio, location: r.location, tags: r.tags,
+                              mutual_count: r.mutual_count, match_percent: matchPercent(r.similarity), reason: why)
         }
+    }
+
+    /// Cosine similarity → the 0–100 the app shows next to a match.
+    static func matchPercent(_ similarity: Double?) -> Int? {
+        similarity.map { min(100, max(0, Int(($0 * 100).rounded()))) }
     }
 
     static func dismiss(_ target: String, by me: String, mode: String, on db: any SQLDatabase) async throws {
