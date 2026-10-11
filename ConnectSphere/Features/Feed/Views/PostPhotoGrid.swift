@@ -67,7 +67,7 @@ struct PostPhotoGrid: View {
                 }
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 4))
+        .clipped()
         .mediaSaveStatus(saver)
         .fullScreenCover(item: $viewerTarget) { target in
             ChatMediaViewerView(items: viewerItems, startIndex: target.index)
