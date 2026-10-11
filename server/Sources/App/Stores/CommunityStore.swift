@@ -325,7 +325,7 @@ enum CommunityStore {
         struct R: Decodable { let id: String }
         return try await db.raw("""
             UPDATE posts SET is_pinned = TRUE, pinned_at = NOW(), pinned_by = \(uuid: adminID)
-            WHERE id = \(uuid: postID) AND community_id = \(uuid: communityID) RETURNING id
+            WHERE id = \(uuid: postID) AND community_id = \(uuid: communityID) AND status = 'posted' RETURNING id
             """).first(decoding: R.self) != nil
     }
     static func unpinPost(_ postID: String, _ communityID: String, on db: any SQLDatabase) async throws -> Bool {

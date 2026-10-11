@@ -259,7 +259,7 @@ struct NotificationsController {
         if action == "switch", let postID = n.post_id,
            let p = (try? JSONSerialization.jsonObject(with: Data(n.payload.utf8))) as? [String: Any],
            let suggested = p["suggestedMode"] as? String {
-            try await db.raw("UPDATE posts SET mode = \(bind: suggested) WHERE id = \(uuid: postID)").run()
+            try await db.raw("UPDATE posts SET mode = \(bind: suggested) WHERE id = \(uuid: postID) AND status = 'posted'").run()
         }
         try await db.raw("UPDATE user_notifications SET is_read = TRUE, resolved_at = NOW() WHERE id = \(uuid: req.parameters.get("id")!) AND user_id = \(uuid: req.userID)").run()
         return try await ConnectionsController.encode(StatusOnly(), req, .ok)

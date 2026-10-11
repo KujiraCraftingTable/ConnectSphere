@@ -3,17 +3,35 @@ import PhotosUI
 import SwiftUI
 import UserNotifications
 
-/// Media picked for a post: image (upload as jpeg) or video (upload as mp4/mov file)
+/// Media in the composer: freshly picked (image uploaded as jpeg, video as an
+/// mp4/mov file) or already uploaded — a draft's media, kept as its URL.
 struct PickedPostMedia: Identifiable {
     let id = UUID()
     let image: UIImage?     // original image (nil if this is a video)
     let videoURL: URL?      // temp video file in the sandbox (nil if this is an image)
     let thumbnail: UIImage? // video's first frame, for preview
+    /// Already on the server (from a draft): sent back as-is, never re-uploaded.
+    var remoteURL: String? = nil
+    /// The picker item it came from, so picking more photos keeps this one
+    /// (and its alt text) instead of rebuilding it.
+    var pickerItem: PhotosPickerItem? = nil
     /// What the photo or video shows — shown in its place while it loads and
     /// read by VoiceOver. Optional.
     var altText = ""
 
-    var isVideo: Bool { videoURL != nil }
+    var isVideo: Bool {
+        if videoURL != nil { return true }
+        let ext = remoteURL.flatMap(URL.init(string:))?.pathExtension.lowercased() ?? ""
+        return ext == "mp4" || ext == "mov"
+    }
+
+    /// A draft's media, with its alt text.
+    static func remote(_ urls: [String], alts: [String]) -> [PickedPostMedia] {
+        urls.enumerated().map { i, url in
+            PickedPostMedia(image: nil, videoURL: nil, thumbnail: nil,
+                            remoteURL: url, altText: i < alts.count ? alts[i] : "")
+        }
+    }
     var previewImage: UIImage? { image ?? thumbnail }
 }
 
@@ -73,16 +91,20 @@ class CreatePostViewModel {
     // MARK: - Media upload
 
     /// Image → decode to UIImage; video → copy to a temp file + generate a thumbnail.
-    /// An item that fails to load is silently skipped.
-    func loadSelectedMedia(_ items: [PhotosPickerItem]) async -> [PickedPostMedia] {
-        var result: [PickedPostMedia] = []
+    /// An item that fails to load is silently skipped. `previous` is what the
+    /// composer already shows: a draft's uploaded media stays first, and items
+    /// still picked keep their loaded copy and alt text.
+    func loadSelectedMedia(_ items: [PhotosPickerItem], keeping previous: [PickedPostMedia] = []) async -> [PickedPostMedia] {
+        var result = previous.filter { $0.remoteURL != nil }
         for item in items {
-            if let data = try? await item.loadTransferable(type: Data.self),
+            if let kept = previous.first(where: { $0.pickerItem == item }) {
+                result.append(kept)
+            } else if let data = try? await item.loadTransferable(type: Data.self),
                let image = UIImage(data: data) {
-                result.append(PickedPostMedia(image: image, videoURL: nil, thumbnail: nil))
+                result.append(PickedPostMedia(image: image, videoURL: nil, thumbnail: nil, pickerItem: item))
             } else if let file = try? await item.loadTransferable(type: PostMediaFileTransferable.self) {
                 let thumbnail = await VideoFrame.firstFrame(of: file.url, maxSide: 600)
-                result.append(PickedPostMedia(image: nil, videoURL: file.url, thumbnail: thumbnail))
+                result.append(PickedPostMedia(image: nil, videoURL: file.url, thumbnail: thumbnail, pickerItem: item))
             }
         }
         return result
@@ -104,7 +126,9 @@ class CreatePostViewModel {
         defer { isUploadingMedia = false }
         var urls: [String] = []
         for item in media {
-            if let image = item.image {
+            if let remote = item.remoteURL {
+                urls.append(remote)
+            } else if let image = item.image {
                 guard let url = await uploadImage(image) else { throw MediaUploadError.failed }
                 urls.append(url)
             } else if let fileURL = item.videoURL {
@@ -179,6 +203,8 @@ class CreatePostViewModel {
         authToken: String?,
         selectedMedia: [PickedPostMedia],
         hashtags: [String] = [],
+        publish: PublishChoice = .now,
+        replacesDraft: String? = nil,
         onSuccess: @escaping (Post) -> Void
     ) {
         var finalContent = content.trimmingCharacters(in: .whitespaces)
@@ -221,14 +247,17 @@ class CreatePostViewModel {
                 imageAlts: selectedMedia.map(\.altText),
                 linkUrl: capturedPreview?.url,
                 articleTitle: capturedPreview?.title,
-                hashtags: hashtags
+                hashtags: hashtags,
+                publish: publish,
+                replacesDraft: replacesDraft
             ) else {
-                errorMessage = Bundle.app.loc("Could not post. Please try again.")
+                errorMessage = Bundle.app.loc(publish.isLive ? "Could not post. Please try again." : "Couldn't save the draft. Please try again.")
                 return
             }
             let postId = post.id
 
             onSuccess(post)
+            guard publish.isLive else { return }
 
             // Background: check the mismatch notification after 10 seconds
             if let token = authToken {

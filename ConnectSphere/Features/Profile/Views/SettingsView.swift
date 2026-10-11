@@ -73,6 +73,13 @@ struct SettingsView: View {
                     settingsRow(icon: "lock.fill", label: bundle.loc("Privacy & Security"), color: Color(hex: "#4CAF50"), showsChevron: false)
                 }
                 NavigationLink {
+                    DraftsView()
+                        .environment(appState)
+                        .environment(themeManager)
+                } label: {
+                    settingsRow(icon: "doc.text.fill", label: bundle.loc("Drafts"), color: Color(hex: "#26A69A"), showsChevron: false)
+                }
+                NavigationLink {
                     MutedWordsView()
                         .environment(appState)
                         .environment(themeManager)

@@ -1044,3 +1044,27 @@
 "Shown while it loads, and read aloud by VoiceOver." = "Shown while it loads, and read aloud by VoiceOver.";
 "Alt text" = "Alt text";
 "Couldn't load · Tap to retry" = "Couldn't load · Tap to retry";
+
+/* Drafts */
+"Drafts" = "Drafts";
+"Drafts (%lld)" = "Drafts (%lld)";
+"Save this post as a draft?" = "Save this post as a draft?";
+"Save your changes to this draft?" = "Save your changes to this draft?";
+"Save draft" = "Save draft";
+"Discard" = "Discard";
+"Discard changes" = "Discard changes";
+"Keep editing" = "Keep editing";
+"Couldn't save the draft. Please try again." = "Couldn't save the draft. Please try again.";
+"Photos" = "Photos";
+"Empty draft" = "Empty draft";
+"Saved %@" = "Saved %@";
+"No drafts" = "No drafts";
+"When you're writing a post, tap Cancel and choose Save draft to keep it here." = "When you're writing a post, tap Cancel and choose Save draft to keep it here.";
+"Delete this draft?" = "Delete this draft?";
+"It can't be recovered." = "It can't be recovered.";
+"Draft not found" = "Draft not found";
+"Poll must end after the post goes out" = "Poll must end after the post goes out";
+"Event must start after the post goes out" = "Event must start after the post goes out";
+"Event must end after it starts" = "Event must end after it starts";
+"Application deadline can't be before the post goes out" = "Application deadline can't be before the post goes out";
+"publish must be now or draft" = "publish must be now or draft";

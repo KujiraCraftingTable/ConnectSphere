@@ -13,6 +13,8 @@ struct PostsController {
         posts.post("analyze", use: analyze)
         posts.get("deleted", use: listDeleted)
         posts.get("saved", use: listSaved)
+        posts.get("drafts", use: listDrafts)
+        posts.delete(":id", "draft", use: deleteDraft)
         posts.get("comments", "deleted", use: listDeletedComments)
         posts.get(":id", use: getOne)
         posts.delete(":id", use: softDelete)
@@ -92,6 +94,12 @@ struct PostsController {
         var link_url: String?
         var article_title: String?
         var hashtags: [String]?
+        /// now (default) | draft
+        var publish: String?
+        /// A draft (or scheduled post) of yours this one replaces: saving a
+        /// draft again, or publishing it, sends the whole post plus this id,
+        /// and the old version is removed once the new one is saved.
+        var replaces_draft: String?
         var options: [String]?
         var endsAt: String?
         var eventData: EventDataIn?
@@ -120,25 +128,27 @@ struct PostsController {
         }
         let mode = b.mode!
         let postType = b.post_type ?? "text"
+        let publishing = try Publishing.from(b.publish)
+        try await checkReplacedDraft(b.replaces_draft, req)
 
         var post: PostObject
         if postType == "poll" {
             post = try await PostService.createPollPost(
                 authorID: req.userID, communityID: nil, content: b.content, options: b.options,
-                endsAt: b.endsAt, hashtags: hashtags, mode: mode, privacy: b.privacy, on: req.db)
+                endsAt: b.endsAt, hashtags: hashtags, mode: mode, privacy: b.privacy, publishing: publishing, on: req.db)
         } else if postType == "event" {
             post = try await PostService.createEventPost(
                 authorID: req.userID, communityID: nil, content: b.content,
                 eventTitle: b.eventData?.title, eventLocation: b.eventData?.location,
                 eventStartsAt: b.eventData?.startsAt, eventEndsAt: b.eventData?.endsAt,
-                hashtags: hashtags, mode: mode, privacy: b.privacy, on: req.db)
+                hashtags: hashtags, mode: mode, privacy: b.privacy, publishing: publishing, on: req.db)
         } else if postType == "job" {
             post = try await PostService.createJobPost(
                 authorID: req.userID, communityID: nil, content: b.content,
                 jobTitle: b.jobData?.title, jobCompany: b.jobData?.company, jobLocation: b.jobData?.location,
                 employmentType: b.jobData?.employmentType, salaryRange: b.jobData?.salaryRange,
                 applicationDeadline: b.jobData?.applicationDeadline,
-                hashtags: hashtags, mode: mode, privacy: b.privacy, on: req.db)
+                hashtags: hashtags, mode: mode, privacy: b.privacy, publishing: publishing, on: req.db)
         } else {
             let imageUrls = normalizeImageUrls(b.image_urls)
             let hasContent = !(b.content?.trimmingCharacters(in: .whitespaces).isEmpty ?? true)
@@ -153,42 +163,48 @@ struct PostsController {
                 mode: mode, privacy: b.privacy ?? "public",
                 imageUrl: b.image_url?.nilIfEmpty, imageUrls: imageUrls, linkUrl: b.link_url?.nilIfEmpty,
                 articleTitle: b.article_title?.nilIfEmpty, sharedPostID: nil,
-                hashtags: hashtags), on: req.db)
+                hashtags: hashtags, publishing: publishing), on: req.db)
             else { throw Abort(.internalServerError) }
             post = created
         }
         if b.image_alts != nil {
             post.image_alts = try await PostStore.setImageAlts(post.id, b.image_alts, on: req.db.sql())
         }
-        // runPostBackground (all fire-and-forget, like Node):
-        //  • mode-mismatch check → mode_mismatch notification to the author
-        //  • tag-extraction (→ chained chunk-embed) or a direct embed for a
-        //    link/image-only post — only when this server owns the schedule.
-        let postID = post.id, postMode = post.mode, postText = post.content ?? "", authorID = req.userID
-        if !postText.isEmpty {
-            let cfg = req.ollama
-            NotifyService.fireAndForget(req) { d, h, l in
-                let r = await PostAnalyzeService.analyze(cfg, postText, logger: l)
-                if r.confidence >= 0.75, r.suggestedMode != "neutral", r.suggestedMode != postMode {
-                    _ = await NotifyService.pushUserNotification(userID: authorID, type: "mode_mismatch",
-                        postID: postID,
-                        payload: ["suggestedMode": r.suggestedMode, "currentMode": postMode, "reason": r.reason],
-                        on: d, hub: h, logger: l)
-                }
-            }
+
+        if let old = b.replaces_draft {
+            // Saved fine, so the version it replaces can go.
+            try await PostStore.deleteUnpublished(old, author: req.userID, on: req.db.sql())
         }
-        if BackgroundJobs.enabled {
-            if !postText.isEmpty {
-                try? await req.queue.dispatch(BackgroundJobs.TagExtractionJob.self,
-                    .init(postId: postID, content: postText), maxRetryCount: 3)
-            } else {
-                try? await req.queue.dispatch(BackgroundJobs.ChunkEmbedJob.self,
-                    .init(kind: .post, id: postID), maxRetryCount: 3)
-            }
-        }
+        if publishing.isLive { await PostPublisher.afterPublish(req, post: post) }
         let res = try await DataResponse(data: post).encodeResponse(for: req)
         res.status = .created
         return res
+    }
+
+    /// `replaces_draft` must be one of your own drafts or scheduled posts —
+    /// checked before saving so a bad id can't leave two copies behind.
+    static func checkReplacedDraft(_ id: String?, _ req: Request) async throws {
+        guard let id else { return }
+        guard UUID(uuidString: id) != nil,
+              try await PostStore.isOwnUnpublished(id, author: req.userID, on: req.db.sql()) else {
+            throw InlineError(.notFound, "Draft not found")
+        }
+    }
+
+    // MARK: drafts — GET /api/posts/drafts, DELETE /api/posts/:id/draft
+
+    struct DraftsResponse: Content { var data: [PostObject] }
+
+    static func listDrafts(_ req: Request) async throws -> DraftsResponse {
+        DraftsResponse(data: try await PostStore.listUnpublished(req.userID, on: req.db.sql()))
+    }
+
+    static func deleteDraft(_ req: Request) async throws -> DeleteResponse {
+        guard let id = UUID(uuidString: req.parameters.get("id") ?? ""),
+              try await PostStore.deleteUnpublished(id.uuidString, author: req.userID, on: req.db.sql()) else {
+            throw InlineError(.notFound, "Draft not found")
+        }
+        return DeleteResponse(message: "Draft deleted")
     }
 
     /// Port of `utils/postInput.js#normalizeImageUrls`.

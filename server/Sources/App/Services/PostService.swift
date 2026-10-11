@@ -11,6 +11,15 @@ import SQLKit
 ///  - socket emits      → Phase 4
 enum PostService {
 
+    static let dayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "UTC")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
     static func validateMode(_ mode: String?) throws {
         if let mode, !["hobby", "work"].contains(mode) {
             throw Abort(.badRequest, reason: "mode must be hobby or work")
@@ -23,6 +32,7 @@ enum PostService {
         userID: String, content: String?, communityID: String?,
         imageUrls: [String]?, linkUrl: String?, articleTitle: String?,
         hashtags: [String], mode: String?, privacy: String?,
+        publishing: Publishing = .now,
         on db: AppDatabase
     ) async throws -> PostObject {
         let hasContent = !(content?.trimmingCharacters(in: .whitespaces).isEmpty ?? true)
@@ -42,10 +52,10 @@ enum PostService {
         let id = try await createCommunityPostRow(
             content: trimmed, authorID: userID, communityID: communityID, postType: "text",
             imageUrls: imageUrls, linkUrl: linkUrl, articleTitle: articleTitle,
-            hashtags: hashtags, mode: mode, privacy: privacy, on: db)
-        if let communityID { try await CommunityMemberStore.incrementPostCount(communityID, 1, on: db.sql()) }
+            hashtags: hashtags, mode: mode, privacy: privacy, publishing: publishing, on: db)
+        if let communityID, publishing.isLive { try await CommunityMemberStore.incrementPostCount(communityID, 1, on: db.sql()) }
         // TODO(phase 5): enqueueTagExtraction; (phase 3) notifyCommunityOfNewPost; (phase 4) emit
-        guard let post = try await PostStore.findById(id, viewer: userID, on: db.sql()) else {
+        guard let post = try await PostStore.findById(id, viewer: userID, includeOwnUnpublished: !publishing.isLive, on: db.sql()) else {
             throw Abort(.internalServerError)
         }
         return post
@@ -57,18 +67,21 @@ enum PostService {
         content: String?, authorID: String, communityID: String?, postType: String,
         imageUrls: [String]?, linkUrl: String?, articleTitle: String?,
         hashtags: [String], mode: String?, privacy: String?,
+        publishing: Publishing = .now,
         on db: AppDatabase
     ) async throws -> String {
         var newID = ""
         try await db.tx { t in
             struct R: Decodable { let id: String }
             let row = try await t.raw("""
-                INSERT INTO posts (author_id, content, mode, privacy, community_id, post_type, image_urls, link_url, article_title)
+                INSERT INTO posts (author_id, content, mode, privacy, community_id, post_type, image_urls, link_url, article_title,
+                                   status, publish_at)
                 VALUES (
                   \(uuid: authorID), \(bind: content ?? ""),
                   COALESCE(\(bind: mode), (SELECT CASE WHEN type = 'work' THEN 'work' ELSE 'hobby' END FROM communities WHERE id = \(uuid: communityID)), 'hobby'),
                   COALESCE(\(bind: privacy), 'public'), \(uuid: communityID), \(bind: postType),
-                  \(bind: imageUrls), \(bind: linkUrl), \(bind: articleTitle)
+                  \(bind: imageUrls), \(bind: linkUrl), \(bind: articleTitle),
+                  \(bind: publishing.status)::post_status, \(bind: publishing.publishAt)
                 )
                 RETURNING id
                 """).first(decoding: R.self)
@@ -90,6 +103,7 @@ enum PostService {
     static func createPollPost(
         authorID: String, communityID: String?, content: String?, options: [String]?,
         endsAt: String?, hashtags: [String], mode: String?, privacy: String?,
+        publishing: Publishing = .now,
         on db: AppDatabase
     ) async throws -> PostObject {
         let trimmedContent = content?.trimmingCharacters(in: .whitespaces) ?? ""
@@ -105,16 +119,18 @@ enum PostService {
                 throw Abort(.forbidden, reason: "You must be a member of this community to post")
             }
         }
-        if let endsAt, let d = JSONCoding.isoFractional.date(from: endsAt) ?? ISO8601DateFormatter().date(from: endsAt), d <= Date() {
-            throw Abort(.badRequest, reason: "Poll end date must be in the future")
+        if let after = publishing.datesAfter, let endsAt,
+           let d = JSONCoding.isoFractional.date(from: endsAt) ?? ISO8601DateFormatter().date(from: endsAt), d <= after {
+            throw Abort(.badRequest, reason: publishing.publishAt == nil
+                ? "Poll end date must be in the future" : "Poll must end after the post goes out")
         }
         let id = try await createCommunityPostRow(
             content: trimmedContent, authorID: authorID, communityID: communityID, postType: "poll",
             imageUrls: nil, linkUrl: nil, articleTitle: nil,
-            hashtags: hashtags, mode: mode, privacy: privacy, on: db)
+            hashtags: hashtags, mode: mode, privacy: privacy, publishing: publishing, on: db)
         try await PollStore.createWithOptions(postID: id, options: trimmedOptions, endsAt: endsAt, on: db.sql())
-        if let communityID { try await CommunityMemberStore.incrementPostCount(communityID, 1, on: db.sql()) }
-        guard let post = try await PostStore.findById(id, viewer: authorID, on: db.sql()) else { throw Abort(.internalServerError) }
+        if let communityID, publishing.isLive { try await CommunityMemberStore.incrementPostCount(communityID, 1, on: db.sql()) }
+        guard let post = try await PostStore.findById(id, viewer: authorID, includeOwnUnpublished: !publishing.isLive, on: db.sql()) else { throw Abort(.internalServerError) }
         return post
     }
 
@@ -122,6 +138,7 @@ enum PostService {
         authorID: String, communityID: String?, content: String?,
         eventTitle: String?, eventLocation: String?, eventStartsAt: String?, eventEndsAt: String?,
         hashtags: [String], mode: String?, privacy: String?,
+        publishing: Publishing = .now,
         on db: AppDatabase
     ) async throws -> PostObject {
         let trimmedContent = content?.trimmingCharacters(in: .whitespaces) ?? ""
@@ -134,7 +151,15 @@ enum PostService {
         guard let startsAt = JSONCoding.isoFractional.date(from: startsAtStr) ?? ISO8601DateFormatter().date(from: startsAtStr) else {
             throw Abort(.badRequest, reason: "Invalid event start time")
         }
-        if startsAt <= Date() { throw Abort(.badRequest, reason: "Event start time must be in the future") }
+        if let after = publishing.datesAfter, startsAt <= after {
+            throw Abort(.badRequest, reason: publishing.publishAt == nil
+                ? "Event start time must be in the future" : "Event must start after the post goes out")
+        }
+        if let endsStr = eventEndsAt?.nilIfEmpty,
+           let endsAt = JSONCoding.isoFractional.date(from: endsStr) ?? ISO8601DateFormatter().date(from: endsStr),
+           endsAt <= startsAt {
+            throw Abort(.badRequest, reason: "Event must end after it starts")
+        }
         if let communityID {
             guard try await CommunityMemberStore.membership(communityID, authorID, on: db.sql()) != nil else {
                 throw Abort(.forbidden, reason: "You must be a member of this community to post")
@@ -143,11 +168,11 @@ enum PostService {
         let id = try await createCommunityPostRow(
             content: trimmedContent, authorID: authorID, communityID: communityID, postType: "event",
             imageUrls: nil, linkUrl: nil, articleTitle: nil,
-            hashtags: hashtags, mode: mode, privacy: privacy, on: db)
+            hashtags: hashtags, mode: mode, privacy: privacy, publishing: publishing, on: db)
         try await EventStore.create(postID: id, title: title, location: eventLocation?.trimmingCharacters(in: .whitespaces).nilIfEmpty,
                                     startsAt: startsAtStr, endsAt: eventEndsAt?.nilIfEmpty, on: db.sql())
-        if let communityID { try await CommunityMemberStore.incrementPostCount(communityID, 1, on: db.sql()) }
-        guard let post = try await PostStore.findById(id, viewer: authorID, on: db.sql()) else { throw Abort(.internalServerError) }
+        if let communityID, publishing.isLive { try await CommunityMemberStore.incrementPostCount(communityID, 1, on: db.sql()) }
+        guard let post = try await PostStore.findById(id, viewer: authorID, includeOwnUnpublished: !publishing.isLive, on: db.sql()) else { throw Abort(.internalServerError) }
         return post
     }
 
@@ -156,6 +181,7 @@ enum PostService {
         jobTitle: String?, jobCompany: String?, jobLocation: String?,
         employmentType: String?, salaryRange: String?, applicationDeadline: String?,
         hashtags: [String], mode: String?, privacy: String?,
+        publishing: Publishing = .now,
         on db: AppDatabase
     ) async throws -> PostObject {
         let trimmedContent = content?.trimmingCharacters(in: .whitespaces) ?? ""
@@ -186,17 +212,23 @@ enum PostService {
             effectiveMode = nil
         }
         guard effectiveMode == "work" else { throw Abort(.badRequest, reason: "Job posts are only available in Work mode") }
+        // A deadline is a calendar day: it may fall on the day the post goes out.
+        if let after = publishing.datesAfter, let deadline = applicationDeadline?.nilIfEmpty,
+           let day = Self.dayFormatter.date(from: String(deadline.prefix(10))),
+           day < Calendar(identifier: .gregorian).startOfDay(for: after) {
+            throw Abort(.badRequest, reason: "Application deadline can't be before the post goes out")
+        }
         let id = try await createCommunityPostRow(
             content: trimmedContent, authorID: authorID, communityID: communityID, postType: "job",
             imageUrls: nil, linkUrl: nil, articleTitle: nil,
-            hashtags: hashtags, mode: mode, privacy: privacy, on: db)
+            hashtags: hashtags, mode: mode, privacy: privacy, publishing: publishing, on: db)
         try await JobStore.create(postID: id, title: title,
             company: jobCompany?.trimmingCharacters(in: .whitespaces).nilIfEmpty,
             location: jobLocation?.trimmingCharacters(in: .whitespaces).nilIfEmpty,
             employmentType: employmentType?.nilIfEmpty, salaryRange: salaryRange?.trimmingCharacters(in: .whitespaces).nilIfEmpty,
             applicationDeadline: applicationDeadline?.nilIfEmpty, on: db.sql())
-        if let communityID { try await CommunityMemberStore.incrementPostCount(communityID, 1, on: db.sql()) }
-        guard let post = try await PostStore.findById(id, viewer: authorID, on: db.sql()) else { throw Abort(.internalServerError) }
+        if let communityID, publishing.isLive { try await CommunityMemberStore.incrementPostCount(communityID, 1, on: db.sql()) }
+        guard let post = try await PostStore.findById(id, viewer: authorID, includeOwnUnpublished: !publishing.isLive, on: db.sql()) else { throw Abort(.internalServerError) }
         return post
     }
 

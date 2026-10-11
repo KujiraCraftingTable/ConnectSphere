@@ -1044,3 +1044,27 @@
 "Shown while it loads, and read aloud by VoiceOver." = "Hiển thị khi ảnh đang tải, và được VoiceOver đọc to.";
 "Alt text" = "Văn bản thay thế";
 "Couldn't load · Tap to retry" = "Không tải được · Chạm để thử lại";
+
+/* Drafts */
+"Drafts" = "Bản nháp";
+"Drafts (%lld)" = "Bản nháp (%lld)";
+"Save this post as a draft?" = "Lưu bài viết này làm bản nháp?";
+"Save your changes to this draft?" = "Lưu thay đổi vào bản nháp này?";
+"Save draft" = "Lưu bản nháp";
+"Discard" = "Bỏ";
+"Discard changes" = "Bỏ thay đổi";
+"Keep editing" = "Tiếp tục viết";
+"Couldn't save the draft. Please try again." = "Không lưu được bản nháp. Vui lòng thử lại.";
+"Photos" = "Ảnh";
+"Empty draft" = "Bản nháp trống";
+"Saved %@" = "Đã lưu %@";
+"No drafts" = "Chưa có bản nháp";
+"When you're writing a post, tap Cancel and choose Save draft to keep it here." = "Khi đang viết bài, chạm Huỷ rồi chọn Lưu bản nháp để giữ lại ở đây.";
+"Delete this draft?" = "Xoá bản nháp này?";
+"It can't be recovered." = "Không thể khôi phục.";
+"Draft not found" = "Không tìm thấy bản nháp";
+"Poll must end after the post goes out" = "Bình chọn phải kết thúc sau khi bài được đăng";
+"Event must start after the post goes out" = "Sự kiện phải bắt đầu sau khi bài được đăng";
+"Event must end after it starts" = "Sự kiện phải kết thúc sau khi bắt đầu";
+"Application deadline can't be before the post goes out" = "Hạn ứng tuyển không được trước ngày đăng bài";
+"publish must be now or draft" = "Lựa chọn đăng không hợp lệ";

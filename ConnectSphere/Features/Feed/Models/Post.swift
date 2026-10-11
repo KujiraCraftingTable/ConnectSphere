@@ -130,6 +130,10 @@ struct Post: Identifiable {
     var isPinned: Bool = false
     var pinnedAt: Date? = nil
     var community: CommunityRef? = nil
+    /// Only on your own drafts ("draft") and scheduled posts ("scheduled").
+    var publishStatus: String? = nil
+    /// When a scheduled post goes out.
+    var publishAt: Date? = nil
 
     /// Images to render the grid: prefer the new array, fall back to the old post's single image.
     /// Posts with a link preview don't count (that image belongs to the link card).
