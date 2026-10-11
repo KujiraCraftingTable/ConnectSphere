@@ -36,7 +36,7 @@ enum UserStore {
               (u.work_display_name  IS NOT NULL) AS work_setup,
               (u.password_hash IS NOT NULL AND u.password_hash <> ''
                AND u.password_hash <> 'SEED_DATA') AS has_password,
-              u.allow_friend_requests,
+              u.allow_friend_requests, u.show_in_suggestions,
               COALESCE(array_agg(DISTINCT ui.interest) FILTER (WHERE ui.interest IS NOT NULL), ARRAY[]::text[]) AS interests,
               COALESCE(array_agg(DISTINCT us.skill)    FILTER (WHERE us.skill    IS NOT NULL), ARRAY[]::text[]) AS skills
             FROM users u

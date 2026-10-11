@@ -49,6 +49,8 @@ struct AuthUserObject: Content {
     var work_setup: Bool
     var has_password: Bool
     var allow_friend_requests: Bool
+    /// Privacy: off = you never appear in other people's "People you may know".
+    var show_in_suggestions: Bool
     var interests: [String]
     var skills: [String]
 }

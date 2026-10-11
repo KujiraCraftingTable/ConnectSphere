@@ -116,6 +116,8 @@ class AppState {
     var pendingPersonaMode: AppMode? = nil
     /// Tapping the "Search" tab again while already on it → SearchView resets to its default browse state
     var shouldResetSearch: Bool = false
+    /// Home tab re-tapped: the feed scrolls to the top and reloads.
+    var shouldResetFeed: Bool = false
     var chatUnreadCount: Int = 0
     /// Unread notifications, shared so the Notifications tab badge and the
     /// notification list can never disagree — reading a row decrements it

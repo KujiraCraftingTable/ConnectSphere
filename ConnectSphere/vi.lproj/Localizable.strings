@@ -1018,3 +1018,20 @@
 "Choose the other mode to copy to" = "Hãy chọn chế độ còn lại để sao chép";
 "Mute word" = "Ẩn";
 "Unmute word" = "Bỏ ẩn";
+
+/* People you may know */
+"People you may know" = "Những người bạn có thể biết";
+"See all" = "Xem tất cả";
+"Don't suggest %@" = "Đừng gợi ý %@";
+"1 mutual friend" = "1 bạn chung";
+"%lld mutual friends" = "%lld bạn chung";
+"Also into %@" = "Cũng thích %@";
+"Also skilled in %@" = "Cũng giỏi %@";
+"Also works at %@" = "Cũng làm ở %@";
+"Also in %@" = "Cũng ở %@";
+"Similar interests" = "Sở thích tương đồng";
+"Similar background" = "Lý lịch tương đồng";
+"No suggestions right now" = "Hiện chưa có gợi ý";
+"As you make friends, people you may know show up here." = "Khi bạn kết bạn thêm, những người bạn có thể biết sẽ hiện ở đây.";
+"Show me in People you may know" = "Hiện tôi trong mục Những người bạn có thể biết";
+"When off, you're never suggested to anyone. You still see suggestions yourself." = "Khi tắt, bạn sẽ không được gợi ý cho ai. Bạn vẫn thấy gợi ý của mình.";

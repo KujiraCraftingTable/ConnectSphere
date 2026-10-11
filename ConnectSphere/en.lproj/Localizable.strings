@@ -1018,3 +1018,20 @@
 "Choose the other mode to copy to" = "Choose the other mode to copy to";
 "Mute word" = "Mute";
 "Unmute word" = "Unmute";
+
+/* People you may know */
+"People you may know" = "People you may know";
+"See all" = "See all";
+"Don't suggest %@" = "Don't suggest %@";
+"1 mutual friend" = "1 mutual friend";
+"%lld mutual friends" = "%lld mutual friends";
+"Also into %@" = "Also into %@";
+"Also skilled in %@" = "Also skilled in %@";
+"Also works at %@" = "Also works at %@";
+"Also in %@" = "Also in %@";
+"Similar interests" = "Similar interests";
+"Similar background" = "Similar background";
+"No suggestions right now" = "No suggestions right now";
+"As you make friends, people you may know show up here." = "As you make friends, people you may know show up here.";
+"Show me in People you may know" = "Show me in People you may know";
+"When off, you're never suggested to anyone. You still see suggestions yourself." = "When off, you're never suggested to anyone. You still see suggestions yourself.";

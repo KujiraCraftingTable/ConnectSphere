@@ -5,6 +5,7 @@ struct FeedView: View {
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
     @State private var viewModel = FeedViewModel()
+    @State private var people = PeopleSuggestionsViewModel()
     @Environment(\.colorScheme) var colorScheme
     @State private var showCreatePost = false
     @State private var showMessages = false
@@ -60,8 +61,15 @@ struct FeedView: View {
                         .padding(.top, 40)
                     } else {
                         let posts = viewModel.posts(for: appState.currentMode)
-                        ForEach(posts) { post in
+                        let slots = people.slots(for: appState.currentMode, postCount: posts.count)
+                        ForEach(Array(posts.enumerated()), id: \.element.id) { index, post in
+                            if let appearance = slots.firstIndex(of: index) {
+                                PeopleYouMayKnowRow(viewModel: people, mode: appState.currentMode, appearance: appearance)
+                            }
                             feedPostCard(post, isLast: post.id == posts.last?.id)
+                        }
+                        if let appearance = slots.firstIndex(of: posts.count) {
+                            PeopleYouMayKnowRow(viewModel: people, mode: appState.currentMode, appearance: appearance)
                         }
 
                         if viewModel.isLoadingMore {
@@ -76,9 +84,12 @@ struct FeedView: View {
             .scrollIndicators(.hidden)
             .navigationBarTitleDisplayMode(.inline)
             .refreshable {
+                async let suggestions: Void = people.refresh(appState.currentMode)
                 await viewModel.loadPosts(for: appState.currentMode)
+                await suggestions
             }
             .task {
+                if people.suggestions[appState.currentMode] == nil { await people.refresh(appState.currentMode) }
                 await viewModel.loadPostsIfNeeded(for: appState.currentMode)
                 await viewModel.loadMyProfile(userId: appState.currentUser?.id, mode: appState.currentMode)
             }
@@ -89,6 +100,7 @@ struct FeedView: View {
                 Task {
                     await viewModel.loadPosts(for: newMode)
                 }
+                Task { await people.refresh(newMode) }
                 Task { await viewModel.refreshChatUnread(appState: appState) }
                 Task {
                     await viewModel.loadMyProfile(userId: appState.currentUser?.id, mode: newMode)
@@ -101,6 +113,17 @@ struct FeedView: View {
                 Task {
                     await viewModel.loadPosts(for: appState.currentMode)
                 }
+            }
+            // Home re-tapped: back to the top and a fresh load, which is also
+            // when new suggestions get their turn at the top of the feed.
+            .onChange(of: appState.shouldResetFeed) { _, reset in
+                guard reset else { return }
+                appState.shouldResetFeed = false
+                withAnimation(.easeInOut(duration: 0.4)) {
+                    proxy.scrollTo("feedTop", anchor: .top)
+                }
+                Task { await people.refresh(appState.currentMode) }
+                Task { await viewModel.loadPosts(for: appState.currentMode) }
             }
             // Inside `ScrollViewReader`'s scope so `proxy` is reachable —
             // posting used to only trigger a silent background reload, which
@@ -152,6 +175,13 @@ struct FeedView: View {
                 viewModel.startChatBadge(appState: appState)
             }
             .onDisappear { viewModel.stopChatBadge() }
+            .alert(bundle.loc("Error"), isPresented: Binding(
+                get: { people.error != nil }, set: { if !$0 { people.error = nil } }
+            )) {
+                Button(bundle.loc("OK")) {}
+            } message: {
+                Text(people.error ?? "")
+            }
         }
     }
 

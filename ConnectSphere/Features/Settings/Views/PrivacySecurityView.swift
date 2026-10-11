@@ -11,6 +11,7 @@ struct PrivacySecurityView: View {
     @State private var showChangePassword = false
     @State private var showDeleteAccount = false
     @State private var friendRequests = FriendRequestSettingViewModel()
+    @State private var suggestionVisibility = SuggestionVisibilitySettingViewModel()
 
     private var hasPassword: Bool { appState.currentUser?.hasPassword ?? true }
 
@@ -69,6 +70,32 @@ struct PrivacySecurityView: View {
                 Text("When off, people who aren't your friends can only follow you. You can still send friend requests yourself.", bundle: bundle)
             }
 
+            // Whether I'm suggested to others
+            Section {
+                Toggle(isOn: Binding(
+                    get: { appState.currentUser?.showInSuggestions ?? true },
+                    set: { show in Task { await suggestionVisibility.set(show, appState: appState) } }
+                )) {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 7)
+                                .fill(themeManager.theme.primary)
+                                .frame(width: 30, height: 30)
+                            Image(systemName: "person.2.wave.2")
+                                .font(.system(size: 13))
+                                .foregroundColor(.white)
+                        }
+                        Text("Show me in People you may know", bundle: bundle)
+                            .font(.system(size: 16))
+                            .foregroundColor(AppColors.textPrimary(colorScheme))
+                    }
+                }
+                .tint(themeManager.theme.primary)
+                .disabled(suggestionVisibility.isSaving)
+            } footer: {
+                Text("When off, you're never suggested to anyone. You still see suggestions yourself.", bundle: bundle)
+            }
+
             Section {
                 NavigationLink {
                     BlockedUsersView()
@@ -117,6 +144,12 @@ struct PrivacySecurityView: View {
         .alert(friendRequests.errorMessage ?? "", isPresented: Binding(
             get: { friendRequests.errorMessage != nil },
             set: { if !$0 { friendRequests.errorMessage = nil } }
+        )) {
+            Button(bundle.loc("OK")) {}
+        }
+        .alert(suggestionVisibility.errorMessage ?? "", isPresented: Binding(
+            get: { suggestionVisibility.errorMessage != nil },
+            set: { if !$0 { suggestionVisibility.errorMessage = nil } }
         )) {
             Button(bundle.loc("OK")) {}
         }
