@@ -28,6 +28,7 @@ struct AuthUserDTO: Decodable {
     let email: String?
     let hasPassword: Bool?
     let allowFriendRequests: Bool?
+    let showInSuggestions: Bool?
     let age: Int?
     let dob: String?
     let dobVisibility: String?
@@ -45,6 +46,7 @@ struct AuthUserDTO: Decodable {
         case id, username, bio, location, gender, email, interests, skills, age, dob
         case hasPassword    = "has_password"
         case allowFriendRequests = "allow_friend_requests"
+        case showInSuggestions = "show_in_suggestions"
         case dobVisibility  = "dob_visibility"
         case displayName    = "display_name"
         case avatarColor    = "avatar_color"
@@ -80,6 +82,7 @@ struct AuthUserDTO: Decodable {
         email          = try c.decodeIfPresent(String.self, forKey: .email)
         hasPassword    = try c.decodeIfPresent(Bool.self, forKey: .hasPassword)
         allowFriendRequests = try c.decodeIfPresent(Bool.self, forKey: .allowFriendRequests)
+        showInSuggestions = try c.decodeIfPresent(Bool.self, forKey: .showInSuggestions)
         age            = try c.decodeIfPresent(Int.self, forKey: .age)
         dob            = try c.decodeIfPresent(String.self, forKey: .dob)
         dobVisibility  = try c.decodeIfPresent(String.self, forKey: .dobVisibility)
@@ -107,6 +110,7 @@ struct AuthUserDTO: Decodable {
             email: email,
             hasPassword: hasPassword ?? false,
             allowFriendRequests: allowFriendRequests ?? true,
+            showInSuggestions: showInSuggestions ?? true,
             age: age,
             dob: dob,
             dobVisibility: dobVisibility,

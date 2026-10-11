@@ -53,6 +53,15 @@ struct ProfileRepository {
                                    bodyData: NetworkClient.encode(Body(allow_friend_requests: allow)))
     }
 
+    func setShowInSuggestions(_ show: Bool) async throws {
+        guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
+            throw APIError.serverError(statusCode: 401, message: "Not authenticated")
+        }
+        struct Body: Encodable { let show_in_suggestions: Bool }
+        _ = try await client.fetch(SingleResponse<UserDTO>.self, path: "/users/me", method: "PATCH", token: token,
+                                   bodyData: NetworkClient.encode(Body(show_in_suggestions: show)))
+    }
+
     func updateProfile(_ update: ProfileUpdate) async throws -> UserProfile {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")

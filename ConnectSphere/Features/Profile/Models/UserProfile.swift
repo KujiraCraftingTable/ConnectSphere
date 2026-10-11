@@ -28,6 +28,8 @@ struct UserProfile: Identifiable {
     var hasPassword: Bool = false
     /// Self-only. Off = strangers can only follow; this user sends requests themselves.
     var allowFriendRequests: Bool = true
+    /// Self-only. Off = never shown in other people's "People you may know".
+    var showInSuggestions: Bool = true
     // Displayed age — present in both public and self views, null from server when dob_visibility = private
     var age: Int? = nil
     // Self-only field (server only returns this in /auth/me and PATCH /users/me),

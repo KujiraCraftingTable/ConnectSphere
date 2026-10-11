@@ -198,6 +198,8 @@ struct MainTabView: View {
     /// consistent feel: re-tapping any tab behaves like opening it for the first time.
     private func resetTabState(_ tab: Int) {
         switch tab {
+        case 0:
+            appState.shouldResetFeed = true
         case 1:
             searchNavPath = NavigationPath()
             appState.shouldResetSearch = true

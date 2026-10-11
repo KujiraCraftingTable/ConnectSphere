@@ -17,6 +17,7 @@ func routes(_ app: Application) throws {
     ConnectionsController.register(routes: api)
     SpacesController.register(routes: api)
     MutedWordsController.register(routes: api)
+    PeopleController.register(routes: api)
     FollowsController.register(routes: api)
     CommunitiesController.register(routes: api)
     NotificationsController.register(routes: api)
