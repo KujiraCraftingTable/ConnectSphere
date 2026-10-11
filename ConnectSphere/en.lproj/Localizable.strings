@@ -1087,3 +1087,7 @@
 "publish_at is required to schedule a post" = "publish_at is required to schedule a post";
 "A post can be scheduled from 5 minutes to 6 months ahead" = "A post can be scheduled from 5 minutes to 6 months ahead";
 "publish must be now, draft or schedule" = "publish must be now, draft or schedule";
+
+/* Match % */
+"Don't suggest" = "Don't suggest";
+"%lld%% match" = "%lld%% match";

@@ -42,3 +42,12 @@ final class SuggestionTests: XCTestCase {
         XCTAssertThrowsError(try PeopleController.validMode(nil))
     }
 }
+
+final class MatchPercentTests: XCTestCase {
+    func testSimilarityBecomesAPercent() {
+        XCTAssertEqual(SuggestionStore.matchPercent(0.874), 87)
+        XCTAssertEqual(SuggestionStore.matchPercent(1.2), 100)    // clamped
+        XCTAssertEqual(SuggestionStore.matchPercent(-0.3), 0)
+        XCTAssertNil(SuggestionStore.matchPercent(nil))          // no embedding, no number
+    }
+}

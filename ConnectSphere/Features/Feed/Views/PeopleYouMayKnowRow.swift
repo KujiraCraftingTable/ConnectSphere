@@ -68,6 +68,9 @@ struct PeopleYouMayKnowRow: View {
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                         .multilineTextAlignment(.center)
                         .lineLimit(2, reservesSpace: true)
+                    if let percent = person.matchPercent {
+                        MatchPercentBadge(percent: percent)
+                    }
                 }
             }
             .buttonStyle(.plain)
@@ -130,7 +133,8 @@ enum PeopleSuggestionText {
     }
 }
 
-/// "See all": every suggestion for this mode as a list.
+/// "See all": every suggestion for this mode, as the same cards People
+/// search uses — with how closely each profile matches yours.
 struct PeopleSuggestionsListView: View {
     @Environment(AppState.self) private var appState
     @Environment(ThemeManager.self) private var themeManager
@@ -148,20 +152,24 @@ struct PeopleSuggestionsListView: View {
                                title: bundle.loc("No suggestions right now"),
                                message: bundle.loc("As you make friends, people you may know show up here."))
             } else {
-                List {
-                    ForEach(people) { person in
-                        row(person)
-                            .listRowBackground(AppColors.surface(colorScheme))
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
-                                    Task { await viewModel.dismiss(person, mode: mode) }
-                                } label: {
-                                    Label(bundle.loc("Remove"), systemImage: "xmark")
+                ScrollView {
+                    LazyVStack(spacing: AppSpacing.sm) {
+                        ForEach(people) { person in
+                            card(person)
+                                .contextMenu {
+                                    Button(role: .destructive) {
+                                        Task { await viewModel.dismiss(person, mode: mode) }
+                                    } label: {
+                                        Label(bundle.loc("Don't suggest"), systemImage: "xmark")
+                                    }
                                 }
-                            }
+                                .transition(.opacity)
+                        }
                     }
+                    .padding(.horizontal, AppSpacing.sm)
+                    .padding(.vertical, AppSpacing.sm)
+                    .animation(.snappy, value: people.map(\.id))
                 }
-                .listStyle(.plain)
             }
         }
         .background(AppColors.base(colorScheme))
@@ -170,38 +178,13 @@ struct PeopleSuggestionsListView: View {
         .refreshable { await viewModel.refresh(mode) }
     }
 
-    private func row(_ person: PeopleSuggestion) -> some View {
-        let requested = viewModel.requested.contains(person.id)
-        return HStack(spacing: 12) {
-            NavigationLink {
-                UserProfileView(userId: person.id).environment(appState)
-            } label: {
-                HStack(spacing: 12) {
-                    Avatar(name: person.displayName, colorHex: person.avatarColor, imageURL: person.avatarUrl, diameter: 48)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(person.displayName)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(AppColors.textPrimary(colorScheme))
-                        Text(PeopleSuggestionText.reason(person.reason, mode: mode, bundle: bundle))
-                            .font(.system(size: 13))
-                            .foregroundColor(AppColors.textSecondary(colorScheme))
-                            .lineLimit(1)
-                    }
-                    Spacer(minLength: 0)
-                }
-            }
-            Button { Task { await viewModel.connect(person, mode: mode) } } label: {
-                Text(requested ? "Requested" : "Add friend", bundle: bundle)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(requested ? AppColors.textSecondary(colorScheme) : .white)
-                    .padding(.horizontal, 12)
-                    .frame(height: 30)
-                    .background(requested ? AnyShapeStyle(AppColors.elevated(colorScheme)) : AnyShapeStyle(themeManager.theme.primary),
-                                in: Capsule())
-            }
-            .buttonStyle(.plain)
-            .disabled(requested)
+    @ViewBuilder
+    private func card(_ person: PeopleSuggestion) -> some View {
+        let user = person.toUserProfile(mode: mode)
+        if mode == .work {
+            ColleagueSearchCard(user: user, matchPercent: person.matchPercent).environment(appState)
+        } else {
+            FriendSearchCard(user: user, matchPercent: person.matchPercent).environment(appState)
         }
-        .padding(.vertical, 4)
     }
 }

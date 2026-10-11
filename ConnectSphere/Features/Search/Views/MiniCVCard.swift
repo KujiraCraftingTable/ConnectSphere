@@ -53,12 +53,7 @@ struct MiniCVCard: View {
                     Spacer(minLength: 8)
 
                     if let percent = matchPercent {
-                        Text("\(percent)%")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(themeManager.theme.primary)
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 4)
-                            .background(Capsule().fill(themeManager.theme.primary.opacity(0.12)))
+                        MatchPercentBadge(percent: percent)
                     }
                 }
 
@@ -178,5 +173,23 @@ struct MiniCVCard: View {
             return String(format: bundle.loc("Has %d posts mentioning %@"), count, terms)
         }
         return String(format: bundle.loc("Has %d posts closely related to your search"), count)
+    }
+}
+
+/// How closely someone's profile matches yours (vector similarity × 100) —
+/// the same number on AI search results and People you may know.
+struct MatchPercentBadge: View {
+    @Environment(ThemeManager.self) private var themeManager
+    @Environment(\.appBundle) private var bundle
+    let percent: Int
+
+    var body: some View {
+        Text("\(percent)%")
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundColor(themeManager.theme.primary)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(themeManager.theme.primary.opacity(0.12)))
+            .accessibilityLabel(Text(String(format: bundle.loc("%lld%% match"), percent)))
     }
 }

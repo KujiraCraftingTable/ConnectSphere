@@ -703,6 +703,8 @@ struct FriendSearchCard: View {
     @Environment(\.appBundle) var bundle
     @Environment(\.colorScheme) var colorScheme
     let user: UserProfile
+    /// Shown beside the name when set (People you may know).
+    var matchPercent: Int? = nil
 
     var body: some View {
         NavigationLink(destination: UserProfileView(userId: user.id, preloadedUser: user)
@@ -713,9 +715,12 @@ struct FriendSearchCard: View {
                         AvatarView(user: user, size: 52)
 
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(user.name)
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(AppColors.textPrimary(colorScheme))
+                            HStack(spacing: 6) {
+                                Text(user.name)
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(AppColors.textPrimary(colorScheme))
+                                if let matchPercent { MatchPercentBadge(percent: matchPercent) }
+                            }
                             Text(user.bio)
                                 .font(.system(size: 13))
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
@@ -774,6 +779,8 @@ struct ColleagueSearchCard: View {
     @Environment(\.appBundle) var bundle
     @Environment(\.colorScheme) var colorScheme
     let user: UserProfile
+    /// Shown beside the name when set (People you may know).
+    var matchPercent: Int? = nil
 
     var body: some View {
         NavigationLink(destination: UserProfileView(userId: user.id, preloadedUser: user)
@@ -784,9 +791,12 @@ struct ColleagueSearchCard: View {
                         AvatarView(user: user, size: 52)
 
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(user.name)
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(AppColors.textPrimary(colorScheme))
+                            HStack(spacing: 6) {
+                                Text(user.name)
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(AppColors.textPrimary(colorScheme))
+                                if let matchPercent { MatchPercentBadge(percent: matchPercent) }
+                            }
                             if let title = user.jobTitle, let company = user.company {
                                 Text("\(title) · \(company)")
                                     .font(.system(size: 13, weight: .medium))

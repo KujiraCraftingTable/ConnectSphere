@@ -1087,3 +1087,7 @@
 "publish_at is required to schedule a post" = "Cần chọn thời điểm để lên lịch";
 "A post can be scheduled from 5 minutes to 6 months ahead" = "Chỉ có thể lên lịch từ 5 phút đến 6 tháng tới";
 "publish must be now, draft or schedule" = "Lựa chọn đăng không hợp lệ";
+
+/* Match % */
+"Don't suggest" = "Đừng gợi ý";
+"%lld%% match" = "Khớp %lld%%";
