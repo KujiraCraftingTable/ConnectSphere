@@ -88,6 +88,7 @@ struct PostsController {
         var post_type: String?
         var image_url: String?
         var image_urls: [String]?
+        var image_alts: [String]?
         var link_url: String?
         var article_title: String?
         var hashtags: [String]?
@@ -120,7 +121,7 @@ struct PostsController {
         let mode = b.mode!
         let postType = b.post_type ?? "text"
 
-        let post: PostObject
+        var post: PostObject
         if postType == "poll" {
             post = try await PostService.createPollPost(
                 authorID: req.userID, communityID: nil, content: b.content, options: b.options,
@@ -155,6 +156,9 @@ struct PostsController {
                 hashtags: hashtags), on: req.db)
             else { throw Abort(.internalServerError) }
             post = created
+        }
+        if b.image_alts != nil {
+            post.image_alts = try await PostStore.setImageAlts(post.id, b.image_alts, on: req.db.sql())
         }
         // runPostBackground (all fire-and-forget, like Node):
         //  • mode-mismatch check → mode_mismatch notification to the author
@@ -251,6 +255,9 @@ struct PostsController {
         var privacy: String?
         var image_url: String?
         var image_urls: [String]?
+        /// Sent alongside `image_urls` when media changes; on its own it
+        /// re-describes the current media.
+        var image_alts: [String]?
         var link_url: String?
         var article_title: String?
     }
@@ -259,8 +266,9 @@ struct PostsController {
         let sdb = req.db.sql()
         guard let meta = try await PostStore.findMeta(id, on: sdb) else { throw Abort(.notFound, reason: "Post not found") }
         guard meta.author_id == req.userID else { throw Abort(.forbidden, reason: "Forbidden") }
-        struct Old: Decodable { let content: String? }
-        let oldContent = try await sdb.raw("SELECT content FROM posts WHERE id = \(uuid: id)").first(decoding: Old.self)?.content
+        struct Old: Decodable { let content: String?; let image_urls: [String]?; let image_alts: [String]? }
+        let old = try await sdb.raw("SELECT content, image_urls, image_alts FROM posts WHERE id = \(uuid: id)").first(decoding: Old.self)
+        let oldContent = old?.content
 
         let b = try req.content.decode(UpdateBody.self)
         let contentProvided = (try? req.content.decode([String: AnyCodableValue].self))?.keys.contains("content") ?? false
@@ -277,7 +285,14 @@ struct PostsController {
         switch result {
         case .empty: throw Abort(.badRequest, reason: "A post must have a caption, image, or link")
         case .notFound: throw Abort(.notFound, reason: "Post not found or already deleted")
-        case .updated(let post):
+        case .updated(var post):
+            // The app resends the current media on every edit, so only a real
+            // change of media drops the old descriptions (they described other
+            // photos); otherwise they stay unless new ones were sent.
+            let mediaChanged = (post.image_urls ?? []) != (old?.image_urls ?? [])
+            if b.image_alts != nil || mediaChanged {
+                post.image_alts = try await PostStore.setImageAlts(post.id, b.image_alts, on: sdb)
+            }
             if (post.content ?? "") != (oldContent ?? "") {
                 await BackgroundJobs.refreshPostAfterContentEdit(req, postID: post.id, content: post.content ?? "")
             } else {

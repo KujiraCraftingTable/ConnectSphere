@@ -257,7 +257,7 @@ struct PostCard: View {
             }
             // Real uploaded images — Facebook-style grid, supports multiple images
             else if !post.displayImageUrls.isEmpty {
-                PostPhotoGrid(urls: post.displayImageUrls)
+                PostPhotoGrid(urls: post.displayImageUrls, alts: post.displayImageAlts)
                     .padding(.top, 10)
             }
 
@@ -823,7 +823,7 @@ struct PostCard: View {
                     }
 
                     if !shared.displayImageUrls.isEmpty {
-                        PostPhotoGrid(urls: shared.displayImageUrls, gridHeight: 200)
+                        PostPhotoGrid(urls: shared.displayImageUrls, alts: shared.displayImageAlts, gridHeight: 200)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
                 }

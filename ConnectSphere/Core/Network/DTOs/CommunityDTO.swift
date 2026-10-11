@@ -126,6 +126,7 @@ struct CommunityPostDTO: Decodable {
     // getPostsByCommunity reuses the shared buildPostSelect fragment.
     let imageUrl: String?
     let imageUrls: [String]?
+    let imageAlts: [String]?
     let linkUrl: String?
     let articleTitle: String?
     let tags: [String]?
@@ -143,6 +144,7 @@ struct CommunityPostDTO: Decodable {
         case jobData      = "job_data"
         case imageUrl     = "image_url"
         case imageUrls    = "image_urls"
+        case imageAlts    = "image_alts"
         case linkUrl      = "link_url"
         case articleTitle = "article_title"
     }
@@ -164,6 +166,7 @@ struct CommunityPostDTO: Decodable {
         jobData      = try c.decodeIfPresent(JobDataDTO.self, forKey: .jobData)
         imageUrl     = try c.decodeIfPresent(String.self, forKey: .imageUrl)
         imageUrls    = try c.decodeIfPresent([String].self, forKey: .imageUrls)
+        imageAlts    = try c.decodeIfPresent([String].self, forKey: .imageAlts)
         linkUrl      = try c.decodeIfPresent(String.self, forKey: .linkUrl)
         articleTitle = try c.decodeIfPresent(String.self, forKey: .articleTitle)
         tags         = try c.decodeIfPresent([String].self, forKey: .tags)
@@ -187,6 +190,7 @@ struct CommunityPostDTO: Decodable {
             linkUrl:      linkUrl,
             imageUrl:     imageUrl,
             imageUrls:    imageUrls ?? [],
+            imageAlts:    imageAlts ?? [],
             articleTitle: articleTitle,
             tags:         tags ?? []
         )

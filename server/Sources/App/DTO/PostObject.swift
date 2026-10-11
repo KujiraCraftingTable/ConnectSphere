@@ -17,6 +17,8 @@ struct PostObject: Content {
     var privacy: String
     @NullCoded var image_url: String?
     @NullCoded var image_urls: [String]?
+    /// Alt text per `image_urls` entry ('' = none); nil when none was written.
+    @NullCoded var image_alts: [String]?
     @NullCoded var article_title: String?
     @NullCoded var link_url: String?
     var like_count: Int
@@ -54,6 +56,7 @@ struct PostObject: Content {
         @NullCoded var content: String?
         @NullCoded var image_url: String?
         @NullCoded var image_urls: [String]?
+        @NullCoded var image_alts: [String]?
         @NullCoded var link_url: String?
         @NullCoded var article_title: String?
         var created_at: Date

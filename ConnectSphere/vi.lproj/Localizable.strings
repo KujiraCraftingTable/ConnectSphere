@@ -1035,3 +1035,12 @@
 "As you make friends, people you may know show up here." = "Khi bạn kết bạn thêm, những người bạn có thể biết sẽ hiện ở đây.";
 "Show me in People you may know" = "Hiện tôi trong mục Những người bạn có thể biết";
 "When off, you're never suggested to anyone. You still see suggestions yourself." = "Khi tắt, bạn sẽ không được gợi ý cho ai. Bạn vẫn thấy gợi ý của mình.";
+
+/* Alt text */
+"Edit description" = "Sửa mô tả";
+"Add description" = "Thêm mô tả";
+"Describe what happens in this video" = "Mô tả điều diễn ra trong video này";
+"Describe what's in this photo" = "Mô tả nội dung bức ảnh này";
+"Shown while it loads, and read aloud by VoiceOver." = "Hiển thị khi ảnh đang tải, và được VoiceOver đọc to.";
+"Alt text" = "Văn bản thay thế";
+"Couldn't load · Tap to retry" = "Không tải được · Chạm để thử lại";

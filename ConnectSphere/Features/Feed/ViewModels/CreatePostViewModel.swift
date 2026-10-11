@@ -9,6 +9,9 @@ struct PickedPostMedia: Identifiable {
     let image: UIImage?     // original image (nil if this is a video)
     let videoURL: URL?      // temp video file in the sandbox (nil if this is an image)
     let thumbnail: UIImage? // video's first frame, for preview
+    /// What the photo or video shows — shown in its place while it loads and
+    /// read by VoiceOver. Optional.
+    var altText = ""
 
     var isVideo: Bool { videoURL != nil }
     var previewImage: UIImage? { image ?? thumbnail }
@@ -153,6 +156,7 @@ class CreatePostViewModel {
                 privacy: privacy,
                 imageUrl: imageUrl,
                 imageUrls: imageUrls,
+                imageAlts: selectedMedia.isEmpty ? nil : selectedMedia.map(\.altText),
                 linkUrl: capturedPreview?.url,
                 articleTitle: capturedPreview?.title
             )
@@ -214,6 +218,7 @@ class CreatePostViewModel {
                 privacy: privacy,
                 imageUrl: imageUrl,
                 imageUrls: imageUrls,
+                imageAlts: selectedMedia.map(\.altText),
                 linkUrl: capturedPreview?.url,
                 articleTitle: capturedPreview?.title,
                 hashtags: hashtags

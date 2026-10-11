@@ -15,10 +15,15 @@ fileprivate extension String {
 /// viewer (images zoom, video plays via AVPlayer).
 struct PostPhotoGrid: View {
     let urls: [String]
+    /// Alt text per url ('' or missing = none).
+    var alts: [String] = []
     /// Total height of the grid (embedded shared posts use a smaller value)
     var gridHeight: CGFloat = 300
 
     @State private var viewerTarget: ViewerTarget?
+    /// Tiles whose image failed to load: tapping retries instead of opening the viewer.
+    @State private var failed: Set<Int> = []
+    @State private var retries: [Int: Int] = [:]
     @State private var saver = MediaSaveViewModel()
 
     private struct ViewerTarget: Identifiable {
@@ -82,9 +87,47 @@ struct PostPhotoGrid: View {
     // MARK: - Tile
 
     /// A single media tile; video = dark background + play button; overflow > 0 → dark "+N" overlay
+    private func alt(_ index: Int) -> String {
+        index < alts.count ? alts[index] : ""
+    }
+
+    /// Stands in for a photo until it arrives — or if it never does — so the
+    /// reader knows something belongs here, and what, when there's alt text.
+    private func placeholder(_ index: Int, failed: Bool) -> some View {
+        let alt = alt(index)
+        return ZStack {
+            Color.gray.opacity(0.15)
+            VStack(spacing: 6) {
+                Image(systemName: failed ? "exclamationmark.triangle" : "photo")
+                    .font(.system(size: 18))
+                if !alt.isEmpty {
+                    Text(alt)
+                        .font(.system(size: 13))
+                        .multilineTextAlignment(.center)
+                        .lineLimit(4)
+                }
+                if failed {
+                    Text("Couldn't load · Tap to retry", bundle: .app)
+                        .font(.system(size: 12, weight: .semibold))
+                } else if alt.isEmpty {
+                    ProgressView()
+                }
+            }
+            .foregroundColor(.secondary)
+            .padding(12)
+        }
+    }
+
     private func tile(_ index: Int, height: CGFloat, overflow: Int = 0) -> some View {
-        Button {
-            viewerTarget = ViewerTarget(index: index)
+        let isVideo = urls[index].isVideoURL
+        let description = alt(index)
+        return Button {
+            if failed.contains(index) {
+                failed.remove(index)
+                retries[index, default: 0] += 1
+            } else {
+                viewerTarget = ViewerTarget(index: index)
+            }
         } label: {
             Color.clear
                 .frame(maxWidth: .infinity)
@@ -97,19 +140,16 @@ struct PostPhotoGrid: View {
                             switch phase {
                             case .success(let image):
                                 image.resizable().scaledToFill()
+                                    .onAppear { failed.remove(index) }
                             case .failure:
-                                ZStack {
-                                    Color.gray.opacity(0.15)
-                                    Image(systemName: "photo")
-                                        .foregroundColor(.gray)
-                                }
+                                placeholder(index, failed: true)
+                                    .onAppear { failed.insert(index) }
                             default:
-                                ZStack {
-                                    Color.gray.opacity(0.15)
-                                    ProgressView()
-                                }
+                                placeholder(index, failed: false)
                             }
                         }
+                        // A new identity re-runs the load on "Tap to retry".
+                        .id("\(urls[index])#\(retries[index, default: 0])")
                     }
                 }
                 .clipped()
@@ -126,6 +166,9 @@ struct PostPhotoGrid: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(description.isEmpty
+            ? Text(isVideo ? "Video" : "Photo", bundle: .app)
+            : Text(description))
         .contextMenu {
             Button {
                 guard let url = URL(string: urls[index]) else { return }

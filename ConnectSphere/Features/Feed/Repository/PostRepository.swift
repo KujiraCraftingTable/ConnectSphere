@@ -144,6 +144,7 @@ struct PostRepository {
         privacy: PostPrivacy,
         imageUrl: String? = nil,
         imageUrls: [String] = [],
+        imageAlts: [String] = [],
         linkUrl: String? = nil,
         articleTitle: String? = nil,
         hashtags: [String] = []
@@ -159,6 +160,7 @@ struct PostRepository {
         ]
         if let img = imageUrl      { body["image_url"]     = img }
         if !imageUrls.isEmpty      { body["image_urls"]    = imageUrls }
+        if imageAlts.contains(where: { !$0.isEmpty }) { body["image_alts"] = imageAlts }
         if let lnk = linkUrl       { body["link_url"]      = lnk }
         if let ttl = articleTitle  { body["article_title"] = ttl }
         if !hashtags.isEmpty       { body["hashtags"]      = hashtags }
@@ -440,6 +442,8 @@ struct PostRepository {
         privacy: PostPrivacy,
         imageUrl: String? = nil,
         imageUrls: [String] = [],
+        /// nil = leave the descriptions as they are (media unchanged).
+        imageAlts: [String]? = nil,
         linkUrl: String? = nil,
         articleTitle: String? = nil
     ) async throws -> Post {
@@ -453,6 +457,7 @@ struct PostRepository {
         ]
         if let img = imageUrl     { body["image_url"]     = img }
         if !imageUrls.isEmpty     { body["image_urls"]    = imageUrls }
+        if let imageAlts          { body["image_alts"]    = imageAlts }
         if let lnk = linkUrl      { body["link_url"]      = lnk }
         if let ttl = articleTitle { body["article_title"] = ttl }
 

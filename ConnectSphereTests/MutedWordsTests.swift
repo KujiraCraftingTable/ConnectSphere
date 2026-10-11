@@ -46,3 +46,25 @@ struct MutedWordsTests {
         #expect(MuteDuration.allCases.map(\.rawValue) == ["24h", "7d", "30d", "forever"])
     }
 }
+
+@MainActor
+struct AltTextTests {
+    @Test func postsDecodeAltTextLinedUpWithTheirMedia() throws {
+        let json = """
+            {"id":"p1","content":"pets","mode":"hobby","privacy":"public","created_at":"2026-10-13T09:00:00.000Z",
+             "like_count":0,"comment_count":0,"share_count":0,"post_type":"text","is_liked":false,"is_saved":false,
+             "image_urls":["/uploads/a.jpg","/uploads/b.jpg"],"image_alts":["a dog",""],"tags":[],
+             "author":{"id":"u1","username":"a","display_name":"A","avatar_color":"#111111"}}
+            """
+        let post = try JSONDecoder.makeISO8601().decode(PostDTO.self, from: Data(json.utf8)).toPost()
+        #expect(post.displayImageAlts == ["a dog", ""])
+    }
+
+    @Test func aLegacySingleImageHasNoAltText() {
+        var post = SharedPostPreview(id: "s", author: MockData.currentUser, content: "", imageUrl: "/uploads/x.jpg",
+                                     linkUrl: nil, articleTitle: nil, timestamp: Date())
+        #expect(post.displayImageUrls == ["/uploads/x.jpg"] && post.displayImageAlts.isEmpty)
+        post.imageUrls = ["/uploads/y.jpg"]; post.imageAlts = ["sunset"]
+        #expect(post.displayImageAlts == ["sunset"])
+    }
+}

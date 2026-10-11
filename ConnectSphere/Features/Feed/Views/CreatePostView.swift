@@ -8,6 +8,8 @@ struct CreatePostView: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) private var dismiss
 
+    /// The picked photo/video whose alt text is being written.
+    @State private var altTarget: PickedPostMedia?
     @State private var content = ""
     @State private var privacy: PostPrivacy = .publicAll
     @State private var showPrivacyPicker = false
@@ -534,6 +536,9 @@ struct CreatePostView: View {
                                height: selectedMedia.count == 1 ? 200 : 160)
                         .clipped()
                         .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .overlay(alignment: .bottomLeading) {
+                            AltTextChip(hasText: !media.altText.isEmpty) { altTarget = media }
+                        }
 
                         Button {
                             if let index = selectedMedia.firstIndex(where: { $0.id == media.id }) {
@@ -551,6 +556,11 @@ struct CreatePostView: View {
                         .padding(6)
                     }
                 }
+            }
+        }
+        .sheet(item: $altTarget) { media in
+            AltTextEditorSheet(preview: media.previewImage, isVideo: media.isVideo, initialText: media.altText) { text in
+                if let index = selectedMedia.firstIndex(where: { $0.id == media.id }) { selectedMedia[index].altText = text }
             }
         }
     }
