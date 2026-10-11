@@ -140,7 +140,7 @@ enum FeedStore {
                   'display_name', \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "p.mode")),
                   'avatar_color', u.avatar_color, 'avatar_url', \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: "p.mode")),
                   'job_title', u.job_title, 'company', u.company)::text AS author,
-                COALESCE(json_agg(DISTINCT pt.tag) FILTER (WHERE pt.tag IS NOT NULL), '[]')::text AS tags,
+                COALESCE(json_agg(DISTINCT pt.tag) FILTER (WHERE pt.tag IS NOT NULL AND pt.source = 'user'), '[]')::text AS tags,
                 (CASE WHEN p.community_id IS NOT NULL THEN (
                   SELECT json_build_object('id', co.id, 'name', co.name, 'icon_emoji', co.icon_emoji, 'avatar_url', co.avatar_url)
                   FROM communities co WHERE co.id = p.community_id

@@ -137,8 +137,7 @@ struct PostRepository {
     /// Creates a post and returns the new post's ID.
     /// The backend derives the author from the JWT, so author_id is no longer sent.
     /// `hashtags` are the user-typed tags, saved synchronously with `source = 'user'`.
-    /// AI-generated tags are never surfaced (`show_ai_tags` is always `false`);
-    /// they still feed the search embeddings server-side.
+    /// AI-generated tags are never shown; they only feed AI search server-side.
     func createPost(
         content: String,
         mode: AppMode,
@@ -157,7 +156,6 @@ struct PostRepository {
             "content":      content,
             "mode":         mode.rawValue,
             "privacy":      privacy.rawValue,
-            "show_ai_tags": false,
         ]
         if let img = imageUrl      { body["image_url"]     = img }
         if !imageUrls.isEmpty      { body["image_urls"]    = imageUrls }

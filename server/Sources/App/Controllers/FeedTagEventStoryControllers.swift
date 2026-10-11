@@ -34,7 +34,7 @@ struct TagsController {
         let rows = try await req.db.sql().raw("""
             SELECT pt.tag, COUNT(*)::INT AS post_count
             FROM post_tags pt JOIN posts p ON p.id = pt.post_id
-            WHERE p.status = 'posted' AND p.created_at >= NOW() - INTERVAL '7 days'
+            WHERE pt.source = 'user' AND p.status = 'posted' AND p.created_at >= NOW() - INTERVAL '7 days'
             GROUP BY pt.tag ORDER BY post_count DESC, pt.tag LIMIT \(bind: limit)
             """).all(decoding: TrendingRow.self)
         return DataListResponse(data: rows)
@@ -45,7 +45,7 @@ struct TagsController {
         let limit = min((try? req.query.get(Int.self, at: "limit")) ?? 10, 20)
         let rows = try await req.db.sql().raw("""
             SELECT tag, COUNT(*)::INT AS usage_count FROM post_tags
-            WHERE tag ILIKE \(bind: prefix) || '%'
+            WHERE source = 'user' AND tag ILIKE \(bind: prefix) || '%'
             GROUP BY tag ORDER BY usage_count DESC LIMIT \(bind: limit)
             """).all(decoding: SuggestRow.self)
         return DataListResponse(data: rows)

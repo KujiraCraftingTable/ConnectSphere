@@ -57,7 +57,7 @@ enum PostStore {
                 OR EXISTS (SELECT 1 FROM communities co WHERE co.id = sp.community_id AND co.privacy = 'public')
                 OR EXISTS (SELECT 1 FROM community_members cm WHERE cm.community_id = sp.community_id AND cm.user_id = \(uuid: v)))
           ) ELSE NULL END)::text AS shared_post,
-          COALESCE(json_agg(DISTINCT pt.tag) FILTER (WHERE pt.tag IS NOT NULL AND (pt.source = 'user' OR p.show_ai_tags)), '[]')::text AS tags,
+          COALESCE(json_agg(DISTINCT pt.tag) FILTER (WHERE pt.tag IS NOT NULL AND pt.source = 'user'), '[]')::text AS tags,
           json_build_object('id', u.id, 'username', u.username, 'display_name', \(unsafeRaw: dnP),
             'avatar_color', u.avatar_color, 'avatar_url', \(unsafeRaw: avP),
             'job_title', u.job_title, 'company', u.company)::text AS author,
@@ -153,7 +153,7 @@ enum PostStore {
         (p.author_id = \(uuid: v) OR NOT EXISTS (SELECT 1 FROM muted_words mw
           WHERE mw.user_id = \(uuid: v) AND mw.mode = p.mode AND (mw.expires_at IS NULL OR mw.expires_at > NOW())
             AND (\(unsafeRaw: folded("coalesce(p.content, '') || ' ' || coalesce(p.article_title, '')")) LIKE \(unsafeRaw: mutedPattern)
-              OR EXISTS (SELECT 1 FROM post_tags ptm WHERE ptm.post_id = p.id AND (ptm.source = 'user' OR p.show_ai_tags)
+              OR EXISTS (SELECT 1 FROM post_tags ptm WHERE ptm.post_id = p.id AND ptm.source = 'user'
                          AND \(unsafeRaw: folded("ptm.tag")) LIKE \(unsafeRaw: mutedPattern)))))
         """
     }
@@ -262,7 +262,7 @@ enum PostStore {
         // though they'd otherwise pass communityVisibilityClause fine.
         if let a = f.authorID { w = w + " AND p.author_id = \(uuid: a) AND p.community_id IS NULL" }
         if let t = f.tag {
-            w = w + " AND EXISTS (SELECT 1 FROM post_tags ptf WHERE ptf.post_id = p.id AND LOWER(ptf.tag) = LOWER(\(bind: t)) AND (ptf.source = 'user' OR p.show_ai_tags))"
+            w = w + " AND EXISTS (SELECT 1 FROM post_tags ptf WHERE ptf.post_id = p.id AND LOWER(ptf.tag) = LOWER(\(bind: t)) AND ptf.source = 'user')"
         }
         if let s = f.search {
             w = w + " AND " + postMatches(SearchTokenizer.words(s))
@@ -290,10 +290,10 @@ enum PostStore {
     /// space so "% word" matches the start of any word — including the first.
     private static let contentWords = "(' ' || regexp_replace(unaccent(lower(coalesce(p.content, ''))), '[^[:alnum:]]+', ' ', 'g'))"
 
-    /// A tag counts only where the post shows it — user tags always, AI tags
-    /// only when `show_ai_tags` is on — same rule the tag filter above uses.
+    /// Only tags the author wrote count. AI tags exist to classify posts for
+    /// AI search and are never shown, so they can't match a keyword either.
     private static func tagIs(_ w: String) -> SQLQueryString {
-        "EXISTS (SELECT 1 FROM post_tags pts WHERE pts.post_id = p.id AND (pts.source = 'user' OR p.show_ai_tags) AND unaccent(lower(pts.tag)) = unaccent(\(bind: w)))"
+        "EXISTS (SELECT 1 FROM post_tags pts WHERE pts.post_id = p.id AND pts.source = 'user' AND unaccent(lower(pts.tag)) = unaccent(\(bind: w)))"
     }
 
     private static func contentStarts(_ w: String) -> SQLQueryString {
@@ -384,7 +384,6 @@ enum PostStore {
         var articleTitle: String?
         var sharedPostID: String?
         var hashtags: [String]
-        var showAiTags: Bool
     }
 
     static func create(_ a: CreateArgs, on db: AppDatabase) async throws -> PostObject? {
@@ -394,9 +393,9 @@ enum PostStore {
         try await db.tx { t in
             struct R: Decodable { let id: String }
             let row = try await t.raw("""
-                INSERT INTO posts (author_id, content, mode, privacy, image_urls, link_url, article_title, shared_post_id, show_ai_tags)
+                INSERT INTO posts (author_id, content, mode, privacy, image_urls, link_url, article_title, shared_post_id)
                 VALUES (\(uuid: a.authorID), \(bind: a.content), \(bind: a.mode), \(bind: validPrivacy),
-                        \(bind: urls), \(bind: a.linkUrl), \(bind: a.articleTitle), \(uuid: a.sharedPostID), \(bind: a.showAiTags))
+                        \(bind: urls), \(bind: a.linkUrl), \(bind: a.articleTitle), \(uuid: a.sharedPostID))
                 RETURNING id
                 """).first(decoding: R.self)
             newID = row!.id
@@ -487,7 +486,7 @@ enum PostStore {
         var q = buildPostSelect(viewer)
         q = q + " WHERE p.community_id = \(uuid: communityID) AND p.status = 'posted' AND " + notMutedWordsClause(viewer)
         if let tag {
-            q = q + " AND EXISTS (SELECT 1 FROM post_tags ptf WHERE ptf.post_id = p.id AND LOWER(ptf.tag) = LOWER(\(bind: tag)) AND (ptf.source = 'user' OR p.show_ai_tags))"
+            q = q + " AND EXISTS (SELECT 1 FROM post_tags ptf WHERE ptf.post_id = p.id AND LOWER(ptf.tag) = LOWER(\(bind: tag)) AND ptf.source = 'user')"
         }
         if let search {
             q = q + " AND p.content ILIKE '%' || \(bind: UserStore.escapeLike(search)) || '%'"
