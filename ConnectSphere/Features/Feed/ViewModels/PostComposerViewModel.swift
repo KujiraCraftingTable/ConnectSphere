@@ -86,9 +86,9 @@ class PostComposerViewModel {
     /// default (see postModel.createCommunityPost's mode/privacy overrides).
     ///
     /// `hashtags` mirror Feed's `CreatePostViewModel.submitPost` — user-typed tags
-    /// saved synchronously (`source = 'user'`). AI-generated tags are never surfaced
-    /// on the client (`show_ai_tags` is always sent as `false`), so there is nothing
-    /// to refetch after the post is created.
+    /// saved synchronously (`source = 'user'`). AI-generated tags are never shown
+    /// (they only feed AI search), so there is nothing to refetch after the post
+    /// is created.
     func submitPost(
         communityId: String?,
         token: String,
@@ -192,7 +192,6 @@ class PostComposerViewModel {
             "post_type":    "text",
             "mode":         mode.rawValue,
             "privacy":      privacy.rawValue,
-            "show_ai_tags": false,
         ]
         if !imageUrls.isEmpty                   { dict["image_urls"]    = imageUrls }
         if let url = capturedPreview?.url       { dict["link_url"]      = url }
@@ -217,7 +216,6 @@ class PostComposerViewModel {
             "options":      validOptions,
             "mode":         mode.rawValue,
             "privacy":      privacy.rawValue,
-            "show_ai_tags": false,
         ]
         if showPollEndDate, let endsAt = pollEndsAt {
             dict["endsAt"] = ISO8601DateFormatter().string(from: endsAt)
@@ -245,7 +243,6 @@ class PostComposerViewModel {
             "eventData":    eventDict,
             "mode":         mode.rawValue,
             "privacy":      privacy.rawValue,
-            "show_ai_tags": false,
         ]
         if !hashtags.isEmpty { dict["hashtags"] = hashtags }
         let body = try? JSONSerialization.data(withJSONObject: dict)
@@ -280,7 +277,6 @@ class PostComposerViewModel {
             "jobData":      jobDict,
             "mode":         mode.rawValue,
             "privacy":      privacy.rawValue,
-            "show_ai_tags": false,
         ]
         if !hashtags.isEmpty { dict["hashtags"] = hashtags }
         let body = try? JSONSerialization.data(withJSONObject: dict)

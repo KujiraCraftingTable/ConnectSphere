@@ -22,7 +22,7 @@ enum PostService {
     static func createTextCommunityPost(
         userID: String, content: String?, communityID: String?,
         imageUrls: [String]?, linkUrl: String?, articleTitle: String?,
-        hashtags: [String], showAiTags: Bool, mode: String?, privacy: String?,
+        hashtags: [String], mode: String?, privacy: String?,
         on db: AppDatabase
     ) async throws -> PostObject {
         let hasContent = !(content?.trimmingCharacters(in: .whitespaces).isEmpty ?? true)
@@ -42,7 +42,7 @@ enum PostService {
         let id = try await createCommunityPostRow(
             content: trimmed, authorID: userID, communityID: communityID, postType: "text",
             imageUrls: imageUrls, linkUrl: linkUrl, articleTitle: articleTitle,
-            hashtags: hashtags, showAiTags: showAiTags, mode: mode, privacy: privacy, on: db)
+            hashtags: hashtags, mode: mode, privacy: privacy, on: db)
         if let communityID { try await CommunityMemberStore.incrementPostCount(communityID, 1, on: db.sql()) }
         // TODO(phase 5): enqueueTagExtraction; (phase 3) notifyCommunityOfNewPost; (phase 4) emit
         guard let post = try await PostStore.findById(id, viewer: userID, on: db.sql()) else {
@@ -56,19 +56,19 @@ enum PostService {
     static func createCommunityPostRow(
         content: String?, authorID: String, communityID: String?, postType: String,
         imageUrls: [String]?, linkUrl: String?, articleTitle: String?,
-        hashtags: [String], showAiTags: Bool, mode: String?, privacy: String?,
+        hashtags: [String], mode: String?, privacy: String?,
         on db: AppDatabase
     ) async throws -> String {
         var newID = ""
         try await db.tx { t in
             struct R: Decodable { let id: String }
             let row = try await t.raw("""
-                INSERT INTO posts (author_id, content, mode, privacy, community_id, post_type, image_urls, link_url, article_title, show_ai_tags)
+                INSERT INTO posts (author_id, content, mode, privacy, community_id, post_type, image_urls, link_url, article_title)
                 VALUES (
                   \(uuid: authorID), \(bind: content ?? ""),
                   COALESCE(\(bind: mode), (SELECT CASE WHEN type = 'work' THEN 'work' ELSE 'hobby' END FROM communities WHERE id = \(uuid: communityID)), 'hobby'),
                   COALESCE(\(bind: privacy), 'public'), \(uuid: communityID), \(bind: postType),
-                  \(bind: imageUrls), \(bind: linkUrl), \(bind: articleTitle), \(bind: showAiTags)
+                  \(bind: imageUrls), \(bind: linkUrl), \(bind: articleTitle)
                 )
                 RETURNING id
                 """).first(decoding: R.self)
@@ -89,7 +89,7 @@ enum PostService {
 
     static func createPollPost(
         authorID: String, communityID: String?, content: String?, options: [String]?,
-        endsAt: String?, hashtags: [String], showAiTags: Bool, mode: String?, privacy: String?,
+        endsAt: String?, hashtags: [String], mode: String?, privacy: String?,
         on db: AppDatabase
     ) async throws -> PostObject {
         let trimmedContent = content?.trimmingCharacters(in: .whitespaces) ?? ""
@@ -111,7 +111,7 @@ enum PostService {
         let id = try await createCommunityPostRow(
             content: trimmedContent, authorID: authorID, communityID: communityID, postType: "poll",
             imageUrls: nil, linkUrl: nil, articleTitle: nil,
-            hashtags: hashtags, showAiTags: showAiTags, mode: mode, privacy: privacy, on: db)
+            hashtags: hashtags, mode: mode, privacy: privacy, on: db)
         try await PollStore.createWithOptions(postID: id, options: trimmedOptions, endsAt: endsAt, on: db.sql())
         if let communityID { try await CommunityMemberStore.incrementPostCount(communityID, 1, on: db.sql()) }
         guard let post = try await PostStore.findById(id, viewer: authorID, on: db.sql()) else { throw Abort(.internalServerError) }
@@ -121,7 +121,7 @@ enum PostService {
     static func createEventPost(
         authorID: String, communityID: String?, content: String?,
         eventTitle: String?, eventLocation: String?, eventStartsAt: String?, eventEndsAt: String?,
-        hashtags: [String], showAiTags: Bool, mode: String?, privacy: String?,
+        hashtags: [String], mode: String?, privacy: String?,
         on db: AppDatabase
     ) async throws -> PostObject {
         let trimmedContent = content?.trimmingCharacters(in: .whitespaces) ?? ""
@@ -143,7 +143,7 @@ enum PostService {
         let id = try await createCommunityPostRow(
             content: trimmedContent, authorID: authorID, communityID: communityID, postType: "event",
             imageUrls: nil, linkUrl: nil, articleTitle: nil,
-            hashtags: hashtags, showAiTags: showAiTags, mode: mode, privacy: privacy, on: db)
+            hashtags: hashtags, mode: mode, privacy: privacy, on: db)
         try await EventStore.create(postID: id, title: title, location: eventLocation?.trimmingCharacters(in: .whitespaces).nilIfEmpty,
                                     startsAt: startsAtStr, endsAt: eventEndsAt?.nilIfEmpty, on: db.sql())
         if let communityID { try await CommunityMemberStore.incrementPostCount(communityID, 1, on: db.sql()) }
@@ -155,7 +155,7 @@ enum PostService {
         authorID: String, communityID: String?, content: String?,
         jobTitle: String?, jobCompany: String?, jobLocation: String?,
         employmentType: String?, salaryRange: String?, applicationDeadline: String?,
-        hashtags: [String], showAiTags: Bool, mode: String?, privacy: String?,
+        hashtags: [String], mode: String?, privacy: String?,
         on db: AppDatabase
     ) async throws -> PostObject {
         let trimmedContent = content?.trimmingCharacters(in: .whitespaces) ?? ""
@@ -189,7 +189,7 @@ enum PostService {
         let id = try await createCommunityPostRow(
             content: trimmedContent, authorID: authorID, communityID: communityID, postType: "job",
             imageUrls: nil, linkUrl: nil, articleTitle: nil,
-            hashtags: hashtags, showAiTags: showAiTags, mode: mode, privacy: privacy, on: db)
+            hashtags: hashtags, mode: mode, privacy: privacy, on: db)
         try await JobStore.create(postID: id, title: title,
             company: jobCompany?.trimmingCharacters(in: .whitespaces).nilIfEmpty,
             location: jobLocation?.trimmingCharacters(in: .whitespaces).nilIfEmpty,

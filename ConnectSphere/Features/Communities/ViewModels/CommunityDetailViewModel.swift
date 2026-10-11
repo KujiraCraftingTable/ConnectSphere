@@ -146,8 +146,8 @@ class CommunityDetailViewModel {
             self?.emitJoinCommunity()
         }
 
-        // AI tags becoming visible after opting in on create — patch the
-        // refreshed post's `tags` into `posts` in place, same shape as
+        // A post's tags changed (e.g. edited) — patch the refreshed post's
+        // `tags` into `posts` in place, same shape as
         // `pinPost`/`unpinPost` below. Feed's `Post` model is what the
         // notification carries (shared across Feed/Community since both post
         // types share the same underlying `id` space), so only `.tags` is read.

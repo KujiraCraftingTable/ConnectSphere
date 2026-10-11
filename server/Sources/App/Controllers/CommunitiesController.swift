@@ -236,27 +236,26 @@ struct CommunitiesController {
         let id = req.parameters.get("id")!
         let b = try req.content.decode(PostsController.CreateBody.self)
         let hashtags = b.hashtags ?? []
-        let showAi = b.show_ai_tags ?? false
         let postType = b.post_type ?? "text"
         let post: PostObject
         if postType == "poll" {
             post = try await PostService.createPollPost(authorID: req.userID, communityID: id, content: b.content,
-                options: b.options, endsAt: b.endsAt, hashtags: hashtags, showAiTags: showAi, mode: nil, privacy: nil, on: req.db)
+                options: b.options, endsAt: b.endsAt, hashtags: hashtags, mode: nil, privacy: nil, on: req.db)
         } else if postType == "event" {
             post = try await PostService.createEventPost(authorID: req.userID, communityID: id, content: b.content,
                 eventTitle: b.eventData?.title, eventLocation: b.eventData?.location,
                 eventStartsAt: b.eventData?.startsAt, eventEndsAt: b.eventData?.endsAt,
-                hashtags: hashtags, showAiTags: showAi, mode: nil, privacy: nil, on: req.db)
+                hashtags: hashtags, mode: nil, privacy: nil, on: req.db)
         } else if postType == "job" {
             post = try await PostService.createJobPost(authorID: req.userID, communityID: id, content: b.content,
                 jobTitle: b.jobData?.title, jobCompany: b.jobData?.company, jobLocation: b.jobData?.location,
                 employmentType: b.jobData?.employmentType, salaryRange: b.jobData?.salaryRange,
                 applicationDeadline: b.jobData?.applicationDeadline,
-                hashtags: hashtags, showAiTags: showAi, mode: nil, privacy: nil, on: req.db)
+                hashtags: hashtags, mode: nil, privacy: nil, on: req.db)
         } else {
             post = try await PostService.createTextCommunityPost(userID: req.userID, content: b.content, communityID: id,
                 imageUrls: PostsController.normalizeImageUrls(b.image_urls), linkUrl: b.link_url?.nilIfEmpty,
-                articleTitle: b.article_title?.nilIfEmpty, hashtags: hashtags, showAiTags: showAi, mode: nil, privacy: nil, on: req.db)
+                articleTitle: b.article_title?.nilIfEmpty, hashtags: hashtags, mode: nil, privacy: nil, on: req.db)
         }
         return try await ConnectionsController.encode(DataResponse(data: post), req, .created)
     }

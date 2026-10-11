@@ -91,7 +91,6 @@ struct PostsController {
         var link_url: String?
         var article_title: String?
         var hashtags: [String]?
-        var show_ai_tags: Bool?
         var options: [String]?
         var endsAt: String?
         var eventData: EventDataIn?
@@ -115,7 +114,6 @@ struct PostsController {
     static func create(_ req: Request) async throws -> Response {
         let b = try req.content.decode(CreateBody.self)
         let hashtags = b.hashtags ?? []
-        let showAi = b.show_ai_tags ?? false
         guard ["hobby", "work"].contains(b.mode ?? "") else {
             throw InlineError(.badRequest, "mode must be hobby or work")
         }
@@ -126,20 +124,20 @@ struct PostsController {
         if postType == "poll" {
             post = try await PostService.createPollPost(
                 authorID: req.userID, communityID: nil, content: b.content, options: b.options,
-                endsAt: b.endsAt, hashtags: hashtags, showAiTags: showAi, mode: mode, privacy: b.privacy, on: req.db)
+                endsAt: b.endsAt, hashtags: hashtags, mode: mode, privacy: b.privacy, on: req.db)
         } else if postType == "event" {
             post = try await PostService.createEventPost(
                 authorID: req.userID, communityID: nil, content: b.content,
                 eventTitle: b.eventData?.title, eventLocation: b.eventData?.location,
                 eventStartsAt: b.eventData?.startsAt, eventEndsAt: b.eventData?.endsAt,
-                hashtags: hashtags, showAiTags: showAi, mode: mode, privacy: b.privacy, on: req.db)
+                hashtags: hashtags, mode: mode, privacy: b.privacy, on: req.db)
         } else if postType == "job" {
             post = try await PostService.createJobPost(
                 authorID: req.userID, communityID: nil, content: b.content,
                 jobTitle: b.jobData?.title, jobCompany: b.jobData?.company, jobLocation: b.jobData?.location,
                 employmentType: b.jobData?.employmentType, salaryRange: b.jobData?.salaryRange,
                 applicationDeadline: b.jobData?.applicationDeadline,
-                hashtags: hashtags, showAiTags: showAi, mode: mode, privacy: b.privacy, on: req.db)
+                hashtags: hashtags, mode: mode, privacy: b.privacy, on: req.db)
         } else {
             let imageUrls = normalizeImageUrls(b.image_urls)
             let hasContent = !(b.content?.trimmingCharacters(in: .whitespaces).isEmpty ?? true)
@@ -154,7 +152,7 @@ struct PostsController {
                 mode: mode, privacy: b.privacy ?? "public",
                 imageUrl: b.image_url?.nilIfEmpty, imageUrls: imageUrls, linkUrl: b.link_url?.nilIfEmpty,
                 articleTitle: b.article_title?.nilIfEmpty, sharedPostID: nil,
-                hashtags: hashtags, showAiTags: showAi), on: req.db)
+                hashtags: hashtags), on: req.db)
             else { throw Abort(.internalServerError) }
             post = created
         }
@@ -213,7 +211,7 @@ struct PostsController {
             authorID: req.userID, content: b.content?.trimmingCharacters(in: .whitespaces) ?? "",
             mode: b.mode!, privacy: b.privacy ?? "public",
             imageUrl: nil, imageUrls: nil, linkUrl: nil, articleTitle: nil,
-            sharedPostID: rootID, hashtags: [], showAiTags: false), on: req.db)
+            sharedPostID: rootID, hashtags: []), on: req.db)
         else { throw Abort(.internalServerError) }
         try await req.db.sql().raw("UPDATE posts SET share_count = share_count + 1 WHERE id = \(uuid: rootID)").run()
         struct RA: Decodable { let author_id: String }
