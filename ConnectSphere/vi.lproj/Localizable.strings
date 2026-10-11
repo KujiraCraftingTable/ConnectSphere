@@ -988,3 +988,33 @@
 "Spaces work like folders. Make one, add people and group chats to it, and those chats are kept together there." = "Không gian giống như thư mục. Tạo một không gian, thêm người và nhóm chat vào đó, và các đoạn chat ấy sẽ được giữ chung ở đó.";
 "Some of these groups can't be added to a space" = "Không thể thêm một số nhóm này vào không gian";
 "A space can hold up to 100 groups" = "Một không gian chứa tối đa 100 nhóm";
+
+/* Muted words */
+"Muted words" = "Từ đã ẩn";
+"Posts, community posts and comments with these words are hidden. Accents and capitals don't matter, and only whole words count." = "Bài viết, bài trong cộng đồng và bình luận có các từ này sẽ bị ẩn. Không phân biệt dấu hay chữ hoa, và chỉ tính nguyên từ.";
+"No muted words in Hobby mode." = "Chưa ẩn từ nào ở chế độ Sở thích.";
+"No muted words in Work mode." = "Chưa ẩn từ nào ở chế độ Công việc.";
+"%lld muted" = "Đã ẩn %lld";
+"Copy to Work mode" = "Sao chép sang chế độ Công việc";
+"Copy to Hobby mode" = "Sao chép sang chế độ Sở thích";
+"Copy to Work mode?" = "Sao chép sang chế độ Công việc?";
+"Copy to Hobby mode?" = "Sao chép sang chế độ Sở thích?";
+"Copy" = "Sao chép";
+"Words already muted there are kept as they are." = "Các từ đã ẩn ở đó vẫn được giữ nguyên.";
+"Word or phrase" = "Từ hoặc cụm từ";
+"24 hours" = "24 giờ";
+"Forever" = "Vĩnh viễn";
+"%lld days left" = "Còn %lld ngày";
+"%lld hours left" = "Còn %lld giờ";
+"Less than an hour left" = "Còn dưới 1 giờ";
+"Added %lld to Work mode" = "Đã thêm %lld từ vào chế độ Công việc";
+"Added %lld to Hobby mode" = "Đã thêm %lld từ vào chế độ Sở thích";
+"Hidden: contains a word you muted" = "Đã ẩn: chứa từ bạn đã ẩn";
+"Show" = "Hiện";
+"A muted word needs 1–50 characters, including a letter or number" = "Từ cần ẩn phải có 1–50 ký tự, gồm ít nhất một chữ hoặc số";
+"Unknown duration" = "Thời hạn không hợp lệ";
+"You can mute up to 200 words" = "Bạn có thể ẩn tối đa 200 từ";
+"Muted word not found" = "Không tìm thấy từ đã ẩn";
+"Choose the other mode to copy to" = "Hãy chọn chế độ còn lại để sao chép";
+"Mute word" = "Ẩn";
+"Unmute word" = "Bỏ ẩn";

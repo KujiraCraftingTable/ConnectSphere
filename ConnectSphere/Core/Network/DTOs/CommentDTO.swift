@@ -40,9 +40,12 @@ struct CommentDTO: Decodable, Identifiable {
     /// the parent's author: a reply to a third-level reply is stored beside
     /// it, under the same parent, but still answers that reply's author.
     let replyTo: CommentReplyToDTO?
+    /// Contains one of your muted words (server-side match): shown collapsed
+    /// until you tap Show.
+    let muted: Bool
 
     enum CodingKeys: String, CodingKey {
-        case id, content, author
+        case id, content, author, muted
         case replyTo         = "reply_to"
         case createdAt       = "created_at"
         case parentCommentId = "parent_comment_id"
@@ -60,6 +63,7 @@ struct CommentDTO: Decodable, Identifiable {
         isLiked         = try c.decodeIfPresent(Bool.self, forKey: .isLiked) ?? false
         author          = try c.decodeIfPresent(CommentAuthorDTO.self, forKey: .author) ?? .deleted
         replyTo         = try c.decodeIfPresent(CommentReplyToDTO.self, forKey: .replyTo)
+        muted           = try c.decodeIfPresent(Bool.self, forKey: .muted) ?? false
     }
 }
 

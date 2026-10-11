@@ -73,6 +73,13 @@ struct SettingsView: View {
                     settingsRow(icon: "lock.fill", label: bundle.loc("Privacy & Security"), color: Color(hex: "#4CAF50"), showsChevron: false)
                 }
                 NavigationLink {
+                    MutedWordsView()
+                        .environment(appState)
+                        .environment(themeManager)
+                } label: {
+                    settingsRow(icon: "speaker.slash.fill", label: bundle.loc("Muted words"), color: Color(hex: "#5C6BC0"), showsChevron: false)
+                }
+                NavigationLink {
                     RecentlyDeletedView()
                         .environment(themeManager)
                 } label: {

@@ -168,6 +168,7 @@ enum FeedStore {
                   WHERE (ub.blocker_id = \(uuid: userID) AND ub.blocked_id = p.author_id)
                      OR (ub.blocker_id = p.author_id AND ub.blocked_id = \(uuid: userID)))
                 AND NOT EXISTS (SELECT 1 FROM hidden_posts hp WHERE hp.user_id = \(uuid: userID) AND hp.post_id = p.id)
+                AND \(PostStore.notMutedWordsClause(userID))
                 AND (p.privacy = 'public' OR (p.privacy = 'friends' AND EXISTS (SELECT 1 FROM connections cf
                   WHERE cf.status = 'accepted' AND ((cf.requester_id = p.author_id AND cf.addressee_id = \(uuid: userID))
                     OR (cf.addressee_id = p.author_id AND cf.requester_id = \(uuid: userID))))))
