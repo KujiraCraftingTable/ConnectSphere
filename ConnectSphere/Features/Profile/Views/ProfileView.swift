@@ -75,6 +75,11 @@ struct ProfileView: View {
                 // The cover runs up under the status bar; its own fade keeps
                 // the clock and the floating nav button legible.
                 .ignoresSafeArea(edges: .top)
+                .refreshable {
+                    if let userId = appState.currentUser?.id {
+                        await viewModel.refresh(userId: userId, mode: appState.currentMode.rawValue)
+                    }
+                }
             }
             .background(AppColors.base(colorScheme))
             .navigationBarTitleDisplayMode(.inline)

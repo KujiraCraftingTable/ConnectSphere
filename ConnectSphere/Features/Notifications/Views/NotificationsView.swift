@@ -160,6 +160,7 @@ struct NotificationsView: View {
                 .scrollContentBackground(.hidden)
                 .contentMargins(.horizontal, AppSpacing.sm, for: .scrollContent)
                 .listSectionSpacing(AppSpacing.md)
+                .refreshable { await viewModel.load(token: token, appState: appState) }
             }
             .background(AppColors.base(colorScheme))
             .navigationTitle(bundle.loc("Notifications"))
@@ -182,7 +183,6 @@ struct NotificationsView: View {
                 viewModel.startListening(token: token, appState: appState)
             }
             .onDisappear { viewModel.stopListening() }
-            .refreshable { await viewModel.load(token: token, appState: appState) }
         }
     }
 
