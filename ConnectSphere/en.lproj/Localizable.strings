@@ -1104,3 +1104,11 @@
 "Remove photo" = "Remove photo";
 "%@ commented with a photo" = "%@ commented with a photo";
 "%@ replied to your comment with a photo" = "%@ replied to your comment with a photo";
+"%lld/%lld" = "%lld/%lld";
+"Close chat" = "Close chat";
+"Previous chat" = "Previous chat";
+"Next chat" = "Next chat";
+"%lld unread" = "%lld unread";
+"%lld new" = "%lld new";
+"Show chat" = "Show chat";
+"Closed chat with %@ to make room" = "Closed chat with %@ to make room";
