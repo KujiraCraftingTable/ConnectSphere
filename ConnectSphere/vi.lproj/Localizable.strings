@@ -1104,3 +1104,11 @@
 "Remove photo" = "Xoá ảnh";
 "%@ commented with a photo" = "%@ đã bình luận bằng một ảnh";
 "%@ replied to your comment with a photo" = "%@ đã trả lời bình luận của bạn bằng một ảnh";
+"%lld/%lld" = "%lld/%lld";
+"Close chat" = "Đóng đoạn chat";
+"Previous chat" = "Đoạn chat trước";
+"Next chat" = "Đoạn chat sau";
+"%lld unread" = "%lld chưa đọc";
+"%lld new" = "%lld tin mới";
+"Show chat" = "Hiện đoạn chat";
+"Closed chat with %@ to make room" = "Đã đóng đoạn chat với %@ để thêm chỗ";

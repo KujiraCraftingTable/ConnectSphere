@@ -10,6 +10,7 @@ struct ChatView: View {
     @State private var showDeleteRequestConfirm = false
     @Environment(\.appBundle) var bundle
     @Environment(FloatingChatPresenter.self) var floatingChatPresenter
+    @Environment(UndoToastPresenter.self) private var toastPresenter
 
     let conversationId: String
     let peer: ChatPeer
@@ -244,12 +245,17 @@ struct ChatView: View {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
                     isMinimizing = true
-                    floatingChatPresenter.minimize(
+                    let closed = floatingChatPresenter.minimize(
                         conversationId: conversationId, peer: peer,
                         otherUserLocation: otherUserLocation,
                         currentUserId: appState.currentUser?.id ?? "", token: token,
                         viewModel: viewModel
                     )
+                    // A fifth floating chat closed the one used longest ago.
+                    if let closed {
+                        toastPresenter.show(message: String(format: bundle.loc("Closed chat with %@ to make room"),
+                                                            closed.peer.name))
+                    }
                     dismiss()
                 } label: {
                     Image(systemName: "pip.enter")

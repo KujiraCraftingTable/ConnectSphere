@@ -73,6 +73,7 @@ struct MainTabView: View {
             .environment(appState)
             .environment(themeManager)
             .environment(floatingChatPresenter)
+            .environment(toastPresenter)
         }
         .accentColor(themeManager.theme.primary)
         // Dense feed/chat layouts have fixed-height controls — support Dynamic

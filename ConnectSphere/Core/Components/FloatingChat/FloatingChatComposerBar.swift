@@ -2,15 +2,15 @@ import SwiftUI
 import PhotosUI
 
 /// Full-width message composer for the floating chat, docked directly above
-/// the keyboard — rendered once by `FloatingChatOverlay` for whichever bubble
+/// the keyboard — rendered once by `FloatingChatOverlay` for whichever chat
 /// is composing.
 ///
-/// It deliberately does *not* live inside `FloatingChatBubbleView`. As an
-/// overlay on that 132pt-wide card the field was both hard to read (12pt text)
-/// and drawn detached from the card entirely, while the card itself sat behind
-/// the keyboard. Docking the bar here gives the same 15pt field as
+/// It deliberately does *not* live inside the floating window. As an overlay
+/// on a small card the field was both hard to read (12pt text) and drawn
+/// detached from the card entirely, while the card itself sat behind the
+/// keyboard. Docking the bar here gives the same 15pt field as
 /// `ChatView.inputBar` and makes detaching structurally impossible, since the
-/// bar is no longer positioned relative to a freely-draggable card.
+/// bar is not positioned relative to the freely-draggable window.
 ///
 /// Deliberately text and photos only — "keep the conversation going", not the
 /// full `ChatView` composer. Voice, meeting proposals and replies stay in the

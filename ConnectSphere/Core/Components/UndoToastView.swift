@@ -1,11 +1,12 @@
 import SwiftUI
 import Observation
 
-/// One active "Undo" toast — created by `UndoToastPresenter.show(message:onUndo:)`.
+/// One active toast — created by `UndoToastPresenter.show(message:onUndo:)`,
+/// or `show(message:)` for a plain notice with nothing to undo.
 struct UndoToastItem: Identifiable {
     let id = UUID()
     let message: String
-    let onUndo: () -> Void
+    let onUndo: (() -> Void)?
 }
 
 /// Presenter for a non-blocking bottom "Undo" toast, shown right after a
@@ -23,7 +24,7 @@ final class UndoToastPresenter {
 
     /// Shows a toast with `message` and an "Undo" action; replaces whatever
     /// toast is currently showing. Auto-dismisses after ~5s unless tapped.
-    func show(message: String, onUndo: @escaping () -> Void) {
+    func show(message: String, onUndo: (() -> Void)?) {
         dismissTask?.cancel()
         let item = UndoToastItem(message: message, onUndo: onUndo)
         current = item
@@ -34,12 +35,17 @@ final class UndoToastPresenter {
         }
     }
 
+    /// A plain notice in the same place, without an Undo button.
+    func show(message: String) {
+        show(message: message, onUndo: nil)
+    }
+
     /// User tapped "Undo" — runs the action and dismisses immediately.
     func undo() {
         guard let item = current else { return }
         dismissTask?.cancel()
         current = nil
-        item.onUndo()
+        item.onUndo?()
     }
 
     /// Dismisses early (e.g. the owning screen is going away) without running
@@ -70,10 +76,12 @@ struct UndoToastView: View {
                 .foregroundColor(.white)
                 .lineLimit(2)
             Spacer(minLength: 8)
-            Button(action: onUndo) {
-                Text("Undo", bundle: bundle)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(themeManager.theme.primary)
+            if item.onUndo != nil {
+                Button(action: onUndo) {
+                    Text("Undo", bundle: bundle)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(themeManager.theme.primary)
+                }
             }
         }
         .padding(.horizontal, 16)
