@@ -326,10 +326,16 @@ struct ActorNotifRow: View {
             if group.otherActorCount == 0, let excerpt = notif.payload.excerpt, !excerpt.isEmpty {
                 return String(format: bundle.loc("%@ commented: “%@”"), senderName, excerpt)
             }
+            if group.otherActorCount == 0, notif.payload.commentPhoto == true {
+                return String(format: bundle.loc("%@ commented with a photo"), senderName)
+            }
             return String(format: bundle.loc("%@ commented on your post"), actorLabel)
         case "comment_replied":
             if group.otherActorCount == 0, let excerpt = notif.payload.excerpt, !excerpt.isEmpty {
                 return String(format: bundle.loc("%@ replied to your comment: “%@”"), senderName, excerpt)
+            }
+            if group.otherActorCount == 0, notif.payload.commentPhoto == true {
+                return String(format: bundle.loc("%@ replied to your comment with a photo"), senderName)
             }
             return String(format: bundle.loc("%@ replied to your comment"), actorLabel)
         case "comment_liked":

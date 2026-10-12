@@ -1100,3 +1100,7 @@
 "Translations" = "Translations";
 "Posts and comments in English or Vietnamese can be translated into the other. Translations are made by AI and may not be perfect." = "Posts and comments in English or Vietnamese can be translated into the other. Translations are made by AI and may not be perfect.";
 "%lld of %lld characters" = "%lld of %lld characters";
+"Add a photo" = "Add a photo";
+"Remove photo" = "Remove photo";
+"%@ commented with a photo" = "%@ commented with a photo";
+"%@ replied to your comment with a photo" = "%@ replied to your comment with a photo";

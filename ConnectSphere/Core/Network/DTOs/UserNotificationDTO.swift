@@ -26,6 +26,8 @@ struct UserNotificationPayloadDTO: Decodable {
 
     // Post / comment
     let excerpt: String?
+    /// A comment that's only a photo (no text to quote).
+    let commentPhoto: Bool?
     let commentId: String?
     let parentCommentId: String?
     let commentExcerpt: String?

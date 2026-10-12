@@ -46,10 +46,13 @@ struct CommentDTO: Decodable, Identifiable {
     /// The comment's language and its English/Vietnamese translation (server-made).
     let lang: String?
     let translatedText: String?
+    /// The comment's photo (a stored `/uploads/…` path), if it has one.
+    let imageUrl: String?
 
     enum CodingKeys: String, CodingKey {
         case id, content, author, muted, lang
         case translatedText  = "translated_text"
+        case imageUrl        = "image_url"
         case replyTo         = "reply_to"
         case createdAt       = "created_at"
         case parentCommentId = "parent_comment_id"
@@ -70,6 +73,7 @@ struct CommentDTO: Decodable, Identifiable {
         muted           = try c.decodeIfPresent(Bool.self, forKey: .muted) ?? false
         lang            = try c.decodeIfPresent(String.self, forKey: .lang)
         translatedText  = try c.decodeIfPresent(String.self, forKey: .translatedText)
+        imageUrl        = try c.decodeIfPresent(String.self, forKey: .imageUrl)
     }
 }
 

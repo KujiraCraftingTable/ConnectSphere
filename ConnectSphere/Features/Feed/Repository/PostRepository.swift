@@ -283,13 +283,15 @@ struct PostRepository {
 
     /// Posts a comment — or a reply when `parentCommentId` is set — and returns
     /// the created comment. `POST /posts/:id/comments` → 201 `{ data: CommentDTO }`.
-    func addComment(postId: String, content: String, parentCommentId: String? = nil) async throws -> CommentDTO {
+    func addComment(postId: String, content: String, parentCommentId: String? = nil,
+                    imageUrl: String? = nil) async throws -> CommentDTO {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")
         }
         struct AddCommentResponse: Decodable { let data: CommentDTO }
         var body: [String: Any] = ["content": content]
         if let parentCommentId { body["parent_comment_id"] = parentCommentId }
+        if let imageUrl { body["image_url"] = imageUrl }
         let response = try await client.fetch(
             AddCommentResponse.self,
             path: "/posts/\(postId)/comments",

@@ -1,5 +1,7 @@
 import Foundation
 import Observation
+import PhotosUI
+import SwiftUI
 
 /// How root comments are ordered. Only affects top-level comments — each
 /// root's own replies always stay chronological underneath it, same as a
@@ -25,6 +27,9 @@ class CommentViewModel {
     /// How `parents` orders root comments. Purely a display concern — doesn't
     /// change what's fetched, so switching it never needs a reload.
     var sortOrder: CommentSortOrder = .oldest
+    /// The photo picked for the next comment, shown above the field until sent.
+    private(set) var attachedPhoto: UIImage?
+    private var attachedPhotoData: Data?
 
     private let repository = PostRepository()
 
@@ -64,20 +69,48 @@ class CommentViewModel {
         isLoading = false
     }
 
-    /// Posts a comment (or a reply, when `replyingTo` is set). Routes through
-    /// `PostRepository` like every other post API call; reloads the whole list
-    /// on success to guarantee an accurate sync.
+    /// Loads a photo picked from the library into the composer (one per comment;
+    /// a new pick replaces it).
+    func attachPhoto(_ item: PhotosPickerItem) async {
+        guard let data = try? await item.loadTransferable(type: Data.self),
+              let image = UIImage(data: data) else { return }
+        attachedPhotoData = data
+        attachedPhoto = image
+    }
+
+    func removePhoto() {
+        attachedPhoto = nil
+        attachedPhotoData = nil
+    }
+
+    /// Whether Send is available: some text, a photo, or both.
+    func canSend(_ text: String) -> Bool {
+        !isSending && (!text.trimmingCharacters(in: .whitespaces).isEmpty || attachedPhoto != nil)
+    }
+
+    /// Posts a comment (or a reply, when `replyingTo` is set), uploading the
+    /// attached photo first. Routes through `PostRepository` like every other
+    /// post API call; reloads the whole list on success to guarantee an
+    /// accurate sync.
     func addComment(postId: String, content: String) async -> Bool {
         let trimmed = content.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return false }
+        guard !trimmed.isEmpty || attachedPhotoData != nil else { return false }
         isSending = true
         defer { isSending = false }
 
+        var imageUrl: String? = nil
+        if let attachedPhotoData {
+            // Metadata (location, camera) is stripped in uploadImage.
+            guard let url = try? await repository.uploadImage(attachedPhotoData) else { return false }
+            imageUrl = url
+        }
         let parentId = replyingTo?.id
-        guard (try? await repository.addComment(postId: postId, content: trimmed, parentCommentId: parentId)) != nil else {
+        guard (try? await repository.addComment(postId: postId, content: trimmed, parentCommentId: parentId,
+                                                 imageUrl: imageUrl)) != nil else {
             return false
         }
         replyingTo = nil
+        removePhoto()
         await load(postId: postId)
         return true
     }
@@ -105,7 +138,9 @@ class CommentViewModel {
     /// (simpler than patching it in place).
     func updateComment(postId: String, commentId: String, content: String) async -> Bool {
         let trimmed = content.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return false }
+        // Editing changes the text only; a comment with a photo may lose it.
+        let hasPhoto = comments.first { $0.id == commentId }?.imageUrl != nil
+        guard !trimmed.isEmpty || hasPhoto else { return false }
         guard (try? await repository.updateComment(postId: postId, commentId: commentId, content: trimmed)) != nil else {
             return false
         }
