@@ -23,9 +23,8 @@ enum Translators {
     static func languageName(_ code: String) -> String { code == "vi" ? "Vietnamese" : "English" }
 }
 
-/// Translation through an Ollama chat model (today the same qwen2.5 the AI
-/// search uses, until a translation-only model is picked — see
-/// TRANSLATION_MODEL). It has its own prompt and request, separate from
+/// Translation through an Ollama chat model (TRANSLATION_MODEL, e.g.
+/// qwen3:8b). It has its own prompt and request, separate from
 /// `OllamaService`'s search prompts.
 struct OllamaChatTranslator: Translator {
     let url: String
@@ -52,7 +51,13 @@ struct OllamaChatTranslator: Translator {
             ],
             "options": ["temperature": 0],
             "stream": false,
-            "keep_alive": "10m",
+            // Released after 2 idle minutes: the search model stays loaded too,
+            // and two models at once is a lot for a 16 GB machine.
+            "keep_alive": "2m",
+            // Hybrid models (Qwen3) reason before answering by default: seconds
+            // per item for no gain on a translation. Models without a thinking
+            // mode ignore it.
+            "think": false,
         ]
         var req = HTTPClientRequest(url: "\(url)/api/chat")
         req.method = .POST

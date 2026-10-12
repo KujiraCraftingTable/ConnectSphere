@@ -18,6 +18,8 @@ final class TranslationTests: XCTestCase {
         XCTAssertEqual(TranslationService.cleanOutput("Translation: Hello there", source: "Xin chào"), "Hello there")
         XCTAssertEqual(TranslationService.cleanOutput("\"Hello there\"\n", source: "Xin chào"), "Hello there")
         XCTAssertEqual(TranslationService.cleanOutput("“Xin chào”", source: "“Hello”"), "“Xin chào”")   // the source was quoted too
+        XCTAssertEqual(TranslationService.cleanOutput("Ay do he he he\nMeow meow /no_think", source: "x"), "Ay do he he he\nMeow meow")
+        XCTAssertEqual(TranslationService.cleanOutput("<think>\nuser wants EN\n</think>\n\nHello there", source: "Xin chào"), "Hello there")
     }
 
     func testHashMatchesSQLsHex() {
