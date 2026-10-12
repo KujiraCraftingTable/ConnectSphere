@@ -38,6 +38,7 @@ enum BackgroundJobs {
         app.queues.add(TagExtractionJob())
         app.queues.add(ChunkEmbedJob())
         app.queues.add(SocialNotifyJob())
+        app.queues.add(TranslateContentJob())
 
         // Daily housekeeping — staggered UTC slots, matching the Node crons.
         app.queues.schedule(AnalyticsSnapshotJob()).using(utc).daily().at(0, 5)
@@ -52,6 +53,7 @@ enum BackgroundJobs {
         app.queues.schedule(ChunkSweepJob()).every(minutes: 30)
         app.queues.schedule(MeetingReminderJob()).every(minutes: 5)   // matches Node's */5 cron; atomic claim makes it idempotent
         app.queues.schedule(PublishScheduledJob()).every(minutes: 1)   // scheduled posts go out within a minute
+        app.queues.schedule(TranslationSweepJob()).every(minutes: 2)
 
         try app.queues.startInProcessJobs(on: .default)
         try app.queues.startScheduledJobs()
@@ -211,6 +213,45 @@ enum BackgroundJobs {
                 await PostPublisher.didGoLive(post, app: app, queue: context.queue, logger: context.logger, notify: true)
             }
             if !live.isEmpty { context.logger.info("PublishScheduledJob: \(live.count) scheduled post(s) published") }
+        }
+    }
+
+    /// Backfills translations (existing posts/comments, anything the model
+    /// missed while down), newest first. Each run works for at most ~50 s,
+    /// so the model stays free at least half the time for AI search.
+    struct TranslationSweepJob: AsyncScheduledJob {
+        static let budget: TimeInterval = 50
+        static let batch = 5
+        func run(context: QueueContext) async throws {
+            let app = context.application, db = app.db.sql()
+            guard app.appEnv.translation.enabled else { return }
+            let started = Date()
+            var done = 0
+            // Each item at most once per run, so one that keeps failing can't
+            // hold up the rest.
+            var tried: [UUID] = []
+            sweep: while Date().timeIntervalSince(started) < Self.budget {
+                var found = false
+                for kind in [TranslationService.Kind.post, .comment] {
+                    for id in try await TranslationService.pending(kind, limit: Self.batch, excluding: tried, on: db) {
+                        found = true
+                        if let uuid = UUID(uuidString: id) { tried.append(uuid) }
+                        await TranslationService.translate(kind, id: id, app: app, logger: context.logger)
+                        done += 1
+                        if Date().timeIntervalSince(started) >= Self.budget { break sweep }
+                    }
+                }
+                if !found { break }
+            }
+            if done > 0 { context.logger.info("TranslationSweepJob: looked at \(done) item(s)") }
+        }
+    }
+
+    /// One post or comment, right after it's published or edited.
+    struct TranslateContentJob: AsyncJob {
+        struct Payload: Codable, Sendable { let kind: TranslationService.Kind; let id: String }
+        func dequeue(_ context: QueueContext, _ payload: Payload) async throws {
+            await TranslationService.translate(payload.kind, id: payload.id, app: context.application, logger: context.logger)
         }
     }
 

@@ -28,6 +28,14 @@ struct AppEnv: Sendable {
         var url: String
         var model: String
     }
+    /// The translation pipeline's own model (see `Translators`): defaults to
+    /// the general Ollama model until a translation-only one is chosen.
+    struct Translation: Sendable {
+        var url: String
+        var model: String
+        var timeoutSeconds: Int
+        var enabled: Bool
+    }
     struct Redis: Sendable {
         var host: String
         var port: Int
@@ -41,6 +49,7 @@ struct AppEnv: Sendable {
     var jwt: JWT
     var mail: Mail
     var ollama: Ollama
+    var translation: Translation
     var redis: Redis
     var db: DB
 
@@ -94,6 +103,12 @@ struct AppEnv: Sendable {
             ollama: Ollama(
                 url: get("OLLAMA_URL") ?? "http://localhost:11434",
                 model: get("OLLAMA_MODEL") ?? "qwen2.5:7b-instruct-q4_k_m"
+            ),
+            translation: Translation(
+                url: get("TRANSLATION_URL") ?? get("OLLAMA_URL") ?? "http://localhost:11434",
+                model: get("TRANSLATION_MODEL") ?? get("OLLAMA_MODEL") ?? "qwen2.5:7b-instruct-q4_k_m",
+                timeoutSeconds: int("TRANSLATION_TIMEOUT", 60),
+                enabled: (get("TRANSLATION_ENABLED") ?? "1") != "0"
             ),
             redis: Redis(
                 host: get("REDIS_HOST") ?? "localhost",

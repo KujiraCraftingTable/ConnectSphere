@@ -79,6 +79,10 @@ struct SharedPostPreview {
     var imageUrls: [String] = []
     /// Alt text per `imageUrls` entry ('' = none).
     var imageAlts: [String] = []
+    /// The text's language (en / vi / other / none) and its translation into
+    /// the other of en/vi, made on the server when it was published.
+    var contentLang: String? = nil
+    var translatedContent: String? = nil
     let linkUrl: String?
     let articleTitle: String?
     let timestamp: Date
@@ -106,6 +110,10 @@ struct Post: Identifiable {
     var imageUrls: [String] = [] // uploaded image array, ordered
     /// Alt text per `imageUrls` entry ('' = none).
     var imageAlts: [String] = []
+    /// The text's language (en / vi / other / none) and its translation into
+    /// the other of en/vi, made on the server when it was published.
+    var contentLang: String? = nil
+    var translatedContent: String? = nil
     var likeCount: Int
     var commentCount: Int
     var shareCount: Int

@@ -43,9 +43,13 @@ struct CommentDTO: Decodable, Identifiable {
     /// Contains one of your muted words (server-side match): shown collapsed
     /// until you tap Show.
     let muted: Bool
+    /// The comment's language and its English/Vietnamese translation (server-made).
+    let lang: String?
+    let translatedText: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, content, author, muted
+        case id, content, author, muted, lang
+        case translatedText  = "translated_text"
         case replyTo         = "reply_to"
         case createdAt       = "created_at"
         case parentCommentId = "parent_comment_id"
@@ -64,6 +68,8 @@ struct CommentDTO: Decodable, Identifiable {
         author          = try c.decodeIfPresent(CommentAuthorDTO.self, forKey: .author) ?? .deleted
         replyTo         = try c.decodeIfPresent(CommentReplyToDTO.self, forKey: .replyTo)
         muted           = try c.decodeIfPresent(Bool.self, forKey: .muted) ?? false
+        lang            = try c.decodeIfPresent(String.self, forKey: .lang)
+        translatedText  = try c.decodeIfPresent(String.self, forKey: .translatedText)
     }
 }
 

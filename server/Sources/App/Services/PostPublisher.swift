@@ -26,6 +26,7 @@ enum PostPublisher {
 
     static func afterPublish(_ app: Application, queue: any Queue, logger: Logger,
                              postID: String, mode: String, content: String, authorID: String) async {
+        await TranslationService.enqueue(.post, id: postID, app: app, queue: queue, logger: logger)
         if !content.isEmpty {
             let cfg = app.ollama, db = app.db.sql(), hub = app.socketHub
             Task {
@@ -97,6 +98,8 @@ enum PostPublisher {
         if post.community_id == nil {
             await afterPublish(app, queue: queue, logger: logger, postID: post.id, mode: post.mode,
                                content: post.content ?? "", authorID: post.author_id)
+        } else {
+            await TranslationService.enqueue(.post, id: post.id, app: app, queue: queue, logger: logger)
         }
         if notify {
             _ = await NotifyService.pushUserNotification(userID: post.author_id, type: "scheduled_post_live",

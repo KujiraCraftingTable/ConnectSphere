@@ -26,6 +26,11 @@ struct PostObject: Content {
     var status: String? = nil
     /// When a scheduled post goes out.
     var publish_at: Date? = nil
+    /// en | vi | other | none — set once the translation pipeline has run.
+    @NullCoded var lang: String? = nil
+    /// The text in the other of en/vi (migration 048); null when there's none
+    /// or it's stale after an edit.
+    @NullCoded var translated_text: String? = nil
     var like_count: Int
     var comment_count: Int
     var share_count: Int
@@ -62,6 +67,8 @@ struct PostObject: Content {
         @NullCoded var image_url: String?
         @NullCoded var image_urls: [String]?
         @NullCoded var image_alts: [String]?
+        @NullCoded var lang: String?
+        @NullCoded var translated_text: String?
         @NullCoded var link_url: String?
         @NullCoded var article_title: String?
         var created_at: Date

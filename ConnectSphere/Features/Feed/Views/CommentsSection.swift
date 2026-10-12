@@ -258,6 +258,7 @@ struct CommentRow: View {
     static let verticalInset: CGFloat = 6
 
     @Environment(AppState.self) private var appState
+    @AppStorage(TranslationMode.storageKey) private var translationModeRaw = TranslationMode.original.rawValue
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
     @Environment(\.colorScheme) var colorScheme
@@ -282,6 +283,16 @@ struct CommentRow: View {
     var onEdit:   (() -> Void)? = nil
     var onSaveEdit:   (() -> Void)? = nil
     var onCancelEdit: (() -> Void)? = nil
+
+    private var canTranslate: Bool {
+        ContentTranslation.isAvailable(lang: comment.lang, translated: comment.translatedText, appLanguage: appState.appLanguage)
+    }
+
+    private var showsTranslation: Bool {
+        canTranslate && TranslationStore.shared.showsTranslation(
+            TranslationStore.key(comment: comment.id),
+            mode: TranslationMode(rawValue: translationModeRaw) ?? .original)
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -352,10 +363,16 @@ struct CommentRow: View {
                 }
             }
 
-            Text(comment.content)
+            Text(showsTranslation ? (comment.translatedText ?? comment.content) : comment.content)
                 .font(.system(size: 14))
                 .foregroundColor(AppColors.textPrimary(colorScheme))
                 .fixedSize(horizontal: false, vertical: true)
+            if canTranslate {
+                TranslationToggle(showingTranslation: showsTranslation, fontSize: 12) {
+                    withAnimation(.snappy) { TranslationStore.shared.toggle(TranslationStore.key(comment: comment.id)) }
+                }
+                .padding(.top, 2)
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

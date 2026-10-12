@@ -70,6 +70,8 @@ struct SharedPostDTO: Decodable {
     let imageUrl: String?
     let imageUrls: [String]?
     let imageAlts: [String]?
+    let lang: String?
+    let translatedText: String?
     let linkUrl: String?
     let articleTitle: String?
     let createdAt: Date
@@ -80,6 +82,8 @@ struct SharedPostDTO: Decodable {
         case imageUrl     = "image_url"
         case imageUrls    = "image_urls"
         case imageAlts    = "image_alts"
+        case lang
+        case translatedText    = "translated_text"
         case linkUrl      = "link_url"
         case articleTitle = "article_title"
         case createdAt    = "created_at"
@@ -92,6 +96,8 @@ struct SharedPostDTO: Decodable {
         imageUrl     = try c.decodeIfPresent(String.self, forKey: .imageUrl)
         imageUrls    = try c.decodeIfPresent([String].self, forKey: .imageUrls)
         imageAlts    = try c.decodeIfPresent([String].self, forKey: .imageAlts)
+        lang    = try c.decodeIfPresent(String.self, forKey: .lang)
+        translatedText = try c.decodeIfPresent(String.self, forKey: .translatedText)
         linkUrl      = try c.decodeIfPresent(String.self, forKey: .linkUrl)
         articleTitle = try c.decodeIfPresent(String.self, forKey: .articleTitle)
         createdAt    = (try? c.decode(Date.self, forKey: .createdAt)) ?? Date()
@@ -106,6 +112,8 @@ struct SharedPostDTO: Decodable {
             imageUrl:     imageUrl,
             imageUrls:    imageUrls ?? [],
             imageAlts:    imageAlts ?? [],
+            contentLang:    lang,
+            translatedContent: translatedText,
             linkUrl:      linkUrl,
             articleTitle: articleTitle,
             timestamp:    createdAt
@@ -121,6 +129,8 @@ struct PostDTO: Decodable {
     let imageUrl: String?
     let imageUrls: [String]?
     let imageAlts: [String]?
+    let lang: String?
+    let translatedText: String?
     let articleTitle: String?
     let linkUrl: String?
     let isLiked: Bool
@@ -148,6 +158,8 @@ struct PostDTO: Decodable {
         case imageUrl      = "image_url"
         case imageUrls     = "image_urls"
         case imageAlts     = "image_alts"
+        case lang
+        case translatedText     = "translated_text"
         case articleTitle  = "article_title"
         case linkUrl       = "link_url"
         case isLiked       = "is_liked"
@@ -181,6 +193,8 @@ struct PostDTO: Decodable {
         imageUrl      = try c.decodeIfPresent(String.self, forKey: .imageUrl)
         imageUrls     = try c.decodeIfPresent([String].self, forKey: .imageUrls)
         imageAlts     = try c.decodeIfPresent([String].self, forKey: .imageAlts)
+        lang     = try c.decodeIfPresent(String.self, forKey: .lang)
+        translatedText = try c.decodeIfPresent(String.self, forKey: .translatedText)
         articleTitle  = try c.decodeIfPresent(String.self, forKey: .articleTitle)
         linkUrl       = try c.decodeIfPresent(String.self, forKey: .linkUrl)
         isLiked       = try c.decodeIfPresent(Bool.self, forKey: .isLiked) ?? false
@@ -218,6 +232,8 @@ struct PostDTO: Decodable {
             imageUrl:               imageUrl,
             imageUrls:              imageUrls ?? [],
             imageAlts:              imageAlts ?? [],
+            contentLang:              lang,
+            translatedContent: translatedText,
             likeCount:              likeCount,
             commentCount:           commentCount,
             shareCount:             shareCount,

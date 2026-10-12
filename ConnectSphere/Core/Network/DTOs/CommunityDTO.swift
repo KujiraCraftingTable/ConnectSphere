@@ -127,6 +127,8 @@ struct CommunityPostDTO: Decodable {
     let imageUrl: String?
     let imageUrls: [String]?
     let imageAlts: [String]?
+    let lang: String?
+    let translatedText: String?
     let linkUrl: String?
     let articleTitle: String?
     let tags: [String]?
@@ -145,6 +147,8 @@ struct CommunityPostDTO: Decodable {
         case imageUrl     = "image_url"
         case imageUrls    = "image_urls"
         case imageAlts    = "image_alts"
+        case lang
+        case translatedText    = "translated_text"
         case linkUrl      = "link_url"
         case articleTitle = "article_title"
     }
@@ -167,6 +171,8 @@ struct CommunityPostDTO: Decodable {
         imageUrl     = try c.decodeIfPresent(String.self, forKey: .imageUrl)
         imageUrls    = try c.decodeIfPresent([String].self, forKey: .imageUrls)
         imageAlts    = try c.decodeIfPresent([String].self, forKey: .imageAlts)
+        lang    = try c.decodeIfPresent(String.self, forKey: .lang)
+        translatedText = try c.decodeIfPresent(String.self, forKey: .translatedText)
         linkUrl      = try c.decodeIfPresent(String.self, forKey: .linkUrl)
         articleTitle = try c.decodeIfPresent(String.self, forKey: .articleTitle)
         tags         = try c.decodeIfPresent([String].self, forKey: .tags)
@@ -191,6 +197,8 @@ struct CommunityPostDTO: Decodable {
             imageUrl:     imageUrl,
             imageUrls:    imageUrls ?? [],
             imageAlts:    imageAlts ?? [],
+            contentLang:    lang,
+            translatedContent: translatedText,
             articleTitle: articleTitle,
             tags:         tags ?? []
         )

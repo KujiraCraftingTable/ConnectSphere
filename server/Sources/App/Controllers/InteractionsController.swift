@@ -109,6 +109,7 @@ struct InteractionsController {
             let id: String; let content: String?; let created_at: Date
             let parent_comment_id: String?; let like_count: Int; let is_liked: Bool; let author: String
             let reply_to: String?; let muted: Bool
+            let lang: String?; let translated_text: String?
         }
         let rows = try await db.raw("""
             SELECT c.id, c.content, c.created_at, c.parent_comment_id, c.like_count,
@@ -117,7 +118,8 @@ struct InteractionsController {
                 'avatar_color', u.avatar_color, 'avatar_url', \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: "p.mode")))::text AS author,
               CASE WHEN rc.id IS NULL THEN NULL ELSE json_build_object('id', ru.id,
                 'display_name', \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "p.mode", alias: "ru")))::text END AS reply_to,
-              (c.author_id <> \(uuid: req.userID) AND \(PostStore.mutedWordHit(req.userID, textSQL: "c.content", modeRef: "p.mode"))) AS muted
+              (c.author_id <> \(uuid: req.userID) AND \(PostStore.mutedWordHit(req.userID, textSQL: "c.content", modeRef: "p.mode"))) AS muted,
+              c.lang, \(unsafeRaw: TranslationService.translatedColumn("c")) AS translated_text
             FROM comments c JOIN posts p ON p.id = c.post_id JOIN users u ON u.id = c.author_id
             LEFT JOIN comments rc ON rc.id = COALESCE(c.reply_to_comment_id, c.parent_comment_id)
             LEFT JOIN users ru ON ru.id = rc.author_id
@@ -133,7 +135,7 @@ struct InteractionsController {
                           parent_comment_id: r.parent_comment_id, like_count: r.like_count, is_liked: r.is_liked,
                           author: try dec.decode(CommentObject.CommentAuthor.self, from: Data(r.author.utf8)),
                           reply_to: try r.reply_to.map { try dec.decode(CommentObject.ReplyTo.self, from: Data($0.utf8)) },
-                          muted: r.muted)
+                          muted: r.muted, lang: r.lang, translated_text: r.translated_text)
         }
         return CommentsListResponse(data: comments, total: total)
     }
@@ -200,6 +202,7 @@ struct InteractionsController {
                 type: "comment_replied", actorID: req.userID, recipientID: answeredAuthorID,
                 postID: postID, commentID: created.id, parentCommentID: placement.replyToID))
         }
+        await TranslationService.enqueue(req, .comment, id: created.id)
         // TODO(phase 4): community_post_commented socket emit for open community viewers
         let res = try await DataResponse(data: payload).encodeResponse(for: req)
         res.status = .created
@@ -265,6 +268,7 @@ struct InteractionsController {
         let liked = try await db.raw("SELECT EXISTS(SELECT 1 FROM comment_likes WHERE comment_id = \(uuid: commentID) AND user_id = \(uuid: req.userID)) AS is_liked")
             .first(decoding: L.self)!.is_liked
         let author = try await personaAuthor(req.userID, mode: meta.mode, db)
+        await TranslationService.enqueue(req, .comment, id: u.id)
         return DataResponse(data: CommentObject(id: u.id, content: u.content, created_at: u.created_at,
             parent_comment_id: u.parent_comment_id, like_count: u.like_count, is_liked: liked, author: author))
     }
@@ -371,6 +375,9 @@ struct CommentObject: Content {
     /// Contains one of the viewer's muted words: still listed so threads keep
     /// their shape, but the app shows it collapsed.
     var muted: Bool = false
+    /// en | vi | other | none, and the text in the other of en/vi (migration 048).
+    @NullCoded var lang: String? = nil
+    @NullCoded var translated_text: String? = nil
     struct ReplyTo: Content {
         var id: String
         var display_name: String

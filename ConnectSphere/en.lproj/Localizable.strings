@@ -1091,3 +1091,11 @@
 /* Match % */
 "Don't suggest" = "Don't suggest";
 "%lld%% match" = "%lld%% match";
+
+/* Translations */
+"Show translation" = "Show translation";
+"Show original" = "Show original";
+"Show translated" = "Show translated";
+"Translated by AI" = "Translated by AI";
+"Translations" = "Translations";
+"Posts and comments in English or Vietnamese can be translated into the other. Translations are made by AI and may not be perfect." = "Posts and comments in English or Vietnamese can be translated into the other. Translations are made by AI and may not be perfect.";
