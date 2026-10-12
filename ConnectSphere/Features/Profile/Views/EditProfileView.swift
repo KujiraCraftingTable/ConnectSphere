@@ -71,7 +71,10 @@ struct EditProfileView: View {
 
                 // ── Basic info ─────────────────────────────────────────
                 Section(bundle.loc("About")) {
-                    TextField(bundle.loc("Display name"), text: $viewModel.displayName)
+                    HStack {
+                        TextField(bundle.loc("Display name"), text: $viewModel.displayName)
+                        CharacterCounter(count: viewModel.displayName.count, limit: DisplayNameRules.maxLength)
+                    }
                     TextField(bundle.loc("About yourself"), text: $viewModel.bio, axis: .vertical)
                         .lineLimit(3...5)
                     TextField(bundle.loc("Location"), text: $viewModel.location)

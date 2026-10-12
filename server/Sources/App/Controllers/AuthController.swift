@@ -130,7 +130,10 @@ struct AuthController {
 
         let googleId = info.sub!
         let email = info.email!
-        let name = info.name ?? String(email.split(separator: "@").first ?? "user")
+        // A Google name can be any length; it's only a starting point the
+        // user confirms during setup, so it's cut to the limit rather than refused.
+        let name = String((info.name ?? String(email.split(separator: "@").first ?? "user"))
+            .prefix(UserStore.maxDisplayNameLength))
 
         let db = req.db.sql()
         struct URow: Decodable { let id: String; let is_setup: Bool }
@@ -208,6 +211,7 @@ struct AuthController {
             throw InlineError(.badRequest, "Username must be 3-30 characters: lowercase letters, numbers, underscore")
         }
         guard !displayName.isEmpty else { throw InlineError(.badRequest, "display_name is required") }
+        guard UserStore.displayNameFits(displayName) else { throw InlineError(.badRequest, UserStore.displayNameTooLong) }
         guard !location.isEmpty else { throw InlineError(.badRequest, "location is required") }
 
         let dob = (b.dob ?? "").trimmingCharacters(in: .whitespaces)

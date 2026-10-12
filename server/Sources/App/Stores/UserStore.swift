@@ -5,6 +5,13 @@ import SQLKit
 /// `backend/src/routes/authRoutes.js` (`getUserById`) and
 /// `backend/src/models/userModel.js`.
 enum UserStore {
+    /// Characters (Swift `count`, spaces included), so a Vietnamese accented
+    /// letter counts once. Same limit as the app's `DisplayNameRules`: what
+    /// fits beside a comment's Author badge on a 6.1" iPhone.
+    static let maxDisplayNameLength = 30
+    static let displayNameTooLong = "Display name must be at most 30 characters"
+
+    static func displayNameFits(_ name: String) -> Bool { name.count <= maxDisplayNameLength }
 
     /// Port of `getUserById` in authRoutes.js. `display_name`/`bio`/`avatar_url`/
     /// `cover_url` resolve from the `default_mode` persona; `password_hash` and

@@ -29,7 +29,8 @@ struct PersonaSetupView: View {
                         AuthTextField(
                             icon: "textformat",
                             placeholder: bundle.loc("Display name *"),
-                            text: $viewModel.displayName
+                            text: $viewModel.displayName,
+                            characterLimit: DisplayNameRules.maxLength
                         )
 
                         if mode == .work {
