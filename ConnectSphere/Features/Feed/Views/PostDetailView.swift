@@ -9,7 +9,8 @@ struct PostRoute: Hashable {
     var focusComposer: Bool = false
 }
 
-/// Full-screen view of a single post with its comments inline below it and a
+/// Full-screen view of a single post with its comments below it, scrolling as
+/// one page under a top bar that holds the author and the ⋯ menu, and a
 /// pinned comment composer. Reached by tapping a post in the feed, tapping a
 /// post's comment button (`focusComposer: true`), or from a like/comment
 /// notification (`scrollToCommentId`).
@@ -30,6 +31,9 @@ struct PostDetailView: View {
     @State private var viewModel: PostDetailViewModel
     @State private var commentVM = CommentViewModel()
     @State private var draft = ""
+    /// The screen's width — the top bar's author block fills what the back
+    /// and ⋯ buttons leave, so it sits left beside the back button.
+    @State private var screenWidth: CGFloat = 0
     @FocusState private var composerFocused: Bool
 
     init(postId: String, scrollToCommentId: String? = nil, focusComposer: Bool = false) {
@@ -42,85 +46,77 @@ struct PostDetailView: View {
     private var post: Post? { viewModel.post }
 
     var body: some View {
-        // GeometryReader gives us the screen's own available height so the
-        // pinned post can be capped at a quarter of it (expanding to at most
-        // half) — without this, an unusually long post (long caption, several
-        // photos, an embedded share) would push the whole comments panel
-        // down/off-screen, since the post itself never scrolls away (see
-        // PostCard.collapsedTotalHeight). A short post never actually uses
-        // the full quarter — PostCard only clips once content genuinely
-        // overflows it — so the comments panel gets whatever's left over.
-        GeometryReader { geo in
-            // ScrollViewReader wraps the whole screen body (not just the
-            // ScrollView below) so the composer's Send button can also reach
-            // `proxy` — it needs to scroll to a just-sent comment directly,
-            // deterministically, rather than inferring "a comment was added"
-            // from a comments-count change (that approach raced against
-            // @Observable's deferred change notification and auto-scrolled
-            // on the initial load too; see PostCard/CommentSheet history).
-            ScrollViewReader { proxy in
-                VStack(spacing: 0) {
-                    // Pinned header — the post itself never scrolls away, so it can
-                    // be read side by side with the comments; only the comment
-                    // list below it scrolls. A rounded card like everywhere else
-                    // in the app (same as FeedView's post cards).
-                    if let post {
-                        PostCard(
-                            post: post,
-                            onPostDeleted: { dismiss() },
-                            onPostUpdated: { viewModel.post = $0 },
-                            collapsedTotalHeight: geo.size.height / 4,
-                            expandedTotalHeight: geo.size.height / 2
-                        )
-                        .cardStyle()
-                        .padding(.horizontal, AppSpacing.sm)
-                        .padding(.top, AppSpacing.sm)
-                        .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
-                    }
-
-                    // Comments panel: its own rounded card filling the rest of the
-                    // height. The ScrollView always takes its full proposed height,
-                    // so the card's fill covers the whole panel even with 0-1
-                    // comments; the list scrolls inside the rounded corners.
-                    VStack(spacing: 0) {
+        // ScrollViewReader wraps the whole screen body (not just the
+        // ScrollView below) so the composer's Send button can also reach
+        // `proxy` — it needs to scroll to a just-sent comment directly,
+        // deterministically, rather than inferring "a comment was added"
+        // from a comments-count change (that approach raced against
+        // @Observable's deferred change notification and auto-scrolled
+        // on the initial load too; see PostCard/CommentSheet history).
+        ScrollViewReader { proxy in
+            VStack(spacing: 0) {
+                // The post and its comments scroll as one page — two cards like
+                // the feed's — while the author and the ⋯ menu sit in the top
+                // bar, so a long post or thread gets the whole screen.
+                ScrollView {
+                    VStack(spacing: AppSpacing.sm) {
                         if let post {
-                            commentsHeader(count: post.commentCount)
+                            PostCard(
+                                post: post,
+                                onPostDeleted: { dismiss() },
+                                onPostUpdated: { viewModel.post = $0 },
+                                showsHeader: false
+                            )
+                            .cardStyle()
+                            commentsCard(post)
+                        } else if viewModel.loadFailed {
+                            errorState
+                        } else {
+                            ProgressView().padding(.top, 80)
                         }
-                        ScrollView {
-                            if let post {
-                                CommentsSection(
-                                    postId: postId,
-                                    postAuthorId: post.author.id,
-                                    viewModel: commentVM,
-                                    toastPresenter: toastPresenter,
-                                    // Next run-loop turn: the panel's dismiss-on-tap fires
-                                    // for this same tap and would otherwise win.
-                                    onReplyRequested: { Task { @MainActor in composerFocused = true } },
-                                    onCommentCountChange: { delta in adjustCommentCount(by: delta) }
-                                )
-                            } else if viewModel.loadFailed {
-                                errorState
-                            } else {
-                                ProgressView().padding(.top, 80)
-                            }
-                        }
-                        .scrollDismissesKeyboard(.interactively)
                     }
-                    .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
-                    .cardStyle()
                     .padding(.horizontal, AppSpacing.sm)
-                    .padding(.top, AppSpacing.sm)
-                    .task { await loadAll(proxy: proxy) }
+                    .padding(.vertical, AppSpacing.sm)
+                }
+                .scrollDismissesKeyboard(.interactively)
+                .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
+                .task { await loadAll(proxy: proxy) }
 
-                    if post != nil {
-                        composerBar(proxy: proxy)
-                    }
+                if post != nil {
+                    composerBar(proxy: proxy)
                 }
             }
         }
         .background(AppColors.base(colorScheme))
-        .navigationTitle(bundle.loc("Posts"))
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { screenWidth = $0 }
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
+        .toolbar { topBar }
+    }
+
+    // MARK: - Top bar
+
+    /// The back button (system), the author beside it, and the post's ⋯ menu
+    /// — Facebook-style, one row instead of a title bar above the post's own
+    /// header.
+    @ToolbarContentBuilder
+    private var topBar: some ToolbarContent {
+        if let post {
+            // Back and ⋯ are 44 pt glass circles, 16 pt from the edges, 8 pt gaps.
+            PostDetailAuthorItem(post: post, width: max(0, screenWidth - 2 * (16 + 44 + 8)))
+            if let actions = viewModel.actions {
+                ToolbarItem(placement: .topBarTrailing) {
+                    PostOptionsMenu(
+                        post: post,
+                        actions: actions,
+                        onPostDeleted: { dismiss() },
+                        onPostUpdated: { viewModel.post = $0 },
+                        onPostHidden: { dismiss() },
+                        inToolbar: true
+                    )
+                }
+            }
+        }
     }
 
     // MARK: - Load
@@ -144,7 +140,26 @@ struct PostDetailView: View {
 
     private func adjustCommentCount(by delta: Int) { viewModel.adjustCommentCount(by: delta) }
 
-    // MARK: - Comments header
+    // MARK: - Comments
+
+    private func commentsCard(_ post: Post) -> some View {
+        VStack(spacing: 0) {
+            commentsHeader(count: post.commentCount)
+            CommentsSection(
+                postId: postId,
+                postAuthorId: post.author.id,
+                viewModel: commentVM,
+                toastPresenter: toastPresenter,
+                // Next run-loop turn: the page's dismiss-on-tap fires
+                // for this same tap and would otherwise win.
+                onReplyRequested: { Task { @MainActor in composerFocused = true } },
+                onCommentCountChange: { delta in adjustCommentCount(by: delta) }
+            )
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardStyle()
+    }
+
 
     private func commentsHeader(count: Int) -> some View {
         Text(String(format: bundle.loc("Comments · %d"), count))
@@ -238,5 +253,98 @@ struct PostDetailView: View {
                 .padding(.horizontal, 40)
         }
         .padding(.top, 80)
+    }
+}
+
+// MARK: - Top bar author
+
+/// The author item: the middle slot, sized to span the bar between the back
+/// button and the ⋯ menu and left-aligned (a leading item is given too little
+/// width and truncates the name), without the Liquid Glass capsule
+/// iOS 26 puts behind toolbar items — it reads as the post's header.
+private struct PostDetailAuthorItem: ToolbarContent {
+    let post: Post
+    let width: CGFloat
+
+    var body: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .principal) {
+                PostDetailHeader(post: post).frame(width: width, alignment: .leading)
+            }
+                .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .principal) {
+                PostDetailHeader(post: post).frame(width: width, alignment: .leading)
+            }
+        }
+    }
+}
+
+/// The compact form of `PostCard`'s header, for the top bar beside the back
+/// button: avatar, name and "time · privacy" — or, for a community post, the
+/// community with "Posted by …". Opens the profile or the community.
+private struct PostDetailHeader: View {
+    @Environment(AppState.self) private var appState
+    @Environment(ThemeManager.self) private var themeManager
+    @Environment(\.appBundle) private var bundle
+    @Environment(\.colorScheme) private var colorScheme
+
+    let post: Post
+
+    @ViewBuilder
+    var body: some View {
+        if let community = post.community {
+            NavigationLink(destination:
+                CommunityDetailView(communityId: community.id, token: appState.authToken ?? "",
+                                    currentUserId: appState.currentUser?.id ?? "")
+                    .environment(appState).environment(themeManager)
+            ) {
+                HStack(spacing: 8) {
+                    Avatar(name: community.iconEmoji, imageURL: community.avatarUrl,
+                           size: .sm, shape: .roundedSquare)
+                    VStack(alignment: .leading, spacing: 1) {
+                        name(community.name)
+                        detail {
+                            Text(String(format: bundle.loc("Posted by %@"), post.author.name))
+                            Text("·")
+                            Text(post.timestamp.timeAgoString)
+                        }
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+        } else {
+            NavigationLink(destination:
+                UserProfileView(userId: post.author.id, preloadedUser: post.author)
+                    .environment(appState)
+            ) {
+                HStack(spacing: 8) {
+                    AvatarView(user: post.author, size: 34)
+                    VStack(alignment: .leading, spacing: 1) {
+                        name(post.author.name)
+                        detail {
+                            Text(post.timestamp.timeAgoString)
+                            Text("·")
+                            Image(systemName: post.privacy == .publicAll ? "globe.americas" : post.privacy.icon)
+                        }
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func name(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundColor(AppColors.textPrimary(colorScheme))
+            .lineLimit(1)
+    }
+
+    private func detail<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        HStack(spacing: 3) { content() }
+            .font(.system(size: 12))
+            .foregroundColor(AppColors.textSecondary(colorScheme))
+            .lineLimit(1)
     }
 }

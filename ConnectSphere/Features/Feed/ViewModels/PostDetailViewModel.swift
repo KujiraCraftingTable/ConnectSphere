@@ -10,6 +10,9 @@ final class PostDetailViewModel {
     var post: Post?
     /// The post is gone or not visible to this user.
     private(set) var loadFailed = false
+    /// Backs the top bar's ⋯ menu (edit, delete, hide, report); the card
+    /// below keeps its own for likes, comments and shares.
+    private(set) var actions: PostActionsViewModel?
 
     private let repository = PostRepository()
 
@@ -23,7 +26,9 @@ final class PostDetailViewModel {
         if post != nil { return true }
         guard !loadFailed else { return false }
         do {
-            post = try await repository.fetchPost(id: postId)
+            let loaded = try await repository.fetchPost(id: postId)
+            post = loaded
+            actions = PostActionsViewModel(post: loaded)
             return true
         } catch {
             loadFailed = true
