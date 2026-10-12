@@ -508,10 +508,10 @@ struct PostRepository {
             return nil
         }
 
-        return "\(APIConfig.serverBase)\(parsed.url)"
+        return parsed.url
     }
 
-    /// Uploads a video post (mp4/mov) through the same /uploads endpoint; returns an absolute URL
+    /// Uploads a video post (mp4/mov) through the same /uploads endpoint; returns its stored path (`/uploads/x.mp4`)
     func uploadVideo(fileURL: URL) async throws -> String? {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else { return nil }
         // No GPS/camera/date metadata leaves the phone.
@@ -545,6 +545,6 @@ struct PostRepository {
             return nil
         }
 
-        return "\(APIConfig.serverBase)\(parsed.url)"
+        return parsed.url
     }
 }

@@ -492,7 +492,7 @@ struct PostCard: View {
         Button { openLink(url) } label: {
             VStack(spacing: 0) {
                 // Thumbnail
-                if let imageUrl = post.imageUrl.flatMap({ URL(string: $0) }) {
+                if let imageUrl = APIConfig.mediaURL(post.imageUrl) {
                     AsyncImage(url: imageUrl) { phase in
                         switch phase {
                         case .success(let img):

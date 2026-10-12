@@ -165,7 +165,7 @@ struct PostsController {
             guard let created = try await PostStore.create(.init(
                 authorID: req.userID, content: b.content?.trimmingCharacters(in: .whitespaces) ?? "",
                 mode: mode, privacy: b.privacy ?? "public",
-                imageUrl: b.image_url?.nilIfEmpty, imageUrls: imageUrls, linkUrl: b.link_url?.nilIfEmpty,
+                imageUrl: MediaPath.storable(b.image_url), imageUrls: imageUrls, linkUrl: b.link_url?.nilIfEmpty,
                 articleTitle: b.article_title?.nilIfEmpty, sharedPostID: nil,
                 hashtags: hashtags, publishing: publishing), on: req.db)
             else { throw Abort(.internalServerError) }
@@ -246,9 +246,8 @@ struct PostsController {
 
     /// Port of `utils/postInput.js#normalizeImageUrls`.
     static func normalizeImageUrls(_ urls: [String]?) -> [String]? {
-        guard let urls else { return nil }
-        let clean = urls.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.prefix(10)
-        return clean.isEmpty ? nil : Array(clean)
+        guard let clean = MediaPath.storable(urls)?.prefix(10), !clean.isEmpty else { return nil }
+        return Array(clean)
     }
 
     // MARK: POST /api/posts/:id/share
@@ -325,15 +324,11 @@ struct PostsController {
 
         let b = try req.content.decode(UpdateBody.self)
         let contentProvided = (try? req.content.decode([String: AnyCodableValue].self))?.keys.contains("content") ?? false
-        var imageUrls: [String]? = nil
-        if let arr = b.image_urls {
-            let clean = arr.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.prefix(10)
-            imageUrls = clean.isEmpty ? nil : Array(clean)
-        }
+        let imageUrls = normalizeImageUrls(b.image_urls)
         let result = try await PostStore.updatePost(
             id, content: contentProvided ? (b.content ?? "").trimmingCharacters(in: .whitespaces) : nil,
             contentProvided: contentProvided, privacy: b.privacy?.nilIfEmpty,
-            imageUrl: b.image_url?.nilIfEmpty, imageUrls: imageUrls,
+            imageUrl: MediaPath.storable(b.image_url), imageUrls: imageUrls,
             linkUrl: b.link_url?.nilIfEmpty, articleTitle: b.article_title?.nilIfEmpty, on: sdb)
         switch result {
         case .empty: throw Abort(.badRequest, reason: "A post must have a caption, image, or link")

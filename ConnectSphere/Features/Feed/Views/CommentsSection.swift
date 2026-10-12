@@ -440,7 +440,7 @@ struct CommentRow: View {
 
     @ViewBuilder
     private var avatar: some View {
-        if let urlString = comment.author.avatarUrl, let url = URL(string: urlString) {
+        if let url = APIConfig.mediaURL(comment.author.avatarUrl) {
             AsyncImage(url: url) { phase in
                 if let image = phase.image {
                     image.resizable().scaledToFill()

@@ -605,7 +605,7 @@ struct CreatePostView: View {
                                     .scaledToFill()
                             } else if let remote = media.remoteURL, !media.isVideo {
                                 // A draft's photo, already uploaded.
-                                AsyncImage(url: URL(string: remote)) { image in
+                                AsyncImage(url: APIConfig.mediaURL(remote)) { image in
                                     image.resizable().scaledToFill()
                                 } placeholder: {
                                     Rectangle().fill(Color.gray.opacity(0.2))

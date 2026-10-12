@@ -495,7 +495,7 @@ struct ActorNotifRow: View {
 
     @ViewBuilder
     private var senderAvatar: some View {
-        if let urlString = avatarUrl, let url = URL(string: urlString) {
+        if let url = APIConfig.mediaURL(avatarUrl) {
             AsyncImage(url: url) { phase in
                 if let image = phase.image {
                     image.resizable().scaledToFill()

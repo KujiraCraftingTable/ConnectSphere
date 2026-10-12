@@ -19,6 +19,10 @@ final class TranslationTests: XCTestCase {
         XCTAssertEqual(TranslationService.cleanOutput("\"Hello there\"\n", source: "Xin chào"), "Hello there")
         XCTAssertEqual(TranslationService.cleanOutput("“Xin chào”", source: "“Hello”"), "“Xin chào”")   // the source was quoted too
         XCTAssertEqual(TranslationService.cleanOutput("Ay do he he he\nMeow meow /no_think", source: "x"), "Ay do he he he\nMeow meow")
+        XCTAssertEqual(TranslationService.cleanOutput("Okay, this is to check translation /no_translate", source: "Ok cái này là để kiểm tra dịch thuật"),
+                       "Okay, this is to check translation")
+        // The writer's own trailing command stays.
+        XCTAssertEqual(TranslationService.cleanOutput("Gõ /help", source: "Type /help"), "Gõ /help")
         XCTAssertEqual(TranslationService.cleanOutput("<think>\nuser wants EN\n</think>\n\nHello there", source: "Xin chào"), "Hello there")
     }
 

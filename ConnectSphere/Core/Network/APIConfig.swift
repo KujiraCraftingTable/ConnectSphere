@@ -26,13 +26,18 @@ enum APIConfig {
 
     static var baseURL: String { "\(serverBase)/api" }
 
-    /// Builds an absolute URL for uploaded media. Message media
-    /// (`/uploads/messages/*`) is auth-gated on the server; `AsyncImage` can't
-    /// send an Authorization header, so the JWT rides along as `?token=`.
-    /// Everything else (avatars, post/story images) is returned as-is.
-    static func mediaURL(_ path: String) -> URL? {
-        let full = serverBase + path
-        guard path.contains("/messages/"),
+    /// The URL to load a stored media link from. Our uploads are stored as a
+    /// bare path (`/uploads/x.jpg`) and get this device's server address in
+    /// front — never the uploader's, which other devices can't reach. Outside
+    /// links (YouTube thumbnails, link previews) are used as they are.
+    /// Message media (`/uploads/messages/*`) is auth-gated on the server;
+    /// `AsyncImage` can't send an Authorization header, so the JWT rides
+    /// along as `?token=`.
+    static func mediaURL(_ link: String?) -> URL? {
+        guard let link = link?.trimmingCharacters(in: .whitespacesAndNewlines), !link.isEmpty else { return nil }
+        guard link.hasPrefix("/") else { return URL(string: link) }
+        let full = serverBase + link
+        guard link.hasPrefix("/uploads/messages/"),
               let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey),
               var comps = URLComponents(string: full) else {
             return URL(string: full)

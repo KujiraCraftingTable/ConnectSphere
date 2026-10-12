@@ -162,8 +162,8 @@ struct UsersController {
         if sent("location")     { fields.append(("location", trimmedOrNil(raw.location))) }
         if sent("job_title")    { fields.append(("job_title", trimmedOrNil(raw.job_title))) }
         if sent("company")      { fields.append(("company", trimmedOrNil(raw.company))) }
-        if sent("avatar_url")   { fields.append(("avatar_url", (raw.avatar_url?.isEmpty ?? true) ? nil : raw.avatar_url)) }
-        if sent("cover_url")    { fields.append(("cover_url", (raw.cover_url?.isEmpty ?? true) ? nil : raw.cover_url)) }
+        if sent("avatar_url")   { fields.append(("avatar_url", MediaPath.storable(raw.avatar_url))) }
+        if sent("cover_url")    { fields.append(("cover_url", MediaPath.storable(raw.cover_url))) }
         if sent("dob")          { fields.append(("dob", (raw.dob?.isEmpty ?? true) ? nil : raw.dob)) }
         if sent("gender")       { fields.append(("gender", raw.gender)) }
         if sent("dob_visibility") { fields.append(("dob_visibility", raw.dob_visibility)) }

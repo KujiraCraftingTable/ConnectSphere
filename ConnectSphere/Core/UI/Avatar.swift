@@ -91,7 +91,7 @@ struct Avatar: View {
     }
 
     private func resolvedURL(_ s: String) -> URL? {
-        URL(string: s.hasPrefix("http") ? s : APIConfig.serverBase + s)
+        APIConfig.mediaURL(s)
     }
 }
 
