@@ -199,6 +199,11 @@ struct PostDetailView: View {
                 .padding(.horizontal, AppSpacing.sm)
             }
 
+            if commentVM.attachedPhoto != nil {
+                CommentPhotoPreview(viewModel: commentVM)
+                    .padding(.horizontal, AppSpacing.md)
+            }
+
             HStack(spacing: 10) {
                 if let me = appState.currentUser {
                     AvatarView(user: me, size: 36)
@@ -212,6 +217,8 @@ struct PostDetailView: View {
                     .padding(.vertical, 9)
                     .background(AppColors.surface(colorScheme), in: Capsule())
                     .overlay(Capsule().stroke(AppColors.borderDefault(colorScheme), lineWidth: 1))
+
+                CommentPhotoButton(viewModel: commentVM)
 
                 Button {
                     Task {
@@ -229,10 +236,10 @@ struct PostDetailView: View {
                 } label: {
                     Image(systemName: commentVM.isSending ? "clock" : "paperplane.fill")
                         .font(.system(size: 20))
-                        .foregroundColor(draft.trimmingCharacters(in: .whitespaces).isEmpty
-                                         ? AppColors.textSecondary(colorScheme) : themeManager.theme.primary)
+                        .foregroundColor(commentVM.canSend(draft)
+                                         ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
                 }
-                .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty || commentVM.isSending)
+                .disabled(!commentVM.canSend(draft))
             }
             .padding(.horizontal, AppSpacing.md)
         }

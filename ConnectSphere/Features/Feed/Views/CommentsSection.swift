@@ -381,10 +381,17 @@ struct CommentRow: View {
                 }
             }
 
-            Text(showsTranslation ? (comment.translatedText ?? comment.content) : comment.content)
-                .font(.system(size: 14))
-                .foregroundColor(AppColors.textPrimary(colorScheme))
-                .fixedSize(horizontal: false, vertical: true)
+            // A photo-only comment has no text line.
+            if !comment.content.isEmpty {
+                Text(showsTranslation ? (comment.translatedText ?? comment.content) : comment.content)
+                    .font(.system(size: 14))
+                    .foregroundColor(AppColors.textPrimary(colorScheme))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let photo = comment.imageUrl {
+                CommentPhoto(path: photo)
+                    .padding(.top, 4)
+            }
             if canTranslate {
                 TranslationToggle(showingTranslation: showsTranslation, fontSize: 12) {
                     withAnimation(.snappy) { TranslationStore.shared.toggle(TranslationStore.key(comment: comment.id)) }

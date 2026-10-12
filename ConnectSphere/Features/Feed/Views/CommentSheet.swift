@@ -73,6 +73,13 @@ struct CommentSheet: View {
                         .background(themeManager.theme.primary.opacity(0.06))
                     }
 
+                    if viewModel.attachedPhoto != nil {
+                        CommentPhotoPreview(viewModel: viewModel)
+                            .padding(.horizontal, 14)
+                            .padding(.top, 8)
+                            .background(AppColors.surface(colorScheme))
+                    }
+
                     // ── Input bar ───────────────────────────────────────────────
                     HStack(spacing: 10) {
                         if let me = appState.currentUser {
@@ -88,6 +95,8 @@ struct CommentSheet: View {
                             .background(AppColors.base(colorScheme))
                             .clipShape(RoundedRectangle(cornerRadius: 20))
 
+                        CommentPhotoButton(viewModel: viewModel)
+
                         Button {
                             Task {
                                 let text = input
@@ -101,10 +110,10 @@ struct CommentSheet: View {
                         } label: {
                             Image(systemName: viewModel.isSending ? "clock" : "paperplane.fill")
                                 .font(.system(size: 20))
-                                .foregroundColor(input.trimmingCharacters(in: .whitespaces).isEmpty
-                                                 ? AppColors.textSecondary(colorScheme) : themeManager.theme.primary)
+                                .foregroundColor(viewModel.canSend(input)
+                                                 ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
                         }
-                        .disabled(input.trimmingCharacters(in: .whitespaces).isEmpty || viewModel.isSending)
+                        .disabled(!viewModel.canSend(input))
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)

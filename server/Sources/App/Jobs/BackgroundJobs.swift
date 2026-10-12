@@ -386,7 +386,10 @@ enum BackgroundJobs {
 
                 var payload: [String: Any] = [:]
                 if p.type == "post_commented" || p.type == "comment_replied" {
-                    if let ex = try await commentExcerpt(p.commentID, on: db) { payload["excerpt"] = ex }
+                    let (ex, photo) = try await commentExcerpt(p.commentID, on: db)
+                    if let ex { payload["excerpt"] = ex }
+                    // A photo-only comment: the app says "commented a photo".
+                    if ex == nil, photo { payload["commentPhoto"] = true }
                     if let cid = p.commentID { payload["commentId"] = cid }
                     if let par = p.parentCommentID { payload["parentCommentId"] = par }
                 }
@@ -435,13 +438,14 @@ enum BackgroundJobs {
             }
         }
 
-        private static func commentExcerpt(_ commentID: String?, on db: any SQLDatabase) async throws -> String? {
-            guard let commentID else { return nil }
-            struct R: Decodable { let content: String? }
-            let content = try await db.raw("SELECT content FROM comments WHERE id = \(uuid: commentID) AND status = 'posted'")
-                .first(decoding: R.self)?.content ?? nil
-            guard let content, !content.isEmpty else { return nil }
-            return String(content.prefix(120))
+        /// The comment's text (cut to 120 characters), and whether it has a photo.
+        private static func commentExcerpt(_ commentID: String?, on db: any SQLDatabase) async throws -> (String?, Bool) {
+            guard let commentID else { return (nil, false) }
+            struct R: Decodable { let content: String?; let image_url: String? }
+            guard let row = try await db.raw("SELECT content, image_url FROM comments WHERE id = \(uuid: commentID) AND status = 'posted'")
+                .first(decoding: R.self) else { return (nil, false) }
+            let text = row.content.flatMap { $0.isEmpty ? nil : String($0.prefix(120)) }
+            return (text, row.image_url != nil)
         }
     }
 

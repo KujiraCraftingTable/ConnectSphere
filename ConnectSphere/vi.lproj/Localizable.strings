@@ -1100,3 +1100,7 @@
 "Translations" = "Bản dịch";
 "Posts and comments in English or Vietnamese can be translated into the other. Translations are made by AI and may not be perfect." = "Bài viết và bình luận tiếng Anh hoặc tiếng Việt có thể dịch sang ngôn ngữ còn lại. Bản dịch do AI tạo nên có thể chưa hoàn hảo.";
 "%lld of %lld characters" = "%lld trên %lld ký tự";
+"Add a photo" = "Thêm ảnh";
+"Remove photo" = "Xoá ảnh";
+"%@ commented with a photo" = "%@ đã bình luận bằng một ảnh";
+"%@ replied to your comment with a photo" = "%@ đã trả lời bình luận của bạn bằng một ảnh";
