@@ -14,13 +14,6 @@ struct PostCard: View {
     @State private var showComments  = false
     @State private var showShareSheet = false
 
-    // Action states
-    @State private var showDeleteAlert = false
-    @State private var showEditSheet   = false
-    @State private var showReportDialog  = false
-    // Delete/hide/restore failures used to only #if DEBUG print — nothing
-    // on screen, so a failed action looked identical to a successful one.
-
     var post: Post
     var disableSelfNavigation: Bool = false
     var onOwnAvatarTapped: (() -> Void)? = nil
@@ -45,39 +38,13 @@ struct PostCard: View {
     /// on the main Feed, where the author's name is already a link to their
     /// profile if you want to connect from there.
     var showConnectButton: Bool = true
-    /// Corner radius for the card's own clip shape. Default `12` everywhere;
-    /// `PostDetailView` passes `0` so its embedded copy reads as a square-edged
-    /// panel pinned at the top of the screen rather than a floating card.
+    /// Corner radius for the card's own clip shape.
     var cornerRadius: CGFloat = 12
-    /// When set, the whole card (header + content + action row) is capped at
-    /// most to this total height *only while its content actually needs more
-    /// room than that* — the header and action row always render in full;
-    /// the content region (text/tags/media/poll/event) renders at its true
-    /// natural height when that already fits the budget (a short post is
-    /// never stretched to fill it), and only clips — with an "Expand" button
-    /// overlaid at its bottom-right — once it genuinely overflows. Tapping it
-    /// (or the "Collapse" button that replaces it once expanded) toggles a
-    /// bounded, scrollable full view capped at `expandedTotalHeight`. `nil`
-    /// (every host except `PostDetailView`) = always full height, no clipping.
-    var collapsedTotalHeight: CGFloat? = nil
-    /// Total on-screen height cap for the expanded state (same "whole card"
-    /// budget `collapsedTotalHeight` is), used only once `isContentExpanded`.
-    /// `nil` falls back to `collapsedTotalHeight * 2`.
-    var expandedTotalHeight: CGFloat? = nil
+    /// `false` in `PostDetailView`, whose top bar shows the author and the ⋯
+    /// menu instead, so the card starts with the post itself.
+    var showsHeader: Bool = true
 
     @State private var shakeAmount: CGFloat = 0
-    @State private var isContentExpanded = false
-    // Seeded with realistic estimates so the very first render (before the
-    // real measurements land via readHeight) doesn't briefly show too much
-    // content and then visibly snap down a frame later.
-    @State private var measuredHeaderHeight: CGFloat = 64
-    @State private var measuredActionsHeight: CGFloat = 54
-    /// The content region's true natural height, kept live via `readHeight`
-    /// while it fits the budget; `nil` until first measured.
-    @State private var measuredContentHeight: CGFloat? = nil
-    /// Natural height of the body while expanded — the expanded region shrinks
-    /// to it, so short media doesn't leave a blank band under itself.
-    @State private var expandedContentHeight: CGFloat? = nil
     /// Drives the in-app browser (see `openLink(_:)`) for a tapped http(s)
     /// link — the link-preview card or an in-text URL.
     @State private var inAppBrowserURL: URL?
@@ -94,8 +61,7 @@ struct PostCard: View {
         onUnpin: (() -> Void)? = nil,
         showConnectButton: Bool = true,
         cornerRadius: CGFloat = 12,
-        collapsedTotalHeight: CGFloat? = nil,
-        expandedTotalHeight: CGFloat? = nil
+        showsHeader: Bool = true
     ) {
         self.post = post
         self.disableSelfNavigation = disableSelfNavigation
@@ -108,8 +74,7 @@ struct PostCard: View {
         self.onUnpin = onUnpin
         self.showConnectButton = showConnectButton
         self.cornerRadius = cornerRadius
-        self.collapsedTotalHeight = collapsedTotalHeight
-        self.expandedTotalHeight = expandedTotalHeight
+        self.showsHeader = showsHeader
         _actions = State(initialValue: PostActionsViewModel(post: post))
     }
 
@@ -125,12 +90,15 @@ struct PostCard: View {
 
     private var mainCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            postHeader
-                .readHeight { measuredHeaderHeight = $0 }
-            collapsibleBody
+            if showsHeader {
+                postHeader
+                postBody
+            } else {
+                // The header's top inset, which the body's own 10 pt continues.
+                postBody.padding(.top, 2)
+            }
             Divider().padding(.horizontal, 12).padding(.top, 8)
             actionButtons
-                .readHeight { measuredActionsHeight = $0 }
         }
         .background(AppColors.surface(colorScheme))
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
@@ -152,14 +120,6 @@ struct PostCard: View {
             }
             .environment(appState)
         }
-        // Edit sheet — reuses CreatePostView with editingPost
-        .sheet(isPresented: $showEditSheet) {
-            CreatePostView(editingPost: post, onPostUpdated: { updatedPost in
-                onPostUpdated?(updatedPost)
-            })
-            .environment(appState)
-            .environment(themeManager)
-        }
         // Share sheet
         .sheet(isPresented: $showShareSheet) {
             SharePostSheet(post: post) {
@@ -167,50 +127,6 @@ struct PostCard: View {
             }
             .environment(appState)
             .environment(themeManager)
-        }
-        // Delete confirmation alert
-        .alert(bundle.loc("Delete post?"), isPresented: $showDeleteAlert) {
-            Button(bundle.loc("Delete"), role: .destructive) {
-                Task {
-                    guard await actions.delete(post: post) else { return }
-                    onPostDeleted?()
-                    // Undo within a few seconds; after that it's in Recently Deleted for 30 days.
-                    let deletedPostId = post.id
-                    toastPresenter.show(message: bundle.loc("Post deleted")) {
-                        Task { await actions.restore(postId: deletedPostId) }
-                    }
-                }
-            }
-            Button(bundle.loc("Cancel"), role: .cancel) {}
-        } message: {
-            Text("This post won't be shown in the app. You can restore it from Recently Deleted within 30 days.", bundle: bundle)
-        }
-        // Report reason picker
-        .confirmationDialog(
-            bundle.loc("Why are you reporting this content?"),
-            isPresented: $showReportDialog,
-            titleVisibility: .visible
-        ) {
-            ForEach(ReportReason.allCases, id: \.self) { reason in
-                Button(reason.displayName) {
-                    Task { await actions.report(postId: post.id, reason: reason) }
-                }
-            }
-            Button(bundle.loc("Cancel"), role: .cancel) {}
-        }
-        // Report result feedback
-        .alert(actions.reportResultMessage ?? "", isPresented: Binding(
-            get: { actions.reportResultMessage != nil },
-            set: { if !$0 { actions.reportResultMessage = nil } }
-        )) {
-            Button(bundle.loc("Done")) {}
-        }
-        // Delete/hide/restore failures
-        .alert(actions.actionErrorMessage ?? "", isPresented: Binding(
-            get: { actions.actionErrorMessage != nil },
-            set: { if !$0 { actions.actionErrorMessage = nil } }
-        )) {
-            Button(bundle.loc("OK")) {}
         }
         // Resyncs the locally-tracked count whenever a fresh `post` value
         // flows in from the parent (e.g. after `.postUpdated` patches this
@@ -311,116 +227,6 @@ struct PostCard: View {
                 EmptyView()
             }
         }
-    }
-
-    // MARK: Collapsible body (PostDetailView's 1/4-height preview)
-
-    /// A post with a link preview or uploaded photos/videos was already
-    /// fully visible on the feed card that led here — always start it
-    /// collapsed in `PostDetailView` (Expand still available) so the
-    /// comments panel gets the space back by default, regardless of whether
-    /// the media would technically fit the budget. Text-only posts are
-    /// unaffected — they keep sizing to their natural height.
-    private var hasMediaOrLinkContent: Bool {
-        post.linkUrl != nil || !post.displayImageUrls.isEmpty
-    }
-
-    /// Wraps `postBody` with the collapse/expand treatment when
-    /// `collapsedTotalHeight` is set; otherwise renders it untouched. The
-    /// header and action row are never part of the clipped region — only the
-    /// budget left over after their (measured) height is spent on content.
-    /// A live (not one-way-locked) comparison: a post whose content already
-    /// fits the budget is never stretched or clipped, and never shows the
-    /// Expand button — only a post that genuinely overflows (or has media/a
-    /// link, see `hasMediaOrLinkContent`) gets the clip + fade + button
-    /// treatment.
-    @ViewBuilder
-    private var collapsibleBody: some View {
-        if let totalBudget = collapsedTotalHeight {
-            // Small fixed allowance for the Divider + its padding (~9pt) —
-            // not worth measuring separately, it barely varies.
-            let contentBudget = max(80, totalBudget - measuredHeaderHeight - measuredActionsHeight - 9)
-            // nil = not measured yet → treat as "fits" so the very first
-            // render never shows a spurious clip/Expand button before any
-            // real measurement lands. A post with media/a link is always
-            // forced to the collapsed branch regardless of measured height.
-            let fits = !hasMediaOrLinkContent && (measuredContentHeight.map { $0 <= contentBudget } ?? true)
-
-            if isContentExpanded {
-                let expandedBudget = max(
-                    contentBudget,
-                    (expandedTotalHeight ?? totalBudget * 2) - measuredHeaderHeight - measuredActionsHeight - 9
-                )
-                let expandedCap = min(expandedBudget, 480)
-                ZStack(alignment: .bottomTrailing) {
-                    ScrollView {
-                        // Not `readHeight`: its shared preference key also carries
-                        // the heights of views inside the post, and the last one
-                        // reported (a single text line) won — collapsing the region.
-                        postBody
-                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
-                                expandedContentHeight = $0
-                            }
-                    }
-                    // Generous but still bounded — even a very long post stays
-                    // scrollable within its own region instead of swallowing
-                    // the whole screen (and pushing the comments panel away,
-                    // which is exactly the problem this feature avoids).
-                    // Collapse floats over the content's corner, never its own row.
-                    .frame(height: min(expandedContentHeight ?? expandedCap, expandedCap))
-                    expandCollapseButton(systemImage: "chevron.up", label: "Collapse") {
-                        withAnimation(.easeInOut(duration: 0.22)) { isContentExpanded = false }
-                    }
-                }
-            } else if fits {
-                // Content already fits the budget on its own — render it at
-                // its true natural height (no frame, no clip, no button).
-                // `readHeight` stays attached here (not in the `else` branch
-                // below) so a post that grows past the budget — or is still
-                // mid-measurement — keeps getting re-checked on every render.
-                postBody
-                    .readHeight { measuredContentHeight = $0 }
-            } else {
-                ZStack(alignment: .bottomTrailing) {
-                    postBody
-                        .frame(height: contentBudget, alignment: .top)
-                        .clipped()
-                    // Fade so the hard clip at the bottom reads as "more below"
-                    // rather than content getting cut off unintentionally —
-                    // media (PostPhotoGrid tiles) already crop via
-                    // `scaledToFill()`, so this looks consistent for a photo/
-                    // video post too, not just truncated text.
-                    LinearGradient(
-                        colors: [AppColors.surface(colorScheme).opacity(0), AppColors.surface(colorScheme)],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                    .frame(height: 44)
-                    .allowsHitTesting(false)
-                    expandCollapseButton(systemImage: "chevron.down", label: "Expand") {
-                        withAnimation(.easeInOut(duration: 0.22)) { isContentExpanded = true }
-                    }
-                }
-                .frame(height: contentBudget, alignment: .top)
-            }
-        } else {
-            postBody
-        }
-    }
-
-    private func expandCollapseButton(systemImage: String, label: LocalizedStringKey, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
-                Text(label, bundle: bundle)
-                    .font(.system(size: 12, weight: .semibold))
-                Image(systemName: systemImage)
-                    .font(.system(size: 10, weight: .semibold))
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .modifier(FloatingCapsuleStyle())
-        }
-        .buttonStyle(.plain)
-        .padding(8)
     }
 
     // MARK: Shake
@@ -683,59 +489,8 @@ struct PostCard: View {
     }
 
     private var postHeaderMenu: some View {
-        Menu {
-            if let onPin, !post.isPinned {
-                Button {
-                    onPin()
-                } label: {
-                    Label(bundle.loc("Pin post"), systemImage: "pin")
-                }
-            }
-            if let onUnpin, post.isPinned {
-                Button {
-                    onUnpin()
-                } label: {
-                    Label(bundle.loc("Unpin post"), systemImage: "pin.slash")
-                }
-            }
-
-            let isSelf = post.author.id == appState.currentUser?.id
-            if isSelf {
-                Button { showEditSheet = true } label: {
-                    Label(bundle.loc("Edit post"), systemImage: "pencil")
-                }
-                Button(role: .destructive) {
-                    // Delay so the menu finishes dismissing before the alert appears (SwiftUI timing bug)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        showDeleteAlert = true
-                    }
-                } label: {
-                    Label(bundle.loc("Delete post"), systemImage: "trash")
-                }
-            } else {
-                Button {
-                    // Undo un-hides in place: the post never left the list.
-                    Task { await actions.hide(postId: post.id) }
-                    let hiddenPostId = post.id
-                    toastPresenter.show(message: bundle.loc("Post hidden")) {
-                        Task { await actions.unhide(postId: hiddenPostId) }
-                    }
-                } label: {
-                    Label(bundle.loc("Hide post"), systemImage: "eye.slash")
-                }
-                Button(role: .destructive) {
-                    showReportDialog = true
-                } label: {
-                    Label(bundle.loc("Report post"), systemImage: "flag")
-                }
-            }
-        } label: {
-            Image(systemName: "ellipsis")
-                .font(.system(size: 18))
-                .foregroundColor(AppColors.textSecondary(colorScheme))
-                .frame(width: 36, height: 36)
-                .contentShape(Rectangle())
-        }
+        PostOptionsMenu(post: post, actions: actions, onPin: onPin, onUnpin: onUnpin,
+                        onPostDeleted: onPostDeleted, onPostUpdated: onPostUpdated)
     }
 
     // MARK: Hashtag Chips
@@ -876,41 +631,5 @@ struct PostCard: View {
             RoundedRectangle(cornerRadius: 10)
                 .stroke(AppColors.borderDefault(colorScheme), lineWidth: 1)
         )
-    }
-}
-
-// MARK: - Height measuring (feeds PostCard's collapsedTotalHeight budget)
-
-private struct HeightPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-}
-
-private extension View {
-    /// Reports this view's rendered height via `onChange` without affecting
-    /// its own layout (measured through a zero-size `.background`).
-    func readHeight(_ onChange: @escaping (CGFloat) -> Void) -> some View {
-        background(
-            GeometryReader { geo in
-                Color.clear.preference(key: HeightPreferenceKey.self, value: geo.size.height)
-            }
-        )
-        .onPreferenceChange(HeightPreferenceKey.self, perform: onChange)
-    }
-}
-
-/// Expand / Collapse capsule floating over media: Liquid Glass on iOS 26+,
-/// a dark translucent capsule before.
-private struct FloatingCapsuleStyle: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            content
-                .foregroundStyle(.primary)
-                .glassEffect(.regular.interactive(), in: Capsule())
-        } else {
-            content
-                .foregroundColor(.white)
-                .background(Color.black.opacity(0.55), in: Capsule())
-        }
     }
 }
