@@ -137,6 +137,21 @@ class ProfileViewModel {
         isLoading = false
     }
 
+    /// Pull-to-refresh: like `load` but the profile and posts stay on screen
+    /// while it runs (no spinner swap), and a failed pull keeps them.
+    func refresh(userId: String, mode: String? = nil) async {
+        guard let (u, p) = try? await (
+            repository.fetchUser(userId: userId, mode: mode),
+            repository.fetchPosts(authorId: userId, mode: mode, limit: pageSize, offset: 0)
+        ) else { return }
+        user = u
+        posts = p
+        loadedMode = mode
+        hasMore = p.count == pageSize
+        offset = p.count
+        error = nil
+    }
+
     func loadMorePosts(userId: String, mode: String?) async {
         guard !isLoadingMore, hasMore else { return }
         isLoadingMore = true

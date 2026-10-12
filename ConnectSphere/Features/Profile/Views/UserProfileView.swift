@@ -52,6 +52,10 @@ struct UserProfileView: View {
             }
             // The cover runs up under the status bar; its fade keeps it legible.
             .ignoresSafeArea(edges: .top)
+            .refreshable {
+                await viewModel.refresh(userId: userId, mode: appState.currentMode.rawValue)
+                if userId != appState.currentUser?.id { await viewModel.loadBlockStatus(userId: userId) }
+            }
         }
         .background(AppColors.base(colorScheme))
         .navigationBarTitleDisplayMode(.inline)
