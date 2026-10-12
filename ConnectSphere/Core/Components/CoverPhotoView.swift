@@ -27,17 +27,25 @@ struct CoverPhotoView: View {
 
 /// What a cover shows, filling whatever frame it's given: the photo, or the
 /// theme gradient when there's none. Shared by `CoverPhotoView` and the
-/// profile header's blurred backdrop, so both fade the same way.
+/// profile header's mirrored extension below it.
 struct CoverArtwork: View {
     @Environment(ThemeManager.self) private var themeManager
 
     let coverUrl: String?
+    /// Stretch the photo to the frame instead of cropping it: the profile's
+    /// extension is much taller than 3 : 2, and under its blur a vertical
+    /// stretch reads as soft streaks, where cropping would zoom the photo.
+    var stretch = false
 
     var body: some View {
         if let url = APIConfig.mediaURL(coverUrl) {
             AsyncImage(url: url) { phase in
                 if let image = phase.image {
-                    image.resizable().scaledToFill()
+                    if stretch {
+                        image.resizable()
+                    } else {
+                        image.resizable().scaledToFill()
+                    }
                 } else {
                     fallbackGradient
                 }

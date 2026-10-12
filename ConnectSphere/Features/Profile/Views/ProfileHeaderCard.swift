@@ -7,9 +7,10 @@ enum ProfileStat {
 
 /// A profile's whole header as one component, Facebook-style: the cover runs
 /// edge to edge up under the status bar (its top fades into the page so the
-/// clock and nav buttons stay legible) and stays sharp down to a blurred copy
-/// of itself that carries on behind a floating rounded card — inset like the post cards —
-/// fading to the page colour just below it. The card holds a large centred
+/// clock and nav buttons stay legible) and stays sharp to its bottom edge,
+/// where a mirrored, softly blurred reflection of it carries on behind a
+/// floating rounded card — inset like the post cards — and fades to the page
+/// colour by the card's bottom. The card holds a large centred
 /// avatar, name, job, the four counts, the full bio, this mode's interests or
 /// skills, and the action buttons.
 /// Shared by your own `ProfileView` and other people's `UserProfileView`.
@@ -36,51 +37,58 @@ struct ProfileHeaderCard<Actions: View>: View {
                 .padding(.top, -cardOverlap)
                 .padding(.bottom, AppSpacing.md)        // a strip of faded cover under the card
         }
-        .background(alignment: .top) { backdrop }
+        .background(alignment: .top) {
+            VStack(spacing: 0) {
+                // A soft copy of the cover behind it, for its bottom to dissolve into.
+                CoverPhotoView(coverUrl: user.coverUrl)
+                    .blur(radius: 12, opaque: true)
+                coverExtension
+                // The strip under the card stays clear: the fade ends with the card.
+                Color.clear.frame(height: AppSpacing.md)
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
     }
 
-    // MARK: Backdrop
+    // MARK: Cover extension
 
-    /// The cover again, heavily blurred so stretching it can't look pixelated
-    /// or mis-framed, filling the whole header and fading out by its bottom —
-    /// what shows in the margins around the card.
-    private var backdrop: some View {
+    /// The cover's continuation behind the card. The saved cover is exactly
+    /// 3 : 2, so there's no more photo below its edge: this mirrors it (its
+    /// top row is the photo's bottom row, so it carries on without a seam),
+    /// blurs it softly and fades it out by the card's bottom — what shows in
+    /// the margins beside the card. The sharp cover's bottom dissolves into a
+    /// soft copy of itself just above (see `cover`), so there's no line where
+    /// sharp turns soft.
+    private var coverExtension: some View {
         Color.clear
-            .overlay { CoverArtwork(coverUrl: user.coverUrl) }
-            .blur(radius: 40, opaque: true)
+            .overlay { CoverArtwork(coverUrl: user.coverUrl, stretch: true) }
+            .scaleEffect(x: 1, y: -1)
+            .blur(radius: 12, opaque: true)
             .mask(LinearGradient(stops: [
                 .init(color: .black, location: 0),
-                .init(color: .black.opacity(0.6), location: 0.5),
+                .init(color: .black.opacity(0.55), location: 0.45),
                 .init(color: .clear, location: 1),
             ], startPoint: .top, endPoint: .bottom))
             .clipped()
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
     }
 
     // MARK: Cover
 
-    /// The framed cover as cropped: its top fades into the page (so the clock
-    /// and buttons stay legible) and, more gently, its bottom too, so the
-    /// photo softens into the card instead of ending on a hard line.
+    /// The framed cover as cropped, its top fading into the page so the clock
+    /// and buttons stay legible. Its bottom dissolves into a soft copy of itself behind it.
     private var cover: some View {
         CoverPhotoView(coverUrl: user.coverUrl)
+            .mask(LinearGradient(stops: [
+                .init(color: .black, location: 0.82),
+                .init(color: .clear, location: 1),
+            ], startPoint: .top, endPoint: .bottom))
             .overlay(alignment: .top) {
                 GeometryReader { geo in
                     LinearGradient(
                         colors: [AppColors.base(colorScheme).opacity(0.85), AppColors.base(colorScheme).opacity(0)],
                         startPoint: .top, endPoint: .bottom)
                         .frame(height: geo.size.height * CoverPhotoView.fadedTopFraction)
-                }
-                .allowsHitTesting(false)
-            }
-            .overlay(alignment: .bottom) {
-                GeometryReader { geo in
-                    LinearGradient(
-                        colors: [AppColors.base(colorScheme).opacity(0), AppColors.base(colorScheme).opacity(0.45)],
-                        startPoint: .top, endPoint: .bottom)
-                        .frame(height: geo.size.height * 0.22)
-                        .frame(maxHeight: .infinity, alignment: .bottom)
                 }
                 .allowsHitTesting(false)
             }
