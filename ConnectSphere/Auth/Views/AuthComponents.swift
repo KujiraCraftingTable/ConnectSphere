@@ -101,6 +101,8 @@ struct AuthTextField: View {
     var isSecure: Bool = false
     var keyboardType: UIKeyboardType = .default
     var prefix: String? = nil
+    /// Shows "n/limit" at the trailing edge (the caller caps the text).
+    var characterLimit: Int? = nil
 
     @Environment(ThemeManager.self) var themeManager
     @State private var isRevealed = false
@@ -133,6 +135,10 @@ struct AuthTextField: View {
             }
             .foregroundColor(AppColors.textPrimary(.light))
             .font(.system(size: 15))
+
+            if let characterLimit {
+                CharacterCounter(count: text.count, limit: characterLimit)
+            }
 
             if isSecure {
                 Button(action: { isRevealed.toggle() }) {

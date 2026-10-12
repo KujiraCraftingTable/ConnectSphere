@@ -11,7 +11,13 @@ final class OnboardingViewModel {
     private(set) var step = 0
     /// Which way the last step change went — drives the slide direction.
     private(set) var movedForward = true
-    var form = OnboardingForm()
+    var form = OnboardingForm() {
+        didSet {
+            if form.display_name.count > DisplayNameRules.maxLength {
+                form.display_name = DisplayNameRules.capped(form.display_name)
+            }
+        }
+    }
     var selectedInterests: [InterestItem] = []
     private(set) var isLoading = false
     private(set) var errorMessage: String?

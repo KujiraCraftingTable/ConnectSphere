@@ -128,6 +128,9 @@ struct UsersController {
         if sent("display_name"), (raw.display_name ?? "").trimmingCharacters(in: .whitespaces).isEmpty {
             throw InlineError(.badRequest, "display_name cannot be empty")
         }
+        if sent("display_name"), !UserStore.displayNameFits((raw.display_name ?? "").trimmingCharacters(in: .whitespaces)) {
+            throw InlineError(.badRequest, UserStore.displayNameTooLong)
+        }
         if sent("bio"), let bio = raw.bio, bio.count > 500 {
             throw InlineError(.badRequest, "bio must be at most 500 characters")
         }
@@ -212,6 +215,7 @@ struct UsersController {
         }
         let displayName = (b.display_name ?? "").trimmingCharacters(in: .whitespaces)
         guard !displayName.isEmpty else { throw InlineError(.badRequest, "display_name is required") }
+        guard UserStore.displayNameFits(displayName) else { throw InlineError(.badRequest, UserStore.displayNameTooLong) }
         if let bio = b.bio, bio.count > 500 { throw InlineError(.badRequest, "bio must be at most 500 characters") }
 
         let sdb = req.db.sql()

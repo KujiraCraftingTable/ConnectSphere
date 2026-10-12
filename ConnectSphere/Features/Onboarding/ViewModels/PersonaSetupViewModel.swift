@@ -7,7 +7,9 @@ import Observation
 @Observable
 final class PersonaSetupViewModel {
     let mode: AppMode
-    var displayName = ""
+    var displayName = "" {
+        didSet { if displayName.count > DisplayNameRules.maxLength { displayName = DisplayNameRules.capped(displayName) } }
+    }
     var jobTitle = ""
     var company = ""
     /// Work skills as one comma-separated line.

@@ -176,7 +176,7 @@ struct CommentsSection: View {
             if viewModel.isCollapsed(comment) {
                 mutedRow(comment)
             } else {
-                commentRow(comment, answering: parent)
+                commentRow(comment, level: level, answering: parent)
             }
         }
         .id(comment.id)
@@ -204,11 +204,12 @@ struct CommentsSection: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func commentRow(_ comment: CommentDTO, answering parent: CommentDTO?) -> some View {
+    private func commentRow(_ comment: CommentDTO, level: Int, answering parent: CommentDTO?) -> some View {
         let target = comment.replyTo.map { CommentReplyTarget(name: $0.displayName, userId: $0.id) }
             ?? parent.map { CommentReplyTarget(name: $0.author.displayName, userId: $0.author.id) }
         return CommentRow(
             comment: comment,
+            level: level,
             isOwn: comment.author.id == appState.currentUser?.id,
             isPostAuthor: comment.author.id == postAuthorId,
             isEditing: editingCommentId == comment.id,
@@ -242,8 +243,8 @@ struct CommentsSection: View {
 
 // MARK: - Comment Row
 
-/// The person a reply is answering, spelled out as "[replier] replied to
-/// [name]" — the indent alone can't say which of several siblings a reply
+/// The person a reply is answering, spelled out as "replied to [name]" under
+/// the replier's name — the indent alone can't say which of several siblings a reply
 /// addresses. Paired name+id (not a bare `String?`) so the attribution text
 /// and its `NavigationLink` destination can never drift apart.
 struct CommentReplyTarget {
@@ -257,6 +258,20 @@ struct CommentRow: View {
     static let horizontalInset: CGFloat = 12
     static let verticalInset: CGFloat = 6
 
+    /// Name and "replied to" size per thread level (0–2): smaller the deeper
+    /// the reply, so a long name still fits on one line in the narrower
+    /// bubble. The comment text itself keeps one size — it's what people read.
+    static func nameFontSize(level: Int) -> CGFloat { 13 - CGFloat(min(max(level, 0), 2)) }
+    static func badgeFontSize(level: Int) -> CGFloat { 10 - 0.5 * CGFloat(min(max(level, 0), 2)) }
+    /// The sizes a name may take, as a share of its level's size, tried in
+    /// order until the line fits: fine steps first, so a real name shrinks
+    /// only a few percent. The last is enough for a `DisplayNameRules.maxLength`
+    /// name of the widest capital (W) on the deepest reply on a 6.1" iPhone
+    /// (see `DisplayNameFitTests`).
+    static let nameScales: [CGFloat] = [1, 0.97, 0.94, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6, 0.55, 0.5, 0.45, 0.4]
+    static let bubblePadding: CGFloat = 12
+    static let avatarSpacing: CGFloat = 8
+
     @Environment(AppState.self) private var appState
     @AppStorage(TranslationMode.storageKey) private var translationModeRaw = TranslationMode.original.rawValue
     @Environment(ThemeManager.self) var themeManager
@@ -264,18 +279,20 @@ struct CommentRow: View {
     @Environment(\.colorScheme) var colorScheme
 
     let comment: CommentDTO
+    /// 0 for a comment, 1 for a reply, 2 for a reply to a reply.
+    var level: Int = 0
     var isOwn: Bool = false
     /// True when this comment/reply was written by the post's own author —
-    /// shows a small "Author" badge to the left of the timestamp, so other
-    /// readers can quickly spot the poster's own comments.
+    /// shows a small "Author" badge right after the name, so other readers
+    /// can quickly spot the poster's own comments.
     var isPostAuthor: Bool = false
     /// True while this specific row is the one being edited inline.
     var isEditing: Bool = false
     /// Shared editing-text binding, owned by the host — only meaningful while
     /// `isEditing` is true.
     var editingText: Binding<String> = .constant("")
-    /// Set on every reply — renders "replied to [name]" after this row's own
-    /// name, both independently tappable to their own profiles.
+    /// Set on every reply — renders "replied to [name]" on its own line under
+    /// this row's name, each tappable to its own profile.
     var replyTarget: CommentReplyTarget? = nil
     var onLike:   (() -> Void)? = nil
     var onReply:  (() -> Void)? = nil
@@ -295,7 +312,7 @@ struct CommentRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: Self.avatarSpacing) {
             avatar
 
             VStack(alignment: .leading, spacing: 4) {
@@ -318,6 +335,9 @@ struct CommentRow: View {
                 }
                 metaRow
             }
+            // First claim on the row's width, ahead of the spacer, so a long
+            // name gets the whole width before it shrinks.
+            .layoutPriority(1)
 
             Spacer(minLength: 0)
         }
@@ -330,36 +350,34 @@ struct CommentRow: View {
     /// `base` fill stands out on the white comments card in both modes.
     private var bubble: some View {
         VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 4) {
-                NavigationLink(destination: UserProfileView(userId: comment.author.id).environment(appState)) {
-                    Text(comment.author.displayName)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(AppColors.textPrimary(colorScheme))
-                }
-                .buttonStyle(.plain)
-
-                // Right beside the name it describes — after "replied to X"
-                // it read as if X were the post's author.
-                if isPostAuthor {
-                    Text("Author", bundle: bundle)
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(themeManager.theme.primary)
-                        .clipShape(Capsule())
-                }
-
-                if let replyTarget {
-                    Text("replied to", bundle: bundle)
-                        .font(.system(size: 13))
-                        .foregroundColor(AppColors.textSecondary(colorScheme))
-                    NavigationLink(destination: UserProfileView(userId: replyTarget.userId).environment(appState)) {
-                        Text(replyTarget.name)
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(AppColors.textPrimary(colorScheme))
+            // Name + badge on one line: the badge keeps its size, and a long
+            // name takes the largest size at which the whole line fits.
+            ViewThatFits(in: .horizontal) {
+                ForEach(Self.nameScales, id: \.self) { scale in
+                    HStack(spacing: 4) {
+                        NavigationLink(destination: UserProfileView(userId: comment.author.id).environment(appState)) {
+                            nameText(comment.author.displayName, scale: scale)
+                        }
+                        .buttonStyle(.plain)
+                        if isPostAuthor { authorBadge }
                     }
-                    .buttonStyle(.plain)
+                }
+            }
+
+            // On its own line: beside the name and badge it didn't fit a long name.
+            if let replyTarget {
+                ViewThatFits(in: .horizontal) {
+                    ForEach(Self.nameScales, id: \.self) { scale in
+                        HStack(spacing: 4) {
+                            Text("replied to", bundle: bundle)
+                                .font(.system(size: Self.nameFontSize(level: level)))
+                                .foregroundColor(AppColors.textSecondary(colorScheme))
+                            NavigationLink(destination: UserProfileView(userId: replyTarget.userId).environment(appState)) {
+                                nameText(replyTarget.name, scale: scale)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
             }
 
@@ -374,9 +392,27 @@ struct CommentRow: View {
                 .padding(.top, 2)
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, Self.bubblePadding)
         .padding(.vertical, 8)
         .background(AppColors.base(colorScheme), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private var authorBadge: some View {
+        Text("Author", bundle: bundle)
+            .font(.system(size: Self.badgeFontSize(level: level), weight: .bold))
+            .foregroundColor(.white)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(themeManager.theme.primary)
+            .clipShape(Capsule())
+    }
+
+    private func nameText(_ name: String, scale: CGFloat) -> some View {
+        Text(name)
+            .font(.system(size: Self.nameFontSize(level: level) * scale, weight: .semibold))
+            .foregroundColor(AppColors.textPrimary(colorScheme))
+            .lineLimit(1)
+            .fixedSize()
     }
 
     /// Time · like · Reply under the bubble, inset to line up with its text.

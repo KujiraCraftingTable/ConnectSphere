@@ -9,7 +9,9 @@ import UIKit
 @MainActor
 @Observable
 final class EditProfileViewModel {
-    var displayName = ""
+    var displayName = "" {
+        didSet { if displayName.count > DisplayNameRules.maxLength { displayName = DisplayNameRules.capped(displayName) } }
+    }
     var bio = ""
     var jobTitle = ""
     var company = ""

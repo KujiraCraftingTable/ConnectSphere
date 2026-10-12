@@ -160,7 +160,8 @@ struct OnboardingView: View {
             VStack(spacing: 14) {
                 if viewModel.needsUsername { usernameField }
 
-                AuthTextField(icon: "textformat", placeholder: bundle.loc("Display name *"), text: $viewModel.form.display_name)
+                AuthTextField(icon: "textformat", placeholder: bundle.loc("Display name *"), text: $viewModel.form.display_name,
+                              characterLimit: DisplayNameRules.maxLength)
 
                 // Province picker (required)
                 Button { showProvincePicker = true } label: {
