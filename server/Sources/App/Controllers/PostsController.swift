@@ -348,6 +348,7 @@ struct PostsController {
             }
             if (post.content ?? "") != (oldContent ?? "") {
                 await BackgroundJobs.refreshPostAfterContentEdit(req, postID: post.id, content: post.content ?? "")
+                await TranslationService.enqueue(req, .post, id: post.id)
             } else {
                 await BackgroundJobs.refreshEmbedding(req, .post, id: post.id)   // e.g. article title
             }

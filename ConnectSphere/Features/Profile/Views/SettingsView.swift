@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @AppStorage(TranslationMode.storageKey) private var translationModeRaw = TranslationMode.original.rawValue
     @Environment(AppState.self) var appState
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
@@ -38,8 +39,11 @@ struct SettingsView: View {
             // Language
             Section {
                 languagePickerRow
+                translationModeRow
             } header: {
                 Text("Language", bundle: bundle)
+            } footer: {
+                Text("Posts and comments in English or Vietnamese can be translated into the other. Translations are made by AI and may not be perfect.", bundle: bundle)
             }
 
             // Search
@@ -201,6 +205,31 @@ struct SettingsView: View {
             Picker("", selection: Bindable(appState).appLanguage) {
                 ForEach(AppLanguage.allCases, id: \.self) { lang in
                     Text("\(lang.flag) \(lang.displayName)").tag(lang)
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(AppColors.textSecondary(colorScheme))
+        }
+    }
+
+    /// Whether posts in the other language show their translation first.
+    private var translationModeRow: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 7)
+                    .fill(Color(hex: "#30B0C7"))
+                    .frame(width: 30, height: 30)
+                Image(systemName: "character.bubble")
+                    .font(.system(size: 14))
+                    .foregroundColor(.white)
+            }
+            Text("Translations", bundle: bundle)
+                .font(.system(size: 16))
+                .foregroundColor(AppColors.textPrimary(colorScheme))
+            Spacer()
+            Picker("", selection: $translationModeRaw) {
+                ForEach(TranslationMode.allCases, id: \.rawValue) { mode in
+                    Text(bundle.loc(mode.label)).tag(mode.rawValue)
                 }
             }
             .pickerStyle(.menu)

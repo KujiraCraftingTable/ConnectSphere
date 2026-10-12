@@ -150,6 +150,10 @@ struct CommunityPost: Identifiable {
     var imageUrls: [String] = []
     /// Alt text per `imageUrls` entry ('' = none).
     var imageAlts: [String] = []
+    /// The text's language (en / vi / other / none) and its translation into
+    /// the other of en/vi, made on the server when it was published.
+    var contentLang: String? = nil
+    var translatedContent: String? = nil
     var articleTitle: String? = nil
     var tags: [String] = []
 
@@ -209,6 +213,8 @@ extension CommunityPost {
             imageUrl:      imageUrl,
             imageUrls:     imageUrls,
             imageAlts:     imageAlts,
+            contentLang:     contentLang,
+            translatedContent: translatedContent,
             likeCount:     likeCount,
             commentCount:  commentCount,
             shareCount:    0,

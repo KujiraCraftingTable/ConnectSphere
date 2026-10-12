@@ -265,6 +265,7 @@ struct CommunitiesController {
         if let old = b.replaces_draft {
             try await PostStore.deleteUnpublished(old, author: req.userID, on: req.db.sql())
         }
+        if publishing.isLive { await TranslationService.enqueue(req, .post, id: post.id) }
         return try await ConnectionsController.encode(DataResponse(data: post), req, .created)
     }
 

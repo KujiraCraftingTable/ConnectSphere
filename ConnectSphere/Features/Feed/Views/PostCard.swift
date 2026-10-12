@@ -7,6 +7,9 @@ struct PostCard: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(UndoToastPresenter.self) var toastPresenter
     @Environment(\.openURL) private var openURL
+    @AppStorage(TranslationMode.storageKey) private var translationModeRaw = TranslationMode.original.rawValue
+    private var translationMode: TranslationMode { TranslationMode(rawValue: translationModeRaw) ?? .original }
+    private var translations: TranslationStore { .shared }
     @State private var actions: PostActionsViewModel
     @State private var showComments  = false
     @State private var showShareSheet = false
@@ -240,6 +243,13 @@ struct PostCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 12)
                     .padding(.top, 10)
+                if canTranslatePost {
+                    TranslationToggle(showingTranslation: showsPostTranslation) {
+                        withAnimation(.snappy) { translations.toggle(TranslationStore.key(post: post.id)) }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.top, 6)
+                }
             }
 
             // Hashtag chips — tapping one opens TagFeedView to browse by tag
@@ -434,12 +444,27 @@ struct PostCard: View {
 
     // MARK: Linkified content
 
+    private var canTranslatePost: Bool {
+        ContentTranslation.isAvailable(lang: post.contentLang, translated: post.translatedContent,
+                                       appLanguage: appState.appLanguage)
+    }
+
+    private var showsPostTranslation: Bool {
+        canTranslatePost && translations.showsTranslation(TranslationStore.key(post: post.id), mode: translationMode)
+    }
+
+    /// The post's own words, or the server-made translation in their place.
+    private var displayedContent: String {
+        showsPostTranslation ? (post.translatedContent ?? post.content) : post.content
+    }
+
     private var linkifiedContent: AttributedString {
-        var result = AttributedString(post.content)
+        let text = displayedContent
+        var result = AttributedString(text)
         let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
-        let matches = detector?.matches(in: post.content, range: NSRange(post.content.startIndex..., in: post.content)) ?? []
+        let matches = detector?.matches(in: text, range: NSRange(text.startIndex..., in: text)) ?? []
         for match in matches {
-            guard let url = match.url, let range = Range(match.range, in: post.content) else { continue }
+            guard let url = match.url, let range = Range(match.range, in: text) else { continue }
             if let attrRange = Range(range, in: result) {
                 result[attrRange].link = url
                 result[attrRange].foregroundColor = themeManager.theme.primary
@@ -816,10 +841,19 @@ struct PostCard: View {
                     }
 
                     if !shared.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text(shared.content)
+                        let canTranslate = ContentTranslation.isAvailable(lang: shared.contentLang, translated: shared.translatedContent,
+                                                                          appLanguage: appState.appLanguage)
+                        let key = TranslationStore.key(post: shared.id)
+                        let translated = canTranslate && translations.showsTranslation(key, mode: translationMode)
+                        Text(translated ? (shared.translatedContent ?? shared.content) : shared.content)
                             .font(.system(size: 14))
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                             .lineLimit(6)
+                        if canTranslate {
+                            TranslationToggle(showingTranslation: translated, fontSize: 12) {
+                                withAnimation(.snappy) { translations.toggle(key) }
+                            }
+                        }
                     }
 
                     if !shared.displayImageUrls.isEmpty {
