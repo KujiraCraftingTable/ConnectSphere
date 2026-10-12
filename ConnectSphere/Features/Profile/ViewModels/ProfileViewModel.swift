@@ -26,6 +26,8 @@ class ProfileViewModel {
     /// restorePost from splicing in a post from the other mode (mirrors
     /// FeedViewModel.restorePost's post.mode branch).
     private var loadedMode: String?
+    /// True while a pull-to-refresh runs (drives the pull indicator).
+    private(set) var isRefreshing = false
     private var offset = 0
     nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
 
@@ -140,6 +142,8 @@ class ProfileViewModel {
     /// Pull-to-refresh: like `load` but the profile and posts stay on screen
     /// while it runs (no spinner swap), and a failed pull keeps them.
     func refresh(userId: String, mode: String? = nil) async {
+        isRefreshing = true
+        defer { isRefreshing = false }
         guard let (u, p) = try? await (
             repository.fetchUser(userId: userId, mode: mode),
             repository.fetchPosts(authorId: userId, mode: mode, limit: pageSize, offset: 0)
