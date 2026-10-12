@@ -10,6 +10,7 @@ struct UserProfileView: View {
     let userId: String
     let preloadedUser: UserProfile?
 
+    @State private var pull: CGFloat = 0
     @State private var chatConversationId: String?
     @State private var navigateToChat = false
     // Tap-to-open-post-detail — same PostRoute/PostDetailView navigation Feed uses.
@@ -52,11 +53,13 @@ struct UserProfileView: View {
             }
             // The cover runs up under the status bar; its fade keeps it legible.
             .ignoresSafeArea(edges: .top)
+            .trackPull($pull)
             .refreshable {
                 await viewModel.refresh(userId: userId, mode: appState.currentMode.rawValue)
                 if userId != appState.currentUser?.id { await viewModel.loadBlockStatus(userId: userId) }
             }
         }
+        .overlay(alignment: .top) { PullRefreshIndicator(pull: pull, isRefreshing: viewModel.isRefreshing) }
         .background(AppColors.base(colorScheme))
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)

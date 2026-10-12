@@ -24,6 +24,7 @@ struct ProfileView: View {
     @Environment(\.appBundle) var bundle
     @State private var viewModel = ProfileViewModel()
     @Environment(\.colorScheme) var colorScheme
+    @State private var pull: CGFloat = 0
     @State private var showCreatePost = false
     @State private var showEditProfile = false
     // Tap-to-open-post-detail — same PostRoute/PostDetailView navigation Feed uses.
@@ -75,12 +76,14 @@ struct ProfileView: View {
                 // The cover runs up under the status bar; its own fade keeps
                 // the clock and the floating nav button legible.
                 .ignoresSafeArea(edges: .top)
+                .trackPull($pull)
                 .refreshable {
                     if let userId = appState.currentUser?.id {
                         await viewModel.refresh(userId: userId, mode: appState.currentMode.rawValue)
                     }
                 }
             }
+            .overlay(alignment: .top) { PullRefreshIndicator(pull: pull, isRefreshing: viewModel.isRefreshing) }
             .background(AppColors.base(colorScheme))
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
