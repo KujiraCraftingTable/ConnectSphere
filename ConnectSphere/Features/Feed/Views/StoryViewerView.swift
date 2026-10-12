@@ -39,7 +39,7 @@ struct StoryViewerView: View {
             Color.black.ignoresSafeArea()
 
             // Current story's image
-            if let story = currentStory, let url = URL(string: story.imageUrl) {
+            if let story = currentStory, let url = APIConfig.mediaURL(story.imageUrl) {
                 AsyncImage(url: url) { phase in
                     if let image = phase.image {
                         image.resizable().scaledToFit()
@@ -187,7 +187,7 @@ struct StoryViewerView: View {
                                 Text(String(viewer.displayName.prefix(1)))
                                     .font(.system(size: 15, weight: .bold))
                                     .foregroundColor(.white)
-                                if let urlStr = viewer.avatarUrl, let url = URL(string: urlStr) {
+                                if let url = APIConfig.mediaURL(viewer.avatarUrl) {
                                     AsyncImage(url: url) { phase in
                                         if let image = phase.image {
                                             image.resizable().scaledToFill()

@@ -442,7 +442,7 @@ struct ChatView: View {
                     .fill(Color(hex: peer.avatarColor))
                     .frame(width: 34, height: 34)
                 if let urlString = peer.avatarUrl,
-                   let url = URL(string: urlString.hasPrefix("http") ? urlString : APIConfig.serverBase + urlString) {
+                   let url = APIConfig.mediaURL(urlString) {
                     AsyncImage(url: url) { phase in
                         if let image = phase.image {
                             image.resizable().scaledToFill()
@@ -469,7 +469,7 @@ struct ChatView: View {
     private var groupHeaderAvatar: some View {
         let urlString = viewModel.groupAvatarUrl ?? peer.avatarUrl
         return Group {
-            if let urlString, let url = URL(string: APIConfig.serverBase + urlString) {
+            if let url = APIConfig.mediaURL(urlString) {
                 AsyncImage(url: url) { phase in
                     if let image = phase.image {
                         image.resizable().scaledToFill()

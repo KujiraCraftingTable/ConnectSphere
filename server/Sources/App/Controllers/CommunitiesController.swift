@@ -66,7 +66,7 @@ struct CommunitiesController {
         let icon = b.icon_emoji ?? "👥"
         let cover = b.cover_color ?? "#7F5AF0"
         let desc = b.description?.trimmingCharacters(in: .whitespaces).nilIfEmpty
-        let avatarURL = b.avatar_url?.trimmingCharacters(in: .whitespaces).nilIfEmpty
+        let avatarURL = MediaPath.storable(b.avatar_url)
 
         var newID = ""
         do {
@@ -110,7 +110,7 @@ struct CommunitiesController {
         if let d = b.description, d.count > 500 { throw Abort(.badRequest, reason: "Description must be at most 500 characters") }
         if let p = b.privacy, !CommunitiesController.validPrivacy.contains(p) { throw Abort(.badRequest, reason: "privacy must be public or private") }
         guard try await CommunityStore.update(id, name: b.name, description: b.description, privacy: b.privacy,
-            iconEmoji: b.icon_emoji, coverColor: b.cover_color, avatarURL: b.avatar_url, on: db) else {
+            iconEmoji: b.icon_emoji, coverColor: b.cover_color, avatarURL: b.avatar_url.map { MediaPath.storable($0) ?? "" }, on: db) else {
             throw Abort(.notFound, reason: "Community not found")
         }
         guard let community = try await CommunityStore.byID(id, viewer: req.userID, on: db) else { throw Abort(.internalServerError) }

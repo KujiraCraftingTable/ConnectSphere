@@ -77,7 +77,7 @@ struct PostPhotoGrid: View {
     /// Items for the app's shared viewer (image zoom, video AVPlayer)
     private var viewerItems: [ChatMediaViewerItem] {
         urls.enumerated().compactMap { index, urlString in
-            guard let url = URL(string: urlString) else { return nil }
+            guard let url = APIConfig.mediaURL(urlString) else { return nil }
             return ChatMediaViewerItem(id: "\(index)-\(urlString)",
                                        url: url,
                                        isVideo: urlString.isVideoURL)
@@ -134,9 +134,9 @@ struct PostPhotoGrid: View {
                 .frame(height: height)
                 .overlay {
                     if urls[index].isVideoURL {
-                        VideoPosterView(url: URL(string: urls[index]))
+                        VideoPosterView(url: APIConfig.mediaURL(urls[index]))
                     } else {
-                        AsyncImage(url: URL(string: urls[index])) { phase in
+                        AsyncImage(url: APIConfig.mediaURL(urls[index])) { phase in
                             switch phase {
                             case .success(let image):
                                 image.resizable().scaledToFill()
@@ -171,7 +171,7 @@ struct PostPhotoGrid: View {
             : Text(description))
         .contextMenu {
             Button {
-                guard let url = URL(string: urls[index]) else { return }
+                guard let url = APIConfig.mediaURL(urls[index]) else { return }
                 Task { await saver.save([.init(url: url, isVideo: urls[index].isVideoURL)]) }
             } label: {
                 Label(Bundle.app.loc("Save to Photos"), systemImage: "square.and.arrow.down")

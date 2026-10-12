@@ -26,7 +26,6 @@ struct GroupMember: Decodable, Identifiable, Equatable {
 
     /// Absolute URL for the member's avatar photo, if set.
     func absoluteAvatarURL() -> URL? {
-        guard let avatarUrl else { return nil }
-        return URL(string: APIConfig.serverBase + avatarUrl)
+        APIConfig.mediaURL(avatarUrl)
     }
 }

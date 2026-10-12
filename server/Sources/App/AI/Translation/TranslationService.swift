@@ -45,11 +45,17 @@ enum TranslationService {
     /// The model's reply minus wrappers it sometimes adds ("Translation:",
     /// quotes around the whole thing).
     static func cleanOutput(_ raw: String, source: String) -> String {
-        // A reasoning block, should a model think despite `think: false`, and
-        // the `/no_think` switch Qwen3 sometimes echoes back at the end.
+        // A reasoning block, should a model think despite `think: false`.
         var out = raw.replacingOccurrences(of: #"(?s)<think>.*?</think>"#, with: "", options: .regularExpression)
-            .replacingOccurrences(of: #"\s*/(no_)?think\s*$"#, with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        // Qwen3 sometimes ends with a slash command of its own (`/no_think`,
+        // `/no_translate`, …). Dropped unless the source ends with it too.
+        if let range = out.range(of: #"\s*/[A-Za-z_]+$"#, options: .regularExpression) {
+            let command = out[range].trimmingCharacters(in: .whitespacesAndNewlines)
+            if !source.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix(command) {
+                out = String(out[..<range.lowerBound])
+            }
+        }
         for prefix in ["Translation:", "Bản dịch:", "Translated text:"] where out.hasPrefix(prefix) {
             out = String(out.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
         }

@@ -113,7 +113,7 @@ struct StoriesController {
 
     static func create(_ req: Request) async throws -> Response {
         let body = try req.content.decode(CreateBody.self)
-        guard let url = body.image_url, !url.isEmpty else {
+        guard let url = MediaPath.storable(body.image_url) else {
             throw InlineError(.badRequest, "image_url is required")
         }
         guard let mode = body.mode, ["hobby", "work"].contains(mode) else {

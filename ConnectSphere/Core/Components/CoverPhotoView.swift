@@ -34,7 +34,7 @@ struct CoverArtwork: View {
     let coverUrl: String?
 
     var body: some View {
-        if let coverUrl, let url = URL(string: coverUrl) {
+        if let url = APIConfig.mediaURL(coverUrl) {
             AsyncImage(url: url) { phase in
                 if let image = phase.image {
                     image.resizable().scaledToFill()

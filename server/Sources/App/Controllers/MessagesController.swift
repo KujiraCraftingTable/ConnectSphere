@@ -777,7 +777,7 @@ struct MessagesController {
         if present.contains("avatar_url") || present.contains("avatar_color") {
             try await requireGroupOwner(id, req.userID, on: db)
             var sets: [(String, String?)] = []
-            if present.contains("avatar_url") { sets.append(("avatar_url", raw.avatar_url)) }
+            if present.contains("avatar_url") { sets.append(("avatar_url", MediaPath.storable(raw.avatar_url))) }
             if present.contains("avatar_color") { sets.append(("avatar_color", raw.avatar_color)) }
             try await ChatStore.updateGroupInfo(id, sets: sets, on: db)
             settings = try await ChatStore.groupSettings(id, on: db)

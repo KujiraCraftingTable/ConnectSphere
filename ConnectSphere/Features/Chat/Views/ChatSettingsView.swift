@@ -288,7 +288,7 @@ struct ChatSettingsView: View {
         Group {
             if isGroup {
                 if let urlString = viewModel.settings?.groupAvatarUrl ?? peer.avatarUrl,
-                   let url = URL(string: APIConfig.serverBase + urlString) {
+                   let url = APIConfig.mediaURL(urlString) {
                     AsyncImage(url: url) { phase in
                         if let image = phase.image {
                             image.resizable().scaledToFill()
