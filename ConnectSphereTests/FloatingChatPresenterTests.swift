@@ -90,11 +90,11 @@ struct FloatingChatPresenterTests {
         let presenter = FloatingChatPresenter()
         float(presenter, "a")
         presenter.toggleComposing(presenter.active!)
-        presenter.playingVideoID = "v"
+        presenter.playingMediaID = "v"
         presenter.stash(to: .trailing)
         #expect(presenter.isStashed)
         #expect(presenter.composingBubble == nil)
-        #expect(presenter.playingVideoID == nil)
+        #expect(presenter.playingMediaID == nil)
         float(presenter, "b")
         #expect(!presenter.isStashed)
     }

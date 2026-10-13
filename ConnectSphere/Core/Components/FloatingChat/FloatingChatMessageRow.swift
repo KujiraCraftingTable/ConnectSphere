@@ -3,9 +3,10 @@ import SwiftUI
 
 /// One message in the floating chat window. Text sits in a small bubble;
 /// photos and videos show as themselves — an album as each of its photos on
-/// its own, a video playing (with sound) while it's the one in view. Voice
-/// notes and meeting cards keep a one-line summary: they have no sensible
-/// form this small, and the full chat is a double-tap away.
+/// its own, a video playing (with sound) while it's the one in view; a voice
+/// message plays on tap; a meeting shows its card, with RSVP in groups
+/// (rescheduling and cancelling stay in the full chat). One sound plays at a
+/// time across the window (`FloatingChatPresenter.playingMediaID`).
 struct FloatingChatMessageRow: View {
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.colorScheme) private var colorScheme
@@ -48,9 +49,33 @@ struct FloatingChatMessageRow: View {
                         textBubble(caption)
                     }
                 case .voice:
-                    textBubble("🎤 " + bundle.loc("Voice message"))
+                    VoiceMessagePlayer(message: message, isOwn: isOwn, accent: themeManager.theme.primary,
+                                       compact: true,
+                                       isActive: presenter.playingMediaID == message.id,
+                                       onStart: {
+                                           presenter.markSeen(bubble)
+                                           presenter.playingMediaID = message.id
+                                       })
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 7)
+                        .frame(width: width * 0.85)
+                        .background(isOwn ? themeManager.theme.primary.opacity(0.9) : AppColors.elevated(colorScheme),
+                                    in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 case .meeting:
-                    textBubble("📅 " + bundle.loc("Meeting"))
+                    if let proposal = message.meetingProposal {
+                        MeetingProposalCard(
+                            proposal: proposal, isOwn: isOwn, isGroup: bubble.viewModel.isGroup,
+                            currentUserId: bubble.currentUserId, accent: themeManager.theme.primary,
+                            compact: true,
+                            onRespond: { status in
+                                presenter.markSeen(bubble)
+                                Task { await bubble.viewModel.respondToMeeting(messageId: message.id, status: status) }
+                            }
+                        )
+                        .frame(width: width * 0.9)
+                    } else {
+                        textBubble("📅 " + bundle.loc("Meeting"))
+                    }
                 case .text, .unknown:
                     textBubble(message.content ?? "")
                 }
@@ -126,7 +151,7 @@ struct FloatingChatMessageRow: View {
 
 /// A video in the floating window: plays, with sound, while it's the one in
 /// view in the chat on screen — and only one plays at a time
-/// (`FloatingChatPresenter.playingVideoID`). Scrolling it away, switching
+/// (`FloatingChatPresenter.playingMediaID`). Scrolling it away, switching
 /// chat or stashing the window pauses it. Tap to pause or play again.
 struct FloatingChatVideo: View {
     @Environment(\.appBundle) private var bundle
@@ -141,7 +166,7 @@ struct FloatingChatVideo: View {
     @State private var isVisible = false
     @State private var ended = false
 
-    private var isPlaying: Bool { presenter.playingVideoID == id }
+    private var isPlaying: Bool { presenter.playingMediaID == id }
     /// Only the chat on screen, with the window out, may play.
     private var canPlay: Bool {
         presenter.active?.id == bubble.id && !presenter.isStashed && !presenter.isHiddenByFullChat
@@ -161,11 +186,11 @@ struct FloatingChatVideo: View {
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .contentShape(Rectangle())
         .onTapGesture {
-            if isPlaying { presenter.playingVideoID = nil } else { claim(restart: ended) }
+            if isPlaying { presenter.playingMediaID = nil } else { claim(restart: ended) }
         }
         .onScrollVisibilityChange(threshold: 0.6) { visible in
             isVisible = visible
-            if visible { claim(restart: false) } else if isPlaying { presenter.playingVideoID = nil }
+            if visible { claim(restart: false) } else if isPlaying { presenter.playingMediaID = nil }
         }
         // Coming back to this chat, or out of the edge, with the video in view.
         .onChange(of: canPlay) { _, can in
@@ -177,7 +202,7 @@ struct FloatingChatVideo: View {
         .onReceive(NotificationCenter.default.publisher(for: AVPlayerItem.didPlayToEndTimeNotification)) { note in
             guard (note.object as? AVPlayerItem) === player?.currentItem else { return }
             ended = true
-            if isPlaying { presenter.playingVideoID = nil }
+            if isPlaying { presenter.playingMediaID = nil }
         }
         .onDisappear { player?.pause() }
         .accessibilityLabel(Text(bundle.loc("Video")))
@@ -190,7 +215,7 @@ struct FloatingChatVideo: View {
             player?.seek(to: .zero)
             ended = false
         }
-        presenter.playingVideoID = id
+        presenter.playingMediaID = id
         player?.play()
     }
 }
