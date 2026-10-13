@@ -176,7 +176,7 @@ class CreatePostViewModel {
 
             let updatedPost = try? await repository.updatePost(
                 postId: postId,
-                content: content,
+                content: content.trimmingCharacters(in: .whitespacesAndNewlines),
                 privacy: privacy,
                 imageUrl: imageUrl,
                 imageUrls: imageUrls,
@@ -207,7 +207,7 @@ class CreatePostViewModel {
         replacesDraft: String? = nil,
         onSuccess: @escaping (Post) -> Void
     ) {
-        var finalContent = content.trimmingCharacters(in: .whitespaces)
+        var finalContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
         let capturedPreview = linkPreview
 
         if capturedPreview != nil {

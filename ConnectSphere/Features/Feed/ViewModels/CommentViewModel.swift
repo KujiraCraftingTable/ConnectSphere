@@ -85,7 +85,7 @@ class CommentViewModel {
 
     /// Whether Send is available: some text, a photo, or both.
     func canSend(_ text: String) -> Bool {
-        !isSending && (!text.trimmingCharacters(in: .whitespaces).isEmpty || attachedPhoto != nil)
+        !isSending && (!text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || attachedPhoto != nil)
     }
 
     /// Posts a comment (or a reply, when `replyingTo` is set), uploading the
@@ -93,7 +93,7 @@ class CommentViewModel {
     /// post API call; reloads the whole list on success to guarantee an
     /// accurate sync.
     func addComment(postId: String, content: String) async -> Bool {
-        let trimmed = content.trimmingCharacters(in: .whitespaces)
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || attachedPhotoData != nil else { return false }
         isSending = true
         defer { isSending = false }
@@ -137,7 +137,7 @@ class CommentViewModel {
     /// addComment/deleteComment: reload the whole comment list on success
     /// (simpler than patching it in place).
     func updateComment(postId: String, commentId: String, content: String) async -> Bool {
-        let trimmed = content.trimmingCharacters(in: .whitespaces)
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         // Editing changes the text only; a comment with a photo may lose it.
         let hasPhoto = comments.first { $0.id == commentId }?.imageUrl != nil
         guard !trimmed.isEmpty || hasPhoto else { return false }

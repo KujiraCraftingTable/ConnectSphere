@@ -294,7 +294,7 @@ struct MessagesController {
         try await requireParticipant(id, req)
         let b = try req.content.decode(SendBody.self)
         let type = b.message_type ?? "text"
-        if type == "text", (b.content?.trimmingCharacters(in: .whitespaces).isEmpty ?? true) {
+        if type == "text", (b.content?.trimmedText.isEmpty ?? true) {
             throw Abort(.badRequest, reason: "Message content is required")
         }
         if ["image", "video", "voice"].contains(type), b.media_url == nil {
@@ -331,7 +331,7 @@ struct MessagesController {
             throw Abort(.forbidden, reason: MessageRequests.limitReason)
         }
 
-        let storedContent = b.content?.trimmingCharacters(in: .whitespaces).nilIfEmpty ?? validated?.title
+        let storedContent = b.content?.trimmedText.nilIfEmpty ?? validated?.title
         let newID = try await ChatStore.insertMessage(id, senderID: req.userID,
             content: storedContent, messageType: type,
             mediaUrl: album?.first?.url ?? b.media_url, mediaItems: album, replyToMessageID: replyTo,

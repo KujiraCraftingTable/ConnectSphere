@@ -19,7 +19,7 @@ final class SharePostViewModel {
         defer { isSharing = false }
         do {
             _ = try await repository.sharePost(postId: postId,
-                                               content: comment.trimmingCharacters(in: .whitespaces),
+                                               content: comment.trimmingCharacters(in: .whitespacesAndNewlines),
                                                mode: mode)
             return true
         } catch {

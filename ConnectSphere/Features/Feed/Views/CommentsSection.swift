@@ -471,7 +471,7 @@ struct CommentRow: View {
                     .font(.system(size: 20))
                     .foregroundColor(themeManager.theme.primary)
             }
-            .disabled(editingText.wrappedValue.trimmingCharacters(in: .whitespaces).isEmpty)
+            .disabled(editingText.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
             Button(action: { onCancelEdit?() }) {
                 Image(systemName: "xmark.circle.fill")

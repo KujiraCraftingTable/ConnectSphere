@@ -146,7 +146,7 @@ struct InteractionsController {
         let postID = req.parameters.get("id")!
         let db = req.db.sql()
         let b = try req.content.decode(AddCommentBody.self)
-        let content = b.content?.trimmingCharacters(in: .whitespaces) ?? ""
+        let content = b.content?.trimmedText ?? ""
         // Only a photo uploaded here — not a link to someone else's image.
         let imageURL = MediaPath.storable(b.image_url)
         if let imageURL, !imageURL.hasPrefix("/uploads/") || imageURL.hasPrefix("/uploads/messages/") {
@@ -262,7 +262,7 @@ struct InteractionsController {
     static func editComment(_ req: Request) async throws -> DataResponse<CommentObject> {
         let postID = req.parameters.get("id")!, commentID = req.parameters.get("commentId")!
         let db = req.db.sql()
-        let content = try req.content.decode(EditCommentBody.self).content?.trimmingCharacters(in: .whitespaces) ?? ""
+        let content = try req.content.decode(EditCommentBody.self).content?.trimmedText ?? ""
         guard let meta = try await visibleMeta(postID, viewer: req.userID, db) else { throw InlineError(.notFound, "Post not found") }
         struct C: Decodable { let author_id: String; let image_url: String? }
         guard let c = try await db.raw("""

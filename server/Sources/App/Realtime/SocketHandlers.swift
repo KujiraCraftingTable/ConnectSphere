@@ -130,7 +130,7 @@ enum SocketHandlers {
                 await session.ackError(ackID, "Not a participant"); return
             }
             let type = b.messageType ?? "text"
-            if type == "text", (b.content?.trimmingCharacters(in: .whitespaces).isEmpty ?? true) {
+            if type == "text", (b.content?.trimmedText.isEmpty ?? true) {
                 await session.ackError(ackID, "Content required"); return
             }
             if let c = b.content, c.count > 2000 { await session.ackError(ackID, "Message is too long"); return }
@@ -157,7 +157,7 @@ enum SocketHandlers {
                 await session.ackError(ackID, MessageRequests.limitReason); return
             }
 
-            let stored = b.content?.trimmingCharacters(in: .whitespaces).nilIfEmpty ?? validated?.title
+            let stored = b.content?.trimmedText.nilIfEmpty ?? validated?.title
             let newID = try await ChatStore.insertMessage(cid, senderID: conn.userID, content: stored, messageType: type,
                 mediaUrl: album?.first?.url ?? b.mediaUrl, mediaItems: album, replyToMessageID: replyTo,
                 voiceDuration: b.voiceDurationSeconds, voiceWaveform: b.voiceWaveform, on: db)
