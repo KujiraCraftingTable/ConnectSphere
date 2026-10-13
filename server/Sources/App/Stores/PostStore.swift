@@ -518,7 +518,7 @@ enum PostStore {
             .first(decoding: C.self) else { return .notFound }
 
         let finalContent = contentProvided ? content : existing.content
-        let hasContent = !(finalContent?.trimmingCharacters(in: .whitespaces).isEmpty ?? true)
+        let hasContent = !(finalContent?.trimmedText.isEmpty ?? true)
         let hasImages = (urls?.isEmpty == false)
         let hasLink = !(linkUrl?.isEmpty ?? true)
         if !hasContent && !hasImages && !hasLink { return .empty }

@@ -44,7 +44,6 @@ struct PollPostCard: View {
             if let endsAt = vm.endsAt {
                 parts.append(String(format: bundle.loc("Ends %@"), endsAt.formatted(date: .abbreviated, time: .shortened)))
             }
-            parts.append(bundle.loc(vm.pollData.userVote == nil ? "Tap an option to vote" : "Tap your choice to undo"))
         }
         return parts.joined(separator: " · ")
     }

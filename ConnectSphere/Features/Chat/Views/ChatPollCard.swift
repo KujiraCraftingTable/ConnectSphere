@@ -124,9 +124,6 @@ struct ChatPollCard: View {
         } else if let end = poll.endsAt {
             parts.append(String(format: bundle.loc("Ends %@"), MeetingProposalCard.formattedDate(end)))
         }
-        if canVote {
-            parts.append(bundle.loc(myOption == nil ? "Tap an option to vote" : "Tap your choice to undo"))
-        }
         return Text(parts.joined(separator: " · "))
             .font(.system(size: compact ? 10 : 12))
             .foregroundColor(AppColors.textTertiary(colorScheme))

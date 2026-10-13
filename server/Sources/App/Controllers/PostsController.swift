@@ -156,7 +156,7 @@ struct PostsController {
                 hashtags: hashtags, mode: mode, privacy: b.privacy, publishing: publishing, on: req.db)
         } else {
             let imageUrls = normalizeImageUrls(b.image_urls)
-            let hasContent = !(b.content?.trimmingCharacters(in: .whitespaces).isEmpty ?? true)
+            let hasContent = !(b.content?.trimmedText.isEmpty ?? true)
             if !hasContent && (b.link_url?.isEmpty ?? true) && imageUrls == nil {
                 throw InlineError(.badRequest, "content, link_url or image_urls is required")
             }
@@ -164,7 +164,7 @@ struct PostsController {
                 throw InlineError(.badRequest, "content must be at most 2000 characters")
             }
             guard let created = try await PostStore.create(.init(
-                authorID: req.userID, content: b.content?.trimmingCharacters(in: .whitespaces) ?? "",
+                authorID: req.userID, content: b.content?.trimmedText ?? "",
                 mode: mode, privacy: b.privacy ?? "public",
                 imageUrl: MediaPath.storable(b.image_url), imageUrls: imageUrls, linkUrl: b.link_url?.nilIfEmpty,
                 articleTitle: b.article_title?.nilIfEmpty, sharedPostID: nil,
@@ -265,7 +265,7 @@ struct PostsController {
         }
         let rootID = original.shared_post_id ?? original.id
         guard let post = try await PostStore.create(.init(
-            authorID: req.userID, content: b.content?.trimmingCharacters(in: .whitespaces) ?? "",
+            authorID: req.userID, content: b.content?.trimmedText ?? "",
             mode: b.mode!, privacy: b.privacy ?? "public",
             imageUrl: nil, imageUrls: nil, linkUrl: nil, articleTitle: nil,
             sharedPostID: rootID, hashtags: []), on: req.db)
@@ -327,7 +327,7 @@ struct PostsController {
         let contentProvided = (try? req.content.decode([String: AnyCodableValue].self))?.keys.contains("content") ?? false
         let imageUrls = normalizeImageUrls(b.image_urls)
         let result = try await PostStore.updatePost(
-            id, content: contentProvided ? (b.content ?? "").trimmingCharacters(in: .whitespaces) : nil,
+            id, content: contentProvided ? (b.content ?? "").trimmedText : nil,
             contentProvided: contentProvided, privacy: b.privacy?.nilIfEmpty,
             imageUrl: MediaPath.storable(b.image_url), imageUrls: imageUrls,
             linkUrl: b.link_url?.nilIfEmpty, articleTitle: b.article_title?.nilIfEmpty, on: sdb)

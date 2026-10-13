@@ -84,7 +84,7 @@ struct CreatePostView: View {
         // Allow posting when there's text OR media/link (an image/video/link-only post
         // doesn't need a caption) — in edit mode, media/link the post already has also
         // counts, not just newly picked media or a newly detected link.
-        let hasContent = !content.trimmingCharacters(in: .whitespaces).isEmpty
+        let hasContent = !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             || !selectedMedia.isEmpty
             || viewModel.linkPreview != nil
             || editingPostHasExistingMediaOrLink

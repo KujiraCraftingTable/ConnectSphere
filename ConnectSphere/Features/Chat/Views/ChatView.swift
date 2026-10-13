@@ -1355,7 +1355,8 @@ struct ChatView: View {
     /// 2–10 photos go as one album captioned with the text (see `ChatViewModel.plan`).
     /// The reply reference (if any) is attached only to the first item sent, then cleared.
     private func sendPending() {
-        let text = inputText
+        // Blank lines and spaces around the message aren't part of it.
+        let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         let media = pendingMedia
         let replyToId = replyingTo?.id
         inputText = ""

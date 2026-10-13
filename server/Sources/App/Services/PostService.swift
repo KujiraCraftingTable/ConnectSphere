@@ -35,11 +35,11 @@ enum PostService {
         publishing: Publishing = .now,
         on db: AppDatabase
     ) async throws -> PostObject {
-        let hasContent = !(content?.trimmingCharacters(in: .whitespaces).isEmpty ?? true)
+        let hasContent = !(content?.trimmedText.isEmpty ?? true)
         if !hasContent && linkUrl == nil && imageUrls == nil {
             throw Abort(.badRequest, reason: "Post content, link_url or image_urls is required")
         }
-        if hasContent, (content!.trimmingCharacters(in: .whitespaces).count) > 2000 {
+        if hasContent, (content!.trimmedText.count) > 2000 {
             throw Abort(.badRequest, reason: "Post content must be at most 2000 characters")
         }
         try validateMode(mode)
@@ -48,7 +48,7 @@ enum PostService {
                 throw Abort(.forbidden, reason: "You must be a member of this community to post")
             }
         }
-        let trimmed = content?.trimmingCharacters(in: .whitespaces).nilIfEmpty
+        let trimmed = content?.trimmedText.nilIfEmpty
         let id = try await createCommunityPostRow(
             content: trimmed, authorID: userID, communityID: communityID, postType: "text",
             imageUrls: imageUrls, linkUrl: linkUrl, articleTitle: articleTitle,
@@ -106,7 +106,7 @@ enum PostService {
         publishing: Publishing = .now,
         on db: AppDatabase
     ) async throws -> PostObject {
-        let trimmedContent = content?.trimmingCharacters(in: .whitespaces) ?? ""
+        let trimmedContent = content?.trimmedText ?? ""
         if trimmedContent.isEmpty { throw Abort(.badRequest, reason: "Post content is required") }
         if trimmedContent.count > 2000 { throw Abort(.badRequest, reason: "Post content must be at most 2000 characters") }
         guard let options, options.count >= 2 else { throw Abort(.badRequest, reason: "Poll must have at least 2 options") }
@@ -141,7 +141,7 @@ enum PostService {
         publishing: Publishing = .now,
         on db: AppDatabase
     ) async throws -> PostObject {
-        let trimmedContent = content?.trimmingCharacters(in: .whitespaces) ?? ""
+        let trimmedContent = content?.trimmedText ?? ""
         if trimmedContent.isEmpty { throw Abort(.badRequest, reason: "Post content is required") }
         if trimmedContent.count > 2000 { throw Abort(.badRequest, reason: "Post content must be at most 2000 characters") }
         let title = eventTitle?.trimmingCharacters(in: .whitespaces) ?? ""
@@ -184,7 +184,7 @@ enum PostService {
         publishing: Publishing = .now,
         on db: AppDatabase
     ) async throws -> PostObject {
-        let trimmedContent = content?.trimmingCharacters(in: .whitespaces) ?? ""
+        let trimmedContent = content?.trimmedText ?? ""
         if trimmedContent.isEmpty { throw Abort(.badRequest, reason: "Post content is required") }
         if trimmedContent.count > 2000 { throw Abort(.badRequest, reason: "Post content must be at most 2000 characters") }
         let title = jobTitle?.trimmingCharacters(in: .whitespaces) ?? ""
@@ -316,4 +316,8 @@ enum PostService {
 
 extension String {
     var nilIfEmpty: String? { isEmpty ? nil : self }
+    /// User-written text (posts, comments, chat) without the spaces and line
+    /// breaks before its first and after its last visible character. Only
+    /// the edges: line breaks inside the text are kept.
+    var trimmedText: String { trimmingCharacters(in: .whitespacesAndNewlines) }
 }
