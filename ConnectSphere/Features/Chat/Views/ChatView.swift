@@ -57,6 +57,8 @@ struct ChatView: View {
     // `MeetingProposalComposerView`, see its doc comment for why.
     @State private var showMeetingComposer = false
     @State private var showPollComposer = false
+    /// A shared post tapped in the chat, shown over it.
+    @State private var openedSharedPost: OpenedSharedPost?
     @State private var meetingTitle = ""
     @State private var meetingLocation = ""
     @State private var meetingStartsAt = Date().addingTimeInterval(3600)
@@ -370,6 +372,12 @@ struct ChatView: View {
         }
         .sheet(isPresented: $showMeetingComposer) {
             meetingComposerSheet
+        }
+        .sheet(item: $openedSharedPost) { route in
+            NavigationStack {
+                PostDetailView(postId: route.id)
+            }
+            .environment(appState)
         }
         .sheet(isPresented: $showPollComposer) {
             ChatPollComposer { question, options, endsAt in
@@ -786,7 +794,13 @@ struct ChatView: View {
                                               },
                                               onPollVote: { msg, optionId in
                                                   Task { await viewModel.tapPollOption(messageId: msg.id, optionId: optionId) }
-                                              })
+                                              },
+                                              sharedPost: message.sharedPostId.flatMap { viewModel.sharedPosts[$0] }
+                                                  ?? (message.messageType == .post && message.sharedPostId == nil ? .unavailable : nil),
+                                              onSharedPostAppear: {
+                                                  Task { await viewModel.loadSharedPost(message.sharedPostId) }
+                                              },
+                                              onOpenSharedPost: { openedSharedPost = OpenedSharedPost(id: $0.id) })
                                     .modifier(MessageAppearModifier(
                                         id: message.id,
                                         appearedIDs: $appearedMessageIDs,
@@ -1249,6 +1263,7 @@ struct ChatView: View {
             case .voice:   return bundle.loc("Voice message")
             case .album:   return message.albumPreview
             case .poll:    return "📊 " + (message.content ?? bundle.loc("Poll"))
+            case .post:    return "📰 " + bundle.loc("Shared a post")
             }
         }()
 
@@ -1516,4 +1531,9 @@ private struct MediaViewerSelection: Identifiable {
     let id = UUID()
     let items: [ChatMediaViewerItem]
     let startIndex: Int
+}
+
+/// A shared post opened from the chat (the sheet's item).
+struct OpenedSharedPost: Identifiable {
+    let id: String
 }

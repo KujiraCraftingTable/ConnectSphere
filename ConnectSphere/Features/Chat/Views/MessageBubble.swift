@@ -44,6 +44,10 @@ struct MessageBubble: View {
     var onMeetingCancel: ((Message) -> Void)? = nil
     /// An option tapped on a group poll (the option's id)
     var onPollVote: ((Message, String) -> Void)? = nil
+    /// A shared post (`.post`) as this viewer sees it, loaded on appear.
+    var sharedPost: ChatViewModel.SharedPostState? = nil
+    var onSharedPostAppear: (() -> Void)? = nil
+    var onOpenSharedPost: ((Post) -> Void)? = nil
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.appBundle) var bundle
     @State private var showCancelConfirm = false
@@ -246,6 +250,23 @@ struct MessageBubble: View {
                 ChatPollCard(question: message.content ?? "", poll: poll, currentUserId: currentUserId,
                              accent: palette.primary,
                              onVote: { optionId in onPollVote?(message, optionId) })
+            }
+
+        case .post:
+            // The sender's note, then the post itself.
+            VStack(alignment: isOwn ? .trailing : .leading, spacing: 4) {
+                if let note = message.content, !note.isEmpty {
+                    Text(note)
+                        .font(.system(size: 15))
+                        .foregroundColor(isOwn ? .white : AppColors.textPrimary(colorScheme))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(bubbleBackground)
+                        .clipShape(bubbleShape)
+                }
+                ChatSharedPostCard(state: sharedPost,
+                                   onAppear: { onSharedPostAppear?() },
+                                   onOpen: { onOpenSharedPost?($0) })
             }
         }
     }

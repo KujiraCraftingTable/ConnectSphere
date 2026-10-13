@@ -418,6 +418,18 @@ struct MessageRepository {
         ).data
     }
 
+    /// Shares a post into a chat, with an optional note from the sender.
+    func sendPost(conversationId: String, postId: String, note: String, token: String) async throws -> Message {
+        struct Body: Encodable { let content: String?; let message_type: String; let shared_post_id: String }
+        let body = try JSONEncoder().encode(Body(content: note.isEmpty ? nil : note,
+                                                 message_type: MessageType.post.rawValue, shared_post_id: postId))
+        return try await client.fetch(
+            DataResponse<Message>.self,
+            path: "/messages/conversations/\(conversationId)/messages",
+            method: "POST", token: token, bodyData: body
+        ).data
+    }
+
     /// Votes on a group poll, or moves your vote to `optionId`; returns the
     /// updated poll.
     func votePoll(conversationId: String, messageId: String, optionId: String, token: String) async throws -> ChatPoll {
