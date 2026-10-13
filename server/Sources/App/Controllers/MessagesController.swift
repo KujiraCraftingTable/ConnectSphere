@@ -261,6 +261,8 @@ struct MessagesController {
         var voice_waveform: [Double]?
         /// For `message_type == "poll"`; the question is `content`.
         var poll: PollIn?
+        /// For `message_type == "post"`; `content` is the sender's optional note.
+        var shared_post_id: String?
     }
     struct PollIn: Content { var options: [String]?; var ends_at: String? }
     static let maxAlbumPhotos = 10
@@ -319,6 +321,19 @@ struct MessagesController {
             poll = try ChatStore.validatePoll(question: b.content, options: b.poll?.options, endsAt: b.poll?.ends_at)
         }
 
+        var sharedPost: String? = nil
+        if type == "post" {
+            // Only a post the sender can see: it can't be used to pass on a
+            // post that's hidden from them (private, blocked, deleted…).
+            guard let pid = b.shared_post_id?.lowercased(), UUID(uuidString: pid) != nil else {
+                throw Abort(.badRequest, reason: "shared_post_id is required")
+            }
+            guard try await !PostStore.findVisible([pid], viewer: req.userID, on: db).isEmpty else {
+                throw Abort(.notFound, reason: "Post not found")
+            }
+            sharedPost = pid
+        }
+
         var replyTo: String? = nil
         if let rid = b.reply_to_message_id {
             guard let target = try await ChatStore.messageBasic(rid, on: db), target.conversation_id == id else {
@@ -335,7 +350,8 @@ struct MessagesController {
         let newID = try await ChatStore.insertMessage(id, senderID: req.userID,
             content: storedContent, messageType: type,
             mediaUrl: album?.first?.url ?? b.media_url, mediaItems: album, replyToMessageID: replyTo,
-            voiceDuration: b.voice_duration_seconds, voiceWaveform: b.voice_waveform, on: db)
+            voiceDuration: b.voice_duration_seconds, voiceWaveform: b.voice_waveform,
+            sharedPostID: sharedPost, on: db)
         if let v = validated {
             try await ChatStore.createMeetingProposalRow(messageID: newID, v, on: db)
         }

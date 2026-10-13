@@ -21,7 +21,7 @@ enum ChatStore {
           'message_type', rm.message_type, 'is_deleted', (rm.deleted_at IS NOT NULL),
           'content', CASE WHEN rm.deleted_at IS NOT NULL THEN NULL ELSE LEFT(COALESCE(rm.content,
             CASE rm.message_type WHEN 'image' THEN '📷 Photo' WHEN 'album' THEN '📷 Album' WHEN 'video' THEN '🎥 Video'
-              WHEN 'voice' THEN '🎤 Voice message' ELSE '' END), 120) END
+              WHEN 'voice' THEN '🎤 Voice message' WHEN 'post' THEN '📰 Shared a post' ELSE '' END), 120) END
         ) ELSE NULL END)::text AS replied_message,
         COALESCE((SELECT jsonb_object_agg(agg.emoji, agg.user_ids) FROM (
           SELECT emoji, jsonb_agg(user_id) AS user_ids FROM message_reactions WHERE message_id = m.id GROUP BY emoji) agg
@@ -55,7 +55,7 @@ enum ChatStore {
         var voice_duration_seconds: Int?; var voice_waveform: [Double]?
         var created_at: Date; var reply_to_message_id: String?; var is_deleted: Bool
         var replied_message: String?; var reactions: String; var meeting_proposal: String?
-        var poll: String?
+        var poll: String?; var shared_post_id: String?
         var is_pinned: Bool; var delivered_to: String; var read_by: String
     }
 
@@ -77,7 +77,8 @@ enum ChatStore {
             is_pinned: r.is_pinned,
             delivered_to: obj(r.delivered_to, [String].self) ?? [],
             read_by: obj(r.read_by, [String].self) ?? [],
-            poll: obj(r.poll, MessageObject.Poll.self))
+            poll: obj(r.poll, MessageObject.Poll.self),
+            shared_post_id: r.shared_post_id)
     }
 
     static let msgSelect: SQLQueryString = """
@@ -87,6 +88,7 @@ enum ChatStore {
           CASE WHEN m.deleted_at IS NULL THEN m.media_items::text ELSE NULL END AS media_items,
           CASE WHEN m.deleted_at IS NULL THEN m.voice_duration_seconds ELSE NULL END AS voice_duration_seconds,
           CASE WHEN m.deleted_at IS NULL THEN m.voice_waveform ELSE NULL END AS voice_waveform,
+          CASE WHEN m.deleted_at IS NULL THEN m.shared_post_id::text ELSE NULL END AS shared_post_id,
           m.created_at, m.reply_to_message_id::text AS reply_to_message_id, (m.deleted_at IS NOT NULL) AS is_deleted,
         """
 
@@ -174,13 +176,15 @@ enum ChatStore {
     static func insertMessage(_ conversationID: String, senderID: String, content: String?, messageType: String,
                               mediaUrl: String?, mediaItems: [MessageObject.MediaItem]? = nil,
                               replyToMessageID: String?, voiceDuration: Int?, voiceWaveform: [Double]?,
+                              sharedPostID: String? = nil,
                               on db: any SQLDatabase) async throws -> String {
         struct R: Decodable { let id: String }
         let itemsJSON = try mediaItems.map { String(decoding: try JSONEncoder().encode($0), as: UTF8.self) }
         let id = try await db.raw("""
-            INSERT INTO messages (conversation_id, sender_id, content, message_type, media_url, media_items, reply_to_message_id, voice_duration_seconds, voice_waveform)
+            INSERT INTO messages (conversation_id, sender_id, content, message_type, media_url, media_items, reply_to_message_id, voice_duration_seconds, voice_waveform, shared_post_id)
             VALUES (\(uuid: conversationID), \(uuid: senderID), \(bind: content), \(bind: messageType), \(bind: mediaUrl),
-                    \(bind: itemsJSON)::jsonb, \(uuid: replyToMessageID), \(bind: voiceDuration), \(bind: voiceWaveform))
+                    \(bind: itemsJSON)::jsonb, \(uuid: replyToMessageID), \(bind: voiceDuration), \(bind: voiceWaveform),
+                    \(uuid: sharedPostID))
             RETURNING id::text AS id
             """).first(decoding: R.self)!.id
         try await db.raw("UPDATE conversations SET updated_at = NOW() WHERE id = \(uuid: conversationID)").run()
@@ -417,6 +421,10 @@ struct MessageObject: Content {
     var read_by: [String]
     /// A group poll (`message_type == "poll"`, migration 052); null otherwise.
     @NullCoded var poll: Poll? = nil
+    /// A post shared into the chat (`message_type == "post"`, migration 054).
+    /// Only the id: each member loads the post as themselves, so its privacy
+    /// still applies.
+    @NullCoded var shared_post_id: String? = nil
 
     struct MediaItem: Content, Equatable {
         var url: String
