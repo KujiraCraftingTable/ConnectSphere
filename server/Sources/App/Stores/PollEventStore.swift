@@ -14,23 +14,37 @@ enum PollStore {
 
     struct OptionRow: Decodable { let id: String }
 
-    /// Throws 409 InlineError if the user already voted on any option of this poll.
-    static func vote(pollOptionID: String, userID: String, on db: AppDatabase) async throws {
-        let sdb = db.sql()
-        let existing = try await sdb.raw("""
-            SELECT pv.poll_option_id AS id
-            FROM poll_votes pv
-            JOIN poll_options po  ON po.id = pv.poll_option_id
-            JOIN poll_options po2 ON po2.post_id = po.post_id AND po2.id = \(uuid: pollOptionID)
-            WHERE pv.user_id = \(uuid: userID)
-            """).first(decoding: OptionRow.self)
-        if existing != nil {
-            let err = Abort(.conflict, reason: "You have already voted on this poll")
-            throw err
-        }
+    /// Sets `userID`'s vote on the poll of `postID` to `optionID` — a first
+    /// vote or a move from another option — or takes it back when
+    /// `optionID` is nil. One vote per person, as in chat polls; nothing
+    /// changes once the poll has ended (409). The poll's post row is locked
+    /// so the vote and the counts change together.
+    static func setVote(postID: String, optionID: String?, userID: String, on db: AppDatabase) async throws {
         try await db.tx { t in
-            try await t.raw("INSERT INTO poll_votes (poll_option_id, user_id) VALUES (\(uuid: pollOptionID), \(uuid: userID))").run()
-            try await t.raw("UPDATE poll_options SET vote_count = vote_count + 1 WHERE id = \(uuid: pollOptionID)").run()
+            struct P: Decodable { let ends_at: Date? }
+            let poll = try await t.raw("""
+                SELECT (SELECT po.ends_at FROM poll_options po WHERE po.post_id = p.id LIMIT 1) AS ends_at
+                FROM posts p WHERE p.id = \(uuid: postID) FOR UPDATE
+                """).first(decoding: P.self)
+            if let end = poll?.ends_at, end <= Date() { throw Abort(.conflict, reason: "This poll has ended") }
+
+            struct V: Decodable { let id: UUID }
+            let previous = try await t.raw("""
+                SELECT pv.poll_option_id AS id FROM poll_votes pv
+                JOIN poll_options po ON po.id = pv.poll_option_id
+                WHERE po.post_id = \(uuid: postID) AND pv.user_id = \(uuid: userID)
+                """).first(decoding: V.self)?.id
+            let target = optionID.flatMap(UUID.init(uuidString:))
+            guard previous != target else { return }
+
+            if let previous {
+                try await t.raw("DELETE FROM poll_votes WHERE poll_option_id = \(uuid: previous.uuidString) AND user_id = \(uuid: userID)").run()
+                try await t.raw("UPDATE poll_options SET vote_count = vote_count - 1 WHERE id = \(uuid: previous.uuidString)").run()
+            }
+            if let target {
+                try await t.raw("INSERT INTO poll_votes (poll_option_id, user_id) VALUES (\(uuid: target.uuidString), \(uuid: userID))").run()
+                try await t.raw("UPDATE poll_options SET vote_count = vote_count + 1 WHERE id = \(uuid: target.uuidString)").run()
+            }
         }
     }
 

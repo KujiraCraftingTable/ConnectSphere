@@ -23,6 +23,7 @@ struct PostsController {
         posts.patch(":id", use: update)
         posts.post(":id", "restore", use: restore)
         posts.post(":id", "poll", "vote", use: pollVote)
+        posts.delete(":id", "poll", "vote", use: pollUnvote)
         posts.post(":id", "share", use: share)
         posts.post(":id", "report", use: report)
 
@@ -402,6 +403,11 @@ struct PostsController {
         }
         try await PostService.voteOnPoll(postID: req.parameters.get("id")!, userID: req.userID, optionID: optionID, on: req.db)
         return OKMessage(message: "Vote recorded")
+    }
+
+    static func pollUnvote(_ req: Request) async throws -> OKMessage {
+        try await PostService.voteOnPoll(postID: req.parameters.get("id")!, userID: req.userID, optionID: nil, on: req.db)
+        return OKMessage(message: "Vote removed")
     }
 
     static func report(_ req: Request) async throws -> Response {
