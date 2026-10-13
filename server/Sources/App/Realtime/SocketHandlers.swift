@@ -130,6 +130,11 @@ enum SocketHandlers {
                 await session.ackError(ackID, "Not a participant"); return
             }
             let type = b.messageType ?? "text"
+            // These need checks only the REST route makes (a poll's options, a
+            // shared post's visibility), so they're sent through it.
+            if ["poll", "post"].contains(type) {
+                await session.ackError(ackID, "Send this through the API"); return
+            }
             if type == "text", (b.content?.trimmedText.isEmpty ?? true) {
                 await session.ackError(ackID, "Content required"); return
             }

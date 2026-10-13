@@ -305,6 +305,9 @@ enum NotifyService {
         case "video": return "🎥 Video"
         case "voice": return "🎤 Voice message"
         case "poll": return "📊 " + String((m.content ?? "").prefix(previewLength))
+        case "post":
+            let note = m.content?.trimmedText ?? ""
+            return note.isEmpty ? "📰 Shared a post" : "📰 " + String(note.prefix(previewLength))
         default:
             let c = m.content ?? ""
             return c.isEmpty ? nil : String(c.prefix(previewLength))
