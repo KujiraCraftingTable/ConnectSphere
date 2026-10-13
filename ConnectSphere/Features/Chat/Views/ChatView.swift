@@ -74,6 +74,9 @@ struct ChatView: View {
     /// Raised when a reply starts (swipe or long-press), so the keyboard comes
     /// up ready to type the way Messenger does.
     @FocusState private var isComposerFocused: Bool
+    /// The photo / meeting / poll / mic buttons beside the field. Folded into
+    /// a ">" while typing so the field gets the row; ">" shows them again.
+    @State private var showsComposerTools = true
     @State private var messageToRecall: Message?
     // "Forward" — pick a target conversation, re-send this message's content there.
     @State private var forwardingMessage: Message?
@@ -1100,37 +1103,49 @@ struct ChatView: View {
 
             HStack(alignment: .bottom, spacing: 10) {
                 if voiceSession.state == .idle {
-                    PhotosPicker(selection: $pickerItems,
-                                 maxSelectionCount: 10,
-                                 matching: .any(of: [.images, .videos])) {
-                        Image(systemName: "photo.on.rectangle.angled")
-                            .font(.system(size: 22))
-                            .foregroundColor(chatPalette.primary)
-                            .padding(.bottom, 6)
-                    }
-
-                    Button {
-                        resetMeetingComposer()
-                        showMeetingComposer = true
-                    } label: {
-                        Image(systemName: "calendar.badge.plus")
-                            .font(.system(size: 22))
-                            .foregroundColor(chatPalette.primary)
-                            .padding(.bottom, 6)
-                    }
-
-                    // Polls are for groups — between two people it's just a question.
-                    if viewModel.isGroup {
-                        Button { showPollComposer = true } label: {
-                            Image(systemName: "chart.bar.doc.horizontal")
-                                .font(.system(size: 21))
+                    if showsComposerTools {
+                        PhotosPicker(selection: $pickerItems,
+                                     maxSelectionCount: 10,
+                                     matching: .any(of: [.images, .videos])) {
+                            Image(systemName: "photo.on.rectangle.angled")
+                                .font(.system(size: 22))
                                 .foregroundColor(chatPalette.primary)
                                 .padding(.bottom, 6)
                         }
-                        .accessibilityLabel(Text(bundle.loc("New poll")))
-                    }
 
-                    VoiceRecorderControl(session: voiceSession, tint: chatPalette.primary)
+                        Button {
+                            resetMeetingComposer()
+                            showMeetingComposer = true
+                        } label: {
+                            Image(systemName: "calendar.badge.plus")
+                                .font(.system(size: 22))
+                                .foregroundColor(chatPalette.primary)
+                                .padding(.bottom, 6)
+                        }
+
+                        // Polls are for groups — between two people it's just a question.
+                        if viewModel.isGroup {
+                            Button { showPollComposer = true } label: {
+                                Image(systemName: "chart.bar.doc.horizontal")
+                                    .font(.system(size: 21))
+                                    .foregroundColor(chatPalette.primary)
+                                    .padding(.bottom, 6)
+                            }
+                            .accessibilityLabel(Text(bundle.loc("New poll")))
+                        }
+
+                        VoiceRecorderControl(session: voiceSession, tint: chatPalette.primary)
+                    } else {
+                        Button {
+                            withAnimation(.snappy) { showsComposerTools = true }
+                        } label: {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(chatPalette.primary)
+                                .frame(width: 26, height: 34)
+                        }
+                        .accessibilityLabel(Text(bundle.loc("Show more options")))
+                    }
 
                     TextField("", text: $inputText, prompt: Text("Message...", bundle: bundle), axis: .vertical)
                         .focused($isComposerFocused)
@@ -1144,6 +1159,12 @@ struct ChatView: View {
                                 .stroke(AppColors.borderStrong(colorScheme), lineWidth: 1)
                         )
                         .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
+                        .onChange(of: isComposerFocused) { _, focused in
+                            withAnimation(.snappy) {
+                                if focused { showsComposerTools = false }
+                                else if inputText.isEmpty { showsComposerTools = true }
+                            }
+                        }
                         .onChange(of: inputText) { _, newVal in
                             let typing = !newVal.isEmpty
                             if typing != isTyping {
