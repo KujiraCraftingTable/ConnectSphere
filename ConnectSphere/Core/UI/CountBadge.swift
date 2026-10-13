@@ -21,3 +21,24 @@ struct CountBadge: View {
         }
     }
 }
+
+/// The unread badge on an icon (iOS 18's stand-in for a toolbar item's
+/// system badge): red with white numbers and a thin ring in the background
+/// colour that keeps it apart from the icon — like Messenger's.
+struct UnreadBadge: View {
+    let count: Int
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        if count > 0 {
+            Text(count > 99 ? "99+" : "\(count)")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, count > 9 ? 4 : 0)
+                .frame(minWidth: 18, minHeight: 18)
+                .background(Color.red, in: Capsule())
+                .overlay(Capsule().stroke(AppColors.base(colorScheme), lineWidth: 2))
+        }
+    }
+}
