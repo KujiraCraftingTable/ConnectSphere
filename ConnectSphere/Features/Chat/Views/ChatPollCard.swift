@@ -45,7 +45,6 @@ struct ChatPollCard: View {
         .padding(compact ? 9 : 12)
         .frame(maxWidth: compact ? .infinity : 300, alignment: .leading)
         .background(AppColors.surface(colorScheme), in: RoundedRectangle(cornerRadius: compact ? 12 : 14))
-        .overlay(RoundedRectangle(cornerRadius: compact ? 12 : 14).stroke(accent.opacity(0.18), lineWidth: 1))
         .sheet(item: $votersFor) { option in
             PollVotersSheet(option: option)
         }

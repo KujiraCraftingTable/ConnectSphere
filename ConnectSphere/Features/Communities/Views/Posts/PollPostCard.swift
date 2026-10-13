@@ -1,6 +1,8 @@
 import SwiftUI
 
-/// Card body for poll-type posts. Shows options with progress bars and voting UI.
+/// Card body for poll-type posts. Works like a chat poll (`ChatPollCard`):
+/// one vote each, which can be moved or taken back until the poll ends —
+/// but shows each option's percentage rather than who picked it.
 struct PollPostCard: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.appBundle) var bundle
@@ -15,25 +17,13 @@ struct PollPostCard: View {
                 optionRow(option)
             }
 
-            // Footer: total votes + optional end date
-            HStack {
-                Text(String(
-                    format: bundle.loc(vm.pollData.totalVotes == 1 ? "%d vote" : "%d votes"),
-                    vm.pollData.totalVotes
-                ))
-                    .font(.system(size: 12))
-                    .foregroundColor(AppColors.textTertiary(colorScheme))
-                Spacer()
-                if let endsAt = vm.pollData.options.first?.endsAt {
-                    Text(String(
-                        format: bundle.loc("Ends %@"),
-                        endsAt.formatted(date: .abbreviated, time: .shortened)
-                    ))
-                        .font(.system(size: 12))
-                        .foregroundColor(AppColors.textTertiary(colorScheme))
-                }
-            }
-            .padding(.top, 4)
+            // Footer: total votes, then when it ends (or that it has) and
+            // what a tap does — the same footer as a chat poll.
+            Text(footerText)
+                .font(.system(size: 12))
+                .foregroundColor(AppColors.textTertiary(colorScheme))
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 4)
 
             if let err = vm.errorMessage {
                 Text(err)
@@ -45,55 +35,62 @@ struct PollPostCard: View {
         .padding(.bottom, 12)
     }
 
-    @ViewBuilder
+    private var footerText: String {
+        var parts = [String(format: bundle.loc(vm.pollData.totalVotes == 1 ? "%d vote" : "%d votes"),
+                            vm.pollData.totalVotes)]
+        if vm.hasEnded {
+            parts.append(bundle.loc("Ended"))
+        } else {
+            if let endsAt = vm.endsAt {
+                parts.append(String(format: bundle.loc("Ends %@"), endsAt.formatted(date: .abbreviated, time: .shortened)))
+            }
+            parts.append(bundle.loc(vm.pollData.userVote == nil ? "Tap an option to vote" : "Tap your choice to undo"))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// One option as in chat polls: a bar sized by its share, your choice
+    /// ticked, and — instead of the voters' faces — its percentage. Tapping
+    /// votes, moves your vote here, or on your choice takes it back.
     private func optionRow(_ option: PollOption) -> some View {
-        let hasVoted   = vm.pollData.userVote != nil
         let isSelected = vm.pollData.userVote == option.id
         let pct        = vm.percentage(for: option)
 
-        Button {
-            guard !hasVoted else { return }
-            Task<Void, Never>(name: nil) { await vm.vote(optionId: option.id) }
+        return Button {
+            Task { await vm.tap(optionId: option.id) }
         } label: {
-            ZStack(alignment: .leading) {
-                // Background track
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(AppColors.elevated(colorScheme))
-                    .frame(height: 38)
-
-                // Progress fill
-                if hasVoted {
-                    GeometryReader { geo in
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(isSelected
-                                  ? accentColor.opacity(0.25)
-                                  : accentColor.opacity(0.08))
-                            .frame(width: geo.size.width * pct / 100, height: 38)
-                    }
-                    .frame(height: 38)
+            HStack(spacing: 6) {
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 13))
+                        .foregroundColor(accentColor)
                 }
-
-                // Label row
-                HStack {
-                    if isSelected {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 13))
-                            .foregroundColor(accentColor)
-                    }
-                    Text(option.text)
-                        .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
-                        .foregroundColor(AppColors.textPrimary(colorScheme))
-                    Spacer()
-                    if hasVoted {
-                        Text(String(format: "%.0f%%", pct))
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(isSelected ? accentColor : AppColors.textSecondary(colorScheme))
-                    }
-                }
-                .padding(.horizontal, 12)
+                Text(option.text)
+                    .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
+                    .foregroundColor(AppColors.textPrimary(colorScheme))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 4)
+                Text(String(format: "%.0f%%", pct))
+                    .font(.system(size: 13, weight: .medium).monospacedDigit())
+                    .foregroundColor(isSelected ? accentColor : AppColors.textSecondary(colorScheme))
             }
+            .padding(.horizontal, 12)
+            .frame(minHeight: 38)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(alignment: .leading) {
+                GeometryReader { geo in
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(accentColor.opacity(isSelected ? 0.28 : 0.14))
+                        .frame(width: geo.size.width * pct / 100)
+                }
+            }
+            .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(hasVoted || vm.isVoting)
+        .disabled(vm.isVoting || vm.hasEnded)
+        .animation(.snappy, value: vm.pollData.userVote)
     }
 }

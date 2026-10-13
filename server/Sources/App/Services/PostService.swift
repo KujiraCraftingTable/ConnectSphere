@@ -271,7 +271,8 @@ enum PostService {
 
     // MARK: vote / rsvp
 
-    static func voteOnPoll(postID: String, userID: String, optionID: String, on db: AppDatabase) async throws {
+    /// Votes for `optionID`, moves the vote there, or — with nil — takes it back.
+    static func voteOnPoll(postID: String, userID: String, optionID: String?, on db: AppDatabase) async throws {
         let sdb = db.sql()
         guard let meta = try await PostStore.findMeta(postID, on: sdb) else { throw Abort(.notFound, reason: "Post not found") }
         guard meta.post_type == "poll" else { throw Abort(.badRequest, reason: "This post is not a poll") }
@@ -280,9 +281,11 @@ enum PostService {
                 throw Abort(.forbidden, reason: "You must be a member of this community to vote")
             }
         }
-        let valid = try await PollStore.optionIDs(postID: postID, on: sdb)
-        guard valid.contains(optionID.lowercased()) else { throw Abort(.badRequest, reason: "Invalid poll option for this post") }
-        try await PollStore.vote(pollOptionID: optionID, userID: userID, on: db)
+        if let optionID {
+            let valid = try await PollStore.optionIDs(postID: postID, on: sdb)
+            guard valid.contains(optionID.lowercased()) else { throw Abort(.badRequest, reason: "Invalid poll option for this post") }
+        }
+        try await PollStore.setVote(postID: postID, optionID: optionID, userID: userID, on: db)
     }
 
     static func rsvpEvent(eventID: String, userID: String, status: String?, on db: AppDatabase) async throws {
