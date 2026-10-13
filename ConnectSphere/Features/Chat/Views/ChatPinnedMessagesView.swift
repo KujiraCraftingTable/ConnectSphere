@@ -50,10 +50,9 @@ struct ChatPinnedMessagesView: View {
         .navigationTitle(bundle.loc("Pinned messages"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await viewModel.loadPins() }
-        .confirmationDialog(
+        .alert(
             bundle.loc("Unpin this message?"),
-            isPresented: Binding(get: { pendingUnpin != nil }, set: { if !$0 { pendingUnpin = nil } }),
-            titleVisibility: .visible
+            isPresented: Binding(get: { pendingUnpin != nil }, set: { if !$0 { pendingUnpin = nil } })
         ) {
             Button(bundle.loc("Unpin"), role: .destructive) {
                 if let pin = pendingUnpin {

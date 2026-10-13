@@ -71,10 +71,9 @@ struct MessageBubble: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 2)
-        .confirmationDialog(
+        .alert(
             Text("Cancel meeting proposal?", bundle: bundle),
-            isPresented: $showCancelConfirm,
-            titleVisibility: .visible
+            isPresented: $showCancelConfirm
         ) {
             Button(role: .destructive) {
                 onMeetingCancel?(message)

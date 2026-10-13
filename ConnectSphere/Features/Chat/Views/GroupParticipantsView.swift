@@ -64,7 +64,7 @@ struct GroupParticipantsView: View {
             )
             .environment(appState)
         }
-        .confirmationDialog(bundle.loc("Leave this group?"), isPresented: $showLeaveConfirm, titleVisibility: .visible) {
+        .alert(bundle.loc("Leave this group?"), isPresented: $showLeaveConfirm) {
             Button(bundle.loc("Leave"), role: .destructive) {
                 Task { await viewModel.leaveGroup() }
             }

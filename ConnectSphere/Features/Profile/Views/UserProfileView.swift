@@ -105,10 +105,9 @@ struct UserProfileView: View {
                 }
             }
         }
-        .confirmationDialog(
+        .alert(
             bundle.loc("Block this user?"),
-            isPresented: $showBlockConfirm,
-            titleVisibility: .visible
+            isPresented: $showBlockConfirm
         ) {
             Button(bundle.loc("Block"), role: .destructive) {
                 Task { await viewModel.toggleBlock(userId: userId) }

@@ -346,6 +346,14 @@ struct CreatePostView: View {
                         if hasUnsavedWork { showLeaveDialog = true } else { dismiss() }
                     }
                     .foregroundColor(AppColors.textSecondary(colorScheme))
+                    .confirmationDialog(bundle.loc(draftId == nil ? "Save this post as a draft?" : "Save your changes to this draft?"),
+                                        isPresented: $showLeaveDialog, titleVisibility: .visible) {
+                        if !isPostDisabled {
+                            Button(bundle.loc("Save draft")) { savePost(as: .draft) }
+                        }
+                        Button(bundle.loc(draftId == nil ? "Discard" : "Discard changes"), role: .destructive) { dismiss() }
+                        Button(bundle.loc("Keep editing"), role: .cancel) {}
+                    }
                 }
                 if !isEditMode && !feedDrafts.isEmpty {
                     ToolbarItem(placement: .navigationBarTrailing) {
@@ -353,14 +361,6 @@ struct CreatePostView: View {
                             .foregroundColor(themeManager.theme.primary)
                     }
                 }
-            }
-            .confirmationDialog(bundle.loc(draftId == nil ? "Save this post as a draft?" : "Save your changes to this draft?"),
-                                isPresented: $showLeaveDialog, titleVisibility: .visible) {
-                if !isPostDisabled {
-                    Button(bundle.loc("Save draft")) { savePost(as: .draft) }
-                }
-                Button(bundle.loc(draftId == nil ? "Discard" : "Discard changes"), role: .destructive) { dismiss() }
-                Button(bundle.loc("Keep editing"), role: .cancel) {}
             }
             .sheet(isPresented: $showSchedulePicker) {
                 SchedulePickerSheet(initial: scheduleAt) { scheduleAt = $0 }

@@ -5,6 +5,8 @@ struct ConversationListView: View {
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.appBundle) var bundle
+    @Environment(FloatingChatPresenter.self) private var floatingChatPresenter
+    @Environment(UndoToastPresenter.self) private var toastPresenter
 
     /// Created and owned by `MainTabView` so the conversation survives this
     /// sheet being dismissed. Optional because it is built in MainTabView's
@@ -33,7 +35,6 @@ struct ConversationListView: View {
     @State private var pendingDeleteSpace: ChatSpace?
 
     // Swipe actions
-    @State private var moreActionsFor: Conversation?
     @State private var pendingDelete: Conversation?
     @State private var pendingBlock: Conversation?
 
@@ -158,11 +159,6 @@ struct ConversationListView: View {
             ) { people, groups in
                 await spacesViewModel.setMembers(space, people: people, groups: groups, token: token)
             }
-        }
-        .confirmationDialog(moreActionsFor?.displayName ?? "", isPresented: Binding(
-            get: { moreActionsFor != nil }, set: { if !$0 { moreActionsFor = nil } }
-        ), titleVisibility: .visible, presenting: moreActionsFor) { conversation in
-            moreActions(conversation)
         }
         .alert(bundle.loc("Delete this chat?"), isPresented: Binding(
             get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }
@@ -426,14 +422,12 @@ struct ConversationListView: View {
         .inFolder(folder, surface: AppColors.surface(colorScheme))
         .alignmentGuide(.listRowSeparatorLeading) { _ in ConversationRow.textInset }
         // Order matters: the first button sits at the edge and is the one a
-        // full (strong) swipe triggers — Archive.
+        // full (strong) swipe triggers — floating the chat.
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            Button {
-                Task { await viewModel.setArchived(conversation, true, token: token) }
-            } label: {
-                Label(bundle.loc("Archive"), systemImage: "archivebox.fill")
+            Button { float(conversation) } label: {
+                Label(bundle.loc("Bubble"), systemImage: "bubble.left.and.bubble.right.fill")
             }
-            .tint(.indigo)
+            .tint(themeManager.theme.primary)
             Button {
                 Task { await viewModel.setPinned(conversation, !conversation.isPinned, token: token) }
             } label: {
@@ -441,27 +435,46 @@ struct ConversationListView: View {
                       systemImage: conversation.isPinned ? "pin.slash.fill" : "pin.fill")
             }
             .tint(.orange)
-            Button { moreActionsFor = conversation } label: {
+            // A Menu, not a dialog: it drops down from the button itself.
+            Menu {
+                moreActions(conversation)
+            } label: {
                 Label(bundle.loc("More"), systemImage: "ellipsis.circle.fill")
             }
             .tint(.gray)
         }
     }
 
+    /// Opens the chat in the floating window without leaving the inbox.
+    private func float(_ conversation: Conversation) {
+        Task {
+            let closed = await floatingChatPresenter.add(conversation, currentUserId: appState.currentUser?.id ?? "",
+                                                         token: token)
+            if let closed {
+                toastPresenter.show(message: String(format: bundle.loc("Closed chat with %@ to make room"),
+                                                    closed.peer.name))
+            }
+        }
+    }
+
     @ViewBuilder
     private func moreActions(_ conversation: Conversation) -> some View {
         if conversation.hasUnread {
-            Button(bundle.loc("Mark as read")) {
+            Button(bundle.loc("Mark as read"), systemImage: "envelope.open.fill") {
                 Task { await viewModel.markRead(conversation, token: token) }
             }
         }
-        Button(bundle.loc(conversation.isMuted ? "Unmute" : "Mute")) {
+        Button(bundle.loc(conversation.isMuted ? "Unmute" : "Mute"),
+               systemImage: conversation.isMuted ? "bell.fill" : "bell.slash.fill") {
             Task { await viewModel.setMuted(conversation, !conversation.isMuted, token: token) }
         }
-        if !conversation.isGroup {
-            Button(bundle.loc("Block"), role: .destructive) { pendingBlock = conversation }
+        Button(bundle.loc("Archive"), systemImage: "archivebox.fill") {
+            Task { await viewModel.setArchived(conversation, true, token: token) }
         }
-        Button(bundle.loc("Delete"), role: .destructive) { pendingDelete = conversation }
+        if !conversation.isGroup {
+            Button(bundle.loc("Block"), systemImage: "hand.raised.fill", role: .destructive) { pendingBlock = conversation }
+        }
+        Button(bundle.loc("Delete"), systemImage: "trash.fill", role: .destructive) { pendingDelete = conversation }
     }
 
     // MARK: - Space sections
