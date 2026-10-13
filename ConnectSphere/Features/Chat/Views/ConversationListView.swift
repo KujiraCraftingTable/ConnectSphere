@@ -324,6 +324,10 @@ struct ConversationListView: View {
         // so the controls line up with the cards' content instead of their edges.
         .padding(.horizontal, AppSpacing.sm + 12)
         .padding(.top, AppSpacing.sm)
+        // Same as the gap above the bar: the search field's own bottom inset
+        // (~11 pt) plus the bar's 8 pt top padding. Outside the list, so it
+        // stays while the chats scroll.
+        .padding(.bottom, 18)
     }
 
     /// Same capsule toggle as Search's AI button: theme-filled when on,
@@ -399,10 +403,10 @@ struct ConversationListView: View {
         .scrollContentBackground(.hidden)
         .contentMargins(.horizontal, AppSpacing.sm, for: .scrollContent)
         .listSectionSpacing(AppSpacing.md)
-        // The grouped list's own top inset left a wide gap under the bar.
-        // Match the gap above the bar instead: the search field's own bottom
-        // inset (~11 pt) plus the bar's 8 pt top padding.
-        .contentMargins(.top, 18, for: .scrollContent)
+        // The gap under the bar is the bar's own bottom padding, not a list
+        // margin: a margin scrolls away with the first chat, leaving the rows
+        // running straight into the buttons.
+        .contentMargins(.top, 0, for: .scrollContent)
         .refreshable {
             await viewModel.load(mode: mode, token: token)
             await spacesViewModel.load(mode: mode, token: token)
