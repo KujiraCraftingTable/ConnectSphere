@@ -1,7 +1,7 @@
 import Foundation
 
 enum MessageType: String, Decodable {
-    case text, image, video, meeting, voice, album
+    case text, image, video, meeting, voice, album, poll
     /// Any type a newer server introduced (sticker, file, system…). Decoding
     /// falls back here so an unknown message renders as plain text rather than
     /// failing the whole history fetch.
@@ -165,6 +165,7 @@ struct PinnedMessage: Identifiable, Decodable, Equatable {
         case .meeting: return "📅 " + Bundle.app.loc("Meeting")
         case .voice:   return "🎤 " + Bundle.app.loc("Voice message")
         case .album:   return Message.albumPreview(caption: content, count: nil)
+        case .poll:    return "📊 " + (content ?? Bundle.app.loc("Poll"))
         }
     }
 
@@ -276,6 +277,8 @@ struct Message: Identifiable, Decodable, Equatable {
     var reactions: [String: [String]]
     /// Present only when `messageType == .meeting` — the proposal's details/RSVP state.
     var meetingProposal: MeetingProposal?
+    /// Present only when `messageType == .poll` — options and who voted for each.
+    var poll: ChatPoll?
     /// Present only when `messageType == .voice` — playback length in seconds.
     var voiceDurationSeconds: Int?
     /// Present only when `messageType == .voice` — a fixed-length (~40 point)
@@ -310,6 +313,7 @@ struct Message: Identifiable, Decodable, Equatable {
         case replyToMessageId = "reply_to_message_id"
         case repliedMessage   = "replied_message"
         case meetingProposal  = "meeting_proposal"
+        case poll
         case voiceDurationSeconds = "voice_duration_seconds"
         case voiceWaveform        = "voice_waveform"
     }
@@ -333,6 +337,7 @@ struct Message: Identifiable, Decodable, Equatable {
         reactions = try c.decodeIfPresent([String: [String]].self, forKey: .reactions) ?? [:]
         deletedFlag = try c.decodeIfPresent(Bool.self, forKey: .deletedFlag)
         meetingProposal = try c.decodeIfPresent(MeetingProposal.self, forKey: .meetingProposal)
+        poll = try c.decodeIfPresent(ChatPoll.self, forKey: .poll)
         voiceDurationSeconds = try c.decodeIfPresent(Int.self, forKey: .voiceDurationSeconds)
         voiceWaveform = try c.decodeIfPresent([Float].self, forKey: .voiceWaveform)
     }

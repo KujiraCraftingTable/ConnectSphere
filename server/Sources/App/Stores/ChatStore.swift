@@ -34,6 +34,15 @@ enum ChatStore {
             SELECT status, jsonb_agg(user_id) AS user_ids FROM message_meeting_rsvps WHERE proposal_id = mp.id GROUP BY status) agg
           ), '{}'::jsonb)
         ) ELSE NULL END)::text AS meeting_proposal,
+        (SELECT jsonb_build_object('ends_at', cp.ends_at, 'options', COALESCE((
+          SELECT jsonb_agg(jsonb_build_object('id', o.id, 'text', o.text, 'vote_count', o.vote_count,
+            'voters', COALESCE((SELECT jsonb_agg(jsonb_build_object('id', vu.id,
+                'display_name', \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "c.mode", alias: "vu")),
+                'avatar_url', \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: "c.mode", alias: "vu")),
+                'avatar_color', vu.avatar_color) ORDER BY v.voted_at)
+              FROM chat_poll_votes v JOIN users vu ON vu.id = v.user_id WHERE v.option_id = o.id), '[]'::jsonb)
+          ) ORDER BY o.position) FROM chat_poll_options o WHERE o.message_id = cp.message_id), '[]'::jsonb))
+         FROM chat_polls cp WHERE cp.message_id = m.id AND m.deleted_at IS NULL)::text AS poll,
         EXISTS(SELECT 1 FROM message_pins WHERE message_id = m.id) AS is_pinned,
         COALESCE((SELECT jsonb_agg(mr.user_id) FROM message_receipts mr WHERE mr.message_id = m.id AND mr.kind = 'delivered'), '[]'::jsonb)::text AS delivered_to,
         COALESCE((SELECT jsonb_agg(mr.user_id) FROM message_receipts mr WHERE mr.message_id = m.id AND mr.kind = 'read'), '[]'::jsonb)::text AS read_by
@@ -46,6 +55,7 @@ enum ChatStore {
         var voice_duration_seconds: Int?; var voice_waveform: [Double]?
         var created_at: Date; var reply_to_message_id: String?; var is_deleted: Bool
         var replied_message: String?; var reactions: String; var meeting_proposal: String?
+        var poll: String?
         var is_pinned: Bool; var delivered_to: String; var read_by: String
     }
 
@@ -66,7 +76,8 @@ enum ChatStore {
             meeting_proposal: obj(r.meeting_proposal, MessageObject.MeetingProposal.self),
             is_pinned: r.is_pinned,
             delivered_to: obj(r.delivered_to, [String].self) ?? [],
-            read_by: obj(r.read_by, [String].self) ?? [])
+            read_by: obj(r.read_by, [String].self) ?? [],
+            poll: obj(r.poll, MessageObject.Poll.self))
     }
 
     static let msgSelect: SQLQueryString = """
@@ -404,6 +415,8 @@ struct MessageObject: Content {
     var is_pinned: Bool
     var delivered_to: [String]
     var read_by: [String]
+    /// A group poll (`message_type == "poll"`, migration 052); null otherwise.
+    @NullCoded var poll: Poll? = nil
 
     struct MediaItem: Content, Equatable {
         var url: String
@@ -418,6 +431,19 @@ struct MessageObject: Content {
         var starts_at: Date; @NullCoded var ends_at: Date?; var status: String
         var reminder_offset: String; var reminder_at: Date; @NullCoded var reminder_sent_at: Date?
         var created_at: Date; var updated_at: Date; var rsvps: [String: [String]]
+    }
+    /// Options in order, each with who voted for it (oldest first) — the app
+    /// finds "my vote" here, so the same payload can go to every member.
+    struct Poll: Content {
+        @NullCoded var ends_at: Date?
+        var options: [Option]
+        struct Option: Content {
+            var id: String; var text: String; var vote_count: Int; var voters: [Voter]
+        }
+        struct Voter: Content {
+            var id: String; var display_name: String
+            @NullCoded var avatar_url: String?; @NullCoded var avatar_color: String?
+        }
     }
 }
 

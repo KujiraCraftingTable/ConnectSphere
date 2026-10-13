@@ -194,6 +194,7 @@ struct Conversation: Identifiable, Decodable, Equatable {
         // Meeting proposals carry no text content, so this must be checked before
         // the nil-content guard below (which would otherwise show "No messages yet").
         case "meeting": return "\(prefix)📅 " + Bundle.app.loc("Meeting proposal")
+        case "poll":    return "\(prefix)📊 " + (lastMessageContent ?? Bundle.app.loc("Poll"))
         case "voice":   return "\(prefix)🎤 " + Bundle.app.loc("Voice message")
         default:
             guard let content = lastMessageContent else { return Bundle.app.loc("No messages yet") }

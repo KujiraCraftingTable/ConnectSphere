@@ -76,6 +76,19 @@ struct FloatingChatMessageRow: View {
                     } else {
                         textBubble("📅 " + bundle.loc("Meeting"))
                     }
+                case .poll:
+                    if let poll = message.poll {
+                        ChatPollCard(question: message.content ?? "", poll: poll,
+                                     currentUserId: bubble.currentUserId, accent: themeManager.theme.primary,
+                                     compact: true,
+                                     onVote: { optionId in
+                                         presenter.markSeen(bubble)
+                                         Task { await bubble.viewModel.votePoll(messageId: message.id, optionId: optionId) }
+                                     })
+                            .frame(width: width * 0.9)
+                    } else {
+                        textBubble("📊 " + (message.content ?? ""))
+                    }
                 case .text, .unknown:
                     textBubble(message.content ?? "")
                 }
