@@ -19,6 +19,7 @@ struct FloatingChatMessageRow: View {
     let width: CGFloat
 
     @State private var viewer: ViewerTarget?
+    @State private var openedPost: OpenedSharedPost?
 
     private struct ViewerTarget: Identifiable {
         let id = UUID()
@@ -89,6 +90,17 @@ struct FloatingChatMessageRow: View {
                     } else {
                         textBubble("📊 " + (message.content ?? ""))
                     }
+                case .post:
+                    if let note = message.content, !note.isEmpty { textBubble(note) }
+                    ChatSharedPostCard(
+                        state: message.sharedPostId.flatMap { bubble.viewModel.sharedPosts[$0] } ?? (message.sharedPostId == nil ? .unavailable : nil),
+                        compact: true,
+                        onAppear: { Task { await bubble.viewModel.loadSharedPost(message.sharedPostId) } },
+                        onOpen: { post in
+                            presenter.markSeen(bubble)
+                            openedPost = OpenedSharedPost(id: post.id)
+                        })
+                        .frame(width: width * 0.9)
                 case .text, .unknown:
                     textBubble(message.content ?? "")
                 }
@@ -97,6 +109,9 @@ struct FloatingChatMessageRow: View {
         .frame(maxWidth: .infinity, alignment: isOwn ? .trailing : .leading)
         .fullScreenCover(item: $viewer) { target in
             ChatMediaViewerView(items: target.items, startIndex: target.start)
+        }
+        .sheet(item: $openedPost) { route in
+            NavigationStack { PostDetailView(postId: route.id) }
         }
     }
 

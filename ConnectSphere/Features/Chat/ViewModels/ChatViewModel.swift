@@ -555,6 +555,33 @@ class ChatViewModel {
         }
     }
 
+    // MARK: - Shared posts
+
+    /// A shared post as this viewer sees it.
+    enum SharedPostState {
+        case loading
+        case loaded(Post)
+        /// Not theirs to see (privacy, block) or deleted since.
+        case unavailable
+    }
+
+    /// Shared posts by id, loaded once each as the cards come into view.
+    private(set) var sharedPosts: [String: SharedPostState] = [:]
+
+    /// Loads a shared post through the normal post route, as this user — so
+    /// the post's privacy decides, not the sender's.
+    func loadSharedPost(_ id: String?) async {
+        guard let id else { return }
+        if case .loaded = sharedPosts[id] { return }
+        if case .loading = sharedPosts[id] { return }
+        sharedPosts[id] = .loading
+        do {
+            sharedPosts[id] = .loaded(try await PostRepository().fetchPost(id: id))
+        } catch {
+            sharedPosts[id] = .unavailable
+        }
+    }
+
     // MARK: - Polls (group chats)
 
     /// Sends a poll to this group. REST only: the server broadcasts it as
