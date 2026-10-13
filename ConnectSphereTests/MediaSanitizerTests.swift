@@ -68,6 +68,30 @@ struct MediaSanitizerTests {
         #expect(png?[kCGImagePropertyPNGDescription] == nil)
     }
 
+    private func pixelSize(_ data: Data) throws -> (Int, Int) {
+        let p = try properties(data)
+        return (try #require(p[kCGImagePropertyPixelWidth] as? Int), try #require(p[kCGImagePropertyPixelHeight] as? Int))
+    }
+
+    /// Longest edge 2048, whichever way round; the shape is kept.
+    @Test(arguments: [(4032, 3024, 2048, 1536), (3024, 4032, 1536, 2048), (3000, 3000, 2048, 2048), (1179, 2556, 945, 2048)])
+    func largePhotoShrinksToLongestEdge2048(w: Int, h: Int, expectedW: Int, expectedH: Int) async throws {
+        let clean = try await MediaSanitizer.cleanImage(try encode(try makeImage(width: w, height: h), as: .jpeg, properties: [:]))
+        let (cw, ch) = try pixelSize(clean.data)
+        #expect(abs(cw - expectedW) <= 1 && abs(ch - expectedH) <= 1)
+    }
+
+    @Test func smallPhotoKeepsItsSize() async throws {
+        let clean = try await MediaSanitizer.cleanImage(try encode(try makeImage(width: 800, height: 600), as: .jpeg, properties: [:]))
+        #expect(try pixelSize(clean.data) == (800, 600))
+    }
+
+    /// A screenshot is an opaque PNG: it becomes a (much lighter) JPEG.
+    @Test func opaquePNGBecomesJPEG() async throws {
+        let clean = try await MediaSanitizer.cleanImage(try encode(try makeImage(width: 64, height: 64), as: .png, properties: [:]))
+        #expect(clean.mimeType == "image/jpeg" && clean.fileExtension == "jpg")
+    }
+
     @Test func notAnImageIsRejectedRatherThanUploadedAsIs() async {
         await #expect(throws: MediaSanitizer.Failure.self) { try await MediaSanitizer.cleanImage(Data("hello".utf8)) }
     }
@@ -94,7 +118,37 @@ struct MediaSanitizerTests {
         #expect(try await asset.load(.duration).seconds > 0.1)
     }
 
-    private func writeTaggedVideo(to url: URL) async throws {
+    /// A 4K video comes back at 1080p, still landscape and playable; one at
+    /// 1080p or below is copied without re-encoding, at its own size.
+    @Test(arguments: [(3840, 2160, 1920, 1080), (1920, 1080, 1920, 1080), (640, 360, 640, 360)])
+    func videoIsCappedAt1080p(w: Int, h: Int, expectedW: Int, expectedH: Int) async throws {
+        let source = FileManager.default.temporaryDirectory.appendingPathComponent("size-\(UUID().uuidString).mov")
+        defer { try? FileManager.default.removeItem(at: source) }
+        try await writeTaggedVideo(to: source, width: w, height: h, transform: .identity)
+
+        let clean = try await MediaSanitizer.cleanVideo(at: source)
+        defer { try? FileManager.default.removeItem(at: clean.url) }
+        let track = try #require(try await AVURLAsset(url: clean.url).loadTracks(withMediaType: .video).first)
+        let size = try await track.load(.naturalSize).applying(try await track.load(.preferredTransform))
+        #expect(Int(abs(size.width)) == expectedW && Int(abs(size.height)) == expectedH)
+    }
+
+    /// A vertical 4K phone recording (landscape pixels turned 90°) comes
+    /// back as 1080×1920, still upright.
+    @Test func vertical4KVideoBecomes1080x1920() async throws {
+        let source = FileManager.default.temporaryDirectory.appendingPathComponent("vertical-\(UUID().uuidString).mov")
+        defer { try? FileManager.default.removeItem(at: source) }
+        try await writeTaggedVideo(to: source, width: 3840, height: 2160)
+
+        let clean = try await MediaSanitizer.cleanVideo(at: source)
+        defer { try? FileManager.default.removeItem(at: clean.url) }
+        let track = try #require(try await AVURLAsset(url: clean.url).loadTracks(withMediaType: .video).first)
+        let size = try await track.load(.naturalSize).applying(try await track.load(.preferredTransform))
+        #expect(Int(abs(size.width)) == 1080 && Int(abs(size.height)) == 1920)
+    }
+
+    private func writeTaggedVideo(to url: URL, width: Int = 64, height: Int = 64,
+                                  transform: CGAffineTransform = portrait) async throws {
         let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
         let location = AVMutableMetadataItem()
         location.identifier = .quickTimeMetadataLocationISO6709
@@ -108,12 +162,12 @@ struct MediaSanitizerTests {
         writer.metadata = [location, date, model]
 
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
-            AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: 64, AVVideoHeightKey: 64,
+            AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: width, AVVideoHeightKey: height,
         ])
-        input.transform = Self.portrait
+        input.transform = transform
         let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: [
             kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-            kCVPixelBufferWidthKey as String: 64, kCVPixelBufferHeightKey as String: 64,
+            kCVPixelBufferWidthKey as String: width, kCVPixelBufferHeightKey as String: height,
         ])
         writer.add(input)
         #expect(writer.startWriting())

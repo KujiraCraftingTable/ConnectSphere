@@ -90,7 +90,7 @@ final class EditProfileViewModel {
         defer { isSaving = false }
 
         var avatarUrl: String?
-        if let data = pickedImage?.jpegData(compressionQuality: 0.8) {
+        if let data = pickedImage?.jpegData(compressionQuality: 1) {
             avatarUrl = try? await postRepository.uploadImage(data)
             if avatarUrl == nil {
                 errorMessage = Bundle.app.loc("Couldn't upload avatar, please try again")
@@ -98,7 +98,7 @@ final class EditProfileViewModel {
             }
         }
         var coverUrl: String?
-        if let data = pickedCover?.jpegData(compressionQuality: 0.85) {
+        if let data = pickedCover?.jpegData(compressionQuality: 1) {
             coverUrl = try? await postRepository.uploadImage(data)
             if coverUrl == nil {
                 errorMessage = Bundle.app.loc("Couldn't upload cover photo, please try again")

@@ -553,7 +553,7 @@ struct StoryComposerView: View {
         // fixed design-time size (`canvasSize`), so a flat 1x render would
         // look soft once viewed full-screen in `StoryViewerView`.
         renderer.scale = 3
-        guard let jpeg = renderer.uiImage?.jpegData(compressionQuality: 0.9),
+        guard let jpeg = renderer.uiImage?.jpegData(compressionQuality: 1),
               await viewModel.publish(jpeg: jpeg, mode: mode) else { return }
         onPosted()
         dismiss()

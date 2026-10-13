@@ -19,10 +19,19 @@ nonisolated enum MediaSanitizer {
 
     enum Failure: Error { case unreadableImage, encodeFailed, exportFailed }
 
-    /// Re-encodes the image with no metadata dictionaries at all. PNG stays PNG
-    /// (it may be transparent); everything else (JPEG, HEIC…) becomes JPEG,
-    /// which every client and the server accept. The EXIF orientation flag is
-    /// applied to the pixels first, so dropping it can't leave a photo sideways.
+    /// Longest edge a photo keeps (as Facebook does): enough detail for any
+    /// phone screen, a fraction of a 12 MP original's weight.
+    static let maxPhotoEdge = 2048
+    /// The single lossy pass a photo gets — callers hand over the original
+    /// (or a lossless copy), so it's compressed once, not twice.
+    static let jpegQuality = 0.8
+
+    /// Re-encodes the image with no metadata dictionaries at all, its longest
+    /// edge brought down to `maxPhotoEdge` (smaller photos keep their size).
+    /// A PNG with transparency stays PNG; everything else (JPEG, HEIC, opaque
+    /// PNG such as screenshots) becomes JPEG at `jpegQuality`, which every
+    /// client and the server accept. The EXIF orientation flag is applied to
+    /// the pixels first, so dropping it can't leave a photo sideways.
     static func cleanImage(_ data: Data) async throws -> Image {
         try await Task.detached(priority: .userInitiated) { try reencode(data) }.value
     }
@@ -40,14 +49,16 @@ nonisolated enum MediaSanitizer {
         let decodeOptions: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: max(width, height),
+            kCGImageSourceThumbnailMaxPixelSize: min(max(width, height), maxPhotoEdge),
             kCGImageSourceShouldCacheImmediately: true,
         ]
         guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, decodeOptions as CFDictionary) else {
             throw Failure.unreadableImage
         }
 
+        // Only a PNG that really has an alpha channel needs to stay PNG.
         let isPNG = (CGImageSourceGetType(source) as String?) == UTType.png.identifier
+            && (props[kCGImagePropertyHasAlpha] as? Bool ?? false)
         let type = isPNG ? UTType.png : UTType.jpeg
         let out = NSMutableData()
         guard let destination = CGImageDestinationCreateWithData(out, type.identifier as CFString, 1, nil) else {
@@ -55,7 +66,7 @@ nonisolated enum MediaSanitizer {
         }
         // Only encoding settings — no EXIF/TIFF/GPS/IPTC dictionaries are passed,
         // so none are written. The colour profile travels with the CGImage.
-        let encodeOptions: [CFString: Any] = isPNG ? [:] : [kCGImageDestinationLossyCompressionQuality: 0.9]
+        let encodeOptions: [CFString: Any] = isPNG ? [:] : [kCGImageDestinationLossyCompressionQuality: jpegQuality]
         CGImageDestinationAddImage(destination, image, encodeOptions as CFDictionary)
         guard CGImageDestinationFinalize(destination) else { throw Failure.encodeFailed }
 
@@ -64,9 +75,12 @@ nonisolated enum MediaSanitizer {
                      fileExtension: isPNG ? "png" : "jpg")
     }
 
-    /// Copies the video's tracks into a new file without any metadata. The
-    /// passthrough preset never re-encodes, so quality and speed are
-    /// unchanged. Returns the new file (caller owns it) and its MIME type.
+    /// Copies the video's tracks into a new file without any metadata. A video
+    /// at 1080p or below is copied as is (passthrough: no re-encoding, so no
+    /// loss and no wait); anything larger (4K, 1440p…) is re-encoded to fit
+    /// 1920×1080 — 1080×1920 when it's vertical — in HEVC, which is about a
+    /// quarter of a 4K file. Returns the new file (caller owns it) and its
+    /// MIME type.
     ///
     /// The tracks go through a composition rather than straight from the
     /// asset: a passthrough export of the asset itself carries its metadata
@@ -75,6 +89,7 @@ nonisolated enum MediaSanitizer {
     static func cleanVideo(at url: URL) async throws -> (url: URL, mimeType: String) {
         let asset = AVURLAsset(url: url)
         let composition = AVMutableComposition()
+        var shortSide: CGFloat = 0
         do {
             let range = CMTimeRange(start: .zero, duration: try await asset.load(.duration))
             for track in try await asset.load(.tracks) where [.video, .audio].contains(track.mediaType) {
@@ -83,12 +98,17 @@ nonisolated enum MediaSanitizer {
                 else { throw Failure.exportFailed }
                 try copy.insertTimeRange(range, of: track, at: .zero)
                 // Keeps a portrait phone video upright.
-                copy.preferredTransform = try await track.load(.preferredTransform)
+                let transform = try await track.load(.preferredTransform)
+                copy.preferredTransform = transform
+                if track.mediaType == .video {
+                    let shown = try await track.load(.naturalSize).applying(transform)
+                    shortSide = min(abs(shown.width), abs(shown.height))
+                }
             }
         } catch {
             throw Failure.exportFailed
         }
-        guard let session = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetPassthrough) else {
+        guard let session = AVAssetExportSession(asset: composition, presetName: await exportPreset(for: composition, shortSide: shortSide)) else {
             throw Failure.exportFailed
         }
         let fileType: AVFileType = session.supportedFileTypes.contains(.mp4) ? .mp4 : .mov
@@ -103,5 +123,17 @@ nonisolated enum MediaSanitizer {
             throw Failure.exportFailed
         }
         return (output, fileType == .mp4 ? "video/mp4" : "video/quicktime")
+    }
+
+    /// Passthrough for 1080p and below; above that, the 1920×1080 preset
+    /// (which scales to fit, keeping the shape and orientation) — HEVC when
+    /// this device can export it, H.264 otherwise.
+    private static func exportPreset(for asset: AVAsset, shortSide: CGFloat) async -> String {
+        guard shortSide > 1080 else { return AVAssetExportPresetPassthrough }
+        for preset in [AVAssetExportPresetHEVC1920x1080, AVAssetExportPreset1920x1080]
+        where await AVAssetExportSession.compatibility(ofExportPreset: preset, with: asset, outputFileType: .mp4) {
+            return preset
+        }
+        return AVAssetExportPresetPassthrough
     }
 }
