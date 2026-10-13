@@ -224,7 +224,7 @@ struct CreatePostView: View {
 
                         if postType == .text {
                             // ── Media preview ────────────────────────────────
-                            if !selectedMedia.isEmpty {
+                            if !selectedMedia.isEmpty || viewModel.pendingMediaCount > 0 {
                                 mediaPreview
                                     .padding(.horizontal, 16)
                             }
@@ -279,7 +279,11 @@ struct CreatePostView: View {
                                 )
                             }
                             .onChange(of: selectedItems) { items in
-                                Task { selectedMedia = await viewModel.loadSelectedMedia(items, keeping: selectedMedia) }
+                                Task {
+                                    selectedMedia = await viewModel.loadSelectedMedia(items, keeping: selectedMedia) {
+                                        selectedMedia = $0
+                                    }
+                                }
                             }
                             .padding(.horizontal, 16)
                             .padding(.bottom, 8)
@@ -593,6 +597,12 @@ struct CreatePostView: View {
 
     // MARK: - Media
 
+    /// One item fills the row; several share it as squares. Loading tiles
+    /// count too, so the row doesn't jump when they turn into the media.
+    private var tileSize: CGSize {
+        selectedMedia.count + viewModel.pendingMediaCount == 1 ? CGSize(width: 280, height: 200) : CGSize(width: 160, height: 160)
+    }
+
     private var mediaPreview: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
@@ -619,8 +629,7 @@ struct CreatePostView: View {
                                     .foregroundColor(.white.opacity(0.92))
                             }
                         }
-                        .frame(width: selectedMedia.count == 1 ? 280 : 160,
-                               height: selectedMedia.count == 1 ? 200 : 160)
+                        .frame(width: tileSize.width, height: tileSize.height)
                         .clipped()
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                         .overlay(alignment: .bottomLeading) {
@@ -640,6 +649,10 @@ struct CreatePostView: View {
                         }
                         .padding(6)
                     }
+                }
+                // One blinking tile per picked item still loading.
+                ForEach(0..<viewModel.pendingMediaCount, id: \.self) { _ in
+                    MediaLoadingTile(width: tileSize.width, height: tileSize.height)
                 }
             }
         }

@@ -132,8 +132,13 @@ class PostComposerViewModel {
     /// Image → decode to UIImage; video → copy to a temp file + generate a thumbnail — the
     /// same logic Feed's composer uses (delegated through mediaHelper, not duplicated).
     func loadSelectedMedia(_ items: [PhotosPickerItem]) async {
-        selectedMedia = await mediaHelper.loadSelectedMedia(items, keeping: selectedMedia)
+        selectedMedia = await mediaHelper.loadSelectedMedia(items, keeping: selectedMedia) { [weak self] soFar in
+            self?.selectedMedia = soFar
+        }
     }
+
+    /// Picked items still loading (one blinking tile each).
+    var pendingMediaCount: Int { mediaHelper.pendingMediaCount }
 
     /// Uploads all selected media through the same multipart route Feed uses
     /// (POST /uploads), in order. Throws `MediaUploadError` if any item fails.

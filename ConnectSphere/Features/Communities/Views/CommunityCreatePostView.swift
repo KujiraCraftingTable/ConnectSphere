@@ -135,7 +135,7 @@ struct CommunityCreatePostView: View {
                     .appBackground()
 
                     // ── Media preview (text posts only — parity with Feed) ──
-                    if viewModel.postType == .text, !viewModel.selectedMedia.isEmpty {
+                    if viewModel.postType == .text, !viewModel.selectedMedia.isEmpty || viewModel.pendingMediaCount > 0 {
                         mediaPreview
                             .padding(.horizontal, 16)
                             .padding(.top, 12)
@@ -321,6 +321,12 @@ struct CommunityCreatePostView: View {
 
     /// Same layout as Feed's CreatePostView.mediaPreview so a community
     /// composer looks identical while picking photos/videos.
+    /// One item fills the row; several share it as squares. Loading tiles
+    /// count too, so the row doesn't jump when they turn into the media.
+    private var tileSize: CGSize {
+        viewModel.selectedMedia.count + viewModel.pendingMediaCount == 1 ? CGSize(width: 280, height: 200) : CGSize(width: 160, height: 160)
+    }
+
     private var mediaPreview: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
@@ -347,8 +353,7 @@ struct CommunityCreatePostView: View {
                                     .foregroundColor(.white.opacity(0.92))
                             }
                         }
-                        .frame(width: viewModel.selectedMedia.count == 1 ? 280 : 160,
-                               height: viewModel.selectedMedia.count == 1 ? 200 : 160)
+                        .frame(width: tileSize.width, height: tileSize.height)
                         .clipped()
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                         .overlay(alignment: .bottomLeading) {
@@ -368,6 +373,10 @@ struct CommunityCreatePostView: View {
                         }
                         .padding(6)
                     }
+                }
+                // One blinking tile per picked item still loading.
+                ForEach(0..<viewModel.pendingMediaCount, id: \.self) { _ in
+                    MediaLoadingTile(width: tileSize.width, height: tileSize.height)
                 }
             }
         }
