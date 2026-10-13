@@ -88,7 +88,9 @@ struct CreatePostView: View {
             || !selectedMedia.isEmpty
             || viewModel.linkPreview != nil
             || editingPostHasExistingMediaOrLink
-        return !hasContent || viewModel.isPosting
+        // Picked media still loading would be left out of the post, so wait
+        // until every item is in.
+        return !hasContent || viewModel.isPosting || viewModel.pendingMediaCount > 0
     }
 
     var body: some View {

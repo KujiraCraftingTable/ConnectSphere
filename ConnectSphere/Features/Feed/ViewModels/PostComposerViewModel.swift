@@ -65,8 +65,9 @@ class PostComposerViewModel {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         switch postType {
         case .text:
-            // Parity with Feed: an image/video-only post (no caption) is valid too.
-            return !trimmed.isEmpty || !selectedMedia.isEmpty || linkPreview != nil
+            // Parity with Feed: an image/video-only post (no caption) is valid
+            // too — once every picked item has loaded, or it'd be left out.
+            return (!trimmed.isEmpty || !selectedMedia.isEmpty || linkPreview != nil) && pendingMediaCount == 0
         case .poll:
             guard !trimmed.isEmpty else { return false }
             let valid = pollOptions.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
