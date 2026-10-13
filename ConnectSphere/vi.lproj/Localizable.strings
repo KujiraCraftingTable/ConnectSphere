@@ -1112,3 +1112,7 @@
 "%lld new" = "%lld tin mới";
 "Show chat" = "Hiện đoạn chat";
 "Closed chat with %@ to make room" = "Đã đóng đoạn chat với %@ để thêm chỗ";
+"Add a chat" = "Thêm đoạn chat";
+"Add to floating chat" = "Thêm vào chat nổi";
+"Search chats" = "Tìm đoạn chat";
+"Up to 4 chats float at once — adding one closes the chat you used longest ago." = "Tối đa 4 đoạn chat nổi cùng lúc — thêm một đoạn sẽ đóng đoạn bạn dùng lâu nhất.";

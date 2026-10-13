@@ -27,13 +27,15 @@ struct FloatingChatWindowView: View {
     /// Where the window ended up after a label drag: moved (snapped) or stashed.
     let onDragEnded: (_ translation: CGSize, _ predicted: CGSize) -> Void
     let onPinch: (_ magnification: CGFloat) -> Void
+    /// The label's "+": pick another chat to add.
+    let onAdd: () -> Void
 
     @GestureState private var dragOffset: CGSize = .zero
     @State private var pagerID: String?
 
     var body: some View {
         VStack(spacing: 0) {
-            FloatingChatLabel(presenter: presenter)
+            FloatingChatLabel(presenter: presenter, onAdd: onAdd)
                 .gesture(
                     DragGesture(minimumDistance: 3, coordinateSpace: .global)
                         .updating($dragOffset) { value, state, _ in state = value.translation }
@@ -82,13 +84,14 @@ struct FloatingChatWindowView: View {
 }
 
 /// The window's top bar and drag handle: unread to the left, the chat on
-/// screen with its place in the stack, unread to the right, and close.
+/// screen with its place in the stack, unread to the right, add, and close.
 private struct FloatingChatLabel: View {
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.appBundle) private var bundle
 
     let presenter: FloatingChatPresenter
+    let onAdd: () -> Void
 
     var body: some View {
         VStack(spacing: 3) {
@@ -119,6 +122,15 @@ private struct FloatingChatLabel: View {
                 if presenter.unreadAfter > 0 {
                     edgeCount(presenter.unreadAfter, leading: false)
                 }
+                Button(action: onAdd) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(themeManager.theme.primary)
+                        .frame(width: 22, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(bundle.loc("Add a chat")))
                 if let active = presenter.active {
                     Button { withAnimation(.snappy) { presenter.close(active) } } label: {
                         Image(systemName: "xmark")

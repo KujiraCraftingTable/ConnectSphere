@@ -40,6 +40,21 @@ final class FloatingBubbleState: Identifiable {
         self.seenMessageID = viewModel.messages.last?.id
     }
 
+    /// The message to count as last seen so that the newest `unread` messages
+    /// from others are unread — a chat added from the picker arrives with the
+    /// inbox's unread count rather than as all-seen. `nil` when they're all
+    /// unread.
+    static func seenBaseline(messages: [Message], unread: Int, currentUserId: String) -> String? {
+        guard unread > 0 else { return messages.last?.id }
+        var remaining = unread
+        for index in messages.indices.reversed()
+        where !messages[index].isOwn(userId: currentUserId) && !messages[index].isDeleted {
+            remaining -= 1
+            if remaining == 0 { return index > 0 ? messages[index - 1].id : nil }
+        }
+        return nil
+    }
+
     /// Messages from others since `seenMessageID`.
     var unreadCount: Int {
         let messages = viewModel.messages
@@ -176,16 +191,57 @@ final class FloatingChatPresenter {
             activate(existing)
             return nil
         }
+        viewModel.retag(to: Self.socketTag(conversationId))
+        return insert(FloatingBubbleState(
+            conversationId: conversationId, peer: peer, otherUserLocation: otherUserLocation,
+            currentUserId: currentUserId, token: token, viewModel: viewModel
+        ))
+    }
+
+    /// Floats a chat straight from the window's "+" picker, without opening
+    /// it first: joins its conversation and loads its history the way
+    /// `ChatView` does, then shows it. Its unread messages (the inbox's count)
+    /// stay unread until its card is tapped. Returns the chat closed to make
+    /// room, if any.
+    @discardableResult
+    func add(_ conversation: Conversation, currentUserId: String, token: String) async -> FloatingBubbleState? {
+        stashEdge = nil
+        if let existing = bubbles.first(where: { $0.id == conversation.id }) {
+            activate(existing)
+            return nil
+        }
+        let viewModel = ChatViewModel(conversationId: conversation.id, currentUserId: currentUserId,
+                                      isGroup: conversation.isGroup, otherUserId: conversation.otherUserId,
+                                      token: token)
+        // Tagged before joining, so its listeners are the bubble's from the start.
+        viewModel.retag(to: Self.socketTag(conversation.id))
+        viewModel.joinConversation()
+        await viewModel.loadMessages()
+        // Picked twice in a row while the first was loading.
+        if let existing = bubbles.first(where: { $0.id == conversation.id }) {
+            viewModel.leaveConversation()
+            activate(existing)
+            return nil
+        }
+        let bubble = FloatingBubbleState(
+            conversationId: conversation.id, peer: ChatPeer(conversation), otherUserLocation: nil,
+            currentUserId: currentUserId, token: token, viewModel: viewModel
+        )
+        bubble.seenMessageID = FloatingBubbleState.seenBaseline(
+            messages: viewModel.messages, unread: conversation.unreadCount, currentUserId: currentUserId)
+        return insert(bubble)
+    }
+
+    private static func socketTag(_ conversationId: String) -> String { "chatBubble-\(conversationId)" }
+
+    /// Adds a new chat and shows it; at the cap the chat used longest ago is
+    /// closed first and returned.
+    private func insert(_ bubble: FloatingBubbleState) -> FloatingBubbleState? {
         var evicted: FloatingBubbleState?
         if bubbles.count >= Self.maxChats, let oldest = bubbles.min(by: { $0.lastUsed < $1.lastUsed }) {
             evicted = oldest
             close(oldest)
         }
-        viewModel.retag(to: "chatBubble-\(conversationId)")
-        let bubble = FloatingBubbleState(
-            conversationId: conversationId, peer: peer, otherUserLocation: otherUserLocation,
-            currentUserId: currentUserId, token: token, viewModel: viewModel
-        )
         bubbles.append(bubble)
         activate(bubble)
         return evicted
