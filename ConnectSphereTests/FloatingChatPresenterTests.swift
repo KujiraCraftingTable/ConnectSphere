@@ -98,4 +98,38 @@ struct FloatingChatPresenterTests {
         float(presenter, "b")
         #expect(!presenter.isStashed)
     }
+
+    // MARK: Adding from the window's "+"
+
+    @Test func addedChatKeepsItsInboxUnreadCount() {
+        let messages = [message("1", from: "x"), message("2", from: me), message("3", from: "x"), message("4", from: "x")]
+        #expect(FloatingBubbleState.seenBaseline(messages: messages, unread: 0, currentUserId: me) == "4")
+        #expect(FloatingBubbleState.seenBaseline(messages: messages, unread: 2, currentUserId: me) == "2")
+        // All of the other person's messages unread, my own in between.
+        #expect(FloatingBubbleState.seenBaseline(messages: messages, unread: 3, currentUserId: me) == nil)
+        #expect(FloatingBubbleState.seenBaseline(messages: messages, unread: 9, currentUserId: me) == nil)
+    }
+
+    private func conversation(_ id: String, name: String, lastAt: Double, request: String? = nil,
+                              archived: Bool = false) -> Conversation {
+        var fields = """
+        "id":"\(id)","mode":"hobby","is_group":false,"updated_at":\(lastAt),"last_message_at":\(lastAt),
+        "other_user_id":"u-\(id)","other_user_name":"\(name)","unread_count":0
+        """
+        if let request { fields += ",\"request_state\":\"\(request)\"" }
+        if archived { fields += ",\"archived_at\":1" }
+        return try! JSONDecoder().decode(Conversation.self, from: Data("{\(fields)}".utf8))
+    }
+
+    @Test func pickerOffersAcceptedChatsNewestFirst() {
+        let list = [
+            conversation("a", name: "Kujira", lastAt: 10),
+            conversation("b", name: "Bá khí", lastAt: 30),
+            conversation("c", name: "Stranger", lastAt: 40, request: "waiting"),
+            conversation("d", name: "Old friend", lastAt: 50, archived: true),
+        ]
+        #expect(FloatingChatAddViewModel.addable(list, query: "").map(\.id) == ["b", "a"])
+        // Search ignores case and Vietnamese accents.
+        #expect(FloatingChatAddViewModel.addable(list, query: "ba khi").map(\.id) == ["b"])
+    }
 }

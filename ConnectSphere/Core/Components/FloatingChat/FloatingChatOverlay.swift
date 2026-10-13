@@ -13,6 +13,9 @@ extension View {
 private struct FloatingChatLayer: View {
     let presenter: FloatingChatPresenter
 
+    /// The "+" picker for adding another chat to the window.
+    @State private var showsAddSheet = false
+
     /// The size the user last pinched to; the larger one by default.
     @AppStorage("floatingChatSize") private var sizeRaw = FloatingChatSize.regular.rawValue
     private var chatSize: FloatingChatSize { FloatingChatSize(rawValue: sizeRaw) ?? .regular }
@@ -63,6 +66,9 @@ private struct FloatingChatLayer: View {
         .animation(.easeInOut(duration: 0.2), value: presenter.isHiddenByFullChat)
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: presenter.bubbles.isEmpty)
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: presenter.composingBubble?.id)
+        .sheet(isPresented: $showsAddSheet) {
+            FloatingChatAddSheet(presenter: presenter)
+        }
     }
 
     @ViewBuilder
@@ -87,7 +93,12 @@ private struct FloatingChatLayer: View {
             onDragEnded: { translation, predicted in
                 endDrag(from: center, translation: translation, predicted: predicted, size: size, in: container)
             },
-            onPinch: { magnification in pinch(magnification, center: center, in: container) }
+            onPinch: { magnification in pinch(magnification, center: center, in: container) },
+            onAdd: {
+                // The reply bar's keyboard and the sheet would fight.
+                presenter.dismissAllComposing()
+                showsAddSheet = true
+            }
         )
         .position(shown)
         .offset(y: -lift)
