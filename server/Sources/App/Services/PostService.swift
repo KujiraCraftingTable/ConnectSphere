@@ -281,7 +281,7 @@ enum PostService {
             }
         }
         let valid = try await PollStore.optionIDs(postID: postID, on: sdb)
-        guard valid.contains(optionID) else { throw Abort(.badRequest, reason: "Invalid poll option for this post") }
+        guard valid.contains(optionID.lowercased()) else { throw Abort(.badRequest, reason: "Invalid poll option for this post") }
         try await PollStore.vote(pollOptionID: optionID, userID: userID, on: db)
     }
 

@@ -29,6 +29,34 @@ enum PostStore {
 
     // MARK: buildPostSelect + clauses  (viewer id inlined via \(uuid:) at each use)
 
+    /// The event / poll / job sub-objects for posts aliased `p`, as seen by
+    /// viewer `v` (their RSVP, vote and interest), each followed by a comma.
+    /// Shared by every post query and the recommended feed, so no list of
+    /// posts can come back without them.
+    static func typeDataColumns(_ v: String) -> SQLQueryString {
+        """
+          (CASE WHEN p.post_type = 'event' THEN (
+            SELECT json_build_object('id', ce.id, 'title', ce.title, 'location', ce.location,
+              'starts_at', ce.starts_at, 'ends_at', ce.ends_at, 'rsvp_count', ce.rsvp_count,
+              'user_rsvp', (SELECT er.status FROM event_rsvps er WHERE er.event_id = ce.id AND er.user_id = \(uuid: v)))
+            FROM community_events ce WHERE ce.post_id = p.id
+          ) ELSE NULL END)::text AS event_data,
+          (CASE WHEN p.post_type = 'poll' THEN json_build_object(
+            'options', (SELECT json_agg(json_build_object('id', po.id, 'text', po.text, 'vote_count', po.vote_count,
+              'position', po.position, 'ends_at', po.ends_at) ORDER BY po.position) FROM poll_options po WHERE po.post_id = p.id),
+            'user_vote', (SELECT pv.poll_option_id::TEXT FROM poll_votes pv JOIN poll_options po2 ON po2.id = pv.poll_option_id
+              WHERE po2.post_id = p.id AND pv.user_id = \(uuid: v)))
+          ELSE NULL END)::text AS poll_data,
+          (CASE WHEN p.post_type = 'job' THEN (
+            SELECT json_build_object('id', jp.id, 'title', jp.title, 'company', jp.company, 'location', jp.location,
+              'employment_type', jp.employment_type, 'salary_range', jp.salary_range,
+              'application_deadline', jp.application_deadline, 'interested_count', jp.interested_count,
+              'user_interested', EXISTS(SELECT 1 FROM job_interests ji WHERE ji.job_id = jp.id AND ji.user_id = \(uuid: v)))
+            FROM job_posts jp WHERE jp.post_id = p.id
+          ) ELSE NULL END)::text AS job_data,
+        """
+    }
+
     static func buildPostSelect(_ v: String) -> SQLQueryString {
         let dnP  = PersonaSQL.expr("display_name", modeRef: "p.mode")
         let avP  = PersonaSQL.expr("avatar_url", modeRef: "p.mode")
@@ -62,25 +90,7 @@ enum PostStore {
           json_build_object('id', u.id, 'username', u.username, 'display_name', \(unsafeRaw: dnP),
             'avatar_color', u.avatar_color, 'avatar_url', \(unsafeRaw: avP),
             'job_title', u.job_title, 'company', u.company)::text AS author,
-          (CASE WHEN p.post_type = 'event' THEN (
-            SELECT json_build_object('id', ce.id, 'title', ce.title, 'location', ce.location,
-              'starts_at', ce.starts_at, 'ends_at', ce.ends_at, 'rsvp_count', ce.rsvp_count,
-              'user_rsvp', (SELECT er.status FROM event_rsvps er WHERE er.event_id = ce.id AND er.user_id = \(uuid: v)))
-            FROM community_events ce WHERE ce.post_id = p.id
-          ) ELSE NULL END)::text AS event_data,
-          (CASE WHEN p.post_type = 'poll' THEN json_build_object(
-            'options', (SELECT json_agg(json_build_object('id', po.id, 'text', po.text, 'vote_count', po.vote_count,
-              'position', po.position, 'ends_at', po.ends_at) ORDER BY po.position) FROM poll_options po WHERE po.post_id = p.id),
-            'user_vote', (SELECT pv.poll_option_id::TEXT FROM poll_votes pv JOIN poll_options po2 ON po2.id = pv.poll_option_id
-              WHERE po2.post_id = p.id AND pv.user_id = \(uuid: v)))
-          ELSE NULL END)::text AS poll_data,
-          (CASE WHEN p.post_type = 'job' THEN (
-            SELECT json_build_object('id', jp.id, 'title', jp.title, 'company', jp.company, 'location', jp.location,
-              'employment_type', jp.employment_type, 'salary_range', jp.salary_range,
-              'application_deadline', jp.application_deadline, 'interested_count', jp.interested_count,
-              'user_interested', EXISTS(SELECT 1 FROM job_interests ji WHERE ji.job_id = jp.id AND ji.user_id = \(uuid: v)))
-            FROM job_posts jp WHERE jp.post_id = p.id
-          ) ELSE NULL END)::text AS job_data,
+          \(typeDataColumns(v))
           (CASE WHEN p.community_id IS NOT NULL THEN (
             SELECT json_build_object('id', co.id, 'name', co.name, 'icon_emoji', co.icon_emoji, 'avatar_url', co.avatar_url)
             FROM communities co WHERE co.id = p.community_id
