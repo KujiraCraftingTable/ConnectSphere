@@ -705,6 +705,9 @@ struct FriendSearchCard: View {
     let user: UserProfile
     /// Shown beside the name when set (People you may know).
     var matchPercent: Int? = nil
+    /// Shared with the card's button, so a pending request can move Accept /
+    /// Decline to their own row instead of squeezing the name and bio.
+    @State private var connect = ConnectViewModel()
 
     var body: some View {
         NavigationLink(destination: UserProfileView(userId: user.id, preloadedUser: user)
@@ -719,25 +722,33 @@ struct FriendSearchCard: View {
                                 Text(user.name)
                                     .font(.system(size: 16, weight: .semibold))
                                     .foregroundColor(AppColors.textPrimary(colorScheme))
+                                    .lineLimit(2)
                                 if let matchPercent { MatchPercentBadge(percent: matchPercent) }
                             }
                             Text(user.bio)
                                 .font(.system(size: 13))
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
-                                .lineLimit(3)
+                                .lineLimit(2)
                                 .fixedSize(horizontal: false, vertical: true)
                             if let location = user.location {
                                 HStack(spacing: 3) {
                                     Image(systemName: "mappin.circle.fill").font(.system(size: 11))
-                                    Text(location).font(.system(size: 12))
+                                    Text(location).font(.system(size: 12)).lineLimit(1)
                                 }
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
                             }
                         }
 
-                        Spacer()
+                        Spacer(minLength: 8)
 
-                        ConnectButton(targetUserId: user.id)
+                        if connect.status != .pendingReceived {
+                            ConnectButton(targetUserId: user.id, sharedVM: connect)
+                                .environment(appState)
+                        }
+                    }
+
+                    if connect.status == .pendingReceived {
+                        ConnectButton(targetUserId: user.id, fullWidth: true, sharedVM: connect)
                             .environment(appState)
                     }
 
@@ -781,6 +792,9 @@ struct ColleagueSearchCard: View {
     let user: UserProfile
     /// Shown beside the name when set (People you may know).
     var matchPercent: Int? = nil
+    /// Shared with the card's button, so a pending request can move Accept /
+    /// Decline to their own row instead of squeezing the name and bio.
+    @State private var connect = ConnectViewModel()
 
     var body: some View {
         NavigationLink(destination: UserProfileView(userId: user.id, preloadedUser: user)
@@ -795,25 +809,34 @@ struct ColleagueSearchCard: View {
                                 Text(user.name)
                                     .font(.system(size: 16, weight: .semibold))
                                     .foregroundColor(AppColors.textPrimary(colorScheme))
+                                    .lineLimit(2)
                                 if let matchPercent { MatchPercentBadge(percent: matchPercent) }
                             }
                             if let title = user.jobTitle, let company = user.company {
                                 Text("\(title) · \(company)")
                                     .font(.system(size: 13, weight: .medium))
                                     .foregroundColor(AppColors.textSecondary(colorScheme))
+                                    .lineLimit(2)
                             }
                             if let location = user.location {
                                 HStack(spacing: 3) {
                                     Image(systemName: "mappin.circle.fill").font(.system(size: 11))
-                                    Text(location).font(.system(size: 12))
+                                    Text(location).font(.system(size: 12)).lineLimit(1)
                                 }
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
                             }
                         }
 
-                        Spacer()
+                        Spacer(minLength: 8)
 
-                        ConnectButton(targetUserId: user.id)
+                        if connect.status != .pendingReceived {
+                            ConnectButton(targetUserId: user.id, sharedVM: connect)
+                                .environment(appState)
+                        }
+                    }
+
+                    if connect.status == .pendingReceived {
+                        ConnectButton(targetUserId: user.id, fullWidth: true, sharedVM: connect)
                             .environment(appState)
                     }
 
