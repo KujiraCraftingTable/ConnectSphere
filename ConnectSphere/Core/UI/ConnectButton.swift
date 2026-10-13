@@ -7,16 +7,30 @@ struct ConnectButton: View {
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.appBundle) var bundle
-    @State private var vm = ConnectViewModel()
+    @State private var vm: ConnectViewModel
     @State private var showDisconnectConfirm = false
 
     let targetUserId: String
     var compact: Bool = false   // true = shown next to the name, smaller
+    /// Accept / Decline split the full width between them — for a row of
+    /// their own under a card's header.
+    var fullWidth: Bool = false
 
     /// Secondary content shown alongside (e.g. the Message button in the profile header).
     /// When the status needs 2 buttons (Accept/Decline), the companion is placed above and
     /// those 2 buttons go on their own row below, to avoid crowding/text wrapping.
     var companion: (() -> AnyView)? = nil
+
+    /// `sharedVM` lets the owner read the status too (e.g. a search card that
+    /// moves Accept / Decline to their own row); by default it has its own.
+    init(targetUserId: String, compact: Bool = false, fullWidth: Bool = false,
+         sharedVM: ConnectViewModel? = nil, companion: (() -> AnyView)? = nil) {
+        self.targetUserId = targetUserId
+        self.compact = compact
+        self.fullWidth = fullWidth
+        self.companion = companion
+        _vm = State(initialValue: sharedVM ?? ConnectViewModel())
+    }
 
     /// Send-request button label per mode: hobby = "Add friend", work = "Connect"
     private var connectLabel: String {
@@ -56,10 +70,10 @@ struct ConnectButton: View {
                 // The companion (if any) sits on the row above, these 2 buttons always share their own row below.
                 let acceptDecline = HStack(spacing: 6) {
                     actionChip(label: bundle.loc("Accept"), icon: "checkmark",
-                               color: themeManager.theme.primary) {
+                               color: themeManager.theme.primary, stretches: fullWidth) {
                         Task { await vm.accept() }
                     }
-                    actionChip(label: bundle.loc("Decline"), icon: "xmark", color: .red) {
+                    actionChip(label: bundle.loc("Decline"), icon: "xmark", color: .red, stretches: fullWidth) {
                         Task { await vm.decline() }
                     }
                 }
@@ -157,7 +171,7 @@ struct ConnectButton: View {
     // fixedWidth: exact width, used in the compact form to keep the chip from
     // resizing (and reflowing its neighbours) when the label swaps on tap.
     private func actionChip(label: String, icon: String, color: Color,
-                             minWidth: CGFloat? = nil, fixedWidth: CGFloat? = nil,
+                             minWidth: CGFloat? = nil, fixedWidth: CGFloat? = nil, stretches: Bool = false,
                              action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 4) {
@@ -176,7 +190,7 @@ struct ConnectButton: View {
             .padding(.horizontal, compact ? 8 : 14)
             .padding(.vertical, compact ? 3 : 7)
             .frame(width: fixedWidth)
-            .frame(minWidth: minWidth)
+            .frame(minWidth: minWidth, maxWidth: stretches ? .infinity : nil)
             .background(
                 Capsule().fill(
                     color == themeManager.theme.primary
