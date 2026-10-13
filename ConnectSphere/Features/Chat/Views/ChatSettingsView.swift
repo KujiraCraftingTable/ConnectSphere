@@ -27,7 +27,6 @@ struct ChatSettingsView: View {
     @State private var showNicknameEditor = false
     @State private var nicknameDraft = ""
     @State private var showThemePicker = false
-    @State private var showMuteOptions = false
     @State private var showDeleteWarning = false
 
     // Pin default auto-delete preference (client-side-only convenience —
@@ -35,7 +34,6 @@ struct ChatSettingsView: View {
     // per-pin at pin time). Scoped per-conversation via a dynamic key set in `init`.
     @AppStorage private var pinAutoDeleteRaw: String
     @AppStorage private var pinAutoDeleteCustomDateRaw: Double
-    @State private var showPinAutoDeleteOptions = false
     // Quick-emoji send: the emoji the send button becomes while the message
     // box is empty, so send is never a greyed-out dead control. Per-conversation,
     // same dynamic-key pattern as the pin default above.
@@ -146,18 +144,6 @@ struct ChatSettingsView: View {
                 self.leftGroupObserver = nil
             }
         }
-        .confirmationDialog(
-            bundle.loc("Block this user?"),
-            isPresented: $showBlockConfirm,
-            titleVisibility: .visible
-        ) {
-            Button(bundle.loc("Block"), role: .destructive) {
-                Task { await toggleBlock() }
-            }
-            Button(bundle.loc("Cancel"), role: .cancel) {}
-        } message: {
-            Text("You two will no longer see each other's posts, all connections will be removed, and you won't be able to message each other.", bundle: bundle)
-        }
         .alert(bundle.loc("Error"), isPresented: .constant(viewModel.blockErrorMessage != nil)) {
             Button(bundle.loc("OK")) { viewModel.blockErrorMessage = nil }
         } message: {
@@ -175,16 +161,6 @@ struct ChatSettingsView: View {
             Button(bundle.loc("Save")) { Task { await viewModel.renameGroup(groupNameDraft) } }
             Button(bundle.loc("Cancel"), role: .cancel) {}
         }
-        .confirmationDialog(bundle.loc("Mute notifications"), isPresented: $showMuteOptions, titleVisibility: .visible) {
-            Button(bundle.loc("For 5 minutes"))  { Task { await viewModel.setMute(minutes: 5) } }
-            Button(bundle.loc("For 10 minutes")) { Task { await viewModel.setMute(minutes: 10) } }
-            Button(bundle.loc("For 30 minutes")) { Task { await viewModel.setMute(minutes: 30) } }
-            Button(bundle.loc("Until I turn it back on")) { Task { await viewModel.setMute(minutes: -1) } }
-            if viewModel.isMuted {
-                Button(bundle.loc("Turn on notifications")) { Task { await viewModel.setMute(minutes: nil) } }
-            }
-            Button(bundle.loc("Cancel"), role: .cancel) {}
-        }
         .alert(bundle.loc("Delete all messages?"), isPresented: $showDeleteWarning) {
             Button(bundle.loc("Delete"), role: .destructive) {
                 Task {
@@ -197,18 +173,6 @@ struct ChatSettingsView: View {
             Button(bundle.loc("Cancel"), role: .cancel) {}
         } message: {
             Text("This removes every message from your side only. The other person will still see them. This can't be undone.", bundle: bundle)
-        }
-        .confirmationDialog(bundle.loc("Default auto-delete time"), isPresented: $showPinAutoDeleteOptions, titleVisibility: .visible) {
-            ForEach(PinAutoDeleteOption.allCases.filter { $0 != .custom }) { option in
-                Button(bundle.loc(option.label)) { pinAutoDeleteRaw = option.rawValue }
-            }
-            Button(bundle.loc("Custom date")) {
-                pinCustomDateDraft = pinAutoDeleteCustomDateRaw > 0
-                    ? Date(timeIntervalSince1970: pinAutoDeleteCustomDateRaw)
-                    : Date().addingTimeInterval(60 * 60 * 24 * 7)
-                showPinCustomDatePicker = true
-            }
-            Button(bundle.loc("Cancel"), role: .cancel) {}
         }
         .sheet(isPresented: $showQuickEmojiOptions) {
             QuickEmojiPickerSheet(emoji: $quickEmoji)
@@ -505,7 +469,18 @@ struct ChatSettingsView: View {
             .buttonStyle(.plain)
             divider
 
-            Button { showPinAutoDeleteOptions = true } label: {
+            // Menus, not dialogs: the choices drop down from the row tapped.
+            Menu {
+                ForEach(PinAutoDeleteOption.allCases.filter { $0 != .custom }) { option in
+                    Button(bundle.loc(option.label)) { pinAutoDeleteRaw = option.rawValue }
+                }
+                Button(bundle.loc("Custom date")) {
+                    pinCustomDateDraft = pinAutoDeleteCustomDateRaw > 0
+                        ? Date(timeIntervalSince1970: pinAutoDeleteCustomDateRaw)
+                        : Date().addingTimeInterval(60 * 60 * 24 * 7)
+                    showPinCustomDatePicker = true
+                }
+            } label: {
                 SettingsRow(icon: "timer", iconColor: themeManager.theme.primary,
                             title: bundle.loc("Default auto-delete time"), colorScheme: colorScheme,
                             subtitle: pinAutoDeleteSubtitle)
@@ -522,7 +497,15 @@ struct ChatSettingsView: View {
             .buttonStyle(.plain)
             divider
 
-            Button { showMuteOptions = true } label: {
+            Menu {
+                Button(bundle.loc("For 5 minutes"))  { Task { await viewModel.setMute(minutes: 5) } }
+                Button(bundle.loc("For 10 minutes")) { Task { await viewModel.setMute(minutes: 10) } }
+                Button(bundle.loc("For 30 minutes")) { Task { await viewModel.setMute(minutes: 30) } }
+                Button(bundle.loc("Until I turn it back on")) { Task { await viewModel.setMute(minutes: -1) } }
+                if viewModel.isMuted {
+                    Button(bundle.loc("Turn on notifications")) { Task { await viewModel.setMute(minutes: nil) } }
+                }
+            } label: {
                 SettingsRow(icon: viewModel.isMuted ? "bell.slash.fill" : "bell.fill",
                             iconColor: themeManager.theme.primary,
                             title: bundle.loc("Mute notifications"), colorScheme: colorScheme,
@@ -548,6 +531,18 @@ struct ChatSettingsView: View {
                                 colorScheme: colorScheme, destructive: !viewModel.isBlocked)
                 }
                 .buttonStyle(.plain)
+                .confirmationDialog(
+                    bundle.loc("Block this user?"),
+                    isPresented: $showBlockConfirm,
+                    titleVisibility: .visible
+                ) {
+                    Button(bundle.loc("Block"), role: .destructive) {
+                        Task { await toggleBlock() }
+                    }
+                    Button(bundle.loc("Cancel"), role: .cancel) {}
+                } message: {
+                    Text("You two will no longer see each other's posts, all connections will be removed, and you won't be able to message each other.", bundle: bundle)
+                }
                 divider
             }
 

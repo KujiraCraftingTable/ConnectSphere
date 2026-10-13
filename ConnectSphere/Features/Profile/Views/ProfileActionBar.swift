@@ -29,8 +29,8 @@ struct ProfileActionBar: View {
                               action: onMessage)
         }
         .sheet(isPresented: $showSheet) { actionSheet }
-        .confirmationDialog(String(format: bundle.loc("Unfriend %@?"), targetName),
-                            isPresented: $confirmUnfriend, titleVisibility: .visible) {
+        .alert(String(format: bundle.loc("Unfriend %@?"), targetName),
+                            isPresented: $confirmUnfriend) {
             Button(bundle.loc("Unfriend"), role: .destructive) { Task { await connect.remove() } }
             Button(bundle.loc("Cancel"), role: .cancel) {}
         }

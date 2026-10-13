@@ -28,7 +28,6 @@ struct PostOptionsMenu: View {
 
     @State private var showDeleteAlert = false
     @State private var showEditSheet = false
-    @State private var showReportDialog = false
 
     var body: some View {
         menu
@@ -54,18 +53,6 @@ struct PostOptionsMenu: View {
                 Button(bundle.loc("Cancel"), role: .cancel) {}
             } message: {
                 Text("This post won't be shown in the app. You can restore it from Recently Deleted within 30 days.", bundle: bundle)
-            }
-            .confirmationDialog(
-                bundle.loc("Why are you reporting this content?"),
-                isPresented: $showReportDialog,
-                titleVisibility: .visible
-            ) {
-                ForEach(ReportReason.allCases, id: \.self) { reason in
-                    Button(reason.displayName) {
-                        Task { await actions.report(postId: post.id, reason: reason) }
-                    }
-                }
-                Button(bundle.loc("Cancel"), role: .cancel) {}
             }
             .alert(actions.reportResultMessage ?? "", isPresented: Binding(
                 get: { actions.reportResultMessage != nil },
@@ -123,8 +110,15 @@ struct PostOptionsMenu: View {
                 } label: {
                     Label(bundle.loc("Hide post"), systemImage: "eye.slash")
                 }
-                Button(role: .destructive) {
-                    showReportDialog = true
+                // The reasons open beside the item, inside the same menu.
+                Menu {
+                    Section(bundle.loc("Why are you reporting this content?")) {
+                        ForEach(ReportReason.allCases, id: \.self) { reason in
+                            Button(reason.displayName) {
+                                Task { await actions.report(postId: post.id, reason: reason) }
+                            }
+                        }
+                    }
                 } label: {
                     Label(bundle.loc("Report post"), systemImage: "flag")
                 }

@@ -592,6 +592,22 @@ struct ModeMismatchCard: View {
                     .background(
                         Capsule().stroke(AppColors.borderDefault(colorScheme), lineWidth: 1)
                     )
+                    .confirmationDialog(
+                        bundle.loc("Keep the current mode?"),
+                        isPresented: $showKeepConfirm,
+                        titleVisibility: .visible
+                    ) {
+                        Button(bundle.loc("Keep"), role: .destructive) {
+                            Task {
+                                isResolving = true
+                                await onAction("keep")
+                                isResolving = false
+                            }
+                        }
+                        Button(bundle.loc("Cancel"), role: .cancel) {}
+                    } message: {
+                        Text("The post will stay in the current mode.", bundle: bundle)
+                    }
 
                     Button(String(format: bundle.loc("Switch to %@"), suggestedLabel)) {
                         showSwitchConfirm = true
@@ -601,6 +617,22 @@ struct ModeMismatchCard: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 7)
                     .background(Capsule().fill(AppColors.warning(colorScheme)))
+                    .confirmationDialog(
+                        String(format: bundle.loc("Switch to %@ mode?"), suggestedLabel),
+                        isPresented: $showSwitchConfirm,
+                        titleVisibility: .visible
+                    ) {
+                        Button(String(format: bundle.loc("Switch to %@"), suggestedLabel)) {
+                            Task {
+                                isResolving = true
+                                await onAction("switch")
+                                isResolving = false
+                            }
+                        }
+                        Button(bundle.loc("Cancel"), role: .cancel) {}
+                    } message: {
+                        Text(String(format: bundle.loc("The post will be moved to %@ mode."), suggestedLabel))
+                    }
                 }
             } else if isResolving {
                 ProgressView().scaleEffect(0.8)
@@ -611,37 +643,5 @@ struct ModeMismatchCard: View {
             }
         }
         .padding(.vertical, 8)
-        .confirmationDialog(
-            bundle.loc("Keep the current mode?"),
-            isPresented: $showKeepConfirm,
-            titleVisibility: .visible
-        ) {
-            Button(bundle.loc("Keep"), role: .destructive) {
-                Task {
-                    isResolving = true
-                    await onAction("keep")
-                    isResolving = false
-                }
-            }
-            Button(bundle.loc("Cancel"), role: .cancel) {}
-        } message: {
-            Text("The post will stay in the current mode.", bundle: bundle)
-        }
-        .confirmationDialog(
-            String(format: bundle.loc("Switch to %@ mode?"), suggestedLabel),
-            isPresented: $showSwitchConfirm,
-            titleVisibility: .visible
-        ) {
-            Button(String(format: bundle.loc("Switch to %@"), suggestedLabel)) {
-                Task {
-                    isResolving = true
-                    await onAction("switch")
-                    isResolving = false
-                }
-            }
-            Button(bundle.loc("Cancel"), role: .cancel) {}
-        } message: {
-            Text(String(format: bundle.loc("The post will be moved to %@ mode."), suggestedLabel))
-        }
     }
 }

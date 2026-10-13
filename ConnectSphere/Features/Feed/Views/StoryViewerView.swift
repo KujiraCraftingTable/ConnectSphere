@@ -102,6 +102,16 @@ struct StoryViewerView: View {
                                 .foregroundColor(.white)
                                 .padding(8)
                         }
+                        .confirmationDialog(
+                            bundle.loc("Delete this story?"),
+                            isPresented: $showDeleteConfirm,
+                            titleVisibility: .visible
+                        ) {
+                            Button(bundle.loc("Delete"), role: .destructive) {
+                                Task { if await viewModel.deleteCurrent() { close() } }
+                            }
+                            Button(bundle.loc("Cancel"), role: .cancel) {}
+                        }
                     }
                     Button {
                         close()
@@ -149,16 +159,6 @@ struct StoryViewerView: View {
                 if value.translation.height > 60 { close() }
             }
         )
-        .confirmationDialog(
-            bundle.loc("Delete this story?"),
-            isPresented: $showDeleteConfirm,
-            titleVisibility: .visible
-        ) {
-            Button(bundle.loc("Delete"), role: .destructive) {
-                Task { if await viewModel.deleteCurrent() { close() } }
-            }
-            Button(bundle.loc("Cancel"), role: .cancel) {}
-        }
         .sheet(isPresented: $showViewers) {
             viewersSheet
         }

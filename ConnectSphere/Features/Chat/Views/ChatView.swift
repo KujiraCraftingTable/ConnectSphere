@@ -408,10 +408,9 @@ struct ChatView: View {
         } message: {
             Text(viewModel.error ?? "")
         }
-        .confirmationDialog(bundle.loc("Unsend this message?"),
+        .alert(bundle.loc("Unsend this message?"),
                             isPresented: Binding(get: { messageToRecall != nil },
                                                  set: { if !$0 { messageToRecall = nil } }),
-                            titleVisibility: .visible,
                             presenting: messageToRecall) { message in
             Button(bundle.loc("Unsend message"), role: .destructive) {
                 Task { await viewModel.recallMessage(message) }

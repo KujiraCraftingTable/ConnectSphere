@@ -46,6 +46,12 @@ struct EditProfileView: View {
                     .buttonStyle(.plain)
                     .listRowInsets(EdgeInsets())
                     .accessibilityLabel(Text(hasCover ? "Edit cover photo" : "Add cover photo", bundle: bundle))
+                    // On the cover itself, so the choices point at it.
+                    .confirmationDialog(bundle.loc("Cover photo"), isPresented: $showCoverOptions) {
+                        Button(bundle.loc("Adjust position")) { showCoverCrop = true }
+                        Button(bundle.loc("Choose new photo")) { showCoverPicker = true }
+                        Button(bundle.loc("Cancel"), role: .cancel) {}
+                    }
                 }
 
                 // ── Avatar ────────────────────────────────────────────────────
@@ -159,11 +165,6 @@ struct EditProfileView: View {
                     CoverCropView(image: coverOriginal) { viewModel.pickedCover = $0 }
                         .environment(themeManager)
                 }
-            }
-            .confirmationDialog(bundle.loc("Cover photo"), isPresented: $showCoverOptions) {
-                Button(bundle.loc("Adjust position")) { showCoverCrop = true }
-                Button(bundle.loc("Choose new photo")) { showCoverPicker = true }
-                Button(bundle.loc("Cancel"), role: .cancel) {}
             }
             .onAppear { viewModel.load(from: appState.currentUser) }
         }

@@ -73,6 +73,13 @@ struct MutedWordsView: View {
                         .foregroundColor(themeManager.theme.primary)
                     }
                     .disabled(viewModel.isCopying)
+                    .confirmationDialog(bundle.loc(otherMode == .work ? "Copy to Work mode?" : "Copy to Hobby mode?"),
+                                        isPresented: $showCopyConfirm, titleVisibility: .visible) {
+                        Button(bundle.loc("Copy")) { Task { await viewModel.copy(from: mode) } }
+                        Button(bundle.loc("Cancel"), role: .cancel) {}
+                    } message: {
+                        Text("Words already muted there are kept as they are.", bundle: bundle)
+                    }
                 } footer: {
                     if let notice = viewModel.notice { Text(notice) }
                 }
@@ -96,13 +103,6 @@ struct MutedWordsView: View {
             if !viewModel.loadedModes.contains(new) { Task { await viewModel.load(new) } }
         }
         .refreshable { await viewModel.load(mode) }
-        .confirmationDialog(bundle.loc(otherMode == .work ? "Copy to Work mode?" : "Copy to Hobby mode?"),
-                            isPresented: $showCopyConfirm, titleVisibility: .visible) {
-            Button(bundle.loc("Copy")) { Task { await viewModel.copy(from: mode) } }
-            Button(bundle.loc("Cancel"), role: .cancel) {}
-        } message: {
-            Text("Words already muted there are kept as they are.", bundle: bundle)
-        }
         .alert(bundle.loc("Error"), isPresented: Binding(
             get: { viewModel.error != nil }, set: { if !$0 { viewModel.error = nil } }
         )) {

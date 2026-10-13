@@ -262,6 +262,14 @@ struct CommunityCreatePostView: View {
                         if hasUnsavedWork { showLeaveDialog = true } else { dismiss() }
                     }
                     .foregroundColor(AppColors.textSecondary(colorScheme))
+                    .confirmationDialog(bundle.loc(viewModel.replacesDraftId == nil ? "Save this post as a draft?" : "Save your changes to this draft?"),
+                                        isPresented: $showLeaveDialog, titleVisibility: .visible) {
+                        if viewModel.isValid {
+                            Button(bundle.loc("Save draft")) { savePost(as: .draft) }
+                        }
+                        Button(bundle.loc(viewModel.replacesDraftId == nil ? "Discard" : "Discard changes"), role: .destructive) { dismiss() }
+                        Button(bundle.loc("Keep editing"), role: .cancel) {}
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(bundle.loc(scheduleAt == nil ? "Post" : "Schedule")) {
@@ -279,14 +287,6 @@ struct CommunityCreatePostView: View {
                         Button(String(format: bundle.loc("Drafts (%lld)"), communityDrafts.count)) { showDraftPicker = true }
                     }
                 }
-            }
-            .confirmationDialog(bundle.loc(viewModel.replacesDraftId == nil ? "Save this post as a draft?" : "Save your changes to this draft?"),
-                                isPresented: $showLeaveDialog, titleVisibility: .visible) {
-                if viewModel.isValid {
-                    Button(bundle.loc("Save draft")) { savePost(as: .draft) }
-                }
-                Button(bundle.loc(viewModel.replacesDraftId == nil ? "Discard" : "Discard changes"), role: .destructive) { dismiss() }
-                Button(bundle.loc("Keep editing"), role: .cancel) {}
             }
             .safeAreaInset(edge: .bottom) {
                 if let scheduleAt {

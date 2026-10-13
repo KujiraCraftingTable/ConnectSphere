@@ -62,6 +62,21 @@ struct DeleteAccountView: View {
                         }
                     }
                     .disabled(!viewModel.canDelete)
+                    .confirmationDialog(
+                        bundle.loc("Delete account?"),
+                        isPresented: $showFinalConfirm,
+                        titleVisibility: .visible
+                    ) {
+                        Button(bundle.loc("Delete my account"), role: .destructive) {
+                            Task {
+                                // The token is now invalid — back to sign-in.
+                                if await viewModel.deleteAccount() { appState.logout() }
+                            }
+                        }
+                        Button(bundle.loc("Cancel"), role: .cancel) {}
+                    } message: {
+                        Text("This can't be undone.", bundle: bundle)
+                    }
                 }
             }
             .navigationTitle(bundle.loc("Delete account"))
@@ -70,21 +85,6 @@ struct DeleteAccountView: View {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button(bundle.loc("Cancel")) { dismiss() }
                 }
-            }
-            .confirmationDialog(
-                bundle.loc("Delete account?"),
-                isPresented: $showFinalConfirm,
-                titleVisibility: .visible
-            ) {
-                Button(bundle.loc("Delete my account"), role: .destructive) {
-                    Task {
-                        // The token is now invalid — back to sign-in.
-                        if await viewModel.deleteAccount() { appState.logout() }
-                    }
-                }
-                Button(bundle.loc("Cancel"), role: .cancel) {}
-            } message: {
-                Text("This can't be undone.", bundle: bundle)
             }
         }
         .interactiveDismissDisabled(viewModel.isDeleting)
