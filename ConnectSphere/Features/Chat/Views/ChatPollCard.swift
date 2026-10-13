@@ -84,8 +84,6 @@ struct ChatPollCard: View {
                 }
                 .background(AppColors.base(colorScheme), in: RoundedRectangle(cornerRadius: 8))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
-                .overlay(RoundedRectangle(cornerRadius: 8)
-                    .stroke(canVote && myOption == nil ? accent.opacity(0.45) : .clear, lineWidth: 1))
             }
             .buttonStyle(.plain)
             .disabled(!canVote)

@@ -88,6 +88,9 @@ enum FeedStore {
         var shared_post: String?
         var author: String
         var tags: String
+        var event_data: String?
+        var poll_data: String?
+        var job_data: String?
         var community: String?
         var score: Double
     }
@@ -145,6 +148,7 @@ enum FeedStore {
                   'avatar_color', u.avatar_color, 'avatar_url', \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: "p.mode")),
                   'job_title', u.job_title, 'company', u.company)::text AS author,
                 COALESCE(json_agg(DISTINCT pt.tag) FILTER (WHERE pt.tag IS NOT NULL AND pt.source = 'user'), '[]')::text AS tags,
+                \(PostStore.typeDataColumns(userID))
                 (CASE WHEN p.community_id IS NOT NULL THEN (
                   SELECT json_build_object('id', co.id, 'name', co.name, 'icon_emoji', co.icon_emoji, 'avatar_url', co.avatar_url)
                   FROM communities co WHERE co.id = p.community_id
@@ -235,6 +239,10 @@ enum FeedStore {
         let hasMore = rows.count > limit
         let page = hasMore ? Array(rows.prefix(limit)) : rows
         let dec = JSONCoding.makeDecoder()
+        func parse<T: Decodable>(_ s: String?, _ t: T.Type) throws -> T? {
+            guard let s, s != "null" else { return nil }
+            return try dec.decode(T.self, from: Data(s.utf8))
+        }
         let posts = try page.map { r -> FeedPostObject in
             FeedPostObject(
                 id: r.id, content: r.content, mode: r.mode, privacy: r.privacy,
@@ -246,6 +254,9 @@ enum FeedStore {
                 shared_post: (r.shared_post != nil && r.shared_post != "null") ? try dec.decode(PostObject.SharedPost.self, from: Data(r.shared_post!.utf8)) : nil,
                 author: try dec.decode(PostObject.PostAuthor.self, from: Data(r.author.utf8)),
                 tags: (try? dec.decode([String].self, from: Data(r.tags.utf8))) ?? [],
+                event_data: try parse(r.event_data, PostObject.EventData.self),
+                poll_data: try parse(r.poll_data, PostObject.PollData.self),
+                job_data: try parse(r.job_data, PostObject.JobData.self),
                 community: (r.community != nil && r.community != "null") ? try dec.decode(PostObject.CommunityRef.self, from: Data(r.community!.utf8)) : nil,
                 score: r.score)
         }
@@ -254,8 +265,9 @@ enum FeedStore {
     }
 }
 
-/// Feed recommendation row — same fields as `PostObject` minus `is_saved` /
-/// `event_data` / `poll_data`, plus the internal `score` (Node returns it too).
+/// Feed recommendation row — same fields as `PostObject` minus `is_saved`,
+/// plus the internal `score` (Node returns it too). The event / poll / job
+/// data must be here: without it those posts showed only their text in For you.
 struct FeedPostObject: Content {
     var id: String
     @NullCoded var content: String?
@@ -284,6 +296,9 @@ struct FeedPostObject: Content {
     @NullCoded var shared_post: PostObject.SharedPost?
     var author: PostObject.PostAuthor
     var tags: [String]
+    @NullCoded var event_data: PostObject.EventData?
+    @NullCoded var poll_data: PostObject.PollData?
+    @NullCoded var job_data: PostObject.JobData?
     @NullCoded var community: PostObject.CommunityRef?
     var score: Double
 }

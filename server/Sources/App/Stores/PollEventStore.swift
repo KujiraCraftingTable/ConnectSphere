@@ -34,8 +34,11 @@ enum PollStore {
         }
     }
 
+    /// The poll's option ids, lowercased. `::text` matters: decoding a uuid
+    /// column straight into a String gives it in capitals, which never
+    /// matched the lowercase id the client sends back.
     static func optionIDs(postID: String, on db: any SQLDatabase) async throws -> [String] {
-        try await db.raw("SELECT id FROM poll_options WHERE post_id = \(uuid: postID)")
+        try await db.raw("SELECT id::text AS id FROM poll_options WHERE post_id = \(uuid: postID)")
             .all(decoding: OptionRow.self).map(\.id)
     }
 }
