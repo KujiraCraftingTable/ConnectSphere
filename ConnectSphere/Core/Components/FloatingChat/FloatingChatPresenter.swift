@@ -101,8 +101,8 @@ final class FloatingChatPresenter {
     var windowPosition: CGPoint?
     /// Set while the window is tucked off a side edge, leaving only its tab.
     private(set) var stashEdge: FloatingChatStashEdge?
-    /// The one video playing in the window — at most one at a time.
-    var playingVideoID: String?
+    /// The one video or voice message playing in the window — one sound at a time.
+    var playingMediaID: String?
     /// Set by `restore(_:)` — drives a root-level `.fullScreenCover` in
     /// `MainTabView` back into a full `ChatView`, regardless of which tab is
     /// currently active. Cleared automatically when that cover is dismissed
@@ -163,7 +163,7 @@ final class FloatingChatPresenter {
             close(same)
         }
         dismissAllComposing()
-        playingVideoID = nil
+        playingMediaID = nil
         visibleFullChats += 1
     }
 
@@ -255,7 +255,7 @@ final class FloatingChatPresenter {
         for other in bubbles where other.id != bubble.id { other.isComposing = false }
         activeID = bubble.id
         bubble.lastUsed = Date()
-        playingVideoID = nil
+        playingMediaID = nil
     }
 
     /// Shows the chat `step` places to the left (negative) or right.
@@ -283,7 +283,7 @@ final class FloatingChatPresenter {
         bubbles.remove(at: index)
         if activeID == bubble.id {
             activeID = bubbles.isEmpty ? nil : bubbles[min(index, bubbles.count - 1)].id
-            playingVideoID = nil
+            playingMediaID = nil
         }
         if bubbles.isEmpty {
             stashEdge = nil
@@ -295,7 +295,7 @@ final class FloatingChatPresenter {
     /// the video stops.
     func stash(to edge: FloatingChatStashEdge) {
         dismissAllComposing()
-        playingVideoID = nil
+        playingMediaID = nil
         stashEdge = edge
     }
 
@@ -328,7 +328,7 @@ final class FloatingChatPresenter {
         if activeID == bubble.id {
             activeID = bubbles.isEmpty ? nil : bubbles[min(index, bubbles.count - 1)].id
         }
-        playingVideoID = nil
+        playingMediaID = nil
         restoringBubble = bubble
     }
 }
