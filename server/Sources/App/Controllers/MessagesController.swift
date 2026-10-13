@@ -46,6 +46,7 @@ struct MessagesController {
         m.post("conversations", ":id", "messages", ":messageId", "meeting-proposal", "cancel", use: cancelMeetingProposal)
         m.post("conversations", ":id", "messages", ":messageId", "meeting-response", use: respondToMeeting)
         m.post("conversations", ":id", "messages", ":messageId", "poll-vote", use: votePoll)
+        m.delete("conversations", ":id", "messages", ":messageId", "poll-vote", use: unvotePoll)
         m.put("conversations", ":id", "read", use: markRead)
         m.put("conversations", ":id", "delivered", use: markDelivered)
         m.get("unread", use: unreadCount)
@@ -924,13 +925,25 @@ struct MessagesController {
 
     /// One final vote on a group poll; the new counts and voters go to the
     /// whole room as `poll_updated`.
+    /// Votes for an option, or moves your vote to it.
     static func votePoll(_ req: Request) async throws -> Response {
-        let id = req.parameters.get("id")!, mid = req.parameters.get("messageId")!
-        let db = req.db.sql()
-        try await requireParticipant(id, req)
         guard let optionID = try req.content.decode(PollVoteBody.self).option_id, UUID(uuidString: optionID) != nil else {
             throw Abort(.badRequest, reason: "option_id is required")
         }
+        return try await setPollVote(optionID, req)
+    }
+
+    /// Takes your vote back.
+    static func unvotePoll(_ req: Request) async throws -> Response {
+        try await setPollVote(nil, req)
+    }
+
+    /// Sets the caller's vote (nil removes it) and sends everyone in the chat
+    /// the new counts. Answers with the poll as it now stands.
+    private static func setPollVote(_ optionID: String?, _ req: Request) async throws -> Response {
+        let id = req.parameters.get("id")!, mid = req.parameters.get("messageId")!
+        let db = req.db.sql()
+        try await requireParticipant(id, req)
         guard let msg = try await ChatStore.messageBasic(mid, on: db), msg.conversation_id == id else {
             throw Abort(.notFound, reason: "Poll not found")
         }
@@ -941,18 +954,19 @@ struct MessagesController {
             result = try await ChatStore.votePoll(messageID: mid, optionID: optionID, userID: uid, on: t)
         }
         switch result {
-        case .voted: break
+        case .changed, .unchanged: break
         case .notFound: throw Abort(.notFound, reason: "Poll not found")
         case .invalidOption: throw Abort(.badRequest, reason: "That option isn't part of this poll")
         case .ended: throw Abort(.conflict, reason: "This poll has ended")
-        case .alreadyVoted: throw Abort(.conflict, reason: "You have already voted on this poll")
         }
         guard let fresh = try await ChatStore.messageByID(mid, on: db), let poll = fresh.poll else {
             throw Abort(.internalServerError)
         }
-        let parts = try await ChatStore.participants(id, on: db)
-        req.socketHub.emitConversation(id, participants: parts, event: "poll_updated",
-                                       WSPoll(conversation_id: id, message_id: mid, poll: poll))
+        if result == .changed {
+            let parts = try await ChatStore.participants(id, on: db)
+            req.socketHub.emitConversation(id, participants: parts, event: "poll_updated",
+                                           WSPoll(conversation_id: id, message_id: mid, poll: poll))
+        }
         return try await ConnectionsController.encode(DataResponse(data: poll), req, .ok)
     }
 }

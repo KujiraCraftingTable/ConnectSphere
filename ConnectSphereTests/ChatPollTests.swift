@@ -49,4 +49,19 @@ struct ChatPollTests {
         #expect(voted.myOptionID(userId: "u9") == "o3")
         #expect(voted.totalVotes == 4)
     }
+
+    @Test func aLocalVoteMovesFromTheOldChoice() {
+        let moved = poll().votedLocally(optionId: "o2", userId: "me")
+        #expect(moved.myOptionID(userId: "me") == "o2")
+        #expect(moved.options[0].voteCount == 1)
+        #expect(moved.options[1].voteCount == 2)
+        #expect(moved.totalVotes == 3)
+    }
+
+    @Test func aLocalUndoTakesTheVoteBack() {
+        let undone = poll().unvotedLocally(userId: "ME")
+        #expect(undone.myOptionID(userId: "me") == nil)
+        #expect(undone.options[0].voteCount == 1)
+        #expect(undone.totalVotes == 2)
+    }
 }

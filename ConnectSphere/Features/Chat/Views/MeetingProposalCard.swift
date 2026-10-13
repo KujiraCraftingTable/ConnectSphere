@@ -115,7 +115,8 @@ struct MeetingProposalCard: View {
         }
         .padding(compact ? 9 : (isPlayful ? 12 : 14))
         .frame(maxWidth: compact ? .infinity : 300, alignment: .leading)
-        .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: compact ? 12 : 14))
+        // The post-card white, so the card stands off the chat background.
+        .background(AppColors.surface(colorScheme), in: RoundedRectangle(cornerRadius: compact ? 12 : 14))
         .overlay {
             if !isPlayful {
                 RoundedRectangle(cornerRadius: compact ? 12 : 14).stroke(accent.opacity(0.18), lineWidth: 1)

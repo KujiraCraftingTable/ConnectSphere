@@ -574,14 +574,20 @@ class ChatViewModel {
         }
     }
 
-    /// Votes once on a poll — shown at once, undone if the server refuses.
-    func votePoll(messageId: String, optionId: String) async {
+    /// A tap on a poll option: votes for it, moves your vote to it, or — on
+    /// the option you already picked — takes the vote back. Shown at once,
+    /// undone if the server refuses. Nothing changes once the poll has ended.
+    func tapPollOption(messageId: String, optionId: String) async {
         guard let i = messages.firstIndex(where: { $0.id == messageId }), let poll = messages[i].poll,
-              poll.myOptionID(userId: currentUserId) == nil, !poll.hasEnded() else { return }
-        messages[i].poll = poll.votedLocally(optionId: optionId, userId: currentUserId)
+              !poll.hasEnded() else { return }
+        let undo = poll.myOptionID(userId: currentUserId) == optionId
+        messages[i].poll = undo ? poll.unvotedLocally(userId: currentUserId)
+                                : poll.votedLocally(optionId: optionId, userId: currentUserId)
         do {
-            let fresh = try await repository.votePoll(conversationId: conversationId, messageId: messageId,
-                                                      optionId: optionId, token: token)
+            let fresh = undo
+                ? try await repository.unvotePoll(conversationId: conversationId, messageId: messageId, token: token)
+                : try await repository.votePoll(conversationId: conversationId, messageId: messageId,
+                                                optionId: optionId, token: token)
             if let j = messages.firstIndex(where: { $0.id == messageId }) { messages[j].poll = fresh }
         } catch {
             if let j = messages.firstIndex(where: { $0.id == messageId }) { messages[j].poll = poll }
