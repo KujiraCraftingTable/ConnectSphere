@@ -57,6 +57,9 @@ class CreatePostViewModel {
     var isPosting = false
     var isFetchingLink = false
     var isUploadingMedia = false
+    /// Picked photos/videos not loaded yet — the composer shows a blinking
+    /// tile for each, so a slow video doesn't look like nothing was picked.
+    var pendingMediaCount = 0
     /// Shown by `CreatePostView` when media upload or the post itself fails —
     /// previously both failed silently (the post went out without its video,
     /// or the composer just sat there).
@@ -93,19 +96,28 @@ class CreatePostViewModel {
     /// Image → decode to UIImage; video → copy to a temp file + generate a thumbnail.
     /// An item that fails to load is silently skipped. `previous` is what the
     /// composer already shows: a draft's uploaded media stays first, and items
-    /// still picked keep their loaded copy and alt text.
-    func loadSelectedMedia(_ items: [PhotosPickerItem], keeping previous: [PickedPostMedia] = []) async -> [PickedPostMedia] {
+    /// still picked keep their loaded copy and alt text. `progress` gets the
+    /// list so far after each new item, so items appear one by one while
+    /// `pendingMediaCount` counts down the rest.
+    func loadSelectedMedia(_ items: [PhotosPickerItem], keeping previous: [PickedPostMedia] = [],
+                           progress: (([PickedPostMedia]) -> Void)? = nil) async -> [PickedPostMedia] {
         var result = previous.filter { $0.remoteURL != nil }
+        pendingMediaCount = items.filter { item in !previous.contains { $0.pickerItem == item } }.count
+        defer { pendingMediaCount = 0 }
         for item in items {
             if let kept = previous.first(where: { $0.pickerItem == item }) {
                 result.append(kept)
-            } else if let data = try? await item.loadTransferable(type: Data.self),
+                continue
+            }
+            if let data = try? await item.loadTransferable(type: Data.self),
                let image = UIImage(data: data) {
                 result.append(PickedPostMedia(image: image, videoURL: nil, thumbnail: nil, pickerItem: item))
             } else if let file = try? await item.loadTransferable(type: PostMediaFileTransferable.self) {
                 let thumbnail = await VideoFrame.firstFrame(of: file.url, maxSide: 600)
                 result.append(PickedPostMedia(image: nil, videoURL: file.url, thumbnail: thumbnail, pickerItem: item))
             }
+            pendingMediaCount = max(0, pendingMediaCount - 1)
+            progress?(result)
         }
         return result
     }
