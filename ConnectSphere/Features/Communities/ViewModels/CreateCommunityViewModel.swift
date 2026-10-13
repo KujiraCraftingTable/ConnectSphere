@@ -57,7 +57,7 @@ final class CreateCommunityViewModel {
         defer { isCreating = false }
 
         var avatarUrl: String?
-        if let data = pickedImage?.jpegData(compressionQuality: 0.8) {
+        if let data = pickedImage?.jpegData(compressionQuality: 1) {
             avatarUrl = try? await postRepository.uploadImage(data)
             if avatarUrl == nil {
                 errorMessage = Bundle.app.loc("Couldn't upload photo, please try again")

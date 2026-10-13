@@ -10,6 +10,9 @@ struct PickedPostMedia: Identifiable {
     let image: UIImage?     // original image (nil if this is a video)
     let videoURL: URL?      // temp video file in the sandbox (nil if this is an image)
     let thumbnail: UIImage? // video's first frame, for preview
+    /// The photo's bytes as picked (HEIC/JPEG/PNG), so the upload compresses
+    /// the original once rather than an already-compressed copy.
+    var sourceData: Data? = nil
     /// Already on the server (from a draft): sent back as-is, never re-uploaded.
     var remoteURL: String? = nil
     /// The picker item it came from, so picking more photos keeps this one
@@ -111,7 +114,7 @@ class CreatePostViewModel {
             }
             if let data = try? await item.loadTransferable(type: Data.self),
                let image = UIImage(data: data) {
-                result.append(PickedPostMedia(image: image, videoURL: nil, thumbnail: nil, pickerItem: item))
+                result.append(PickedPostMedia(image: image, videoURL: nil, thumbnail: nil, sourceData: data, pickerItem: item))
             } else if let file = try? await item.loadTransferable(type: PostMediaFileTransferable.self) {
                 let thumbnail = await VideoFrame.firstFrame(of: file.url, maxSide: 600)
                 result.append(PickedPostMedia(image: nil, videoURL: file.url, thumbnail: thumbnail, pickerItem: item))
@@ -122,8 +125,10 @@ class CreatePostViewModel {
         return result
     }
 
-    func uploadImage(_ image: UIImage) async -> String? {
-        guard let data = image.jpegData(compressionQuality: 0.8) else { return nil }
+    /// The cleaner resizes and compresses (`MediaSanitizer.cleanImage`), so
+    /// it gets the original bytes, or a lossless copy when there are none.
+    func uploadImage(_ image: UIImage, original: Data? = nil) async -> String? {
+        guard let data = original ?? image.jpegData(compressionQuality: 1) else { return nil }
         return try? await repository.uploadImage(data)
     }
 
@@ -141,7 +146,7 @@ class CreatePostViewModel {
             if let remote = item.remoteURL {
                 urls.append(remote)
             } else if let image = item.image {
-                guard let url = await uploadImage(image) else { throw MediaUploadError.failed }
+                guard let url = await uploadImage(image, original: item.sourceData) else { throw MediaUploadError.failed }
                 urls.append(url)
             } else if let fileURL = item.videoURL {
                 let size = (try? fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
