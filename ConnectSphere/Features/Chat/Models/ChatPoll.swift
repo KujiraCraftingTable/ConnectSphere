@@ -3,7 +3,8 @@ import Foundation
 /// A group chat poll (`messageType == .poll`; the question is the message's
 /// content). Options come in order with who voted for each, oldest first —
 /// the same payload goes to every member, so "my vote" is found by looking
-/// for my id among the voters. One final vote per person, as on posts.
+/// for my id among the voters. One vote per person, which can be moved or
+/// taken back until the poll ends.
 struct ChatPoll: Decodable, Equatable {
     let endsAt: Date?
     var options: [Option]
@@ -55,13 +56,25 @@ struct ChatPoll: Decodable, Equatable {
         totalVotes == 0 ? 0 : Double(option.voteCount) / Double(totalVotes)
     }
 
-    /// `userId`'s vote for `optionId` applied locally, shown at once while the
-    /// server confirms (the server's poll then replaces it).
+    /// `userId`'s vote set to `optionId` (moved there if it was elsewhere)
+    /// locally, shown at once while the server confirms; the server's poll
+    /// then replaces it.
     func votedLocally(optionId: String, userId: String) -> ChatPoll {
-        var copy = self
+        var copy = unvotedLocally(userId: userId)
         if let i = copy.options.firstIndex(where: { $0.id == optionId }) {
             copy.options[i].voteCount += 1
             copy.options[i].voters.append(Voter(id: userId, displayName: "", avatarUrl: nil, avatarColor: nil))
+        }
+        return copy
+    }
+
+    /// `userId`'s vote taken back locally.
+    func unvotedLocally(userId: String) -> ChatPoll {
+        var copy = self
+        for i in copy.options.indices {
+            let before = copy.options[i].voters.count
+            copy.options[i].voters.removeAll { $0.id.caseInsensitiveCompare(userId) == .orderedSame }
+            copy.options[i].voteCount -= before - copy.options[i].voters.count
         }
         return copy
     }

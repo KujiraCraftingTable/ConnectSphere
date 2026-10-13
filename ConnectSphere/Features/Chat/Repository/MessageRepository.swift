@@ -418,7 +418,8 @@ struct MessageRepository {
         ).data
     }
 
-    /// Votes on a group poll (once, final); returns the updated poll.
+    /// Votes on a group poll, or moves your vote to `optionId`; returns the
+    /// updated poll.
     func votePoll(conversationId: String, messageId: String, optionId: String, token: String) async throws -> ChatPoll {
         struct Body: Encodable { let option_id: String }
         let body = try JSONEncoder().encode(Body(option_id: optionId))
@@ -426,6 +427,15 @@ struct MessageRepository {
             DataResponse<ChatPoll>.self,
             path: "/messages/conversations/\(conversationId)/messages/\(messageId)/poll-vote",
             method: "POST", token: token, bodyData: body
+        ).data
+    }
+
+    /// Takes your vote on a group poll back; returns the updated poll.
+    func unvotePoll(conversationId: String, messageId: String, token: String) async throws -> ChatPoll {
+        try await client.fetch(
+            DataResponse<ChatPoll>.self,
+            path: "/messages/conversations/\(conversationId)/messages/\(messageId)/poll-vote",
+            method: "DELETE", token: token
         ).data
     }
 

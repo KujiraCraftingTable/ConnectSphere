@@ -83,7 +83,7 @@ struct FloatingChatMessageRow: View {
                                      compact: true,
                                      onVote: { optionId in
                                          presenter.markSeen(bubble)
-                                         Task { await bubble.viewModel.votePoll(messageId: message.id, optionId: optionId) }
+                                         Task { await bubble.viewModel.tapPollOption(messageId: message.id, optionId: optionId) }
                                      })
                             .frame(width: width * 0.9)
                     } else {

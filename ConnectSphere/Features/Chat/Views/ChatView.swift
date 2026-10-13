@@ -785,7 +785,7 @@ struct ChatView: View {
                                                   Task { await viewModel.cancelMeeting(messageId: msg.id) }
                                               },
                                               onPollVote: { msg, optionId in
-                                                  Task { await viewModel.votePoll(messageId: msg.id, optionId: optionId) }
+                                                  Task { await viewModel.tapPollOption(messageId: msg.id, optionId: optionId) }
                                               })
                                     .modifier(MessageAppearModifier(
                                         id: message.id,
@@ -924,6 +924,10 @@ struct ChatView: View {
                 }
             }
             .task { scrollToBottom(proxy: proxy, animated: false) }
+            // Dragging the messages, or tapping between them, puts the keyboard
+            // away. Simultaneous, so taps on bubbles still reach them.
+            .scrollDismissesKeyboard(.interactively)
+            .simultaneousGesture(TapGesture().onEnded { isComposerFocused = false })
         }
     }
 
@@ -1249,21 +1253,30 @@ struct ChatView: View {
         }()
 
         return HStack(spacing: 8) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(chatPalette.primary)
-                .frame(width: 3, height: 30)
+            // Tapping the quote shows the message being answered.
+            Button {
+                Task { await jumpToMessage(message.id) }
+            } label: {
+                HStack(spacing: 8) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(chatPalette.primary)
+                        .frame(width: 3, height: 30)
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text(String(format: bundle.loc("Replying to %@"), senderDisplayName(for: message)))
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(chatPalette.primary)
-                Text(preview)
-                    .font(.system(size: 12))
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-                    .lineLimit(1)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(String(format: bundle.loc("Replying to %@"), senderDisplayName(for: message)))
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(chatPalette.primary)
+                        Text(preview)
+                            .font(.system(size: 12))
+                            .foregroundColor(AppColors.textSecondary(colorScheme))
+                            .lineLimit(1)
+                    }
+
+                    Spacer()
+                }
+                .contentShape(Rectangle())
             }
-
-            Spacer()
+            .buttonStyle(.plain)
 
             Button {
                 replyingTo = nil
@@ -1372,8 +1385,11 @@ struct ChatView: View {
     /// Sends the configured quick emoji as an ordinary text message — there is
     /// no sticker message type (`MessageType` is text/image/video/meeting/voice),
     /// so Messenger-style one-tap send is simply a very short text.
+    /// The quick emoji answers the message being replied to, like text does.
     private func sendQuickEmoji() {
-        Task { await viewModel.sendText(quickEmoji) }
+        let replyTo = replyingTo?.id
+        replyingTo = nil
+        Task { await viewModel.sendText(quickEmoji, replyTo: replyTo) }
     }
 
     // MARK: - Helpers

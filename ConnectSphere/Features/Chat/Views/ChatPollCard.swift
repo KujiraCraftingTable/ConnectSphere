@@ -2,8 +2,9 @@ import SwiftUI
 
 /// A group poll in a chat: the question, then each option as a bar sized by
 /// its share of the votes, with its count and the faces of who picked it
-/// (tap the faces for the names). Your own choice is ticked. Until you've
-/// voted, and while it's open, tapping an option votes — once, for good.
+/// (tap the faces for the names). Your own choice is ticked. While the poll
+/// is open, tapping an option votes for it or moves your vote there, and
+/// tapping your ticked choice takes the vote back.
 ///
 /// Shared by the full chat (`MessageBubble`) and the floating window
 /// (`compact`).
@@ -21,7 +22,7 @@ struct ChatPollCard: View {
     @State private var votersFor: ChatPoll.Option?
 
     private var myOption: String? { poll.myOptionID(userId: currentUserId) }
-    private var canVote: Bool { myOption == nil && !poll.hasEnded() && onVote != nil }
+    private var canVote: Bool { !poll.hasEnded() && onVote != nil }
 
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 6 : 8) {
@@ -43,7 +44,7 @@ struct ChatPollCard: View {
         }
         .padding(compact ? 9 : 12)
         .frame(maxWidth: compact ? .infinity : 300, alignment: .leading)
-        .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: compact ? 12 : 14))
+        .background(AppColors.surface(colorScheme), in: RoundedRectangle(cornerRadius: compact ? 12 : 14))
         .overlay(RoundedRectangle(cornerRadius: compact ? 12 : 14).stroke(accent.opacity(0.18), lineWidth: 1))
         .sheet(item: $votersFor) { option in
             PollVotersSheet(option: option)
@@ -84,7 +85,7 @@ struct ChatPollCard: View {
                 .background(AppColors.base(colorScheme), in: RoundedRectangle(cornerRadius: 8))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .overlay(RoundedRectangle(cornerRadius: 8)
-                    .stroke(canVote ? accent.opacity(0.45) : .clear, lineWidth: 1))
+                    .stroke(canVote && myOption == nil ? accent.opacity(0.45) : .clear, lineWidth: 1))
             }
             .buttonStyle(.plain)
             .disabled(!canVote)
@@ -104,7 +105,7 @@ struct ChatPollCard: View {
             ForEach(Array(shown)) { voter in
                 Avatar(name: voter.displayName, colorHex: voter.avatarColor ?? AppColors.avatarFallback,
                        imageURL: voter.avatarUrl, diameter: size)
-                    .overlay(Circle().stroke(AppColors.elevated(colorScheme), lineWidth: 1.5))
+                    .overlay(Circle().stroke(AppColors.surface(colorScheme), lineWidth: 1.5))
             }
             if option.voters.count > shown.count {
                 Text("+\(option.voters.count - shown.count)")
@@ -126,7 +127,9 @@ struct ChatPollCard: View {
         } else if let end = poll.endsAt {
             parts.append(String(format: bundle.loc("Ends %@"), MeetingProposalCard.formattedDate(end)))
         }
-        if canVote { parts.append(bundle.loc("Tap an option to vote")) }
+        if canVote {
+            parts.append(bundle.loc(myOption == nil ? "Tap an option to vote" : "Tap your choice to undo"))
+        }
         return Text(parts.joined(separator: " · "))
             .font(.system(size: compact ? 10 : 12))
             .foregroundColor(AppColors.textTertiary(colorScheme))

@@ -2,9 +2,9 @@ import Vapor
 import SQLKit
 
 /// Polls in group chats (migration 052): a `poll` message whose content is
-/// the question, with 2–6 options and an optional end. As on posts each
-/// member votes once and the vote is final; unlike posts, voters are shown,
-/// so the embedded poll lists who picked each option.
+/// the question, with 2–6 options and an optional end. Each member has one
+/// vote, which they can move or take back until the poll ends; unlike posts,
+/// voters are shown, so the embedded poll lists who picked each option.
 extension ChatStore {
     static let pollOptionCount = 2...6
     static let pollOptionMaxLength = 80
@@ -60,32 +60,58 @@ extension ChatStore {
             """).run()
     }
 
-    enum PollVoteResult { case voted, notFound, invalidOption, ended, alreadyVoted }
+    enum PollVoteResult { case changed, unchanged, notFound, invalidOption, ended }
 
-    /// Records `userID`'s vote for `optionID` — once per poll, before it ends.
-    /// Run inside a transaction: the vote and the count change together.
-    static func votePoll(messageID: String, optionID: String, userID: String,
+    /// Sets `userID`'s vote to `optionID` — a first vote, or a move from
+    /// another option — or takes it back when `optionID` is nil. Changes stop
+    /// once the poll has ended. Run inside a transaction: the poll row is
+    /// locked so the vote and the counts change together.
+    static func votePoll(messageID: String, optionID: String?, userID: String,
                          on db: any SQLDatabase) async throws -> PollVoteResult {
         struct P: Decodable { let ends_at: Date?; let has_option: Bool }
         guard let poll = try await db.raw("""
             SELECT cp.ends_at, EXISTS(
-              SELECT 1 FROM chat_poll_options o WHERE o.id = \(uuid: optionID) AND o.message_id = cp.message_id
+              SELECT 1 FROM chat_poll_options o WHERE o.id = \(uuid: optionID ?? UUID().uuidString) AND o.message_id = cp.message_id
             ) AS has_option
             FROM chat_polls cp JOIN messages m ON m.id = cp.message_id AND m.deleted_at IS NULL
             WHERE cp.message_id = \(uuid: messageID)
             FOR UPDATE OF cp
             """).first(decoding: P.self) else { return .notFound }
-        guard poll.has_option else { return .invalidOption }
+        guard optionID == nil || poll.has_option else { return .invalidOption }
         if let end = poll.ends_at, end <= Date() { return .ended }
 
-        struct V: Decodable { let option_id: String }
-        guard try await db.raw("""
-            INSERT INTO chat_poll_votes (message_id, option_id, user_id)
-            VALUES (\(uuid: messageID), \(uuid: optionID), \(uuid: userID))
-            ON CONFLICT DO NOTHING
-            RETURNING option_id::text AS option_id
-            """).first(decoding: V.self) != nil else { return .alreadyVoted }
-        try await db.raw("UPDATE chat_poll_options SET vote_count = vote_count + 1 WHERE id = \(uuid: optionID)").run()
-        return .voted
+        struct V: Decodable { let option_id: UUID }
+        let previous = try await db.raw("""
+            SELECT option_id FROM chat_poll_votes
+            WHERE message_id = \(uuid: messageID) AND user_id = \(uuid: userID)
+            """).first(decoding: V.self)?.option_id
+        let target = optionID.flatMap(UUID.init(uuidString:))
+        guard previous != target else { return .unchanged }
+
+        if let previous {
+            try await db.raw("UPDATE chat_poll_options SET vote_count = vote_count - 1 WHERE id = \(uuid: previous.uuidString)").run()
+        }
+        switch (previous, target) {
+        case (nil, let target?):
+            try await db.raw("""
+                INSERT INTO chat_poll_votes (message_id, option_id, user_id)
+                VALUES (\(uuid: messageID), \(uuid: target.uuidString), \(uuid: userID))
+                """).run()
+        case (_?, let target?):
+            try await db.raw("""
+                UPDATE chat_poll_votes SET option_id = \(uuid: target.uuidString), voted_at = now()
+                WHERE message_id = \(uuid: messageID) AND user_id = \(uuid: userID)
+                """).run()
+        case (_?, nil):
+            try await db.raw("""
+                DELETE FROM chat_poll_votes WHERE message_id = \(uuid: messageID) AND user_id = \(uuid: userID)
+                """).run()
+        case (nil, nil):
+            return .unchanged
+        }
+        if let target {
+            try await db.raw("UPDATE chat_poll_options SET vote_count = vote_count + 1 WHERE id = \(uuid: target.uuidString)").run()
+        }
+        return .changed
     }
 }
