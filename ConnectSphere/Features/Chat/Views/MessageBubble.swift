@@ -42,6 +42,8 @@ struct MessageBubble: View {
     var onMeetingEdit: ((Message) -> Void)? = nil
     /// "Cancel meeting" confirmed from the proposer's menu
     var onMeetingCancel: ((Message) -> Void)? = nil
+    /// An option tapped on a group poll (the option's id)
+    var onPollVote: ((Message, String) -> Void)? = nil
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.appBundle) var bundle
     @State private var showCancelConfirm = false
@@ -238,6 +240,13 @@ struct MessageBubble: View {
                     onReschedule: { onMeetingEdit?(message) },
                     onCancel: { showCancelConfirm = true }
                 )
+            }
+
+        case .poll:
+            if let poll = message.poll {
+                ChatPollCard(question: message.content ?? "", poll: poll, currentUserId: currentUserId,
+                             accent: palette.primary,
+                             onVote: { optionId in onPollVote?(message, optionId) })
             }
         }
     }

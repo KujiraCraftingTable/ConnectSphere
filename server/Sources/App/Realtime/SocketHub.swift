@@ -142,6 +142,11 @@ struct WSMeetingProposal: Content {
     var conversation_id: String; var message_id: String
     @NullCoded var meeting_proposal: MessageObject.MeetingProposal?
 }
+/// `poll_updated`: a vote changed a poll's counts and voters.
+struct WSPoll: Content {
+    var conversation_id: String; var message_id: String
+    var poll: MessageObject.Poll
+}
 struct WSMessageDeleted: Content { var conversation_id: String; var message_id: String }
 struct WSPinAdded: Content { var conversation_id: String; var message_id: String; var pins: [ChatStore.PinRow] }
 struct WSPinRemoved: Content { var conversation_id: String; var message_id: String }

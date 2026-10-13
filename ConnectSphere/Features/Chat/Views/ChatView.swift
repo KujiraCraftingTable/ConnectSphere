@@ -56,6 +56,7 @@ struct ChatView: View {
     // Meeting proposal composer (new proposal or reschedule) — forked
     // `MeetingProposalComposerView`, see its doc comment for why.
     @State private var showMeetingComposer = false
+    @State private var showPollComposer = false
     @State private var meetingTitle = ""
     @State private var meetingLocation = ""
     @State private var meetingStartsAt = Date().addingTimeInterval(3600)
@@ -366,6 +367,11 @@ struct ChatView: View {
         }
         .sheet(isPresented: $showMeetingComposer) {
             meetingComposerSheet
+        }
+        .sheet(isPresented: $showPollComposer) {
+            ChatPollComposer { question, options, endsAt in
+                await viewModel.sendPoll(question: question, options: options, endsAt: endsAt)
+            }
         }
         .sheet(item: $pinningMessage) { message in
             pinExpirySheet(for: message)
@@ -775,6 +781,9 @@ struct ChatView: View {
                                               },
                                               onMeetingCancel: { msg in
                                                   Task { await viewModel.cancelMeeting(messageId: msg.id) }
+                                              },
+                                              onPollVote: { msg, optionId in
+                                                  Task { await viewModel.votePoll(messageId: msg.id, optionId: optionId) }
                                               })
                                     .modifier(MessageAppearModifier(
                                         id: message.id,
@@ -1110,6 +1119,17 @@ struct ChatView: View {
                             .padding(.bottom, 6)
                     }
 
+                    // Polls are for groups — between two people it's just a question.
+                    if viewModel.isGroup {
+                        Button { showPollComposer = true } label: {
+                            Image(systemName: "chart.bar.doc.horizontal")
+                                .font(.system(size: 21))
+                                .foregroundColor(chatPalette.primary)
+                                .padding(.bottom, 6)
+                        }
+                        .accessibilityLabel(Text(bundle.loc("New poll")))
+                    }
+
                     VoiceRecorderControl(session: voiceSession, tint: chatPalette.primary)
 
                     TextField("", text: $inputText, prompt: Text("Message...", bundle: bundle), axis: .vertical)
@@ -1204,6 +1224,7 @@ struct ChatView: View {
             case .meeting: return bundle.loc("Meeting")
             case .voice:   return bundle.loc("Voice message")
             case .album:   return message.albumPreview
+            case .poll:    return "📊 " + (message.content ?? bundle.loc("Poll"))
             }
         }()
 

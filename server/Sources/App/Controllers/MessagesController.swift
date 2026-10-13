@@ -45,6 +45,7 @@ struct MessagesController {
         m.patch("conversations", ":id", "messages", ":messageId", "meeting-proposal", use: updateMeetingProposal)
         m.post("conversations", ":id", "messages", ":messageId", "meeting-proposal", "cancel", use: cancelMeetingProposal)
         m.post("conversations", ":id", "messages", ":messageId", "meeting-response", use: respondToMeeting)
+        m.post("conversations", ":id", "messages", ":messageId", "poll-vote", use: votePoll)
         m.put("conversations", ":id", "read", use: markRead)
         m.put("conversations", ":id", "delivered", use: markDelivered)
         m.get("unread", use: unreadCount)
@@ -257,7 +258,10 @@ struct MessagesController {
         var meeting_proposal: MeetingProposalIn?
         var voice_duration_seconds: Int?
         var voice_waveform: [Double]?
+        /// For `message_type == "poll"`; the question is `content`.
+        var poll: PollIn?
     }
+    struct PollIn: Content { var options: [String]?; var ends_at: String? }
     static let maxAlbumPhotos = 10
     /// One of our own chat uploads, image types only — an album can't point
     /// at another site or at a path outside the uploads folder.
@@ -306,6 +310,14 @@ struct MessagesController {
                 reminderOffset: b.meeting_proposal?.reminder_offset, reminderAt: b.meeting_proposal?.reminder_at)
         }
 
+        var poll: ChatStore.ValidatedPoll? = nil
+        if type == "poll" {
+            guard let conv = try await ChatStore.conversationByID(id, on: db), conv.is_group else {
+                throw Abort(.badRequest, reason: "Polls are for group chats")
+            }
+            poll = try ChatStore.validatePoll(question: b.content, options: b.poll?.options, endsAt: b.poll?.ends_at)
+        }
+
         var replyTo: String? = nil
         if let rid = b.reply_to_message_id {
             guard let target = try await ChatStore.messageBasic(rid, on: db), target.conversation_id == id else {
@@ -325,6 +337,9 @@ struct MessagesController {
             voiceDuration: b.voice_duration_seconds, voiceWaveform: b.voice_waveform, on: db)
         if let v = validated {
             try await ChatStore.createMeetingProposalRow(messageID: newID, v, on: db)
+        }
+        if let poll {
+            try await ChatStore.createPoll(messageID: newID, poll, on: db)
         }
         guard let msg = try await ChatStore.messageByID(newID, on: db) else { throw Abort(.internalServerError) }
         let parts = try await ChatStore.participants(id, on: db)
@@ -903,5 +918,41 @@ struct MessagesController {
                 payload: ["messageId": mid, "proposalId": pid, "status": st], on: d, hub: h, logger: l)
         }
         return try await ConnectionsController.encode(DataResponse(data: mp), req, .ok)
+    }
+
+    struct PollVoteBody: Content { var option_id: String? }
+
+    /// One final vote on a group poll; the new counts and voters go to the
+    /// whole room as `poll_updated`.
+    static func votePoll(_ req: Request) async throws -> Response {
+        let id = req.parameters.get("id")!, mid = req.parameters.get("messageId")!
+        let db = req.db.sql()
+        try await requireParticipant(id, req)
+        guard let optionID = try req.content.decode(PollVoteBody.self).option_id, UUID(uuidString: optionID) != nil else {
+            throw Abort(.badRequest, reason: "option_id is required")
+        }
+        guard let msg = try await ChatStore.messageBasic(mid, on: db), msg.conversation_id == id else {
+            throw Abort(.notFound, reason: "Poll not found")
+        }
+        try await assertNotBlockedInConversation(id, req.userID, on: db)
+        var result = ChatStore.PollVoteResult.notFound
+        let uid = req.userID
+        try await req.db.tx { t in
+            result = try await ChatStore.votePoll(messageID: mid, optionID: optionID, userID: uid, on: t)
+        }
+        switch result {
+        case .voted: break
+        case .notFound: throw Abort(.notFound, reason: "Poll not found")
+        case .invalidOption: throw Abort(.badRequest, reason: "That option isn't part of this poll")
+        case .ended: throw Abort(.conflict, reason: "This poll has ended")
+        case .alreadyVoted: throw Abort(.conflict, reason: "You have already voted on this poll")
+        }
+        guard let fresh = try await ChatStore.messageByID(mid, on: db), let poll = fresh.poll else {
+            throw Abort(.internalServerError)
+        }
+        let parts = try await ChatStore.participants(id, on: db)
+        req.socketHub.emitConversation(id, participants: parts, event: "poll_updated",
+                                       WSPoll(conversation_id: id, message_id: mid, poll: poll))
+        return try await ConnectionsController.encode(DataResponse(data: poll), req, .ok)
     }
 }

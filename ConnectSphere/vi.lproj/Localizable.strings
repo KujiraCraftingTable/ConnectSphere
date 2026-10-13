@@ -1116,3 +1116,11 @@
 "Add to floating chat" = "Thêm vào chat nổi";
 "Search chats" = "Tìm đoạn chat";
 "Up to 4 chats float at once — adding one closes the chat you used longest ago." = "Tối đa 4 đoạn chat nổi cùng lúc — thêm một đoạn sẽ đóng đoạn bạn dùng lâu nhất.";
+"New poll" = "Bình chọn mới";
+"Ask a question" = "Đặt câu hỏi";
+"%lld votes" = "%lld lượt chọn";
+"Ended" = "Đã kết thúc";
+"Tap an option to vote" = "Chạm một lựa chọn để bình chọn";
+"Who voted for %@" = "Ai đã chọn %@";
+"Couldn't vote, please try again" = "Không bình chọn được, vui lòng thử lại";
+"1 vote" = "1 lượt chọn";

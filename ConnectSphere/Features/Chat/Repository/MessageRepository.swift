@@ -403,6 +403,32 @@ struct MessageRepository {
         return response.data
     }
 
+    /// Sends a group poll: the question is the message content.
+    func sendPoll(conversationId: String, question: String, options: [String], endsAt: Date?,
+                  token: String) async throws -> Message {
+        struct PollIn: Encodable { let options: [String]; let ends_at: String? }
+        struct Body: Encodable { let content: String; let message_type: String; let poll: PollIn }
+        let body = try JSONEncoder().encode(Body(
+            content: question, message_type: MessageType.poll.rawValue,
+            poll: PollIn(options: options, ends_at: endsAt.map { ISO8601DateFormatter().string(from: $0) })))
+        return try await client.fetch(
+            DataResponse<Message>.self,
+            path: "/messages/conversations/\(conversationId)/messages",
+            method: "POST", token: token, bodyData: body
+        ).data
+    }
+
+    /// Votes on a group poll (once, final); returns the updated poll.
+    func votePoll(conversationId: String, messageId: String, optionId: String, token: String) async throws -> ChatPoll {
+        struct Body: Encodable { let option_id: String }
+        let body = try JSONEncoder().encode(Body(option_id: optionId))
+        return try await client.fetch(
+            DataResponse<ChatPoll>.self,
+            path: "/messages/conversations/\(conversationId)/messages/\(messageId)/poll-vote",
+            method: "POST", token: token, bodyData: body
+        ).data
+    }
+
     /// RSVP to a meeting proposal ("going" | "maybe" | "not_going"). Server
     /// returns just the updated proposal (not the whole message).
     @discardableResult

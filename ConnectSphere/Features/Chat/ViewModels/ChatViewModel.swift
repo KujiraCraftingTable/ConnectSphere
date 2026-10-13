@@ -555,6 +555,40 @@ class ChatViewModel {
         }
     }
 
+    // MARK: - Polls (group chats)
+
+    /// Sends a poll to this group. REST only: the server broadcasts it as
+    /// `new_message` like any message; the reply is added here too in case
+    /// that echo arrives late.
+    func sendPoll(question: String, options: [String], endsAt: Date?) async -> Bool {
+        isSending = true
+        defer { isSending = false }
+        do {
+            let message = try await repository.sendPoll(conversationId: conversationId, question: question,
+                                                        options: options, endsAt: endsAt, token: token)
+            if !messages.contains(where: { $0.id == message.id }) { messages.append(message) }
+            return true
+        } catch {
+            self.error = friendlyError(error)
+            return false
+        }
+    }
+
+    /// Votes once on a poll — shown at once, undone if the server refuses.
+    func votePoll(messageId: String, optionId: String) async {
+        guard let i = messages.firstIndex(where: { $0.id == messageId }), let poll = messages[i].poll,
+              poll.myOptionID(userId: currentUserId) == nil, !poll.hasEnded() else { return }
+        messages[i].poll = poll.votedLocally(optionId: optionId, userId: currentUserId)
+        do {
+            let fresh = try await repository.votePoll(conversationId: conversationId, messageId: messageId,
+                                                      optionId: optionId, token: token)
+            if let j = messages.firstIndex(where: { $0.id == messageId }) { messages[j].poll = fresh }
+        } catch {
+            if let j = messages.firstIndex(where: { $0.id == messageId }) { messages[j].poll = poll }
+            self.error = Bundle.app.loc("Couldn't vote, please try again")
+        }
+    }
+
     /// RSVP to a meeting proposal. Socket-first with REST fallback, mirroring
     /// `sendReaction`'s exact branching.
     func respondToMeeting(messageId: String, status: MeetingRsvpStatus) async {
@@ -727,6 +761,19 @@ class ChatViewModel {
             self.messages[i].meetingProposal = proposal
         }
 
+        // Someone voted on a poll: new counts and voters.
+        ws.on("poll_updated", tag: socketTag) { [weak self] payload in
+            guard let self,
+                  let dict = payload as? [String: Any],
+                  dict["conversation_id"] as? String == self.conversationId,
+                  let messageId = dict["message_id"] as? String,
+                  let i = self.messages.firstIndex(where: { $0.id == messageId }),
+                  let pollDict = dict["poll"],
+                  let json = try? JSONSerialization.data(withJSONObject: pollDict),
+                  let poll = try? JSONDecoder.makeISO8601().decode(ChatPoll.self, from: json) else { return }
+            self.messages[i].poll = poll
+        }
+
         // Shared settings (theme/nickname) changed by either participant.
         // The nickname-target match only applies in the 1:1 case — a group has
         // no single "other person" for `otherUserId` to compare against.
@@ -826,6 +873,7 @@ class ChatViewModel {
         ws.off("reaction_updated", tag: socketTag)
         ws.off("meeting_proposal_updated", tag: socketTag)
         ws.off("meeting_response_updated", tag: socketTag)
+        ws.off("poll_updated", tag: socketTag)
         ws.off("conversation_settings_updated", tag: socketTag)
         ws.off("group_updated", tag: socketTag)
         ws.off("member_added", tag: socketTag)
