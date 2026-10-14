@@ -104,9 +104,18 @@ enum PostStore {
         """
     }
 
+    /// Who may see a post. A locked persona (migration 064) turns its public
+    /// posts into "connections in this mode" ones — except in communities,
+    /// whose own visibility rules apply.
     static func privacyClause(_ v: String) -> SQLQueryString {
         """
-        (p.privacy = 'public' OR p.author_id = \(uuid: v)
+        (p.author_id = \(uuid: v)
+         OR (p.privacy = 'public' AND (p.community_id IS NOT NULL OR NOT COALESCE(
+              (SELECT CASE WHEN p.mode = 'work' THEN lu.work_locked ELSE lu.hobby_locked END
+               FROM users lu WHERE lu.id = p.author_id), FALSE)))
+         OR (p.privacy = 'public' AND EXISTS (SELECT 1 FROM connections c WHERE c.status = 'accepted' AND c.mode = p.mode
+              AND ((c.requester_id = p.author_id AND c.addressee_id = \(uuid: v))
+                OR (c.addressee_id = p.author_id AND c.requester_id = \(uuid: v)))))
          OR (p.privacy = 'friends' AND EXISTS (SELECT 1 FROM connections c WHERE c.status = 'accepted'
               AND ((c.requester_id = p.author_id AND c.addressee_id = \(uuid: v))
                 OR (c.addressee_id = p.author_id AND c.requester_id = \(uuid: v))))))

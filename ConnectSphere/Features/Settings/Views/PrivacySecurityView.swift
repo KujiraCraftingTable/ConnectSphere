@@ -13,6 +13,8 @@ struct PrivacySecurityView: View {
     @State private var friendRequests = FriendRequestSettingViewModel()
     @State private var suggestionVisibility = SuggestionVisibilitySettingViewModel()
     @State private var personaLink = PersonaLinkSettingViewModel()
+    @State private var profileLock = ProfileLockSettingViewModel()
+    @State private var confirmLock = false
 
     private var hasPassword: Bool { appState.currentUser?.hasPassword ?? true }
 
@@ -99,6 +101,37 @@ struct PrivacySecurityView: View {
                 Text("When off, you're never suggested to anyone. You still see suggestions yourself.", bundle: bundle)
             }
 
+            // Lock this mode's profile (Facebook-style)
+            Section {
+                Toggle(isOn: Binding(
+                    get: { appState.currentUser?.isLocked ?? false },
+                    set: { lock in
+                        if lock { confirmLock = true }
+                        else { Task { await profileLock.set(false, appState: appState) } }
+                    }
+                )) {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 7)
+                                .fill(themeManager.theme.primary)
+                                .frame(width: 30, height: 30)
+                            Image(systemName: "lock.shield.fill")
+                                .font(.system(size: 13))
+                                .foregroundColor(.white)
+                        }
+                        Text(bundle.loc(appState.currentMode == .work ? "Lock my Work profile" : "Lock my Hobby profile"))
+                            .font(.system(size: 16))
+                            .foregroundColor(AppColors.textPrimary(colorScheme))
+                    }
+                }
+                .tint(themeManager.theme.primary)
+                .disabled(profileLock.isSaving)
+            } footer: {
+                Text(bundle.loc(appState.currentMode == .work
+                    ? "Only your Work connections can see your posts and profile details. Others see your name, photo and cover."
+                    : "Only your friends can see your posts and profile details. Others see your name, photo and cover."))
+            }
+
             // This mode's profile → my other persona (each mode has its own switch)
             Section {
                 Toggle(isOn: Binding(
@@ -160,6 +193,20 @@ struct PrivacySecurityView: View {
         .alert(suggestionVisibility.errorMessage ?? "", isPresented: Binding(
             get: { suggestionVisibility.errorMessage != nil },
             set: { if !$0 { suggestionVisibility.errorMessage = nil } }
+        )) {
+            Button(bundle.loc("OK")) {}
+        }
+        .alert(bundle.loc("Lock your profile?"), isPresented: $confirmLock) {
+            Button(bundle.loc("Lock")) { Task { await profileLock.set(true, appState: appState) } }
+            Button(bundle.loc("Cancel"), role: .cancel) {}
+        } message: {
+            Text(bundle.loc(appState.currentMode == .work
+                ? "People who aren't your Work connections will only see your name, photo, cover and username — not your posts, experience, skills or lists."
+                : "People who aren't your friends will only see your name, photo, cover and username — not your posts, highlights, details or lists."))
+        }
+        .alert(profileLock.errorMessage ?? "", isPresented: Binding(
+            get: { profileLock.errorMessage != nil },
+            set: { if !$0 { profileLock.errorMessage = nil } }
         )) {
             Button(bundle.loc("OK")) {}
         }

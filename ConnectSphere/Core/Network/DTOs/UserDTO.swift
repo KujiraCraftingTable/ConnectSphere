@@ -23,6 +23,8 @@ struct UserDTO: Decodable {
     let emailVerified: Bool?
     let languages: [String]?
     let relationshipStatus: String?
+    let isLocked: Bool?
+    let canView: Bool?
     let jobTitle: String?
     let company: String?
     let defaultMode: String?
@@ -45,6 +47,8 @@ struct UserDTO: Decodable {
         case emailVerified   = "email_verified"
         case languages
         case relationshipStatus = "relationship_status"
+        case isLocked        = "is_locked"
+        case canView         = "can_view"
         case hasPassword     = "has_password"
         case displayName     = "display_name"
         case avatarColor     = "avatar_color"
@@ -85,6 +89,8 @@ struct UserDTO: Decodable {
             emailVerified:  emailVerified ?? false,
             languages:      languages ?? [],
             relationshipStatus: relationshipStatus,
+            isLocked:       isLocked ?? false,
+            canView:        canView ?? true,
             age:            age,
             dob:            dob,
             dobVisibility:  dobVisibility,

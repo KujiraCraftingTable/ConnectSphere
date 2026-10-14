@@ -39,6 +39,10 @@ struct UserProfile: Identifiable {
     /// Hobby-only (migration 062): language codes, and a RelationshipStatus raw value.
     var languages: [String] = []
     var relationshipStatus: String? = nil
+    /// This persona is locked (migration 064)…
+    var isLocked: Bool = false
+    /// …and whether the viewer may see past it (theirs, or a connection).
+    var canView: Bool = true
     // Displayed age — present in both public and self views, null from server when dob_visibility = private
     var age: Int? = nil
     // Self-only field (server only returns this in /auth/me and PATCH /users/me),
@@ -58,6 +62,10 @@ struct UserProfile: Identifiable {
 }
 
 extension UserProfile {
+    /// Someone else's locked persona you're not connected to: only the
+    /// name, avatar and cover show.
+    var lockedOut: Bool { isLocked && !canView }
+
     /// Whether they've set up a persona in `mode`.
     func hasPersona(_ mode: AppMode) -> Bool { mode == .hobby ? hobbySetup : workSetup }
 }

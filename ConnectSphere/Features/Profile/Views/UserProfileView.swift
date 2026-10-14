@@ -85,15 +85,19 @@ struct UserProfileView: View {
                                 AnyView(actions(for: user))
                             }
                             .rotation3DEffect(.degrees(flipAngle), axis: (x: 0, y: 1, z: 0), perspective: 0.5)
-                            if mode == .hobby {
-                                HobbyAboutSection(user: user, isMe: user.id == appState.currentUser?.id)
+                            // Locked out: only the card (name, avatar, cover).
+                            if !user.lockedOut {
+                                if mode == .hobby {
+                                    HighlightsRow(userId: user.id, isMe: user.id == appState.currentUser?.id)
+                                    HobbyAboutSection(user: user, isMe: user.id == appState.currentUser?.id)
+                                }
+                                if mode == .work {
+                                    ExperienceSection(userId: user.id, isMe: user.id == appState.currentUser?.id)
+                                    SkillsSection(userId: user.id, isMe: user.id == appState.currentUser?.id,
+                                                  allowsEndorsing: !showingOther)
+                                }
+                                postsSection.id("posts")
                             }
-                            if mode == .work {
-                                ExperienceSection(userId: user.id, isMe: user.id == appState.currentUser?.id)
-                                SkillsSection(userId: user.id, isMe: user.id == appState.currentUser?.id,
-                                              allowsEndorsing: !showingOther)
-                            }
-                            postsSection.id("posts")
                         } else {
                             ProgressView().padding(.top, 120)
                         }

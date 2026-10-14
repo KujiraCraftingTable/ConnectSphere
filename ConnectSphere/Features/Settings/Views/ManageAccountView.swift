@@ -38,6 +38,12 @@ struct ManageAccountView: View {
                     SettingsRowLabel(icon: "lock.fill", label: bundle.loc("Privacy & Security"),
                                      color: Color(hex: "#4CAF50"), showsChevron: false)
                 }
+                NavigationLink {
+                    ActivityLogView()
+                } label: {
+                    SettingsRowLabel(icon: "list.bullet.rectangle.fill", label: bundle.loc("Activity log"),
+                                     color: Color(hex: "#5C6BC0"), showsChevron: false)
+                }
             } header: {
                 Text("Privacy", bundle: bundle)
             }
