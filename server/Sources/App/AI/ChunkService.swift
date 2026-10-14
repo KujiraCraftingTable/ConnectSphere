@@ -128,6 +128,15 @@ enum ChunkService {
         if let j = p.job_title { parts.append("Job: \(j)") }
         if let c = p.company { parts.append("Company: \(c)") }
         if let l = p.location { parts.append("Location: \(l)") }
+        // Work history: each role as "title at company", current first.
+        struct R: Decodable { let title: String; let company: String }
+        let roles = try await db.raw("""
+            SELECT e.title, COALESCE(c.name, e.company_name) AS company
+            FROM work_experiences e LEFT JOIN companies c ON c.id = e.company_id
+            WHERE e.user_id = \(uuid: userID)
+            ORDER BY (e.end_month IS NULL) DESC, e.start_month DESC LIMIT 10
+            """).all(decoding: R.self)
+        if !roles.isEmpty { parts.append("Experience: " + roles.map { "\($0.title) at \($0.company)" }.joined(separator: "; ")) }
 
         let content = parts.joined(separator: "\n")
         if content.isEmpty {
