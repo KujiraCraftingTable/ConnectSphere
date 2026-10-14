@@ -13,6 +13,10 @@ struct UserDTO: Decodable {
     let email: String?        // only present in the owner's own response (PATCH /users/me)
     let hasPassword: Bool?    // same as above
     let age: Int?              // displayed age — the server returns null when dob_visibility = private
+    /// The owner's own response only (PATCH /users/me). Without it, a saved
+    /// profile lost its date of birth and Edit profile showed "20 years ago".
+    let dob: String?
+    let dobVisibility: String?
     let jobTitle: String?
     let company: String?
     let defaultMode: String?
@@ -29,7 +33,8 @@ struct UserDTO: Decodable {
     let matchEvidence: [MatchEvidenceDTO]?   // only present in the AI search response (mini CV)
 
     enum CodingKeys: String, CodingKey {
-        case id, username, bio, location, gender, email, company, interests, skills, score, age
+        case id, username, bio, location, gender, email, company, interests, skills, score, age, dob
+        case dobVisibility   = "dob_visibility"
         case hasPassword     = "has_password"
         case displayName     = "display_name"
         case avatarColor     = "avatar_color"
@@ -67,6 +72,8 @@ struct UserDTO: Decodable {
             email:          email,
             hasPassword:    hasPassword ?? false,
             age:            age,
+            dob:            dob,
+            dobVisibility:  dobVisibility,
             followerCount:  followerCount,
             followingCount: followingCount,
             postCount:      postCount,
