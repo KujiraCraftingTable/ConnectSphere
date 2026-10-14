@@ -1426,3 +1426,9 @@
 "Step 1 of 2 · Confirm it's you" = "Bước 1/2 · Xác nhận là bạn";
 "To change your email, first enter the code we send to %@ — so nobody else can take over your account." = "Để đổi email, trước tiên hãy nhập mã chúng tôi gửi tới %@ — để không ai khác chiếm được tài khoản của bạn.";
 "Step 2 of 2 · Your new email" = "Bước 2/2 · Email mới của bạn";
+"Invalid email or password" = "Email hoặc mật khẩu không đúng";
+"Sign in with your email" = "Hãy đăng nhập bằng email";
+"That email is used by another account" = "Email này đã được tài khoản khác dùng";
+"Enter a valid email address" = "Hãy nhập một địa chỉ email hợp lệ";
+"You sign in with your email. You'll pick your public @username next." = "Bạn đăng nhập bằng email. Tên người dùng @ công khai sẽ chọn ở bước tiếp theo.";
+"You sign in with your email; your @username is your public handle. Deleting a profile or the account needs a code sent to that email." = "Bạn đăng nhập bằng email; @tên người dùng là tên công khai của bạn. Muốn xoá hồ sơ hoặc tài khoản cần mã gửi tới email đó.";

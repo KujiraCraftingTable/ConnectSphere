@@ -36,22 +36,22 @@ class AuthService {
 
     // MARK: - Username / password auth
 
-    func register(username: String, password: String) async throws -> AuthResponse {
-        try await passwordAuth(path: "/auth/register", username: username, password: password)
+    func register(email: String, password: String) async throws -> AuthResponse {
+        try await passwordAuth(path: "/auth/register", email: email, password: password)
     }
 
-    func login(username: String, password: String) async throws -> AuthResponse {
-        try await passwordAuth(path: "/auth/login", username: username, password: password)
+    func login(email: String, password: String) async throws -> AuthResponse {
+        try await passwordAuth(path: "/auth/login", email: email, password: password)
     }
 
     /// Calls the username/password auth endpoint; errors throw NSError with code = HTTP status
     /// so the caller can map it to a localized message (409 duplicate username, 401 wrong password…).
-    private func passwordAuth(path: String, username: String, password: String) async throws -> AuthResponse {
+    private func passwordAuth(path: String, email: String, password: String) async throws -> AuthResponse {
         guard let url = URL(string: APIConfig.baseURL + path) else { throw URLError(.badURL) }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONEncoder().encode(["username": username, "password": password])
+        req.httpBody = try JSONEncoder().encode(["email": email, "password": password])
 
         let (data, resp) = try await URLSession.shared.data(for: req)
         guard let http = resp as? HTTPURLResponse else { throw URLError(.badServerResponse) }

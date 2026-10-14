@@ -45,30 +45,34 @@ struct AuthController {
 
     // MARK: POST /register
 
-    struct RegisterBody: Content { var username: String?; var password: String? }
+    struct RegisterBody: Content { var email: String?; var password: String? }
 
+    /// Sign-up is by email: the public @username is chosen in onboarding
+    /// (a placeholder until then, like a Google sign-up's), and the email is
+    /// verified there with a code.
     static func registerUser(_ req: Request) async throws -> Response {
         let body = try req.content.decode(RegisterBody.self)
-        let username = (body.username ?? "").trimmingCharacters(in: .whitespaces).lowercased()
-        let password = body.password ?? ""
-
-        guard !username.isEmpty, matches(usernameRegex, username) else {
-            throw InlineError(.badRequest, "Username must be 3-30 characters: lowercase letters, numbers, underscore")
+        guard let email = AccountController.cleanEmail(body.email) else {
+            throw InlineError(.badRequest, "Enter a valid email address")
         }
+        let password = body.password ?? ""
         guard password.count >= minPasswordLen else {
             throw InlineError(.badRequest, "Password must be at least \(minPasswordLen) characters")
         }
 
         let db = req.db.sql()
-        if try await UserStore.usernameTaken(username, on: db) {
-            throw InlineError(.conflict, "Username already taken")
+        struct Taken: Decodable { let id: String }
+        if try await db.raw("SELECT id::text AS id FROM users WHERE email = \(bind: email)").first(decoding: Taken.self) != nil {
+            throw InlineError(.conflict, "That email is used by another account")
         }
+        var username = placeholderUsername()
+        while try await UserStore.usernameTaken(username, on: db) { username = placeholderUsername() }
 
         let hash = try Bcrypt.hash(password, cost: bcryptCost)
         struct NewRow: Decodable { let id: String }
         guard let created = try await db.raw("""
-            INSERT INTO users (username, password_hash, display_name, is_setup)
-            VALUES (\(bind: username), \(bind: hash), \(bind: username), FALSE)
+            INSERT INTO users (username, email, password_hash, display_name, is_setup)
+            VALUES (\(bind: username), \(bind: email), \(bind: hash), \(bind: username), FALSE)
             RETURNING id
             """).first(decoding: NewRow.self)
         else { throw Abort(.internalServerError) }
@@ -82,23 +86,34 @@ struct AuthController {
 
     // MARK: POST /login
 
-    struct LoginBody: Content { var username: String?; var password: String? }
+    /// Until onboarding picks the real one.
+    static func placeholderUsername() -> String {
+        "user_" + String((0..<8).map { _ in "abcdefghijklmnopqrstuvwxyz0123456789".randomElement()! })
+    }
+
+    /// Sign-in names are emails only — never the public @username, which
+    /// anyone can see and so try passwords against.
+    static func loginEmail(_ raw: String?) throws -> String {
+        let identifier = (raw ?? "").trimmingCharacters(in: .whitespaces).lowercased()
+        guard identifier.contains("@") else { throw InlineError(.badRequest, "Sign in with your email") }
+        return identifier
+    }
+
+    /// `email` (older apps sent it as `username`).
+    struct LoginBody: Content { var email: String?; var username: String?; var password: String? }
 
     static func login(_ req: Request) async throws -> AuthResponse {
         let body = try req.content.decode(LoginBody.self)
-        let username = (body.username ?? "").trimmingCharacters(in: .whitespaces).lowercased()
         let password = body.password ?? ""
-        guard !username.isEmpty, !password.isEmpty else {
-            throw InlineError(.badRequest, "username and password are required")
-        }
+        guard !password.isEmpty else { throw InlineError(.badRequest, "email and password are required") }
+        let email = try loginEmail(body.email ?? body.username)
         let db = req.db.sql()
-        // `username` may be an email too (see findForLogin).
-        guard let user = try await UserStore.findForLogin(username, on: db),
+        guard let user = try await UserStore.findForLogin(email, on: db),
               UserStore.hasRealPassword(user.password_hash),
               let hash = user.password_hash,
               (try? Bcrypt.verify(password, created: hash)) == true
         else {
-            throw InlineError(.unauthorized, "Invalid username or password")
+            throw InlineError(.unauthorized, "Invalid email or password")
         }
         return AuthResponse(token: signToken(user.id, req), user: try await loadUser(user.id, db), is_new_user: !user.is_setup)
     }
@@ -325,13 +340,11 @@ struct AuthController {
     }
 
     static func forgotPassword(_ req: Request) async throws -> ForgotResponse {
-        let identifier = (try req.content.decode(ForgotBody.self).identifier ?? "")
-            .trimmingCharacters(in: .whitespaces).lowercased()
-        guard !identifier.isEmpty else { throw InlineError(.badRequest, "identifier is required") }
+        let identifier = try loginEmail(try req.content.decode(ForgotBody.self).identifier)
 
         let db = req.db.sql()
         struct URow: Decodable { let id: String; let email: String? }
-        let user = try await db.raw("SELECT id, email FROM users WHERE username = \(bind: identifier) OR email = \(bind: identifier)")
+        let user = try await db.raw("SELECT id, email FROM users WHERE email = \(bind: identifier) AND deleted_at IS NULL")
             .first(decoding: URow.self)
         guard let user, let email = user.email, !email.isEmpty else { return ForgotResponse() }
 
@@ -357,7 +370,7 @@ struct AuthController {
 
     static func resetPassword(_ req: Request) async throws -> StatusOKResponse {
         let b = try req.content.decode(ResetBody.self)
-        let identifier = (b.identifier ?? "").trimmingCharacters(in: .whitespaces).lowercased()
+        let identifier = try loginEmail(b.identifier)
         let otp = (b.otp ?? "").trimmingCharacters(in: .whitespaces)
         let newPassword = b.new_password ?? ""
         guard !identifier.isEmpty, !otp.isEmpty else {
@@ -370,7 +383,7 @@ struct AuthController {
 
         let db = req.db.sql()
         struct URow: Decodable { let id: String }
-        guard let user = try await db.raw("SELECT id FROM users WHERE username = \(bind: identifier) OR email = \(bind: identifier)")
+        guard let user = try await db.raw("SELECT id FROM users WHERE email = \(bind: identifier) AND deleted_at IS NULL")
             .first(decoding: URow.self)
         else { throw invalid }
 

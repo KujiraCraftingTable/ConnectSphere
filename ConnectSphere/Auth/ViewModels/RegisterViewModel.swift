@@ -1,18 +1,15 @@
 import Foundation
 import Observation
 
-/// Sign-up with username + password, with live per-field validation. On
-/// success `AppState` moves the app into onboarding.
+/// Sign-up with email + password, with live per-field validation. The
+/// public @username is chosen next, in onboarding (with the email's code).
+/// On success `AppState` moves the app into onboarding.
 @MainActor
 @Observable
 final class RegisterViewModel {
     static let minPassword = 8
 
-    /// Lowercased as typed — the only silent normalization; anything else
-    /// invalid is surfaced as a live hint so the user sees why.
-    var username = "" {
-        didSet { if username != username.lowercased() { username = username.lowercased() } }
-    }
+    var email = ""
     var password = ""
     var confirmPassword = ""
     private(set) var isLoading = false
@@ -20,9 +17,22 @@ final class RegisterViewModel {
 
     // MARK: Live validation (nil = fine, or nothing typed yet)
 
-    var usernameError: String? { UsernameRules.problem(username) }
+    private var trimmedEmail: String { email.trimmingCharacters(in: .whitespaces).lowercased() }
 
-    var usernameHint: String { usernameError ?? UsernameRules.hint }
+    /// Shaped like an address (the server checks it properly).
+    static func looksLikeEmail(_ s: String) -> Bool {
+        let parts = s.split(separator: "@", omittingEmptySubsequences: false)
+        return parts.count == 2 && !parts[0].isEmpty && parts[1].contains(".") && !parts[1].hasSuffix(".") && !s.contains(" ")
+    }
+
+    var emailError: String? {
+        guard !trimmedEmail.isEmpty else { return nil }
+        return Self.looksLikeEmail(trimmedEmail) ? nil : Bundle.app.loc("Enter a valid email address")
+    }
+
+    var emailHint: String {
+        emailError ?? Bundle.app.loc("You sign in with your email. You'll pick your public @username next.")
+    }
 
     var passwordError: String? {
         guard !password.isEmpty else { return nil }
@@ -39,7 +49,7 @@ final class RegisterViewModel {
     }
 
     var isFormValid: Bool {
-        UsernameRules.isValid(username)
+        Self.looksLikeEmail(trimmedEmail)
             && password.count >= Self.minPassword
             && !confirmPassword.isEmpty && confirmPassword == password
     }
@@ -47,9 +57,8 @@ final class RegisterViewModel {
     // MARK: Submit
 
     func register(appState: AppState) async {
-        let name = username.trimmingCharacters(in: .whitespaces)
-        if let problem = UsernameRules.problem(name) ?? (name.isEmpty ? UsernameRules.hint : nil) {
-            errorMessage = problem; return
+        guard Self.looksLikeEmail(trimmedEmail) else {
+            errorMessage = Bundle.app.loc("Enter a valid email address"); return
         }
         guard password.count >= Self.minPassword else {
             errorMessage = Bundle.app.loc("Password must be at least 8 characters"); return
@@ -61,7 +70,7 @@ final class RegisterViewModel {
         errorMessage = nil
         do {
             // Success: AppState sets needsOnboarding and the root view moves on.
-            try await appState.registerWithPassword(username: name, password: password)
+            try await appState.registerWithPassword(email: trimmedEmail, password: password)
         } catch {
             isLoading = false
             errorMessage = AuthErrorText.register(error)

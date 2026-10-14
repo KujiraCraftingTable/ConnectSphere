@@ -44,6 +44,8 @@ struct OnboardingView: View {
             viewModel.prefill(username: appState.currentUser?.username,
                               hasPassword: appState.currentUser?.hasPassword ?? true)
             viewModel.prefillEmail(appState.currentUser?.email, verified: appState.currentUser?.emailVerified ?? false)
+            // The email given at sign-up, ready for its code.
+            if emailCode.email.isEmpty, let email = appState.currentUser?.email { emailCode.email = email }
         }
     }
 

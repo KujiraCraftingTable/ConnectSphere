@@ -29,7 +29,7 @@ struct ManageAccountView: View {
             } header: {
                 Text("Profile", bundle: bundle)
             } footer: {
-                Text("Sign in with your username, or with your email if you've added one. Deleting a profile or the account needs a code sent to that email.", bundle: bundle)
+                Text("You sign in with your email; your @username is your public handle. Deleting a profile or the account needs a code sent to that email.", bundle: bundle)
             }
             Section {
                 NavigationLink {

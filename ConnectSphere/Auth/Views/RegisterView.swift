@@ -25,11 +25,14 @@ struct RegisterView: View {
                         VStack(spacing: 14) {
                             VStack(alignment: .leading, spacing: 6) {
                                 AuthTextField(
-                                    icon: "person.fill",
-                                    placeholder: bundle.loc("Username"),
-                                    text: $viewModel.username
+                                    icon: "envelope.fill",
+                                    placeholder: bundle.loc("Email"),
+                                    text: $viewModel.email,
+                                    keyboardType: .emailAddress
                                 )
-                                fieldHint(viewModel.usernameHint, isError: viewModel.usernameError != nil)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                fieldHint(viewModel.emailHint, isError: viewModel.emailError != nil)
                             }
 
                             VStack(alignment: .leading, spacing: 6) {
