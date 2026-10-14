@@ -27,6 +27,8 @@ struct NotificationsController {
         "birthday":            .init(category: "social", destination: "profile"),
         "mode_mismatch":       .init(category: "social", destination: "none"),
         "skill_endorsed":      .init(category: "social", destination: "profile"),
+        "job_application":     .init(category: "social", destination: "jobApplicants"),
+        "application_status":  .init(category: "social", destination: "job"),
         "scheduled_post_live": .init(category: "social", destination: "post"),
         "message":             .init(category: "chat", destination: "conversation"),
         "meeting_proposed":    .init(category: "chat", destination: "conversation"),
@@ -127,6 +129,7 @@ struct NotificationsController {
         case "profile": return "{\"kind\":\"profile\",\"userId\":\(j(r.actor_id ?? ps("fromUserId")))}"
         case "conversation": return "{\"kind\":\"conversation\",\"conversationId\":\(j(r.conversation_id ?? ps("conversationId"))),\"messageId\":\(j(ps("messageId")))}"
         case "conversations": return "{\"kind\":\"conversations\"}"
+        case "job", "jobApplicants": return "{\"kind\":\"\(kind)\",\"jobId\":\(j(ps("jobId")))}"
         case "communityPost": return "{\"kind\":\"communityPost\",\"communityId\":\(j(r.community_id)),\"postId\":\(j(r.post_id ?? ps("refId")))}"
         case "communityJoinRequests", "communityReports", "community":
             return "{\"kind\":\"\(kind)\",\"communityId\":\(j(r.community_id))}"

@@ -27,6 +27,11 @@ struct UserNotificationPayloadDTO: Decodable {
     /// The skill someone endorsed (`skill_endorsed`).
     let skill: String?
 
+    /// Easy Apply (`job_application`, `application_status` — the new
+    /// status rides in `status`).
+    let jobId: String?
+    let jobTitle: String?
+
     // Post / comment
     let excerpt: String?
     /// A comment that's only a photo (no text to quote).
@@ -79,6 +84,7 @@ struct NotificationDestinationDTO: Decodable {
     let conversationId: String?
     let messageId: String?
     let communityId: String?
+    let jobId: String?
 }
 
 struct UserNotificationDTO: Decodable, Identifiable {

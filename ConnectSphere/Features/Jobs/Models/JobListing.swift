@@ -26,6 +26,10 @@ struct JobListing: Identifiable, Decodable, Hashable {
     let poster: Poster
     let isMine: Bool
     let match: Match
+    /// Your application's status, once you've applied.
+    var applicationStatus: String?
+    /// How many applied — for the job's poster or company admins only.
+    let applicantCount: Int?
 
     struct Poster: Decodable, Hashable {
         let id: String
@@ -72,6 +76,8 @@ struct JobListing: Identifiable, Decodable, Hashable {
         case createdAt = "created_at"
         case interestedCount = "interested_count"
         case isMine = "is_mine"
+        case applicationStatus = "application_status"
+        case applicantCount = "applicant_count"
     }
 
     /// "15–30 million ₫/month", "From 15 million ₫/month", the poster's own
