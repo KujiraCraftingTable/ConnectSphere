@@ -22,6 +22,7 @@ func routes(_ app: Application) throws {
     CommunitiesController.register(routes: api)
     CompaniesController.register(routes: api)       // Work mode company pages
     ExperiencesController.register(routes: api)     // work history + a company's People
+    EducationsController.register(routes: api)      // schools on a Hobby profile
     EndorsementsController.register(routes: api)    // skills + endorsements
     JobBoardController.register(routes: api)        // Jobs tab: recommended, search, saved
     ApplicationsController.register(routes: api, app: app)  // Easy Apply + private CVs

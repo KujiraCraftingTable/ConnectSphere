@@ -14,6 +14,8 @@ struct EditProfileView: View {
 
     @State private var viewModel = EditProfileViewModel()
 
+    @State private var pickingLanguages = false
+
     @State private var pickerItem: PhotosPickerItem?
     @State private var coverPickerItem: PhotosPickerItem?
     @State private var showCoverPicker = false
@@ -101,6 +103,29 @@ struct EditProfileView: View {
                         InterestPickerView(selectedInterests: $viewModel.selectedInterests, colorScheme: colorScheme)
                             .padding(.vertical, 4)
                     }
+                    Section {
+                        Picker(bundle.loc("Relationship"), selection: $viewModel.relationship) {
+                            Text("Not set", bundle: bundle).tag(RelationshipStatus?.none)
+                            ForEach(RelationshipStatus.allCases) { Text(bundle.loc($0.label)).tag(RelationshipStatus?.some($0)) }
+                        }
+                        Button { pickingLanguages = true } label: {
+                            HStack {
+                                Text("Languages", bundle: bundle).foregroundStyle(.primary)
+                                Spacer()
+                                Text(viewModel.languages.isEmpty ? bundle.loc("Add")
+                                     : viewModel.languages.map { ProfileLanguages.name($0, locale: bundle.locale) }.joined(separator: ", "))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        // Plain: a Form tints a button's whole label with the accent colour.
+                        .buttonStyle(.plain)
+                    } header: {
+                        Text("About you", bundle: bundle)
+                    } footer: {
+                        Text("Add schools from the About card on your profile.", bundle: bundle)
+                    }
                 }
 
                 // Work only — Hobby never talks about work.
@@ -121,6 +146,7 @@ struct EditProfileView: View {
                     }
                 }
             }
+            .sheet(isPresented: $pickingLanguages) { LanguagesPickerView(selected: $viewModel.languages) }
             .navigationTitle(bundle.loc("Edit profile"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

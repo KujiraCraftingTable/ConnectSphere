@@ -35,6 +35,10 @@ extension UserStore {
         } ?? "u.post_count"
         // Mode-scoped and friends-excluded (FollowStore); the legacy
         // users.follower_count/following_count columns only mirrored friends.
+        // Hobby-only details (migration 062): empty in a Work view.
+        let hobbyDetails = modeRef.map {
+            "CASE WHEN \($0) = 'work' THEN ARRAY[]::text[] ELSE u.languages END AS languages, CASE WHEN \($0) = 'work' THEN NULL ELSE u.relationship_status END AS relationship_status"
+        } ?? "u.languages, u.relationship_status"
         let followCounts = modeRef.map { FollowStore.countColumns(userRef: "u.id", modeRef: $0) }
             ?? "u.follower_count, u.following_count"
         return """
@@ -47,6 +51,7 @@ extension UserStore {
           (u.hobby_display_name IS NOT NULL) AS hobby_setup,
           (u.work_display_name  IS NOT NULL) AS work_setup,
           u.hobby_theme, u.work_theme,
+          \(hobbyDetails),
           \(followCounts), \(postCount),
           u.created_at,
           COALESCE(array_agg(DISTINCT ui.interest) FILTER (WHERE ui.interest IS NOT NULL), ARRAY[]::text[]) AS interests,

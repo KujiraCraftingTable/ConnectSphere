@@ -36,6 +36,9 @@ struct UserProfile: Identifiable {
     /// Self-only. The email was confirmed with a code (or by Google) —
     /// deleting a persona or the account needs it.
     var emailVerified: Bool = false
+    /// Hobby-only (migration 062): language codes, and a RelationshipStatus raw value.
+    var languages: [String] = []
+    var relationshipStatus: String? = nil
     // Displayed age — present in both public and self views, null from server when dob_visibility = private
     var age: Int? = nil
     // Self-only field (server only returns this in /auth/me and PATCH /users/me),

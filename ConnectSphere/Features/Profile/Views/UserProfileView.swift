@@ -85,6 +85,9 @@ struct UserProfileView: View {
                                 AnyView(actions(for: user))
                             }
                             .rotation3DEffect(.degrees(flipAngle), axis: (x: 0, y: 1, z: 0), perspective: 0.5)
+                            if mode == .hobby {
+                                HobbyAboutSection(user: user, isMe: user.id == appState.currentUser?.id)
+                            }
                             if mode == .work {
                                 ExperienceSection(userId: user.id, isMe: user.id == appState.currentUser?.id)
                                 SkillsSection(userId: user.id, isMe: user.id == appState.currentUser?.id,

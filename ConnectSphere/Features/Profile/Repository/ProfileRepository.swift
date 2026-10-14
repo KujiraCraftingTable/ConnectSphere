@@ -40,6 +40,9 @@ struct ProfileRepository {
         var cover_url: String?    = nil
         var interests: [String]?  = nil
         var skills: [String]?     = nil
+        /// Hobby-only; "" clears the relationship status.
+        var languages: [String]?  = nil
+        var relationship_status: String? = nil
     }
 
     /// Privacy: off = strangers can only follow, not send friend requests.
