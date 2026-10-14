@@ -12,8 +12,11 @@ struct PrivacySecurityView: View {
     @State private var showDeleteAccount = false
     @State private var friendRequests = FriendRequestSettingViewModel()
     @State private var suggestionVisibility = SuggestionVisibilitySettingViewModel()
+    @State private var personaLink = PersonaLinkSettingViewModel()
 
     private var hasPassword: Bool { appState.currentUser?.hasPassword ?? true }
+
+    private var otherMode: AppMode { appState.currentMode == .hobby ? .work : .hobby }
 
     var body: some View {
         List {
@@ -96,6 +99,34 @@ struct PrivacySecurityView: View {
                 Text("When off, you're never suggested to anyone. You still see suggestions yourself.", bundle: bundle)
             }
 
+            // This mode's profile → my other persona (each mode has its own switch)
+            Section {
+                Toggle(isOn: Binding(
+                    get: { appState.currentUser?.linksOtherMode ?? true },
+                    set: { link in Task { await personaLink.set(link, appState: appState) } }
+                )) {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 7)
+                                .fill(themeManager.theme.primary)
+                                .frame(width: 30, height: 30)
+                            Image(systemName: otherMode.glyph)
+                                .font(.system(size: 13))
+                                .foregroundColor(.white)
+                        }
+                        Text(bundle.loc(otherMode == .work ? "Show a link to my Work profile" : "Show a link to my Hobby profile"))
+                            .font(.system(size: 16))
+                            .foregroundColor(AppColors.textPrimary(colorScheme))
+                    }
+                }
+                .tint(themeManager.theme.primary)
+                .disabled(personaLink.isSaving)
+            } footer: {
+                Text(bundle.loc(otherMode == .work
+                    ? "Shown on your Hobby profile. Your Work profile stays visible to people in Work mode either way."
+                    : "Shown on your Work profile. Your Hobby profile stays visible to people in Hobby mode either way."))
+            }
+
             Section {
                 NavigationLink {
                     BlockedUsersView()
@@ -150,6 +181,12 @@ struct PrivacySecurityView: View {
         .alert(suggestionVisibility.errorMessage ?? "", isPresented: Binding(
             get: { suggestionVisibility.errorMessage != nil },
             set: { if !$0 { suggestionVisibility.errorMessage = nil } }
+        )) {
+            Button(bundle.loc("OK")) {}
+        }
+        .alert(personaLink.errorMessage ?? "", isPresented: Binding(
+            get: { personaLink.errorMessage != nil },
+            set: { if !$0 { personaLink.errorMessage = nil } }
         )) {
             Button(bundle.loc("OK")) {}
         }

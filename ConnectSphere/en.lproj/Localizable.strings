@@ -1295,3 +1295,11 @@
 "Up to %lld skills." = "Up to %lld skills.";
 "Keep each skill under %lld characters." = "Keep each skill under %lld characters.";
 "Required skills (up to 10)" = "Required skills (up to 10)";
+"See Work profile" = "See Work profile";
+"See Hobby profile" = "See Hobby profile";
+"You're viewing %@'s Work profile. Switch to Work mode to connect." = "You're viewing %@'s Work profile. Switch to Work mode to connect.";
+"You're viewing %@'s Hobby profile. Switch to Hobby mode to connect." = "You're viewing %@'s Hobby profile. Switch to Hobby mode to connect.";
+"Show a link to my Work profile" = "Show a link to my Work profile";
+"Show a link to my Hobby profile" = "Show a link to my Hobby profile";
+"Shown on your Hobby profile. Your Work profile stays visible to people in Work mode either way." = "Shown on your Hobby profile. Your Work profile stays visible to people in Work mode either way.";
+"Shown on your Work profile. Your Hobby profile stays visible to people in Hobby mode either way." = "Shown on your Work profile. Your Hobby profile stays visible to people in Hobby mode either way.";

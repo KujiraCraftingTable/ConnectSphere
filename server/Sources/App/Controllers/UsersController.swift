@@ -106,6 +106,8 @@ struct UsersController {
         /// Privacy: off = strangers can only follow, not send friend requests.
         var allow_friend_requests: Bool?
         var show_in_suggestions: Bool?
+        /// The current mode's "See my other profile" button (migration 060).
+        var links_other_mode: Bool?
     }
 
     static func updateMe(_ req: Request) async throws -> DataResponse<PrivateUserObject> {
@@ -178,6 +180,11 @@ struct UsersController {
         }
         if sent("show_in_suggestions"), let show = raw.show_in_suggestions {
             try await sdb.raw("UPDATE users SET show_in_suggestions = \(bind: show) WHERE id = \(uuid: req.userID)").run()
+        }
+        if sent("links_other_mode"), let link = raw.links_other_mode {
+            // `mode` is hobby/work by now; the column comes from this pair, never from input.
+            let column = mode == "work" ? "work_links_hobby" : "hobby_links_work"
+            try await sdb.raw("UPDATE users SET \(unsafeRaw: column) = \(bind: link) WHERE id = \(uuid: req.userID)").run()
         }
         _ = try await UserStore.updateProfile(
             userID: req.userID, fields: fields,

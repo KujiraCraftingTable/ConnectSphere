@@ -49,16 +49,22 @@ struct SearchUserObject: Content {
 struct PublicUserObject: Content {
     var core: UserCore
     var connection_count: Int
+    /// Whether this persona's profile links to the person's other one
+    /// (`findById` only; the app also checks the other persona is set up).
+    var links_other_mode: Bool?
     init(from decoder: any Decoder) throws {
         core = try UserCore(from: decoder)
-        connection_count = try decoder.container(keyedBy: K.self).decode(Int.self, forKey: .connection_count)
+        let c = try decoder.container(keyedBy: K.self)
+        connection_count = try c.decode(Int.self, forKey: .connection_count)
+        links_other_mode = try c.decodeIfPresent(Bool.self, forKey: .links_other_mode)
     }
     func encode(to encoder: any Encoder) throws {
         try core.encode(to: encoder)
         var c = encoder.container(keyedBy: K.self)
         try c.encode(connection_count, forKey: .connection_count)
+        try c.encodeIfPresent(links_other_mode, forKey: .links_other_mode)
     }
-    enum K: String, CodingKey { case connection_count }
+    enum K: String, CodingKey { case connection_count, links_other_mode }
 }
 
 /// PATCH /users/me response — `PublicUserObject` + the owner-only fields the
