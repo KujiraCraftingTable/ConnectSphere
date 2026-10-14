@@ -33,6 +33,7 @@ struct AuthUserDTO: Decodable {
     let emailVerified: Bool?
     let languages: [String]?
     let relationshipStatus: String?
+    let isLocked: Bool?
     let age: Int?
     let dob: String?
     let dobVisibility: String?
@@ -55,6 +56,7 @@ struct AuthUserDTO: Decodable {
         case emailVerified = "email_verified"
         case languages
         case relationshipStatus = "relationship_status"
+        case isLocked = "is_locked"
         case dobVisibility  = "dob_visibility"
         case displayName    = "display_name"
         case avatarColor    = "avatar_color"
@@ -95,6 +97,7 @@ struct AuthUserDTO: Decodable {
         emailVerified = try c.decodeIfPresent(Bool.self, forKey: .emailVerified)
         languages = try c.decodeIfPresent([String].self, forKey: .languages)
         relationshipStatus = try c.decodeIfPresent(String.self, forKey: .relationshipStatus)
+        isLocked = try c.decodeIfPresent(Bool.self, forKey: .isLocked)
         age            = try c.decodeIfPresent(Int.self, forKey: .age)
         dob            = try c.decodeIfPresent(String.self, forKey: .dob)
         dobVisibility  = try c.decodeIfPresent(String.self, forKey: .dobVisibility)
@@ -127,6 +130,7 @@ struct AuthUserDTO: Decodable {
             emailVerified: emailVerified ?? false,
             languages: languages ?? [],
             relationshipStatus: relationshipStatus,
+            isLocked: isLocked ?? false,
             age: age,
             dob: dob,
             dobVisibility: dobVisibility,

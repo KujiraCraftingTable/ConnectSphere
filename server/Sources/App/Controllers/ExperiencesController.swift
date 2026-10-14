@@ -84,6 +84,9 @@ struct ExperiencesController {
         var id = req.parameters.get("id")!
         if id == "me" { id = req.userID }
         guard UUID(uuidString: id) != nil else { throw Abort(.notFound) }
+        if try await ProfileLock.lockedOut(viewer: req.userID, owner: id, mode: "work", on: req.db.sql()) {
+            return DataListResponse(data: [])
+        }
         return DataListResponse(data: try await ExperienceStore.list(of: id, on: req.db.sql()))
     }
 

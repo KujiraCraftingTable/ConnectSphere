@@ -55,19 +55,44 @@ struct PublicUserObject: Content {
     /// Whether this persona's profile links to the person's other one
     /// (`findById` only; the app also checks the other persona is set up).
     var links_other_mode: Bool?
+    /// This persona is locked (migration 064).
+    var is_locked: Bool?
+    /// Whether the viewer may see past the lock (getUser only).
+    var can_view: Bool?
     init(from decoder: any Decoder) throws {
         core = try UserCore(from: decoder)
         let c = try decoder.container(keyedBy: K.self)
         connection_count = try c.decode(Int.self, forKey: .connection_count)
         links_other_mode = try c.decodeIfPresent(Bool.self, forKey: .links_other_mode)
+        is_locked = try c.decodeIfPresent(Bool.self, forKey: .is_locked)
     }
     func encode(to encoder: any Encoder) throws {
         try core.encode(to: encoder)
         var c = encoder.container(keyedBy: K.self)
         try c.encode(connection_count, forKey: .connection_count)
         try c.encodeIfPresent(links_other_mode, forKey: .links_other_mode)
+        try c.encodeIfPresent(is_locked, forKey: .is_locked)
+        try c.encodeIfPresent(can_view, forKey: .can_view)
     }
-    enum K: String, CodingKey { case connection_count, links_other_mode }
+    enum K: String, CodingKey { case connection_count, links_other_mode, is_locked, can_view }
+
+    /// What someone locked out still sees: who it is, the avatar and cover.
+    mutating func trimForLockedOut() {
+        core.bio = nil
+        core.location = nil
+        core.age = nil
+        core.job_title = nil
+        core.company = nil
+        core.interests = []
+        core.skills = []
+        core.languages = []
+        core.relationship_status = nil
+        core.post_count = 0
+        core.follower_count = 0
+        core.following_count = 0
+        connection_count = 0
+        links_other_mode = false
+    }
 }
 
 /// PATCH /users/me response — `PublicUserObject` + the owner-only fields the

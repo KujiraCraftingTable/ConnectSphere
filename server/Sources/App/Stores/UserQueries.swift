@@ -79,8 +79,13 @@ extension UserStore {
             (SELECT CASE WHEN \(modeRef ?? "x.default_mode") = 'work' THEN x.work_links_hobby ELSE x.hobby_links_work END
              FROM users x WHERE x.id = base.id::uuid)
             """
+        let locked = """
+            (SELECT CASE WHEN \(modeRef ?? "x.default_mode") = 'work' THEN x.work_locked ELSE x.hobby_locked END
+             FROM users x WHERE x.id = base.id::uuid)
+            """
         return try await db.raw("""
-            SELECT base.*, \(unsafeRaw: connCount) AS connection_count, \(unsafeRaw: link) AS links_other_mode
+            SELECT base.*, \(unsafeRaw: connCount) AS connection_count, \(unsafeRaw: link) AS links_other_mode,
+              \(unsafeRaw: locked) AS is_locked
             FROM (\(unsafeRaw: userSelectSQL(modeRef: modeRef)) WHERE u.id = \(uuid: id) GROUP BY u.id) base
             """).first(decoding: PublicUserObject.self)
     }

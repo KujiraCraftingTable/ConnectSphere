@@ -75,6 +75,7 @@ struct ProfileView: View {
                             SkillsSection(userId: user.id, isMe: true)
                         }
                         if let user, appState.currentMode == .hobby {
+                            HighlightsRow(userId: user.id, isMe: true)
                             HobbyAboutSection(user: user, isMe: true)
                         }
                         postsSection.id("posts")

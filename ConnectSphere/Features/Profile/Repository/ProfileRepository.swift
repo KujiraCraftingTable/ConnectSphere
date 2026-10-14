@@ -65,6 +65,16 @@ struct ProfileRepository {
                                    bodyData: NetworkClient.encode(Body(mode: mode.rawValue, links_other_mode: link)))
     }
 
+    /// Lock this mode's profile (non-connections see only name, avatar, cover).
+    func setLocked(_ locked: Bool, mode: AppMode) async throws {
+        guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
+            throw APIError.serverError(statusCode: 401, message: "Not authenticated")
+        }
+        struct Body: Encodable { let mode: String; let locked: Bool }
+        _ = try await client.fetch(SingleResponse<UserDTO>.self, path: "/users/me", method: "PATCH", token: token,
+                                   bodyData: NetworkClient.encode(Body(mode: mode.rawValue, locked: locked)))
+    }
+
     func setShowInSuggestions(_ show: Bool) async throws {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")

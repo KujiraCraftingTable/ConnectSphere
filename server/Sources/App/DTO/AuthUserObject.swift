@@ -55,6 +55,8 @@ struct AuthUserObject: Content {
     var links_other_mode: Bool
     /// The email was confirmed with a code (or by Google) — migration 061.
     var email_verified: Bool
+    /// This mode's profile is locked (migration 064).
+    var is_locked: Bool
     /// Hobby-only details (migration 062).
     var languages: [String]
     @NullCoded var relationship_status: String?

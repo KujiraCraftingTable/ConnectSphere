@@ -17,6 +17,7 @@ struct StoryViewerView: View {
     // Own-story features
     @State private var showViewers = false
     @State private var showDeleteConfirm = false
+    @State private var addingToHighlight = false
 
     private let tick: Double = 0.05
     private let timer = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
@@ -30,7 +31,7 @@ struct StoryViewerView: View {
     private var isOwn: Bool { viewModel.isOwn }
 
     /// Timer pauses while the viewers sheet / delete dialog is open
-    private var isPaused: Bool { showViewers || showDeleteConfirm || viewModel.isDeleting }
+    private var isPaused: Bool { showViewers || showDeleteConfirm || viewModel.isDeleting || addingToHighlight }
 
     private var currentStory: StoryDTO? { viewModel.currentStory }
 
@@ -93,6 +94,16 @@ struct StoryViewerView: View {
                         }
                     }
                     Spacer()
+                    // Highlights are Hobby-only.
+                    if isOwn && appState.currentMode == .hobby {
+                        Button { addingToHighlight = true } label: {
+                            Image(systemName: "star.circle")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(8)
+                        }
+                        .accessibilityLabel(Text(bundle.loc("Add to highlight")))
+                    }
                     if isOwn {
                         Button {
                             showDeleteConfirm = true
@@ -150,6 +161,9 @@ struct StoryViewerView: View {
         }
         .statusBarHidden()
         .onAppear { viewModel.start(authorId: group.author.id, currentUserId: appState.currentUser?.id) }
+        .sheet(isPresented: $addingToHighlight) {
+            if let story = currentStory { AddToHighlightSheet(storyId: story.id) }
+        }
         .onReceive(timer) { _ in
             guard !isPaused else { return }
             if viewModel.advance(by: tick) { close() }

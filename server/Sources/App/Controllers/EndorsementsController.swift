@@ -32,7 +32,11 @@ struct EndorsementsController {
     }
 
     static func list(_ req: Request) async throws -> SkillsResponse {
-        try await response(for: try target(req), req)
+        let user = try target(req)
+        if try await ProfileLock.lockedOut(viewer: req.userID, owner: user, mode: "work", on: req.db.sql()) {
+            return SkillsResponse(data: [], can_endorse: false)
+        }
+        return try await response(for: user, req)
     }
 
     /// Only a Work connection, never yourself, and only for a skill that

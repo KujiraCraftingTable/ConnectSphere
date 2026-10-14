@@ -114,7 +114,7 @@ struct ProfileHeaderCard<Actions: View>: View {
                 .padding(.top, -avatarSize / 2)
 
             identity
-            stats
+            if user.lockedOut { lockedNote } else { stats }
             if !user.bio.isEmpty {
                 Text(user.bio)
                     .font(.system(size: 15))
@@ -149,6 +149,17 @@ struct ProfileHeaderCard<Actions: View>: View {
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .textSelection(.enabled)
             }
+            if user.isLocked {
+                HStack(spacing: 4) {
+                    Image(systemName: "lock.fill")
+                    Text("Locked profile", bundle: bundle)
+                }
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(AppColors.elevated(colorScheme), in: Capsule())
+            }
             if let job = jobLine {
                 Text(job)
                     .font(.system(size: 15))
@@ -169,6 +180,24 @@ struct ProfileHeaderCard<Actions: View>: View {
         guard mode == .work else { return nil }
         let parts = [user.jobTitle, user.company].compactMap { $0 }.filter { !$0.isEmpty }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// What a locked-out viewer sees instead of the counts.
+    private var lockedNote: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "lock.shield.fill")
+                .font(.system(size: 22))
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+            Text(String(format: bundle.loc(mode == .work
+                    ? "%@ locked their profile. Only their connections can see their posts and details."
+                    : "%@ locked their profile. Only their friends can see their posts and details."), user.name))
+                .font(.system(size: 14))
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 14))
     }
 
     private var stats: some View {

@@ -50,9 +50,14 @@ struct UsersController {
         if try await UserStore.hasBlocked(id, req.userID, on: db) {
             throw Abort(.notFound, reason: "User not found")
         }
-        guard let user = try await UserStore.findById(id, mode: mode(from: req), on: db) else {
+        let viewMode = mode(from: req)
+        guard var user = try await UserStore.findById(id, mode: viewMode, on: db) else {
             throw Abort(.notFound, reason: "User not found")
         }
+        let lockedOut = try await ProfileLock.lockedOut(viewer: req.userID, owner: id,
+                                                        mode: viewMode ?? user.core.default_mode, on: db)
+        user.can_view = !lockedOut
+        if lockedOut { user.trimForLockedOut() }
         return DataResponse(data: user)
     }
 
@@ -109,6 +114,8 @@ struct UsersController {
         var show_in_suggestions: Bool?
         /// The current mode's "See my other profile" button (migration 060).
         var links_other_mode: Bool?
+        /// Lock the current mode's profile (migration 064).
+        var locked: Bool?
         /// Hobby-only (migration 062).
         var languages: [String]?
         var relationship_status: String?
@@ -210,6 +217,11 @@ struct UsersController {
                 if let status, !relationshipStatuses.contains(status) { throw InlineError(.badRequest, "Invalid relationship status") }
                 try await sdb.raw("UPDATE users SET relationship_status = \(bind: status) WHERE id = \(uuid: req.userID)").run()
             }
+        }
+        if sent("locked"), let locked = raw.locked {
+            // `mode` is hobby/work by now; the column comes from this pair, never from input.
+            let column = mode == "work" ? "work_locked" : "hobby_locked"
+            try await sdb.raw("UPDATE users SET \(unsafeRaw: column) = \(bind: locked) WHERE id = \(uuid: req.userID)").run()
         }
         if sent("links_other_mode"), let link = raw.links_other_mode {
             // `mode` is hobby/work by now; the column comes from this pair, never from input.

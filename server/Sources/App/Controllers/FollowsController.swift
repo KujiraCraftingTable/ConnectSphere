@@ -49,8 +49,14 @@ struct FollowsController {
         }
         let limit = PostsController.clamp(try? req.query.get(Int.self, at: "limit"), 50, 1, 100)
         let offset = max((try? req.query.get(Int.self, at: "offset")) ?? 0, 0)
-        let people = try await FollowStore.list(of: req.parameters.get("userId")!, followers: type == "followers",
-                                                mode: try mode(req), limit: limit, offset: offset, on: req.db.sql())
+        let owner = req.parameters.get("userId")!
+        let listMode = try mode(req)
+        if UUID(uuidString: owner) != nil,
+           try await ProfileLock.lockedOut(viewer: req.userID, owner: owner, mode: listMode, on: req.db.sql()) {
+            return ListResponse(data: [])
+        }
+        let people = try await FollowStore.list(of: owner, followers: type == "followers",
+                                                mode: listMode, limit: limit, offset: offset, on: req.db.sql())
         return ListResponse(data: people)
     }
 }
