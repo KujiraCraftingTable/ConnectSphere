@@ -1375,7 +1375,6 @@
 "College" = "College";
 "High school" = "High school";
 "Add school" = "Add school";
-"Add where you studied, the languages you speak and your relationship status." = "Add where you studied, the languages you speak and your relationship status.";
 "School" = "School";
 "Major or class (optional)" = "Major or class (optional)";
 "Pick from the list, or type your school's name." = "Pick from the list, or type your school's name.";
@@ -1387,7 +1386,6 @@
 "Search languages" = "Search languages";
 "Languages" = "Languages";
 "Relationship" = "Relationship";
-"Add schools from the About card on your profile." = "Add schools from the About card on your profile.";
 "Add photos" = "Add photos";
 "From your photos" = "From your photos";
 "From your stories" = "From your stories";
@@ -1420,3 +1418,10 @@
 "You commented on %@'s post" = "You commented on %@'s post";
 "You liked %@'s post" = "You liked %@'s post";
 "You liked a comment on %@'s post" = "You liked a comment on %@'s post";
+"This is your Work profile as others see it. Switch to Work mode to edit it." = "This is your Work profile as others see it. Switch to Work mode to edit it.";
+"This is your Hobby profile as others see it. Switch to Hobby mode to edit it." = "This is your Hobby profile as others see it. Switch to Hobby mode to edit it.";
+"You don't have a Work profile yet." = "You don't have a Work profile yet.";
+"You don't have a Hobby profile yet." = "You don't have a Hobby profile yet.";
+"Set it up" = "Set it up";
+"Education" = "Education";
+"Add where you studied, the languages you speak and your relationship status in Edit profile." = "Add where you studied, the languages you speak and your relationship status in Edit profile.";

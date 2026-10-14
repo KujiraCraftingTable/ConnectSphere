@@ -16,6 +16,10 @@ struct EditProfileView: View {
 
     @State private var pickingLanguages = false
 
+    @State private var schools = EducationListViewModel()
+
+    @State private var editingSchool: SchoolTarget?
+
     @State private var pickerItem: PhotosPickerItem?
     @State private var coverPickerItem: PhotosPickerItem?
     @State private var showCoverPicker = false
@@ -123,8 +127,25 @@ struct EditProfileView: View {
                         .buttonStyle(.plain)
                     } header: {
                         Text("About you", bundle: bundle)
-                    } footer: {
-                        Text("Add schools from the About card on your profile.", bundle: bundle)
+                    }
+                    Section(bundle.loc("Education")) {
+                        ForEach(schools.schools) { school in
+                            Button { editingSchool = SchoolTarget(school: school) } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(school.schoolName).foregroundStyle(.primary)
+                                    let detail = [school.major, school.yearsText(loc: bundle.loc)].compactMap { $0 }
+                                    if !detail.isEmpty {
+                                        Text(detail.joined(separator: " · ")).font(.footnote).foregroundStyle(.secondary)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        Button { editingSchool = SchoolTarget(school: nil) } label: {
+                            Label(bundle.loc("Add school"), systemImage: "plus")
+                        }
                     }
                 }
 
@@ -147,6 +168,14 @@ struct EditProfileView: View {
                 }
             }
             .sheet(isPresented: $pickingLanguages) { LanguagesPickerView(selected: $viewModel.languages) }
+            .sheet(item: $editingSchool) { target in
+                EducationEditorView(editing: target.school) { schools.replace($0) }
+            }
+            .task {
+                if appState.currentMode == .hobby, let id = appState.currentUser?.id {
+                    await schools.load(userId: id, token: appState.authToken ?? "")
+                }
+            }
             .navigationTitle(bundle.loc("Edit profile"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -228,4 +257,10 @@ struct EditProfileView: View {
             AvatarView(user: user, size: 90)
         }
     }
+}
+
+/// A school being added (nil) or edited from Edit profile.
+struct SchoolTarget: Identifiable {
+    let id = UUID()
+    let school: Education?
 }

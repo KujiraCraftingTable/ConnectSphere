@@ -88,8 +88,8 @@ struct UserProfileView: View {
                             // Locked out: only the card (name, avatar, cover).
                             if !user.lockedOut {
                                 if mode == .hobby {
-                                    HighlightsRow(userId: user.id, isMe: user.id == appState.currentUser?.id)
                                     HobbyAboutSection(user: user, isMe: user.id == appState.currentUser?.id)
+                                    HighlightsRow(userId: user.id, isMe: user.id == appState.currentUser?.id)
                                 }
                                 if mode == .work {
                                     ExperienceSection(userId: user.id, isMe: user.id == appState.currentUser?.id)

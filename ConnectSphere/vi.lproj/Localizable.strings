@@ -1375,7 +1375,6 @@
 "College" = "Cao đẳng";
 "High school" = "Trung học phổ thông";
 "Add school" = "Thêm trường";
-"Add where you studied, the languages you speak and your relationship status." = "Thêm nơi bạn học, ngôn ngữ bạn nói và tình trạng mối quan hệ.";
 "School" = "Trường";
 "Major or class (optional)" = "Chuyên ngành hoặc lớp (không bắt buộc)";
 "Pick from the list, or type your school's name." = "Chọn từ danh sách, hoặc nhập tên trường của bạn.";
@@ -1387,7 +1386,6 @@
 "Search languages" = "Tìm ngôn ngữ";
 "Languages" = "Ngôn ngữ";
 "Relationship" = "Mối quan hệ";
-"Add schools from the About card on your profile." = "Thêm trường ở mục Giới thiệu trên hồ sơ của bạn.";
 "Add photos" = "Thêm ảnh";
 "From your photos" = "Từ ảnh của bạn";
 "From your stories" = "Từ tin của bạn";
@@ -1420,3 +1418,10 @@
 "You commented on %@'s post" = "Bạn đã bình luận về bài viết của %@";
 "You liked %@'s post" = "Bạn đã thích bài viết của %@";
 "You liked a comment on %@'s post" = "Bạn đã thích một bình luận trong bài viết của %@";
+"This is your Work profile as others see it. Switch to Work mode to edit it." = "Đây là hồ sơ Công việc của bạn như người khác thấy. Chuyển sang chế độ Công việc để chỉnh sửa.";
+"This is your Hobby profile as others see it. Switch to Hobby mode to edit it." = "Đây là hồ sơ Sở thích của bạn như người khác thấy. Chuyển sang chế độ Sở thích để chỉnh sửa.";
+"You don't have a Work profile yet." = "Bạn chưa có hồ sơ Công việc.";
+"You don't have a Hobby profile yet." = "Bạn chưa có hồ sơ Sở thích.";
+"Set it up" = "Tạo ngay";
+"Education" = "Học vấn";
+"Add where you studied, the languages you speak and your relationship status in Edit profile." = "Thêm nơi bạn học, ngôn ngữ bạn nói và tình trạng mối quan hệ trong Chỉnh sửa hồ sơ.";
