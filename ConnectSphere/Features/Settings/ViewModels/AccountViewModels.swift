@@ -23,30 +23,64 @@ enum AccountCode {
     static let resendSeconds: TimeInterval = 60
 }
 
-/// Adding / changing the account email: a code to the new address — and,
-/// when a verified email is being replaced, one to the current address too.
+/// The account email: shown when verified, added or changed with codes.
+/// Changing a verified one is two steps — confirm with a code to the current
+/// address, then verify the new one.
 @MainActor
 @Observable
 final class EmailVerificationViewModel {
+    enum Stage: Equatable { case overview, confirmCurrent, newEmail }
+
     var email = ""
     var code = "" { didSet { if code != AccountCode.clean(code) { code = AccountCode.clean(code) } } }
     var currentCode = "" { didSet { if currentCode != AccountCode.clean(currentCode) { currentCode = AccountCode.clean(currentCode) } } }
+    private(set) var stage: Stage
     private(set) var sentTo: String?
-    private(set) var currentSentTo: String?
+    private(set) var currentSent = false
     private(set) var resendAt: Date?
     private(set) var currentResendAt: Date?
     private(set) var isSending = false
     private(set) var isVerifying = false
     var errorMessage: String?
 
-    /// Replacing a verified email needs the current address's OK.
-    let needsCurrentCode: Bool
     private let repository = AccountRepository()
 
-    init(replacingVerifiedEmail: Bool) { needsCurrentCode = replacingVerifiedEmail }
+    /// A verified email starts on its overview; otherwise straight to adding one.
+    init(replacingVerifiedEmail: Bool) { stage = replacingVerifiedEmail ? .overview : .newEmail }
 
-    var canVerify: Bool {
-        sentTo != nil && code.count == 6 && (!needsCurrentCode || currentCode.count == 6) && !isVerifying
+    var canConfirmCurrent: Bool { currentSent && currentCode.count == 6 && !isVerifying }
+    var canVerify: Bool { stage == .newEmail && sentTo != nil && code.count == 6 && !isVerifying }
+
+    func startChange() {
+        stage = .confirmCurrent
+        errorMessage = nil
+    }
+
+    func sendCurrentCode(token: String) async {
+        isSending = true
+        defer { isSending = false }
+        do {
+            _ = try await repository.sendChangeCode(token: token)
+            currentSent = true
+            currentResendAt = Date().addingTimeInterval(AccountCode.resendSeconds)
+            errorMessage = nil
+        } catch {
+            errorMessage = friendlyError(error)
+        }
+    }
+
+    /// Step 1 done → step 2.
+    func confirmCurrent(token: String) async {
+        guard canConfirmCurrent else { return }
+        isVerifying = true
+        defer { isVerifying = false }
+        do {
+            try await repository.confirmChange(code: currentCode, token: token)
+            stage = .newEmail
+            errorMessage = nil
+        } catch {
+            errorMessage = friendlyError(error)
+        }
     }
 
     func sendCode(token: String) async {
@@ -63,26 +97,13 @@ final class EmailVerificationViewModel {
         }
     }
 
-    func sendCurrentCode(token: String) async {
-        isSending = true
-        defer { isSending = false }
-        do {
-            currentSentTo = try await repository.sendChangeCode(token: token).email
-            currentResendAt = Date().addingTimeInterval(AccountCode.resendSeconds)
-            errorMessage = nil
-        } catch {
-            errorMessage = friendlyError(error)
-        }
-    }
-
     /// The verified address, or nil (with a message).
     func verify(token: String) async -> String? {
         guard canVerify else { return nil }
         isVerifying = true
         defer { isVerifying = false }
         do {
-            let verified = try await repository.verifyEmail(code: code, currentCode: needsCurrentCode ? currentCode : nil,
-                                                            token: token)
+            let verified = try await repository.verifyEmail(code: code, token: token)
             errorMessage = nil
             return verified
         } catch {
