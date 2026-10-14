@@ -294,6 +294,7 @@ class AppState {
         if isPersonaSetup(mode) {
             currentMode = mode
             persistDefaultMode(mode)
+            refreshPersona(for: mode)
         } else {
             pendingPersonaMode = mode
         }
@@ -311,6 +312,21 @@ class AppState {
         pendingPersonaMode = nil
         currentMode = mode
         persistDefaultMode(mode)
+        refreshPersona(for: mode)
+    }
+
+    /// `currentUser` is loaded for the mode the app opened in, and Edit
+    /// profile, the composer, the Apply sheet… all read "me" from it — so a
+    /// switch must swap in the other persona's name, bio, photos and
+    /// skills / interests, or they keep showing the old one until a relaunch.
+    private func refreshPersona(for mode: AppMode) {
+        guard let token = authToken, let id = currentUser?.id else { return }
+        Task {
+            guard let user = try? await AuthService.shared.fetchMe(token: token, mode: mode),
+                  // A newer switch (or a logout) wins over this answer.
+                  currentMode == mode, currentUser?.id == id else { return }
+            currentUser = user.toUserProfile()
+        }
     }
 
     /// Syncs the switch to the server so it survives the next cold launch —

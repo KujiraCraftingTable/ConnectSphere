@@ -36,8 +36,8 @@ struct AuthController {
         regex.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)) != nil
     }
 
-    static func loadUser(_ id: String, _ db: any SQLDatabase) async throws -> AuthUserObject {
-        guard let u = try await UserStore.authUser(id: id, on: db) else {
+    static func loadUser(_ id: String, mode: String? = nil, _ db: any SQLDatabase) async throws -> AuthUserObject {
+        guard let u = try await UserStore.authUser(id: id, mode: mode, on: db) else {
             throw InlineError(.notFound, "User not found")
         }
         return u
@@ -167,8 +167,12 @@ struct AuthController {
 
     // MARK: GET /me
 
+    /// `?mode=hobby|work` returns that mode's persona — the app asks for it
+    /// on a mode switch, before the new default mode has reached the server.
     static func me(_ req: Request) async throws -> MeResponse {
-        MeResponse(user: try await loadUser(req.userID, req.db.sql()))
+        let mode = req.query[String.self, at: "mode"]
+        if let mode, !["hobby", "work"].contains(mode) { throw InlineError(.badRequest, "mode must be hobby or work") }
+        return MeResponse(user: try await loadUser(req.userID, mode: mode, req.db.sql()))
     }
 
     // MARK: GET /check-username
