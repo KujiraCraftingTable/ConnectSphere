@@ -132,6 +132,13 @@ struct ProfileHeaderCard<Actions: View>: View {
                 .font(.system(size: 26, weight: .bold))
                 .foregroundColor(AppColors.textPrimary(colorScheme))
                 .multilineTextAlignment(.center)
+            // The same on both personas: it's the account's handle.
+            if !user.username.isEmpty {
+                Text("@\(user.username)")
+                    .font(.system(size: 15))
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
+                    .textSelection(.enabled)
+            }
             if let job = jobLine {
                 Text(job)
                     .font(.system(size: 15))

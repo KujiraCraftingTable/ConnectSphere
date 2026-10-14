@@ -1303,3 +1303,9 @@
 "Show a link to my Hobby profile" = "Show a link to my Hobby profile";
 "Shown on your Hobby profile. Your Work profile stays visible to people in Work mode either way." = "Shown on your Hobby profile. Your Work profile stays visible to people in Work mode either way.";
 "Shown on your Work profile. Your Hobby profile stays visible to people in Hobby mode either way." = "Shown on your Work profile. Your Hobby profile stays visible to people in Hobby mode either way.";
+"Continue as" = "Continue as";
+"Remove %@ from this device" = "Remove %@ from this device";
+"Copy username" = "Copy username";
+"Copied" = "Copied";
+"Sign in with your username, or with your email if you've added one." = "Sign in with your username, or with your email if you've added one.";
+"Invalid username, email or password" = "Invalid username, email or password";

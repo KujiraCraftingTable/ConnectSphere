@@ -13,7 +13,7 @@ enum AuthErrorText {
     static func login(_ error: Error) -> String {
         if let message = unreachable(error) { return message }
         switch (error as NSError).code {
-        case 401: return Bundle.app.loc("Invalid username or password")
+        case 401: return Bundle.app.loc("Invalid username, email or password")
         case 429: return Bundle.app.loc("Too many attempts, please try again later")
         default:  return Bundle.app.loc("Couldn't sign in, please try again")
         }

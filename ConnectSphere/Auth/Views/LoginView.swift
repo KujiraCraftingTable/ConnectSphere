@@ -33,6 +33,7 @@ struct LoginView: View {
                         // Card
                         GlassCard {
                             VStack(spacing: 20) {
+                                if !viewModel.savedAccounts.isEmpty { savedAccountsSection }
                                 credentialSection
                                 Spacer(minLength: 4)
                                 LabelDivider(label: bundle.loc("or continue with"))
@@ -94,7 +95,7 @@ struct LoginView: View {
         VStack(spacing: 14) {
             AuthTextField(
                 icon: "person.fill",
-                placeholder: bundle.loc("Username"),
+                placeholder: bundle.loc("Username or email"),
                 text: $viewModel.username
             )
             AuthTextField(
@@ -131,6 +132,59 @@ struct LoginView: View {
             }
         }
         .animation(.default, value: viewModel.errorMessage)
+    }
+
+    // MARK: Saved accounts
+
+    /// Accounts that signed in on this device: tap to fill the username
+    /// (or sign in with Google); ✕ forgets it here.
+    private var savedAccountsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Continue as", bundle: bundle)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(AppColors.textSecondary(.light))
+            ForEach(viewModel.savedAccounts) { account in
+                HStack(spacing: 12) {
+                    Button {
+                        Task { await viewModel.pick(account, presenting: presentingViewController(), appState: appState) }
+                    } label: {
+                        HStack(spacing: 12) {
+                            Avatar(name: account.displayName, colorHex: account.avatarColor,
+                                   imageURL: account.avatarUrl, size: .md)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(account.displayName)
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundColor(AppColors.textPrimary(.light))
+                                    .lineLimit(1)
+                                Text("@\(account.username)")
+                                    .font(.system(size: 13))
+                                    .foregroundColor(AppColors.textSecondary(.light))
+                                    .lineLimit(1)
+                            }
+                            Spacer(minLength: 4)
+                            if !account.hasPassword { GoogleGLogo().frame(width: 16, height: 16) }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    Button { withAnimation(.snappy) { viewModel.forget(account) } } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(AppColors.textTertiary(.light))
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text(String(format: bundle.loc("Remove %@ from this device"), account.username)))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(viewModel.username == account.username ? themeManager.theme.primary.opacity(0.1) : AppColors.surface(.light))
+                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(AppColors.borderDefault(.light), lineWidth: 1))
+                )
+            }
+        }
     }
 
     // MARK: Social Section

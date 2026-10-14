@@ -92,7 +92,8 @@ struct AuthController {
             throw InlineError(.badRequest, "username and password are required")
         }
         let db = req.db.sql()
-        guard let user = try await UserStore.findByUsername(username, on: db),
+        // `username` may be an email too (see findForLogin).
+        guard let user = try await UserStore.findForLogin(username, on: db),
               UserStore.hasRealPassword(user.password_hash),
               let hash = user.password_hash,
               (try? Bcrypt.verify(password, created: hash)) == true

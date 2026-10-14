@@ -266,6 +266,8 @@ class AppState {
         await MainActor.run {
             currentUser     = user.toUserProfile()
             needsOnboarding = false
+            // The username is only final once onboarding is done.
+            rememberAccount()
         }
     }
 
@@ -275,6 +277,16 @@ class AppState {
         currentMode     = AppMode(rawValue: user.defaultMode) ?? .hobby
         isLoggedIn      = true
         needsOnboarding = isNew || !user.isSetup
+        if !needsOnboarding { rememberAccount() }
+    }
+
+    /// Offers this account on the login screen next time (see SavedAccounts).
+    private func rememberAccount() {
+        guard let user = currentUser, !user.username.isEmpty else { return }
+        SavedAccounts().remember(SavedAccount(
+            id: user.id, username: user.username, displayName: user.name,
+            avatarUrl: user.avatarUrl, avatarColor: user.avatarColor,
+            hasPassword: user.hasPassword, lastUsed: Date()))
     }
 
     func switchMode(to mode: AppMode) { currentMode = mode }
