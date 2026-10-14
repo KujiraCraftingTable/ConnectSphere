@@ -22,7 +22,8 @@ final class EditProfileViewModel {
     var dobVisibility = "private"
     var selectedInterests: [InterestItem] = []
     /// Comma-separated, the same as onboarding.
-    var skills = ""
+    /// Added one at a time in a SkillTagField.
+    var skills: [String] = []
 
     /// New avatar picked this session (nil = keep the current one).
     private(set) var pickedImage: UIImage?
@@ -57,7 +58,7 @@ final class EditProfileViewModel {
         company     = user.company ?? ""
         location    = user.location ?? ""
         email       = user.email ?? ""
-        skills      = user.skills.joined(separator: ", ")
+        skills      = user.skills
         // The backend returns dob as "yyyy-MM-dd" or a full ISO timestamp (a
         // Postgres DATE in JSON) — the first 10 characters are yyyy-MM-dd either
         // way. Older accounts may have none: leave it blank.
@@ -107,10 +108,7 @@ final class EditProfileViewModel {
         }
 
         // Both arrays are sent in full (they were pre-loaded, so untouched entries
-        // survive): the backend replaces user_interests/user_skills wholesale.
-        let skillsArray = skills.components(separatedBy: ",")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
+        // survive): the backend makes each list exactly what's sent.
         let update = ProfileRepository.ProfileUpdate(
             mode:           mode.rawValue,   // edits this mode's persona
             display_name:   displayName.trimmingCharacters(in: .whitespaces),
@@ -123,7 +121,7 @@ final class EditProfileViewModel {
             avatar_url:     avatarUrl,
             cover_url:      coverUrl,
             interests:      selectedInterests.map { $0.displayText },
-            skills:         skillsArray,
+            skills:         skills,
             email:          email.trimmingCharacters(in: .whitespaces))
         do {
             return try await profileRepository.updateProfile(update)

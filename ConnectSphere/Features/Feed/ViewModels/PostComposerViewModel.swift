@@ -40,8 +40,8 @@ class PostComposerViewModel {
     /// VND million / month, as typed.
     var jobSalaryMin = ""
     var jobSalaryMax = ""
-    /// Required skills, comma-separated as typed.
-    var jobSkillsText = ""
+    /// Required skills, added one at a time in a SkillTagField.
+    var jobSkills: [String] = []
     /// The company pages you can post jobs as.
     private(set) var myCompanies: [Company] = []
 
@@ -55,12 +55,7 @@ class PostComposerViewModel {
         if let company { jobCompany = company.name }
     }
 
-    var jobSkills: [String] {
-        var seen = Set<String>()
-        return jobSkillsText.split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty && seen.insert($0.lowercased()).inserted }
-    }
+
 
     /// Both empty, or numbers with min ≤ max.
     var jobSalaryValid: Bool {

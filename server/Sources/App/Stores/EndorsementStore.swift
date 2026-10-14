@@ -75,8 +75,29 @@ enum EndorsementStore {
 
     /// Sets someone's skills to `wanted`, keeping the rows (and endorsements)
     /// of skills that stay; only removed ones go, only new ones are added.
+    static let maxSkills = 30
+    static let maxSkillLength = 50
+
+    /// A profile's skills as they'll be stored: trimmed, blanks dropped, and
+    /// "Swift" / "swift" kept once (the first spelling), in the order sent.
+    /// Refuses more than 30, or one longer than 50 (the app's own limits).
+    static func cleanSkills(_ list: [String]) throws -> [String] {
+        var seen = Set<String>()
+        var out: [String] = []
+        for raw in list {
+            let skill = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !skill.isEmpty, seen.insert(skill.lowercased()).inserted else { continue }
+            guard skill.count <= maxSkillLength else {
+                throw Abort(.badRequest, reason: "Each skill must be at most \(maxSkillLength) characters")
+            }
+            out.append(skill)
+        }
+        guard out.count <= maxSkills else { throw Abort(.badRequest, reason: "At most \(maxSkills) skills") }
+        return out
+    }
+
     static func replaceSkills(of user: String, with wanted: [String], on db: any SQLDatabase) async throws {
-        let clean = Array(Set(wanted.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }))
+        let clean = try cleanSkills(wanted)
         try await db.raw("""
             DELETE FROM user_skills WHERE user_id = \(uuid: user) AND NOT (skill = ANY(\(bind: clean)::text[]))
             """).run()

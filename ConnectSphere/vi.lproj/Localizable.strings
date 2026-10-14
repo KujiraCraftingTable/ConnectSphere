@@ -275,7 +275,6 @@
 "Skills" = "Kỹ năng";
 "Skills & Company" = "Kỹ năng & Công ty";
 "Skills (e.g. Swift, UI/UX, Python)" = "Kỹ năng (VD: Swift, UI/UX, Python)";
-"Skills (Swift, Python, UI/UX...)" = "Kỹ năng (Swift, Python, UI/UX...)";
 "Skip" = "Bỏ qua";
 "Someone" = "Ai đó";
 "Say hi to a connection and start the fun!" = "Chào một người bạn để bắt đầu trò chuyện vui vẻ nào!";
@@ -1244,8 +1243,6 @@
 "e.g. 15" = "vd: 15";
 "e.g. 30" = "vd: 30";
 "The pay range needs numbers, the first no higher than the second." = "Mức lương cần là số, số đầu không lớn hơn số sau.";
-"Required skills (comma-separated, up to 10)" = "Kỹ năng cần có (phân cách bằng dấu phẩy, tối đa 10)";
-"e.g. Swift, SwiftUI, REST" = "vd: Swift, SwiftUI, REST";
 "View job" = "Xem việc làm";
 "Your profile" = "Hồ sơ của bạn";
 "Your Work profile — experience and skills — is shared with the job's poster." = "Hồ sơ Công việc của bạn — kinh nghiệm và kỹ năng — sẽ được gửi cho người đăng tin.";
@@ -1291,3 +1288,10 @@
 "The start can't be in the future." = "Thời gian bắt đầu không thể ở tương lai.";
 "The end can't be in the future." = "Thời gian kết thúc không thể ở tương lai.";
 "The end can't be before the start." = "Thời gian kết thúc không thể trước thời gian bắt đầu.";
+"Add a skill, then press Return" = "Nhập một kỹ năng rồi nhấn Return";
+"Remove %@" = "Xoá %@";
+"%lld / %lld" = "%lld / %lld";
+"You already added %@." = "Bạn đã thêm %@ rồi.";
+"Up to %lld skills." = "Tối đa %lld kỹ năng.";
+"Keep each skill under %lld characters." = "Mỗi kỹ năng tối đa %lld ký tự.";
+"Required skills (up to 10)" = "Kỹ năng cần có (tối đa 10)";

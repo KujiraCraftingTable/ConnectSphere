@@ -40,9 +40,7 @@ struct PersonaSetupView: View {
                             AuthTextField(icon: "building.2",
                                           placeholder: bundle.loc("Company / School"),
                                           text: $viewModel.company)
-                            AuthTextField(icon: "sparkles",
-                                          placeholder: bundle.loc("Skills (Swift, Python, UI/UX...)"),
-                                          text: $viewModel.skillsText)
+                            SkillTagField(skills: $viewModel.skills, colorScheme: .light, boxed: true)
                         } else {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Select what you like", bundle: bundle)

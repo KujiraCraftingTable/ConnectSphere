@@ -202,6 +202,7 @@ struct AuthController {
 
     static func setup(_ req: Request) async throws -> MeResponse {
         let b = try req.content.decode(SetupBody.self)
+        let skills = try EndorsementStore.cleanSkills(b.skills ?? [])
         let username = (b.username ?? "").trimmingCharacters(in: .whitespaces).lowercased()
         let displayName = (b.display_name ?? "").trimmingCharacters(in: .whitespaces)
         let location = (b.location ?? "").trimmingCharacters(in: .whitespaces)
@@ -257,7 +258,7 @@ struct AuthController {
             """).run()
 
         try await replaceList(table: "user_interests", col: "interest", userID: req.userID, items: b.interests, db: db)
-        try await replaceList(table: "user_skills", col: "skill", userID: req.userID, items: b.skills, db: db)
+        try await replaceList(table: "user_skills", col: "skill", userID: req.userID, items: skills, db: db)
 
         // TODO(phase 5): enqueue profile embed once the queue is ported.
         return MeResponse(user: try await loadUser(req.userID, db))

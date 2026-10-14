@@ -108,9 +108,8 @@ struct CreateJobSheet: View {
             }
 
             // Required skills, matched against people's profiles
-            fieldRow(label: bundle.loc("Required skills (comma-separated, up to 10)")) {
-                TextField(bundle.loc("e.g. Swift, SwiftUI, REST"), text: $details.jobSkillsText)
-                    .textInputAutocapitalization(.never)
+            fieldRow(label: bundle.loc("Required skills (up to 10)")) {
+                SkillTagField(skills: $details.jobSkills, limit: SkillList.jobLimit, colorScheme: colorScheme)
             }
 
             Divider()

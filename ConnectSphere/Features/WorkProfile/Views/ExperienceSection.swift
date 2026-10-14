@@ -301,7 +301,13 @@ extension ExperienceEditorView {
         let shown = messages.compactMap { $0 }
         if !shown.isEmpty {
             VStack(alignment: .leading, spacing: 2) {
-                ForEach(shown, id: \.self) { Label($0, systemImage: "exclamationmark.circle.fill") }
+                // Not a Label — Form rows drop a Label's text.
+                ForEach(shown, id: \.self) { message in
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Image(systemName: "exclamationmark.circle.fill")
+                        Text(message)
+                    }
+                }
             }
             .font(.footnote)
             .foregroundStyle(.red)

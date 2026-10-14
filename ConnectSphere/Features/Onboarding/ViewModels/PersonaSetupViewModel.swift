@@ -12,8 +12,8 @@ final class PersonaSetupViewModel {
     }
     var jobTitle = ""
     var company = ""
-    /// Work skills as one comma-separated line.
-    var skillsText = ""
+    /// Work skills, added one at a time in a SkillTagField.
+    var skills: [String] = []
     var selectedInterests: [InterestItem] = []
     private(set) var isSaving = false
     private(set) var errorMessage: String?
@@ -31,7 +31,6 @@ final class PersonaSetupViewModel {
         isSaving = true
         errorMessage = nil
         defer { isSaving = false }
-        let skills = skillsText.components(separatedBy: ",").map(trimmed).filter { !$0.isEmpty }
         let body = ProfileRepository.PersonaCreate(
             mode: mode.rawValue,
             display_name: trimmed(displayName),
