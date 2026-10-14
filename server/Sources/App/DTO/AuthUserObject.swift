@@ -53,6 +53,8 @@ struct AuthUserObject: Content {
     var show_in_suggestions: Bool
     /// This persona's profile links to your other one (migration 060).
     var links_other_mode: Bool
+    /// The email was confirmed with a code (or by Google) — migration 061.
+    var email_verified: Bool
     var interests: [String]
     var skills: [String]
 }

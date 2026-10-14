@@ -34,6 +34,9 @@ struct UserProfile: Identifiable {
     /// person turned it off for this mode). The button also needs the other
     /// persona to exist — see `otherModeLinked(from:)`.
     var linksOtherMode: Bool = true
+    /// Self-only. The email was confirmed with a code (or by Google) —
+    /// deleting a persona or the account needs it.
+    var emailVerified: Bool = false
     // Displayed age — present in both public and self views, null from server when dob_visibility = private
     var age: Int? = nil
     // Self-only field (server only returns this in /auth/me and PATCH /users/me),

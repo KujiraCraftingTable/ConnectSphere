@@ -64,7 +64,7 @@ enum AssistantGuidanceTopic: String, CaseIterable, Equatable {
         case .blockUser:
             return "To block someone, open their profile and choose Block from the menu. You can manage or unblock people anytime from Settings → Privacy & Security → Blocked users."
         case .deleteAccount:
-            return "You can delete your account from Settings → Privacy & Security → Delete account. This can't be undone."
+            return "You can delete your Hobby profile, your Work profile or your whole account from Settings → Account → Manage account. It needs a code sent to your verified email, and it can't be undone."
         case .muteConversation:
             return "Open a conversation from Home → Messages, tap the chat name at the top, then turn on Mute notifications."
         case .renameGroup:

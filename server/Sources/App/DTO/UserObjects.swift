@@ -73,12 +73,14 @@ struct PublicUserObject: Content {
 struct PrivateUserObject: Content {
     var pub: PublicUserObject
     @NullCoded var email: String?
+    var email_verified: Bool
     var has_password: Bool
     @NullCoded var dob: Date?
     @NullCoded var dob_visibility: String?
     @NullCoded var age: Int?
-    init(pub: PublicUserObject, email: String?, has_password: Bool, dob: Date?, dob_visibility: String?, age: Int?) {
-        self.pub = pub; self._email = .init(wrappedValue: email); self.has_password = has_password
+    init(pub: PublicUserObject, email: String?, email_verified: Bool, has_password: Bool, dob: Date?, dob_visibility: String?, age: Int?) {
+        self.pub = pub; self._email = .init(wrappedValue: email); self.email_verified = email_verified
+        self.has_password = has_password
         self._dob = .init(wrappedValue: dob); self._dob_visibility = .init(wrappedValue: dob_visibility)
         self._age = .init(wrappedValue: age)
     }
@@ -87,12 +89,13 @@ struct PrivateUserObject: Content {
         try pub.encode(to: encoder)
         var c = encoder.container(keyedBy: K.self)
         try c.encode(_email, forKey: .email)
+        try c.encode(email_verified, forKey: .email_verified)
         try c.encode(has_password, forKey: .has_password)
         try c.encode(_dob, forKey: .dob)
         try c.encode(_dob_visibility, forKey: .dob_visibility)
         try c.encode(_age, forKey: .age)
     }
-    enum K: String, CodingKey { case email, has_password, dob, dob_visibility, age }
+    enum K: String, CodingKey { case email, email_verified, has_password, dob, dob_visibility, age }
 }
 
 struct BlockedUserObject: Content {

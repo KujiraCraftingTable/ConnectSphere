@@ -54,6 +54,11 @@ struct AuthViewModelTests {
         vm.form.location = "79"
         vm.form.gender = "male"
         vm.form.dob = "2000-01-01"
+        // A verified email is required too (Google sign-ups arrive with one).
+        #expect(!vm.basicsComplete)
+        vm.prefillEmail("kujira@example.com", verified: false)
+        #expect(!vm.basicsComplete)
+        vm.prefillEmail("kujira@example.com", verified: true)
         #expect(vm.basicsComplete)
         for _ in 0..<10 { vm.next() }
         #expect(vm.step == OnboardingViewModel.totalSteps - 1)

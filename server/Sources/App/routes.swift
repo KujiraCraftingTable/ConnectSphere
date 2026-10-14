@@ -25,6 +25,7 @@ func routes(_ app: Application) throws {
     EndorsementsController.register(routes: api)    // skills + endorsements
     JobBoardController.register(routes: api)        // Jobs tab: recommended, search, saved
     ApplicationsController.register(routes: api, app: app)  // Easy Apply + private CVs
+    AccountController.register(routes: api)         // verified email + deleting a persona / the account
     NotificationsController.register(routes: api)
     MessagesController.register(routes: api)
     SearchController.register(routes: api)          // + /entities/alias, /locations/clarify

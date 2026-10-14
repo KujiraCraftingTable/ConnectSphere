@@ -40,7 +40,6 @@ struct ProfileRepository {
         var cover_url: String?    = nil
         var interests: [String]?  = nil
         var skills: [String]?     = nil
-        var email: String?        = nil   // "" = remove email from the account
     }
 
     /// Privacy: off = strangers can only follow, not send friend requests.
@@ -130,26 +129,6 @@ struct ProfileRepository {
             method: "PATCH",
             token: token,
             bodyData: NetworkClient.encode(Body(mode: mode.rawValue))
-        )
-    }
-
-    /// Soft-deletes the current user's own account. Confirmed with a password,
-    /// or confirmation = "DELETE" for a Google account that has no password set.
-    func deleteAccount(password: String?, confirmation: String?) async throws {
-        guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
-            throw APIError.serverError(statusCode: 401, message: "Not authenticated")
-        }
-        struct Body: Encodable {
-            let password: String?
-            let confirmation: String?
-        }
-        struct OKResponse: Decodable { let status: String }
-        _ = try await client.fetch(
-            OKResponse.self,
-            path: "/users/me",
-            method: "DELETE",
-            token: token,
-            bodyData: NetworkClient.encode(Body(password: password, confirmation: confirmation))
         )
     }
 }

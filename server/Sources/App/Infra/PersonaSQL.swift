@@ -13,7 +13,11 @@ enum PersonaSQL {
     /// NO fallback so an unset persona field never leaks the other mode's value.
     static func expr(_ field: String, modeRef: String, alias: String = "u") -> String {
         let e = "CASE WHEN \(modeRef) = 'work' THEN \(alias).work_\(field) ELSE \(alias).hobby_\(field) END"
-        return field == "display_name" ? "COALESCE(\(e), \(alias).display_name)" : e
+        guard field == "display_name" else { return e }
+        // A deleted persona (migration 061) shows as "Deleted User" — never
+        // the other persona's name — until it's created again.
+        let deleted = "CASE WHEN (CASE WHEN \(modeRef) = 'work' THEN \(alias).work_deleted_at ELSE \(alias).hobby_deleted_at END) IS NOT NULL THEN 'Deleted User' END"
+        return "COALESCE(\(e), \(deleted), \(alias).display_name)"
     }
 
     /// The 4 identity columns aliased as display_name/bio/avatar_url/cover_url.

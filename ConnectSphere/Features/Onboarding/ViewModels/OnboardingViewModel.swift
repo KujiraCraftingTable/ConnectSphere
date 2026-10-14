@@ -30,6 +30,17 @@ final class OnboardingViewModel {
     enum UsernameStatus: Equatable { case idle, checking, available, taken, failed }
     private(set) var usernameStatus: UsernameStatus = .idle
 
+    /// Sign-up needs a verified email (a code in step 2); a Google sign-up
+    /// arrives with one.
+    var emailVerified = false
+    var verifiedEmail: String?
+
+    func prefillEmail(_ email: String?, verified: Bool) {
+        guard !emailVerified, verified, let email else { return }
+        emailVerified = true
+        verifiedEmail = email
+    }
+
     func prefill(username: String?, hasPassword: Bool) {
         guard form.username.isEmpty, !needsUsername else { return }
         if hasPassword {
@@ -74,6 +85,7 @@ final class OnboardingViewModel {
             && !form.location.isEmpty
             && !form.gender.isEmpty
             && !form.dob.isEmpty
+            && emailVerified
     }
 
     var canAdvance: Bool {
