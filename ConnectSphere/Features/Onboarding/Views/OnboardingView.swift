@@ -5,12 +5,15 @@ struct OnboardingView: View {
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
     @State private var viewModel = OnboardingViewModel()
-    @State private var emailCode = EmailVerificationViewModel(replacingVerifiedEmail: false)
     @State private var showProvincePicker = false
     @State private var showDobPicker = false
     @State private var dobDraft = Date()
     /// Bumped on a blocked forward swipe/tap — drives the shake + haptic.
     @State private var blockedAttempts = 0
+    /// The carousel's settled page; kept in step with `viewModel.step`.
+    @State private var page: Int? = 0
+    /// One refusal per over-swipe: re-armed once the page springs back.
+    @State private var overswipeArmed = true
 
     private let totalSteps = OnboardingViewModel.totalSteps
 
@@ -22,36 +25,48 @@ struct OnboardingView: View {
                 // Progress bar
                 progressBar.padding(.horizontal, 24).padding(.top, 16)
 
-                // Step content. Swiping right-to-left goes on, left-to-right goes
-                // back; going on is refused (shake) until the step's required
-                // fields are filled, so an incomplete form can't be submitted.
-                ZStack {
-                    stepContent
-                        .id(viewModel.step)
-                        .transition(.asymmetric(
-                            insertion: .move(edge: viewModel.movedForward ? .trailing : .leading),
-                            removal: .move(edge: viewModel.movedForward ? .leading : .trailing)))
+                // Steps as a carousel: the page follows the finger and snaps to
+                // its neighbour. Only reachable steps exist, so swiping past an
+                // incomplete one rubber-bands (and says what's missing).
+                ScrollView(.horizontal) {
+                    HStack(spacing: 0) {
+                        ForEach(Array(0..<viewModel.reachableSteps), id: \.self) { index in
+                            stepContent(index)
+                                .containerRelativeFrame(.horizontal)
+                        }
+                    }
+                    .scrollTargetLayout()
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
+                .scrollTargetBehavior(.paging)
+                .scrollPosition(id: $page)
+                .scrollIndicators(.hidden)
+                .onScrollGeometryChange(for: CGFloat.self) { geo in
+                    geo.contentOffset.x - (geo.contentSize.width - geo.containerSize.width)
+                } action: { _, overshoot in
+                    if overshoot > 40, overswipeArmed, viewModel.step == 1, !viewModel.basicsComplete {
+                        overswipeArmed = false
+                        refuse()
+                    } else if overshoot <= 0 {
+                        overswipeArmed = true
+                    }
+                }
+                .onChange(of: page) { _, newPage in
+                    viewModel.show(step: newPage ?? 0)
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                }
                 .modifier(ShakeEffect(shakes: CGFloat(blockedAttempts)))
                 .sensoryFeedback(.error, trigger: blockedAttempts)
-                .gesture(StepSwipe(direction: .left, action: goForward))
-                .gesture(StepSwipe(direction: .right, action: goBack))
             }
         }
         .onAppear {
             viewModel.prefill(username: appState.currentUser?.username,
                               hasPassword: appState.currentUser?.hasPassword ?? true)
-            viewModel.prefillEmail(appState.currentUser?.email, verified: appState.currentUser?.emailVerified ?? false)
-            // The email given at sign-up, ready for its code.
-            if emailCode.email.isEmpty, let email = appState.currentUser?.email { emailCode.email = email }
         }
     }
 
     @ViewBuilder
-    private var stepContent: some View {
-        switch viewModel.step {
+    private func stepContent(_ index: Int) -> some View {
+        switch index {
         case 0:  step0
         case 1:  step1
         case 2:  step2
@@ -61,15 +76,22 @@ struct OnboardingView: View {
 
     private func goForward() {
         guard viewModel.step < totalSteps - 1 else { return }
-        if viewModel.canAdvance {
-            withAnimation(.snappy) { _ = viewModel.next() }
+        if viewModel.next() {
+            withAnimation(.snappy) { page = viewModel.step }
         } else {
-            withAnimation(.linear(duration: 0.35)) { blockedAttempts += 1 }
+            refuse()
         }
     }
 
     private func goBack() {
-        withAnimation(.snappy) { viewModel.back() }
+        viewModel.back()
+        withAnimation(.snappy) { page = viewModel.step }
+    }
+
+    /// Shake, buzz, and list what's missing.
+    private func refuse() {
+        viewModel.refusedMove()
+        withAnimation(.linear(duration: 0.35)) { blockedAttempts += 1 }
     }
 
     // MARK: Progress
@@ -124,7 +146,7 @@ struct OnboardingView: View {
                          desc: bundle.loc("Networking, find collaborators"),
                          color: themeManager.theme.primary)
             }
-            nextButton(enabled: true, label: bundle.loc("Continue"))
+            nextButton(label: bundle.loc("Continue"))
         }
     }
 
@@ -159,64 +181,18 @@ struct OnboardingView: View {
 
     // MARK: Step 1 — Basic info
 
-    /// Email (required): a 6-digit code proves it's theirs before Continue.
-    @ViewBuilder
-    private var emailBlock: some View {
-        if viewModel.emailVerified {
-            HStack(spacing: 10) {
-                Image(systemName: "checkmark.seal.fill").foregroundColor(.green)
-                Text(viewModel.verifiedEmail ?? "")
-                    .font(.system(size: 15))
-                    .foregroundColor(AppColors.textPrimary(.light))
-                    .lineLimit(1)
-                Spacer()
-                Text("Verified", bundle: bundle).font(.system(size: 13)).foregroundColor(.green)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .background(AppColors.surface(.light), in: RoundedRectangle(cornerRadius: 14))
-        } else {
-            VStack(alignment: .leading, spacing: 10) {
-                AuthTextField(icon: "envelope", placeholder: bundle.loc("Email *"), text: $emailCode.email,
-                              keyboardType: .emailAddress)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .disabled(emailCode.sentTo != nil)
-                if emailCode.sentTo == nil {
-                    Button(bundle.loc("Send code")) { Task { await emailCode.sendCode(token: appState.authToken ?? "") } }
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(themeManager.theme.primary)
-                        .disabled(emailCode.email.trimmingCharacters(in: .whitespaces).isEmpty || emailCode.isSending)
-                } else {
-                    Text(String(format: bundle.loc("We sent a code to %@. It expires in 10 minutes."), emailCode.sentTo ?? ""))
-                        .font(.system(size: 13))
-                        .foregroundColor(AppColors.textSecondary(.light))
-                    AuthTextField(icon: "number", placeholder: bundle.loc("6-digit code"), text: $emailCode.code,
-                                  keyboardType: .numberPad)
-                        .textContentType(.oneTimeCode)
-                    HStack {
-                        ResendButton(availableAt: emailCode.resendAt, isSending: emailCode.isSending) {
-                            Task { await emailCode.sendCode(token: appState.authToken ?? "") }
-                        }
-                        Spacer()
-                        Button(bundle.loc("Verify")) {
-                            Task {
-                                if let email = await emailCode.verify(token: appState.authToken ?? "") {
-                                    viewModel.emailVerified = true
-                                    viewModel.verifiedEmail = email
-                                    appState.currentUser?.email = email
-                                    appState.currentUser?.emailVerified = true
-                                }
-                            }
-                        }
-                        .font(.system(size: 15, weight: .semibold))
-                        .disabled(!emailCode.canVerify)
-                    }
-                }
-                if let error = emailCode.errorMessage {
-                    Text(error).font(.system(size: 13)).foregroundColor(AppColors.danger(.light))
-                }
-            }
+    /// Google sign-ups only: an optional password for signing in without Google.
+    private var passwordBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            AuthTextField(icon: "lock.fill", placeholder: bundle.loc("Create a password (optional)"),
+                          text: $viewModel.newPassword, isSecure: true)
+            AuthTextField(icon: "lock.fill", placeholder: bundle.loc("Confirm password"),
+                          text: $viewModel.confirmNewPassword, isSecure: true)
+            Text(viewModel.newPasswordProblem
+                 ?? bundle.loc("So you can also sign in with your @username or email, without Google. You can skip this."))
+                .font(.system(size: 12))
+                .foregroundColor(viewModel.newPasswordProblem == nil ? AppColors.textTertiary(.light) : AppColors.danger(.light))
+                .padding(.leading, 4)
         }
     }
 
@@ -228,7 +204,7 @@ struct OnboardingView: View {
                 AuthTextField(icon: "textformat", placeholder: bundle.loc("Display name *"), text: $viewModel.form.display_name,
                               characterLimit: DisplayNameRules.maxLength)
 
-                emailBlock
+                if viewModel.offersPassword { passwordBlock }
 
                 // Province picker (required)
                 Button { showProvincePicker = true } label: {
@@ -309,15 +285,13 @@ struct OnboardingView: View {
             }
 
             if let e = viewModel.errorMessage { errorBanner(e) }
+            if let missing = viewModel.stillNeeded { errorBanner(missing) }
 
-            nextButton(
-                enabled: viewModel.canAdvance,
-                label: bundle.loc("Continue")
-            )
+            nextButton(label: bundle.loc("Continue"))
         }
     }
 
-    /// Google accounts only: choose the @name people find you by.
+    /// Google sign-ups only: choose the @name people find you by.
     private var usernameField: some View {
         VStack(alignment: .leading, spacing: 6) {
             AuthTextField(icon: "at", placeholder: bundle.loc("Username *"), text: $viewModel.username)
@@ -378,7 +352,7 @@ struct OnboardingView: View {
                 }
             }
 
-            nextButton(enabled: true, label: bundle.loc("Continue"))
+            nextButton(label: bundle.loc("Continue"))
         }
     }
 
@@ -432,10 +406,10 @@ struct OnboardingView: View {
 
     // MARK: Helpers
 
-    private func nextButton(enabled: Bool, label: String) -> some View {
+    /// Always tappable: an incomplete step answers with what's missing
+    /// instead of a dimmed button that gives no reason.
+    private func nextButton(label: String) -> some View {
         GradientButton(title: label, isLoading: false) { goForward() }
-        .opacity(enabled ? 1 : 0.5)
-        .disabled(!enabled)
     }
 
     private func errorBanner(_ msg: String) -> some View {
@@ -571,44 +545,5 @@ private struct ShakeEffect: GeometryEffect {
 
     func effectValue(size: CGSize) -> ProjectionTransform {
         ProjectionTransform(CGAffineTransform(translationX: 8 * sin(shakes * .pi * 4), y: 0))
-    }
-}
-
-/// A step-to-step page swipe. UIKit's swipe recognizer rather than a SwiftUI
-/// `DragGesture`: it only ever fires on a horizontal flick, so the step's own
-/// vertical scrolling is untouched, and taps underneath wait for it to fail —
-/// a swipe that starts on a full-width row (Province, Date of birth) no
-/// longer also taps it open.
-private struct StepSwipe: UIGestureRecognizerRepresentable {
-    let direction: UISwipeGestureRecognizer.Direction
-    let action: () -> Void
-
-    func makeUIGestureRecognizer(context: Context) -> UISwipeGestureRecognizer {
-        let recognizer = UISwipeGestureRecognizer()
-        recognizer.direction = direction
-        recognizer.delegate = context.coordinator
-        return recognizer
-    }
-
-    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator { Coordinator() }
-
-    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
-        /// The step's scroll view grabs every pan first; without this the
-        /// swipe never got to recognize at all.
-        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
-                               shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
-
-        /// Taps underneath (a row's button) wait until this swipe has failed —
-        /// which a plain tap does the moment the finger lifts — so a swipe
-        /// starting on the Province row no longer also opens its picker.
-        /// Scrolling is left alone so it never waits on the swipe.
-        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
-                               shouldBeRequiredToFailBy other: UIGestureRecognizer) -> Bool {
-            !(other is UIPanGestureRecognizer) && !(other is UISwipeGestureRecognizer)
-        }
-    }
-
-    func handleUIGestureRecognizerAction(_ recognizer: UISwipeGestureRecognizer, context: Context) {
-        if recognizer.state == .ended { action() }
     }
 }

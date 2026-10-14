@@ -41,7 +41,7 @@ struct ForgotPasswordView: View {
 
     private var requestCodeSection: some View {
         Section {
-            TextField(bundle.loc("Email"), text: $viewModel.identifier)
+            TextField(bundle.loc("Username or email"), text: $viewModel.identifier)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
 

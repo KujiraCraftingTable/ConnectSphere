@@ -266,15 +266,15 @@ class AppState {
         _ = handle(.signedIn(response))
     }
 
-    // ── Login / register with email + password ────────────────────────────────
+    // ── Login / register with username (or email) + password ──────────────────
 
-    func loginWithPassword(email: String, password: String) async throws -> SignInOutcome {
-        handle(try await AuthService.shared.login(email: email, password: password))
+    func loginWithPassword(identifier: String, password: String) async throws -> SignInOutcome {
+        handle(try await AuthService.shared.login(identifier: identifier, password: password))
     }
 
     /// Registering also logs the user in right away — is_new_user=true so the root view auto-navigates into onboarding.
-    func registerWithPassword(email: String, password: String) async throws {
-        let response = try await AuthService.shared.register(email: email, password: password)
+    func registerWithPassword(username: String, password: String, email: String?, code: String?) async throws {
+        let response = try await AuthService.shared.register(username: username, password: password, email: email, code: code)
         KeychainHelper.save(response.token, forKey: KeychainHelper.tokenKey)
         await MainActor.run { finishLogin(token: response.token, user: response.user, isNew: response.isNewUser) }
     }

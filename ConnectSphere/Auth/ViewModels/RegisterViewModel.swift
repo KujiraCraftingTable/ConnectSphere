@@ -1,23 +1,44 @@
 import Foundation
 import Observation
 
-/// Sign-up with email + password, with live per-field validation. The
-/// public @username is chosen next, in onboarding (with the email's code).
+/// Sign-up with @username + password and an optional email, with live
+/// per-field validation. With an email, "Create account" first emails a
+/// 6-digit code; the account is made once it's entered, already verified.
 /// On success `AppState` moves the app into onboarding.
 @MainActor
 @Observable
 final class RegisterViewModel {
     static let minPassword = 8
 
-    var email = ""
+    enum Stage: Equatable { case details, code }
+
+    /// Lowercased as typed — the only silent normalization; anything else
+    /// invalid is surfaced as a live hint so the user sees why.
+    var username = "" {
+        didSet { if username != username.lowercased() { username = username.lowercased() } }
+    }
     var password = ""
     var confirmPassword = ""
+    /// Optional.
+    var email = ""
+    var code = "" { didSet { if code != AccountCode.clean(code) { code = AccountCode.clean(code) } } }
+    private(set) var stage: Stage = .details
+    private(set) var resendAt: Date?
     private(set) var isLoading = false
     private(set) var errorMessage: String?
 
     // MARK: Live validation (nil = fine, or nothing typed yet)
 
+    private var trimmedUsername: String { username.trimmingCharacters(in: .whitespaces) }
     private var trimmedEmail: String { email.trimmingCharacters(in: .whitespaces).lowercased() }
+    var hasEmail: Bool { !trimmedEmail.isEmpty }
+
+    /// Where the code went, masked.
+    var maskedEmail: String { AccountCode.mask(trimmedEmail) }
+
+    var usernameError: String? { UsernameRules.problem(username) }
+
+    var usernameHint: String { usernameError ?? UsernameRules.hint }
 
     /// Shaped like an address (the server checks it properly).
     static func looksLikeEmail(_ s: String) -> Bool {
@@ -26,12 +47,12 @@ final class RegisterViewModel {
     }
 
     var emailError: String? {
-        guard !trimmedEmail.isEmpty else { return nil }
+        guard hasEmail else { return nil }
         return Self.looksLikeEmail(trimmedEmail) ? nil : Bundle.app.loc("Enter a valid email address")
     }
 
     var emailHint: String {
-        emailError ?? Bundle.app.loc("You sign in with your email. You'll pick your public @username next.")
+        emailError ?? Bundle.app.loc("Optional. Add one to reset your password and use two-factor sign-in — we'll send it a code.")
     }
 
     var passwordError: String? {
@@ -49,17 +70,20 @@ final class RegisterViewModel {
     }
 
     var isFormValid: Bool {
-        Self.looksLikeEmail(trimmedEmail)
+        UsernameRules.isValid(trimmedUsername)
+            && emailError == nil
             && password.count >= Self.minPassword
             && !confirmPassword.isEmpty && confirmPassword == password
     }
 
     // MARK: Submit
 
+    /// No email: the account is created now. An email: a code is sent first.
     func register(appState: AppState) async {
-        guard Self.looksLikeEmail(trimmedEmail) else {
-            errorMessage = Bundle.app.loc("Enter a valid email address"); return
+        if let problem = UsernameRules.problem(trimmedUsername) ?? (trimmedUsername.isEmpty ? UsernameRules.hint : nil) {
+            errorMessage = problem; return
         }
+        if let emailError { errorMessage = emailError; return }
         guard password.count >= Self.minPassword else {
             errorMessage = Bundle.app.loc("Password must be at least 8 characters"); return
         }
@@ -69,11 +93,51 @@ final class RegisterViewModel {
         isLoading = true
         errorMessage = nil
         do {
-            // Success: AppState sets needsOnboarding and the root view moves on.
-            try await appState.registerWithPassword(email: trimmedEmail, password: password)
+            if hasEmail {
+                try await AuthService.shared.registerCode(username: trimmedUsername, email: trimmedEmail)
+                code = ""
+                resendAt = Date().addingTimeInterval(AccountCode.resendSeconds)
+                stage = .code
+                isLoading = false
+            } else {
+                // Success: AppState sets needsOnboarding and the root view moves on.
+                try await appState.registerWithPassword(username: trimmedUsername, password: password, email: nil, code: nil)
+            }
         } catch {
             isLoading = false
             errorMessage = AuthErrorText.register(error)
         }
+    }
+
+    /// Runs by itself once all 6 digits are in.
+    func submitCode(appState: AppState) async {
+        guard stage == .code, code.count == 6, !isLoading else { return }
+        isLoading = true
+        errorMessage = nil
+        do {
+            try await appState.registerWithPassword(username: trimmedUsername, password: password,
+                                                    email: trimmedEmail, code: code)
+        } catch {
+            isLoading = false
+            code = ""
+            errorMessage = AuthErrorText.register(error)
+        }
+    }
+
+    func resendCode() async {
+        do {
+            try await AuthService.shared.registerCode(username: trimmedUsername, email: trimmedEmail)
+            resendAt = Date().addingTimeInterval(AccountCode.resendSeconds)
+            errorMessage = nil
+        } catch {
+            errorMessage = AuthErrorText.register(error)
+        }
+    }
+
+    /// Back to the form, everything still filled in.
+    func changeEmail() {
+        stage = .details
+        code = ""
+        errorMessage = nil
     }
 }

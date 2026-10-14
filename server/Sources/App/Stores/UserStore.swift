@@ -66,9 +66,12 @@ enum UserStore {
     struct CredRow: Decodable { let id: String; let password_hash: String?; let is_setup: Bool }
 
     /// Sign-in is by email only (stored lowercased); the @username is public.
-    static func findForLogin(_ email: String, on db: any SQLDatabase) async throws -> CredRow? {
-        try await db.raw("SELECT id, password_hash, is_setup FROM users WHERE email = \(bind: email) AND deleted_at IS NULL")
-            .first(decoding: CredRow.self)
+    /// By @username or email.
+    static func findForLogin(_ identifier: String, on db: any SQLDatabase) async throws -> CredRow? {
+        try await db.raw("""
+            SELECT id, password_hash, is_setup FROM users
+            WHERE (username = \(bind: identifier) OR email = \(bind: identifier)) AND deleted_at IS NULL
+            """).first(decoding: CredRow.self)
     }
 
     static func usernameTaken(_ username: String, excluding userID: String? = nil, on db: any SQLDatabase) async throws -> Bool {

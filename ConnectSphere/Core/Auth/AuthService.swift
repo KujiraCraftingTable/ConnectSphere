@@ -81,13 +81,22 @@ class AuthService {
     // MARK: - Username / password auth
 
     /// A new account never has two-factor on yet.
-    func register(email: String, password: String) async throws -> AuthResponse {
-        try JSONDecoder.makeISO8601().decode(AuthResponse.self,
-                                             from: try await post("/auth/register", ["email": email, "password": password]))
+    /// Checks the username and email are free, then emails a sign-up code.
+    func registerCode(username: String, email: String) async throws {
+        _ = try await post("/auth/register/code", ["username": username, "email": email])
     }
 
-    func login(email: String, password: String) async throws -> LoginResult {
-        try signInResult(try await post("/auth/login", ["email": email, "password": password]))
+    /// `email` is optional; when given, `code` is the one `registerCode` sent.
+    func register(username: String, password: String, email: String?, code: String?) async throws -> AuthResponse {
+        var body = ["username": username, "password": password]
+        if let email { body["email"] = email }
+        if let code { body["code"] = code }
+        return try JSONDecoder.makeISO8601().decode(AuthResponse.self, from: try await post("/auth/register", body))
+    }
+
+    /// `identifier` is the @username or the email.
+    func login(identifier: String, password: String) async throws -> LoginResult {
+        try signInResult(try await post("/auth/login", ["username": identifier, "password": password]))
     }
 
     /// `mode` asks for that mode's persona; nil is the account's default mode.
