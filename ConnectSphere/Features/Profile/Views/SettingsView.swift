@@ -11,6 +11,7 @@ struct SettingsView: View {
     @State private var showThemePicker = false
     @State private var showEditProfile = false
     @State private var showLogoutConfirm = false
+    @State private var copiedUsername = false
     @AppStorage("searchRadiusKm") private var searchRadiusKm: Int = 0
 
 
@@ -58,7 +59,8 @@ struct SettingsView: View {
             }
 
             // Account
-            Section(bundle.loc("Account")) {
+            Section {
+                usernameRow
                 Button { showEditProfile = true } label: {
                     settingsRow(icon: "person.fill", label: bundle.loc("Edit profile"), color: themeManager.theme.primary)
                 }
@@ -102,6 +104,10 @@ struct SettingsView: View {
                 } label: {
                     settingsRow(icon: "bookmark.fill", label: bundle.loc("Saved"), color: Color(hex: "#795548"), showsChevron: false)
                 }
+            } header: {
+                Text("Account", bundle: bundle)
+            } footer: {
+                Text("Sign in with your username, or with your email if you've added one.", bundle: bundle)
             }
 
             #if DEBUG
@@ -286,6 +292,44 @@ struct SettingsView: View {
     }
 
     // MARK: Settings Row
+
+    /// Your @username — what you sign in with — and a Copy button.
+    private var usernameRow: some View {
+        let username = appState.currentUser?.username ?? ""
+        return HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 7)
+                    .fill(Color(hex: "#7E57C2"))
+                    .frame(width: 30, height: 30)
+                Image(systemName: "at")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+            Text("Username", bundle: bundle)
+                .font(.system(size: 16))
+                .foregroundColor(AppColors.textPrimary(colorScheme))
+            Spacer()
+            Text("@\(username)")
+                .font(.system(size: 15))
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+                .lineLimit(1)
+            Button {
+                UIPasteboard.general.string = username
+                withAnimation { copiedUsername = true }
+                Task {
+                    try? await Task.sleep(for: .seconds(1.5))
+                    withAnimation { copiedUsername = false }
+                }
+            } label: {
+                Image(systemName: copiedUsername ? "checkmark" : "doc.on.doc")
+                    .font(.system(size: 14))
+                    .foregroundColor(themeManager.theme.primary)
+            }
+            // Borderless: a plain Button in a List row fires on any tap of the row.
+            .buttonStyle(.borderless)
+            .accessibilityLabel(Text(bundle.loc(copiedUsername ? "Copied" : "Copy username")))
+        }
+    }
 
     private func settingsRow(icon: String, label: String, color: Color, showsChevron: Bool = true) -> some View {
         HStack(spacing: 12) {

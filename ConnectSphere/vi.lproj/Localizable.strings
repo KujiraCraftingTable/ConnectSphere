@@ -1303,3 +1303,9 @@
 "Show a link to my Hobby profile" = "Hiện liên kết tới hồ sơ Sở thích";
 "Shown on your Hobby profile. Your Work profile stays visible to people in Work mode either way." = "Hiện trên hồ sơ Sở thích của bạn. Dù bật hay tắt, hồ sơ Công việc vẫn hiển thị với người dùng ở chế độ Công việc.";
 "Shown on your Work profile. Your Hobby profile stays visible to people in Hobby mode either way." = "Hiện trên hồ sơ Công việc của bạn. Dù bật hay tắt, hồ sơ Sở thích vẫn hiển thị với người dùng ở chế độ Sở thích.";
+"Continue as" = "Tiếp tục với";
+"Remove %@ from this device" = "Xoá %@ khỏi thiết bị này";
+"Copy username" = "Sao chép tên người dùng";
+"Copied" = "Đã sao chép";
+"Sign in with your username, or with your email if you've added one." = "Đăng nhập bằng tên người dùng, hoặc bằng email nếu bạn đã thêm.";
+"Invalid username, email or password" = "Tên người dùng, email hoặc mật khẩu không đúng";

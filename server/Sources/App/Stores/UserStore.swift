@@ -68,6 +68,15 @@ enum UserStore {
             .first(decoding: CredRow.self)
     }
 
+    /// Sign-in by username or, for accounts that added one, email — told
+    /// apart by the "@" (usernames can't contain one). Both are stored
+    /// lowercased.
+    static func findForLogin(_ identifier: String, on db: any SQLDatabase) async throws -> CredRow? {
+        guard identifier.contains("@") else { return try await findByUsername(identifier, on: db) }
+        return try await db.raw("SELECT id, password_hash, is_setup FROM users WHERE email = \(bind: identifier)")
+            .first(decoding: CredRow.self)
+    }
+
     static func usernameTaken(_ username: String, excluding userID: String? = nil, on db: any SQLDatabase) async throws -> Bool {
         if let userID {
             return try await db.raw("SELECT id FROM users WHERE username = \(bind: username) AND id <> \(uuid: userID)")
