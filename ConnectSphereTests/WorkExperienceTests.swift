@@ -46,3 +46,21 @@ struct WorkExperienceTests {
         #expect(WorkMonth("2024-03")?.key == "2024-03")
     }
 }
+
+/// Skills as the server sends them: most-endorsed first, who vouched, and
+/// whether the viewer may endorse.
+struct ProfileSkillsTests {
+    @Test func decodesSkillsAndWhetherICanEndorse() throws {
+        let json = """
+        {"data":[{"id":7,"skill":"Swift","endorsement_count":2,"endorsed_by_me":true,
+                  "top_endorsers":[{"id":"u1","display_name":"An","avatar_url":null,"avatar_color":"#111111"}]},
+                 {"id":8,"skill":"Go","endorsement_count":0,"endorsed_by_me":false,"top_endorsers":[]}],
+         "can_endorse":true}
+        """
+        let result = try JSONDecoder().decode(ProfileSkills.self, from: Data(json.utf8))
+        #expect(result.canEndorse)
+        #expect(result.data.map(\.skill) == ["Swift", "Go"])
+        #expect(result.data[0].endorsedByMe && result.data[0].endorsementCount == 2)
+        #expect(result.data[0].topEndorsers.first?.displayName == "An")
+    }
+}

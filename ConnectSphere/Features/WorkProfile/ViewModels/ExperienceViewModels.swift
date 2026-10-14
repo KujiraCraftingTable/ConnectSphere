@@ -139,3 +139,43 @@ final class CompanyPeopleViewModel {
         loaded = true
     }
 }
+
+/// The Skills section: most-endorsed first; endorse when it's a Work connection.
+@MainActor
+@Observable
+final class SkillsViewModel {
+    private(set) var skills: [ProfileSkill] = []
+    private(set) var canEndorse = false
+    private(set) var loaded = false
+    var errorMessage: String?
+
+    private let repository = WorkProfileRepository()
+
+    func load(userId: String, token: String) async {
+        do {
+            let result = try await repository.skills(of: userId, token: token)
+            skills = result.data
+            canEndorse = result.canEndorse
+            loaded = true
+        } catch {
+            if !loaded { errorMessage = friendlyError(error) }
+            loaded = true
+        }
+    }
+
+    /// Shown at once; put back if the server refuses.
+    func toggleEndorse(_ skill: ProfileSkill, userId: String, token: String) async {
+        guard let i = skills.firstIndex(where: { $0.id == skill.id }) else { return }
+        let before = skills
+        skills[i].endorsedByMe.toggle()
+        skills[i].endorsementCount = max(0, skill.endorsementCount + (skills[i].endorsedByMe ? 1 : -1))
+        do {
+            let result = try await repository.setEndorsed(skills[i].endorsedByMe, skillId: skill.id, of: userId, token: token)
+            skills = result.data
+            canEndorse = result.canEndorse
+        } catch {
+            skills = before
+            errorMessage = friendlyError(error)
+        }
+    }
+}

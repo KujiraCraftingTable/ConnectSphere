@@ -1198,3 +1198,9 @@
 "Remove this role" = "Xoá vị trí này";
 "Remove this role?" = "Xoá vị trí này?";
 "Since %@" = "Từ %@";
+"Add skills in Edit profile — your Work connections can then endorse them." = "Thêm kỹ năng trong Sửa hồ sơ — kết nối công việc của bạn có thể xác nhận chúng.";
+"%lld endorsement" = "%lld lượt xác nhận";
+"%lld endorsements" = "%lld lượt xác nhận";
+"Endorse" = "Xác nhận";
+"Endorsed" = "Đã xác nhận";
+"%@ endorsed your %@ skill" = "%@ đã xác nhận kỹ năng %@ của bạn";

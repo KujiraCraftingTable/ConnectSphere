@@ -181,10 +181,11 @@ struct ProfileHeaderCard<Actions: View>: View {
         .accessibilityLabel(Text("\(count) \(label)"))
     }
 
-    /// Interests in Hobby, skills in Work — each persona shows its own world.
+    /// Interests in Hobby. Work skills have their own section below, with
+    /// their endorsements (`SkillsSection`).
     @ViewBuilder
     private var tags: some View {
-        let items = mode == .hobby ? user.interests : user.skills
+        let items = mode == .hobby ? user.interests : []
         if !items.isEmpty {
             let row = HStack(spacing: AppSpacing.sm) {
                 ForEach(items, id: \.self) { Chip(text: $0, style: .neutral) }
