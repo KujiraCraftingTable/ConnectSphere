@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import ConnectSphere
 
-/// "See Work / Hobby profile": the persona's switch, and the other persona existing.
+/// The flip to the other persona: the persona's switch, and whether the other one exists.
 struct PersonaLinkTests {
     private func user(link: String = "", hobby: Bool = true, work: Bool = true) throws -> UserProfile {
         let json = """
@@ -18,10 +18,9 @@ struct PersonaLinkTests {
         #expect(try !user(link: #","links_other_mode":false"#).linksOtherMode)
     }
 
-    @Test func buttonNeedsTheOtherPersona() throws {
-        #expect(try user().otherModeLinked(from: .hobby))
-        #expect(try !user(work: false).otherModeLinked(from: .hobby))   // no Work persona to show
-        #expect(try user(work: false).otherModeLinked(from: .work))    // Work → their Hobby side
-        #expect(try !user(link: #","links_other_mode":false"#).otherModeLinked(from: .hobby))
+    @Test func knowsWhichPersonasExist() throws {
+        #expect(try user().hasPersona(.work))
+        #expect(try !user(work: false).hasPersona(.work))
+        #expect(try user(work: false).hasPersona(.hobby))
     }
 }

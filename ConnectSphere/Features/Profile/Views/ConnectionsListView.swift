@@ -83,7 +83,7 @@ struct ConnectionsListView: View {
                 Text(user.displayName)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
-                if let title = user.jobTitle, !title.isEmpty {
+                if appState.currentMode == .work, let title = user.jobTitle, !title.isEmpty {
                     Text(user.company.map { "\(title) · \($0)" } ?? title)
                         .font(.system(size: 13))
                         .foregroundColor(AppColors.textSecondary(colorScheme))

@@ -30,9 +30,8 @@ struct UserProfile: Identifiable {
     var allowFriendRequests: Bool = true
     /// Self-only. Off = never shown in other people's "People you may know".
     var showInSuggestions: Bool = true
-    /// This persona's profile shows "See Work / Hobby profile" (on unless the
-    /// person turned it off for this mode). The button also needs the other
-    /// persona to exist — see `otherModeLinked(from:)`.
+    /// This persona's profile has the flip button to the other one (on
+    /// unless the person turned it off for this mode).
     var linksOtherMode: Bool = true
     /// Self-only. The email was confirmed with a code (or by Google) —
     /// deleting a persona or the account needs it.
@@ -56,9 +55,6 @@ struct UserProfile: Identifiable {
 }
 
 extension UserProfile {
-    /// Whether, seen in `mode`, this profile links to the person's other
-    /// persona: they kept the button on and have that persona set up.
-    func otherModeLinked(from mode: AppMode) -> Bool {
-        linksOtherMode && (mode == .hobby ? workSetup : hobbySetup)
-    }
+    /// Whether they've set up a persona in `mode`.
+    func hasPersona(_ mode: AppMode) -> Bool { mode == .hobby ? hobbySetup : workSetup }
 }

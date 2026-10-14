@@ -822,7 +822,7 @@ struct ColleagueSearchCard: View {
                                     .lineLimit(2)
                                 if let matchPercent { MatchPercentBadge(percent: matchPercent) }
                             }
-                            if let title = user.jobTitle, let company = user.company {
+                            if appState.currentMode == .work, let title = user.jobTitle, let company = user.company {
                                 Text("\(title) · \(company)")
                                     .font(.system(size: 13, weight: .medium))
                                     .foregroundColor(AppColors.textSecondary(colorScheme))

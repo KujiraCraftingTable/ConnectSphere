@@ -44,7 +44,7 @@ struct FollowListView: View {
                 Text(person.displayName)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
-                if let title = person.jobTitle, !title.isEmpty {
+                if appState.currentMode == .work, let title = person.jobTitle, !title.isEmpty {
                     Text(person.company.map { "\(title) · \($0)" } ?? title)
                         .font(.system(size: 13))
                         .foregroundColor(AppColors.textSecondary(colorScheme))
