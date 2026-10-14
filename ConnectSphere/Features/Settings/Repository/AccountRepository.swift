@@ -48,6 +48,18 @@ struct AccountRepository {
                                bodyData: try body(["code": code])).email
     }
 
+    /// A code for turning two-factor sign-in on or off.
+    func sendTwoFactorCode(token: String) async throws -> Sent {
+        try await client.fetch(Sent.self, path: "/users/me/two-factor/code", method: "POST", token: token,
+                               bodyData: try body([:]))
+    }
+
+    func setTwoFactor(_ enabled: Bool, code: String, token: String) async throws {
+        let data = try JSONSerialization.data(withJSONObject: ["enabled": enabled, "code": code])
+        struct State: Decodable { let two_factor_enabled: Bool }
+        _ = try await client.fetch(State.self, path: "/users/me/two-factor", method: "PATCH", token: token, bodyData: data)
+    }
+
     func sendDeletionCode(_ scope: Scope, token: String) async throws -> Sent {
         try await client.fetch(Sent.self, path: "/users/me/deletion/code", method: "POST", token: token,
                                bodyData: try body(["scope": scope.rawValue]))

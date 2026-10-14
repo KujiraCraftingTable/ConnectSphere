@@ -15,6 +15,7 @@ struct PrivacySecurityView: View {
     @State private var personaLink = PersonaLinkSettingViewModel()
     @State private var profileLock = ProfileLockSettingViewModel()
     @State private var confirmLock = false
+    @State private var twoFactorChange: Bool?
 
     private var hasPassword: Bool { appState.currentUser?.hasPassword ?? true }
 
@@ -99,6 +100,34 @@ struct PrivacySecurityView: View {
                 .disabled(suggestionVisibility.isSaving)
             } footer: {
                 Text("When off, you're never suggested to anyone. You still see suggestions yourself.", bundle: bundle)
+            }
+
+            // Two-factor sign-in: a code by email every time
+            Section {
+                Toggle(isOn: Binding(
+                    get: { appState.currentUser?.twoFactorEnabled ?? false },
+                    set: { twoFactorChange = $0 }
+                )) {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 7)
+                                .fill(Color(hex: "#3949AB"))
+                                .frame(width: 30, height: 30)
+                            Image(systemName: "lock.shield.fill")
+                                .font(.system(size: 13))
+                                .foregroundColor(.white)
+                        }
+                        Text("Two-factor authentication", bundle: bundle)
+                            .font(.system(size: 16))
+                            .foregroundColor(AppColors.textPrimary(colorScheme))
+                    }
+                }
+                .tint(themeManager.theme.primary)
+                .disabled(!(appState.currentUser?.emailVerified ?? false))
+            } footer: {
+                Text(bundle.loc((appState.currentUser?.emailVerified ?? false)
+                    ? "When on, every sign-in needs a code sent to your email. You're also emailed each time your account is signed in to."
+                    : "Add and verify an email first, in Manage account."))
             }
 
             // Lock this mode's profile (Facebook-style)
@@ -195,6 +224,9 @@ struct PrivacySecurityView: View {
             set: { if !$0 { suggestionVisibility.errorMessage = nil } }
         )) {
             Button(bundle.loc("OK")) {}
+        }
+        .sheet(isPresented: Binding(get: { twoFactorChange != nil }, set: { if !$0 { twoFactorChange = nil } })) {
+            if let enabling = twoFactorChange { TwoFactorSheet(enabling: enabling) }
         }
         .alert(bundle.loc("Lock your profile?"), isPresented: $confirmLock) {
             Button(bundle.loc("Lock")) { Task { await profileLock.set(true, appState: appState) } }

@@ -36,6 +36,8 @@ struct UserProfile: Identifiable {
     /// Self-only. The email was confirmed with a code (or by Google) —
     /// deleting a persona or the account needs it.
     var emailVerified: Bool = false
+    /// Self-only. Every sign-in needs an emailed code.
+    var twoFactorEnabled: Bool = false
     /// Hobby-only (migration 062): language codes, and a RelationshipStatus raw value.
     var languages: [String] = []
     var relationshipStatus: String? = nil

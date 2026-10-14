@@ -1,5 +1,18 @@
 import Foundation
 import Observation
+import UIKit
+
+/// With two-factor on, a sign-in answers with this instead of a token: the
+/// code went to `email` (masked); send it back with `challenge`.
+struct LoginChallenge: Decodable, Equatable {
+    let challenge: String
+    let email: String
+}
+
+enum LoginResult {
+    case signedIn(AuthResponse)
+    case needsCode(LoginChallenge)
+}
 
 /// Handles all authentication API calls.
 /// DTOs live in AuthDTOs.swift; HTTP transport is handled by NetworkClient.
@@ -10,20 +23,51 @@ class AuthService {
     private let client = NetworkClient.shared
     private init() {}
 
-    func signInWithGoogle(idToken: String) async throws -> AuthResponse {
-        guard let url = URL(string: APIConfig.baseURL + "/auth/google") else { throw URLError(.badURL) }
+    /// What the sign-in alert says the device is: "iPhone · iOS 27.0".
+    private static var deviceName: String {
+        "\(UIDevice.current.model) · \(UIDevice.current.systemName) \(UIDevice.current.systemVersion)"
+    }
+
+    /// POSTs a JSON body to an auth endpoint; errors throw NSError with
+    /// code = HTTP status so callers can map them to localized messages.
+    private func post(_ path: String, _ body: [String: String]) async throws -> Data {
+        guard let url = URL(string: APIConfig.baseURL + path) else { throw URLError(.badURL) }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONEncoder().encode(["id_token": idToken])
-
+        req.setValue(Self.deviceName, forHTTPHeaderField: "X-Device")
+        req.httpBody = try JSONEncoder().encode(body)
         let (data, resp) = try await URLSession.shared.data(for: req)
         guard let http = resp as? HTTPURLResponse else { throw URLError(.badServerResponse) }
-        if http.statusCode != 200 {
+        guard (200...299).contains(http.statusCode) else {
             throw NSError(domain: "Auth", code: http.statusCode,
                           userInfo: [NSLocalizedDescriptionKey: Self.serverErrorMessage(from: data)])
         }
-        return try JSONDecoder.makeISO8601().decode(AuthResponse.self, from: data)
+        return data
+    }
+
+    /// A token, or — with two-factor on — a code challenge.
+    private func signInResult(_ data: Data) throws -> LoginResult {
+        let dict = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        if dict?["two_factor_required"] as? Bool == true {
+            return .needsCode(try JSONDecoder().decode(LoginChallenge.self, from: data))
+        }
+        return .signedIn(try JSONDecoder.makeISO8601().decode(AuthResponse.self, from: data))
+    }
+
+    func signInWithGoogle(idToken: String) async throws -> LoginResult {
+        try signInResult(try await post("/auth/google", ["id_token": idToken]))
+    }
+
+    /// The emailed code for a two-factor sign-in.
+    func verifyLogin(challenge: String, code: String) async throws -> AuthResponse {
+        try JSONDecoder.makeISO8601().decode(AuthResponse.self,
+                                             from: try await post("/auth/login/verify", ["challenge": challenge, "code": code]))
+    }
+
+    /// A fresh code (and challenge) for the same sign-in.
+    func resendLogin(challenge: String) async throws -> LoginChallenge {
+        try JSONDecoder().decode(LoginChallenge.self, from: try await post("/auth/login/resend", ["challenge": challenge]))
     }
 
     /// Reads the error message from the server body, tolerating both formats:
@@ -36,30 +80,14 @@ class AuthService {
 
     // MARK: - Username / password auth
 
+    /// A new account never has two-factor on yet.
     func register(email: String, password: String) async throws -> AuthResponse {
-        try await passwordAuth(path: "/auth/register", email: email, password: password)
+        try JSONDecoder.makeISO8601().decode(AuthResponse.self,
+                                             from: try await post("/auth/register", ["email": email, "password": password]))
     }
 
-    func login(email: String, password: String) async throws -> AuthResponse {
-        try await passwordAuth(path: "/auth/login", email: email, password: password)
-    }
-
-    /// Calls the username/password auth endpoint; errors throw NSError with code = HTTP status
-    /// so the caller can map it to a localized message (409 duplicate username, 401 wrong password…).
-    private func passwordAuth(path: String, email: String, password: String) async throws -> AuthResponse {
-        guard let url = URL(string: APIConfig.baseURL + path) else { throw URLError(.badURL) }
-        var req = URLRequest(url: url)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONEncoder().encode(["email": email, "password": password])
-
-        let (data, resp) = try await URLSession.shared.data(for: req)
-        guard let http = resp as? HTTPURLResponse else { throw URLError(.badServerResponse) }
-        guard (200...299).contains(http.statusCode) else {
-            throw NSError(domain: "Auth", code: http.statusCode,
-                          userInfo: [NSLocalizedDescriptionKey: Self.serverErrorMessage(from: data)])
-        }
-        return try JSONDecoder.makeISO8601().decode(AuthResponse.self, from: data)
+    func login(email: String, password: String) async throws -> LoginResult {
+        try signInResult(try await post("/auth/login", ["email": email, "password": password]))
     }
 
     /// `mode` asks for that mode's persona; nil is the account's default mode.

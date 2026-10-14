@@ -444,7 +444,6 @@
 "Couldn't change password, please try again" = "Couldn't change password, please try again";
 "Forgot password?" = "Forgot password?";
 "Reset password" = "Reset password";
-"Username or email" = "Username or email";
 "Send code" = "Send code";
 "If the account has an email on file, a 6-digit code has been sent." = "If the account has an email on file, a 6-digit code has been sent.";
 "Verification code" = "Verification code";
@@ -1301,7 +1300,6 @@
 "Copy username" = "Copy username";
 "Copied" = "Copied";
 "Sign in with your username, or with your email if you've added one." = "Sign in with your username, or with your email if you've added one.";
-"Invalid username, email or password" = "Invalid username, email or password";
 "Resend code in %llds" = "Resend code in %llds";
 "Resend code" = "Resend code";
 "Send a code to %@" = "Send a code to %@";
@@ -1432,3 +1430,14 @@
 "Enter a valid email address" = "Enter a valid email address";
 "You sign in with your email. You'll pick your public @username next." = "You sign in with your email. You'll pick your public @username next.";
 "You sign in with your email; your @username is your public handle. Deleting a profile or the account needs a code sent to that email." = "You sign in with your email; your @username is your public handle. Deleting a profile or the account needs a code sent to that email.";
+"Check your email" = "Check your email";
+"Two-factor sign-in is on. Enter the 6-digit code we sent to %@." = "Two-factor sign-in is on. Enter the 6-digit code we sent to %@.";
+"Two-factor authentication" = "Two-factor authentication";
+"Every time you sign in — with your password or Google — we'll email a 6-digit code you need to enter. Someone who knows your password still can't get in." = "Every time you sign in — with your password or Google — we'll email a 6-digit code you need to enter. Someone who knows your password still can't get in.";
+"You'll sign in without a code again. You'll still get an email each time your account is signed in to." = "You'll sign in without a code again. You'll still get an email each time your account is signed in to.";
+"Turn on" = "Turn on";
+"Turn off" = "Turn off";
+"When on, every sign-in needs a code sent to your email. You're also emailed each time your account is signed in to." = "When on, every sign-in needs a code sent to your email. You're also emailed each time your account is signed in to.";
+"Add and verify an email first, in Manage account." = "Add and verify an email first, in Manage account.";
+"New sign-in to your account with Google on %@. Not you? Change your password." = "New sign-in to your account with Google on %@. Not you? Change your password.";
+"New sign-in to your account with your password on %@. Not you? Change your password." = "New sign-in to your account with your password on %@. Not you? Change your password.";

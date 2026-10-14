@@ -12,6 +12,8 @@ struct AccountController {
         me.post("email", "change-confirm", use: confirmChange) // POST /users/me/email/change-confirm {code}
         me.post("deletion", "code", use: sendDeletionCode)  // POST /users/me/deletion/code {scope}
         me.delete("personas", ":mode", use: deletePersona)  // DELETE /users/me/personas/:mode {code}
+        me.post("two-factor", "code", use: sendTwoFactorCode) // POST /users/me/two-factor/code
+        me.patch("two-factor", use: setTwoFactor)           // PATCH /users/me/two-factor {enabled, code}
         // DELETE /users/me {code} — UsersController.deleteMe
     }
 
@@ -154,6 +156,33 @@ struct AccountController {
         let code = try await AccountCodeStore.issue(user: req.userID, purpose: p, email: email, on: db)
         try await Mailer(req).sendCode(code, to: email, kind: p.mailKind, minutes: AccountCodeStore.ttlMinutes)
         return SentResponse(email: email)
+    }
+
+    // MARK: two-factor sign-in
+
+    static func sendTwoFactorCode(_ req: Request) async throws -> SentResponse {
+        let db = req.db.sql()
+        let a = try await account(req.userID, on: db)
+        guard a.verified, let email = a.email else { throw Abort(.badRequest, reason: "Add and verify an email first") }
+        let code = try await AccountCodeStore.issue(user: req.userID, purpose: .twoFactor, email: email, on: db)
+        try await Mailer(req).sendCode(code, to: email, kind: .twoFactor, minutes: AccountCodeStore.ttlMinutes)
+        return SentResponse(email: email)
+    }
+
+    struct TwoFactorBody: Content { var enabled: Bool?; var code: String? }
+    struct TwoFactorState: Content { var two_factor_enabled: Bool }
+
+    /// On or off, it takes a code from the verified email — someone already
+    /// signed in can't quietly switch it off.
+    static func setTwoFactor(_ req: Request) async throws -> TwoFactorState {
+        let b = try req.content.decode(TwoFactorBody.self)
+        guard let enabled = b.enabled else { throw Abort(.badRequest, reason: "enabled is required") }
+        let db = req.db.sql()
+        let a = try await account(req.userID, on: db)
+        guard a.verified else { throw Abort(.badRequest, reason: "Add and verify an email first") }
+        _ = try await AccountCodeStore.consume(user: req.userID, purpose: .twoFactor, code: b.code ?? "", on: db)
+        try await db.raw("UPDATE users SET two_factor_enabled = \(bind: enabled) WHERE id = \(uuid: req.userID)").run()
+        return TwoFactorState(two_factor_enabled: enabled)
     }
 
     struct PersonaDeleted: Content { var status = "ok"; var default_mode: String }

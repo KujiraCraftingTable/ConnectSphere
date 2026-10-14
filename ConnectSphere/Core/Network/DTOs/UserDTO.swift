@@ -21,6 +21,7 @@ struct UserDTO: Decodable {
     let linksOtherMode: Bool?
     /// Owner's own response only (PATCH /users/me).
     let emailVerified: Bool?
+    let twoFactorEnabled: Bool?
     let languages: [String]?
     let relationshipStatus: String?
     let isLocked: Bool?
@@ -45,6 +46,7 @@ struct UserDTO: Decodable {
         case dobVisibility   = "dob_visibility"
         case linksOtherMode  = "links_other_mode"
         case emailVerified   = "email_verified"
+        case twoFactorEnabled = "two_factor_enabled"
         case languages
         case relationshipStatus = "relationship_status"
         case isLocked        = "is_locked"
@@ -87,6 +89,7 @@ struct UserDTO: Decodable {
             hasPassword:    hasPassword ?? false,
             linksOtherMode: linksOtherMode ?? true,
             emailVerified:  emailVerified ?? false,
+            twoFactorEnabled: twoFactorEnabled ?? false,
             languages:      languages ?? [],
             relationshipStatus: relationshipStatus,
             isLocked:       isLocked ?? false,

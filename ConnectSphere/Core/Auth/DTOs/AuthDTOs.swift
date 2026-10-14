@@ -31,6 +31,7 @@ struct AuthUserDTO: Decodable {
     let showInSuggestions: Bool?
     let linksOtherMode: Bool?
     let emailVerified: Bool?
+    let twoFactorEnabled: Bool?
     let languages: [String]?
     let relationshipStatus: String?
     let isLocked: Bool?
@@ -54,6 +55,7 @@ struct AuthUserDTO: Decodable {
         case showInSuggestions = "show_in_suggestions"
         case linksOtherMode = "links_other_mode"
         case emailVerified = "email_verified"
+        case twoFactorEnabled = "two_factor_enabled"
         case languages
         case relationshipStatus = "relationship_status"
         case isLocked = "is_locked"
@@ -95,6 +97,7 @@ struct AuthUserDTO: Decodable {
         showInSuggestions = try c.decodeIfPresent(Bool.self, forKey: .showInSuggestions)
         linksOtherMode = try c.decodeIfPresent(Bool.self, forKey: .linksOtherMode)
         emailVerified = try c.decodeIfPresent(Bool.self, forKey: .emailVerified)
+        twoFactorEnabled = try c.decodeIfPresent(Bool.self, forKey: .twoFactorEnabled)
         languages = try c.decodeIfPresent([String].self, forKey: .languages)
         relationshipStatus = try c.decodeIfPresent(String.self, forKey: .relationshipStatus)
         isLocked = try c.decodeIfPresent(Bool.self, forKey: .isLocked)
@@ -128,6 +131,7 @@ struct AuthUserDTO: Decodable {
             showInSuggestions: showInSuggestions ?? true,
             linksOtherMode: linksOtherMode ?? true,
             emailVerified: emailVerified ?? false,
+            twoFactorEnabled: twoFactorEnabled ?? false,
             languages: languages ?? [],
             relationshipStatus: relationshipStatus,
             isLocked: isLocked ?? false,

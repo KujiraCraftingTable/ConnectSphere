@@ -239,18 +239,37 @@ class AppState {
 
     // ── Login after Google Sign-In ──────────────────────────────────────────────
 
-    func loginWithGoogle(idToken: String) async throws {
-        let response = try await AuthService.shared.signInWithGoogle(idToken: idToken)
-        KeychainHelper.save(response.token, forKey: KeychainHelper.tokenKey)
-        await MainActor.run { finishLogin(token: response.token, user: response.user, isNew: response.isNewUser) }
+    /// Signed in, or (two-factor on) waiting for the emailed code.
+    enum SignInOutcome: Equatable {
+        case signedIn
+        case needsCode(LoginChallenge)
+    }
+
+    private func handle(_ result: LoginResult) -> SignInOutcome {
+        switch result {
+        case .signedIn(let response):
+            KeychainHelper.save(response.token, forKey: KeychainHelper.tokenKey)
+            finishLogin(token: response.token, user: response.user, isNew: response.isNewUser)
+            return .signedIn
+        case .needsCode(let challenge):
+            return .needsCode(challenge)
+        }
+    }
+
+    func loginWithGoogle(idToken: String) async throws -> SignInOutcome {
+        handle(try await AuthService.shared.signInWithGoogle(idToken: idToken))
+    }
+
+    /// The second step of a two-factor sign-in.
+    func verifyLogin(challenge: String, code: String) async throws {
+        let response = try await AuthService.shared.verifyLogin(challenge: challenge, code: code)
+        _ = handle(.signedIn(response))
     }
 
     // ── Login / register with email + password ────────────────────────────────
 
-    func loginWithPassword(email: String, password: String) async throws {
-        let response = try await AuthService.shared.login(email: email, password: password)
-        KeychainHelper.save(response.token, forKey: KeychainHelper.tokenKey)
-        await MainActor.run { finishLogin(token: response.token, user: response.user, isNew: response.isNewUser) }
+    func loginWithPassword(email: String, password: String) async throws -> SignInOutcome {
+        handle(try await AuthService.shared.login(email: email, password: password))
     }
 
     /// Registering also logs the user in right away — is_new_user=true so the root view auto-navigates into onboarding.

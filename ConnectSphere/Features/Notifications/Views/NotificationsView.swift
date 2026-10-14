@@ -338,6 +338,11 @@ struct ActorNotifRow: View {
             return String(format: bundle.loc("%@ endorsed your %@ skill"), senderName, notif.payload.skill ?? "")
         case "job_application":
             return String(format: bundle.loc("%@ applied to %@"), senderName, notif.payload.jobTitle ?? "")
+        case "new_login":
+            return String(format: bundle.loc(notif.payload.method == "google"
+                    ? "New sign-in to your account with Google on %@. Not you? Change your password."
+                    : "New sign-in to your account with your password on %@. Not you? Change your password."),
+                          notif.payload.device ?? "")
         case "application_status":
             let job = notif.payload.jobTitle ?? ""
             switch notif.payload.status {
@@ -453,6 +458,7 @@ struct ActorNotifRow: View {
         case "birthday":            return "gift.fill"
         case "skill_endorsed":      return "hand.thumbsup.circle.fill"
         case "job_application":     return "doc.text.fill"
+        case "new_login":           return "lock.shield.fill"
         case "application_status":  return "briefcase.fill"
         case "post_liked":          return "hand.thumbsup.fill"
         case "comment_liked":       return "hand.thumbsup.fill"

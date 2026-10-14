@@ -32,6 +32,10 @@ struct UserNotificationPayloadDTO: Decodable {
     let jobId: String?
     let jobTitle: String?
 
+    /// A sign-in alert (`new_login`): google | password, and the device.
+    let method: String?
+    let device: String?
+
     // Post / comment
     let excerpt: String?
     /// A comment that's only a photo (no text to quote).

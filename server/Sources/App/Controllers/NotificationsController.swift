@@ -27,6 +27,7 @@ struct NotificationsController {
         "birthday":            .init(category: "social", destination: "profile"),
         "mode_mismatch":       .init(category: "social", destination: "none"),
         "skill_endorsed":      .init(category: "social", destination: "profile"),
+        "new_login":           .init(category: "social", destination: "none"),
         "job_application":     .init(category: "social", destination: "jobApplicants"),
         "application_status":  .init(category: "social", destination: "job"),
         "scheduled_post_live": .init(category: "social", destination: "post"),

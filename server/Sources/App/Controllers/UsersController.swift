@@ -236,14 +236,18 @@ struct UsersController {
         guard let pub = try await UserStore.findById(req.userID, mode: mode, on: sdb) else {
             throw Abort(.internalServerError)
         }
-        struct Priv: Decodable { let email: String?; let email_verified: Bool; let dob: Date?; let dob_visibility: String?; let age: Int?; let has_password: Bool }
+        struct Priv: Decodable {
+            let email: String?; let email_verified: Bool; let two_factor_enabled: Bool
+            let dob: Date?; let dob_visibility: String?; let age: Int?; let has_password: Bool
+        }
         let priv = try await sdb.raw("""
-            SELECT email, (email_verified_at IS NOT NULL) AS email_verified, dob, dob_visibility, age,
+            SELECT email, (email_verified_at IS NOT NULL) AS email_verified, two_factor_enabled, dob, dob_visibility, age,
                    (password_hash IS NOT NULL AND password_hash <> '' AND password_hash <> 'SEED_DATA') AS has_password
             FROM users WHERE id = \(uuid: req.userID)
             """).first(decoding: Priv.self)!
         return DataResponse(data: PrivateUserObject(
-            pub: pub, email: priv.email, email_verified: priv.email_verified, has_password: priv.has_password,
+            pub: pub, email: priv.email, email_verified: priv.email_verified,
+            two_factor_enabled: priv.two_factor_enabled, has_password: priv.has_password,
             dob: priv.dob, dob_visibility: priv.dob_visibility, age: priv.age))
     }
 
