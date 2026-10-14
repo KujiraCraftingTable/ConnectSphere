@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Work mode's Jobs tab: For you (best matches with why), Search with
-/// filters, and Saved. Communities live behind the toolbar button here.
+/// filters, Saved, and Applied. Communities live behind the toolbar button here.
 struct JobsHomeView: View {
     @Environment(AppState.self) private var appState
     @Environment(ThemeManager.self) private var themeManager
@@ -22,6 +22,7 @@ struct JobsHomeView: View {
                         Text("For you", bundle: bundle).tag(JobsHomeViewModel.Segment.forYou)
                         Text("Search", bundle: bundle).tag(JobsHomeViewModel.Segment.search)
                         Text("Saved", bundle: bundle).tag(JobsHomeViewModel.Segment.saved)
+                        Text("Applied", bundle: bundle).tag(JobsHomeViewModel.Segment.applied)
                     }
                     .pickerStyle(.segmented)
 
@@ -35,10 +36,19 @@ struct JobsHomeView: View {
 
                     if viewModel.isLoading {
                         ProgressView().padding(.top, 40)
-                    } else if let error = viewModel.errorMessage, viewModel.shown.isEmpty {
+                    } else if let error = viewModel.errorMessage, viewModel.isEmpty {
                         Text(error).foregroundColor(AppColors.textSecondary(colorScheme)).padding(.top, 40)
-                    } else if viewModel.shown.isEmpty {
+                    } else if viewModel.isEmpty {
                         emptyState
+                    } else if viewModel.segment == .applied {
+                        ForEach(viewModel.applications) { application in
+                            NavigationLink {
+                                JobDetailView(jobId: application.jobId) { viewModel.updated($0) }
+                            } label: {
+                                MyApplicationCard(application: application)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     } else {
                         ForEach(viewModel.shown) { job in
                             NavigationLink {
@@ -110,6 +120,7 @@ struct JobsHomeView: View {
         case .forYou: bundle.loc("No open jobs to suggest yet. Add skills and experience to your profile for better matches.")
         case .search: bundle.loc("No jobs match.")
         case .saved: bundle.loc("Jobs you save show here.")
+        case .applied: bundle.loc("Jobs you apply to show here, with where each application stands.")
         }
     }
 }

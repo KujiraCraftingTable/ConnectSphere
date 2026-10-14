@@ -30,14 +30,15 @@ enum APIConfig {
     /// bare path (`/uploads/x.jpg`) and get this device's server address in
     /// front — never the uploader's, which other devices can't reach. Outside
     /// links (YouTube thumbnails, link previews) are used as they are.
-    /// Message media (`/uploads/messages/*`) is auth-gated on the server;
+    /// Message media (`/uploads/messages/*`) and CVs (`/uploads/cv/*`) are
+    /// auth-gated on the server;
     /// `AsyncImage` can't send an Authorization header, so the JWT rides
     /// along as `?token=`.
     static func mediaURL(_ link: String?) -> URL? {
         guard let link = link?.trimmingCharacters(in: .whitespacesAndNewlines), !link.isEmpty else { return nil }
         guard link.hasPrefix("/") else { return URL(string: link) }
         let full = serverBase + link
-        guard link.hasPrefix("/uploads/messages/"),
+        guard link.hasPrefix("/uploads/messages/") || link.hasPrefix("/uploads/cv/"),
               let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey),
               var comps = URLComponents(string: full) else {
             return URL(string: full)

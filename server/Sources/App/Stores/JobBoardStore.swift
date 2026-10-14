@@ -48,6 +48,10 @@ enum JobBoardStore {
         var poster: Poster
         var is_mine: Bool
         var match: Match
+        /// The viewer's application status, if they applied.
+        @NullCoded var application_status: String? = nil
+        /// For the job's poster / company admins only.
+        @NullCoded var applicant_count: Int? = nil
     }
 
     struct Row: Decodable {
@@ -58,6 +62,7 @@ enum JobBoardStore {
         let created_at: Date; let description: String?; let skills: String; let saved: Bool; let interested_count: Int
         let poster_id: String; let poster_name: String; let poster_avatar: String?; let poster_color: String?
         let poster_title: String?; let followed_company: Bool; let semantic: Double
+        let application_status: String?; let applicant_count: Int?
     }
 
     /// Open Work-mode jobs the viewer may see (the feed's visibility rules).
@@ -81,7 +86,11 @@ enum JobBoardStore {
               COALESCE(\(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: "'work'")), u.avatar_url) AS poster_avatar,
               u.avatar_color AS poster_color, u.job_title AS poster_title,
               EXISTS(SELECT 1 FROM company_followers f WHERE f.company_id = jp.company_id AND f.user_id = \(uuid: viewer)) AS followed_company,
-              \(sem) AS semantic
+              \(sem) AS semantic,
+              (SELECT ja.status FROM job_applications ja WHERE ja.job_id = jp.id AND ja.applicant_id = \(uuid: viewer)) AS application_status,
+              CASE WHEN p.author_id = \(uuid: viewer)
+                     OR EXISTS(SELECT 1 FROM company_admins ca WHERE ca.company_id = jp.company_id AND ca.user_id = \(uuid: viewer))
+                   THEN (SELECT COUNT(*)::int FROM job_applications ja2 WHERE ja2.job_id = jp.id) END AS applicant_count
             FROM job_posts jp
             JOIN posts p ON p.id = jp.post_id
             JOIN users u ON u.id = p.author_id
@@ -163,7 +172,8 @@ enum JobBoardStore {
             poster: Poster(id: r.poster_id, display_name: r.poster_name, avatar_url: r.poster_avatar,
                            avatar_color: r.poster_color, job_title: r.poster_title),
             is_mine: r.poster_id.lowercased() == viewer.lowercased(),
-            match: match(r, skills: skills, viewer: context))
+            match: match(r, skills: skills, viewer: context),
+            application_status: r.application_status, applicant_count: r.applicant_count)
     }
 
     // MARK: lists

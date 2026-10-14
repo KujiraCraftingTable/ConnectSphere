@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// A job in a list: company logo, title, company (✓), pay, place · format,
-/// level, why it fits you, and Save.
+/// level, why it fits you, your application's status, and Save.
 struct JobCard: View {
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.appBundle) private var bundle
@@ -59,6 +59,13 @@ struct JobCard: View {
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .background(themeManager.theme.primary.opacity(0.1), in: Capsule())
+                }
+                if let status = job.applicationStatus {
+                    ApplicationStatusPill(status: status)
+                } else if let count = job.applicantCount {
+                    Label(String(format: bundle.loc("%lld applied"), count), systemImage: "person.2")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 Spacer(minLength: 0)
                 if let deadline = job.deadlineDate {

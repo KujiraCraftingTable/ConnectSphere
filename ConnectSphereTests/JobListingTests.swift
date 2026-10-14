@@ -42,3 +42,33 @@ struct JobListingTests {
         #expect(try job(reason: "profile").matchText(loc: loc) == "Matches your profile")
     }
 }
+
+/// An Easy Apply application as the app gets it.
+struct JobApplicationTests {
+    private func application(match: String = #"{"score":0.6,"matched_skills":["Figma"],"missing_skills":["Sketch","UX"],"reason":"skills"}"#) throws -> JobApplication {
+        let json = """
+        {"id":"a1","job_id":"j1","job_title":"Designer","company_name":"Acme","company_logo_url":null,"status":"shortlisted",
+         "note":"Hi","cv_url":"/uploads/cv/u_x.pdf","created_at":"2026-10-14T09:00:00.000Z","updated_at":"2026-10-14T10:00:00.000Z",
+         "events":[{"status":"applied","created_at":"2026-10-14T09:00:00.000Z"},{"status":"shortlisted","created_at":"2026-10-14T10:00:00.000Z"}],
+         "applicant":{"id":"u","display_name":"Bao","avatar_url":null,"avatar_color":"#123456","job_title":"UI designer","location":null},
+         "match":\(match)}
+        """
+        return try JSONDecoder.makeISO8601().decode(JobApplication.self, from: Data(json.utf8))
+    }
+
+    @Test func decodesTheTimeline() throws {
+        let a = try application()
+        #expect(a.events.map(\.status) == ["applied", "shortlisted"])
+        #expect(a.applicant.displayName == "Bao" && a.cvUrl != nil)
+    }
+
+    @Test func skillFitCountsTheJobsSkills() throws {
+        #expect(try application().skillsText(loc: { $0 }) == "1 of 3 skills match")
+        #expect(try application(match: "null").skillsText(loc: { $0 }) == nil)
+    }
+
+    @Test func statusLabels() {
+        #expect(JobApplication.statusLabel("rejected") == "Not selected")
+        #expect(JobApplication.statuses.allSatisfy { JobApplication.statusIcon($0) != "circle.fill" })
+    }
+}

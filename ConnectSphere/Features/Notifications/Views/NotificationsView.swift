@@ -11,6 +11,8 @@ enum NotificationDestination: Identifiable, Hashable {
     case conversation(ChatRoute)
     case conversationList
     case community(id: String)
+    case job(id: String)
+    case jobApplicants(jobId: String)
 
     var id: String {
         switch self {
@@ -19,6 +21,8 @@ enum NotificationDestination: Identifiable, Hashable {
         case .conversation(let route):      return "chat:\(route.conversationId)"
         case .conversationList:             return "chats"
         case .community(let id):            return "community:\(id)"
+        case .job(let id):                  return "job:\(id)"
+        case .jobApplicants(let id):        return "applicants:\(id)"
         }
     }
 
@@ -53,6 +57,14 @@ enum NotificationDestination: Identifiable, Hashable {
         case "community", "communityJoinRequests", "communityReports":
             guard let communityId = dest.communityId else { return nil }
             return .community(id: communityId)
+
+        case "job":
+            guard let jobId = dest.jobId else { return nil }
+            return .job(id: jobId)
+
+        case "jobApplicants":
+            guard let jobId = dest.jobId else { return nil }
+            return .jobApplicants(jobId: jobId)
 
         default:
             return nil
@@ -269,6 +281,10 @@ struct NotificationsView: View {
                 token: token,
                 currentUserId: appState.currentUser?.id ?? ""
             )
+        case .job(let id):
+            JobDetailView(jobId: id) { _ in }
+        case .jobApplicants(let jobId):
+            ApplicantsView(jobId: jobId)
         }
     }
 
@@ -320,6 +336,16 @@ struct ActorNotifRow: View {
             return String(format: bundle.loc("🎂 It's %@'s birthday today!"), senderName)
         case "skill_endorsed":
             return String(format: bundle.loc("%@ endorsed your %@ skill"), senderName, notif.payload.skill ?? "")
+        case "job_application":
+            return String(format: bundle.loc("%@ applied to %@"), senderName, notif.payload.jobTitle ?? "")
+        case "application_status":
+            let job = notif.payload.jobTitle ?? ""
+            switch notif.payload.status {
+            case "shortlisted": return String(format: bundle.loc("You're on the shortlist for %@"), job)
+            case "hired": return String(format: bundle.loc("You got the job: %@"), job)
+            case "rejected": return String(format: bundle.loc("Your application for %@ wasn't selected this time"), job)
+            default: return String(format: bundle.loc("Your application for %@ was updated"), job)
+            }
 
         // ── Post activity ────────────────────────────────────────────────
         case "post_liked":
@@ -426,6 +452,8 @@ struct ActorNotifRow: View {
         case "connection_accepted": return "person.badge.shield.checkmark"
         case "birthday":            return "gift.fill"
         case "skill_endorsed":      return "hand.thumbsup.circle.fill"
+        case "job_application":     return "doc.text.fill"
+        case "application_status":  return "briefcase.fill"
         case "post_liked":          return "hand.thumbsup.fill"
         case "comment_liked":       return "hand.thumbsup.fill"
         case "post_commented":      return "bubble.left.fill"

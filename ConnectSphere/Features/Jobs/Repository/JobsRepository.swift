@@ -48,6 +48,57 @@ struct JobsRepository {
         try await client.fetch(DataListResponse<JobListing>.self, path: "/companies/\(companyId)/jobs", token: token).data
     }
 
+    // MARK: Easy Apply
+
+    func apply(jobId: String, note: String?, cvUrl: String?, token: String) async throws -> JobApplication {
+        var body: [String: Any] = [:]
+        if let note { body["note"] = note }
+        if let cvUrl { body["cv_url"] = cvUrl }
+        return try await client.fetch(DataResponse<JobApplication>.self, path: "/jobs/\(jobId)/apply", method: "POST",
+                                      token: token, bodyData: try JSONSerialization.data(withJSONObject: body)).data
+    }
+
+    func myApplications(token: String) async throws -> [JobApplication] {
+        try await client.fetch(DataListResponse<JobApplication>.self, path: "/jobs/applications/mine", token: token).data
+    }
+
+    func applicants(jobId: String, token: String) async throws -> [JobApplication] {
+        try await client.fetch(DataListResponse<JobApplication>.self, path: "/jobs/\(jobId)/applications", token: token).data
+    }
+
+    func setStatus(_ status: String, applicationId: String, token: String) async throws -> JobApplication {
+        let body = try JSONSerialization.data(withJSONObject: ["status": status])
+        return try await client.fetch(DataResponse<JobApplication>.self, path: "/jobs/applications/\(applicationId)",
+                                      method: "PATCH", token: token, bodyData: body).data
+    }
+
+    /// A PDF CV; returns its private path (`/uploads/cv/…`).
+    func uploadCV(_ data: Data, fileName: String, token: String) async throws -> String {
+        let boundary = UUID().uuidString
+        var body = Data()
+        body.append(Data("--\(boundary)\r\n".utf8))
+        body.append(Data("Content-Disposition: form-data; name=\"file\"; filename=\"\(fileName)\"\r\n".utf8))
+        body.append(Data("Content-Type: application/pdf\r\n\r\n".utf8))
+        body.append(data)
+        body.append(Data("\r\n--\(boundary)--\r\n".utf8))
+        guard let url = URL(string: APIConfig.baseURL + "/jobs/cv") else { throw APIError.invalidURL }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
+        let (responseData, response): (Data, URLResponse)
+        do { (responseData, response) = try await URLSession.shared.data(for: request) }
+        catch { throw APIError.networkError(error) }
+        struct Uploaded: Decodable { let url: String }
+        struct Failure: Decodable { let message: String }
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            let message = (try? JSONDecoder().decode(Failure.self, from: responseData))?.message ?? ""
+            throw APIError.serverError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0, message: message)
+        }
+        return try JSONDecoder().decode(Uploaded.self, from: responseData).url
+    }
+
     /// Saving is the job's existing "interested" toggle.
     func setSaved(_ saved: Bool, jobId: String, token: String) async throws {
         let body = try JSONSerialization.data(withJSONObject: ["interested": saved])

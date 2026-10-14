@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// One job: what, where, pay, the skills it needs (yours ticked, the rest
-/// to build), the description, who posted it — and Save / Apply.
+/// to build), the description, who posted it — and Save / Apply (or, for
+/// whoever's hiring, its applicants).
 struct JobDetailView: View {
     @Environment(AppState.self) private var appState
     @Environment(ThemeManager.self) private var themeManager
@@ -9,6 +10,7 @@ struct JobDetailView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     @State private var viewModel: JobDetailViewModel
+    @State private var applying = false
     let onChange: (JobListing) -> Void
 
     init(jobId: String, preloaded: JobListing? = nil, onChange: @escaping (JobListing) -> Void) {
@@ -67,6 +69,9 @@ struct JobDetailView: View {
         }
         .task { await viewModel.load(token: token) }
         .onChange(of: viewModel.job) { _, job in if let job { onChange(job) } }
+        .sheet(isPresented: $applying) {
+            if let job = viewModel.job { ApplySheet(job: job) { viewModel.applied($0) } }
+        }
     }
 
     private func header(_ job: JobListing) -> some View {
@@ -160,15 +165,45 @@ struct JobDetailView: View {
 
     private func actions(_ job: JobListing) -> some View {
         HStack(spacing: 10) {
-            Button { Task { await viewModel.toggleSave(token: token) } } label: {
-                Label(bundle.loc(job.saved ? "Saved" : "Save"), systemImage: job.saved ? "bookmark.fill" : "bookmark")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(themeManager.theme.primary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(themeManager.theme.primary.opacity(0.12), in: Capsule())
+            if let count = job.applicantCount {
+                NavigationLink { ApplicantsView(jobId: job.id) } label: {
+                    Label(String(format: bundle.loc("Applicants (%lld)"), count), systemImage: "person.2")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(themeManager.theme.primary, in: Capsule())
+                }
+                .buttonStyle(.plain)
+            } else {
+                Button { Task { await viewModel.toggleSave(token: token) } } label: {
+                    Label(bundle.loc(job.saved ? "Saved" : "Save"), systemImage: job.saved ? "bookmark.fill" : "bookmark")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(themeManager.theme.primary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(themeManager.theme.primary.opacity(0.12), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                if let status = job.applicationStatus {
+                    Label(bundle.loc(JobApplication.statusLabel(status)), systemImage: JobApplication.statusIcon(status))
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(themeManager.theme.primary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(themeManager.theme.primary.opacity(0.12), in: Capsule())
+                } else {
+                    Button { applying = true } label: {
+                        Label(bundle.loc("Apply"), systemImage: "paperplane.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(themeManager.theme.primary, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
             }
-            .buttonStyle(.plain)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
