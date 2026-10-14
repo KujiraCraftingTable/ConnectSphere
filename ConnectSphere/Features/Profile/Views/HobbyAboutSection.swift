@@ -1,8 +1,7 @@
 import SwiftUI
 
-/// A Hobby profile's "About": relationship, languages and education. Your
-/// own profile can add and edit schools here (languages and relationship are
-/// in Edit profile).
+/// A Hobby profile's "About": relationship, languages and education. Display
+/// only — all three are edited in Edit profile.
 struct HobbyAboutSection: View {
     @Environment(AppState.self) private var appState
     @Environment(ThemeManager.self) private var themeManager
@@ -13,12 +12,6 @@ struct HobbyAboutSection: View {
     let isMe: Bool
 
     @State private var viewModel = EducationListViewModel()
-    @State private var editing: EditTarget?
-
-    struct EditTarget: Identifiable {
-        let id = UUID()
-        let school: Education?
-    }
 
     private var token: String { appState.authToken ?? "" }
     private var relationship: RelationshipStatus? { user.relationshipStatus.flatMap(RelationshipStatus.init(rawValue:)) }
@@ -34,12 +27,6 @@ struct HobbyAboutSection: View {
                             .font(.system(size: 18, weight: .bold))
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                         Spacer()
-                        if isMe {
-                            Button { editing = EditTarget(school: nil) } label: {
-                                Label(bundle.loc("Add school"), systemImage: "plus")
-                                    .font(.system(size: 14, weight: .semibold))
-                            }
-                        }
                     }
                     if let relationship {
                         row(icon: "heart.fill", text: bundle.loc(relationship.label))
@@ -48,13 +35,9 @@ struct HobbyAboutSection: View {
                         row(icon: "globe", text: user.languages
                             .map { ProfileLanguages.name($0, locale: bundle.locale) }.joined(separator: ", "))
                     }
-                    ForEach(viewModel.schools) { school in
-                        Button { if isMe { editing = EditTarget(school: school) } } label: { schoolRow(school) }
-                            .buttonStyle(.plain)
-                            .disabled(!isMe)
-                    }
+                    ForEach(viewModel.schools) { schoolRow($0) }
                     if isMe && isEmpty && viewModel.loaded {
-                        Text("Add where you studied, the languages you speak and your relationship status.", bundle: bundle)
+                        Text("Add where you studied, the languages you speak and your relationship status in Edit profile.", bundle: bundle)
                             .font(.system(size: 14))
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
@@ -65,9 +48,6 @@ struct HobbyAboutSection: View {
             }
         }
         .task(id: user.id) { await viewModel.load(userId: user.id, token: token) }
-        .sheet(item: $editing) { target in
-            EducationEditorView(editing: target.school) { viewModel.replace($0) }
-        }
     }
 
     private func row(icon: String, text: String) -> some View {
@@ -100,11 +80,7 @@ struct HobbyAboutSection: View {
                 }
             }
             Spacer(minLength: 0)
-            if isMe {
-                Image(systemName: "pencil").font(.system(size: 13)).foregroundColor(AppColors.textTertiary(colorScheme))
-            }
         }
-        .contentShape(Rectangle())
     }
 }
 

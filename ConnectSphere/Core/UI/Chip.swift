@@ -36,7 +36,7 @@ struct Chip: View {
 
     private var foreground: Color {
         switch style {
-        case .neutral:                 return AppColors.textSecondary(scheme)
+        case .neutral:                 return AppColors.textPrimary(scheme).opacity(0.75)
         case .accent:                  return theme.theme.primary
         case .selectable(let on):      return on ? .white : AppColors.textSecondary(scheme)
         }
@@ -44,7 +44,8 @@ struct Chip: View {
 
     private var background: Color {
         switch style {
-        case .neutral:                 return AppColors.elevated(scheme)
+        // A real grey: `elevated` all but vanished on the white profile card.
+        case .neutral:                 return AppColors.textPrimary(scheme).opacity(scheme == .dark ? 0.16 : 0.08)
         case .accent:                  return theme.theme.primary.opacity(0.12)
         case .selectable(let on):      return on ? theme.theme.primary : AppColors.elevated(scheme)
         }

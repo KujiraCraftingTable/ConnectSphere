@@ -23,6 +23,10 @@ struct ProfileView: View {
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
     @State private var viewModel = ProfileViewModel()
+    /// The back of your card: your other persona as others see it.
+    @State private var otherViewModel = ProfileViewModel()
+    @State private var showingOther = false
+    @State private var flipAngle: Double = 0
     @Environment(\.colorScheme) var colorScheme
     @State private var pull: CGFloat = 0
     @State private var showCreatePost = false
@@ -42,6 +46,30 @@ struct ProfileView: View {
     /// instead of showing possibly-wrong data.
     private var user: UserProfile? { viewModel.user }
 
+    private var otherMode: AppMode { appState.currentMode == .hobby ? .work : .hobby }
+    /// The mode of the side being shown.
+    private var mode: AppMode { showingOther ? otherMode : appState.currentMode }
+    private var shown: ProfileViewModel { showingOther ? otherViewModel : viewModel }
+    private var hasOther: Bool { appState.currentUser?.hasPersona(otherMode) ?? false }
+
+    /// Turns the card edge-on, swaps the side, turns it back.
+    private func flip() {
+        Task {
+            withAnimation(.easeIn(duration: 0.18)) { flipAngle = 90 }
+            try? await Task.sleep(for: .milliseconds(180))
+            showingOther.toggle()
+            flipAngle = -90
+            withAnimation(.easeOut(duration: 0.22)) { flipAngle = 0 }
+            if showingOther, hasOther, otherViewModel.user == nil {
+                await otherViewModel.load(userId: currentUserId, mode: otherMode.rawValue)
+            }
+        }
+    }
+
+    private var flipButton: ProfileHeaderCard<AnyView>.Flip {
+        .init(to: showingOther ? appState.currentMode : otherMode) { flip() }
+    }
+
     /// Used only where posts-section closures need an id while `user` may
     /// still be nil (loading) — this is always the signed-in account's own
     /// profile (ProfileViewModel is never used for anyone else's).
@@ -52,33 +80,35 @@ struct ProfileView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(spacing: 8) {
-                        if let user {
-                            ProfileHeaderCard(user: user, mode: appState.currentMode, onStatTap: { stat in
+                        if showingOther && !hasOther {
+                            noOtherProfileCard
+                                .rotation3DEffect(.degrees(flipAngle), axis: (x: 0, y: 1, z: 0), perspective: 0.5)
+                        } else if let user = showingOther ? otherViewModel.user : user {
+                            ProfileHeaderCard(user: user, mode: mode, onStatTap: { stat in
                                 switch stat {
                                 case .posts:     withAnimation { proxy.scrollTo("posts", anchor: .top) }
-                                case .friends:   navPath.append(ProfileRoute.friends)
-                                case .followers: navPath.append(ProfileRoute.followers)
-                                case .following: navPath.append(ProfileRoute.following)
+                                // The lists belong to the mode you're in.
+                                case .friends:   if !showingOther { navPath.append(ProfileRoute.friends) }
+                                case .followers: if !showingOther { navPath.append(ProfileRoute.followers) }
+                                case .following: if !showingOther { navPath.append(ProfileRoute.following) }
                                 }
-                            }) {
-                                HStack(spacing: AppSpacing.sm) {
-                                    ProfileCardButton(title: bundle.loc("Edit profile"), icon: "pencil",
-                                                      prominent: true) { showEditProfile = true }
-                                    ProfileCardButton(title: bundle.loc("New post"), icon: "plus") { showCreatePost = true }
-                                }
+                            }, flip: flipButton) {
+                                AnyView(cardActions)
                             }
+                            .rotation3DEffect(.degrees(flipAngle), axis: (x: 0, y: 1, z: 0), perspective: 0.5)
+                            // Your other side is a preview: nothing to edit there.
+                            if mode == .work {
+                                ExperienceSection(userId: user.id, isMe: !showingOther)
+                                SkillsSection(userId: user.id, isMe: !showingOther)
+                            }
+                            if mode == .hobby {
+                                HobbyAboutSection(user: user, isMe: !showingOther)
+                                HighlightsRow(userId: user.id, isMe: !showingOther)
+                            }
+                            postsSection.id("posts")
                         } else {
                             ProgressView().padding(.top, 120).frame(maxWidth: .infinity)
                         }
-                        if let user, appState.currentMode == .work {
-                            ExperienceSection(userId: user.id, isMe: true)
-                            SkillsSection(userId: user.id, isMe: true)
-                        }
-                        if let user, appState.currentMode == .hobby {
-                            HighlightsRow(userId: user.id, isMe: true)
-                            HobbyAboutSection(user: user, isMe: true)
-                        }
-                        postsSection.id("posts")
                     }
                 }
                 // The cover runs up under the status bar; its own fade keeps
@@ -155,6 +185,9 @@ struct ProfileView: View {
                 consumePendingAssistantSheet()
             }
             .onChange(of: appState.currentMode) { _, newMode in
+                // A new mode: start again from its side.
+                showingOther = false
+                otherViewModel = ProfileViewModel()
                 if let userId = appState.currentUser?.id {
                     Task { await viewModel.load(userId: userId, mode: newMode.rawValue) }
                 }
@@ -173,15 +206,59 @@ struct ProfileView: View {
 
     // MARK: Posts Section
 
+    /// Front: edit / new post. Back: what the preview is.
     @ViewBuilder
+    private var cardActions: some View {
+        if showingOther {
+            Label(bundle.loc(mode == .work
+                    ? "This is your Work profile as others see it. Switch to Work mode to edit it."
+                    : "This is your Hobby profile as others see it. Switch to Hobby mode to edit it."),
+                  systemImage: mode.glyph)
+                .font(.system(size: 13))
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
+        } else {
+            HStack(spacing: AppSpacing.sm) {
+                ProfileCardButton(title: bundle.loc("Edit profile"), icon: "pencil",
+                                  prominent: true) { showEditProfile = true }
+                ProfileCardButton(title: bundle.loc("New post"), icon: "plus") { showCreatePost = true }
+            }
+        }
+    }
+
+    /// The back when you have no persona in the other mode.
+    private var noOtherProfileCard: some View {
+        VStack(spacing: 14) {
+            Image(systemName: otherMode.glyph)
+                .font(.system(size: 34))
+                .foregroundColor(AppColors.textTertiary(colorScheme))
+                .frame(width: 84, height: 84)
+                .background(AppColors.elevated(colorScheme), in: Circle())
+            Text(bundle.loc(otherMode == .work ? "You don't have a Work profile yet." : "You don't have a Hobby profile yet."))
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(AppColors.textPrimary(colorScheme))
+            Button(bundle.loc("Set it up")) { appState.requestModeSwitch(to: otherMode) }
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(themeManager.theme.primary)
+        }
+        .padding(.vertical, 48)
+        .frame(maxWidth: .infinity)
+        .overlay(alignment: .topTrailing) { FlipButton<AnyView>(flip: flipButton) }
+        .background(AppColors.surface(colorScheme), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .padding(.horizontal, AppSpacing.sm)
+        .padding(.top, 110)
+    }
+
     private var postsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text("Posts", bundle: bundle)
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
-                if !viewModel.isLoading {
-                    Text("\(viewModel.posts.count)")
+                if !shown.isLoading {
+                    Text("\(shown.posts.count)")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
@@ -190,9 +267,9 @@ struct ProfileView: View {
             .padding(.horizontal, 16)
             .padding(.top, 4)
 
-            if viewModel.isLoading && viewModel.posts.isEmpty {
+            if shown.isLoading && shown.posts.isEmpty {
                 ProgressView().padding(.top, 20).frame(maxWidth: .infinity)
-            } else if let error = viewModel.error, viewModel.posts.isEmpty {
+            } else if let error = shown.error, shown.posts.isEmpty {
                 // A single failed load (e.g. a dropped connection) otherwise
                 // left this permanently stuck empty — .task only fires once
                 // per view identity, so switching tabs away and back doesn't
@@ -200,27 +277,27 @@ struct ProfileView: View {
                 postsErrorState(error)
             } else {
                 LazyVStack(spacing: AppSpacing.sm) {
-                    ForEach(viewModel.posts) { post in
+                    ForEach(shown.posts) { post in
                         PostCard(
                             post: post,
                             disableSelfNavigation: true,
-                            onPostDeleted: { viewModel.removePost(id: post.id) },
-                            onPostUpdated: { updated in viewModel.updatePost(updated) },
+                            onPostDeleted: { shown.removePost(id: post.id) },
+                            onPostUpdated: { updated in shown.updatePost(updated) },
                             onOpenDetail: { focus in
                                 detailRoute = PostRoute(postId: post.id, focusComposer: focus)
                             }
                         )
                         .cardStyle()
                         .onAppear {
-                            if post.id == viewModel.posts.last?.id {
+                            if post.id == shown.posts.last?.id {
                                 Task {
-                                    await viewModel.loadMorePosts(userId: currentUserId, mode: appState.currentMode.rawValue)
+                                    await shown.loadMorePosts(userId: currentUserId, mode: appState.currentMode.rawValue)
                                 }
                             }
                         }
                     }
 
-                    if viewModel.isLoadingMore {
+                    if shown.isLoadingMore {
                         ProgressView().padding(.vertical, 12)
                     }
                 }
@@ -242,7 +319,7 @@ struct ProfileView: View {
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .padding(.horizontal, 32)
             Button(bundle.loc("Retry")) {
-                Task { await viewModel.load(userId: currentUserId, mode: appState.currentMode.rawValue) }
+                Task { await shown.load(userId: currentUserId, mode: appState.currentMode.rawValue) }
             }
             .font(.system(size: 14, weight: .semibold))
             .foregroundColor(themeManager.theme.primary)
