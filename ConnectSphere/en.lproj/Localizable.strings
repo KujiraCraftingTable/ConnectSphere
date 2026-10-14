@@ -1198,3 +1198,9 @@
 "Remove this role" = "Remove this role";
 "Remove this role?" = "Remove this role?";
 "Since %@" = "Since %@";
+"Add skills in Edit profile — your Work connections can then endorse them." = "Add skills in Edit profile — your Work connections can then endorse them.";
+"%lld endorsement" = "%lld endorsement";
+"%lld endorsements" = "%lld endorsements";
+"Endorse" = "Endorse";
+"Endorsed" = "Endorsed";
+"%@ endorsed your %@ skill" = "%@ endorsed your %@ skill";

@@ -47,6 +47,7 @@ struct UserProfileView: View {
                         }
                         if appState.currentMode == .work {
                             ExperienceSection(userId: user.id, isMe: user.id == appState.currentUser?.id)
+                            SkillsSection(userId: user.id, isMe: user.id == appState.currentUser?.id)
                         }
                         postsSection.id("posts")
                     }

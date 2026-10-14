@@ -248,7 +248,10 @@ struct UsersController {
             let list = mode == "work" ? b.skills : b.interests
             let table = mode == "work" ? "user_skills" : "user_interests"
             let col = mode == "work" ? "skill" : "interest"
-            if let list {
+            if let list, mode == "work" {
+                // Kept skills keep their row, and so their endorsements.
+                try await EndorsementStore.replaceSkills(of: req.userID, with: list, on: t)
+            } else if let list {
                 let clean = Array(Set(list.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }))
                 try await t.raw("DELETE FROM \(unsafeRaw: table) WHERE user_id = \(uuid: req.userID)").run()
                 if !clean.isEmpty {

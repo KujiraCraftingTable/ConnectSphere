@@ -24,6 +24,9 @@ struct UserNotificationPayloadDTO: Decodable {
     let fromAvatarUrl: String?
     let mode: String?
 
+    /// The skill someone endorsed (`skill_endorsed`).
+    let skill: String?
+
     // Post / comment
     let excerpt: String?
     /// A comment that's only a photo (no text to quote).

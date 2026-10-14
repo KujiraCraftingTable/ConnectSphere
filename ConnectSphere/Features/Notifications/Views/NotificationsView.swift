@@ -318,6 +318,8 @@ struct ActorNotifRow: View {
             return String(format: bundle.loc("%@ accepted your connection request"), senderName)
         case "birthday":
             return String(format: bundle.loc("🎂 It's %@'s birthday today!"), senderName)
+        case "skill_endorsed":
+            return String(format: bundle.loc("%@ endorsed your %@ skill"), senderName, notif.payload.skill ?? "")
 
         // ── Post activity ────────────────────────────────────────────────
         case "post_liked":
@@ -423,6 +425,7 @@ struct ActorNotifRow: View {
         case "connection_request":  return "person.badge.plus"
         case "connection_accepted": return "person.badge.shield.checkmark"
         case "birthday":            return "gift.fill"
+        case "skill_endorsed":      return "hand.thumbsup.circle.fill"
         case "post_liked":          return "hand.thumbsup.fill"
         case "comment_liked":       return "hand.thumbsup.fill"
         case "post_commented":      return "bubble.left.fill"

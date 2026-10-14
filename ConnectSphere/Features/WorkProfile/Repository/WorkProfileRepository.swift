@@ -36,6 +36,16 @@ struct WorkProfileRepository {
                                method: "DELETE", token: token).data
     }
 
+    func skills(of userId: String, token: String) async throws -> ProfileSkills {
+        try await client.fetch(ProfileSkills.self, path: "/users/\(userId)/skills", token: token)
+    }
+
+    /// Endorses (or takes back) one of someone's skills; answers with the list.
+    func setEndorsed(_ endorsed: Bool, skillId: Int, of userId: String, token: String) async throws -> ProfileSkills {
+        try await client.fetch(ProfileSkills.self, path: "/users/\(userId)/skills/\(skillId)/endorse",
+                               method: endorsed ? "POST" : "DELETE", token: token)
+    }
+
     struct CompanyPerson: Identifiable, Decodable, Hashable {
         let id: String
         let displayName: String

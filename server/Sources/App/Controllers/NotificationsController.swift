@@ -26,6 +26,7 @@ struct NotificationsController {
         "connection_accepted": .init(category: "social", destination: "profile"),
         "birthday":            .init(category: "social", destination: "profile"),
         "mode_mismatch":       .init(category: "social", destination: "none"),
+        "skill_endorsed":      .init(category: "social", destination: "profile"),
         "scheduled_post_live": .init(category: "social", destination: "post"),
         "message":             .init(category: "chat", destination: "conversation"),
         "meeting_proposed":    .init(category: "chat", destination: "conversation"),

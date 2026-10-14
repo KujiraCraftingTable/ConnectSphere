@@ -344,11 +344,8 @@ extension UserStore {
                 }
             }
             if let skills {
-                let clean = Array(Set(skills.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }))
-                try await t.raw("DELETE FROM user_skills WHERE user_id = \(uuid: userID)").run()
-                if !clean.isEmpty {
-                    try await t.raw("INSERT INTO user_skills (user_id, skill) SELECT \(uuid: userID), unnest(\(bind: clean)::text[]) ON CONFLICT DO NOTHING").run()
-                }
+                // Kept skills keep their row, and so their endorsements.
+                try await EndorsementStore.replaceSkills(of: userID, with: skills, on: t)
             }
         }
         return try await findById(userID, mode: mode, on: db.sql())
