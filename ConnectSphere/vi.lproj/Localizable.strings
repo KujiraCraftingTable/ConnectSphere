@@ -1283,3 +1283,11 @@
 "You got the job: %@" = "Bạn đã trúng tuyển: %@";
 "Your application for %@ wasn't selected this time" = "Hồ sơ ứng tuyển %@ lần này chưa phù hợp";
 "Your application for %@ was updated" = "Hồ sơ ứng tuyển %@ đã được cập nhật";
+"Keep the title under %lld characters." = "Chức danh tối đa %lld ký tự.";
+"Add your title." = "Hãy nhập chức danh.";
+"Keep the company name under %lld characters." = "Tên công ty tối đa %lld ký tự.";
+"Add the company." = "Hãy nhập tên công ty.";
+"Keep the location under %lld characters." = "Địa điểm tối đa %lld ký tự.";
+"The start can't be in the future." = "Thời gian bắt đầu không thể ở tương lai.";
+"The end can't be in the future." = "Thời gian kết thúc không thể ở tương lai.";
+"The end can't be before the start." = "Thời gian kết thúc không thể trước thời gian bắt đầu.";
