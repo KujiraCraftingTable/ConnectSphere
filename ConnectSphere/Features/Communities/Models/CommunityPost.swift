@@ -94,9 +94,14 @@ struct JobData: Codable {
     let applicationDeadline: Date?
     var interestedCount: Int
     var userInterested: Bool
+    /// VND million / month (Jobs-tab details).
+    var salaryMin: Int? = nil
+    var salaryMax: Int? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, title, company, location
+        case salaryMin            = "salary_min"
+        case salaryMax            = "salary_max"
         case employmentType       = "employment_type"
         case salaryRange          = "salary_range"
         case applicationDeadline  = "application_deadline"

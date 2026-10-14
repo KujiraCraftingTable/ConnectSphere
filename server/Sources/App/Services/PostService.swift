@@ -180,6 +180,7 @@ enum PostService {
         authorID: String, communityID: String?, content: String?,
         jobTitle: String?, jobCompany: String?, jobLocation: String?,
         employmentType: String?, salaryRange: String?, applicationDeadline: String?,
+        details: PostsController.CreateBody.JobDataIn? = nil,
         hashtags: [String], mode: String?, privacy: String?,
         publishing: Publishing = .now,
         on db: AppDatabase
@@ -212,6 +213,7 @@ enum PostService {
             effectiveMode = nil
         }
         guard effectiveMode == "work" else { throw Abort(.badRequest, reason: "Job posts are only available in Work mode") }
+        let extra = try await JobStore.validateDetails(details, author: authorID, on: db.sql())
         // A deadline is a calendar day: it may fall on the day the post goes out.
         if let after = publishing.datesAfter, let deadline = applicationDeadline?.nilIfEmpty,
            let day = Self.dayFormatter.date(from: String(deadline.prefix(10))),
@@ -226,7 +228,7 @@ enum PostService {
             company: jobCompany?.trimmingCharacters(in: .whitespaces).nilIfEmpty,
             location: jobLocation?.trimmingCharacters(in: .whitespaces).nilIfEmpty,
             employmentType: employmentType?.nilIfEmpty, salaryRange: salaryRange?.trimmingCharacters(in: .whitespaces).nilIfEmpty,
-            applicationDeadline: applicationDeadline?.nilIfEmpty, on: db.sql())
+            applicationDeadline: applicationDeadline?.nilIfEmpty, extra: extra, on: db.sql())
         if let communityID, publishing.isLive { try await CommunityMemberStore.incrementPostCount(communityID, 1, on: db.sql()) }
         guard let post = try await PostStore.findById(id, viewer: authorID, includeOwnUnpublished: !publishing.isLive, on: db.sql()) else { throw Abort(.internalServerError) }
         return post

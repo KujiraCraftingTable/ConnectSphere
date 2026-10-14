@@ -238,7 +238,8 @@ struct CommunityCreatePostView: View {
                             employmentType:          $viewModel.jobEmploymentType,
                             salaryRange:             $viewModel.jobSalaryRange,
                             applicationDeadline:     $viewModel.jobApplicationDeadline,
-                            showApplicationDeadline: $viewModel.showJobApplicationDeadline
+                            showApplicationDeadline: $viewModel.showJobApplicationDeadline,
+                            details: viewModel
                         )
                     case .text:
                         EmptyView()

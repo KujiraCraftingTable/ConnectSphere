@@ -17,6 +17,16 @@ struct JobPostCard: View {
 
     private var isSelf: Bool { poster.id == appState.currentUser?.id }
 
+    /// The pay range (VND million / month) or the poster's own text.
+    private var payText: String? {
+        switch (vm.jobData.salaryMin, vm.jobData.salaryMax) {
+        case let (lo?, hi?): return String(format: bundle.loc("%lld–%lld million ₫/month"), lo, hi)
+        case let (lo?, nil): return String(format: bundle.loc("From %lld million ₫/month"), lo)
+        case let (nil, hi?): return String(format: bundle.loc("Up to %lld million ₫/month"), hi)
+        default: return vm.jobData.salaryRange?.isEmpty == false ? vm.jobData.salaryRange : nil
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             // Job header row
@@ -48,8 +58,8 @@ struct JobPostCard: View {
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }
 
-            if let salaryRange = vm.jobData.salaryRange, !salaryRange.isEmpty {
-                Label(salaryRange, systemImage: "dollarsign.circle")
+            if let pay = payText {
+                Label(pay, systemImage: "dollarsign.circle")
                     .font(.system(size: 13))
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }
@@ -58,6 +68,11 @@ struct JobPostCard: View {
                 Label(String(format: bundle.loc("Apply by %@"), formattedDeadline(deadline)), systemImage: "calendar.badge.clock")
                     .font(.system(size: 13))
                     .foregroundColor(AppColors.textSecondary(colorScheme))
+            }
+
+            NavigationLink { JobDetailView(jobId: vm.jobData.id) { _ in } } label: {
+                Label(bundle.loc("View job"), systemImage: "briefcase")
+                    .font(.system(size: 13, weight: .semibold))
             }
 
             // Actions

@@ -111,6 +111,14 @@ struct PostObject: Content {
         @NullCoded var application_deadline: Date?
         var interested_count: Int
         var user_interested: Bool
+        @NullCoded var company_id: String? = nil
+        @NullCoded var company_logo_url: String? = nil
+        var company_verified: Bool? = nil
+        @NullCoded var work_format: String? = nil
+        @NullCoded var level: String? = nil
+        @NullCoded var salary_min: Int? = nil
+        @NullCoded var salary_max: Int? = nil
+        var skills: [String]? = nil
     }
     struct CommunityRef: Content {
         var id: String

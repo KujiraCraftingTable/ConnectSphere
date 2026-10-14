@@ -122,6 +122,14 @@ struct PostsController {
             var employmentType: String?
             var salaryRange: String?
             var applicationDeadline: String?
+            /// Post as this company page (you must be one of its admins).
+            var companyId: String?
+            var workFormat: String?
+            var level: String?
+            /// VND million / month.
+            var salaryMin: Int?
+            var salaryMax: Int?
+            var skills: [String]?
         }
     }
 
@@ -152,7 +160,7 @@ struct PostsController {
                 authorID: req.userID, communityID: nil, content: b.content,
                 jobTitle: b.jobData?.title, jobCompany: b.jobData?.company, jobLocation: b.jobData?.location,
                 employmentType: b.jobData?.employmentType, salaryRange: b.jobData?.salaryRange,
-                applicationDeadline: b.jobData?.applicationDeadline,
+                applicationDeadline: b.jobData?.applicationDeadline, details: b.jobData,
                 hashtags: hashtags, mode: mode, privacy: b.privacy, publishing: publishing, on: req.db)
         } else {
             let imageUrls = normalizeImageUrls(b.image_urls)
