@@ -37,7 +37,7 @@ enum NotifyService {
         case "social": return ["post_liked": "post", "post_commented": "comment", "comment_replied": "comment",
                                "comment_liked": "comment", "post_shared": "post", "connection_request": "user",
                                "connection_accepted": "user", "birthday": "user", "mode_mismatch": "post",
-                               "skill_endorsed": "user", "job_application": "job", "application_status": "job"][type]
+                               "skill_endorsed": "user", "job_application": "job", "application_status": "job", "new_login": "user"][type]
         case "chat": return ["message": "conversation", "meeting_proposed": "meeting", "meeting_updated": "meeting",
                              "meeting_rsvp": "meeting", "meeting_reminder": "meeting", "message_reaction": "message",
                              "group_added": "conversation", "group_removed": "conversation"][type]

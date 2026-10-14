@@ -33,8 +33,12 @@ struct LoginView: View {
                         // Card
                         GlassCard {
                             VStack(spacing: 20) {
-                                if !viewModel.savedAccounts.isEmpty { savedAccountsSection }
-                                credentialSection
+                                if viewModel.challenge != nil {
+                                    codeSection
+                                } else {
+                                    if !viewModel.savedAccounts.isEmpty { savedAccountsSection }
+                                    credentialSection
+                                }
                                 Spacer(minLength: 4)
                                 LabelDivider(label: bundle.loc("or continue with"))
                                 socialSection
@@ -135,6 +139,43 @@ struct LoginView: View {
             }
         }
         .animation(.default, value: viewModel.errorMessage)
+    }
+
+    // MARK: Two-factor code
+
+    /// Two-factor sign-in: the code that was just emailed.
+    private var codeSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label(bundle.loc("Check your email"), systemImage: "envelope.badge.shield.half.filled")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(AppColors.textPrimary(.light))
+            Text(String(format: bundle.loc("Two-factor sign-in is on. Enter the 6-digit code we sent to %@."),
+                        viewModel.challenge?.email ?? ""))
+                .font(.system(size: 14))
+                .foregroundColor(AppColors.textSecondary(.light))
+                .fixedSize(horizontal: false, vertical: true)
+            AuthTextField(icon: "number", placeholder: bundle.loc("6-digit code"), text: $viewModel.code,
+                          keyboardType: .numberPad)
+                .textContentType(.oneTimeCode)
+            if let errorMessage = viewModel.errorMessage {
+                Text(errorMessage)
+                    .font(.system(size: 13))
+                    .foregroundColor(AppColors.danger(.light))
+            }
+            GradientButton(title: bundle.loc("Verify"), isLoading: viewModel.isLoading) {
+                Task { await viewModel.verifyCode(appState: appState) }
+            }
+            .disabled(!viewModel.canVerify)
+            HStack {
+                Button(bundle.loc("Back")) { viewModel.cancelCode() }
+                    .font(.system(size: 14))
+                    .foregroundColor(AppColors.textSecondary(.light))
+                Spacer()
+                ResendButton(availableAt: viewModel.resendAt, isSending: false) {
+                    Task { await viewModel.resendCode() }
+                }
+            }
+        }
     }
 
     // MARK: Saved accounts

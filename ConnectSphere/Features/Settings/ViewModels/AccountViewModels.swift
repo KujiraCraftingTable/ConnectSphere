@@ -167,3 +167,50 @@ final class DeleteScopeViewModel {
         }
     }
 }
+
+/// Turning two-factor sign-in on or off — either way, with a code sent to
+/// the verified email.
+@MainActor
+@Observable
+final class TwoFactorViewModel {
+    var code = "" { didSet { if code != AccountCode.clean(code) { code = AccountCode.clean(code) } } }
+    private(set) var sentTo: String?
+    private(set) var resendAt: Date?
+    private(set) var isWorking = false
+    var errorMessage: String?
+
+    /// What the switch will become.
+    let enabling: Bool
+    private let repository = AccountRepository()
+
+    init(enabling: Bool) { self.enabling = enabling }
+
+    var canConfirm: Bool { sentTo != nil && code.count == 6 && !isWorking }
+
+    func sendCode(token: String) async {
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            sentTo = try await repository.sendTwoFactorCode(token: token).email
+            resendAt = Date().addingTimeInterval(AccountCode.resendSeconds)
+            errorMessage = nil
+        } catch {
+            errorMessage = friendlyError(error)
+        }
+    }
+
+    /// True once switched; the session user is updated.
+    func confirm(appState: AppState) async -> Bool {
+        guard canConfirm, let token = appState.authToken else { return false }
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            try await repository.setTwoFactor(enabling, code: code, token: token)
+            appState.currentUser?.twoFactorEnabled = enabling
+            return true
+        } catch {
+            errorMessage = friendlyError(error)
+            return false
+        }
+    }
+}

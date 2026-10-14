@@ -16,6 +16,8 @@ struct AuthController {
 
         limited.post("register", use: registerUser)
         limited.post("login", use: login)
+        limited.post("login", "verify", use: verifyLogin)
+        limited.post("login", "resend", use: resendLogin)
         auth.post("google", use: google)
         authed.get("me", use: me)
         authed.get("check-username", use: checkUsername)
@@ -102,7 +104,7 @@ struct AuthController {
     /// `email` (older apps sent it as `username`).
     struct LoginBody: Content { var email: String?; var username: String?; var password: String? }
 
-    static func login(_ req: Request) async throws -> AuthResponse {
+    static func login(_ req: Request) async throws -> Response {
         let body = try req.content.decode(LoginBody.self)
         let password = body.password ?? ""
         guard !password.isEmpty else { throw InlineError(.badRequest, "email and password are required") }
@@ -115,14 +117,14 @@ struct AuthController {
         else {
             throw InlineError(.unauthorized, "Invalid email or password")
         }
-        return AuthResponse(token: signToken(user.id, req), user: try await loadUser(user.id, db), is_new_user: !user.is_setup)
+        return try await finishSignIn(user.id, method: "password", isNew: !user.is_setup, req)
     }
 
     // MARK: POST /google
 
     struct GoogleBody: Content { var id_token: String? }
 
-    static func google(_ req: Request) async throws -> AuthResponse {
+    static func google(_ req: Request) async throws -> Response {
         let body = try req.content.decode(GoogleBody.self)
         guard let idToken = body.id_token, !idToken.isEmpty else {
             throw InlineError(.badRequest, "id_token is required")
@@ -175,11 +177,97 @@ struct AuthController {
             }
         }
         guard let resolved = user else { throw Abort(.internalServerError) }
-        return AuthResponse(
-            token: signToken(resolved.id, req),
-            user: try await loadUser(resolved.id, db),
-            is_new_user: isNewUser || !resolved.is_setup
-        )
+        return try await finishSignIn(resolved.id, method: "google", isNew: isNewUser || !resolved.is_setup, req)
+    }
+
+    // MARK: two-factor sign-in + the sign-in alert
+
+    /// `{ two_factor_required, challenge, email }` — answer with the emailed code.
+    struct TwoFactorChallenge: Content {
+        var two_factor_required = true
+        var challenge: String
+        var email: String
+    }
+
+    /// The last step of every sign-in: with two-factor on, a code goes to the
+    /// verified email and the app gets a challenge instead of a token;
+    /// otherwise it's signed in — and told about by email and in-app.
+    static func finishSignIn(_ userID: String, method: String, isNew: Bool, _ req: Request) async throws -> Response {
+        let db = req.db.sql()
+        struct T: Decodable { let on: Bool; let email: String? }
+        let t = try await db.raw("""
+            SELECT (two_factor_enabled AND email_verified_at IS NOT NULL) AS on, email FROM users WHERE id = \(uuid: userID)
+            """).first(decoding: T.self)
+        if let t, t.on, let email = t.email {
+            if let recent = try await AccountCodeStore.recentChallenge(user: userID, meta: method, on: db) {
+                return try await TwoFactorChallenge(challenge: recent.id, email: maskEmail(recent.email)).encodeResponse(for: req)
+            }
+            let issued = try await AccountCodeStore.issueWithID(user: userID, purpose: .login, email: email, meta: method, on: db)
+            try await Mailer(req).sendCode(issued.code, to: email, kind: .loginCode, minutes: AccountCodeStore.ttlMinutes)
+            return try await TwoFactorChallenge(challenge: issued.id, email: maskEmail(email)).encodeResponse(for: req)
+        }
+        signInAlert(userID, method: method, req)
+        return try await AuthResponse(token: signToken(userID, req), user: try await loadUser(userID, db), is_new_user: isNew)
+            .encodeResponse(for: req)
+    }
+
+    struct ChallengeBody: Content { var challenge: String?; var code: String? }
+
+    static func verifyLogin(_ req: Request) async throws -> Response {
+        let b = try req.content.decode(ChallengeBody.self)
+        let db = req.db.sql()
+        guard let ch = try await AccountCodeStore.challenge(b.challenge ?? "", on: db) else {
+            throw Abort(.badRequest, reason: AccountCodeStore.expiredMessage)
+        }
+        _ = try await AccountCodeStore.consume(user: ch.user_id, purpose: .login, code: b.code ?? "", id: ch.id, on: db)
+        struct S: Decodable { let is_setup: Bool }
+        let setup = try await db.raw("SELECT is_setup FROM users WHERE id = \(uuid: ch.user_id)").first(decoding: S.self)?.is_setup ?? true
+        signInAlert(ch.user_id, method: ch.meta ?? "password", req)
+        return try await AuthResponse(token: signToken(ch.user_id, req), user: try await loadUser(ch.user_id, db),
+                                      is_new_user: !setup).encodeResponse(for: req)
+    }
+
+    /// A fresh code for the same sign-in (the old one stops working).
+    static func resendLogin(_ req: Request) async throws -> TwoFactorChallenge {
+        let db = req.db.sql()
+        guard let ch = try await AccountCodeStore.challenge(try req.content.decode(ChallengeBody.self).challenge ?? "", on: db) else {
+            throw Abort(.badRequest, reason: AccountCodeStore.expiredMessage)
+        }
+        let issued = try await AccountCodeStore.issueWithID(user: ch.user_id, purpose: .login, email: ch.email, meta: ch.meta, on: db)
+        try await AccountCodeStore.retire(ch.id, on: db)
+        try await Mailer(req).sendCode(issued.code, to: ch.email, kind: .loginCode, minutes: AccountCodeStore.ttlMinutes)
+        return TwoFactorChallenge(challenge: issued.id, email: maskEmail(ch.email))
+    }
+
+    /// "k•••l@gmail.com".
+    static func maskEmail(_ email: String) -> String {
+        let parts = email.split(separator: "@", maxSplits: 1)
+        guard parts.count == 2, let first = parts[0].first else { return email }
+        let name = parts[0].count <= 2 ? "\(first)•••" : "\(first)•••\(parts[0].last!)"
+        return "\(name)@\(parts[1])"
+    }
+
+    /// "Someone just signed in": an in-app notification and an email to the
+    /// verified address (which still arrives if someone else is in the
+    /// account and clears the notifications). Never blocks the sign-in.
+    static func signInAlert(_ userID: String, method: String, _ req: Request) {
+        let device = String((req.headers.first(name: "X-Device") ?? req.headers.first(name: .userAgent) ?? "Unknown device").prefix(80))
+        let app = req.application
+        NotifyService.fireAndForget(req) { d, h, l in
+            // No mode: it's about the account, and deleting a persona mustn't wipe it.
+            let payload: [String: String] = ["method": method, "device": device]
+            _ = await NotifyService.pushUserNotification(
+                userID: userID, type: "new_login", actorID: userID, entityType: "user", entityID: userID,
+                // Its own group: each sign-in shows separately, never as "+3 more".
+                groupTargetID: UUID().uuidString,
+                payload: payload, on: d, hub: h, logger: l)
+            struct E: Decodable { let email: String? }
+            guard let email = try? await d.raw("""
+                SELECT email FROM users WHERE id = \(uuid: userID) AND email_verified_at IS NOT NULL
+                """).first(decoding: E.self)?.email else { return }
+            do { try await Mailer(app: app, logger: l).sendLoginAlert(to: email, method: method, device: device, at: Date()) }
+            catch { l.error("sign-in alert mail: \(error)") }
+        }
     }
 
     // MARK: GET /me

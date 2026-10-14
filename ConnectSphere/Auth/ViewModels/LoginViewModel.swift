@@ -19,6 +19,54 @@ final class LoginViewModel {
 
     func clearError() { errorMessage = nil }
 
+    // MARK: Two-factor step
+
+    /// Set while a sign-in waits for the code emailed to the account.
+    private(set) var challenge: LoginChallenge?
+    private(set) var resendAt: Date?
+    var code = "" { didSet { if code != AccountCode.clean(code) { code = AccountCode.clean(code) } } }
+    var canVerify: Bool { challenge != nil && code.count == 6 && !isLoading }
+
+    private func handle(_ outcome: AppState.SignInOutcome) {
+        if case .needsCode(let c) = outcome {
+            challenge = c
+            code = ""
+            resendAt = Date().addingTimeInterval(AccountCode.resendSeconds)
+            isLoading = false
+        }
+        // .signedIn: the root view switches away; keep the spinner until it does.
+    }
+
+    func verifyCode(appState: AppState) async {
+        guard canVerify, let challenge else { return }
+        isLoading = true
+        errorMessage = nil
+        do {
+            try await appState.verifyLogin(challenge: challenge.challenge, code: code)
+        } catch {
+            isLoading = false
+            errorMessage = AuthErrorText.unreachable(error) ?? error.localizedDescription
+        }
+    }
+
+    func resendCode() async {
+        guard let challenge else { return }
+        do {
+            self.challenge = try await AuthService.shared.resendLogin(challenge: challenge.challenge)
+            resendAt = Date().addingTimeInterval(AccountCode.resendSeconds)
+            errorMessage = nil
+        } catch {
+            errorMessage = AuthErrorText.unreachable(error) ?? error.localizedDescription
+        }
+    }
+
+    /// Back to the email / password form.
+    func cancelCode() {
+        challenge = nil
+        code = ""
+        errorMessage = nil
+    }
+
     /// A saved account: fills its email (the password is still asked
     /// for), or signs in with Google for a Google-only account.
     func pick(_ account: SavedAccount, presenting rootViewController: UIViewController?, appState: AppState) async {
@@ -45,10 +93,9 @@ final class LoginViewModel {
         isLoading = true
         errorMessage = nil
         do {
-            try await appState.loginWithPassword(
+            handle(try await appState.loginWithPassword(
                 email: email.trimmingCharacters(in: .whitespaces).lowercased(),
-                password: password)
-            // Success: the root view switches away; keep the spinner until it does.
+                password: password))
         } catch {
             isLoading = false
             errorMessage = AuthErrorText.login(error)
@@ -72,7 +119,7 @@ final class LoginViewModel {
                 return
             }
             do {
-                try await appState.loginWithGoogle(idToken: idToken)
+                handle(try await appState.loginWithGoogle(idToken: idToken))
             } catch {
                 isLoading = false
                 // The server's own reason (e.g. "Invalid Google token") is shown as-is;
