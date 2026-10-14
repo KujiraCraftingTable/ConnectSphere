@@ -98,10 +98,9 @@ struct LoginView: View {
     private var credentialSection: some View {
         VStack(spacing: 14) {
             AuthTextField(
-                icon: "envelope.fill",
-                placeholder: bundle.loc("Email"),
-                text: $viewModel.email,
-                keyboardType: .emailAddress
+                icon: "person.fill",
+                placeholder: bundle.loc("Username or email"),
+                text: $viewModel.identifier
             )
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
@@ -180,7 +179,7 @@ struct LoginView: View {
 
     // MARK: Saved accounts
 
-    /// Accounts that signed in on this device: tap to fill the email
+    /// Accounts that signed in on this device: tap to fill the username
     /// (or sign in with Google); ✕ forgets it here.
     private var savedAccountsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -224,7 +223,7 @@ struct LoginView: View {
                 .padding(.vertical, 10)
                 .background(
                     RoundedRectangle(cornerRadius: 14)
-                        .fill(account.email != nil && viewModel.email == account.email
+                        .fill(viewModel.identifier == account.username
                               ? themeManager.theme.primary.opacity(0.1) : AppColors.surface(.light))
                         .overlay(RoundedRectangle(cornerRadius: 14).stroke(AppColors.borderDefault(.light), lineWidth: 1))
                 )

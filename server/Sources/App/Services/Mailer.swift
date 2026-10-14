@@ -23,7 +23,7 @@ struct Mailer {
     }
 
     enum Kind {
-        case verifyEmail, changeEmail, deleteHobby, deleteWork, deleteAccount, passwordReset, loginCode, twoFactor
+        case verifyEmail, changeEmail, deleteHobby, deleteWork, deleteAccount, passwordReset, loginCode, twoFactor, signup
 
         var subject: String {
             switch self {
@@ -35,6 +35,7 @@ struct Mailer {
             case .passwordReset: "Your ConnectSphere password reset code"
             case .loginCode:     "Your ConnectSphere sign-in code"
             case .twoFactor:     "Code to change two-factor sign-in"
+            case .signup:        "Your ConnectSphere sign-up code"
             }
         }
 
@@ -59,6 +60,9 @@ struct Mailer {
             case .loginCode:
                 intro = "Someone is signing in to your ConnectSphere account. Enter this code to finish:"
                 ending = "If this wasn't you, don't share the code — and change your password now, someone may know it."
+            case .signup:
+                intro = "Welcome to ConnectSphere! Enter this code to confirm your email and finish signing up:"
+                ending = "If you didn't sign up, you can ignore this email."
             case .twoFactor:
                 intro = "Use this code to change two-factor sign-in on your ConnectSphere account:"
                 ending = "If this wasn't you, change your password now — someone may be using your account."

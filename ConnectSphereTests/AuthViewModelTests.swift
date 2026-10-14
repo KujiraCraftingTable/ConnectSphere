@@ -1,29 +1,46 @@
+import Foundation
 import Testing
 @testable import ConnectSphere
 
 @MainActor
 struct AuthViewModelTests {
-    @Test func registerChecksTheEmailShape() {
+    @Test func registerLowercasesUsernameAsTyped() {
         let vm = RegisterViewModel()
-        vm.email = "kujira"
-        #expect(vm.emailError != nil)
+        vm.username = "Kujira_01"
+        #expect(vm.username == "kujira_01")
+    }
+
+    @Test func registerEmailIsOptionalButMustLookRight() {
+        let vm = RegisterViewModel()
+        vm.username = "good_name"
+        vm.password = "password1"
+        vm.confirmPassword = "password1"
+        #expect(vm.isFormValid && !vm.hasEmail)       // no email is fine
         vm.email = "kujira@gmail"
-        #expect(vm.emailError != nil)
+        #expect(vm.emailError != nil && !vm.isFormValid)
         vm.email = " Kujira@Gmail.com "
-        #expect(vm.emailError == nil)
-        vm.password = "short"
-        #expect(vm.passwordError != nil)
+        #expect(vm.emailError == nil && vm.isFormValid && vm.hasEmail)
+        #expect(vm.maskedEmail == "k•••a@gmail.com")
+        #expect(vm.stage == .details)
     }
 
     @Test func registerFormValidOnlyWhenEverythingMatches() {
         let vm = RegisterViewModel()
-        vm.email = "kujira@example.com"
+        vm.username = "ab"
+        #expect(vm.usernameError != nil)
+        vm.username = "good_name"
         vm.password = "password1"
         vm.confirmPassword = "password2"
         #expect(!vm.isFormValid)
         #expect(vm.confirmError != nil)
         vm.confirmPassword = "password1"
         #expect(vm.isFormValid)
+    }
+
+    @Test func registerCodeKeepsOnlyDigits() {
+        let vm = RegisterViewModel()
+        vm.code = "12 3-4567"
+        #expect(vm.code == "123456")
     }
 
     @Test func forgotPasswordNeedsSixDigitCodeAndMatchingPasswords() {
@@ -39,21 +56,50 @@ struct AuthViewModelTests {
         #expect(vm.canReset)
     }
 
-    @Test func onboardingNeedsAUsernameAndAVerifiedEmail() {
+    @Test func onboardingListsWhatIsMissingAndGatesTheCarousel() {
         let vm = OnboardingViewModel()
-        vm.prefill(username: "user_ab12cd34", hasPassword: true)
-        #expect(vm.needsUsername)           // everyone picks their public @username now
-        #expect(vm.form.username.isEmpty)   // the placeholder isn't kept
+        vm.prefill(username: "kujira", hasPassword: true)
+        #expect(vm.form.username == "kujira" && !vm.needsUsername && !vm.offersPassword)
+        #expect(vm.reachableSteps == 2)                 // can't swipe past the basics yet
+        #expect(vm.missingBasics.count == 3)            // name, province, birthday (gender defaults to "other")
         vm.form.display_name = "Kujira"
         vm.form.location = "79"
         vm.form.gender = "male"
+        #expect(vm.missingBasics == [Bundle.app.loc("date of birth")])
         vm.form.dob = "2000-01-01"
-        vm.prefillEmail("kujira@example.com", verified: false)
-        #expect(!vm.emailVerified)
-        vm.prefillEmail("kujira@example.com", verified: true)
-        #expect(vm.emailVerified)
-        vm.username = "kujira"
-        #expect(!vm.basicsComplete)         // still waiting for "available"
+        #expect(vm.basicsComplete && vm.reachableSteps == OnboardingViewModel.totalSteps)
+        for _ in 0..<10 { vm.next() }
+        #expect(vm.step == OnboardingViewModel.totalSteps - 1)
+    }
+
+    @Test func onboardingShowsMissingOnlyAfterARefusal() {
+        let vm = OnboardingViewModel()
+        vm.prefill(username: "kujira", hasPassword: true)
+        vm.next()
+        #expect(vm.stillNeeded == nil)
+        vm.refusedMove()
+        #expect(vm.stillNeeded?.contains(Bundle.app.loc("province")) == true)
+    }
+
+    @Test func googleSignUpGetsAnOptionalPassword() {
+        let vm = OnboardingViewModel()
+        vm.prefill(username: "user_1a2b3c4d", hasPassword: false)
+        #expect(vm.offersPassword)
+        #expect(vm.newPasswordProblem == nil)           // empty = skipped
+        vm.newPassword = "short"
+        #expect(vm.newPasswordProblem != nil)
+        vm.newPassword = "longenough1"
+        vm.confirmNewPassword = "longenough2"
+        #expect(vm.newPasswordProblem != nil)
+        vm.confirmNewPassword = "longenough1"
+        #expect(vm.newPasswordProblem == nil)
+    }
+
+    @Test func carouselNeverLandsPastWhatIsReachable() {
+        let vm = OnboardingViewModel()
+        vm.prefill(username: "kujira", hasPassword: true)
+        vm.show(step: 3)
+        #expect(vm.step == 1)
     }
 
     @Test func onboardingBlocksIncompleteStepAndGoesBack() {
@@ -65,7 +111,7 @@ struct AuthViewModelTests {
         #expect(!vm.next())                // basics incomplete: stays
         #expect(vm.step == 1)
         vm.back()
-        #expect(vm.step == 0 && !vm.movedForward)
+        #expect(vm.step == 0)
     }
 
     @Test func googleAccountMustChooseAvailableUsername() {
