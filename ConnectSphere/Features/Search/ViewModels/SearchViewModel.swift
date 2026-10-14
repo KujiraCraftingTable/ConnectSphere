@@ -3,7 +3,9 @@ import Observation
 
 /// What the Search tab is looking for.
 enum SearchScope: String, CaseIterable, Identifiable {
-    case people, posts
+    /// `companies` is Work mode only, and searches itself
+    /// (`CompanySearchResults`), so the people/posts searches skip it.
+    case people, posts, companies
     var id: String { rawValue }
 }
 
@@ -62,6 +64,7 @@ class SearchViewModel {
     /// empty query returns People to the browse list and clears Posts.
     func search(query: String, mode: AppMode) {
         searchTask?.cancel()
+        guard scope != .companies else { return }
         guard !query.trimmingCharacters(in: .whitespaces).isEmpty else {
             if scope == .people {
                 Task { await loadAll(mode: mode) }
@@ -85,6 +88,7 @@ class SearchViewModel {
     /// since each run is an LLM call.
     func submitAI(prompt: String, mode: AppMode, radiusKm: Int?) async {
         searchTask?.cancel()
+        guard scope != .companies else { return }
         if scope == .people {
             await aiSearch(prompt: prompt, mode: mode, radiusKm: radiusKm)
         } else {

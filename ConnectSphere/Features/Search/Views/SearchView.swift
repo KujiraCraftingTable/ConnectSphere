@@ -50,7 +50,9 @@ struct SearchView: View {
                     }
 
                     LazyVStack(spacing: appState.currentMode == .hobby ? 10 : 8) {
-                        if viewModel.isLoading && !showsAIResults {
+                        if viewModel.scope == .companies {
+                            CompanySearchResults(query: trimmedText)
+                        } else if viewModel.isLoading && !showsAIResults {
                             ProgressView().padding(.top, 40)
                         } else if viewModel.error != nil {
                             networkErrorState
@@ -110,7 +112,11 @@ struct SearchView: View {
                 if !isOn { viewModel.search(query: searchText, mode: appState.currentMode) }
             }
             .onChange(of: viewModel.scope) { _, _ in rerunInCurrentScope() }
-            .onChange(of: appState.currentMode) { _, _ in rerunInCurrentScope() }
+            .onChange(of: appState.currentMode) { _, mode in
+                // Companies are a Work-mode thing.
+                if mode == .hobby && viewModel.scope == .companies { viewModel.scope = .people }
+                rerunInCurrentScope()
+            }
             .task {
                 // .task re-runs when the view "reappears" (e.g. popping back from a pushed profile).
                 // If this is because the Search tab was re-tapped (shouldResetSearch = true) →
@@ -168,6 +174,9 @@ struct SearchView: View {
             Picker("", selection: Bindable(viewModel).scope) {
                 Text("People", bundle: bundle).tag(SearchScope.people)
                 Text("Posts", bundle: bundle).tag(SearchScope.posts)
+                if appState.currentMode == .work {
+                    Text("Companies", bundle: bundle).tag(SearchScope.companies)
+                }
             }
             .pickerStyle(.segmented)
         }
@@ -207,6 +216,7 @@ struct SearchView: View {
     private var placeholder: String {
         if aiEnabled { return bundle.loc("Describe who or what you're looking for…") }
         if viewModel.scope == .posts { return bundle.loc("Search posts") }
+        if viewModel.scope == .companies { return bundle.loc("Search companies") }
         return appState.currentMode == .hobby
             ? bundle.loc("Search by name, interests, location...")
             : bundle.loc("Search by name, skills, company...")
