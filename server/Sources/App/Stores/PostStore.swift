@@ -48,11 +48,14 @@ enum PostStore {
               WHERE po2.post_id = p.id AND pv.user_id = \(uuid: v)))
           ELSE NULL END)::text AS poll_data,
           (CASE WHEN p.post_type = 'job' THEN (
-            SELECT json_build_object('id', jp.id, 'title', jp.title, 'company', jp.company, 'location', jp.location,
+            SELECT json_build_object('id', jp.id, 'title', jp.title, 'company', COALESCE(jc.name, jp.company), 'location', jp.location,
               'employment_type', jp.employment_type, 'salary_range', jp.salary_range,
               'application_deadline', jp.application_deadline, 'interested_count', jp.interested_count,
-              'user_interested', EXISTS(SELECT 1 FROM job_interests ji WHERE ji.job_id = jp.id AND ji.user_id = \(uuid: v)))
-            FROM job_posts jp WHERE jp.post_id = p.id
+              'user_interested', EXISTS(SELECT 1 FROM job_interests ji WHERE ji.job_id = jp.id AND ji.user_id = \(uuid: v)),
+              'company_id', jp.company_id, 'company_logo_url', jc.logo_url, 'company_verified', COALESCE(jc.is_verified, FALSE),
+              'work_format', jp.work_format, 'level', jp.level, 'salary_min', jp.salary_min, 'salary_max', jp.salary_max,
+              'skills', COALESCE((SELECT json_agg(js.skill ORDER BY js.skill) FROM job_skills js WHERE js.job_id = jp.id), '[]'))
+            FROM job_posts jp LEFT JOIN companies jc ON jc.id = jp.company_id WHERE jp.post_id = p.id
           ) ELSE NULL END)::text AS job_data,
         """
     }
@@ -266,7 +269,7 @@ enum PostStore {
         var offset: Int
     }
 
-    private static func feedWhere(_ v: String, _ f: FeedFilters) -> SQLQueryString {
+    static func feedWhere(_ v: String, _ f: FeedFilters) -> SQLQueryString {
         var w: SQLQueryString = "WHERE p.status = 'posted' AND "
         w = w + communityVisibilityClause(v) + " AND " + notMutedClause(v) + " AND "
         w = w + privacyClause(v) + " AND " + notBlockedClause(v) + " AND " + notHiddenClause(v)

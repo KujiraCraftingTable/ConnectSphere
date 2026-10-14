@@ -104,14 +104,78 @@ enum EventStore {
 /// Job/Opportunity posts (Work mode only). "Interested" is a plain toggle
 /// (row presence in job_interests), unlike event_rsvps' 3-state status.
 enum JobStore {
+    static let workFormats: Set<String> = ["onsite", "hybrid", "remote"]
+    static let levels: Set<String> = ["intern", "fresher", "junior", "mid", "senior", "lead", "manager"]
+    static let maxSkills = 10
+
+    /// The Jobs-tab details of a job, checked.
+    struct Extra {
+        var companyID: String?
+        var workFormat: String?
+        var level: String?
+        var salaryMin: Int?
+        var salaryMax: Int?
+        var skills: [String] = []
+    }
+
+    /// Checks the details; a company page can only be used by its admins.
+    static func validateDetails(_ d: PostsController.CreateBody.JobDataIn?, author: String,
+                                on db: any SQLDatabase) async throws -> Extra {
+        guard let d else { return Extra() }
+        var extra = Extra()
+        if let id = d.companyId?.nilIfEmpty {
+            guard UUID(uuidString: id) != nil else { throw Abort(.badRequest, reason: "Invalid company") }
+            guard try await CompanyStore.role(of: author, in: id, on: db) != nil else {
+                throw Abort(.forbidden, reason: "Only the company's admins can post jobs as it")
+            }
+            extra.companyID = id.lowercased()
+        }
+        if let f = d.workFormat?.nilIfEmpty {
+            guard workFormats.contains(f) else { throw Abort(.badRequest, reason: "Invalid work format") }
+            extra.workFormat = f
+        }
+        if let l = d.level?.nilIfEmpty {
+            guard levels.contains(l) else { throw Abort(.badRequest, reason: "Invalid level") }
+            extra.level = l
+        }
+        for s in [d.salaryMin, d.salaryMax] {
+            if let s, !(0...100_000).contains(s) { throw Abort(.badRequest, reason: "Salary must be 0–100,000 (million VND)") }
+        }
+        if let lo = d.salaryMin, let hi = d.salaryMax, lo > hi {
+            throw Abort(.badRequest, reason: "The minimum salary can't be above the maximum")
+        }
+        extra.salaryMin = d.salaryMin
+        extra.salaryMax = d.salaryMax
+        var seen = Set<String>()
+        for raw in d.skills ?? [] {
+            let s = raw.trimmedText
+            guard !s.isEmpty, seen.insert(s.lowercased()).inserted else { continue }
+            guard s.count <= 50 else { throw Abort(.badRequest, reason: "Each skill must be at most 50 characters") }
+            extra.skills.append(s)
+        }
+        guard extra.skills.count <= maxSkills else { throw Abort(.badRequest, reason: "A job can list up to \(maxSkills) skills") }
+        return extra
+    }
+
     static func create(postID: String, title: String, company: String?, location: String?,
                         employmentType: String?, salaryRange: String?, applicationDeadline: String?,
-                        on db: any SQLDatabase) async throws {
-        try await db.raw("""
-            INSERT INTO job_posts (post_id, title, company, location, employment_type, salary_range, application_deadline)
+                        extra: Extra = Extra(), on db: any SQLDatabase) async throws {
+        struct R: Decodable { let id: String }
+        let jobID = try await db.raw("""
+            INSERT INTO job_posts (post_id, title, company, location, employment_type, salary_range, application_deadline,
+                                   company_id, work_format, level, salary_min, salary_max)
             VALUES (\(uuid: postID), \(bind: title), \(bind: company), \(bind: location),
-                    \(bind: employmentType), \(bind: salaryRange), \(bind: applicationDeadline)::date)
-            """).run()
+                    \(bind: employmentType), \(bind: salaryRange), \(bind: applicationDeadline)::date,
+                    \(uuid: extra.companyID), \(bind: extra.workFormat), \(bind: extra.level),
+                    \(bind: extra.salaryMin), \(bind: extra.salaryMax))
+            RETURNING id::text AS id
+            """).first(decoding: R.self)!.id
+        if !extra.skills.isEmpty {
+            try await db.raw("""
+                INSERT INTO job_skills (job_id, skill) SELECT \(uuid: jobID), unnest(\(bind: extra.skills)::text[])
+                ON CONFLICT DO NOTHING
+                """).run()
+        }
     }
 
     struct JobByID: Decodable {

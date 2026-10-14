@@ -218,7 +218,8 @@ struct CreatePostView: View {
                                 employmentType:           $composerViewModel.jobEmploymentType,
                                 salaryRange:              $composerViewModel.jobSalaryRange,
                                 applicationDeadline:      $composerViewModel.jobApplicationDeadline,
-                                showApplicationDeadline:  $composerViewModel.showJobApplicationDeadline
+                                showApplicationDeadline:  $composerViewModel.showJobApplicationDeadline,
+                                details: composerViewModel
                             )
                             .padding(.horizontal, 16)
                             .padding(.top, 10)

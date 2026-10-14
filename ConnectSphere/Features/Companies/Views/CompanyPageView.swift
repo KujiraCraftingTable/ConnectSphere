@@ -38,7 +38,7 @@ struct CompanyPageView: View {
                     switch tab {
                     case .about: about(company)
                     case .jobs:
-                        emptyTab(icon: "briefcase", text: bundle.loc("Jobs posted by this company will show here."))
+                        CompanyJobsList(companyId: company.id)
                     case .people:
                         CompanyPeopleList(companyId: company.id)
                     }

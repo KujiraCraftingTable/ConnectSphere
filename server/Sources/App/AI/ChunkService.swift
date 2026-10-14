@@ -187,6 +187,18 @@ enum ChunkService {
         var parts: [String] = []
         if let c = contentEn { parts.append("Content: \(c)") }
         if !canonTags.isEmpty { parts.append("Topics: \(canonTags.joined(separator: ", "))") }
+        // A job: what it is, where, at what level, and the skills it needs.
+        struct J: Decodable { let title: String; let company: String?; let level: String?; let location: String?; let work_format: String?; let skills: String }
+        if let job = try await db.raw("""
+            SELECT jp.title, COALESCE(c.name, jp.company) AS company, jp.level, jp.location, jp.work_format,
+              COALESCE((SELECT string_agg(js.skill, ', ' ORDER BY js.skill) FROM job_skills js WHERE js.job_id = jp.id), '') AS skills
+            FROM job_posts jp LEFT JOIN companies c ON c.id = jp.company_id WHERE jp.post_id = \(uuid: postID)
+            """).first(decoding: J.self) {
+            parts.append("Job: \(job.title)" + (job.company.map { " at \($0)" } ?? ""))
+            let facts = [job.level, job.location, job.work_format].compactMap { $0 }
+            if !facts.isEmpty { parts.append("Details: " + facts.joined(separator: ", ")) }
+            if !job.skills.isEmpty { parts.append("Skills: \(job.skills)") }
+        }
         let content = parts.joined(separator: "\n")
         if content.isEmpty { return false }
 

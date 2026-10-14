@@ -252,7 +252,7 @@ struct CommunitiesController {
             post = try await PostService.createJobPost(authorID: req.userID, communityID: id, content: b.content,
                 jobTitle: b.jobData?.title, jobCompany: b.jobData?.company, jobLocation: b.jobData?.location,
                 employmentType: b.jobData?.employmentType, salaryRange: b.jobData?.salaryRange,
-                applicationDeadline: b.jobData?.applicationDeadline,
+                applicationDeadline: b.jobData?.applicationDeadline, details: b.jobData,
                 hashtags: hashtags, mode: nil, privacy: nil, publishing: publishing, on: req.db)
         } else {
             post = try await PostService.createTextCommunityPost(userID: req.userID, content: b.content, communityID: id,

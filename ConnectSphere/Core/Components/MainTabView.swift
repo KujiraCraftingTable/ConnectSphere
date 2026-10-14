@@ -10,6 +10,8 @@ struct MainTabView: View {
     @State private var profileNavPath = NavigationPath()
     @State private var searchNavPath = NavigationPath()
     @State private var communityNavPath = NavigationPath()
+    /// Work mode's tab is Jobs; communities open over it from there.
+    @State private var showCommunities = false
     /// Owned here rather than by the assistant sheet: `.sheet` destroys its
     /// content on dismiss, so a view model created inside it would lose the
     /// conversation every time — including when "Take me there" dismisses.
@@ -45,6 +47,7 @@ struct MainTabView: View {
             }
         }
         // First switch to a mode without a persona set up yet → show the persona creation form
+        .sheet(isPresented: $showCommunities) { CommunitiesView(navPath: $communityNavPath) }
         .sheet(item: $appState.pendingPersonaMode) { mode in
             PersonaSetupView(mode: mode)
                 .environment(appState)
@@ -127,8 +130,10 @@ struct MainTabView: View {
                 FeedView(selectedTab: $selectedTab)
                     .labelStyle(.automatic)
             }
-            Tab(bundle.loc("Community"), systemImage: "person.3", value: 2) {
-                CommunitiesView(navPath: $communityNavPath)
+            // Work mode: Jobs takes Community's place (communities open from it).
+            Tab(bundle.loc(appState.currentMode == .work ? "Jobs" : "Community"),
+                systemImage: appState.currentMode == .work ? "briefcase" : "person.3", value: 2) {
+                communityOrJobs
                     .labelStyle(.automatic)
             }
             Tab(bundle.loc("Notifications"), systemImage: "bell", value: 3) {
@@ -150,6 +155,15 @@ struct MainTabView: View {
         .labelStyle(.iconOnly)
     }
 
+    @ViewBuilder
+    private var communityOrJobs: some View {
+        if appState.currentMode == .work {
+            JobsHomeView { showCommunities = true }
+        } else {
+            CommunitiesView(navPath: $communityNavPath)
+        }
+    }
+
     /// Which role detaches Search into its own glass circle. iOS 26 detaches a
     /// `.search` tab by itself; from the iOS 27 SDK only the tab bar's
     /// *prominent* tab is detached, and a search tab is only made prominent
@@ -168,8 +182,12 @@ struct MainTabView: View {
                 .tabItem { tabIcon(selectedTab == 0 ? "house.fill" : "house", "Home") }
                 .tag(0)
 
-            CommunitiesView(navPath: $communityNavPath)
-                .tabItem { tabIcon(selectedTab == 2 ? "person.3.fill" : "person.3", "Community") }
+            communityOrJobs
+                .tabItem {
+                    appState.currentMode == .work
+                        ? tabIcon(selectedTab == 2 ? "briefcase.fill" : "briefcase", "Jobs")
+                        : tabIcon(selectedTab == 2 ? "person.3.fill" : "person.3", "Community")
+                }
                 .tag(2)
 
             NotificationsView()
@@ -223,6 +241,8 @@ struct MainTabView: View {
         guard case let .community(id)? = appState.pendingDeepLink else { return }
         appState.pendingDeepLink = nil
         selectedTab = 2
+        // In Work mode that tab is Jobs; the community opens over it.
+        if appState.currentMode == .work { showCommunities = true }
         // Same race as `pushProfilePath` below: `selectedTab = 2` triggers
         // `.onChange(of: selectedTab)` → `resetTabState(2)`, which resets
         // `communityNavPath` to root AFTER this function returns (SwiftUI

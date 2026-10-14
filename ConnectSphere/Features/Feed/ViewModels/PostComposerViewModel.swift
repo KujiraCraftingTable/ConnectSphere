@@ -33,6 +33,43 @@ class PostComposerViewModel {
     var jobSalaryRange: String = ""
     var jobApplicationDeadline: Date? = nil
     var showJobApplicationDeadline = false
+    /// Post as one of the company pages you run (nil = as yourself).
+    var jobCompanyId: String? = nil
+    var jobWorkFormat: String? = nil
+    var jobLevel: String? = nil
+    /// VND million / month, as typed.
+    var jobSalaryMin = ""
+    var jobSalaryMax = ""
+    /// Required skills, comma-separated as typed.
+    var jobSkillsText = ""
+    /// The company pages you can post jobs as.
+    private(set) var myCompanies: [Company] = []
+
+    func loadMyCompanies(token: String) async {
+        myCompanies = (try? await CompanyRepository().mine(token: token)) ?? []
+    }
+
+    /// Picking a page also fills the company name.
+    func pickCompany(_ company: Company?) {
+        jobCompanyId = company?.id
+        if let company { jobCompany = company.name }
+    }
+
+    var jobSkills: [String] {
+        var seen = Set<String>()
+        return jobSkillsText.split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && seen.insert($0.lowercased()).inserted }
+    }
+
+    /// Both empty, or numbers with min ≤ max.
+    var jobSalaryValid: Bool {
+        let lo = Int(jobSalaryMin), hi = Int(jobSalaryMax)
+        if !jobSalaryMin.isEmpty && lo == nil { return false }
+        if !jobSalaryMax.isEmpty && hi == nil { return false }
+        if let lo, let hi { return lo <= hi }
+        return true
+    }
 
     // Media — text posts only, same field names/upload path Feed's
     // CreatePostView uses (backend only accepts image_urls on post_type='text').
@@ -78,6 +115,7 @@ class PostComposerViewModel {
         case .job:
             guard !trimmed.isEmpty else { return false }
             return !jobTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && jobSalaryValid && jobSkills.count <= 10
         }
     }
 
@@ -319,6 +357,12 @@ class PostComposerViewModel {
         if let jobEmploymentType { jobDict["employmentType"] = jobEmploymentType.rawValue }
         let salaryRange = jobSalaryRange.trimmingCharacters(in: .whitespacesAndNewlines)
         if !salaryRange.isEmpty { jobDict["salaryRange"] = salaryRange }
+        if let jobCompanyId { jobDict["companyId"] = jobCompanyId }
+        if let jobWorkFormat { jobDict["workFormat"] = jobWorkFormat }
+        if let jobLevel { jobDict["level"] = jobLevel }
+        if let lo = Int(jobSalaryMin) { jobDict["salaryMin"] = lo }
+        if let hi = Int(jobSalaryMax) { jobDict["salaryMax"] = hi }
+        if !jobSkills.isEmpty { jobDict["skills"] = jobSkills }
         if showJobApplicationDeadline, let deadline = jobApplicationDeadline {
             // Date-only (no time component) to match the backend's DATE column.
             let df = DateFormatter()

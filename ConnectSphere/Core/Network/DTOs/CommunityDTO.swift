@@ -353,9 +353,13 @@ struct JobDataDTO: Decodable {
     let applicationDeadline: Date?
     let interestedCount: Int
     let userInterested: Bool
+    let salaryMin: Int?
+    let salaryMax: Int?
 
     enum CodingKeys: String, CodingKey {
         case id, title, company, location
+        case salaryMin           = "salary_min"
+        case salaryMax           = "salary_max"
         case employmentType      = "employment_type"
         case salaryRange         = "salary_range"
         case applicationDeadline = "application_deadline"
@@ -374,6 +378,8 @@ struct JobDataDTO: Decodable {
         applicationDeadline = try c.decodeIfPresent(Date.self, forKey: .applicationDeadline)
         interestedCount     = try c.decodeIfPresent(Int.self, forKey: .interestedCount) ?? 0
         userInterested      = try c.decodeIfPresent(Bool.self, forKey: .userInterested) ?? false
+        salaryMin           = try c.decodeIfPresent(Int.self, forKey: .salaryMin)
+        salaryMax           = try c.decodeIfPresent(Int.self, forKey: .salaryMax)
     }
 
     func toJobData() -> JobData {
@@ -386,7 +392,9 @@ struct JobDataDTO: Decodable {
             salaryRange:         salaryRange,
             applicationDeadline: applicationDeadline,
             interestedCount:     interestedCount,
-            userInterested:      userInterested
+            userInterested:      userInterested,
+            salaryMin:           salaryMin,
+            salaryMax:           salaryMax
         )
     }
 }
