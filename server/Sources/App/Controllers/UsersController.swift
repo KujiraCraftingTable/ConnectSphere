@@ -109,6 +109,25 @@ struct UsersController {
         var show_in_suggestions: Bool?
         /// The current mode's "See my other profile" button (migration 060).
         var links_other_mode: Bool?
+        /// Hobby-only (migration 062).
+        var languages: [String]?
+        var relationship_status: String?
+    }
+
+    static let relationshipStatuses: Set<String> = [
+        "single", "in_relationship", "engaged", "married", "civil_union", "domestic_partnership",
+        "open_relationship", "complicated", "separated", "divorced", "widowed",
+    ]
+    static let maxLanguages = 10
+
+    /// Trimmed, de-duplicated ignoring case, at most 10 of ≤ 40 characters.
+    static func cleanLanguages(_ list: [String]) throws -> [String] {
+        var seen = Set<String>()
+        let clean = list.map { $0.trimmedText }.filter { !$0.isEmpty && seen.insert($0.lowercased()).inserted }
+        guard clean.count <= maxLanguages, clean.allSatisfy({ $0.count <= 40 }) else {
+            throw InlineError(.badRequest, "Up to \(maxLanguages) languages, each at most 40 characters")
+        }
+        return clean
     }
 
     static func updateMe(_ req: Request) async throws -> DataResponse<PrivateUserObject> {
@@ -178,6 +197,19 @@ struct UsersController {
         }
         if sent("show_in_suggestions"), let show = raw.show_in_suggestions {
             try await sdb.raw("UPDATE users SET show_in_suggestions = \(bind: show) WHERE id = \(uuid: req.userID)").run()
+        }
+        // Hobby-only details: the Work profile has experience and skills instead.
+        if sent("languages") || sent("relationship_status") {
+            guard mode == "hobby" else { throw InlineError(.badRequest, "Languages and relationship are on your Hobby profile only") }
+            if sent("languages") {
+                let langs = try cleanLanguages(raw.languages ?? [])
+                try await sdb.raw("UPDATE users SET languages = \(bind: langs) WHERE id = \(uuid: req.userID)").run()
+            }
+            if sent("relationship_status") {
+                let status = raw.relationship_status?.nilIfEmpty
+                if let status, !relationshipStatuses.contains(status) { throw InlineError(.badRequest, "Invalid relationship status") }
+                try await sdb.raw("UPDATE users SET relationship_status = \(bind: status) WHERE id = \(uuid: req.userID)").run()
+            }
         }
         if sent("links_other_mode"), let link = raw.links_other_mode {
             // `mode` is hobby/work by now; the column comes from this pair, never from input.

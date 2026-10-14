@@ -20,6 +20,9 @@ final class EditProfileViewModel {
     var dob = ""
     var dobVisibility = "private"
     var selectedInterests: [InterestItem] = []
+    /// Hobby-only details.
+    var languages: [String] = []
+    var relationship: RelationshipStatus?
     /// Comma-separated, the same as onboarding.
     /// Added one at a time in a SkillTagField.
     var skills: [String] = []
@@ -57,6 +60,8 @@ final class EditProfileViewModel {
         company     = user.company ?? ""
         location    = user.location ?? ""
         skills      = user.skills
+        languages   = user.languages
+        relationship = user.relationshipStatus.flatMap(RelationshipStatus.init(rawValue:))
         // The backend returns dob as "yyyy-MM-dd" or a full ISO timestamp (a
         // Postgres DATE in JSON) — the first 10 characters are yyyy-MM-dd either
         // way. Older accounts may have none: leave it blank.
@@ -119,7 +124,9 @@ final class EditProfileViewModel {
             avatar_url:     avatarUrl,
             cover_url:      coverUrl,
             interests:      selectedInterests.map { $0.displayText },
-            skills:         skills)
+            skills:         skills,
+            languages:      mode == .hobby ? languages : nil,
+            relationship_status: mode == .hobby ? (relationship?.rawValue ?? "") : nil)
         do {
             return try await profileRepository.updateProfile(update)
         } catch {

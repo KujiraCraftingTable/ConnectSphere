@@ -74,6 +74,9 @@ struct ProfileView: View {
                             ExperienceSection(userId: user.id, isMe: true)
                             SkillsSection(userId: user.id, isMe: true)
                         }
+                        if let user, appState.currentMode == .hobby {
+                            HobbyAboutSection(user: user, isMe: true)
+                        }
                         postsSection.id("posts")
                     }
                 }

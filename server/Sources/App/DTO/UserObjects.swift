@@ -26,6 +26,9 @@ struct UserCore: Content {
     var created_at: Date
     var interests: [String]
     var skills: [String]
+    /// Hobby-only (migration 062).
+    var languages: [String]
+    @NullCoded var relationship_status: String?
 }
 
 /// `findAll` row — `UserCore` + `mutual_count`, flattened (Node returns one flat

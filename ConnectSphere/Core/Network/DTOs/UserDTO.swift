@@ -21,6 +21,8 @@ struct UserDTO: Decodable {
     let linksOtherMode: Bool?
     /// Owner's own response only (PATCH /users/me).
     let emailVerified: Bool?
+    let languages: [String]?
+    let relationshipStatus: String?
     let jobTitle: String?
     let company: String?
     let defaultMode: String?
@@ -41,6 +43,8 @@ struct UserDTO: Decodable {
         case dobVisibility   = "dob_visibility"
         case linksOtherMode  = "links_other_mode"
         case emailVerified   = "email_verified"
+        case languages
+        case relationshipStatus = "relationship_status"
         case hasPassword     = "has_password"
         case displayName     = "display_name"
         case avatarColor     = "avatar_color"
@@ -79,6 +83,8 @@ struct UserDTO: Decodable {
             hasPassword:    hasPassword ?? false,
             linksOtherMode: linksOtherMode ?? true,
             emailVerified:  emailVerified ?? false,
+            languages:      languages ?? [],
+            relationshipStatus: relationshipStatus,
             age:            age,
             dob:            dob,
             dobVisibility:  dobVisibility,
