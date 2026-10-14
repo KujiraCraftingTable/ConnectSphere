@@ -62,8 +62,11 @@ class AuthService {
         return try JSONDecoder.makeISO8601().decode(AuthResponse.self, from: data)
     }
 
-    func fetchMe(token: String) async throws -> AuthUserDTO {
-        guard let url = URL(string: APIConfig.baseURL + "/auth/me") else { throw URLError(.badURL) }
+    /// `mode` asks for that mode's persona; nil is the account's default mode.
+    func fetchMe(token: String, mode: AppMode? = nil) async throws -> AuthUserDTO {
+        var comps = URLComponents(string: APIConfig.baseURL + "/auth/me")
+        if let mode { comps?.queryItems = [URLQueryItem(name: "mode", value: mode.rawValue)] }
+        guard let url = comps?.url else { throw URLError(.badURL) }
         var req = URLRequest(url: url)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         do {
@@ -74,9 +77,11 @@ class AuthService {
             guard http.statusCode != 401 else { throw URLError(.userAuthenticationRequired) }
             guard http.statusCode == 200 else { throw URLError(.badServerResponse) }
             let user = try JSONDecoder.makeISO8601().decode(MeResponse.self, from: data).user
-            await CacheStore.shared.put(CacheStore.Key.me, body: data)   // for an offline cold launch
+            // The cold-launch cache is the default-mode profile; a per-mode
+            // fetch must not replace it.
+            if mode == nil { await CacheStore.shared.put(CacheStore.Key.me, body: data) }   // for an offline cold launch
             return user
-        } catch let err as URLError where err.code != .userAuthenticationRequired {
+        } catch let err as URLError where err.code != .userAuthenticationRequired && mode == nil {
             // Offline / server down (not a 401) — restore the last-known profile
             // so the app opens to its cached state instead of the login screen.
             if let cached = await CacheStore.shared.get(MeResponse.self, CacheStore.Key.me) {

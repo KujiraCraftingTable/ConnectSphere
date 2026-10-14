@@ -17,11 +17,14 @@ enum UserStore {
     /// `cover_url` resolve from the `default_mode` persona; `password_hash` and
     /// `google_id` are never selected. `interests`/`skills` use `array_agg`
     /// (same sorted DISTINCT output as the Node `json_agg(DISTINCT …)`).
-    static func authUser(id: String, on db: any SQLDatabase) async throws -> AuthUserObject? {
-        let dn  = PersonaSQL.expr("display_name", modeRef: "u.default_mode")
-        let bio = PersonaSQL.expr("bio", modeRef: "u.default_mode")
-        let av  = PersonaSQL.expr("avatar_url", modeRef: "u.default_mode")
-        let cv  = PersonaSQL.expr("cover_url", modeRef: "u.default_mode")
+    /// `mode` picks which persona's name / bio / photos come back; nil is the
+    /// account's default mode. Only "hobby" / "work" — it's inlined as SQL.
+    static func authUser(id: String, mode: String? = nil, on db: any SQLDatabase) async throws -> AuthUserObject? {
+        let modeRef = mode.flatMap { ["hobby", "work"].contains($0) ? "'\($0)'" : nil } ?? "u.default_mode"
+        let dn  = PersonaSQL.expr("display_name", modeRef: modeRef)
+        let bio = PersonaSQL.expr("bio", modeRef: modeRef)
+        let av  = PersonaSQL.expr("avatar_url", modeRef: modeRef)
+        let cv  = PersonaSQL.expr("cover_url", modeRef: modeRef)
 
         return try await db.raw("""
             SELECT
