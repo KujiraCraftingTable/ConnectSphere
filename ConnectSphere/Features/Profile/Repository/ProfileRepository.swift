@@ -53,6 +53,16 @@ struct ProfileRepository {
                                    bodyData: NetworkClient.encode(Body(allow_friend_requests: allow)))
     }
 
+    /// The "See my other profile" button on this mode's profile.
+    func setLinksOtherMode(_ link: Bool, mode: AppMode) async throws {
+        guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
+            throw APIError.serverError(statusCode: 401, message: "Not authenticated")
+        }
+        struct Body: Encodable { let mode: String; let links_other_mode: Bool }
+        _ = try await client.fetch(SingleResponse<UserDTO>.self, path: "/users/me", method: "PATCH", token: token,
+                                   bodyData: NetworkClient.encode(Body(mode: mode.rawValue, links_other_mode: link)))
+    }
+
     func setShowInSuggestions(_ show: Bool) async throws {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")

@@ -9,6 +9,11 @@ struct UserProfileView: View {
 
     let userId: String
     let preloadedUser: UserProfile?
+    /// Set when opened from the person's other persona ("See Work profile"):
+    /// that mode's profile, view only — connecting happens in that mode.
+    let viewingMode: AppMode?
+    private var mode: AppMode { viewingMode ?? appState.currentMode }
+    private var otherMode: AppMode { mode == .hobby ? .work : .hobby }
 
     @State private var pull: CGFloat = 0
     @State private var chatConversationId: String?
@@ -25,9 +30,10 @@ struct UserProfileView: View {
 
     private var isSelf: Bool { userId == appState.currentUser?.id }
 
-    init(userId: String, preloadedUser: UserProfile? = nil) {
+    init(userId: String, preloadedUser: UserProfile? = nil, viewingMode: AppMode? = nil) {
         self.userId = userId
         self.preloadedUser = preloadedUser
+        self.viewingMode = viewingMode
     }
 
     private var user: UserProfile? {
@@ -39,15 +45,20 @@ struct UserProfileView: View {
             ScrollView {
                 if let user = user {
                     VStack(spacing: 8) {
-                        ProfileHeaderCard(user: user, mode: appState.currentMode, onStatTap: { stat in
+                        ProfileHeaderCard(user: user, mode: mode, onStatTap: { stat in
                             if stat == .posts { withAnimation { proxy.scrollTo("posts", anchor: .top) } }
-                            else { listRoute = stat }
+                            // The lists are your own mode's; not from the other persona.
+                            else if viewingMode == nil { listRoute = stat }
                         }) {
                             actions(for: user)
                         }
-                        if appState.currentMode == .work {
+                        if viewingMode == nil, !isSelf, user.otherModeLinked(from: mode) {
+                            otherProfileButton(user)
+                        }
+                        if mode == .work {
                             ExperienceSection(userId: user.id, isMe: user.id == appState.currentUser?.id)
-                            SkillsSection(userId: user.id, isMe: user.id == appState.currentUser?.id)
+                            SkillsSection(userId: user.id, isMe: user.id == appState.currentUser?.id,
+                                          allowsEndorsing: viewingMode == nil)
                         }
                         postsSection.id("posts")
                     }
@@ -59,7 +70,7 @@ struct UserProfileView: View {
             .ignoresSafeArea(edges: .top)
             .trackPull($pull)
             .refreshable {
-                await viewModel.refresh(userId: userId, mode: appState.currentMode.rawValue)
+                await viewModel.refresh(userId: userId, mode: mode.rawValue)
                 if userId != appState.currentUser?.id { await viewModel.loadBlockStatus(userId: userId) }
             }
         }
@@ -78,10 +89,10 @@ struct UserProfileView: View {
             if !isSelf {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
-                        if !viewModel.isBlocked {
+                        if !viewModel.isBlocked && viewingMode == nil {
                             Button {
                                 Task { await connect.setFollowing(!connect.isFollowing, targetId: userId,
-                                                                  mode: appState.currentMode.rawValue) }
+                                                                  mode: mode.rawValue) }
                             } label: {
                                 Label(bundle.loc(connect.isFollowing ? "Unfollow" : "Follow"),
                                       systemImage: connect.isFollowing ? "person.crop.circle.badge.xmark"
@@ -146,12 +157,14 @@ struct UserProfileView: View {
             }
         }
         .task {
-            await viewModel.load(userId: userId, mode: appState.currentMode.rawValue)
+            await viewModel.load(userId: userId, mode: mode.rawValue)
             if userId != appState.currentUser?.id {
                 await viewModel.loadBlockStatus(userId: userId)
             }
         }
         .onChange(of: appState.currentMode) { _, newMode in
+            // The other persona's page is pinned to its mode.
+            guard viewingMode == nil else { return }
             Task { await viewModel.load(userId: userId, mode: newMode.rawValue) }
         }
     }
@@ -162,6 +175,18 @@ struct UserProfileView: View {
     private func actions(for user: UserProfile) -> some View {
         if isSelf {
             EmptyView()
+        } else if let viewingMode {
+            // View only: connecting / messaging happens in that mode.
+            Label(String(format: bundle.loc(viewingMode == .work
+                    ? "You're viewing %@'s Work profile. Switch to Work mode to connect."
+                    : "You're viewing %@'s Hobby profile. Switch to Hobby mode to connect."), user.name),
+                  systemImage: viewingMode.glyph)
+                .font(.system(size: 13))
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(AppColors.elevated(colorScheme),
+                            in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
         } else if viewModel.isBlocked {
             // Blocked → can no longer connect with or message this person.
             Text("Blocked", bundle: bundle)
@@ -174,6 +199,32 @@ struct UserProfileView: View {
             ProfileActionBar(targetUserId: userId, targetName: user.name, connect: connect,
                              isOpeningChat: viewModel.isOpeningChat) { openChat() }
         }
+    }
+
+    /// "See Work profile" / "See Hobby profile": the person's other persona, view only.
+    private func otherProfileButton(_ user: UserProfile) -> some View {
+        NavigationLink {
+            UserProfileView(userId: userId, viewingMode: otherMode)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: otherMode.glyph)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(themeManager.theme.primary)
+                Text(bundle.loc(otherMode == .work ? "See Work profile" : "See Hobby profile"))
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(AppColors.textPrimary(colorScheme))
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(AppColors.textTertiary(colorScheme))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(AppColors.surface(colorScheme),
+                        in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
+            .padding(.horizontal, 12)
+        }
+        .buttonStyle(.plain)
     }
 
     private func openChat() {
@@ -227,7 +278,7 @@ struct UserProfileView: View {
                         .onAppear {
                             if post.id == viewModel.posts.last?.id {
                                 Task {
-                                    await viewModel.loadMorePosts(userId: userId, mode: appState.currentMode.rawValue)
+                                    await viewModel.loadMorePosts(userId: userId, mode: mode.rawValue)
                                 }
                             }
                         }
@@ -255,7 +306,7 @@ struct UserProfileView: View {
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .padding(.horizontal, 32)
             Button(bundle.loc("Retry")) {
-                Task { await viewModel.load(userId: userId, mode: appState.currentMode.rawValue) }
+                Task { await viewModel.load(userId: userId, mode: mode.rawValue) }
             }
             .font(.system(size: 14, weight: .semibold))
             .foregroundColor(themeManager.theme.primary)

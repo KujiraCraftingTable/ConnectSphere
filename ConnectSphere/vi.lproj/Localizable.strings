@@ -1295,3 +1295,11 @@
 "Up to %lld skills." = "Tối đa %lld kỹ năng.";
 "Keep each skill under %lld characters." = "Mỗi kỹ năng tối đa %lld ký tự.";
 "Required skills (up to 10)" = "Kỹ năng cần có (tối đa 10)";
+"See Work profile" = "Xem hồ sơ Công việc";
+"See Hobby profile" = "Xem hồ sơ Sở thích";
+"You're viewing %@'s Work profile. Switch to Work mode to connect." = "Bạn đang xem hồ sơ Công việc của %@. Chuyển sang chế độ Công việc để kết nối.";
+"You're viewing %@'s Hobby profile. Switch to Hobby mode to connect." = "Bạn đang xem hồ sơ Sở thích của %@. Chuyển sang chế độ Sở thích để kết nối.";
+"Show a link to my Work profile" = "Hiện liên kết tới hồ sơ Công việc";
+"Show a link to my Hobby profile" = "Hiện liên kết tới hồ sơ Sở thích";
+"Shown on your Hobby profile. Your Work profile stays visible to people in Work mode either way." = "Hiện trên hồ sơ Sở thích của bạn. Dù bật hay tắt, hồ sơ Công việc vẫn hiển thị với người dùng ở chế độ Công việc.";
+"Shown on your Work profile. Your Hobby profile stays visible to people in Hobby mode either way." = "Hiện trên hồ sơ Công việc của bạn. Dù bật hay tắt, hồ sơ Sở thích vẫn hiển thị với người dùng ở chế độ Sở thích.";

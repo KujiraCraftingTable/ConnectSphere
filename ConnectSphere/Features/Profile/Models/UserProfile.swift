@@ -30,6 +30,10 @@ struct UserProfile: Identifiable {
     var allowFriendRequests: Bool = true
     /// Self-only. Off = never shown in other people's "People you may know".
     var showInSuggestions: Bool = true
+    /// This persona's profile shows "See Work / Hobby profile" (on unless the
+    /// person turned it off for this mode). The button also needs the other
+    /// persona to exist — see `otherModeLinked(from:)`.
+    var linksOtherMode: Bool = true
     // Displayed age — present in both public and self views, null from server when dob_visibility = private
     var age: Int? = nil
     // Self-only field (server only returns this in /auth/me and PATCH /users/me),
@@ -46,4 +50,12 @@ struct UserProfile: Identifiable {
     var mutualCount: Int = 0
     // AI search score — nil for regular search results
     var score: Double?
+}
+
+extension UserProfile {
+    /// Whether, seen in `mode`, this profile links to the person's other
+    /// persona: they kept the button on and have that persona set up.
+    func otherModeLinked(from mode: AppMode) -> Bool {
+        linksOtherMode && (mode == .hobby ? workSetup : hobbySetup)
+    }
 }

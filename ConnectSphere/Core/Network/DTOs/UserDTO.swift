@@ -17,6 +17,8 @@ struct UserDTO: Decodable {
     /// profile lost its date of birth and Edit profile showed "20 years ago".
     let dob: String?
     let dobVisibility: String?
+    /// The persona's "See my other profile" switch; missing → on.
+    let linksOtherMode: Bool?
     let jobTitle: String?
     let company: String?
     let defaultMode: String?
@@ -35,6 +37,7 @@ struct UserDTO: Decodable {
     enum CodingKeys: String, CodingKey {
         case id, username, bio, location, gender, email, company, interests, skills, score, age, dob
         case dobVisibility   = "dob_visibility"
+        case linksOtherMode  = "links_other_mode"
         case hasPassword     = "has_password"
         case displayName     = "display_name"
         case avatarColor     = "avatar_color"
@@ -71,6 +74,7 @@ struct UserDTO: Decodable {
             workSetup:      workSetup ?? false,
             email:          email,
             hasPassword:    hasPassword ?? false,
+            linksOtherMode: linksOtherMode ?? true,
             age:            age,
             dob:            dob,
             dobVisibility:  dobVisibility,

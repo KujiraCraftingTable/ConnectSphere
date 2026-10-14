@@ -69,8 +69,13 @@ extension UserStore {
                AND (c.requester_id = base.id::uuid OR c.addressee_id = base.id::uuid))
             """
         } ?? "0"
+        // This persona's "See my other profile" switch (migration 060).
+        let link = """
+            (SELECT CASE WHEN \(modeRef ?? "x.default_mode") = 'work' THEN x.work_links_hobby ELSE x.hobby_links_work END
+             FROM users x WHERE x.id = base.id::uuid)
+            """
         return try await db.raw("""
-            SELECT base.*, \(unsafeRaw: connCount) AS connection_count
+            SELECT base.*, \(unsafeRaw: connCount) AS connection_count, \(unsafeRaw: link) AS links_other_mode
             FROM (\(unsafeRaw: userSelectSQL(modeRef: modeRef)) WHERE u.id = \(uuid: id) GROUP BY u.id) base
             """).first(decoding: PublicUserObject.self)
     }

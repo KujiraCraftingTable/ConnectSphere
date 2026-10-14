@@ -11,6 +11,8 @@ struct SkillsSection: View {
 
     let userId: String
     let isMe: Bool
+    /// Off on a view-only Work profile opened from Hobby mode.
+    var allowsEndorsing = true
 
     @State private var viewModel = SkillsViewModel()
     @State private var showAll = false
@@ -81,7 +83,7 @@ struct SkillsSection: View {
                 }
             }
             Spacer(minLength: 8)
-            if viewModel.canEndorse {
+            if viewModel.canEndorse && allowsEndorsing {
                 Button {
                     Task { await viewModel.toggleEndorse(skill, userId: userId, token: token) }
                 } label: {
