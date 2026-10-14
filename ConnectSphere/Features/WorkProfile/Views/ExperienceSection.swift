@@ -184,6 +184,7 @@ struct ExperienceEditorView: View {
 
     @State private var viewModel: ExperienceEditorViewModel
     @State private var confirmRemove = false
+    @FocusState private var focus: ExperienceEditorViewModel.Field?
     let onSaved: ([WorkExperience]) -> Void
 
     init(editing: WorkExperience?, onSaved: @escaping ([WorkExperience]) -> Void) {
@@ -198,7 +199,9 @@ struct ExperienceEditorView: View {
             Form {
                 Section {
                     TextField(bundle.loc("Title (e.g. iOS Engineer)"), text: $viewModel.title)
+                        .focused($focus, equals: .title)
                     TextField(bundle.loc("Company"), text: $viewModel.companyName)
+                        .focused($focus, equals: .company)
                         .onChange(of: viewModel.companyName) { _, text in viewModel.companyTyped(text, token: token) }
                     if viewModel.companyId != nil {
                         Label(bundle.loc("Linked to the company's page"), systemImage: "link")
@@ -217,6 +220,8 @@ struct ExperienceEditorView: View {
                     Picker(bundle.loc("Employment type"), selection: $viewModel.employmentType) {
                         ForEach(WorkExperience.EmploymentKind.allCases, id: \.self) { Text(bundle.loc($0.label)).tag($0) }
                     }
+                } footer: {
+                    problems(viewModel.titleProblem, viewModel.companyProblem)
                 }
                 Section {
                     TextField(bundle.loc("Location (e.g. Ho Chi Minh City)"), text: $viewModel.location)
@@ -226,6 +231,8 @@ struct ExperienceEditorView: View {
                             Text(bundle.loc($0.label)).tag(WorkExperience.LocationKind?.some($0))
                         }
                     }
+                } footer: {
+                    problems(viewModel.locationProblem)
                 }
                 Section {
                     Toggle(bundle.loc("I currently work here"), isOn: $viewModel.isCurrent)
@@ -233,10 +240,16 @@ struct ExperienceEditorView: View {
                     if !viewModel.isCurrent {
                         MonthYearPicker(title: bundle.loc("End"), month: $viewModel.end)
                     }
+                } footer: {
+                    problems(viewModel.dateProblem)
                 }
-                Section(bundle.loc("What you did")) {
+                Section {
                     TextField(bundle.loc("Responsibilities, results…"), text: $viewModel.description, axis: .vertical)
                         .lineLimit(3...8)
+                } header: {
+                    Text("What you did", bundle: bundle)
+                } footer: {
+                    problems(viewModel.descriptionProblem)
                 }
                 if let error = viewModel.errorMessage {
                     Section { Text(error).foregroundStyle(.red) }
@@ -247,6 +260,7 @@ struct ExperienceEditorView: View {
                     }
                 }
             }
+            .onChange(of: focus) { left, _ in if let left { viewModel.touched.insert(left) } }
             .navigationTitle(bundle.loc(viewModel.editing == nil ? "Add a role" : "Edit role"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -276,6 +290,21 @@ struct ExperienceEditorView: View {
                 }
                 Button(bundle.loc("Cancel"), role: .cancel) {}
             }
+        }
+    }
+}
+
+extension ExperienceEditorView {
+    /// What's wrong in a section, in red under it.
+    @ViewBuilder
+    fileprivate func problems(_ messages: String?...) -> some View {
+        let shown = messages.compactMap { $0 }
+        if !shown.isEmpty {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(shown, id: \.self) { Label($0, systemImage: "exclamationmark.circle.fill") }
+            }
+            .font(.footnote)
+            .foregroundStyle(.red)
         }
     }
 }

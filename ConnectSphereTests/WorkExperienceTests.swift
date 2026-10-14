@@ -64,3 +64,45 @@ struct ProfileSkillsTests {
         #expect(result.data[0].topEndorsers.first?.displayName == "An")
     }
 }
+
+/// The role editor's red hints, matching the server's rules.
+@MainActor
+struct ExperienceEditorHintTests {
+    private func form() -> ExperienceEditorViewModel {
+        let vm = ExperienceEditorViewModel()
+        vm.title = "iOS Engineer"
+        vm.companyName = "Acme"
+        return vm
+    }
+
+    @Test func endBeforeStartIsFlagged() {
+        let vm = form()
+        vm.isCurrent = false
+        vm.start = WorkMonth(year: 2020, month: 6)
+        vm.end = WorkMonth(year: 2005, month: 8)
+        #expect(vm.dateProblem == "The end can't be before the start.")
+        #expect(!vm.canSave)
+        vm.end = WorkMonth(year: 2021, month: 1)
+        #expect(vm.dateProblem == nil && vm.canSave)
+    }
+
+    @Test func futureDatesAreFlagged() {
+        let vm = form()
+        vm.start = WorkMonth(year: WorkMonth.now.year + 1, month: 1)
+        #expect(vm.dateProblem == "The start can't be in the future.")
+    }
+
+    @Test func emptyFieldsOnlyWarnOnceLeft() {
+        let vm = form()
+        vm.title = "  "
+        #expect(vm.titleProblem == nil && !vm.canSave)
+        vm.touched.insert(.title)
+        #expect(vm.titleProblem == "Add your title.")
+    }
+
+    @Test func lengthLimits() {
+        let vm = form()
+        vm.description = String(repeating: "x", count: 2001)
+        #expect(vm.descriptionProblem != nil && !vm.canSave)
+    }
+}

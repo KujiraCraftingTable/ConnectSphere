@@ -70,10 +70,46 @@ final class ExperienceEditorViewModel {
         description = e.description ?? ""
     }
 
+    enum Field: Hashable { case title, company }
+    /// Fields the user has left; an empty one only gets its hint then, so a
+    /// fresh form doesn't open in red.
+    var touched: Set<Field> = []
+
+    private func trimmed(_ s: String) -> String { s.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    // The same limits the server enforces (ExperiencesController.validate).
+
+    var titleProblem: String? {
+        let t = trimmed(title)
+        if t.count > 100 { return String(format: Bundle.app.loc("Keep the title under %lld characters."), 100) }
+        return t.isEmpty && touched.contains(.title) ? Bundle.app.loc("Add your title.") : nil
+    }
+
+    var companyProblem: String? {
+        let c = trimmed(companyName)
+        if c.count > 100 { return String(format: Bundle.app.loc("Keep the company name under %lld characters."), 100) }
+        return c.isEmpty && touched.contains(.company) ? Bundle.app.loc("Add the company.") : nil
+    }
+
+    var locationProblem: String? {
+        trimmed(location).count > 100 ? String(format: Bundle.app.loc("Keep the location under %lld characters."), 100) : nil
+    }
+
+    var dateProblem: String? {
+        if start > .now { return Bundle.app.loc("The start can't be in the future.") }
+        guard !isCurrent else { return nil }
+        if end > .now { return Bundle.app.loc("The end can't be in the future.") }
+        if end < start { return Bundle.app.loc("The end can't be before the start.") }
+        return nil
+    }
+
+    var descriptionProblem: String? {
+        trimmed(description).count > 2000 ? String(format: Bundle.app.loc("Keep it under %lld characters."), 2000) : nil
+    }
+
     var canSave: Bool {
-        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !companyName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && start <= .now && (isCurrent || (start <= end && end <= .now)) && !isSaving
+        !trimmed(title).isEmpty && !trimmed(companyName).isEmpty && !isSaving
+            && [titleProblem, companyProblem, locationProblem, dateProblem, descriptionProblem].allSatisfy { $0 == nil }
     }
 
     /// Typing a name unlinks any picked page and looks for matching pages.

@@ -1283,3 +1283,11 @@
 "You got the job: %@" = "You got the job: %@";
 "Your application for %@ wasn't selected this time" = "Your application for %@ wasn't selected this time";
 "Your application for %@ was updated" = "Your application for %@ was updated";
+"Keep the title under %lld characters." = "Keep the title under %lld characters.";
+"Add your title." = "Add your title.";
+"Keep the company name under %lld characters." = "Keep the company name under %lld characters.";
+"Add the company." = "Add the company.";
+"Keep the location under %lld characters." = "Keep the location under %lld characters.";
+"The start can't be in the future." = "The start can't be in the future.";
+"The end can't be in the future." = "The end can't be in the future.";
+"The end can't be before the start." = "The end can't be before the start.";
