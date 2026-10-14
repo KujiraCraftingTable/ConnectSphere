@@ -3,13 +3,14 @@ import Observation
 import UIKit
 import GoogleSignIn
 
-/// Sign-in with username (or email) + password or Google, or by picking an
+/// Sign-in with email + password or Google, or by picking an
 /// account that signed in on this device before. On success `AppState`
 /// switches the root view, so this only reports failures.
 @MainActor
 @Observable
 final class LoginViewModel {
-    var username = ""
+    /// Sign-in is by email — the @username is public.
+    var email = ""
     var password = ""
     private(set) var savedAccounts: [SavedAccount] = SavedAccounts().all()
     private(set) var isLoading = false
@@ -18,12 +19,12 @@ final class LoginViewModel {
 
     func clearError() { errorMessage = nil }
 
-    /// A saved account: fills its username (the password is still asked
+    /// A saved account: fills its email (the password is still asked
     /// for), or signs in with Google for a Google-only account.
     func pick(_ account: SavedAccount, presenting rootViewController: UIViewController?, appState: AppState) async {
         errorMessage = nil
         if account.hasPassword {
-            username = account.username
+            email = account.email ?? ""
             password = ""
         } else {
             await loginWithGoogle(presenting: rootViewController, appState: appState)
@@ -37,7 +38,7 @@ final class LoginViewModel {
     }
 
     func loginWithPassword(appState: AppState) async {
-        guard !username.isEmpty, !password.isEmpty else {
+        guard !email.isEmpty, !password.isEmpty else {
             errorMessage = Bundle.app.loc("Please fill in all fields.")
             return
         }
@@ -45,7 +46,7 @@ final class LoginViewModel {
         errorMessage = nil
         do {
             try await appState.loginWithPassword(
-                username: username.trimmingCharacters(in: .whitespaces),
+                email: email.trimmingCharacters(in: .whitespaces).lowercased(),
                 password: password)
             // Success: the root view switches away; keep the spinner until it does.
         } catch {

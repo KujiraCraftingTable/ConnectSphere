@@ -245,17 +245,17 @@ class AppState {
         await MainActor.run { finishLogin(token: response.token, user: response.user, isNew: response.isNewUser) }
     }
 
-    // ── Login / register with username + password ─────────────────────────────
+    // ── Login / register with email + password ────────────────────────────────
 
-    func loginWithPassword(username: String, password: String) async throws {
-        let response = try await AuthService.shared.login(username: username, password: password)
+    func loginWithPassword(email: String, password: String) async throws {
+        let response = try await AuthService.shared.login(email: email, password: password)
         KeychainHelper.save(response.token, forKey: KeychainHelper.tokenKey)
         await MainActor.run { finishLogin(token: response.token, user: response.user, isNew: response.isNewUser) }
     }
 
     /// Registering also logs the user in right away — is_new_user=true so the root view auto-navigates into onboarding.
-    func registerWithPassword(username: String, password: String) async throws {
-        let response = try await AuthService.shared.register(username: username, password: password)
+    func registerWithPassword(email: String, password: String) async throws {
+        let response = try await AuthService.shared.register(email: email, password: password)
         KeychainHelper.save(response.token, forKey: KeychainHelper.tokenKey)
         await MainActor.run { finishLogin(token: response.token, user: response.user, isNew: response.isNewUser) }
     }
@@ -284,7 +284,7 @@ class AppState {
     private func rememberAccount() {
         guard let user = currentUser, !user.username.isEmpty else { return }
         SavedAccounts().remember(SavedAccount(
-            id: user.id, username: user.username, displayName: user.name,
+            id: user.id, username: user.username, email: user.email, displayName: user.name,
             avatarUrl: user.avatarUrl, avatarColor: user.avatarColor,
             hasPassword: user.hasPassword, lastUsed: Date()))
     }

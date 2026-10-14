@@ -3,27 +3,21 @@ import Testing
 
 @MainActor
 struct AuthViewModelTests {
-    @Test func registerLowercasesUsernameAsTyped() {
+    @Test func registerChecksTheEmailShape() {
         let vm = RegisterViewModel()
-        vm.username = "Kujira_01"
-        #expect(vm.username == "kujira_01")
-    }
-
-    @Test func registerFlagsBadUsernameAndWeakPassword() {
-        let vm = RegisterViewModel()
-        vm.username = "ab"
-        #expect(vm.usernameError != nil)
-        vm.username = "bad name!"
-        #expect(vm.usernameError != nil)
-        vm.username = "good_name"
-        #expect(vm.usernameError == nil)
+        vm.email = "kujira"
+        #expect(vm.emailError != nil)
+        vm.email = "kujira@gmail"
+        #expect(vm.emailError != nil)
+        vm.email = " Kujira@Gmail.com "
+        #expect(vm.emailError == nil)
         vm.password = "short"
         #expect(vm.passwordError != nil)
     }
 
     @Test func registerFormValidOnlyWhenEverythingMatches() {
         let vm = RegisterViewModel()
-        vm.username = "good_name"
+        vm.email = "kujira@example.com"
         vm.password = "password1"
         vm.confirmPassword = "password2"
         #expect(!vm.isFormValid)
@@ -45,23 +39,21 @@ struct AuthViewModelTests {
         #expect(vm.canReset)
     }
 
-    @Test func onboardingBasicsAndSkillsParsing() {
+    @Test func onboardingNeedsAUsernameAndAVerifiedEmail() {
         let vm = OnboardingViewModel()
-        vm.prefill(username: "kujira", hasPassword: true)
-        #expect(vm.form.username == "kujira")
-        #expect(!vm.basicsComplete)
+        vm.prefill(username: "user_ab12cd34", hasPassword: true)
+        #expect(vm.needsUsername)           // everyone picks their public @username now
+        #expect(vm.form.username.isEmpty)   // the placeholder isn't kept
         vm.form.display_name = "Kujira"
         vm.form.location = "79"
         vm.form.gender = "male"
         vm.form.dob = "2000-01-01"
-        // A verified email is required too (Google sign-ups arrive with one).
-        #expect(!vm.basicsComplete)
         vm.prefillEmail("kujira@example.com", verified: false)
-        #expect(!vm.basicsComplete)
+        #expect(!vm.emailVerified)
         vm.prefillEmail("kujira@example.com", verified: true)
-        #expect(vm.basicsComplete)
-        for _ in 0..<10 { vm.next() }
-        #expect(vm.step == OnboardingViewModel.totalSteps - 1)
+        #expect(vm.emailVerified)
+        vm.username = "kujira"
+        #expect(!vm.basicsComplete)         // still waiting for "available"
     }
 
     @Test func onboardingBlocksIncompleteStepAndGoesBack() {

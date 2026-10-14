@@ -13,7 +13,8 @@ enum AuthErrorText {
     static func login(_ error: Error) -> String {
         if let message = unreachable(error) { return message }
         switch (error as NSError).code {
-        case 401: return Bundle.app.loc("Invalid username, email or password")
+        case 401: return Bundle.app.loc("Invalid email or password")
+        case 400: return Bundle.app.loc("Sign in with your email")
         case 429: return Bundle.app.loc("Too many attempts, please try again later")
         default:  return Bundle.app.loc("Couldn't sign in, please try again")
         }
@@ -22,7 +23,8 @@ enum AuthErrorText {
     static func register(_ error: Error) -> String {
         if let message = unreachable(error) { return message }
         switch (error as NSError).code {
-        case 409: return Bundle.app.loc("Username already taken")
+        case 409: return Bundle.app.loc("That email is used by another account")
+        case 400: return Bundle.app.loc("Enter a valid email address")
         case 429: return Bundle.app.loc("Too many attempts, please try again later")
         default:  return Bundle.app.loc("Couldn't create account, please try again")
         }

@@ -1426,3 +1426,9 @@
 "Step 1 of 2 · Confirm it's you" = "Step 1 of 2 · Confirm it's you";
 "To change your email, first enter the code we send to %@ — so nobody else can take over your account." = "To change your email, first enter the code we send to %@ — so nobody else can take over your account.";
 "Step 2 of 2 · Your new email" = "Step 2 of 2 · Your new email";
+"Invalid email or password" = "Invalid email or password";
+"Sign in with your email" = "Sign in with your email";
+"That email is used by another account" = "That email is used by another account";
+"Enter a valid email address" = "Enter a valid email address";
+"You sign in with your email. You'll pick your public @username next." = "You sign in with your email. You'll pick your public @username next.";
+"You sign in with your email; your @username is your public handle. Deleting a profile or the account needs a code sent to that email." = "You sign in with your email; your @username is your public handle. Deleting a profile or the account needs a code sent to that email.";

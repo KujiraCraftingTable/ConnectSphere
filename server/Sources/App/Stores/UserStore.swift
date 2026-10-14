@@ -65,17 +65,9 @@ enum UserStore {
     struct IdRow: Decodable { let id: String }
     struct CredRow: Decodable { let id: String; let password_hash: String?; let is_setup: Bool }
 
-    static func findByUsername(_ username: String, on db: any SQLDatabase) async throws -> CredRow? {
-        try await db.raw("SELECT id, password_hash, is_setup FROM users WHERE username = \(bind: username)")
-            .first(decoding: CredRow.self)
-    }
-
-    /// Sign-in by username or, for accounts that added one, email — told
-    /// apart by the "@" (usernames can't contain one). Both are stored
-    /// lowercased.
-    static func findForLogin(_ identifier: String, on db: any SQLDatabase) async throws -> CredRow? {
-        guard identifier.contains("@") else { return try await findByUsername(identifier, on: db) }
-        return try await db.raw("SELECT id, password_hash, is_setup FROM users WHERE email = \(bind: identifier)")
+    /// Sign-in is by email only (stored lowercased); the @username is public.
+    static func findForLogin(_ email: String, on db: any SQLDatabase) async throws -> CredRow? {
+        try await db.raw("SELECT id, password_hash, is_setup FROM users WHERE email = \(bind: email) AND deleted_at IS NULL")
             .first(decoding: CredRow.self)
     }
 

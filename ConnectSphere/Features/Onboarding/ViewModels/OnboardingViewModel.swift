@@ -41,13 +41,10 @@ final class OnboardingViewModel {
         verifiedEmail = email
     }
 
+    /// Every new account picks its public @username here: sign-up is by
+    /// email (or Google), so what's on the account until now is a placeholder.
     func prefill(username: String?, hasPassword: Bool) {
-        guard form.username.isEmpty, !needsUsername else { return }
-        if hasPassword {
-            form.username = username ?? ""
-        } else {
-            needsUsername = true
-        }
+        needsUsername = true
     }
 
     /// The username typed so far, lowercased like at registration.

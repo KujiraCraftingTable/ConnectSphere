@@ -8,6 +8,8 @@ struct SavedAccount: Codable, Identifiable, Equatable {
     /// The user id: a renamed username still matches its row.
     let id: String
     var username: String
+    /// What a password account signs in with (older entries may lack it).
+    var email: String?
     var displayName: String
     var avatarUrl: String?
     var avatarColor: String
