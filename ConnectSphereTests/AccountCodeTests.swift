@@ -24,11 +24,18 @@ struct AccountCodeTests {
         #expect(AccountCode.secondsLeft(until: now.addingTimeInterval(-5), now: now) == 0)
     }
 
-    @MainActor @Test func emailViewModelNeedsBothCodesWhenReplacing() {
+    @MainActor @Test func replacingAVerifiedEmailIsTwoSteps() {
         let vm = EmailVerificationViewModel(replacingVerifiedEmail: true)
-        vm.code = "123456"
-        #expect(!vm.canVerify)          // nothing sent yet
+        #expect(vm.stage == .overview)
+        vm.startChange()
+        #expect(vm.stage == .confirmCurrent)
         vm.currentCode = "12a3456789"
-        #expect(vm.currentCode == "123456")
+        #expect(vm.currentCode == "123456" && !vm.canConfirmCurrent)   // no code sent yet
+        vm.code = "123456"
+        #expect(!vm.canVerify)                                         // still on step 1
+    }
+
+    @MainActor @Test func addingAnEmailIsOneStep() {
+        #expect(EmailVerificationViewModel(replacingVerifiedEmail: false).stage == .newEmail)
     }
 }

@@ -7,8 +7,9 @@ struct AccountController {
     static func register(routes: any RoutesBuilder) {
         let me = routes.grouped("users", "me").grouped(AuthMiddleware()).grouped(RateLimitMiddleware.accountCodes())
         me.post("email", "code", use: sendEmailCode)        // POST /users/me/email/code {email}
-        me.post("email", "verify", use: verifyEmail)        // POST /users/me/email/verify {code, current_code?}
+        me.post("email", "verify", use: verifyEmail)        // POST /users/me/email/verify {code}
         me.post("email", "change-code", use: sendChangeCode) // POST /users/me/email/change-code → current address
+        me.post("email", "change-confirm", use: confirmChange) // POST /users/me/email/change-confirm {code}
         me.post("deletion", "code", use: sendDeletionCode)  // POST /users/me/deletion/code {scope}
         me.delete("personas", ":mode", use: deletePersona)  // DELETE /users/me/personas/:mode {code}
         // DELETE /users/me {code} — UsersController.deleteMe
@@ -52,8 +53,8 @@ struct AccountController {
     }
 
     struct CodeBody: Content { var code: String? }
-    struct VerifyBody: Content { var code: String?; var current_code: String? }
     struct VerifiedResponse: Content { var status = "ok"; var email: String }
+    static let changeWindowMinutes = 15
 
     /// Replacing a verified email: a code to the current address first.
     static func sendChangeCode(_ req: Request) async throws -> SentResponse {
@@ -65,20 +66,38 @@ struct AccountController {
         return SentResponse(email: email)
     }
 
+    /// Step 1 of replacing a verified email: the code from the current
+    /// address unlocks the change for 15 minutes.
+    static func confirmChange(_ req: Request) async throws -> StatusOK {
+        let code = try req.content.decode(CodeBody.self).code ?? ""
+        let db = req.db.sql()
+        _ = try await AccountCodeStore.consume(user: req.userID, purpose: .changeEmail, code: code, on: db)
+        try await db.raw("""
+            UPDATE users SET email_change_until = NOW() + make_interval(mins => \(bind: changeWindowMinutes)::int)
+            WHERE id = \(uuid: req.userID)
+            """).run()
+        return StatusOK()
+    }
+
     static func verifyEmail(_ req: Request) async throws -> VerifiedResponse {
-        let b = try req.content.decode(VerifyBody.self)
+        let code = try req.content.decode(CodeBody.self).code ?? ""
         let db = req.db.sql()
         let a = try await account(req.userID, on: db)
         if a.verified {
-            // The owner OKs it from the address already on file.
-            _ = try await AccountCodeStore.consume(user: req.userID, purpose: .changeEmail, code: b.current_code ?? "", on: db)
+            // Replacing a verified email needs step 1 (confirmChange) first.
+            struct W: Decodable { let open: Bool }
+            guard try await db.raw("SELECT (email_change_until > NOW()) IS TRUE AS open FROM users WHERE id = \(uuid: req.userID)")
+                .first(decoding: W.self)?.open == true else {
+                throw Abort(.badRequest, reason: "Confirm with a code from your current email first")
+            }
         }
-        let email = try await AccountCodeStore.consume(user: req.userID, purpose: .verifyEmail, code: b.code ?? "", on: db)
+        let email = try await AccountCodeStore.consume(user: req.userID, purpose: .verifyEmail, code: code, on: db)
         guard try await !emailTaken(email, by: req.userID, on: db) else {
             throw Abort(.conflict, reason: "That email is used by another account")
         }
         try await db.raw("""
-            UPDATE users SET email = \(bind: email), email_verified_at = NOW(), updated_at = NOW() WHERE id = \(uuid: req.userID)
+            UPDATE users SET email = \(bind: email), email_verified_at = NOW(), email_change_until = NULL, updated_at = NOW()
+            WHERE id = \(uuid: req.userID)
             """).run()
         return VerifiedResponse(email: email)
     }

@@ -35,12 +35,17 @@ struct AccountRepository {
                                bodyData: try body([:]))
     }
 
+    /// Step 1 of replacing a verified email: the current address's code
+    /// unlocks the change for a while.
+    func confirmChange(code: String, token: String) async throws {
+        _ = try await client.fetch(OKResponse.self, path: "/users/me/email/change-confirm", method: "POST", token: token,
+                                   bodyData: try body(["code": code]))
+    }
+
     /// The verified address.
-    func verifyEmail(code: String, currentCode: String?, token: String) async throws -> String {
-        var dict = ["code": code]
-        if let currentCode { dict["current_code"] = currentCode }
-        return try await client.fetch(Verified.self, path: "/users/me/email/verify", method: "POST", token: token,
-                                      bodyData: try body(dict)).email
+    func verifyEmail(code: String, token: String) async throws -> String {
+        try await client.fetch(Verified.self, path: "/users/me/email/verify", method: "POST", token: token,
+                               bodyData: try body(["code": code])).email
     }
 
     func sendDeletionCode(_ scope: Scope, token: String) async throws -> Sent {

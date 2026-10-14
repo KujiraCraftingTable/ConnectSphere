@@ -1305,12 +1305,8 @@
 "Resend code in %llds" = "Resend code in %llds";
 "Resend code" = "Resend code";
 "Send a code to %@" = "Send a code to %@";
-"Code from your current email" = "Code from your current email";
-"1. Confirm it's you" = "1. Confirm it's you";
-"Changing your email needs a code sent to the one you have now, so nobody else can take over your account." = "Changing your email needs a code sent to the one you have now, so nobody else can take over your account.";
 "New email" = "New email";
 "6-digit code" = "6-digit code";
-"2. Your new email" = "2. Your new email";
 "Your email" = "Your email";
 "We sent a code to %@. It expires in 10 minutes." = "We sent a code to %@. It expires in 10 minutes.";
 "We'll send a 6-digit code to check it's yours. It's used to confirm important changes like deleting your account." = "We'll send a 6-digit code to check it's yours. It's used to confirm important changes like deleting your account.";
@@ -1425,3 +1421,8 @@
 "Set it up" = "Set it up";
 "Education" = "Education";
 "Add where you studied, the languages you speak and your relationship status in Edit profile." = "Add where you studied, the languages you speak and your relationship status in Edit profile.";
+"Change email" = "Change email";
+"You sign in with this email, and security codes are sent to it." = "You sign in with this email, and security codes are sent to it.";
+"Step 1 of 2 · Confirm it's you" = "Step 1 of 2 · Confirm it's you";
+"To change your email, first enter the code we send to %@ — so nobody else can take over your account." = "To change your email, first enter the code we send to %@ — so nobody else can take over your account.";
+"Step 2 of 2 · Your new email" = "Step 2 of 2 · Your new email";

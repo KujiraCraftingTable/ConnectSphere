@@ -1305,12 +1305,8 @@
 "Resend code in %llds" = "Gửi lại mã sau %llds";
 "Resend code" = "Gửi lại mã";
 "Send a code to %@" = "Gửi mã tới %@";
-"Code from your current email" = "Mã gửi tới email hiện tại";
-"1. Confirm it's you" = "1. Xác nhận là bạn";
-"Changing your email needs a code sent to the one you have now, so nobody else can take over your account." = "Để đổi email, bạn cần mã gửi tới email hiện tại — để không ai khác chiếm được tài khoản của bạn.";
 "New email" = "Email mới";
 "6-digit code" = "Mã 6 chữ số";
-"2. Your new email" = "2. Email mới của bạn";
 "Your email" = "Email của bạn";
 "We sent a code to %@. It expires in 10 minutes." = "Đã gửi mã tới %@. Mã hết hạn sau 10 phút.";
 "We'll send a 6-digit code to check it's yours. It's used to confirm important changes like deleting your account." = "Chúng tôi sẽ gửi mã 6 chữ số để xác nhận email là của bạn. Email này dùng để xác nhận các thay đổi quan trọng như xoá tài khoản.";
@@ -1425,3 +1421,8 @@
 "Set it up" = "Tạo ngay";
 "Education" = "Học vấn";
 "Add where you studied, the languages you speak and your relationship status in Edit profile." = "Thêm nơi bạn học, ngôn ngữ bạn nói và tình trạng mối quan hệ trong Chỉnh sửa hồ sơ.";
+"Change email" = "Đổi email";
+"You sign in with this email, and security codes are sent to it." = "Bạn đăng nhập bằng email này, và mã bảo mật sẽ được gửi tới đây.";
+"Step 1 of 2 · Confirm it's you" = "Bước 1/2 · Xác nhận là bạn";
+"To change your email, first enter the code we send to %@ — so nobody else can take over your account." = "Để đổi email, trước tiên hãy nhập mã chúng tôi gửi tới %@ — để không ai khác chiếm được tài khoản của bạn.";
+"Step 2 of 2 · Your new email" = "Bước 2/2 · Email mới của bạn";
