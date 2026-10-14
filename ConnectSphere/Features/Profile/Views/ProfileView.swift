@@ -70,6 +70,9 @@ struct ProfileView: View {
                         } else {
                             ProgressView().padding(.top, 120).frame(maxWidth: .infinity)
                         }
+                        if let user, appState.currentMode == .work {
+                            ExperienceSection(userId: user.id, isMe: true)
+                        }
                         postsSection.id("posts")
                     }
                 }

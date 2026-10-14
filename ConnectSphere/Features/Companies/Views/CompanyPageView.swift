@@ -40,7 +40,7 @@ struct CompanyPageView: View {
                     case .jobs:
                         emptyTab(icon: "briefcase", text: bundle.loc("Jobs posted by this company will show here."))
                     case .people:
-                        emptyTab(icon: "person.2", text: bundle.loc("People who list this company in their work history will show here."))
+                        CompanyPeopleList(companyId: company.id)
                     }
                 }
             } else if viewModel.isLoading {
