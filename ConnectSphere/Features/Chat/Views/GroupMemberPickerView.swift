@@ -105,7 +105,7 @@ struct GroupMemberPickerView: View {
                 Text(item.user.displayName)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
-                if let title = item.user.jobTitle, !title.isEmpty {
+                if appState.currentMode == .work, let title = item.user.jobTitle, !title.isEmpty {
                     Text(title)
                         .font(.system(size: 13))
                         .foregroundColor(AppColors.textSecondary(colorScheme))

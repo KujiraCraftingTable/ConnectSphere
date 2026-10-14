@@ -9,10 +9,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var showThemePicker = false
-    @State private var showEditProfile = false
     @State private var showLogoutConfirm = false
-    @State private var copiedUsername = false
-    @State private var editingEmail = false
     @AppStorage("searchRadiusKm") private var searchRadiusKm: Int = 0
 
 
@@ -59,18 +56,13 @@ struct SettingsView: View {
                      : String(format: bundle.loc("Kujira only suggests people within %dkm when searching with location."), searchRadiusKm))
             }
 
-            // Account
+            // Account — identity, privacy, activity and deleting live in Manage account
             Section {
-                usernameRow
-                Button { editingEmail = true } label: { emailRow }
                 NavigationLink {
                     ManageAccountView()
                 } label: {
-                    settingsRow(icon: "person.crop.circle.badge.xmark", label: bundle.loc("Manage account"),
-                                color: Color(hex: "#E53935"), showsChevron: false)
-                }
-                Button { showEditProfile = true } label: {
-                    settingsRow(icon: "person.fill", label: bundle.loc("Edit profile"), color: themeManager.theme.primary)
+                    settingsRow(icon: "person.crop.circle", label: bundle.loc("Manage account"),
+                                color: themeManager.theme.primary, showsChevron: false)
                 }
                 NavigationLink {
                     NotificationSettingsView()
@@ -80,11 +72,11 @@ struct SettingsView: View {
                     settingsRow(icon: "bell.fill", label: bundle.loc("Notifications"), color: Color(hex: "#FF6B35"), showsChevron: false)
                 }
                 NavigationLink {
-                    PrivacySecurityView()
+                    MutedWordsView()
                         .environment(appState)
                         .environment(themeManager)
                 } label: {
-                    settingsRow(icon: "lock.fill", label: bundle.loc("Privacy & Security"), color: Color(hex: "#4CAF50"), showsChevron: false)
+                    settingsRow(icon: "speaker.slash.fill", label: bundle.loc("Muted words"), color: Color(hex: "#5C6BC0"), showsChevron: false)
                 }
                 NavigationLink {
                     DraftsView()
@@ -94,11 +86,10 @@ struct SettingsView: View {
                     settingsRow(icon: "doc.text.fill", label: bundle.loc("Drafts & scheduled"), color: Color(hex: "#26A69A"), showsChevron: false)
                 }
                 NavigationLink {
-                    MutedWordsView()
-                        .environment(appState)
+                    SavedPostsView()
                         .environment(themeManager)
                 } label: {
-                    settingsRow(icon: "speaker.slash.fill", label: bundle.loc("Muted words"), color: Color(hex: "#5C6BC0"), showsChevron: false)
+                    settingsRow(icon: "bookmark.fill", label: bundle.loc("Saved"), color: Color(hex: "#795548"), showsChevron: false)
                 }
                 NavigationLink {
                     RecentlyDeletedView()
@@ -106,16 +97,10 @@ struct SettingsView: View {
                 } label: {
                     settingsRow(icon: "trash.fill", label: bundle.loc("Recently Deleted"), color: Color(hex: "#8E8E93"), showsChevron: false)
                 }
-                NavigationLink {
-                    SavedPostsView()
-                        .environment(themeManager)
-                } label: {
-                    settingsRow(icon: "bookmark.fill", label: bundle.loc("Saved"), color: Color(hex: "#795548"), showsChevron: false)
-                }
             } header: {
                 Text("Account", bundle: bundle)
             } footer: {
-                Text("Sign in with your username, or with your email if you've added one. Deleting a profile or the account needs a code sent to that email.", bundle: bundle)
+                Text("Your username, email, privacy, activity and deleting your account are in Manage account.", bundle: bundle)
             }
 
             #if DEBUG
@@ -166,10 +151,18 @@ struct SettingsView: View {
                 Button(role: .destructive) {
                     showLogoutConfirm = true
                 } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: "arrow.right.square.fill")
-                            .foregroundColor(.red)
+                    HStack(spacing: 12) {
+                        // Same 30×30 tile as every other row.
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 7)
+                                .fill(Color.red)
+                                .frame(width: 30, height: 30)
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                                .font(.system(size: 14))
+                                .foregroundColor(.white)
+                        }
                         Text("Log out", bundle: bundle)
+                            .font(.system(size: 16))
                             .foregroundColor(.red)
                     }
                 }
@@ -180,12 +173,6 @@ struct SettingsView: View {
         // your account?" pattern. .confirmationDialog with just one
         // destructive action rendered as an anchored popover bubble near the
         // tapped row instead of a centered dialog.
-        .sheet(isPresented: $editingEmail) {
-            EmailVerificationView(replacingVerifiedEmail: appState.currentUser?.emailVerified == true) { email in
-                appState.currentUser?.email = email
-                appState.currentUser?.emailVerified = true
-            }
-        }
         .alert(bundle.loc("Log out of ConnectSphere?"), isPresented: $showLogoutConfirm) {
             Button(bundle.loc("Cancel"), role: .cancel) {}
             Button(bundle.loc("Log out"), role: .destructive) {
@@ -198,11 +185,6 @@ struct SettingsView: View {
         .navigationBarTitleDisplayMode(.large)
         .sheet(isPresented: $showThemePicker) {
             ThemePickerView()
-        }
-        .sheet(isPresented: $showEditProfile) {
-            EditProfileView()
-                .environment(appState)
-                .environment(themeManager)
         }
     }
 
@@ -307,97 +289,7 @@ struct SettingsView: View {
 
     // MARK: Settings Row
 
-    /// Your verified email, or "Add email" — tap to add or change it (codes).
-    private var emailRow: some View {
-        let user = appState.currentUser
-        return HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 7)
-                    .fill(Color(hex: "#1E88E5"))
-                    .frame(width: 30, height: 30)
-                Image(systemName: "envelope.fill")
-                    .font(.system(size: 13))
-                    .foregroundColor(.white)
-            }
-            Text("Email", bundle: bundle)
-                .font(.system(size: 16))
-                .foregroundColor(AppColors.textPrimary(colorScheme))
-            Spacer()
-            if let email = user?.email, user?.emailVerified == true {
-                Text(email)
-                    .font(.system(size: 15))
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-                    .lineLimit(1)
-                Image(systemName: "checkmark.seal.fill")
-                    .font(.system(size: 13))
-                    .foregroundColor(.green)
-                    .accessibilityLabel(Text(bundle.loc("Verified")))
-            } else {
-                Text("Add email", bundle: bundle)
-                    .font(.system(size: 15))
-                    .foregroundColor(themeManager.theme.primary)
-            }
-        }
-    }
-
-    /// Your @username — what you sign in with — and a Copy button.
-    private var usernameRow: some View {
-        let username = appState.currentUser?.username ?? ""
-        return HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 7)
-                    .fill(Color(hex: "#7E57C2"))
-                    .frame(width: 30, height: 30)
-                Image(systemName: "at")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
-            }
-            Text("Username", bundle: bundle)
-                .font(.system(size: 16))
-                .foregroundColor(AppColors.textPrimary(colorScheme))
-            Spacer()
-            Text("@\(username)")
-                .font(.system(size: 15))
-                .foregroundColor(AppColors.textSecondary(colorScheme))
-                .lineLimit(1)
-            Button {
-                UIPasteboard.general.string = username
-                withAnimation { copiedUsername = true }
-                Task {
-                    try? await Task.sleep(for: .seconds(1.5))
-                    withAnimation { copiedUsername = false }
-                }
-            } label: {
-                Image(systemName: copiedUsername ? "checkmark" : "doc.on.doc")
-                    .font(.system(size: 14))
-                    .foregroundColor(themeManager.theme.primary)
-            }
-            // Borderless: a plain Button in a List row fires on any tap of the row.
-            .buttonStyle(.borderless)
-            .accessibilityLabel(Text(bundle.loc(copiedUsername ? "Copied" : "Copy username")))
-        }
-    }
-
     private func settingsRow(icon: String, label: String, color: Color, showsChevron: Bool = true) -> some View {
-        HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 7)
-                    .fill(color)
-                    .frame(width: 30, height: 30)
-                Image(systemName: icon)
-                    .font(.system(size: 14))
-                    .foregroundColor(.white)
-            }
-            Text(label)
-                .font(.system(size: 16))
-                .foregroundColor(AppColors.textPrimary(colorScheme))
-            Spacer()
-            // NavigationLink inside a List draws its own chevron, so that row disables this manual one
-            if showsChevron {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13))
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-            }
-        }
+        SettingsRowLabel(icon: icon, label: label, color: color, showsChevron: showsChevron)
     }
 }

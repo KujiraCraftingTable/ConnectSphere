@@ -21,7 +21,16 @@ struct ProfileHeaderCard<Actions: View>: View {
     let user: UserProfile
     let mode: AppMode
     var onStatTap: (ProfileStat) -> Void = { _ in }
+    /// The round button at the card's top-right that flips to the person's
+    /// other persona (and back).
+    var flip: Flip? = nil
     @ViewBuilder let actions: () -> Actions
+
+    struct Flip {
+        /// The mode the button goes to.
+        let to: AppMode
+        let action: () -> Void
+    }
 
     private let avatarSize: CGFloat = 132
     private let cardRadius: CGFloat = 24
@@ -120,6 +129,7 @@ struct ProfileHeaderCard<Actions: View>: View {
         .padding(.horizontal, AppSpacing.lg)
         .padding(.bottom, AppSpacing.lg)
         .frame(maxWidth: .infinity)
+        .overlay(alignment: .topTrailing) { if let flip { FlipButton(flip: flip) } }
         .background(AppColors.surface(colorScheme),
                     in: RoundedRectangle(cornerRadius: cardRadius, style: .continuous))
         .shadow(color: AppElevation.overlay.color(colorScheme), radius: AppElevation.overlay.radius,
@@ -154,7 +164,9 @@ struct ProfileHeaderCard<Actions: View>: View {
     }
 
     /// "iOS dev · Kujira corp", or whichever half is set.
+    /// Work only — Hobby never talks about work.
     private var jobLine: String? {
+        guard mode == .work else { return nil }
         let parts = [user.jobTitle, user.company].compactMap { $0 }.filter { !$0.isEmpty }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
@@ -240,5 +252,34 @@ struct ProfileCardButton: View {
         }
         .buttonStyle(.plain)
         .disabled(isLoading)
+    }
+}
+
+/// The card's corner button: the other mode's icon, flipping to it.
+struct FlipButton<Actions: View>: View {
+    @Environment(\.appBundle) private var bundle
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(ThemeManager.self) private var themeManager
+    let flip: ProfileHeaderCard<Actions>.Flip
+
+    var body: some View {
+        Button(action: flip.action) {
+            ZStack(alignment: .bottomTrailing) {
+                Image(systemName: flip.to.glyph)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(themeManager.theme.primary)
+                    .frame(width: 38, height: 38)
+                    .background(AppColors.elevated(colorScheme), in: Circle())
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(3)
+                    .background(themeManager.theme.primary, in: Circle())
+                    .offset(x: 2, y: 2)
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(12)
+        .accessibilityLabel(Text(bundle.loc(flip.to == .work ? "See Work profile" : "See Hobby profile")))
     }
 }

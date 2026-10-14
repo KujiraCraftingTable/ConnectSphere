@@ -1355,3 +1355,6 @@
 "Delete your Work profile?" = "Xoá hồ sơ Công việc?";
 "Delete your account?" = "Xoá tài khoản?";
 "Sign in with your username, or with your email if you've added one. Deleting a profile or the account needs a code sent to that email." = "Đăng nhập bằng tên người dùng, hoặc bằng email nếu bạn đã thêm. Muốn xoá hồ sơ hoặc tài khoản cần mã gửi tới email đó.";
+"Your username, email, privacy, activity and deleting your account are in Manage account." = "Tên người dùng, email, quyền riêng tư, hoạt động và xoá tài khoản nằm trong Quản lý tài khoản.";
+"%@ doesn't have a profile in Work mode." = "%@ chưa có hồ sơ ở chế độ Công việc.";
+"%@ doesn't have a profile in Hobby mode." = "%@ chưa có hồ sơ ở chế độ Sở thích.";

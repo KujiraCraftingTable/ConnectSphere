@@ -1,13 +1,18 @@
 import SwiftUI
 
-/// Settings › Account › Manage account: delete the Hobby profile, the Work
-/// profile, or the whole account — each confirmed with an emailed code.
+/// Settings › Account › Manage account: your username and email, editing
+/// the profile, privacy, your activity — and deleting the Hobby profile, the
+/// Work profile or the whole account (each confirmed with an emailed code).
 struct ManageAccountView: View {
     @Environment(AppState.self) private var appState
+    @Environment(ThemeManager.self) private var themeManager
     @Environment(\.appBundle) private var bundle
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
     @State private var addingEmail = false
+    @State private var editingEmail = false
+    @State private var copiedUsername = false
+    @State private var showEditProfile = false
 
     private var user: UserProfile? { appState.currentUser }
     /// A persona can go only while the other one stays.
@@ -15,6 +20,27 @@ struct ManageAccountView: View {
 
     var body: some View {
         List {
+            Section {
+                usernameRow
+                Button { editingEmail = true } label: { emailRow }
+                Button { showEditProfile = true } label: {
+                    SettingsRowLabel(icon: "person.fill", label: bundle.loc("Edit profile"), color: themeManager.theme.primary)
+                }
+            } header: {
+                Text("Profile", bundle: bundle)
+            } footer: {
+                Text("Sign in with your username, or with your email if you've added one. Deleting a profile or the account needs a code sent to that email.", bundle: bundle)
+            }
+            Section {
+                NavigationLink {
+                    PrivacySecurityView()
+                } label: {
+                    SettingsRowLabel(icon: "lock.fill", label: bundle.loc("Privacy & Security"),
+                                     color: Color(hex: "#4CAF50"), showsChevron: false)
+                }
+            } header: {
+                Text("Privacy", bundle: bundle)
+            }
             if !(user?.emailVerified ?? false) {
                 Section {
                     Button(bundle.loc("Add and verify an email")) { addingEmail = true }
@@ -42,11 +68,91 @@ struct ManageAccountView: View {
         }
         .navigationTitle(bundle.loc("Manage account"))
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $editingEmail) {
+            EmailVerificationView(replacingVerifiedEmail: user?.emailVerified == true) { email in
+                appState.currentUser?.email = email
+                appState.currentUser?.emailVerified = true
+            }
+        }
+        .sheet(isPresented: $showEditProfile) {
+            EditProfileView()
+        }
         .sheet(isPresented: $addingEmail) {
             EmailVerificationView(replacingVerifiedEmail: false) { email in
                 appState.currentUser?.email = email
                 appState.currentUser?.emailVerified = true
             }
+        }
+    }
+
+    /// Your verified email, or "Add email" — tap to add or change it (codes).
+    private var emailRow: some View {
+        let user = appState.currentUser
+        return HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 7)
+                    .fill(Color(hex: "#1E88E5"))
+                    .frame(width: 30, height: 30)
+                Image(systemName: "envelope.fill")
+                    .font(.system(size: 13))
+                    .foregroundColor(.white)
+            }
+            Text("Email", bundle: bundle)
+                .font(.system(size: 16))
+                .foregroundColor(AppColors.textPrimary(colorScheme))
+            Spacer()
+            if let email = user?.email, user?.emailVerified == true {
+                Text(email)
+                    .font(.system(size: 15))
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
+                    .lineLimit(1)
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.system(size: 13))
+                    .foregroundColor(.green)
+                    .accessibilityLabel(Text(bundle.loc("Verified")))
+            } else {
+                Text("Add email", bundle: bundle)
+                    .font(.system(size: 15))
+                    .foregroundColor(themeManager.theme.primary)
+            }
+        }
+    }
+
+    /// Your @username — what you sign in with — and a Copy button.
+    private var usernameRow: some View {
+        let username = appState.currentUser?.username ?? ""
+        return HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 7)
+                    .fill(Color(hex: "#7E57C2"))
+                    .frame(width: 30, height: 30)
+                Image(systemName: "at")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+            Text("Username", bundle: bundle)
+                .font(.system(size: 16))
+                .foregroundColor(AppColors.textPrimary(colorScheme))
+            Spacer()
+            Text("@\(username)")
+                .font(.system(size: 15))
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+                .lineLimit(1)
+            Button {
+                UIPasteboard.general.string = username
+                withAnimation { copiedUsername = true }
+                Task {
+                    try? await Task.sleep(for: .seconds(1.5))
+                    withAnimation { copiedUsername = false }
+                }
+            } label: {
+                Image(systemName: copiedUsername ? "checkmark" : "doc.on.doc")
+                    .font(.system(size: 14))
+                    .foregroundColor(themeManager.theme.primary)
+            }
+            // Borderless: a plain Button in a List row fires on any tap of the row.
+            .buttonStyle(.borderless)
+            .accessibilityLabel(Text(bundle.loc(copiedUsername ? "Copied" : "Copy username")))
         }
     }
 

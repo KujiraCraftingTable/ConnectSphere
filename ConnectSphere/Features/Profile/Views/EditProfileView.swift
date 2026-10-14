@@ -103,10 +103,11 @@ struct EditProfileView: View {
                     }
                 }
 
-                Section(bundle.loc("Work")) {
-                    TextField(bundle.loc("Job title"), text: $viewModel.jobTitle)
-                    TextField(bundle.loc("Company"), text: $viewModel.company)
-                    if appState.currentMode == .work {
+                // Work only — Hobby never talks about work.
+                if appState.currentMode == .work {
+                    Section(bundle.loc("Work")) {
+                        TextField(bundle.loc("Job title"), text: $viewModel.jobTitle)
+                        TextField(bundle.loc("Company"), text: $viewModel.company)
                         SkillTagField(skills: $viewModel.skills, colorScheme: colorScheme)
                             .padding(.vertical, 4)
                     }
