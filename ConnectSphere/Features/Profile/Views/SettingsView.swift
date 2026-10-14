@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var showEditProfile = false
     @State private var showLogoutConfirm = false
     @State private var copiedUsername = false
+    @State private var editingEmail = false
     @AppStorage("searchRadiusKm") private var searchRadiusKm: Int = 0
 
 
@@ -61,6 +62,13 @@ struct SettingsView: View {
             // Account
             Section {
                 usernameRow
+                Button { editingEmail = true } label: { emailRow }
+                NavigationLink {
+                    ManageAccountView()
+                } label: {
+                    settingsRow(icon: "person.crop.circle.badge.xmark", label: bundle.loc("Manage account"),
+                                color: Color(hex: "#E53935"), showsChevron: false)
+                }
                 Button { showEditProfile = true } label: {
                     settingsRow(icon: "person.fill", label: bundle.loc("Edit profile"), color: themeManager.theme.primary)
                 }
@@ -107,7 +115,7 @@ struct SettingsView: View {
             } header: {
                 Text("Account", bundle: bundle)
             } footer: {
-                Text("Sign in with your username, or with your email if you've added one.", bundle: bundle)
+                Text("Sign in with your username, or with your email if you've added one. Deleting a profile or the account needs a code sent to that email.", bundle: bundle)
             }
 
             #if DEBUG
@@ -172,6 +180,12 @@ struct SettingsView: View {
         // your account?" pattern. .confirmationDialog with just one
         // destructive action rendered as an anchored popover bubble near the
         // tapped row instead of a centered dialog.
+        .sheet(isPresented: $editingEmail) {
+            EmailVerificationView(replacingVerifiedEmail: appState.currentUser?.emailVerified == true) { email in
+                appState.currentUser?.email = email
+                appState.currentUser?.emailVerified = true
+            }
+        }
         .alert(bundle.loc("Log out of ConnectSphere?"), isPresented: $showLogoutConfirm) {
             Button(bundle.loc("Cancel"), role: .cancel) {}
             Button(bundle.loc("Log out"), role: .destructive) {
@@ -292,6 +306,39 @@ struct SettingsView: View {
     }
 
     // MARK: Settings Row
+
+    /// Your verified email, or "Add email" — tap to add or change it (codes).
+    private var emailRow: some View {
+        let user = appState.currentUser
+        return HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 7)
+                    .fill(Color(hex: "#1E88E5"))
+                    .frame(width: 30, height: 30)
+                Image(systemName: "envelope.fill")
+                    .font(.system(size: 13))
+                    .foregroundColor(.white)
+            }
+            Text("Email", bundle: bundle)
+                .font(.system(size: 16))
+                .foregroundColor(AppColors.textPrimary(colorScheme))
+            Spacer()
+            if let email = user?.email, user?.emailVerified == true {
+                Text(email)
+                    .font(.system(size: 15))
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
+                    .lineLimit(1)
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.system(size: 13))
+                    .foregroundColor(.green)
+                    .accessibilityLabel(Text(bundle.loc("Verified")))
+            } else {
+                Text("Add email", bundle: bundle)
+                    .font(.system(size: 15))
+                    .foregroundColor(themeManager.theme.primary)
+            }
+        }
+    }
 
     /// Your @username — what you sign in with — and a Copy button.
     private var usernameRow: some View {

@@ -361,6 +361,8 @@ extension UserStore {
     /// The 6-step, ~13-write scrub from `userModel.softDeleteAccount`, one txn.
     static func softDeleteAccount(_ userID: String, on db: AppDatabase) async throws {
         try await db.tx { t in
+            // Their posts, comments, likes and stories go (both modes).
+            try await AccountDeletionStore.removeActivity(of: userID, mode: nil, on: t)
             try await t.raw("""
                 WITH gone AS (
                   DELETE FROM connections
@@ -402,11 +404,13 @@ extension UserStore {
             try await t.raw("DELETE FROM stories         WHERE author_id = \(uuid: userID)").run()
             try await t.raw("DELETE FROM user_blocks     WHERE blocker_id = \(uuid: userID) OR blocked_id = \(uuid: userID)").run()
             try await t.raw("DELETE FROM password_resets WHERE user_id = \(uuid: userID)").run()
+            try await t.raw("DELETE FROM account_codes   WHERE user_id = \(uuid: userID)").run()
             try await t.raw("DELETE FROM user_notifications WHERE user_id = \(uuid: userID)").run()
+            // The username is kept: it's the account's ID, so it stays taken
+            // for good (usernameTaken matches deleted rows too).
             try await t.raw("""
                 UPDATE users SET
-                  username      = 'deleted_' || SUBSTRING(REPLACE(id::text, '-', ''), 1, 12),
-                  display_name  = 'Deleted User',
+                  display_name  = 'Deleted User', email_verified_at = NULL,
                   password_hash = NULL, email = NULL, google_id = NULL, phone = NULL,
                   avatar_url = NULL, bio = NULL,
                   hobby_display_name = NULL, hobby_bio = NULL, hobby_avatar_url = NULL, hobby_cover_url = NULL,

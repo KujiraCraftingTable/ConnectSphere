@@ -30,16 +30,11 @@ struct SettingsViewModelTests {
         #expect(vm.passwordsMismatch)
     }
 
-    @Test func deleteAccountConfirmation() {
-        let withPassword = DeleteAccountViewModel(hasPassword: true)
-        #expect(!withPassword.canDelete)
-        withPassword.password = "x"
-        #expect(withPassword.canDelete)
-
-        let google = DeleteAccountViewModel(hasPassword: false)
-        google.confirmationText = "delete"
-        #expect(!google.canDelete)          // must be typed exactly
-        google.confirmationText = "DELETE"
-        #expect(google.canDelete)
+    @Test func deletingNeedsTheEmailedCode() {
+        let vm = DeleteScopeViewModel(scope: .work)
+        vm.code = "123456"
+        #expect(!vm.canDelete)   // no code was sent yet
+        vm.code = "12x"
+        #expect(vm.code == "12")
     }
 }

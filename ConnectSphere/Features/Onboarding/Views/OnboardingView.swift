@@ -5,6 +5,7 @@ struct OnboardingView: View {
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
     @State private var viewModel = OnboardingViewModel()
+    @State private var emailCode = EmailVerificationViewModel(replacingVerifiedEmail: false)
     @State private var showProvincePicker = false
     @State private var showDobPicker = false
     @State private var dobDraft = Date()
@@ -42,6 +43,7 @@ struct OnboardingView: View {
         .onAppear {
             viewModel.prefill(username: appState.currentUser?.username,
                               hasPassword: appState.currentUser?.hasPassword ?? true)
+            viewModel.prefillEmail(appState.currentUser?.email, verified: appState.currentUser?.emailVerified ?? false)
         }
     }
 
@@ -155,6 +157,67 @@ struct OnboardingView: View {
 
     // MARK: Step 1 — Basic info
 
+    /// Email (required): a 6-digit code proves it's theirs before Continue.
+    @ViewBuilder
+    private var emailBlock: some View {
+        if viewModel.emailVerified {
+            HStack(spacing: 10) {
+                Image(systemName: "checkmark.seal.fill").foregroundColor(.green)
+                Text(viewModel.verifiedEmail ?? "")
+                    .font(.system(size: 15))
+                    .foregroundColor(AppColors.textPrimary(.light))
+                    .lineLimit(1)
+                Spacer()
+                Text("Verified", bundle: bundle).font(.system(size: 13)).foregroundColor(.green)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(AppColors.surface(.light), in: RoundedRectangle(cornerRadius: 14))
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                AuthTextField(icon: "envelope", placeholder: bundle.loc("Email *"), text: $emailCode.email,
+                              keyboardType: .emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .disabled(emailCode.sentTo != nil)
+                if emailCode.sentTo == nil {
+                    Button(bundle.loc("Send code")) { Task { await emailCode.sendCode(token: appState.authToken ?? "") } }
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(themeManager.theme.primary)
+                        .disabled(emailCode.email.trimmingCharacters(in: .whitespaces).isEmpty || emailCode.isSending)
+                } else {
+                    Text(String(format: bundle.loc("We sent a code to %@. It expires in 10 minutes."), emailCode.sentTo ?? ""))
+                        .font(.system(size: 13))
+                        .foregroundColor(AppColors.textSecondary(.light))
+                    AuthTextField(icon: "number", placeholder: bundle.loc("6-digit code"), text: $emailCode.code,
+                                  keyboardType: .numberPad)
+                        .textContentType(.oneTimeCode)
+                    HStack {
+                        ResendButton(availableAt: emailCode.resendAt, isSending: emailCode.isSending) {
+                            Task { await emailCode.sendCode(token: appState.authToken ?? "") }
+                        }
+                        Spacer()
+                        Button(bundle.loc("Verify")) {
+                            Task {
+                                if let email = await emailCode.verify(token: appState.authToken ?? "") {
+                                    viewModel.emailVerified = true
+                                    viewModel.verifiedEmail = email
+                                    appState.currentUser?.email = email
+                                    appState.currentUser?.emailVerified = true
+                                }
+                            }
+                        }
+                        .font(.system(size: 15, weight: .semibold))
+                        .disabled(!emailCode.canVerify)
+                    }
+                }
+                if let error = emailCode.errorMessage {
+                    Text(error).font(.system(size: 13)).foregroundColor(AppColors.danger(.light))
+                }
+            }
+        }
+    }
+
     private var step1: some View {
         OnboardingCard(title: bundle.loc("Basic information"), subtitle: bundle.loc("Enter your display name")) {
             VStack(spacing: 14) {
@@ -162,6 +225,8 @@ struct OnboardingView: View {
 
                 AuthTextField(icon: "textformat", placeholder: bundle.loc("Display name *"), text: $viewModel.form.display_name,
                               characterLimit: DisplayNameRules.maxLength)
+
+                emailBlock
 
                 // Province picker (required)
                 Button { showProvincePicker = true } label: {

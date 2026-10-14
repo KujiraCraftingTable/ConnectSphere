@@ -19,6 +19,8 @@ struct UserDTO: Decodable {
     let dobVisibility: String?
     /// The persona's "See my other profile" switch; missing → on.
     let linksOtherMode: Bool?
+    /// Owner's own response only (PATCH /users/me).
+    let emailVerified: Bool?
     let jobTitle: String?
     let company: String?
     let defaultMode: String?
@@ -38,6 +40,7 @@ struct UserDTO: Decodable {
         case id, username, bio, location, gender, email, company, interests, skills, score, age, dob
         case dobVisibility   = "dob_visibility"
         case linksOtherMode  = "links_other_mode"
+        case emailVerified   = "email_verified"
         case hasPassword     = "has_password"
         case displayName     = "display_name"
         case avatarColor     = "avatar_color"
@@ -75,6 +78,7 @@ struct UserDTO: Decodable {
             email:          email,
             hasPassword:    hasPassword ?? false,
             linksOtherMode: linksOtherMode ?? true,
+            emailVerified:  emailVerified ?? false,
             age:            age,
             dob:            dob,
             dobVisibility:  dobVisibility,

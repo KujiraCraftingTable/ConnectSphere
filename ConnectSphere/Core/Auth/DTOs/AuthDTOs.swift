@@ -30,6 +30,7 @@ struct AuthUserDTO: Decodable {
     let allowFriendRequests: Bool?
     let showInSuggestions: Bool?
     let linksOtherMode: Bool?
+    let emailVerified: Bool?
     let age: Int?
     let dob: String?
     let dobVisibility: String?
@@ -49,6 +50,7 @@ struct AuthUserDTO: Decodable {
         case allowFriendRequests = "allow_friend_requests"
         case showInSuggestions = "show_in_suggestions"
         case linksOtherMode = "links_other_mode"
+        case emailVerified = "email_verified"
         case dobVisibility  = "dob_visibility"
         case displayName    = "display_name"
         case avatarColor    = "avatar_color"
@@ -86,6 +88,7 @@ struct AuthUserDTO: Decodable {
         allowFriendRequests = try c.decodeIfPresent(Bool.self, forKey: .allowFriendRequests)
         showInSuggestions = try c.decodeIfPresent(Bool.self, forKey: .showInSuggestions)
         linksOtherMode = try c.decodeIfPresent(Bool.self, forKey: .linksOtherMode)
+        emailVerified = try c.decodeIfPresent(Bool.self, forKey: .emailVerified)
         age            = try c.decodeIfPresent(Int.self, forKey: .age)
         dob            = try c.decodeIfPresent(String.self, forKey: .dob)
         dobVisibility  = try c.decodeIfPresent(String.self, forKey: .dobVisibility)
@@ -115,6 +118,7 @@ struct AuthUserDTO: Decodable {
             allowFriendRequests: allowFriendRequests ?? true,
             showInSuggestions: showInSuggestions ?? true,
             linksOtherMode: linksOtherMode ?? true,
+            emailVerified: emailVerified ?? false,
             age: age,
             dob: dob,
             dobVisibility: dobVisibility,

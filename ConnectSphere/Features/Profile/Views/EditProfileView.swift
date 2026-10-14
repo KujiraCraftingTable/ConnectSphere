@@ -84,10 +84,6 @@ struct EditProfileView: View {
                     TextField(bundle.loc("About yourself"), text: $viewModel.bio, axis: .vertical)
                         .lineLimit(3...5)
                     TextField(bundle.loc("Location"), text: $viewModel.location)
-                    TextField(bundle.loc("Email"), text: $viewModel.email)
-                        .keyboardType(.emailAddress)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
                     DatePicker(bundle.loc("Date of birth"), selection: $viewModel.dobDate,
                                displayedComponents: .date)
 

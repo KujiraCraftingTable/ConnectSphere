@@ -17,12 +17,12 @@ struct AppEnv: Sendable {
         var secret: String
         var expiresIn: String
     }
+    /// Brevo's HTTP API sends the email codes; without a key they're logged
+    /// (development).
     struct Mail: Sendable {
-        var host: String
-        var port: Int
-        var user: String
-        var pass: String
+        var brevoKey: String
         var from: String
+        var fromName: String
     }
     struct Ollama: Sendable {
         var url: String
@@ -94,11 +94,9 @@ struct AppEnv: Sendable {
             googleClientId: get("GOOGLE_CLIENT_ID") ?? "",
             jwt: JWT(secret: jwtSecret, expiresIn: get("JWT_EXPIRES_IN") ?? "90d"),
             mail: Mail(
-                host: get("SMTP_HOST") ?? "smtp.gmail.com",
-                port: int("SMTP_PORT", 587),
-                user: get("SMTP_USER") ?? "",
-                pass: get("SMTP_PASS") ?? "",
-                from: get("MAIL_FROM") ?? (get("SMTP_USER") ?? "")
+                brevoKey: get("BREVO_API_KEY") ?? "",
+                from: get("MAIL_FROM") ?? "",
+                fromName: get("MAIL_FROM_NAME") ?? "ConnectSphere"
             ),
             ollama: Ollama(
                 url: get("OLLAMA_URL") ?? "http://localhost:11434",

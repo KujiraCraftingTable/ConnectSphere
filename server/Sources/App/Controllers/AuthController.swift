@@ -146,13 +146,14 @@ struct AuthController {
         if user == nil {
             if let existing = try await db.raw("SELECT id, is_setup FROM users WHERE email = \(bind: email)")
                 .first(decoding: URow.self) {
-                try await db.raw("UPDATE users SET google_id = \(bind: googleId) WHERE id = \(uuid: existing.id)").run()
+                // Google has verified this address.
+                try await db.raw("UPDATE users SET google_id = \(bind: googleId), email_verified_at = COALESCE(email_verified_at, NOW()) WHERE id = \(uuid: existing.id)").run()
                 user = existing
             } else {
                 let username = "user_\(googleId.suffix(8))"
                 user = try await db.raw("""
-                    INSERT INTO users (google_id, email, display_name, username, password_hash, avatar_color, is_setup)
-                    VALUES (\(bind: googleId), \(bind: email), \(bind: name), \(bind: username), '', \(bind: "#1877F2"), FALSE)
+                    INSERT INTO users (google_id, email, email_verified_at, display_name, username, password_hash, avatar_color, is_setup)
+                    VALUES (\(bind: googleId), \(bind: email), NOW(), \(bind: name), \(bind: username), '', \(bind: "#1877F2"), FALSE)
                     RETURNING id, is_setup
                     """).first(decoding: URow.self)
                 isNewUser = true
@@ -208,6 +209,13 @@ struct AuthController {
     static func setup(_ req: Request) async throws -> MeResponse {
         let b = try req.content.decode(SetupBody.self)
         let skills = try EndorsementStore.cleanSkills(b.skills ?? [])
+        // Sign-up needs a verified email (the app verifies it in the basics
+        // step; Google sign-ups already have one).
+        struct V: Decodable { let ok: Bool }
+        guard try await req.db.sql().raw("SELECT (email_verified_at IS NOT NULL) AS ok FROM users WHERE id = \(uuid: req.userID)")
+            .first(decoding: V.self)?.ok == true else {
+            throw InlineError(.badRequest, "Verify your email first")
+        }
         let username = (b.username ?? "").trimmingCharacters(in: .whitespaces).lowercased()
         let displayName = (b.display_name ?? "").trimmingCharacters(in: .whitespaces)
         let location = (b.location ?? "").trimmingCharacters(in: .whitespaces)
@@ -335,8 +343,10 @@ struct AuthController {
             VALUES (\(uuid: user.id), \(bind: otpHash), NOW() + INTERVAL '\(unsafeRaw: String(otpTTLMinutes)) minutes')
             """).run()
 
-        let env = req.application.appEnv
-        await Mailer(mail: env.mail, logger: req.logger).sendPasswordResetOTP(email: email, otp: otp)
+        // The response never says whether an email went out (it would reveal
+        // which identifiers have one), so a send failure is only logged.
+        do { try await Mailer(req).sendCode(otp, to: email, kind: .passwordReset, minutes: otpTTLMinutes) }
+        catch { req.logger.error("forgot-password: \(error)") }
         return ForgotResponse()
     }
 

@@ -9,7 +9,8 @@ struct UsersController {
 
         users.get(use: listUsers)                                  // GET  /api/users
         users.patch("me", use: updateMe)                           // PATCH /api/users/me
-        users.delete("me", use: deleteMe)                          // DELETE /api/users/me
+        // DELETE /api/users/me — confirmed with an emailed code (AccountController).
+        users.grouped(RateLimitMiddleware.accountCodes()).delete("me", use: AccountController.deleteAccount)
         users.post("me", "personas", use: createPersona)           // POST /api/users/me/personas
         users.patch("me", "default-mode", use: updateDefaultMode)  // PATCH /api/users/me/default-mode
         users.get("blocked", use: listBlocked)                     // GET  /api/users/blocked
@@ -145,17 +146,14 @@ struct UsersController {
             throw InlineError(.badRequest, "dob_visibility must be private or public")
         }
 
+        // The email changes only through a code (AccountController), never
+        // here — or a stolen password could redirect the deletion codes.
         if sent("email") {
-            let normalized = (raw.email ?? "").trimmingCharacters(in: .whitespaces).lowercased()
-            let value: String? = normalized.isEmpty ? nil : normalized
-            if let v = value, !v.contains("@") || !v.contains(".") {
-                throw InlineError(.badRequest, "Invalid email format")
-            }
-            do {
-                try await sdb.raw("UPDATE users SET email = \(bind: value), updated_at = NOW() WHERE id = \(uuid: req.userID)").run()
-            } catch {
-                if PGError.isUniqueViolation(error) { throw InlineError(.conflict, "Email already in use") }
-                throw error
+            struct E: Decodable { let email: String? }
+            let current = try await sdb.raw("SELECT email FROM users WHERE id = \(uuid: req.userID)").first(decoding: E.self)?.email
+            let sentEmail = (raw.email ?? "").trimmingCharacters(in: .whitespaces).lowercased()
+            if (sentEmail.isEmpty ? nil : sentEmail) != current {
+                throw InlineError(.badRequest, "Change your email in Settings › Account")
             }
         }
 
@@ -194,14 +192,14 @@ struct UsersController {
         guard let pub = try await UserStore.findById(req.userID, mode: mode, on: sdb) else {
             throw Abort(.internalServerError)
         }
-        struct Priv: Decodable { let email: String?; let dob: Date?; let dob_visibility: String?; let age: Int?; let has_password: Bool }
+        struct Priv: Decodable { let email: String?; let email_verified: Bool; let dob: Date?; let dob_visibility: String?; let age: Int?; let has_password: Bool }
         let priv = try await sdb.raw("""
-            SELECT email, dob, dob_visibility, age,
+            SELECT email, (email_verified_at IS NOT NULL) AS email_verified, dob, dob_visibility, age,
                    (password_hash IS NOT NULL AND password_hash <> '' AND password_hash <> 'SEED_DATA') AS has_password
             FROM users WHERE id = \(uuid: req.userID)
             """).first(decoding: Priv.self)!
         return DataResponse(data: PrivateUserObject(
-            pub: pub, email: priv.email, has_password: priv.has_password,
+            pub: pub, email: priv.email, email_verified: priv.email_verified, has_password: priv.has_password,
             dob: priv.dob, dob_visibility: priv.dob_visibility, age: priv.age))
     }
 
@@ -245,13 +243,13 @@ struct UsersController {
                 let jt = (b.job_title?.trimmingCharacters(in: .whitespaces)).flatMap { $0.isEmpty ? nil : $0 }
                 let co = (b.company?.trimmingCharacters(in: .whitespaces)).flatMap { $0.isEmpty ? nil : $0 }
                 try await t.raw("""
-                    UPDATE users SET work_display_name = \(bind: displayName), work_bio = \(bind: bioVal),
+                    UPDATE users SET work_display_name = \(bind: displayName), work_bio = \(bind: bioVal), work_deleted_at = NULL,
                       job_title = \(bind: jt), company = \(bind: co), updated_at = NOW()
                     WHERE id = \(uuid: req.userID)
                     """).run()
             } else {
                 try await t.raw("""
-                    UPDATE users SET hobby_display_name = \(bind: displayName), hobby_bio = \(bind: bioVal), updated_at = NOW()
+                    UPDATE users SET hobby_display_name = \(bind: displayName), hobby_bio = \(bind: bioVal), hobby_deleted_at = NULL, updated_at = NOW()
                     WHERE id = \(uuid: req.userID)
                     """).run()
             }
@@ -286,31 +284,6 @@ struct UsersController {
             throw InlineError(.badRequest, "mode must be hobby or work")
         }
         try await req.db.sql().raw("UPDATE users SET default_mode = \(bind: mode), updated_at = NOW() WHERE id = \(uuid: req.userID)").run()
-        return StatusOK()
-    }
-
-    // MARK: DELETE /api/users/me
-
-    struct DeleteMeBody: Content { var password: String?; var confirmation: String? }
-
-    static func deleteMe(_ req: Request) async throws -> StatusOK {
-        let b = (try? req.content.decode(DeleteMeBody.self)) ?? DeleteMeBody()
-        let sdb = req.db.sql()
-        struct U: Decodable { let password_hash: String?; let deleted_at: Date? }
-        guard let u = try await sdb.raw("SELECT password_hash, deleted_at FROM users WHERE id = \(uuid: req.userID)")
-            .first(decoding: U.self), u.deleted_at == nil
-        else { throw InlineError(.notFound, "User not found") }
-
-        if UserStore.hasRealPassword(u.password_hash) {
-            guard let pw = b.password, let h = u.password_hash, (try? Bcrypt.verify(pw, created: h)) == true else {
-                throw InlineError(.unauthorized, "Password is incorrect")
-            }
-        } else if b.confirmation != "DELETE" {
-            throw InlineError(.badRequest, "Type DELETE to confirm")
-        }
-
-        try await UserStore.softDeleteAccount(req.userID, on: req.db)
-        req.logger.info("account soft-deleted \(req.userID)")
         return StatusOK()
     }
 }

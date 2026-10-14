@@ -327,6 +327,20 @@ class AppState {
         refreshPersona(for: mode)
     }
 
+    /// A persona was deleted (the account and the other persona stay): move
+    /// to the remaining mode and load its persona.
+    func personaDeleted(_ mode: AppMode, remaining: AppMode) {
+        if mode == .hobby { currentUser?.hobbySetup = false } else { currentUser?.workSetup = false }
+        currentMode = remaining
+        refreshPersona(for: remaining)
+    }
+
+    /// The account is gone: forget it on this device and sign out.
+    func accountDeleted() {
+        if let id = currentUser?.id { SavedAccounts().forget(id: id) }
+        logout()
+    }
+
     /// `currentUser` is loaded for the mode the app opened in, and Edit
     /// profile, the composer, the Apply sheet… all read "me" from it — so a
     /// switch must swap in the other persona's name, bio, photos and

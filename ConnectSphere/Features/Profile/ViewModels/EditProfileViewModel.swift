@@ -16,7 +16,6 @@ final class EditProfileViewModel {
     var jobTitle = ""
     var company = ""
     var location = ""
-    var email = ""
     /// "yyyy-MM-dd", the same format onboarding uses; empty = not set.
     var dob = ""
     var dobVisibility = "private"
@@ -57,7 +56,6 @@ final class EditProfileViewModel {
         jobTitle    = user.jobTitle ?? ""
         company     = user.company ?? ""
         location    = user.location ?? ""
-        email       = user.email ?? ""
         skills      = user.skills
         // The backend returns dob as "yyyy-MM-dd" or a full ISO timestamp (a
         // Postgres DATE in JSON) — the first 10 characters are yyyy-MM-dd either
@@ -121,8 +119,7 @@ final class EditProfileViewModel {
             avatar_url:     avatarUrl,
             cover_url:      coverUrl,
             interests:      selectedInterests.map { $0.displayText },
-            skills:         skills,
-            email:          email.trimmingCharacters(in: .whitespaces))
+            skills:         skills)
         do {
             return try await profileRepository.updateProfile(update)
         } catch {

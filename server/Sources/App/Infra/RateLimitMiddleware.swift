@@ -24,6 +24,11 @@ struct RateLimitMiddleware: AsyncMiddleware {
         .init(max: 10, windowSeconds: 15 * 60, inlineErrorBody: true,
               message: "Too many attempts, please try again later")
     }
+    /// Emailed codes (verify email, delete a persona / the account).
+    static func accountCodes() -> RateLimitMiddleware {
+        .init(max: 20, windowSeconds: 15 * 60, inlineErrorBody: false,
+              message: "Too many attempts, please try again later")
+    }
     static func clarify() -> RateLimitMiddleware {
         .init(max: 20, windowSeconds: 15 * 60, inlineErrorBody: true,
               message: "Too many requests, please try again later")

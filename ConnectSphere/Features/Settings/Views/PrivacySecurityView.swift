@@ -9,7 +9,7 @@ struct PrivacySecurityView: View {
     @Environment(\.colorScheme) var colorScheme
 
     @State private var showChangePassword = false
-    @State private var showDeleteAccount = false
+    @State private var showManageAccount = false
     @State private var friendRequests = FriendRequestSettingViewModel()
     @State private var suggestionVisibility = SuggestionVisibilitySettingViewModel()
     @State private var personaLink = PersonaLinkSettingViewModel()
@@ -150,27 +150,6 @@ struct PrivacySecurityView: View {
             } footer: {
                 Text("People you block can't see your posts or message you.", bundle: bundle)
             }
-
-            // Danger zone
-            Section {
-                Button(role: .destructive) { showDeleteAccount = true } label: {
-                    HStack(spacing: 12) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 7)
-                                .fill(Color.red)
-                                .frame(width: 30, height: 30)
-                            Image(systemName: "trash.fill")
-                                .font(.system(size: 14))
-                                .foregroundColor(.white)
-                        }
-                        Text("Delete account", bundle: bundle)
-                            .font(.system(size: 16))
-                            .foregroundColor(.red)
-                    }
-                }
-            } footer: {
-                Text("Your profile will be anonymized and you won't be able to sign in again. Posts and messages you sent will remain, shown as \"Deleted User\".", bundle: bundle)
-            }
         }
         .alert(friendRequests.errorMessage ?? "", isPresented: Binding(
             get: { friendRequests.errorMessage != nil },
@@ -198,17 +177,14 @@ struct PrivacySecurityView: View {
                 .environment(appState)
                 .environment(themeManager)
         }
-        .sheet(isPresented: $showDeleteAccount) {
-            DeleteAccountView(hasPassword: hasPassword)
-                .environment(appState)
-        }
+        .navigationDestination(isPresented: $showManageAccount) { ManageAccountView() }
         .task { consumePendingAssistantSheet() }
         .onChange(of: appState.pendingAssistantSheet) { _, _ in
             consumePendingAssistantSheet()
         }
     }
 
-    /// Opens Change Password / Delete Account when the AI assistant's
+    /// Opens Change Password / Manage account when the AI assistant's
     /// guidance action landed here — mirrors the consume-then-clear pattern
     /// `pendingDeepLink`/`pendingAssistantNavigation` use elsewhere.
     private func consumePendingAssistantSheet() {
@@ -218,7 +194,7 @@ struct PrivacySecurityView: View {
             showChangePassword = true
         case .deleteAccount:
             appState.pendingAssistantSheet = nil
-            showDeleteAccount = true
+            showManageAccount = true
         case .editProfile, nil:
             break
         }
