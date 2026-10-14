@@ -110,6 +110,8 @@ struct UsersController {
 
     static func updateMe(_ req: Request) async throws -> DataResponse<PrivateUserObject> {
         let raw = try req.content.decode(UpdateMeBody.self)
+        // Before anything is written, so a bad list doesn't leave half an update.
+        if let skills = raw.skills { _ = try EndorsementStore.cleanSkills(skills) }
         // Which keys were actually present in the JSON body.
         let presentKeys: Set<String> = {
             guard let dict = try? req.content.decode([String: AnyCodableValue].self) else { return [] }
@@ -213,6 +215,7 @@ struct UsersController {
         guard let mode = b.mode, ["hobby", "work"].contains(mode) else {
             throw InlineError(.badRequest, "mode must be hobby or work")
         }
+        if mode == "work", let skills = b.skills { _ = try EndorsementStore.cleanSkills(skills) }
         let displayName = (b.display_name ?? "").trimmingCharacters(in: .whitespaces)
         guard !displayName.isEmpty else { throw InlineError(.badRequest, "display_name is required") }
         guard UserStore.displayNameFits(displayName) else { throw InlineError(.badRequest, UserStore.displayNameTooLong) }

@@ -111,7 +111,8 @@ struct EditProfileView: View {
                     TextField(bundle.loc("Job title"), text: $viewModel.jobTitle)
                     TextField(bundle.loc("Company"), text: $viewModel.company)
                     if appState.currentMode == .work {
-                        TextField(bundle.loc("Skills (Swift, Python, UI/UX...)"), text: $viewModel.skills)
+                        SkillTagField(skills: $viewModel.skills, colorScheme: colorScheme)
+                            .padding(.vertical, 4)
                     }
                 }
 

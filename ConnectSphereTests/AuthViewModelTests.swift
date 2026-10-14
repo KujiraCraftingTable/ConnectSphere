@@ -55,8 +55,6 @@ struct AuthViewModelTests {
         vm.form.gender = "male"
         vm.form.dob = "2000-01-01"
         #expect(vm.basicsComplete)
-        vm.skillsText = "Swift, , Python ,UI/UX"
-        #expect(vm.form.skills == ["Swift", "Python", "UI/UX"])
         for _ in 0..<10 { vm.next() }
         #expect(vm.step == OnboardingViewModel.totalSteps - 1)
     }

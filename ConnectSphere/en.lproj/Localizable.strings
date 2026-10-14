@@ -275,7 +275,6 @@
 "Skills" = "Skills";
 "Skills & Company" = "Skills & Company";
 "Skills (e.g. Swift, UI/UX, Python)" = "Skills (e.g. Swift, UI/UX, Python)";
-"Skills (Swift, Python, UI/UX...)" = "Skills (Swift, Python, UI/UX...)";
 "Skip" = "Skip";
 "Someone" = "Someone";
 "Say hi to a connection and start the fun!" = "Say hi to a connection and start the fun!";
@@ -1244,8 +1243,6 @@
 "e.g. 15" = "e.g. 15";
 "e.g. 30" = "e.g. 30";
 "The pay range needs numbers, the first no higher than the second." = "The pay range needs numbers, the first no higher than the second.";
-"Required skills (comma-separated, up to 10)" = "Required skills (comma-separated, up to 10)";
-"e.g. Swift, SwiftUI, REST" = "e.g. Swift, SwiftUI, REST";
 "View job" = "View job";
 "Your profile" = "Your profile";
 "Your Work profile — experience and skills — is shared with the job's poster." = "Your Work profile — experience and skills — is shared with the job's poster.";
@@ -1291,3 +1288,10 @@
 "The start can't be in the future." = "The start can't be in the future.";
 "The end can't be in the future." = "The end can't be in the future.";
 "The end can't be before the start." = "The end can't be before the start.";
+"Add a skill, then press Return" = "Add a skill, then press Return";
+"Remove %@" = "Remove %@";
+"%lld / %lld" = "%lld / %lld";
+"You already added %@." = "You already added %@.";
+"Up to %lld skills." = "Up to %lld skills.";
+"Keep each skill under %lld characters." = "Keep each skill under %lld characters.";
+"Required skills (up to 10)" = "Required skills (up to 10)";

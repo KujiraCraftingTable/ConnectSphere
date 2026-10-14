@@ -83,16 +83,6 @@ final class OnboardingViewModel {
 
     var canGoBack: Bool { step > 0 }
 
-    /// Skills edited as one comma-separated line.
-    var skillsText: String {
-        get { form.skills.joined(separator: ", ") }
-        set {
-            form.skills = newValue.components(separatedBy: ",")
-                .map { $0.trimmingCharacters(in: .whitespaces) }
-                .filter { !$0.isEmpty }
-        }
-    }
-
     /// Returns false (and stays put) when the current step isn't complete.
     @discardableResult
     func next() -> Bool {

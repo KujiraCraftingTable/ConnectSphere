@@ -307,10 +307,7 @@ struct OnboardingView: View {
                 VStack(spacing: 14) {
                     AuthTextField(icon: "briefcase", placeholder: bundle.loc("Job title (iOS Developer...)"), text: $viewModel.form.job_title)
                     AuthTextField(icon: "building.2", placeholder: bundle.loc("Company / School"), text: $viewModel.form.company)
-                    AuthTextField(icon: "sparkles", placeholder: bundle.loc("Skills (Swift, Python, UI/UX...)"), text: Binding(
-                        get: { viewModel.skillsText },
-                        set: { viewModel.skillsText = $0 }
-                    ))
+                    SkillTagField(skills: $viewModel.form.skills, colorScheme: .light, boxed: true)
                 }
             }
 
