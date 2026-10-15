@@ -273,10 +273,11 @@ class AppState {
     }
 
     /// Registering also logs the user in right away — is_new_user=true so the root view auto-navigates into onboarding.
-    func registerWithPassword(username: String, password: String, email: String?, code: String?) async throws {
-        let response = try await AuthService.shared.register(username: username, password: password, email: email, code: code)
+    /// The end of a manual sign-up: the account is created, already set up.
+    func registerAndSetUp(_ signup: PendingSignup, form: OnboardingForm) async throws {
+        let response = try await AuthService.shared.register(signup, form: form)
         KeychainHelper.save(response.token, forKey: KeychainHelper.tokenKey)
-        await MainActor.run { finishLogin(token: response.token, user: response.user, isNew: response.isNewUser) }
+        finishLogin(token: response.token, user: response.user, isNew: response.isNewUser)
     }
 
     func completeOnboarding(form: OnboardingForm) async throws {

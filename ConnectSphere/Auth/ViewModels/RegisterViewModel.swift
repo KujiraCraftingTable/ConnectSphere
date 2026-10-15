@@ -2,9 +2,10 @@ import Foundation
 import Observation
 
 /// Sign-up with @username + password and an optional email, with live
-/// per-field validation. With an email, "Create account" first emails a
-/// 6-digit code; the account is made once it's entered, already verified.
-/// On success `AppState` moves the app into onboarding.
+/// per-field validation (the username is checked against the server as it's
+/// typed). With an email, a 6-digit code confirms it first. Nothing is
+/// created here: this ends in a `PendingSignup`, and the account (and its
+/// @username) only exists once onboarding finishes.
 @MainActor
 @Observable
 final class RegisterViewModel {
@@ -23,6 +24,12 @@ final class RegisterViewModel {
     var email = ""
     var code = "" { didSet { if code != AccountCode.clean(code) { code = AccountCode.clean(code) } } }
     private(set) var stage: Stage = .details
+    /// Set when the form is done — the view opens onboarding with it.
+    var pending: PendingSignup?
+
+    enum UsernameStatus: Equatable { case idle, checking, available, taken, failed }
+    /// Set by `checkUsername` (settable here so tests can stand in for the server).
+    var usernameStatus: UsernameStatus = .idle
     private(set) var resendAt: Date?
     private(set) var isLoading = false
     private(set) var errorMessage: String?
@@ -39,6 +46,23 @@ final class RegisterViewModel {
     var usernameError: String? { UsernameRules.problem(username) }
 
     var usernameHint: String { usernameError ?? UsernameRules.hint }
+
+    /// Debounced server check; the view restarts it (cancelling the last one)
+    /// on every edit via `.task(id:)`.
+    func checkUsername() async {
+        let name = trimmedUsername
+        guard UsernameRules.isValid(name) else { usernameStatus = .idle; return }
+        usernameStatus = .checking
+        try? await Task.sleep(for: .milliseconds(400))
+        guard !Task.isCancelled else { return }
+        do {
+            let available = try await AuthService.shared.usernameAvailable(name)
+            guard !Task.isCancelled, name == trimmedUsername else { return }
+            usernameStatus = available ? .available : .taken
+        } catch {
+            if !Task.isCancelled { usernameStatus = .failed }
+        }
+    }
 
     /// Shaped like an address (the server checks it properly).
     static func looksLikeEmail(_ s: String) -> Bool {
@@ -71,6 +95,7 @@ final class RegisterViewModel {
 
     var isFormValid: Bool {
         UsernameRules.isValid(trimmedUsername)
+            && usernameStatus == .available
             && emailError == nil
             && password.count >= Self.minPassword
             && !confirmPassword.isEmpty && confirmPassword == password
@@ -78,8 +103,8 @@ final class RegisterViewModel {
 
     // MARK: Submit
 
-    /// No email: the account is created now. An email: a code is sent first.
-    func register(appState: AppState) async {
+    /// No email: straight on to onboarding. An email: a code is sent first.
+    func register() async {
         if let problem = UsernameRules.problem(trimmedUsername) ?? (trimmedUsername.isEmpty ? UsernameRules.hint : nil) {
             errorMessage = problem; return
         }
@@ -100,8 +125,8 @@ final class RegisterViewModel {
                 stage = .code
                 isLoading = false
             } else {
-                // Success: AppState sets needsOnboarding and the root view moves on.
-                try await appState.registerWithPassword(username: trimmedUsername, password: password, email: nil, code: nil)
+                isLoading = false
+                pending = PendingSignup(username: trimmedUsername, password: password, email: nil)
             }
         } catch {
             isLoading = false
@@ -110,13 +135,14 @@ final class RegisterViewModel {
     }
 
     /// Runs by itself once all 6 digits are in.
-    func submitCode(appState: AppState) async {
+    func submitCode() async {
         guard stage == .code, code.count == 6, !isLoading else { return }
         isLoading = true
         errorMessage = nil
         do {
-            try await appState.registerWithPassword(username: trimmedUsername, password: password,
-                                                    email: trimmedEmail, code: code)
+            try await AuthService.shared.registerVerify(email: trimmedEmail, code: code)
+            isLoading = false
+            pending = PendingSignup(username: trimmedUsername, password: password, email: trimmedEmail)
         } catch {
             isLoading = false
             code = ""

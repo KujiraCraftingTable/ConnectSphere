@@ -35,6 +35,11 @@ struct RegisterView: View {
                 }
             }
         }
+        // Onboarding comes next; the account is created when it finishes.
+        // Closing it (to change the username) returns here, all still typed.
+        .fullScreenCover(item: $viewModel.pending) { signup in
+            OnboardingView(pending: signup)
+        }
         .navigationTitle(bundle.loc("Create account"))
         .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(.light)
@@ -48,7 +53,8 @@ struct RegisterView: View {
                 AuthTextField(icon: "at", placeholder: bundle.loc("Username"), text: $viewModel.username)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                fieldHint(viewModel.usernameHint, isError: viewModel.usernameError != nil)
+                    .task(id: viewModel.username) { await viewModel.checkUsername() }
+                usernameStatusLine
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -77,9 +83,26 @@ struct RegisterView: View {
                 errorBanner(errorMessage)
             }
 
-            GradientButton(title: bundle.loc(viewModel.hasEmail ? "Continue" : "Create account"),
+            GradientButton(title: bundle.loc("Continue"),
                            isLoading: viewModel.isLoading, isEnabled: viewModel.isFormValid) {
-                Task { await viewModel.register(appState: appState) }
+                Task { await viewModel.register() }
+            }
+        }
+    }
+
+    /// Live: the format rule, then whether the server says it's free.
+    @ViewBuilder
+    private var usernameStatusLine: some View {
+        if let problem = viewModel.usernameError {
+            fieldHint(problem, isError: true)
+        } else {
+            switch viewModel.usernameStatus {
+            case .taken:     fieldHint(bundle.loc("Username already taken"), isError: true)
+            case .available: Label(bundle.loc("Username available"), systemImage: "checkmark.circle.fill")
+                                .font(.system(size: 12)).foregroundColor(.green).padding(.leading, 4)
+            case .checking:  fieldHint(bundle.loc("Checking…"), isError: false)
+            case .failed:    fieldHint(bundle.loc("Couldn't check the username, try again"), isError: true)
+            case .idle:      fieldHint(viewModel.usernameHint, isError: false)
             }
         }
     }
@@ -92,7 +115,7 @@ struct RegisterView: View {
             Label(bundle.loc("Check your email"), systemImage: "envelope.badge")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(AppColors.textPrimary(.light))
-            Text(String(format: bundle.loc("Enter the 6-digit code we sent to %@. Your account is created as soon as it's right."),
+            Text(String(format: bundle.loc("Enter the 6-digit code we sent to %@. Then you'll set up your profile."),
                         viewModel.maskedEmail))
                 .font(.system(size: 14))
                 .foregroundColor(AppColors.textSecondary(.light))
@@ -101,7 +124,7 @@ struct RegisterView: View {
                           keyboardType: .numberPad)
                 .textContentType(.oneTimeCode)
                 .onChange(of: viewModel.code) { _, code in
-                    if code.count == 6 { Task { await viewModel.submitCode(appState: appState) } }
+                    if code.count == 6 { Task { await viewModel.submitCode() } }
                 }
             if viewModel.isLoading {
                 HStack(spacing: 8) {

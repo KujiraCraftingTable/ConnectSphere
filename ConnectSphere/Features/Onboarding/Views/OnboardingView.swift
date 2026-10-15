@@ -4,7 +4,8 @@ struct OnboardingView: View {
     @Environment(AppState.self) var appState
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
-    @State private var viewModel = OnboardingViewModel()
+    @Environment(\.dismiss) private var dismiss
+    @State private var viewModel: OnboardingViewModel
     @State private var showProvincePicker = false
     @State private var showDobPicker = false
     @State private var dobDraft = Date()
@@ -16,6 +17,12 @@ struct OnboardingView: View {
     @State private var overswipeArmed = true
 
     private let totalSteps = OnboardingViewModel.totalSteps
+
+    /// `pending`: a manual sign-up, created when this finishes; it's shown
+    /// over the sign-up form, which "back" from the first step returns to.
+    init(pending: PendingSignup? = nil) {
+        _viewModel = State(initialValue: OnboardingViewModel(pending: pending))
+    }
 
     var body: some View {
         ZStack {
@@ -84,6 +91,7 @@ struct OnboardingView: View {
     }
 
     private func goBack() {
+        if viewModel.step == 0, viewModel.pending != nil { dismiss(); return }
         viewModel.back()
         withAnimation(.snappy) { page = viewModel.step }
     }
@@ -99,7 +107,7 @@ struct OnboardingView: View {
     private var progressBar: some View {
         VStack(spacing: 8) {
             HStack(spacing: 6) {
-                if viewModel.canGoBack {
+                if viewModel.canGoBack || viewModel.pending != nil {
                     Button(action: goBack) {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 14, weight: .semibold))
@@ -381,6 +389,11 @@ struct OnboardingView: View {
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(AppColors.borderDefault(.light), lineWidth: 1))
 
             if let e = viewModel.errorMessage { errorBanner(e) }
+            if viewModel.usernameLost {
+                Button(bundle.loc("Change username")) { dismiss() }
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(themeManager.theme.primary)
+            }
 
             GradientButton(title: viewModel.isLoading ? bundle.loc("Saving...") : bundle.loc("Complete 🎉"), isLoading: viewModel.isLoading) {
                 Task { await viewModel.finish(appState: appState) }

@@ -31,12 +31,16 @@ class AuthService {
     /// POSTs a JSON body to an auth endpoint; errors throw NSError with
     /// code = HTTP status so callers can map them to localized messages.
     private func post(_ path: String, _ body: [String: String]) async throws -> Data {
+        try await post(path, json: JSONEncoder().encode(body))
+    }
+
+    private func post(_ path: String, json: Data) async throws -> Data {
         guard let url = URL(string: APIConfig.baseURL + path) else { throw URLError(.badURL) }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue(Self.deviceName, forHTTPHeaderField: "X-Device")
-        req.httpBody = try JSONEncoder().encode(body)
+        req.httpBody = json
         let (data, resp) = try await URLSession.shared.data(for: req)
         guard let http = resp as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         guard (200...299).contains(http.statusCode) else {
@@ -86,12 +90,31 @@ class AuthService {
         _ = try await post("/auth/register/code", ["username": username, "email": email])
     }
 
-    /// `email` is optional; when given, `code` is the one `registerCode` sent.
-    func register(username: String, password: String, email: String?, code: String?) async throws -> AuthResponse {
-        var body = ["username": username, "password": password]
-        if let email { body["email"] = email }
-        if let code { body["code"] = code }
-        return try JSONDecoder.makeISO8601().decode(AuthResponse.self, from: try await post("/auth/register", body))
+    /// Confirms the sign-up email with its code (kept for an hour, until
+    /// onboarding finishes and the account is created).
+    func registerVerify(email: String, code: String) async throws {
+        _ = try await post("/auth/register/verify", ["email": email, "code": code])
+    }
+
+    /// Creates the account with everything onboarding collected.
+    func register(_ signup: PendingSignup, form: OnboardingForm) async throws -> AuthResponse {
+        var body = (try JSONSerialization.jsonObject(with: JSONEncoder().encode(form))) as? [String: Any] ?? [:]
+        body["username"] = signup.username
+        body["password"] = signup.password
+        if let email = signup.email { body["email"] = email }
+        return try JSONDecoder.makeISO8601().decode(AuthResponse.self,
+                                                     from: try await post("/auth/register", json: JSONSerialization.data(withJSONObject: body)))
+    }
+
+    /// Free to sign up with? No session needed (usernames are public).
+    func usernameAvailable(_ username: String) async throws -> Bool {
+        var comps = URLComponents(string: APIConfig.baseURL + "/auth/username-available")
+        comps?.queryItems = [URLQueryItem(name: "username", value: username)]
+        guard let url = comps?.url else { throw URLError(.badURL) }
+        let (data, resp) = try await URLSession.shared.data(from: url)
+        guard (resp as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+        struct Available: Decodable { let available: Bool }
+        return try JSONDecoder().decode(Available.self, from: data).available
     }
 
     /// `identifier` is the @username or the email.
@@ -190,8 +213,8 @@ class AuthService {
         let (data, resp) = try await URLSession.shared.data(for: req)
         guard let http = resp as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         if http.statusCode != 200 {
-            let msg = (try? JSONDecoder().decode([String: String].self, from: data))?["error"] ?? "Setup failed"
-            throw NSError(domain: "Auth", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: msg])
+            throw NSError(domain: "Auth", code: http.statusCode,
+                          userInfo: [NSLocalizedDescriptionKey: Self.serverErrorMessage(from: data)])
         }
         struct Wrap: Decodable { let user: AuthUserDTO }
         return try JSONDecoder.makeISO8601().decode(Wrap.self, from: data).user

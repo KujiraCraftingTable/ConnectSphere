@@ -20,6 +20,16 @@ final class OnboardingViewModel {
     private(set) var isLoading = false
     private(set) var errorMessage: String?
 
+    /// A manual sign-up not created yet: finishing creates the account.
+    let pending: PendingSignup?
+    /// Someone took the chosen @username before this one finished.
+    private(set) var usernameLost = false
+
+    init(pending: PendingSignup? = nil) {
+        self.pending = pending
+        if let pending { form.username = pending.username }
+    }
+
     /// Google accounts get a placeholder `user_xxxxxxxx` at sign-in and were
     /// never asked for a name, so they choose one here. Password sign-ups
     /// already picked theirs at registration.
@@ -39,7 +49,7 @@ final class OnboardingViewModel {
     private(set) var showsMissing = false
 
     func prefill(username: String?, hasPassword: Bool) {
-        guard form.username.isEmpty, !needsUsername else { return }
+        guard pending == nil, form.username.isEmpty, !needsUsername else { return }
         if hasPassword {
             form.username = username ?? ""
         } else {
@@ -143,14 +153,25 @@ final class OnboardingViewModel {
         isLoading = true
         errorMessage = nil
         do {
-            // Before the profile, so a failure keeps them here to fix it.
-            if offersPassword, !newPassword.isEmpty, newPasswordProblem == nil, let token = appState.authToken {
-                try await AuthService.shared.changePassword(token: token, currentPassword: nil, newPassword: newPassword)
-                appState.currentUser?.hasPassword = true
+            if let pending {
+                // The account and its @username come into being only now.
+                try await appState.registerAndSetUp(pending, form: form)
+            } else {
+                // Before the profile, so a failure keeps them here to fix it.
+                if offersPassword, !newPassword.isEmpty, newPasswordProblem == nil, let token = appState.authToken {
+                    try await AuthService.shared.changePassword(token: token, currentPassword: nil, newPassword: newPassword)
+                    appState.currentUser?.hasPassword = true
+                }
+                try await appState.completeOnboarding(form: form)
             }
-            try await appState.completeOnboarding(form: form)
         } catch {
-            errorMessage = friendlyError(error)
+            if let pending, (error as NSError).code == 409, error.localizedDescription.contains("Username") {
+                usernameLost = true
+                errorMessage = String(format: Bundle.app.loc("Someone just took @%@. Go back and pick another username."),
+                                      pending.username)
+            } else {
+                errorMessage = friendlyError(error)
+            }
         }
         isLoading = false
     }
