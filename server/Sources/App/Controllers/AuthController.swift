@@ -16,6 +16,8 @@ struct AuthController {
 
         limited.post("register", use: registerUser)
         limited.post("register", "code", use: registerCode)
+        limited.post("register", "verify", use: registerVerify)
+        auth.get("username-available", use: usernameAvailable)
         limited.post("login", use: login)
         limited.post("login", "verify", use: verifyLogin)
         limited.post("login", "resend", use: resendLogin)
@@ -48,7 +50,19 @@ struct AuthController {
 
     // MARK: POST /register
 
-    struct RegisterBody: Content { var username: String?; var password: String?; var email: String?; var code: String? }
+    /// The sign-up details plus everything onboarding collected.
+    struct RegisterBody: Content {
+        var username: String?; var password: String?; var email: String?
+        var display_name: String?; var dob: String?; var dob_visibility: String?; var bio: String?
+        var location: String?; var default_mode: String?; var job_title: String?; var company: String?
+        var gender: String?; var interests: [String]?; var skills: [String]?
+
+        var profile: SetupBody {
+            SetupBody(username: username, display_name: display_name, dob: dob, dob_visibility: dob_visibility,
+                      bio: bio, location: location, default_mode: default_mode, job_title: job_title,
+                      company: company, gender: gender, interests: interests, skills: skills)
+        }
+    }
 
     /// Lowercased and format-checked; 409 when someone has (or had) it —
     /// usernames are never freed.
@@ -91,8 +105,35 @@ struct AuthController {
         return AccountController.SentResponse(email: email)
     }
 
-    /// @username + password, and an optional email — which, when given, must
-    /// come with the code sent to it, so it's verified from the start.
+    /// Free to sign up with right now? Public — usernames are shown on
+    /// profiles anyway — so the sign-up form can check as the user types.
+    struct Availability: Content { var available: Bool; var reason: String? }
+
+    static func usernameAvailable(_ req: Request) async throws -> Availability {
+        let username = ((try? req.query.get(String.self, at: "username")) ?? "").trimmingCharacters(in: .whitespaces).lowercased()
+        guard matches(usernameRegex, username) else {
+            return Availability(available: false, reason: "Username must be 3-30 characters: lowercase letters, numbers, underscore")
+        }
+        let taken = try await UserStore.usernameTaken(username, on: req.db.sql())
+        return Availability(available: !taken, reason: taken ? "Username already taken" : nil)
+    }
+
+    struct RegisterVerifyBody: Content { var email: String?; var code: String? }
+
+    /// The sign-up email's code, checked on the sign-up screen; the account
+    /// that uses it is created when onboarding finishes.
+    static func registerVerify(_ req: Request) async throws -> StatusOKResponse {
+        let b = try req.content.decode(RegisterVerifyBody.self)
+        guard let email = AccountController.cleanEmail(b.email) else {
+            throw InlineError(.badRequest, "Enter a valid email address")
+        }
+        try await SignupCodeStore.verify(email: email, code: b.code ?? "", on: req.db.sql())
+        return StatusOKResponse()
+    }
+
+    /// Creates the account — only when onboarding finishes, so an abandoned
+    /// sign-up never holds a username. @username + password, an optional
+    /// email (confirmed with its code first), and the whole profile.
     static func registerUser(_ req: Request) async throws -> Response {
         let body = try req.content.decode(RegisterBody.self)
         let password = body.password ?? ""
@@ -101,26 +142,41 @@ struct AuthController {
         guard password.count >= minPasswordLen else {
             throw InlineError(.badRequest, "Password must be at least \(minPasswordLen) characters")
         }
+        let fields = try ProfileFields.validate(body.profile)
         var email: String?
         if let raw = body.email, !raw.trimmingCharacters(in: .whitespaces).isEmpty {
             let cleaned = try await newEmail(raw, on: db)
-            guard let code = body.code, !code.isEmpty else { throw InlineError(.badRequest, "Verify your email first") }
-            try await SignupCodeStore.consume(email: cleaned, code: code, on: db)
+            guard try await SignupCodeStore.isConfirmed(cleaned, on: db) else {
+                throw InlineError(.badRequest, "Your email confirmation expired — go back and send a new code")
+            }
             email = cleaned
         }
 
         let hash = try Bcrypt.hash(password, cost: bcryptCost)
-        struct NewRow: Decodable { let id: String }
-        guard let created = try await db.raw("""
-            INSERT INTO users (username, email, email_verified_at, password_hash, display_name, is_setup)
-            VALUES (\(bind: username), \(bind: email), CASE WHEN \(bind: email) IS NULL THEN NULL ELSE NOW() END,
-                    \(bind: hash), \(bind: username), FALSE)
-            RETURNING id
-            """).first(decoding: NewRow.self)
-        else { throw Abort(.internalServerError) }
+        let id: String
+        do {
+            id = try await req.db.withTransaction { t in
+                struct NewRow: Decodable { let id: String }
+                guard let created = try await t.raw("""
+                    INSERT INTO users (username, email, email_verified_at, password_hash, display_name, is_setup)
+                    VALUES (\(bind: username), \(bind: email), CASE WHEN \(bind: email) IS NULL THEN NULL ELSE NOW() END,
+                            \(bind: hash), \(bind: username), FALSE)
+                    RETURNING id
+                    """).first(decoding: NewRow.self)
+                else { throw Abort(.internalServerError) }
+                try await applyProfile(created.id, username: username, fields, on: t)
+                if let email { try await SignupCodeStore.take(email, on: t) }
+                return created.id
+            }
+        } catch where String(reflecting: error).contains("23505") {
+            // Someone finished signing up with this username (or email) a moment ago.
+            // The error names the unique index that was hit.
+            throw InlineError(.conflict, String(reflecting: error).contains("users_email_key")
+                              ? "That email is used by another account" : "Username already taken")
+        }
 
-        req.logger.info("auth: new password account registered \(created.id)")
-        let payload = AuthResponse(token: signToken(created.id, req), user: try await loadUser(created.id, db), is_new_user: true)
+        req.logger.info("auth: new password account registered \(id)")
+        let payload = AuthResponse(token: signToken(id, req), user: try await loadUser(id, db), is_new_user: false)
         let res = try await payload.encodeResponse(for: req)
         res.status = .created
         return res
@@ -347,67 +403,91 @@ struct AuthController {
         var skills: [String]?
     }
 
+    /// Everything onboarding saves, checked — shared by `setup` (Google
+    /// accounts) and `registerUser` (which creates the account at the end).
+    struct ProfileFields {
+        var displayName: String
+        var location: String
+        var dob: String
+        var dobVisibility: String
+        var mode: String
+        var gender: String
+        var bio: String?
+        var jobTitle: String?
+        var company: String?
+        var interests: [String]?
+        var skills: [String]
+
+        static func validate(_ b: SetupBody) throws -> ProfileFields {
+            let skills = try EndorsementStore.cleanSkills(b.skills ?? [])
+            let displayName = (b.display_name ?? "").trimmingCharacters(in: .whitespaces)
+            let location = (b.location ?? "").trimmingCharacters(in: .whitespaces)
+            guard !displayName.isEmpty else { throw InlineError(.badRequest, "display_name is required") }
+            guard UserStore.displayNameFits(displayName) else { throw InlineError(.badRequest, UserStore.displayNameTooLong) }
+            guard !location.isEmpty else { throw InlineError(.badRequest, "location is required") }
+
+            let dob = (b.dob ?? "").trimmingCharacters(in: .whitespaces)
+            guard !dob.isEmpty else { throw InlineError(.badRequest, "dob is required") }
+            guard let dobDate = JSONCoding.dateOnly.date(from: dob) ?? ISO8601DateFormatter().date(from: dob),
+                  dobDate < Date()
+            else { throw InlineError(.badRequest, "dob must be a valid past date") }
+
+            let dobVisibility = b.dob_visibility ?? "private"
+            guard ["private", "public"].contains(dobVisibility) else {
+                throw InlineError(.badRequest, "dob_visibility must be private or public")
+            }
+            func optional(_ s: String?) -> String? {
+                (s?.trimmingCharacters(in: .whitespaces)).flatMap { $0.isEmpty ? nil : $0 }
+            }
+            return ProfileFields(
+                displayName: displayName, location: location, dob: dob, dobVisibility: dobVisibility,
+                mode: ["hobby", "work"].contains(b.default_mode ?? "") ? b.default_mode! : "hobby",
+                gender: ["male", "female", "other"].contains(b.gender ?? "") ? b.gender! : "other",
+                bio: optional(b.bio), jobTitle: optional(b.job_title), company: optional(b.company),
+                interests: b.interests, skills: skills)
+        }
+    }
+
+    /// Writes the profile and marks the account set up.
+    static func applyProfile(_ userID: String, username: String, _ f: ProfileFields, on db: any SQLDatabase) async throws {
+        try await db.raw("""
+            UPDATE users SET
+              username     = \(bind: username),
+              display_name = \(bind: f.displayName),
+              \(unsafeRaw: f.mode)_display_name = \(bind: f.displayName),
+              dob          = \(bind: f.dob)::date,
+              age          = EXTRACT(YEAR FROM AGE(\(bind: f.dob)::date))::int,
+              bio          = \(bind: f.bio),
+              \(unsafeRaw: f.mode)_bio = \(bind: f.bio),
+              location     = \(bind: f.location),
+              default_mode = \(bind: f.mode),
+              job_title    = \(bind: f.jobTitle),
+              company      = \(bind: f.company),
+              gender       = \(bind: f.gender),
+              dob_visibility = \(bind: f.dobVisibility),
+              is_setup     = TRUE,
+              updated_at   = NOW()
+            WHERE id = \(uuid: userID)
+            """).run()
+        try await replaceList(table: "user_interests", col: "interest", userID: userID, items: f.interests, db: db)
+        try await replaceList(table: "user_skills", col: "skill", userID: userID, items: f.skills, db: db)
+    }
+
+    /// Onboarding for an account that already exists (a Google sign-up).
     static func setup(_ req: Request) async throws -> MeResponse {
         let b = try req.content.decode(SetupBody.self)
-        let skills = try EndorsementStore.cleanSkills(b.skills ?? [])
+        let fields = try ProfileFields.validate(b)
         let username = (b.username ?? "").trimmingCharacters(in: .whitespaces).lowercased()
-        let displayName = (b.display_name ?? "").trimmingCharacters(in: .whitespaces)
-        let location = (b.location ?? "").trimmingCharacters(in: .whitespaces)
         guard !username.isEmpty else { throw InlineError(.badRequest, "username is required") }
         // Same format as /register — a Google account picks its name here.
         guard matches(usernameRegex, username) else {
             throw InlineError(.badRequest, "Username must be 3-30 characters: lowercase letters, numbers, underscore")
         }
-        guard !displayName.isEmpty else { throw InlineError(.badRequest, "display_name is required") }
-        guard UserStore.displayNameFits(displayName) else { throw InlineError(.badRequest, UserStore.displayNameTooLong) }
-        guard !location.isEmpty else { throw InlineError(.badRequest, "location is required") }
-
-        let dob = (b.dob ?? "").trimmingCharacters(in: .whitespaces)
-        guard !dob.isEmpty else { throw InlineError(.badRequest, "dob is required") }
-        guard let dobDate = JSONCoding.dateOnly.date(from: dob) ?? ISO8601DateFormatter().date(from: dob),
-              dobDate < Date()
-        else { throw InlineError(.badRequest, "dob must be a valid past date") }
-
-        let dobVisibility = b.dob_visibility ?? "private"
-        guard ["private", "public"].contains(dobVisibility) else {
-            throw InlineError(.badRequest, "dob_visibility must be private or public")
-        }
-
         let db = req.db.sql()
         if try await UserStore.usernameTaken(username, excluding: req.userID, on: db) {
             throw InlineError(.conflict, "Username already taken")
         }
-
-        let mode = ["hobby", "work"].contains(b.default_mode ?? "") ? b.default_mode! : "hobby"
-        let gender = ["male", "female", "other"].contains(b.gender ?? "") ? b.gender! : "other"
-        let bio = (b.bio?.trimmingCharacters(in: .whitespaces)).flatMap { $0.isEmpty ? nil : $0 }
-        let jobTitle = (b.job_title?.trimmingCharacters(in: .whitespaces)).flatMap { $0.isEmpty ? nil : $0 }
-        let company = (b.company?.trimmingCharacters(in: .whitespaces)).flatMap { $0.isEmpty ? nil : $0 }
-
-        try await db.raw("""
-            UPDATE users SET
-              username     = \(bind: username),
-              display_name = \(bind: displayName),
-              \(unsafeRaw: mode)_display_name = \(bind: displayName),
-              dob          = \(bind: dob)::date,
-              age          = EXTRACT(YEAR FROM AGE(\(bind: dob)::date))::int,
-              bio          = \(bind: bio),
-              \(unsafeRaw: mode)_bio = \(bind: bio),
-              location     = \(bind: location),
-              default_mode = \(bind: mode),
-              job_title    = \(bind: jobTitle),
-              company      = \(bind: company),
-              gender       = \(bind: gender),
-              dob_visibility = \(bind: dobVisibility),
-              is_setup     = TRUE,
-              updated_at   = NOW()
-            WHERE id = \(uuid: req.userID)
-            """).run()
-
-        try await replaceList(table: "user_interests", col: "interest", userID: req.userID, items: b.interests, db: db)
-        try await replaceList(table: "user_skills", col: "skill", userID: req.userID, items: skills, db: db)
-
-        // TODO(phase 5): enqueue profile embed once the queue is ported.
+        try await applyProfile(req.userID, username: username, fields, on: db)
         return MeResponse(user: try await loadUser(req.userID, db))
     }
 

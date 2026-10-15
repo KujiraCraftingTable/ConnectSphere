@@ -1439,7 +1439,6 @@
 "Invalid username, email or password" = "Tên người dùng, email hoặc mật khẩu không đúng";
 "Email (optional)" = "Email (không bắt buộc)";
 "Optional. Add one to reset your password and use two-factor sign-in — we'll send it a code." = "Không bắt buộc. Thêm email để có thể đặt lại mật khẩu và dùng xác thực hai lớp — chúng tôi sẽ gửi mã tới email đó.";
-"Enter the 6-digit code we sent to %@. Your account is created as soon as it's right." = "Nhập mã 6 chữ số chúng tôi gửi tới %@. Tài khoản sẽ được tạo ngay khi mã đúng.";
 "Checking the code…" = "Đang kiểm tra mã…";
 "Create a password (optional)" = "Tạo mật khẩu (không bắt buộc)";
 "So you can also sign in with your @username or email, without Google. You can skip this." = "Để bạn cũng có thể đăng nhập bằng @tên người dùng hoặc email mà không cần Google. Có thể bỏ qua.";
@@ -1452,3 +1451,7 @@
 "Still needed: %@" = "Còn thiếu: %@";
 "Sign in with your @username or email and your password. Deleting a profile or the account needs a code sent to your verified email." = "Đăng nhập bằng @tên người dùng hoặc email cùng mật khẩu. Muốn xoá hồ sơ hoặc tài khoản cần mã gửi tới email đã xác minh.";
 "Write your bio here…" = "Viết tiểu sử của bạn ở đây…";
+"Enter the 6-digit code we sent to %@. Then you'll set up your profile." = "Nhập mã 6 chữ số chúng tôi gửi tới %@. Sau đó bạn sẽ thiết lập hồ sơ.";
+"Couldn't check the username, try again" = "Không kiểm tra được tên người dùng, hãy thử lại";
+"Someone just took @%@. Go back and pick another username." = "Ai đó vừa lấy @%@. Hãy quay lại và chọn tên người dùng khác.";
+"Change username" = "Đổi tên người dùng";

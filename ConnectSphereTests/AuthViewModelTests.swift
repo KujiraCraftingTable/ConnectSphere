@@ -15,6 +15,8 @@ struct AuthViewModelTests {
         vm.username = "good_name"
         vm.password = "password1"
         vm.confirmPassword = "password1"
+        #expect(!vm.isFormValid)                       // the username isn't confirmed free yet
+        vm.usernameStatus = .available
         #expect(vm.isFormValid && !vm.hasEmail)       // no email is fine
         vm.email = "kujira@gmail"
         #expect(vm.emailError != nil && !vm.isFormValid)
@@ -29,12 +31,15 @@ struct AuthViewModelTests {
         vm.username = "ab"
         #expect(vm.usernameError != nil)
         vm.username = "good_name"
+        vm.usernameStatus = .available
         vm.password = "password1"
         vm.confirmPassword = "password2"
         #expect(!vm.isFormValid)
         #expect(vm.confirmError != nil)
         vm.confirmPassword = "password1"
         #expect(vm.isFormValid)
+        vm.usernameStatus = .taken
+        #expect(!vm.isFormValid)
     }
 
     @Test func registerCodeKeepsOnlyDigits() {
@@ -93,6 +98,13 @@ struct AuthViewModelTests {
         #expect(vm.newPasswordProblem != nil)
         vm.confirmNewPassword = "longenough1"
         #expect(vm.newPasswordProblem == nil)
+    }
+
+    @Test func pendingSignupKeepsItsUsernameAndOffersNoPassword() {
+        let vm = OnboardingViewModel(pending: PendingSignup(username: "kujira_manual", password: "pw123456", email: nil))
+        vm.prefill(username: nil, hasPassword: false)   // no account yet: ignored
+        #expect(vm.form.username == "kujira_manual")
+        #expect(!vm.needsUsername && !vm.offersPassword && !vm.usernameLost)
     }
 
     @Test func carouselNeverLandsPastWhatIsReachable() {

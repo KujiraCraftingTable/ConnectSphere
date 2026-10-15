@@ -84,5 +84,6 @@ struct RootView: View {
             }
         }
         .task { await appState.restoreSession() }
+        .onAppear { KeyboardDismissal.install() }
     }
 }

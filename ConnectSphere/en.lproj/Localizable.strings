@@ -1439,7 +1439,6 @@
 "Invalid username, email or password" = "Invalid username, email or password";
 "Email (optional)" = "Email (optional)";
 "Optional. Add one to reset your password and use two-factor sign-in — we'll send it a code." = "Optional. Add one to reset your password and use two-factor sign-in — we'll send it a code.";
-"Enter the 6-digit code we sent to %@. Your account is created as soon as it's right." = "Enter the 6-digit code we sent to %@. Your account is created as soon as it's right.";
 "Checking the code…" = "Checking the code…";
 "Create a password (optional)" = "Create a password (optional)";
 "So you can also sign in with your @username or email, without Google. You can skip this." = "So you can also sign in with your @username or email, without Google. You can skip this.";
@@ -1452,3 +1451,7 @@
 "Still needed: %@" = "Still needed: %@";
 "Sign in with your @username or email and your password. Deleting a profile or the account needs a code sent to your verified email." = "Sign in with your @username or email and your password. Deleting a profile or the account needs a code sent to your verified email.";
 "Write your bio here…" = "Write your bio here…";
+"Enter the 6-digit code we sent to %@. Then you'll set up your profile." = "Enter the 6-digit code we sent to %@. Then you'll set up your profile.";
+"Couldn't check the username, try again" = "Couldn't check the username, try again";
+"Someone just took @%@. Go back and pick another username." = "Someone just took @%@. Go back and pick another username.";
+"Change username" = "Change username";

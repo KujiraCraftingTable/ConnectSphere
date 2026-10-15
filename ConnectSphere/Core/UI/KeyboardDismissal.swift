@@ -1,0 +1,64 @@
+import UIKit
+
+/// App-wide: a tap anywhere outside the field being typed in hides the
+/// keyboard — every screen, sheet and cover, without each one opting in.
+/// One tap recognizer per window; it never cancels the tap, so the button or
+/// row underneath still gets it.
+enum KeyboardDismissal {
+    private static let name = "KeyboardDismissal"
+    private static let handler = Handler()
+
+    static func install() {
+        for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
+            for window in scene.windows where !(window.gestureRecognizers ?? []).contains(where: { $0.name == name }) {
+                let tap = UITapGestureRecognizer(target: handler, action: #selector(Handler.tapped(_:)))
+                tap.name = name
+                tap.cancelsTouchesInView = false
+                tap.delegate = handler
+                window.addGestureRecognizer(tap)
+            }
+        }
+    }
+
+    private final class Handler: NSObject, UIGestureRecognizerDelegate {
+        @objc func tapped(_ recognizer: UITapGestureRecognizer) {
+            recognizer.view?.endEditing(true)
+        }
+
+        func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            guard let window = g.view, let responder = UIResponder.currentFirst as? UIView else { return false }
+            // Tapping a field (this one or another) just moves the focus.
+            var v = touch.view
+            while let cur = v {
+                if cur is UITextField || cur is UITextView { return false }
+                v = cur.superview
+            }
+            // Nor a tap in the field's own bar: a chat composer's Send, a
+            // password's eye button — the keyboard should stay for those.
+            return !inputBar(of: responder, in: window).contains(touch.location(in: window))
+        }
+
+        func gestureRecognizer(_ g: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
+
+        /// The widest short (≤ 160 pt) container around the field, in window space.
+        private func inputBar(of field: UIView, in window: UIView) -> CGRect {
+            var bar = field
+            while let parent = bar.superview, parent !== window, parent.bounds.height <= 160 { bar = parent }
+            return bar.convert(bar.bounds, to: window)
+        }
+    }
+}
+
+private extension UIResponder {
+    nonisolated(unsafe) static weak var found: UIResponder?
+
+    /// The view being typed in, if any.
+    static var currentFirst: UIResponder? {
+        found = nil
+        UIApplication.shared.sendAction(#selector(captureFirst), to: nil, from: nil, for: nil)
+        return found
+    }
+
+    @objc func captureFirst() { UIResponder.found = self }
+}
