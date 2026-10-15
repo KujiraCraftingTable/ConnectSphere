@@ -109,7 +109,6 @@
 "Display name *" = "Tên hiển thị *";
 "Don't have an account?" = "Chưa có tài khoản?";
 "Done" = "Xong";
-"e.g. iOS Developer | Love coffee and anime ☕🌸" = "Ví dụ: iOS Developer | Thích cafe và anime ☕🌸";
 "Edit post" = "Chỉnh sửa bài viết";
 "Edit profile" = "Chỉnh sửa hồ sơ";
 "Email (Optional)" = "Email (Tùy chọn)";
@@ -1452,3 +1451,4 @@
 "a valid password (or leave it empty)" = "mật khẩu hợp lệ (hoặc để trống)";
 "Still needed: %@" = "Còn thiếu: %@";
 "Sign in with your @username or email and your password. Deleting a profile or the account needs a code sent to your verified email." = "Đăng nhập bằng @tên người dùng hoặc email cùng mật khẩu. Muốn xoá hồ sơ hoặc tài khoản cần mã gửi tới email đã xác minh.";
+"Write your bio here…" = "Viết tiểu sử của bạn ở đây…";

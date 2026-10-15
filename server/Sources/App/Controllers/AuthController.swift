@@ -350,13 +350,6 @@ struct AuthController {
     static func setup(_ req: Request) async throws -> MeResponse {
         let b = try req.content.decode(SetupBody.self)
         let skills = try EndorsementStore.cleanSkills(b.skills ?? [])
-        // Sign-up needs a verified email (the app verifies it in the basics
-        // step; Google sign-ups already have one).
-        struct V: Decodable { let ok: Bool }
-        guard try await req.db.sql().raw("SELECT (email_verified_at IS NOT NULL) AS ok FROM users WHERE id = \(uuid: req.userID)")
-            .first(decoding: V.self)?.ok == true else {
-            throw InlineError(.badRequest, "Verify your email first")
-        }
         let username = (b.username ?? "").trimmingCharacters(in: .whitespaces).lowercased()
         let displayName = (b.display_name ?? "").trimmingCharacters(in: .whitespaces)
         let location = (b.location ?? "").trimmingCharacters(in: .whitespaces)

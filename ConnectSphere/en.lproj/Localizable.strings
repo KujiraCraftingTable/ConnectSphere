@@ -109,7 +109,6 @@
 "Display name *" = "Display name *";
 "Don't have an account?" = "Don't have an account?";
 "Done" = "Done";
-"e.g. iOS Developer | Love coffee and anime ☕🌸" = "e.g. iOS Developer | Love coffee and anime ☕🌸";
 "Edit post" = "Edit post";
 "Edit profile" = "Edit profile";
 "Email (Optional)" = "Email (Optional)";
@@ -1452,3 +1451,4 @@
 "a valid password (or leave it empty)" = "a valid password (or leave it empty)";
 "Still needed: %@" = "Still needed: %@";
 "Sign in with your @username or email and your password. Deleting a profile or the account needs a code sent to your verified email." = "Sign in with your @username or email and your password. Deleting a profile or the account needs a code sent to your verified email.";
+"Write your bio here…" = "Write your bio here…";

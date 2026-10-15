@@ -10,5 +10,7 @@ func friendlyError(_ error: Error) -> String {
     if case WebSocketError.serverError(let msg) = error { return msg }
     if case WebSocketError.timeout = error { return Bundle.app.loc("Request timed out. Please try again.") }
     if case WebSocketError.notConnected = error { return Bundle.app.loc("Connection error. Check your network.") }
+    // AuthService's own requests carry the server's reason the same way.
+    if (error as NSError).domain == "Auth" { return error.localizedDescription }
     return Bundle.app.loc("Something went wrong.")
 }
