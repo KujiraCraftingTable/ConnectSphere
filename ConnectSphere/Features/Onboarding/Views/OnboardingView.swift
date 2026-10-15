@@ -365,7 +365,7 @@ struct OnboardingView: View {
                     .fill(AppColors.surface(.light))
                     .frame(minHeight: 120)
                 if viewModel.form.bio.isEmpty {
-                    Text("e.g. iOS Developer | Love coffee and anime ☕🌸", bundle: bundle)
+                    Text("Write your bio here…", bundle: bundle)
                         .font(.system(size: 14))
                         .foregroundColor(AppColors.textDisabled(.light))
                         .padding(14)
