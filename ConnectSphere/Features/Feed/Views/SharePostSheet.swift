@@ -35,7 +35,7 @@ struct SharePostSheet: View {
 
                     Button {
                         Task {
-                            guard await viewModel.share(postId: post.id, mode: appState.currentMode) else { return }
+                            guard await viewModel.share(.post(post.id), mode: appState.currentMode, token: token) else { return }
                             onShared?()
                             dismiss()
                         }
@@ -73,7 +73,7 @@ struct SharePostSheet: View {
                 }
             }
             .navigationDestination(isPresented: $showAllChats) {
-                ShareRecipientsView(viewModel: viewModel, postId: post.id)
+                ShareRecipientsView(viewModel: viewModel, target: .post(post.id))
             }
             .task { await viewModel.loadRecipients(mode: appState.currentMode.rawValue, token: token) }
         }
@@ -123,7 +123,7 @@ struct SharePostSheet: View {
                             ShareRecipientTile(conversation: conversation,
                                                state: viewModel.sendStates[conversation.id],
                                                canUndo: viewModel.undoable.contains(conversation.id),
-                                               onSend: { Task { await viewModel.send(postId: post.id, to: conversation, token: token) } },
+                                               onSend: { Task { await viewModel.send(.post(post.id), to: conversation, token: token) } },
                                                onUndo: { Task { await viewModel.undo(conversation, token: token) } })
                         }
                         Button { showAllChats = true } label: {
@@ -150,7 +150,7 @@ struct SharePostSheet: View {
 
 /// One chat in the "Send to" row: its avatar and name; tap sends, then it
 /// shows "Sent" — with "Undo" for the first few seconds.
-private struct ShareRecipientTile: View {
+struct ShareRecipientTile: View {
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.appBundle) private var bundle
     @Environment(\.colorScheme) private var colorScheme
@@ -211,14 +211,14 @@ private struct ShareRecipientTile: View {
 }
 
 /// Every chat, searchable, each with Send / Sent — "⋯" in the share sheet.
-private struct ShareRecipientsView: View {
+struct ShareRecipientsView: View {
     @Environment(AppState.self) private var appState
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.appBundle) private var bundle
     @Environment(\.colorScheme) private var colorScheme
 
     @Bindable var viewModel: SharePostViewModel
-    let postId: String
+    let target: ShareTarget
 
     private var token: String { appState.authToken ?? "" }
 
@@ -262,7 +262,7 @@ private struct ShareRecipientsView: View {
             }
         case .failed, nil:
             Button(bundle.loc(viewModel.sendStates[conversation.id] == .failed ? "Retry" : "Send")) {
-                Task { await viewModel.send(postId: postId, to: conversation, token: token) }
+                Task { await viewModel.send(target, to: conversation, token: token) }
             }
             .font(.system(size: 13, weight: .semibold))
             .buttonStyle(.borderedProminent)

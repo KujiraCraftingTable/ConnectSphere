@@ -333,6 +333,9 @@ enum NotifyService {
         case "post":
             let note = m.content?.trimmedText ?? ""
             return note.isEmpty ? "📰 Shared a post" : "📰 " + String(note.prefix(previewLength))
+        case "community":
+            let note = m.content?.trimmedText ?? ""
+            return note.isEmpty ? "👥 Shared a community" : "👥 " + String(note.prefix(previewLength))
         default:
             let c = m.content ?? ""
             return c.isEmpty ? nil : String(c.prefix(previewLength))

@@ -124,6 +124,8 @@ struct Post: Identifiable {
     /// non-nil = this is a shared post; sharedPost is nil when the original post has been deleted
     var sharedPostId: String? = nil
     var sharedPost: SharedPostPreview? = nil
+    /// A community shared to the feed: its card under the note.
+    var sharedCommunity: SharedCommunityRef? = nil
     /// Poll/event posts on the Feed reuse the same community-agnostic
     /// PostType/PollData/EventData types from Communities (see
     /// CommunityPost.swift) — a Feed post and a community post render polls

@@ -1,4 +1,10 @@
 import Foundation
+
+/// What a share sheet passes on.
+enum ShareTarget: Equatable {
+    case post(String)
+    case community(String)
+}
 import Observation
 
 /// Sharing a post: sending it straight into chats (the most recent 20, or
@@ -46,17 +52,23 @@ final class SharePostViewModel {
         }
     }
 
-    /// Sends the post into `conversation` at once; the avatar shows "Sent".
-    func send(postId: String, to conversation: Conversation, token: String) async {
+    /// Sends the post (or community) into `conversation` at once; the avatar shows "Sent".
+    func send(_ target: ShareTarget, to conversation: Conversation, token: String) async {
         switch sendStates[conversation.id] {
         case .sending, .sent: return
         default: break
         }
         sendStates[conversation.id] = .sending
         do {
-            let message = try await messages.sendPost(
-                conversationId: conversation.id, postId: postId,
-                note: comment.trimmingCharacters(in: .whitespacesAndNewlines), token: token)
+            let note = comment.trimmingCharacters(in: .whitespacesAndNewlines)
+            let message: Message
+            switch target {
+            case .post(let id):
+                message = try await messages.sendPost(conversationId: conversation.id, postId: id, note: note, token: token)
+            case .community(let id):
+                message = try await messages.sendCommunity(conversationId: conversation.id, communityId: id,
+                                                           note: note, token: token)
+            }
             sendStates[conversation.id] = .sent(messageId: message.id)
             undoable.insert(conversation.id)
             Task {
@@ -80,16 +92,21 @@ final class SharePostViewModel {
         }
     }
 
-    /// Reposts to your own Feed. Returns true on success. Sharing a share
-    /// points at the original — the backend resolves that.
-    func share(postId: String, mode: AppMode) async -> Bool {
+    /// Posts it to your own Feed. Returns true on success. Sharing a share
+    /// points at the original — the backend resolves that. A community goes
+    /// to the feed of its own mode.
+    func share(_ target: ShareTarget, mode: AppMode, token: String) async -> Bool {
         isSharing = true
         shareFailed = false
         defer { isSharing = false }
+        let note = comment.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
-            _ = try await repository.sharePost(postId: postId,
-                                               content: comment.trimmingCharacters(in: .whitespacesAndNewlines),
-                                               mode: mode)
+            switch target {
+            case .post(let id):
+                _ = try await repository.sharePost(postId: id, content: note, mode: mode)
+            case .community(let id):
+                try await CommunityRepository().shareToFeed(communityId: id, note: note, token: token)
+            }
             return true
         } catch {
             shareFailed = true
