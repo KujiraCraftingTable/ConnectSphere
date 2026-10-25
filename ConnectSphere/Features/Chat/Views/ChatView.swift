@@ -1264,6 +1264,7 @@ struct ChatView: View {
             case .album:   return message.albumPreview
             case .poll:    return "📊 " + (message.content ?? bundle.loc("Poll"))
             case .post:    return "📰 " + bundle.loc("Shared a post")
+            case .community: return "👥 " + bundle.loc("Shared a community")
             }
         }()
 

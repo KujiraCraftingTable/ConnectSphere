@@ -20,6 +20,8 @@ struct CommunityDetailView: View {
     @State private var showMyContent     = false
     @State private var showPendingPosts  = false
     @State private var showNotifications = false
+    @State private var showShare         = false
+    @State private var showMyProfile     = false
     /// Search field under the header, opened by the toolbar's magnifier.
     @State private var showSearch        = false
     /// Scrolling down hides the search field, Feed/Members and the tab bar.
@@ -126,6 +128,14 @@ struct CommunityDetailView: View {
                 .environment(appState)
             }
         }
+        .sheet(isPresented: $showShare) {
+            if let community = viewModel.community {
+                ShareCommunitySheet(community: community)
+            }
+        }
+        .navigationDestination(isPresented: $showMyProfile) {
+            CommunityMemberProfileView(communityId: communityId, userId: appState.currentUser?.id ?? "")
+        }
         .sheet(isPresented: $showNotifications) {
             CommunityNotificationsSheet(viewModel: viewModel)
         }
@@ -210,6 +220,12 @@ struct CommunityDetailView: View {
             Button { showMyContent = true } label: {
                 Label(bundle.loc("Manage your content"), systemImage: "doc.text.magnifyingglass")
             }
+            Button { showShare = true } label: {
+                Label(bundle.loc("Share community"), systemImage: "arrowshape.turn.up.right")
+            }
+            Button { showMyProfile = true } label: {
+                Label(bundle.loc("Your community profile"), systemImage: "person.crop.square")
+            }
             Button { showNotifications = true } label: {
                 Label(bundle.loc("Manage notifications"), systemImage: "bell")
             }
@@ -240,6 +256,9 @@ struct CommunityDetailView: View {
                 }
             }
         } else {
+            Button { showShare = true } label: {
+                Label(bundle.loc("Share community"), systemImage: "arrowshape.turn.up.right")
+            }
             Button { showReportCommunity = true } label: {
                 Label(bundle.loc("Report community"), systemImage: "flag")
             }
@@ -537,7 +556,12 @@ struct CommunityDetailView: View {
         } else {
             LazyVStack(spacing: 0) {
                 ForEach(viewModel.members) { member in
-                    memberRow(member)
+                    NavigationLink {
+                        CommunityMemberProfileView(communityId: communityId, userId: member.id)
+                    } label: {
+                        memberRow(member)
+                    }
+                    .buttonStyle(.plain)
                     Divider()
                         .background(AppColors.borderSubtle(colorScheme))
                         .padding(.leading, 60)
@@ -580,6 +604,7 @@ struct CommunityDetailView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+        .contentShape(Rectangle())
         .contextMenu { memberContextMenu(member) }
     }
 

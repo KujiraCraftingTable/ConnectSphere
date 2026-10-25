@@ -1519,3 +1519,16 @@
 "No notifications about new posts here." = "No notifications about new posts here.";
 "Connections are the people you're connected with in this community's mode." = "Connections are the people you're connected with in this community's mode.";
 "%@ posted in %@" = "%@ posted in %@";
+"Share community" = "Share community";
+"Your community profile" = "Your community profile";
+"Shared a community" = "Shared a community";
+"This community isn't available" = "This community isn't available";
+"No posts in this community yet" = "No posts in this community yet";
+"connections" = "connections";
+"posts here" = "posts here";
+"View full profile" = "View full profile";
+"Joined %@" = "Joined %@";
+"Moderator" = "Moderator";
+"Say something about this community..." = "Say something about this community...";
+"Share to my feed" = "Share to my feed";
+"Send in a chat" = "Send in a chat";

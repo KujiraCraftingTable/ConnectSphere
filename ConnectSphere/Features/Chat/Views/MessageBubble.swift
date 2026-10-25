@@ -268,6 +268,22 @@ struct MessageBubble: View {
                                    onAppear: { onSharedPostAppear?() },
                                    onOpen: { onOpenSharedPost?($0) })
             }
+
+        case .community:
+            VStack(alignment: isOwn ? .trailing : .leading, spacing: 4) {
+                if let note = message.content, !note.isEmpty {
+                    Text(note)
+                        .font(.system(size: 15))
+                        .foregroundColor(isOwn ? .white : AppColors.textPrimary(colorScheme))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(bubbleBackground)
+                        .clipShape(bubbleShape)
+                }
+                if let id = message.sharedCommunityId {
+                    ChatCommunityCard(communityId: id)
+                }
+            }
         }
     }
 

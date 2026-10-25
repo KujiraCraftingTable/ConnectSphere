@@ -161,6 +161,57 @@ enum CommunityStore {
             """).first(decoding: R.self) != nil
     }
 
+    // MARK: member profile
+
+    struct MemberProfile: Content {
+        var id: String
+        var username: String
+        var display_name: String
+        @NullCoded var avatar_url: String?
+        @NullCoded var cover_url: String?
+        @NullCoded var avatar_color: String?
+        /// Connections in the community's mode.
+        var connections_count: Int
+        /// admin | moderator | member — null when not (or no longer) a member.
+        @NullCoded var role: String?
+        @NullCoded var joined_at: Date?
+        var post_count: Int
+        var posts: [PostObject]
+    }
+
+    static func memberProfile(_ userID: String, in communityID: String, type: String, viewer: String, offset: Int,
+                              on db: any SQLDatabase) async throws -> MemberProfile? {
+        // The community's mode as a fixed literal.
+        let mode = type == "work" ? "'work'" : "'hobby'"
+        let modeValue = type == "work" ? "work" : "hobby"
+        struct Row: Decodable {
+            let id: String; let username: String; let display_name: String
+            let avatar_url: String?; let cover_url: String?; let avatar_color: String?
+            let connections_count: Int; let role: String?; let joined_at: Date?; let post_count: Int
+        }
+        guard let r = try await db.raw("""
+            SELECT u.id::text AS id, u.username,
+              \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: mode)) AS display_name,
+              \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: mode)) AS avatar_url,
+              \(unsafeRaw: PersonaSQL.expr("cover_url", modeRef: mode)) AS cover_url, u.avatar_color,
+              (SELECT COUNT(*)::int FROM connections k WHERE k.status = 'accepted' AND k.mode = \(bind: modeValue)
+                 AND (k.requester_id = u.id OR k.addressee_id = u.id)) AS connections_count,
+              m.role, m.joined_at,
+              (SELECT COUNT(*)::int FROM posts p WHERE p.community_id = \(uuid: communityID)
+                 AND p.author_id = u.id AND p.status = 'posted') AS post_count
+            FROM users u
+            LEFT JOIN community_members m ON m.community_id = \(uuid: communityID) AND m.user_id = u.id
+            WHERE u.id = \(uuid: userID) AND u.deleted_at IS NULL
+            """).first(decoding: Row.self) else { return nil }
+        let posts = try await db.raw(PostStore.buildPostSelect(viewer)
+            + " WHERE p.community_id = \(uuid: communityID) AND p.author_id = \(uuid: userID) AND p.status = 'posted'"
+            + " GROUP BY p.id, u.id ORDER BY p.created_at DESC LIMIT 20 OFFSET \(bind: offset)")
+            .all(decoding: PostStore.PostRow.self).map(PostStore.map)
+        return MemberProfile(id: r.id, username: r.username, display_name: r.display_name, avatar_url: r.avatar_url,
+                             cover_url: r.cover_url, avatar_color: r.avatar_color, connections_count: r.connections_count,
+                             role: r.role, joined_at: r.joined_at, post_count: r.post_count, posts: posts)
+    }
+
     // MARK: notifications
 
     static func setNotifyLevel(_ communityID: String, _ userID: String, _ level: String, on db: any SQLDatabase) async throws {

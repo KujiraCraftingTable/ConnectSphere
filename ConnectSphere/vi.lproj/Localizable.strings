@@ -1519,3 +1519,16 @@
 "No notifications about new posts here." = "Không nhận thông báo về bài viết mới ở đây.";
 "Connections are the people you're connected with in this community's mode." = "Kết nối là những người bạn đã kết nối trong chế độ của cộng đồng này.";
 "%@ posted in %@" = "%@ đã đăng trong %@";
+"Share community" = "Chia sẻ cộng đồng";
+"Your community profile" = "Hồ sơ của bạn trong cộng đồng";
+"Shared a community" = "Đã chia sẻ một cộng đồng";
+"This community isn't available" = "Cộng đồng này không còn khả dụng";
+"No posts in this community yet" = "Chưa có bài viết nào trong cộng đồng này";
+"connections" = "kết nối";
+"posts here" = "bài viết ở đây";
+"View full profile" = "Xem hồ sơ đầy đủ";
+"Joined %@" = "Tham gia ngày %@";
+"Moderator" = "Người kiểm duyệt";
+"Say something about this community..." = "Viết gì đó về cộng đồng này...";
+"Share to my feed" = "Chia sẻ lên bảng tin của tôi";
+"Send in a chat" = "Gửi trong đoạn chat";

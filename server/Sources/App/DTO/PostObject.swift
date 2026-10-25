@@ -53,6 +53,18 @@ struct PostObject: Content {
     /// wrapper). Plain Optional — the key is *absent* on Feed posts, matching
     /// Node's `buildPostSelect` which doesn't project it at all.
     var community: CommunityRef?
+    /// A community shared to the feed (migration 070): its card under the note.
+    @NullCoded var shared_community: SharedCommunity? = nil
+
+    struct SharedCommunity: Content {
+        var id: String
+        var name: String
+        @NullCoded var cover_url: String?
+        var cover_color: String
+        var icon_emoji: String
+        var member_count: Int
+        var privacy: String
+    }
 
     struct PostAuthor: Content {
         var id: String

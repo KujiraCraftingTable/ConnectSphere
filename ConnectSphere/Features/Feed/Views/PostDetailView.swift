@@ -147,6 +147,7 @@ struct PostDetailView: View {
             commentsHeader(count: post.commentCount)
             CommentsSection(
                 postId: postId,
+                communityId: post.community?.id,
                 postAuthorId: post.author.id,
                 viewModel: commentVM,
                 toastPresenter: toastPresenter,
@@ -298,28 +299,39 @@ private struct PostDetailHeader: View {
 
     let post: Post
 
+    private func communityPage(_ community: CommunityRef) -> some View {
+        CommunityDetailView(communityId: community.id, token: appState.authToken ?? "",
+                            currentUserId: appState.currentUser?.id ?? "")
+            .environment(appState).environment(themeManager)
+    }
+
     @ViewBuilder
     var body: some View {
         if let community = post.community {
-            NavigationLink(destination:
-                CommunityDetailView(communityId: community.id, token: appState.authToken ?? "",
-                                    currentUserId: appState.currentUser?.id ?? "")
-                    .environment(appState).environment(themeManager)
-            ) {
-                HStack(spacing: 8) {
+            // The community opens the community; the poster opens their
+            // profile in it.
+            HStack(spacing: 8) {
+                NavigationLink(destination: communityPage(community)) {
                     Avatar(name: community.iconEmoji, imageURL: community.avatarUrl,
                            size: .sm, shape: .roundedSquare)
-                    VStack(alignment: .leading, spacing: 1) {
-                        name(community.name)
-                        detail {
+                }
+                .buttonStyle(.plain)
+                VStack(alignment: .leading, spacing: 1) {
+                    NavigationLink(destination: communityPage(community)) { name(community.name) }
+                        .buttonStyle(.plain)
+                    detail {
+                        NavigationLink(destination:
+                            CommunityMemberProfileView(communityId: community.id, userId: post.author.id)
+                                .environment(appState)
+                        ) {
                             Text(String(format: bundle.loc("Posted by %@"), post.author.name))
-                            Text("·")
-                            Text(post.timestamp.timeAgoString)
                         }
+                        .buttonStyle(.plain)
+                        Text("·")
+                        Text(post.timestamp.timeAgoString)
                     }
                 }
             }
-            .buttonStyle(.plain)
         } else {
             NavigationLink(destination:
                 UserProfileView(userId: post.author.id, preloadedUser: post.author)

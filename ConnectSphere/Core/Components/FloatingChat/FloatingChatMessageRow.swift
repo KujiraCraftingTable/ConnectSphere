@@ -101,6 +101,9 @@ struct FloatingChatMessageRow: View {
                             openedPost = OpenedSharedPost(id: post.id)
                         })
                         .frame(width: width * 0.9)
+                case .community:
+                    // The mini window has no room for the card; the chat shows it.
+                    textBubble("👥 " + ((message.content?.isEmpty == false ? message.content : nil) ?? bundle.loc("Shared a community")))
                 case .text, .unknown:
                     textBubble(message.content ?? "")
                 }

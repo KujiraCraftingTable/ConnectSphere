@@ -175,3 +175,64 @@ struct MyCommunityContent: Decodable {
         comments = try c.decode([Comment].self, forKey: .comments)
     }
 }
+
+/// A community's card where it's shared: under a feed post's note.
+struct SharedCommunityRef: Decodable, Equatable {
+    let id: String
+    let name: String
+    let coverUrl: String?
+    let coverColor: String
+    let iconEmoji: String
+    let memberCount: Int
+    let privacy: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, privacy
+        case coverUrl = "cover_url"
+        case coverColor = "cover_color"
+        case iconEmoji = "icon_emoji"
+        case memberCount = "member_count"
+    }
+}
+
+/// Someone as they appear in one community
+/// (`GET /communities/:id/members/:userId/profile`).
+struct CommunityMemberProfile: Decodable {
+    let id: String
+    let username: String
+    let displayName: String
+    let avatarUrl: String?
+    let coverUrl: String?
+    let avatarColor: String?
+    let connectionsCount: Int
+    let role: String?
+    let joinedAt: Date?
+    let postCount: Int
+    let posts: [Post]
+
+    enum CodingKeys: String, CodingKey {
+        case id, username, role, posts
+        case displayName = "display_name"
+        case avatarUrl = "avatar_url"
+        case coverUrl = "cover_url"
+        case avatarColor = "avatar_color"
+        case connectionsCount = "connections_count"
+        case joinedAt = "joined_at"
+        case postCount = "post_count"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        username = try c.decode(String.self, forKey: .username)
+        displayName = try c.decode(String.self, forKey: .displayName)
+        avatarUrl = try c.decodeIfPresent(String.self, forKey: .avatarUrl)
+        coverUrl = try c.decodeIfPresent(String.self, forKey: .coverUrl)
+        avatarColor = try c.decodeIfPresent(String.self, forKey: .avatarColor)
+        connectionsCount = try c.decode(Int.self, forKey: .connectionsCount)
+        role = try c.decodeIfPresent(String.self, forKey: .role)
+        joinedAt = try c.decodeIfPresent(Date.self, forKey: .joinedAt)
+        postCount = try c.decode(Int.self, forKey: .postCount)
+        posts = try c.decode([PostDTO].self, forKey: .posts).map { $0.toPost() }
+    }
+}

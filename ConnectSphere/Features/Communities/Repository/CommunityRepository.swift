@@ -282,6 +282,18 @@ extension CommunityRepository {
                                    bodyData: try JSONSerialization.data(withJSONObject: ["level": level.rawValue]))
     }
 
+    /// A post on your own feed carrying the community's card.
+    func shareToFeed(communityId: String, note: String, token: String) async throws {
+        _ = try await client.fetch(DataResponse<PostDTO>.self, path: "/communities/\(communityId)/share",
+                                   method: "POST", token: token,
+                                   bodyData: try JSONSerialization.data(withJSONObject: ["content": note]))
+    }
+
+    func fetchMemberProfile(communityId: String, userId: String, offset: Int, token: String) async throws -> CommunityMemberProfile {
+        try await client.fetch(CommunityMemberProfile.self, path: "/communities/\(communityId)/members/\(userId)/profile",
+                               token: token, queryItems: [.init(name: "offset", value: String(offset))])
+    }
+
     func fetchInfo(communityId: String, token: String) async throws -> CommunityInfo {
         try await client.fetch(CommunityInfo.self, path: "/communities/\(communityId)/info", token: token)
     }

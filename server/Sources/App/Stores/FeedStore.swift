@@ -92,6 +92,7 @@ enum FeedStore {
         var poll_data: String?
         var job_data: String?
         var community: String?
+        var shared_community: String?
         var score: Double
     }
 
@@ -143,6 +144,9 @@ enum FeedStore {
                       'avatar_color', su.avatar_color, 'avatar_url', \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: "sp.mode", alias: "su"))))
                   FROM posts sp JOIN users su ON su.id = sp.author_id WHERE sp.id = p.shared_post_id AND sp.status = 'posted'
                 ) ELSE NULL END)::text AS shared_post,
+                (SELECT json_build_object('id', sc.id, 'name', sc.name, 'cover_url', sc.cover_url, 'cover_color', sc.cover_color,
+                    'icon_emoji', sc.icon_emoji, 'member_count', sc.member_count, 'privacy', sc.privacy)
+                  FROM communities sc WHERE sc.id = p.shared_community_id)::text AS shared_community,
                 json_build_object('id', u.id, 'username', u.username,
                   'display_name', \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "p.mode")),
                   'avatar_color', u.avatar_color, 'avatar_url', \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: "p.mode")),
@@ -258,7 +262,9 @@ enum FeedStore {
                 poll_data: try parse(r.poll_data, PostObject.PollData.self),
                 job_data: try parse(r.job_data, PostObject.JobData.self),
                 community: (r.community != nil && r.community != "null") ? try dec.decode(PostObject.CommunityRef.self, from: Data(r.community!.utf8)) : nil,
-                score: r.score)
+                score: r.score,
+                shared_community: (r.shared_community != nil && r.shared_community != "null")
+                    ? try dec.decode(PostObject.SharedCommunity.self, from: Data(r.shared_community!.utf8)) : nil)
         }
         let next = hasMore ? encodeCursor(page.last!.score, page.last!.id, relaxed: relaxed, asOf: asOf) : nil
         return (posts, next)
@@ -301,4 +307,6 @@ struct FeedPostObject: Content {
     @NullCoded var job_data: PostObject.JobData?
     @NullCoded var community: PostObject.CommunityRef?
     var score: Double
+    /// A community shared to the feed (its card under the note).
+    @NullCoded var shared_community: PostObject.SharedCommunity? = nil
 }

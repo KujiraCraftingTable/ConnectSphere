@@ -89,6 +89,9 @@ enum PostStore {
                 OR EXISTS (SELECT 1 FROM communities co WHERE co.id = sp.community_id AND co.privacy = 'public')
                 OR EXISTS (SELECT 1 FROM community_members cm WHERE cm.community_id = sp.community_id AND cm.user_id = \(uuid: v)))
           ) ELSE NULL END)::text AS shared_post,
+          (SELECT json_build_object('id', sc.id, 'name', sc.name, 'cover_url', sc.cover_url, 'cover_color', sc.cover_color,
+              'icon_emoji', sc.icon_emoji, 'member_count', sc.member_count, 'privacy', sc.privacy)
+            FROM communities sc WHERE sc.id = p.shared_community_id)::text AS shared_community,
           COALESCE(json_agg(DISTINCT pt.tag) FILTER (WHERE pt.tag IS NOT NULL AND pt.source = 'user'), '[]')::text AS tags,
           json_build_object('id', u.id, 'username', u.username, 'display_name', \(unsafeRaw: dnP),
             'avatar_color', u.avatar_color, 'avatar_url', \(unsafeRaw: avP),
@@ -237,6 +240,7 @@ enum PostStore {
         var poll_data: String?
         var job_data: String?
         var community: String?
+        var shared_community: String?
     }
 
     static func map(_ r: PostRow) throws -> PostObject {
@@ -260,7 +264,8 @@ enum PostStore {
             event_data: try parse(r.event_data, PostObject.EventData.self),
             poll_data: try parse(r.poll_data, PostObject.PollData.self),
             job_data: try parse(r.job_data, PostObject.JobData.self),
-            community: try parse(r.community, PostObject.CommunityRef.self)
+            community: try parse(r.community, PostObject.CommunityRef.self),
+            shared_community: try parse(r.shared_community, PostObject.SharedCommunity.self)
         )
     }
 

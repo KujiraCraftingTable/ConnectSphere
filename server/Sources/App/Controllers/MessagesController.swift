@@ -263,6 +263,8 @@ struct MessagesController {
         var poll: PollIn?
         /// For `message_type == "post"`; `content` is the sender's optional note.
         var shared_post_id: String?
+        /// For `message_type == "community"`; `content` is the sender's optional note.
+        var shared_community_id: String?
     }
     struct PollIn: Content { var options: [String]?; var ends_at: String? }
     static let maxAlbumPhotos = 10
@@ -334,6 +336,17 @@ struct MessagesController {
             sharedPost = pid
         }
 
+        var sharedCommunity: String? = nil
+        if type == "community" {
+            // A community the sender can see: public, or one they're in.
+            guard let cid = b.shared_community_id?.lowercased(), UUID(uuidString: cid) != nil,
+                  let community = try await CommunityStore.byID(cid, viewer: req.userID, on: db),
+                  community.privacy == "public" || community.is_member else {
+                throw Abort(.notFound, reason: "Community not found")
+            }
+            sharedCommunity = cid
+        }
+
         var replyTo: String? = nil
         if let rid = b.reply_to_message_id {
             guard let target = try await ChatStore.messageBasic(rid, on: db), target.conversation_id == id else {
@@ -351,7 +364,7 @@ struct MessagesController {
             content: storedContent, messageType: type,
             mediaUrl: album?.first?.url ?? b.media_url, mediaItems: album, replyToMessageID: replyTo,
             voiceDuration: b.voice_duration_seconds, voiceWaveform: b.voice_waveform,
-            sharedPostID: sharedPost, on: db)
+            sharedPostID: sharedPost, sharedCommunityID: sharedCommunity, on: db)
         if let v = validated {
             try await ChatStore.createMeetingProposalRow(messageID: newID, v, on: db)
         }

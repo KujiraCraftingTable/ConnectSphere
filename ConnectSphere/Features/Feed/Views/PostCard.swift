@@ -188,6 +188,10 @@ struct PostCard: View {
             }
 
             // Embedded original post (if this is a shared post)
+            if let shared = post.sharedCommunity {
+                SharedCommunityCard(community: shared)
+                    .padding(.horizontal, 12)
+            }
             if post.sharedPostId != nil {
                 sharedPostEmbed
                     .padding(.horizontal, 12)
@@ -372,16 +376,20 @@ struct PostCard: View {
                 // alone, before even reading the text. Taller than a plain
                 // circle, so the timestamp moves to its own line below to
                 // give the extra height somewhere to go (see the VStack).
-                ZStack(alignment: .bottomTrailing) {
-                    Avatar(name: community.iconEmoji, imageURL: community.avatarUrl,
-                           size: .md, shape: .roundedSquare)
+                Avatar(name: community.iconEmoji, imageURL: community.avatarUrl,
+                       size: .md, shape: .roundedSquare)
+            }
+            .buttonStyle(.plain)
+            // The poster's own small avatar opens their profile in this community.
+            .overlay(alignment: .bottomTrailing) {
+                NavigationLink(destination: memberProfile(community)) {
                     Avatar(name: post.author.name, colorHex: post.author.avatarColor,
                            imageURL: post.author.avatarUrl, size: .xs)
                         .overlay(Circle().stroke(AppColors.surface(colorScheme), lineWidth: 2))
-                        .offset(x: 6, y: 6)
                 }
+                .buttonStyle(.plain)
+                .offset(x: 6, y: 6)
             }
-            .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 2) {
                 NavigationLink(destination:
@@ -395,10 +403,13 @@ struct PostCard: View {
                 }
                 .buttonStyle(.plain)
 
-                Text(String(format: bundle.loc("Posted by %@"), post.author.name))
-                    .lineLimit(1)
-                    .appFont(.footnote)
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
+                NavigationLink(destination: memberProfile(community)) {
+                    Text(String(format: bundle.loc("Posted by %@"), post.author.name))
+                        .lineLimit(1)
+                        .appFont(.footnote)
+                        .foregroundColor(AppColors.textSecondary(colorScheme))
+                }
+                .buttonStyle(.plain)
 
                 HStack(spacing: 3) {
                     if post.isPinned {
@@ -418,6 +429,11 @@ struct PostCard: View {
         }
         .padding(.horizontal, 12)
         .padding(.top, 12)
+    }
+
+    private func memberProfile(_ community: CommunityRef) -> some View {
+        CommunityMemberProfileView(communityId: community.id, userId: post.author.id)
+            .environment(appState).environment(themeManager)
     }
 
     private var regularPostHeader: some View {

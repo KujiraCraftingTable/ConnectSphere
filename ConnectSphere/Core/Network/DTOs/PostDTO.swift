@@ -143,6 +143,7 @@ struct PostDTO: Decodable {
     let author: PostAuthorDTO
     let sharedPostId: String?
     let sharedPost: SharedPostDTO?
+    let sharedCommunity: SharedCommunityRef?
     let postType: String
     let pollData: PollDataDTO?
     let eventData: EventDataDTO?
@@ -171,6 +172,7 @@ struct PostDTO: Decodable {
         case createdAt     = "created_at"
         case sharedPostId  = "shared_post_id"
         case sharedPost    = "shared_post"
+        case sharedCommunity = "shared_community"
         case postType      = "post_type"
         case pollData      = "poll_data"
         case eventData     = "event_data"
@@ -211,6 +213,7 @@ struct PostDTO: Decodable {
         author        = try c.decodeIfPresent(PostAuthorDTO.self, forKey: .author) ?? .deleted
         sharedPostId  = try c.decodeIfPresent(String.self, forKey: .sharedPostId)
         sharedPost    = try c.decodeIfPresent(SharedPostDTO.self, forKey: .sharedPost)
+        sharedCommunity = try? c.decodeIfPresent(SharedCommunityRef.self, forKey: .sharedCommunity)
         postType      = try c.decodeIfPresent(String.self, forKey: .postType) ?? "text"
         pollData      = try c.decodeIfPresent(PollDataDTO.self, forKey: .pollData)
         eventData     = try c.decodeIfPresent(EventDataDTO.self, forKey: .eventData)
@@ -246,6 +249,7 @@ struct PostDTO: Decodable {
             tags:                   tags,
             sharedPostId:           sharedPostId,
             sharedPost:             sharedPost?.toPreview(),
+            sharedCommunity:        sharedCommunity,
             postType:               PostType(rawValue: postType) ?? .text,
             pollData:               pollData?.toPollData(),
             eventData:              eventData?.toEventData(),

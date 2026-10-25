@@ -48,6 +48,8 @@ struct CommunitiesController {
         c.patch(":id", "posts", ":postId", "review", use: reviewPost)
         c.get(":id", "my-content", use: myContent)
         c.put(":id", "notifications", use: setNotifications)
+        c.post(":id", "share", use: shareToFeed)
+        c.get(":id", "members", ":userId", "profile", use: memberProfile)
         // moderation / analytics / member-report → ReportsController (same phase)
         ReportsController.registerCommunityRoutes(on: c)
     }
@@ -350,6 +352,58 @@ struct CommunitiesController {
                                            authorID: req.userID, logger: req.logger)
         }
         return try await ConnectionsController.encode(DataResponse(data: post), req, .created)
+    }
+
+    // MARK: share / member profile
+
+    struct ShareBody: Content { var content: String?; var privacy: String? }
+
+    /// Shares the community to the viewer's own feed: a post carrying its
+    /// card under an optional note, in the community's mode.
+    static func shareToFeed(_ req: Request) async throws -> Response {
+        let id = req.parameters.get("id")!
+        let b = try req.content.decode(ShareBody.self)
+        let privacy = b.privacy ?? "public"
+        guard ["public", "friends", "private"].contains(privacy) else { throw Abort(.badRequest, reason: "Invalid privacy") }
+        if let c = b.content, c.count > 2000 { throw Abort(.badRequest, reason: "Post content must be at most 2000 characters") }
+        let db = req.db.sql()
+        guard let community = try await CommunityStore.byID(id, viewer: req.userID, on: db),
+              community.privacy == "public" || community.is_member else {
+            throw Abort(.notFound, reason: "Community not found")
+        }
+        guard let post = try await PostStore.create(.init(
+            authorID: req.userID, content: b.content?.trimmedText ?? "",
+            mode: community.type == "work" ? "work" : "hobby", privacy: privacy,
+            imageUrl: nil, imageUrls: nil, linkUrl: nil, articleTitle: nil,
+            sharedPostID: nil, hashtags: []), on: req.db)
+        else { throw Abort(.internalServerError) }
+        try await db.raw("UPDATE posts SET shared_community_id = \(uuid: id) WHERE id = \(uuid: post.id)").run()
+        guard let shared = try await PostStore.findById(post.id, viewer: req.userID, on: db) else { throw Abort(.internalServerError) }
+        let res = try await DataResponse(data: shared).encodeResponse(for: req)
+        res.status = .created
+        return res
+    }
+
+    /// Someone as they appear in this community: their persona for its mode,
+    /// connections in that mode, role, and only the posts they published here.
+    static func memberProfile(_ req: Request) async throws -> CommunityStore.MemberProfile {
+        let id = req.parameters.get("id")!
+        guard let userID = req.parameters.get("userId").flatMap({ UUID(uuidString: $0) != nil ? $0.lowercased() : nil }) else {
+            throw Abort(.badRequest, reason: "Invalid user")
+        }
+        let offset = max((try? req.query.get(Int.self, at: "offset")) ?? 0, 0)
+        let db = req.db.sql()
+        guard let community = try await CommunityStore.byID(id, viewer: req.userID, on: db) else {
+            throw Abort(.notFound, reason: "Community not found")
+        }
+        if community.privacy == "private" && !community.is_member {
+            throw Abort(.forbidden, reason: "This community is private")
+        }
+        guard let profile = try await CommunityStore.memberProfile(userID, in: id, type: community.type,
+                                                                   viewer: req.userID, offset: offset, on: db) else {
+            throw Abort(.notFound, reason: "User not found")
+        }
+        return profile
     }
 
     // MARK: notifications
