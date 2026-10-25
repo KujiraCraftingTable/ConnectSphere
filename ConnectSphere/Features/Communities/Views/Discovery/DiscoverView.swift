@@ -31,17 +31,17 @@ struct DiscoverView: View {
                 } else if viewModel.isLoading {
                     skeletonLoader
                 } else {
-                    // Trending section
                     if !viewModel.trending.isEmpty {
-                        TrendingSection(communities: viewModel.trending) { community in
-                            onSelectCommunity(community.id)
-                        }
+                        CommunityListSection(title: bundle.loc("Trending Now"), icon: "flame.fill",
+                                             communities: viewModel.trending,
+                                             onTap: { onSelectCommunity($0.id) },
+                                             onToggle: toggle)
                     }
-
-                    // Recommended section
-                    RecommendedSection(communities: viewModel.recommended) { community in
-                        onSelectCommunity(community.id)
-                    }
+                    CommunityListSection(title: bundle.loc("Recommended For You"), icon: "sparkles",
+                                         communities: viewModel.recommended,
+                                         emptyText: bundle.loc("Join some communities to get personalised recommendations"),
+                                         onTap: { onSelectCommunity($0.id) },
+                                         onToggle: toggle)
 
                     if viewModel.trending.isEmpty && viewModel.recommended.isEmpty {
                         emptyState
@@ -86,14 +86,16 @@ struct DiscoverView: View {
         } else {
             ForEach(viewModel.searchResults) { community in
                 Button { onSelectCommunity(community.id) } label: {
-                    CommunityCard(community: community) {
-                        Task<Void, Never>(name: nil) { await viewModel.toggleMembership(community) }
-                    }
+                    CommunityRow(community: community) { toggle(community) }
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, 16)
             }
         }
+    }
+
+    private func toggle(_ community: Community) {
+        Task<Void, Never>(name: nil) { await viewModel.toggleMembership(community) }
     }
 
     // MARK: - Skeleton loading
@@ -112,15 +114,11 @@ struct DiscoverView: View {
                 .frame(width: 140, height: 18)
                 .padding(.horizontal, 16)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(0..<count, id: \.self) { _ in
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(AppColors.elevated(colorScheme))
-                            .frame(width: 80, height: 100)
-                    }
-                }
-                .padding(.horizontal, 16)
+            ForEach(0..<count, id: \.self) { _ in
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(AppColors.elevated(colorScheme))
+                    .frame(height: 88)
+                    .padding(.horizontal, 16)
             }
         }
         .redacted(reason: .placeholder)

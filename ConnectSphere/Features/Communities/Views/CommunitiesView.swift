@@ -65,7 +65,8 @@ struct CommunitiesView: View {
                 }
             }
             .task {
-                await viewModel.fetchInitial(token: appState.authToken ?? "")
+                await viewModel.fetchInitial(token: appState.authToken ?? "",
+                                             type: appState.currentMode == .hobby ? .fandom : .work)
             }
             .sheet(isPresented: $showCreate) {
                 CreateCommunityView(
@@ -150,7 +151,7 @@ struct CommunitiesView: View {
         } else {
             ForEach(visible) { community in
                 NavigationLink(value: community.id) {
-                    CommunityCard(community: community) {
+                    CommunityRow(community: community) {
                         Task<Void, Never>(name: nil) { await viewModel.leave(community) }
                     }
                     .padding(.horizontal, 16)

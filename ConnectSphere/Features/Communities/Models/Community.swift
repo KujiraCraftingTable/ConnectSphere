@@ -8,6 +8,8 @@ struct Community: Identifiable {
     let privacy: CommunityPrivacy
     let iconEmoji: String
     let avatarUrl: String?
+    /// The community's picture (no profile picture); nil → colour + emoji.
+    var coverUrl: String?
     let coverColor: String
     var memberCount: Int
     var postCount: Int
@@ -21,6 +23,18 @@ struct Community: Identifiable {
     /// Only meaningful for a private community the viewer is not a member of.
     var joinRequestStatus: String?
     let createdAt: Date
+    var nameChangedAt: Date?
+    /// Members' posts wait for a moderator before going live.
+    var requirePostApproval = false
+    /// Pinned to the top of the viewer's My communities.
+    var isPinned = false
+    /// The viewer's notification level; nil when not a member.
+    var notifyLevel: CommunityNotifyLevel?
+}
+
+/// Which new posts in a community notify a member.
+enum CommunityNotifyLevel: String, CaseIterable {
+    case all, friends, off
 }
 
 enum CommunityType: String, CaseIterable {

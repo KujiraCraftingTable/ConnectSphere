@@ -10,6 +10,7 @@ struct CommunityDTO: Decodable {
     let privacy: String
     let iconEmoji: String
     let avatarUrl: String?
+    let coverUrl: String?
     let coverColor: String
     let memberCount: Int
     let postCount: Int
@@ -18,11 +19,20 @@ struct CommunityDTO: Decodable {
     let role: String?
     let joinRequestStatus: String?
     let createdAt: Date
+    let nameChangedAt: Date?
+    let requirePostApproval: Bool
+    let isPinned: Bool
+    let notifyLevel: String?
 
     enum CodingKeys: String, CodingKey {
         case id, name, description, type, privacy, role
         case iconEmoji          = "icon_emoji"
         case avatarUrl          = "avatar_url"
+        case coverUrl           = "cover_url"
+        case nameChangedAt      = "name_changed_at"
+        case requirePostApproval = "require_post_approval"
+        case isPinned           = "is_pinned"
+        case notifyLevel        = "notify_level"
         case coverColor         = "cover_color"
         case memberCount        = "member_count"
         case postCount          = "post_count"
@@ -41,6 +51,11 @@ struct CommunityDTO: Decodable {
         privacy     = try c.decode(String.self, forKey: .privacy)
         iconEmoji   = try c.decode(String.self, forKey: .iconEmoji)
         avatarUrl   = try c.decodeIfPresent(String.self, forKey: .avatarUrl)
+        coverUrl    = try c.decodeIfPresent(String.self, forKey: .coverUrl)
+        nameChangedAt = try c.decodeIfPresent(Date.self, forKey: .nameChangedAt)
+        requirePostApproval = try c.decodeIfPresent(Bool.self, forKey: .requirePostApproval) ?? false
+        isPinned    = try c.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
+        notifyLevel = try c.decodeIfPresent(String.self, forKey: .notifyLevel)
         coverColor  = try c.decode(String.self, forKey: .coverColor)
         memberCount = try c.decode(Int.self, forKey: .memberCount)
         postCount   = try c.decode(Int.self, forKey: .postCount)
@@ -60,6 +75,7 @@ struct CommunityDTO: Decodable {
             privacy:     CommunityPrivacy(rawValue: privacy) ?? .public,
             iconEmoji:   iconEmoji,
             avatarUrl:   avatarUrl,
+            coverUrl:    coverUrl,
             coverColor:  coverColor,
             memberCount: memberCount,
             postCount:   postCount,
@@ -67,7 +83,11 @@ struct CommunityDTO: Decodable {
             isMuted:     isMuted,
             role:        role.flatMap { MemberRole(rawValue: $0) },
             joinRequestStatus: joinRequestStatus,
-            createdAt:   createdAt
+            createdAt:   createdAt,
+            nameChangedAt: nameChangedAt,
+            requirePostApproval: requirePostApproval,
+            isPinned:    isPinned,
+            notifyLevel: notifyLevel.flatMap { CommunityNotifyLevel(rawValue: $0) }
         )
     }
 }
