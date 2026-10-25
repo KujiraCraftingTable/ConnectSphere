@@ -41,6 +41,8 @@ struct NotificationsController {
         "group_removed":       .init(category: "chat", destination: "conversations"),
         "new_post":            .init(category: "community", destination: "communityPost"),
         "pinned_post":         .init(category: "community", destination: "communityPost"),
+        "post_approved":       .init(category: "community", destination: "communityPost"),
+        "post_declined":       .init(category: "community", destination: "community"),
         "join_request":        .init(category: "community", destination: "communityJoinRequests"),
         "join_approved":       .init(category: "community", destination: "community"),
         "join_rejected":       .init(category: "community", destination: "community"),

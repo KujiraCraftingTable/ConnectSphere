@@ -13,7 +13,19 @@ enum PostPublisher {
         let post_type: String
         let mode: String
         let content: String?
+        /// posted — or pending, when its community approves posts first.
+        let status: String
     }
+
+    /// The status a post takes when it goes out: `pending` in a community
+    /// that approves posts (unless the author is staff there), else `posted`.
+    static let goingOutStatus = """
+        CASE WHEN posts.community_id IS NOT NULL
+               AND EXISTS (SELECT 1 FROM communities c WHERE c.id = posts.community_id AND c.require_post_approval)
+               AND NOT EXISTS (SELECT 1 FROM community_members m WHERE m.community_id = posts.community_id
+                                 AND m.user_id = posts.author_id AND m.role IN ('admin', 'moderator'))
+             THEN 'pending'::post_status ELSE 'posted'::post_status END
+        """
 
     /// For feed posts (community posts don't have these yet): the AI mode
     /// check, which notifies the author on a mismatch, and tag extraction →
@@ -65,26 +77,28 @@ enum PostPublisher {
     /// date, so it lands in feeds as new.
     static func claimScheduled(on db: any SQLDatabase) async throws -> [Live] {
         try await db.raw("""
-            UPDATE posts SET status = 'posted', created_at = COALESCE(publish_at, NOW()), publish_at = NULL
+            UPDATE posts SET status = \(unsafeRaw: goingOutStatus), created_at = COALESCE(publish_at, NOW()), publish_at = NULL
             WHERE status = 'scheduled' AND publish_at <= NOW()
             RETURNING id::text AS id, author_id::text AS author_id, community_id::text AS community_id,
-                      post_type, mode, content
+                      post_type, mode, content, status::text AS status
             """).all(decoding: Live.self)
     }
 
     /// "Publish now" on one of your scheduled posts.
     static func publishNow(_ id: String, author: String, on db: any SQLDatabase) async throws -> Live? {
         try await db.raw("""
-            UPDATE posts SET status = 'posted', created_at = NOW(), publish_at = NULL
+            UPDATE posts SET status = \(unsafeRaw: goingOutStatus), created_at = NOW(), publish_at = NULL
             WHERE id = \(uuid: id) AND author_id = \(uuid: author) AND status = 'scheduled'
             RETURNING id::text AS id, author_id::text AS author_id, community_id::text AS community_id,
-                      post_type, mode, content
+                      post_type, mode, content, status::text AS status
             """).first(decoding: Live.self)
     }
 
     /// The counters a post bumps when it's created live, plus the feed side
     /// effects and — for a scheduled one — "Your scheduled post is live".
     static func didGoLive(_ post: Live, app: Application, queue: any Queue, logger: Logger, notify: Bool) async {
+        // Held for approval: nothing is live yet — approving it does the rest.
+        guard post.status == "posted" else { return }
         let db = app.db.sql()
         do {
             if let community = post.community_id {

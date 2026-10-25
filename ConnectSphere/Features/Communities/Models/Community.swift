@@ -132,3 +132,46 @@ struct CommunityInfo: Decodable {
         case newMembersWeek = "new_members_week"
     }
 }
+
+/// "Manage your content" (`GET /communities/:id/my-content`).
+struct MyCommunityContent: Decodable {
+    enum Kind: String, CaseIterable { case posts, comments }
+    enum Status: String, CaseIterable { case all, published, pending, declined }
+
+    struct Counts: Decodable, Equatable {
+        let published: Int
+        let pending: Int
+        let declined: Int
+        let comments: Int
+    }
+
+    struct Comment: Decodable, Identifiable {
+        let id: String
+        let content: String
+        let imageUrl: String?
+        let createdAt: Date
+        let postId: String
+        let postExcerpt: String
+
+        enum CodingKeys: String, CodingKey {
+            case id, content
+            case imageUrl = "image_url"
+            case createdAt = "created_at"
+            case postId = "post_id"
+            case postExcerpt = "post_excerpt"
+        }
+    }
+
+    let counts: Counts
+    let posts: [Post]
+    let comments: [Comment]
+
+    enum CodingKeys: String, CodingKey { case counts, posts, comments }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        counts = try c.decode(Counts.self, forKey: .counts)
+        posts = try c.decode([PostDTO].self, forKey: .posts).map { $0.toPost() }
+        comments = try c.decode([Comment].self, forKey: .comments)
+    }
+}

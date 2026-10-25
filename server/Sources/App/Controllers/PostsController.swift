@@ -56,7 +56,10 @@ struct PostsController {
     // MARK: GET /api/posts/:id
 
     static func getOne(_ req: Request) async throws -> DataResponse<PostObject> {
-        guard let post = try await PostStore.findById(req.parameters.get("id")!, viewer: req.userID, on: req.db.sql()) else {
+        // Authors can open their own posts that aren't public yet (pending
+        // approval, declined) from Manage your content.
+        guard let post = try await PostStore.findById(req.parameters.get("id")!, viewer: req.userID,
+                                                      includeOwnUnpublished: true, on: req.db.sql()) else {
             throw Abort(.notFound, reason: "Post not found")
         }
         return DataResponse(data: post)

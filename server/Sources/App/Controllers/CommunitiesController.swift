@@ -44,6 +44,9 @@ struct CommunitiesController {
         c.delete(":id", "pin", use: unpin)
         c.post(":id", "report", use: reportCommunity)
         c.get(":id", "info", use: info)
+        c.get(":id", "pending-posts", use: pendingPosts)
+        c.patch(":id", "posts", ":postId", "review", use: reviewPost)
+        c.get(":id", "my-content", use: myContent)
         // moderation / analytics / member-report → ReportsController (same phase)
         ReportsController.registerCommunityRoutes(on: c)
     }
@@ -308,7 +311,11 @@ struct CommunitiesController {
         let b = try req.content.decode(PostsController.CreateBody.self)
         let hashtags = b.hashtags ?? []
         let postType = b.post_type ?? "text"
-        let publishing = try Publishing.from(b.publish, at: b.publish_at)
+        var publishing = try Publishing.from(b.publish, at: b.publish_at)
+        // A community that approves posts holds a member's live post as pending.
+        if publishing.isLive, try await CommunityStore.needsApproval(id, author: req.userID, on: req.db.sql()) {
+            publishing = .pending
+        }
         try await PostsController.checkReplacedDraft(b.replaces_draft, req)
         var post: PostObject
         if postType == "poll" {
@@ -338,6 +345,79 @@ struct CommunitiesController {
         }
         if publishing.isLive { await TranslationService.enqueue(req, .post, id: post.id) }
         return try await ConnectionsController.encode(DataResponse(data: post), req, .created)
+    }
+
+    // MARK: post approval
+
+    /// Staff only: posts waiting for approval, oldest first.
+    static func pendingPosts(_ req: Request) async throws -> DataListResponse<PostObject> {
+        let id = req.parameters.get("id")!
+        let db = req.db.sql()
+        guard staff(try await CommunityStore.membership(id, req.userID, on: db)) else {
+            throw Abort(.forbidden, reason: "Only admins and moderators can review posts")
+        }
+        return DataListResponse(data: try await CommunityStore.pendingPosts(id, viewer: req.userID, on: db))
+    }
+
+    struct PostReviewBody: Content { var action: String?; var reason: String? }
+    struct ReviewResult: Content { var status: String }
+
+    /// Approve (it goes live, as new) or decline (the author sees why).
+    static func reviewPost(_ req: Request) async throws -> ReviewResult {
+        let id = req.parameters.get("id")!
+        let postID = req.parameters.get("postId")!
+        let b = try req.content.decode(PostReviewBody.self)
+        guard let action = b.action, ["approve", "decline"].contains(action) else {
+            throw Abort(.badRequest, reason: "action must be approve or decline")
+        }
+        let reason = b.reason?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        if let reason, reason.count > 300 { throw Abort(.badRequest, reason: "Reason must be at most 300 characters") }
+        let db = req.db.sql()
+        guard staff(try await CommunityStore.membership(id, req.userID, on: db)) else {
+            throw Abort(.forbidden, reason: "Only admins and moderators can review posts")
+        }
+        guard let reviewed = try await CommunityStore.review(postID, in: id, approve: action == "approve",
+                                                             reason: reason, reviewer: req.userID, on: db) else {
+            throw Abort(.notFound, reason: "This post isn't waiting for approval")
+        }
+        if action == "approve" {
+            try await CommunityStore.incrementPostCount(id, 1, on: db)
+            await TranslationService.enqueue(req, .post, id: postID)
+        }
+        let author = reviewed.author_id
+        let reviewer = req.userID
+        NotifyService.fireAndForget(req) { d, h, l in
+            var payload: [String: String] = [:]
+            if let reason { payload["reason"] = reason }
+            _ = await NotifyService.pushUserNotification(
+                userID: author, type: action == "approve" ? "post_approved" : "post_declined",
+                actorID: reviewer, postID: postID, communityID: id,
+                entityType: action == "approve" ? "post" : "community", entityID: action == "approve" ? postID : id,
+                payload: payload, on: d, hub: h, logger: l)
+        }
+        return ReviewResult(status: action == "approve" ? "posted" : "declined")
+    }
+
+    /// "Manage your content": your posts (published, pending, declined) or
+    /// comments in this community, with the post counters.
+    static func myContent(_ req: Request) async throws -> CommunityStore.MyContent {
+        let id = req.parameters.get("id")!
+        let kind = (try? req.query.get(String.self, at: "kind")) ?? "posts"
+        guard ["posts", "comments"].contains(kind) else { throw Abort(.badRequest, reason: "kind must be posts or comments") }
+        let order = (try? req.query.get(String.self, at: "order")) ?? "newest"
+        guard ["newest", "oldest"].contains(order) else { throw Abort(.badRequest, reason: "order must be newest or oldest") }
+        let status = (try? req.query.get(String.self, at: "status")) ?? "all"
+        guard ["all", "published", "pending", "declined"].contains(status) else {
+            throw Abort(.badRequest, reason: "status must be all, published, pending or declined")
+        }
+        let limit = min((try? req.query.get(Int.self, at: "limit")) ?? 20, 50)
+        let offset = max((try? req.query.get(Int.self, at: "offset")) ?? 0, 0)
+        let db = req.db.sql()
+        guard try await CommunityStore.membership(id, req.userID, on: db) != nil else {
+            throw Abort(.forbidden, reason: "You are not a member of this community")
+        }
+        return try await CommunityStore.myContent(id, viewer: req.userID, kind: kind, newestFirst: order == "newest",
+                                                  status: status, limit: limit, offset: offset, on: db)
     }
 
     // MARK: join requests

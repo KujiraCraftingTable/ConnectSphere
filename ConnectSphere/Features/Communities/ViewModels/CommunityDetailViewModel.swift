@@ -265,7 +265,15 @@ class CommunityDetailViewModel {
     // the same statement triggers a Swift exclusivity-access crash
     // (overlapping getter/setter access on the @Observable `community`
     // property).
+    /// Set after posting into a community that approves posts first.
+    var awaitingApprovalNotice = false
+
     func prependPost(_ post: Post) {
+        // Held for approval: not in the feed yet (it's in Manage your content).
+        guard post.publishStatus != "pending" else {
+            awaitingApprovalNotice = true
+            return
+        }
         posts.insert(post, at: 0)
         if let currentCount = community?.postCount {
             community?.postCount = currentCount + 1

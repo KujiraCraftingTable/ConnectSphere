@@ -4,7 +4,8 @@ import Vapor
 /// Threaded through every post creator so drafts skip the side effects of
 /// going live (counters, AI tagging, embeddings) until they actually do.
 struct Publishing {
-    /// posts.status: posted | draft | scheduled
+    /// posts.status: posted | draft | scheduled | pending (waiting for a
+    /// community's approval)
     var status: String
     var publishAt: Date?
     /// Dates inside the post (poll end, event start, job deadline) must fall
@@ -15,6 +16,8 @@ struct Publishing {
 
     static var now: Publishing { Publishing(status: "posted", publishAt: nil, datesAfter: Date()) }
     static let draft = Publishing(status: "draft", publishAt: nil, datesAfter: nil)
+    /// A live post held for a community moderator's approval.
+    static var pending: Publishing { Publishing(status: "pending", publishAt: nil, datesAfter: Date()) }
     static func scheduled(at date: Date) -> Publishing {
         Publishing(status: "scheduled", publishAt: date, datesAfter: date)
     }

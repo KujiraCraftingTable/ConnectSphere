@@ -41,7 +41,8 @@ enum NotifyService {
         case "chat": return ["message": "conversation", "meeting_proposed": "meeting", "meeting_updated": "meeting",
                              "meeting_rsvp": "meeting", "meeting_reminder": "meeting", "message_reaction": "message",
                              "group_added": "conversation", "group_removed": "conversation"][type]
-        case "community": return ["new_post": "post", "pinned_post": "post", "join_request": "join_request",
+        case "community": return ["new_post": "post", "pinned_post": "post", "post_approved": "post",
+                                 "post_declined": "community", "join_request": "join_request",
                                  "join_approved": "join_request", "join_rejected": "join_request",
                                  "role_changed": "community", "new_report": "report", "content_removed": "community"][type]
         default: return nil

@@ -377,6 +377,13 @@ struct ActorNotifRow: View {
             return String(format: bundle.loc("%@ shared your post"), actorLabel)
         case "scheduled_post_live":
             return bundle.loc("Your scheduled post is live")
+        case "post_approved":
+            return bundle.loc("Your post was approved and is now live in the community")
+        case "post_declined":
+            if let reason = notif.payload.reason, !reason.isEmpty {
+                return String(format: bundle.loc("Your post wasn't approved: %@"), reason)
+            }
+            return bundle.loc("Your post wasn't approved by the community's moderators")
 
         // ── Chat ─────────────────────────────────────────────────────────
         case "message":
@@ -466,6 +473,8 @@ struct ActorNotifRow: View {
         case "comment_replied":     return "arrowshape.turn.up.left.fill"
         case "post_shared":         return "arrowshape.turn.up.right.fill"
         case "scheduled_post_live": return "clock.fill"
+        case "post_approved":       return "checkmark.seal.fill"
+        case "post_declined":       return "xmark.octagon.fill"
         case "message":             return "message.fill"
         case "message_reaction":    return "face.smiling.fill"
         case "meeting_proposed",

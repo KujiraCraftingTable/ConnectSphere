@@ -281,6 +281,35 @@ extension CommunityRepository {
     }
 }
 
+// MARK: - Post approval / Manage your content
+
+extension CommunityRepository {
+    /// Staff: posts waiting for approval.
+    func fetchPendingPosts(communityId: String, token: String) async throws -> [Post] {
+        let res = try await client.fetch(DataListResponse<PostDTO>.self,
+                                         path: "/communities/\(communityId)/pending-posts", token: token)
+        return res.data.map { $0.toPost() }
+    }
+
+    func reviewPost(communityId: String, postId: String, approve: Bool, reason: String?, token: String) async throws {
+        var body: [String: Any] = ["action": approve ? "approve" : "decline"]
+        if let reason { body["reason"] = reason }
+        struct R: Decodable { let status: String }
+        _ = try await client.fetch(R.self, path: "/communities/\(communityId)/posts/\(postId)/review",
+                                   method: "PATCH", token: token,
+                                   bodyData: try JSONSerialization.data(withJSONObject: body))
+    }
+
+    func fetchMyContent(communityId: String, kind: MyCommunityContent.Kind, newestFirst: Bool,
+                        status: MyCommunityContent.Status, offset: Int, token: String) async throws -> MyCommunityContent {
+        try await client.fetch(MyCommunityContent.self, path: "/communities/\(communityId)/my-content", token: token,
+                               queryItems: [.init(name: "kind", value: kind.rawValue),
+                                            .init(name: "order", value: newestFirst ? "newest" : "oldest"),
+                                            .init(name: "status", value: status.rawValue),
+                                            .init(name: "offset", value: String(offset))])
+    }
+}
+
 // MARK: - Private DTOs (only used inside this repository)
 
 private struct DiscoverPayload: Decodable {
