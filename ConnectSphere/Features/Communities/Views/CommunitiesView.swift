@@ -68,6 +68,10 @@ struct CommunitiesView: View {
                 await viewModel.fetchInitial(token: appState.authToken ?? "",
                                              type: appState.currentMode == .hobby ? .fandom : .work)
             }
+            // Joined, left, pinned or edited elsewhere: refresh the list.
+            .onReceive(NotificationCenter.default.publisher(for: .communitiesChanged)) { _ in
+                Task { await viewModel.loadMyCommunities() }
+            }
             .sheet(isPresented: $showCreate) {
                 CreateCommunityView(
                     existingCommunities: viewModel.myCommunities + viewModel.discoverCommunities

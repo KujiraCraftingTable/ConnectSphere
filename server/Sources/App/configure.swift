@@ -31,6 +31,7 @@ public func configure(_ app: Application) async throws {
 
     app.asyncCommands.use(StripUploadMetadataCommand(), as: "strip-upload-metadata")
     app.asyncCommands.use(VerifyCompanyCommand(), as: "verify-company")
+    app.asyncCommands.use(CommunityReportsCommand(), as: "community-reports")
 
     // 5. Routes.
     HealthController.register(app)

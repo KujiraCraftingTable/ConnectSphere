@@ -89,3 +89,46 @@ struct CommunityMember: Identifiable {
     let role: MemberRole
     let joinedAt: Date
 }
+
+/// The "About this community" page (`GET /communities/:id/info`).
+struct CommunityInfo: Decodable {
+    struct Person: Decodable, Identifiable {
+        let id: String
+        let displayName: String
+        let avatarUrl: String?
+        let avatarColor: String?
+        let role: String?
+
+        enum CodingKeys: String, CodingKey {
+            case id, role
+            case displayName = "display_name"
+            case avatarUrl = "avatar_url"
+            case avatarColor = "avatar_color"
+        }
+    }
+
+    let about: String?
+    let privacy: String
+    let createdAt: Date
+    let nameChangedAt: Date?
+    let memberCount: Int
+    /// Your connections (in the community's mode) who joined: a few, and how many.
+    let friends: [Person]
+    let friendsCount: Int
+    /// Admins first, then moderators.
+    let staff: [Person]
+    let postsToday: Int
+    let postsWeek: Int
+    let newMembersWeek: Int
+
+    enum CodingKeys: String, CodingKey {
+        case about, privacy, friends, staff
+        case createdAt = "created_at"
+        case nameChangedAt = "name_changed_at"
+        case memberCount = "member_count"
+        case friendsCount = "friends_count"
+        case postsToday = "posts_today"
+        case postsWeek = "posts_week"
+        case newMembersWeek = "new_members_week"
+    }
+}

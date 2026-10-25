@@ -188,41 +188,41 @@ struct CommunityRepository {
         privacy: String,
         iconEmoji: String,
         coverColor: String,
-        avatarUrl: String? = nil,
+        coverUrl: String? = nil,
         description: String?,
         token: String
     ) async throws -> Community {
         struct Body: Encodable {
             let name, type, privacy, icon_emoji, cover_color: String
-            let avatar_url: String?
+            let cover_url: String?
             let description: String?
         }
         let body = NetworkClient.encode(Body(name: name, type: type, privacy: privacy,
                                              icon_emoji: iconEmoji, cover_color: coverColor,
-                                             avatar_url: avatarUrl, description: description))
+                                             cover_url: coverUrl, description: description))
         let res = try await client.fetch(DataResponse<CommunityDTO>.self,
                                           path: "/communities", method: "POST",
                                           token: token, bodyData: body)
         return res.data.toCommunity(isMemberOverride: true)
     }
 
-    /// Partial edit (name/description/privacy/icon/cover/avatar) — admin/moderator
-    /// only, enforced server-side. A nil field leaves that column untouched.
+    /// Partial edit — admin/moderator only, enforced server-side. A nil field
+    /// leaves that column untouched; an empty `coverUrl` removes the cover.
     func updateCommunity(
         communityId: String,
         name: String? = nil,
         description: String? = nil,
         privacy: String? = nil,
-        iconEmoji: String? = nil,
-        coverColor: String? = nil,
-        avatarUrl: String? = nil,
+        coverUrl: String? = nil,
+        requirePostApproval: Bool? = nil,
         token: String
     ) async throws -> Community {
         struct Body: Encodable {
-            let name, description, privacy, icon_emoji, cover_color, avatar_url: String?
+            let name, description, privacy, cover_url: String?
+            let require_post_approval: Bool?
         }
         let body = NetworkClient.encode(Body(name: name, description: description, privacy: privacy,
-                                             icon_emoji: iconEmoji, cover_color: coverColor, avatar_url: avatarUrl))
+                                             cover_url: coverUrl, require_post_approval: requirePostApproval))
         let res = try await client.fetch(DataResponse<CommunityDTO>.self,
                                           path: "/communities/\(communityId)", method: "PATCH",
                                           token: token, bodyData: body)
@@ -257,11 +257,27 @@ struct CommunityRepository {
         if targetType == "post" {
             path = "/posts/\(targetId)/report"
             body["communityId"] = communityId
+        } else if targetType == "community" {
+            path = "/communities/\(communityId)/report"
         } else {
             path = "/communities/\(communityId)/members/\(targetId)/report"
         }
         _ = try await client.fetch(OKResponse.self, path: path, method: "POST", token: token,
                                    bodyData: try? JSONSerialization.data(withJSONObject: body))
+    }
+}
+
+// MARK: - Pin / info
+
+extension CommunityRepository {
+    /// Pinned communities sit at the top of My communities.
+    func setPinned(_ pinned: Bool, communityId: String, token: String) async throws {
+        _ = try await client.fetch(OKResponse.self, path: "/communities/\(communityId)/pin",
+                                   method: pinned ? "PUT" : "DELETE", token: token)
+    }
+
+    func fetchInfo(communityId: String, token: String) async throws -> CommunityInfo {
+        try await client.fetch(CommunityInfo.self, path: "/communities/\(communityId)/info", token: token)
     }
 }
 

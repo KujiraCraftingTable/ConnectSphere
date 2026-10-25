@@ -88,7 +88,7 @@ struct CreateCommunityView: View {
                                         .resizable()
                                         .scaledToFill()
                                         .frame(width: 44, height: 44)
-                                        .clipShape(Circle())
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
                                 } else {
                                     ZStack {
                                         RoundedRectangle(cornerRadius: 10)

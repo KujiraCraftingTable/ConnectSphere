@@ -40,6 +40,10 @@ struct CommunitiesController {
         c.patch(":id", use: update)
         c.put(":id", "mute", use: mute)
         c.delete(":id", "mute", use: unmute)
+        c.put(":id", "pin", use: pin)
+        c.delete(":id", "pin", use: unpin)
+        c.post(":id", "report", use: reportCommunity)
+        c.get(":id", "info", use: info)
         // moderation / analytics / member-report → ReportsController (same phase)
         ReportsController.registerCommunityRoutes(on: c)
     }
@@ -60,7 +64,7 @@ struct CommunitiesController {
 
     struct CreateBody: Content {
         var name: String?; var description: String?; var type: String?; var privacy: String?
-        var icon_emoji: String?; var cover_color: String?; var avatar_url: String?
+        var icon_emoji: String?; var cover_color: String?; var avatar_url: String?; var cover_url: String?
     }
     static func create(_ req: Request) async throws -> Response {
         let b = try req.content.decode(CreateBody.self)
@@ -77,14 +81,16 @@ struct CommunitiesController {
         let cover = b.cover_color ?? "#7F5AF0"
         let desc = b.description?.trimmingCharacters(in: .whitespaces).nilIfEmpty
         let avatarURL = MediaPath.storable(b.avatar_url)
+        let coverURL = MediaPath.storable(b.cover_url)
 
         var newID = ""
         do {
             try await req.db.tx { t in
                 struct R: Decodable { let id: String }
                 newID = try await t.raw("""
-                    INSERT INTO communities (name, description, type, privacy, icon_emoji, avatar_url, cover_color, created_by)
-                    VALUES (\(bind: name), \(bind: desc), \(bind: type), \(bind: privacy), \(bind: icon), \(bind: avatarURL), \(bind: cover), \(uuid: req.userID))
+                    INSERT INTO communities (name, description, type, privacy, icon_emoji, avatar_url, cover_url, cover_color, created_by)
+                    VALUES (\(bind: name), \(bind: desc), \(bind: type), \(bind: privacy), \(bind: icon), \(bind: avatarURL),
+                            \(bind: coverURL), \(bind: cover), \(uuid: req.userID))
                     RETURNING id::text AS id
                     """).first(decoding: R.self)!.id
                 _ = try await CommunityStore.joinCommunity(newID, req.userID, role: "admin", on: t)
@@ -196,6 +202,59 @@ struct CommunitiesController {
     }
 
     // MARK: mute / unmute (feed-visibility only — does not unfollow/leave)
+
+    // MARK: pin / report / info
+
+    /// Pinned communities sit at the top of the member's own list.
+    static func pin(_ req: Request) async throws -> OKMsg {
+        try await setPinned(req, true)
+        return OKMsg(message: "Community pinned")
+    }
+
+    static func unpin(_ req: Request) async throws -> OKMsg {
+        try await setPinned(req, false)
+        return OKMsg(message: "Community unpinned")
+    }
+
+    private static func setPinned(_ req: Request, _ pinned: Bool) async throws {
+        let id = req.parameters.get("id")!
+        let db = req.db.sql()
+        guard try await CommunityStore.membership(id, req.userID, on: db) != nil else {
+            throw Abort(.badRequest, reason: "You are not a member of this community")
+        }
+        try await CommunityStore.setPinned(id, req.userID, pinned, on: db)
+    }
+
+    struct ReportBody: Content { var reason: String?; var detail: String? }
+
+    /// A whole community, reported to the app owner (its own admins can't
+    /// judge it) — reviewed with `swift run App community-reports`.
+    static func reportCommunity(_ req: Request) async throws -> OKMsg {
+        let id = req.parameters.get("id")!
+        let b = try req.content.decode(ReportBody.self)
+        guard let reason = b.reason, ReportsController.validReasons.contains(reason) else {
+            throw Abort(.badRequest, reason: "Invalid reason")
+        }
+        let detail = b.detail?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        if let detail, detail.count > 500 { throw Abort(.badRequest, reason: "Details must be at most 500 characters") }
+        let db = req.db.sql()
+        guard try await CommunityStore.byID(id, viewer: nil, on: db) != nil else {
+            throw Abort(.notFound, reason: "Community not found")
+        }
+        guard try await CommunityStore.reportCommunity(id, by: req.userID, reason: reason, detail: detail, on: db) else {
+            throw Abort(.conflict, reason: "You already reported this community")
+        }
+        return OKMsg(message: "Thanks — we'll review it")
+    }
+
+    /// The "About this community" page.
+    static func info(_ req: Request) async throws -> CommunityStore.CommunityInfo {
+        let id = req.parameters.get("id")!
+        guard let info = try await CommunityStore.info(id, viewer: req.userID, on: req.db.sql()) else {
+            throw Abort(.notFound, reason: "Community not found")
+        }
+        return info
+    }
 
     static func mute(_ req: Request) async throws -> OKMsg {
         let id = req.parameters.get("id")!

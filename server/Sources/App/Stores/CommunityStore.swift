@@ -143,6 +143,94 @@ enum CommunityStore {
         try await db.raw("UPDATE community_members SET muted = \(bind: muted) WHERE community_id = \(uuid: communityID) AND user_id = \(uuid: userID)").run()
     }
 
+    static func setPinned(_ communityID: String, _ userID: String, _ pinned: Bool, on db: any SQLDatabase) async throws {
+        try await db.raw("""
+            UPDATE community_members SET pinned_at = CASE WHEN \(bind: pinned) THEN COALESCE(pinned_at, NOW()) END
+            WHERE community_id = \(uuid: communityID) AND user_id = \(uuid: userID)
+            """).run()
+    }
+
+    /// False when this person already reported it.
+    static func reportCommunity(_ communityID: String, by reporter: String, reason: String, detail: String?,
+                                on db: any SQLDatabase) async throws -> Bool {
+        struct R: Decodable { let id: String }
+        return try await db.raw("""
+            INSERT INTO community_reports (reporter_id, target_type, target_id, community_id, reason, detail)
+            VALUES (\(uuid: reporter), 'community', \(uuid: communityID), \(uuid: communityID), \(bind: reason), \(bind: detail))
+            ON CONFLICT DO NOTHING RETURNING id::text AS id
+            """).first(decoding: R.self) != nil
+    }
+
+    // MARK: info page
+
+    struct InfoPerson: Content {
+        var id: String
+        var display_name: String
+        @NullCoded var avatar_url: String?
+        @NullCoded var avatar_color: String?
+        @NullCoded var role: String?
+    }
+
+    struct CommunityInfo: Content {
+        @NullCoded var about: String?
+        var privacy: String
+        var created_at: Date
+        @NullCoded var name_changed_at: Date?
+        var member_count: Int
+        /// The viewer's connections (in the community's mode) who joined — a few, and how many.
+        var friends: [InfoPerson]
+        var friends_count: Int
+        /// Admins first, then moderators.
+        var staff: [InfoPerson]
+        var posts_today: Int
+        var posts_week: Int
+        var new_members_week: Int
+    }
+
+    static func info(_ id: String, viewer: String, on db: any SQLDatabase) async throws -> CommunityInfo? {
+        guard let c = try await byID(id, viewer: viewer, on: db) else { return nil }
+        // Each person as they appear in this community's mode; a fixed literal.
+        let mode = c.type == "work" ? "'work'" : "'hobby'"
+        let modeValue = c.type == "work" ? "work" : "hobby"
+        let person: SQLQueryString = """
+            u.id::text AS id, \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: mode)) AS display_name,
+            \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: mode)) AS avatar_url, u.avatar_color
+            """
+        let friendWhere: SQLQueryString = """
+            FROM community_members cm JOIN users u ON u.id = cm.user_id
+            WHERE cm.community_id = \(uuid: id) AND u.id <> \(uuid: viewer) AND u.deleted_at IS NULL
+              AND EXISTS (SELECT 1 FROM connections k WHERE k.status = 'accepted' AND k.mode = \(bind: modeValue)
+                AND ((k.requester_id = \(uuid: viewer) AND k.addressee_id = u.id)
+                  OR (k.addressee_id = \(uuid: viewer) AND k.requester_id = u.id)))
+            """
+        let friends = try await db.raw("SELECT " + person + ", NULL::VARCHAR AS role " + friendWhere
+                                       + " ORDER BY cm.joined_at DESC LIMIT 3").all(decoding: InfoPerson.self)
+        struct N: Decodable { let n: Int }
+        let friendsCount = try await db.raw("SELECT COUNT(*)::int AS n " + friendWhere).first(decoding: N.self)?.n ?? 0
+        let staff = try await db.raw("""
+            SELECT \(person), cm.role FROM community_members cm JOIN users u ON u.id = cm.user_id
+            WHERE cm.community_id = \(uuid: id) AND cm.role IN ('admin', 'moderator') AND u.deleted_at IS NULL
+            ORDER BY (cm.role = 'admin') DESC, cm.joined_at LIMIT 10
+            """).all(decoding: InfoPerson.self)
+        struct Activity: Decodable { let posts_today: Int; let posts_week: Int; let new_members_week: Int }
+        let activity = try await db.raw("""
+            SELECT
+              (SELECT COUNT(*)::int FROM posts WHERE community_id = \(uuid: id) AND status = 'posted'
+                 AND created_at >= date_trunc('day', NOW())) AS posts_today,
+              (SELECT COUNT(*)::int FROM posts WHERE community_id = \(uuid: id) AND status = 'posted'
+                 AND created_at >= NOW() - INTERVAL '7 days') AS posts_week,
+              (SELECT COUNT(*)::int FROM community_members WHERE community_id = \(uuid: id)
+                 AND joined_at >= NOW() - INTERVAL '7 days') AS new_members_week
+            """).first(decoding: Activity.self)
+        // A private community's about stays with its members (as on its page).
+        let about = c.privacy == "private" && !c.is_member ? nil : c.description
+        return CommunityInfo(about: about, privacy: c.privacy, created_at: c.created_at,
+                             name_changed_at: c.name_changed_at, member_count: c.member_count,
+                             friends: friends, friends_count: friendsCount, staff: staff,
+                             posts_today: activity?.posts_today ?? 0, posts_week: activity?.posts_week ?? 0,
+                             new_members_week: activity?.new_members_week ?? 0)
+    }
+
     struct MemberRow: Content {
         var id: String
         var username: String
