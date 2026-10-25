@@ -46,6 +46,16 @@ struct CommunitiesController {
 
     static func staff(_ role: String?) -> Bool { role == "admin" || role == "moderator" }
 
+    /// Discovery is per mode — Hobby shows fandom communities, Work shows work
+    /// ones, never both. `mode=hobby|work` (or the stored `type=fandom|work`).
+    static func requiredType(_ req: Request) throws -> String {
+        switch (try? req.query.get(String.self, at: "mode")) ?? (try? req.query.get(String.self, at: "type")) {
+        case "hobby", "fandom": return "fandom"
+        case "work": return "work"
+        default: throw Abort(.badRequest, reason: "mode must be hobby or work")
+        }
+    }
+
     // MARK: create
 
     struct CreateBody: Content {
@@ -93,6 +103,7 @@ struct CommunitiesController {
     struct UpdateBody: Content {
         var name: String?; var description: String?; var privacy: String?
         var icon_emoji: String?; var cover_color: String?; var avatar_url: String?
+        var cover_url: String?; var require_post_approval: Bool?
     }
     static func update(_ req: Request) async throws -> DataResponse<CommunityStore.CommunityDetail> {
         let id = req.parameters.get("id")!
@@ -110,7 +121,8 @@ struct CommunitiesController {
         if let d = b.description, d.count > 500 { throw Abort(.badRequest, reason: "Description must be at most 500 characters") }
         if let p = b.privacy, !CommunitiesController.validPrivacy.contains(p) { throw Abort(.badRequest, reason: "privacy must be public or private") }
         guard try await CommunityStore.update(id, name: b.name, description: b.description, privacy: b.privacy,
-            iconEmoji: b.icon_emoji, coverColor: b.cover_color, avatarURL: b.avatar_url.map { MediaPath.storable($0) ?? "" }, on: db) else {
+            iconEmoji: b.icon_emoji, coverColor: b.cover_color, avatarURL: b.avatar_url.map { MediaPath.storable($0) ?? "" },
+            coverURL: b.cover_url.map { MediaPath.storable($0) ?? "" }, requirePostApproval: b.require_post_approval, on: db) else {
             throw Abort(.notFound, reason: "Community not found")
         }
         guard let community = try await CommunityStore.byID(id, viewer: req.userID, on: db) else { throw Abort(.internalServerError) }
@@ -121,7 +133,7 @@ struct CommunitiesController {
 
     static func search(_ req: Request) async throws -> DataListResponse<CommunityStore.CommunityRow> {
         let sq = (try? req.query.get(String.self, at: "query")) ?? ""
-        let type = (try? req.query.get(String.self, at: "type")).flatMap { validTypes.contains($0) ? $0 : nil }
+        let type = try requiredType(req)
         let tags = ((try? req.query.get(String.self, at: "tags")) ?? "").split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         let sortQ = (try? req.query.get(String.self, at: "sort")) ?? "members"
         let sort = ["members", "newest", "trending"].contains(sortQ) ? sortQ : "members"
@@ -402,28 +414,28 @@ struct CommunitiesController {
     /// getRecommendations: interest-overlap list if the user has interests,
     /// else the trending list. Returns raw JSON since the two paths have
     /// different shapes (recommended carries tag_overlap / rec_score).
-    static func recommendedJSON(_ userID: String, limit: Int, type: String? = nil, on db: any SQLDatabase) async throws -> Data {
+    static func recommendedJSON(_ userID: String, limit: Int, type: String, on db: any SQLDatabase) async throws -> Data {
         if try await CommunityStore.userHasInterests(userID, on: db) {
             return try JSONCoding.makeEncoder().encode(try await CommunityStore.recommendedCommunities(userID, limit: limit, type: type, on: db))
         }
-        return try JSONCoding.makeEncoder().encode(try await CommunityStore.trendingCommunities(type: type, limit: limit, on: db))
+        return try JSONCoding.makeEncoder().encode(try await CommunityStore.trendingCommunities(type: type, limit: limit, viewer: userID, on: db))
     }
 
     static func recommendations(_ req: Request) async throws -> Response {
-        let type = (try? req.query.get(String.self, at: "type")).flatMap { validTypes.contains($0) ? $0 : nil }
+        let type = try requiredType(req)
         let limit = min((try? req.query.get(Int.self, at: "limit")) ?? 10, 50)
         let inner = try await recommendedJSON(req.userID, limit: limit, type: type, on: req.db.sql())
         return jsonWrapped("data", inner)
     }
     static func trending(_ req: Request) async throws -> DataListResponse<CommunityStore.CommunityRow> {
-        let type = (try? req.query.get(String.self, at: "type")).flatMap { validTypes.contains($0) ? $0 : nil }
+        let type = try requiredType(req)
         let limit = min((try? req.query.get(Int.self, at: "limit")) ?? 20, 50)
-        return DataListResponse(data: try await CommunityStore.trendingCommunities(type: type, limit: limit, on: req.db.sql()))
+        return DataListResponse(data: try await CommunityStore.trendingCommunities(type: type, limit: limit, viewer: req.userID, on: req.db.sql()))
     }
     static func discover(_ req: Request) async throws -> Response {
-        let type = (try? req.query.get(String.self, at: "type")).flatMap { validTypes.contains($0) ? $0 : nil }
+        let type = try requiredType(req)
         let db = req.db.sql()
-        let trendingJSON = try JSONCoding.makeEncoder().encode(try await CommunityStore.trendingCommunities(type: type, limit: 10, on: db))
+        let trendingJSON = try JSONCoding.makeEncoder().encode(try await CommunityStore.trendingCommunities(type: type, limit: 10, viewer: req.userID, on: db))
         let recJSON = try await recommendedJSON(req.userID, limit: 10, type: type, on: db)
         var body = Data(#"{"data":{"trending":"#.utf8)
         body.append(trendingJSON); body.append(Data(#","recommended":"#.utf8))

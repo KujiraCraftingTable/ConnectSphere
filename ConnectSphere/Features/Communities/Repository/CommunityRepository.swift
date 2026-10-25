@@ -7,13 +7,14 @@ struct CommunityRepository {
 
     // MARK: - Discovery & Listing
 
-    func fetchCommunities(query: String = "", type: CommunityType? = nil, token: String) async throws -> [Community] {
+    /// One mode's public communities (the server never mixes modes).
+    func fetchCommunities(query: String = "", type: CommunityType, token: String) async throws -> [Community] {
         var items: [URLQueryItem] = [
             .init(name: "limit",  value: "20"),
             .init(name: "offset", value: "0"),
+            .init(name: "type",   value: type.rawValue),
         ]
         if !query.isEmpty { items.append(.init(name: "query", value: query)) }
-        if let type        { items.append(.init(name: "type",  value: type.rawValue)) }
 
         let res = try await client.fetch(DataListResponse<CommunityDTO>.self,
                                          path: "/communities", token: token, queryItems: items)
@@ -32,23 +33,14 @@ struct CommunityRepository {
         return res.data.toCommunity()
     }
 
-    func fetchDiscover(type: CommunityType?, token: String) async throws -> (trending: [Community], recommended: [Community]) {
-        var items: [URLQueryItem] = []
-        if let type { items.append(.init(name: "type", value: type.rawValue)) }
-
+    func fetchDiscover(type: CommunityType, token: String) async throws -> (trending: [Community], recommended: [Community]) {
         let res = try await client.fetch(DataResponse<DiscoverPayload>.self,
-                                         path: "/communities/discover", token: token, queryItems: items)
+                                         path: "/communities/discover", token: token,
+                                         queryItems: [.init(name: "type", value: type.rawValue)])
         return (
             trending:    res.data.trending.map    { $0.toCommunity() },
             recommended: res.data.recommended.map { $0.toCommunity() }
         )
-    }
-
-    func fetchRecommendations(token: String) async throws -> [Community] {
-        let res = try await client.fetch(DataListResponse<CommunityDTO>.self,
-                                         path: "/communities/recommendations", token: token,
-                                         queryItems: [.init(name: "limit", value: "10")])
-        return res.data.map { $0.toCommunity() }
     }
 
     // MARK: - Membership

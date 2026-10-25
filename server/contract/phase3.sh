@@ -39,7 +39,7 @@ CIDPRIV=$(docker exec connectsphere_db psql -U connectsphere_user -d connectsphe
 OTHER=$(docker exec connectsphere_db psql -U connectsphere_user -d connectsphere -tAc "SELECT id FROM users WHERE username='duonghung' LIMIT 1;"|tr -d ' \n')
 
 cmp "comm/me"             GET  "/api/communities/me" "$TN" "$TSK"
-cmp "comm/search"         GET  "/api/communities?limit=3" "$TN" "$TSK"
+cmp "comm/search"         GET  "/api/communities?limit=3&type=fandom" "$TN" "$TSK"
 cmp "comm/search-type"    GET  "/api/communities?limit=3&type=fandom&sort=newest" "$TN" "$TSK"
 cmp "comm/get-public"     GET  "/api/communities/$CIDPUB" "$TN" "$TSK"
 cmp "comm/get-private"    GET  "/api/communities/$CIDPRIV" "$TN" "$TSK"
@@ -54,9 +54,9 @@ cmp "comm/join-missing"   POST "/api/communities/00000000-0000-0000-0000-0000000
 cmp "comm/leave-notmember" DELETE "/api/communities/$CIDPUB/leave" "$TN" "$TSK"
 cmp "comm/joinreqs-403"   GET  "/api/communities/$CIDPUB/join-requests" "$TN" "$TSK"
 cmp "comm/moderation-403" GET  "/api/communities/$CIDPUB/moderation" "$TN" "$TSK"
-cmp "comm/recommendations" GET "/api/communities/recommendations?limit=3" "$TN" "$TSK"
-cmp "comm/trending"       GET  "/api/communities/trending?limit=3" "$TN" "$TSK"
-cmp "comm/discover"       GET  "/api/communities/discover" "$TN" "$TSK"
+cmp "comm/recommendations" GET "/api/communities/recommendations?limit=3&type=fandom" "$TN" "$TSK"
+cmp "comm/trending"       GET  "/api/communities/trending?limit=3&type=fandom" "$TN" "$TSK"
+cmp "comm/discover"       GET  "/api/communities/discover?type=fandom" "$TN" "$TSK"
 cmp "comm/kick-notstaff"  DELETE "/api/communities/$CIDPUB/members/$OTHER" "$TN" "$TSK"
 cmp "comm/reviewreq-badstatus" PATCH "/api/communities/$CIDPUB/join-requests/00000000-0000-0000-0000-000000000000" "$TN" "$TSK" '{"status":"zzz"}'
 
