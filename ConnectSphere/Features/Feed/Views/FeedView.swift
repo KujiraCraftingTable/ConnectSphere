@@ -87,6 +87,10 @@ struct FeedView: View {
             .scrollIndicators(.hidden)
             .navigationBarTitleDisplayMode(.inline)
             .hidesBarsOnScroll($tabBarHidden)
+            // No bar behind the top buttons: while scrolling, only the floating
+            // message button stays (the mode switch hides with the tab bar).
+            .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
+            .modifier(NoTopScrollEdgeEffect())
             .refreshable {
                 async let suggestions: Void = people.refresh(appState.currentMode)
                 await viewModel.loadPosts(for: appState.currentMode)
@@ -337,6 +341,18 @@ private struct FeedChatToolbarItem<Content: View>: ToolbarContent {
                     UnreadBadge(count: unread).offset(x: 8, y: -6)
                 }
             }
+        }
+    }
+}
+
+/// iOS 26 softens content under the top bar with its own blur; the feed
+/// keeps the top clear instead.
+private struct NoTopScrollEdgeEffect: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.scrollEdgeEffectHidden(true, for: .top)
+        } else {
+            content
         }
     }
 }
