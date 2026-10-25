@@ -10,8 +10,8 @@ struct FeedView: View {
     @State private var showCreatePost = false
     @State private var showMessages = false
     @State private var detailRoute: PostRoute?
-    /// The tab bar slides away while reading down the feed and comes back on
-    /// the way up (or near the top).
+    /// The tab bar (and the mode switch) slide away while reading down the
+    /// feed and come back on the way up (or near the top).
     @State private var tabBarHidden = false
     /// Distance scrolled in the current direction (+ down, − up); a short
     /// run is needed before the bar moves, so finger jitter and the bounce
@@ -162,8 +162,11 @@ struct FeedView: View {
             }
             } // ScrollViewReader
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    modeSwitchPill
+                // Goes away with the tab bar while reading down the feed.
+                if !tabBarHidden {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        modeSwitchPill
+                    }
                 }
                 // Search lives only in the Search tab — no second entry here.
                 FeedChatToolbarItem(button: chatIconButton, unread: appState.chatUnreadCount)
