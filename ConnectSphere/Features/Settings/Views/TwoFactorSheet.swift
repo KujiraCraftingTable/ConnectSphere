@@ -34,19 +34,15 @@ struct TwoFactorSheet: View {
                         }
                         .disabled(viewModel.isWorking || email.isEmpty)
                     } else {
-                        CodeField(title: bundle.loc("6-digit code"), code: $viewModel.code)
-                        ResendButton(availableAt: viewModel.resendAt, isSending: viewModel.isWorking) {
-                            Task { await viewModel.sendCode(token: token) }
-                        }
-                        Button(role: viewModel.enabling ? nil : .destructive) {
-                            Task { if await viewModel.confirm(appState: appState) { dismiss() } }
-                        } label: {
-                            HStack {
-                                Text(bundle.loc(viewModel.enabling ? "Turn on" : "Turn off")).fontWeight(.semibold)
-                                if viewModel.isWorking { Spacer(); ProgressView() }
-                            }
-                        }
-                        .disabled(!viewModel.canConfirm)
+                        CodeEntry(code: $viewModel.code,
+                                  confirmTitle: bundle.loc(viewModel.enabling ? "Turn on" : "Turn off"),
+                                  confirmIsDestructive: !viewModel.enabling,
+                                  canConfirm: viewModel.canConfirm, isWorking: viewModel.isWorking,
+                                  onConfirm: { Task { if await viewModel.confirm(appState: appState) { dismiss() } } },
+                                  resendAt: viewModel.resendAt, isSending: viewModel.isWorking,
+                                  onResend: { Task { await viewModel.sendCode(token: token) } })
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets())
                     }
                 } header: {
                     Text("Confirm with your email", bundle: bundle)
