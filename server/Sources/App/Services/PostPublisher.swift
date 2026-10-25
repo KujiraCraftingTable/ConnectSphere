@@ -114,6 +114,10 @@ enum PostPublisher {
                                content: post.content ?? "", authorID: post.author_id)
         } else {
             await TranslationService.enqueue(.post, id: post.id, app: app, queue: queue, logger: logger)
+            if let community = post.community_id {
+                NotifyService.communityNewPost(app: app, postID: post.id, communityID: community,
+                                               authorID: post.author_id, logger: logger)
+            }
         }
         if notify {
             _ = await NotifyService.pushUserNotification(userID: post.author_id, type: "scheduled_post_live",

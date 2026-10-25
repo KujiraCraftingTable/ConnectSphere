@@ -410,7 +410,6 @@
 "Community Notifications" = "Thông báo cộng đồng";
 "Mark all read" = "Đọc tất cả";
 "Community activity will appear here" = "Hoạt động cộng đồng sẽ hiện ở đây";
-"New post in %@" = "Bài viết mới trong %@";
 "A post was pinned in %@" = "Một bài viết vừa được ghim trong %@";
 "Someone wants to join %@" = "Có người muốn tham gia %@";
 "Your request to join %@ was approved" = "Yêu cầu tham gia %@ đã được duyệt";
@@ -618,7 +617,6 @@
 "%@ reacted %@ to your message" = "%@ đã bày tỏ cảm xúc %@ với tin nhắn của bạn";
 "%@ added you to a group chat" = "%@ đã thêm bạn vào nhóm trò chuyện";
 "%@ removed you from a group chat" = "%@ đã xóa bạn khỏi nhóm trò chuyện";
-"%d new posts in %@" = "%d bài viết mới trong %@";
 "%@ wants to join %@" = "%@ muốn tham gia %@";
 "You were approved to join %@" = "Bạn đã được duyệt tham gia %@";
 "Your role in %@ changed" = "Vai trò của bạn trong %@ đã thay đổi";
@@ -1513,3 +1511,11 @@
 "Your post was approved and is now live in the community" = "Bài viết của bạn đã được duyệt và đang hiển thị trong cộng đồng";
 "Your post wasn't approved: %@" = "Bài viết của bạn không được duyệt: %@";
 "Your post wasn't approved by the community's moderators" = "Bài viết của bạn không được người kiểm duyệt của cộng đồng duyệt";
+"Manage notifications" = "Quản lý thông báo";
+"All posts" = "Tất cả bài viết";
+"Friends' posts" = "Bài của bạn bè";
+"Every new post in this community." = "Mọi bài viết mới trong cộng đồng này.";
+"Only when one of your connections posts here." = "Chỉ khi một người bạn kết nối đăng bài ở đây.";
+"No notifications about new posts here." = "Không nhận thông báo về bài viết mới ở đây.";
+"Connections are the people you're connected with in this community's mode." = "Kết nối là những người bạn đã kết nối trong chế độ của cộng đồng này.";
+"%@ posted in %@" = "%@ đã đăng trong %@";

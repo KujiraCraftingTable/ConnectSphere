@@ -298,6 +298,29 @@ enum NotifyService {
         }
     }
 
+    /// A post just went live in a community: tell the members whose level
+    /// asks for it. Detached — it never holds up or fails the post.
+    static func communityNewPost(app: Application, postID: String, communityID: String, authorID: String,
+                                 logger: Logger) {
+        let db = app.db.sql(), hub = app.socketHub
+        Task {
+            do {
+                let recipients = try await CommunityStore.newPostRecipients(communityID, author: authorID, on: db)
+                guard !recipients.isEmpty else { return }
+                struct N: Decodable { let name: String }
+                let name = try await db.raw("SELECT name FROM communities WHERE id = \(uuid: communityID)")
+                    .first(decoding: N.self)?.name ?? ""
+                for user in recipients {
+                    _ = await pushUserNotification(userID: user, type: "new_post", actorID: authorID, postID: postID,
+                                                   communityID: communityID, payload: ["communityName": name],
+                                                   on: db, hub: hub, logger: logger)
+                }
+            } catch {
+                logger.warning("community new_post for \(postID) failed: \(error)")
+            }
+        }
+    }
+
     static func messagePreview(_ m: MessageObject) -> String? {
         switch m.message_type {
         case "image": return "📷 Photo"

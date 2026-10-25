@@ -161,6 +161,32 @@ enum CommunityStore {
             """).first(decoding: R.self) != nil
     }
 
+    // MARK: notifications
+
+    static func setNotifyLevel(_ communityID: String, _ userID: String, _ level: String, on db: any SQLDatabase) async throws {
+        try await db.raw("""
+            UPDATE community_members SET notify_level = \(bind: level)
+            WHERE community_id = \(uuid: communityID) AND user_id = \(uuid: userID)
+            """).run()
+    }
+
+    /// Who hears about a new post: members on "all posts", plus those on
+    /// "friends' posts" who are connected to the author in the community's mode.
+    static func newPostRecipients(_ communityID: String, author: String, on db: any SQLDatabase) async throws -> [String] {
+        struct R: Decodable { let user_id: String }
+        return try await db.raw("""
+            SELECT m.user_id::text AS user_id
+            FROM community_members m JOIN communities c ON c.id = m.community_id
+            WHERE m.community_id = \(uuid: communityID) AND m.user_id <> \(uuid: author)
+              AND (m.notify_level = 'all'
+                OR (m.notify_level = 'friends' AND EXISTS (
+                      SELECT 1 FROM connections k
+                      WHERE k.status = 'accepted' AND k.mode = CASE WHEN c.type = 'work' THEN 'work' ELSE 'hobby' END
+                        AND ((k.requester_id = m.user_id AND k.addressee_id = \(uuid: author))
+                          OR (k.addressee_id = m.user_id AND k.requester_id = \(uuid: author))))))
+            """).all(decoding: R.self).map(\.user_id)
+    }
+
     // MARK: post approval
 
     /// A member's live post here waits for a moderator: approval is on and

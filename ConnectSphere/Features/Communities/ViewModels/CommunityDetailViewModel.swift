@@ -337,6 +337,18 @@ class CommunityDetailViewModel {
         }
     }
 
+    func setNotifyLevel(_ level: CommunityNotifyLevel) async {
+        let previous = community?.notifyLevel
+        guard previous != level else { return }
+        community?.notifyLevel = level
+        do {
+            try await repository.setNotifyLevel(level, communityId: communityId, token: token)
+        } catch {
+            community?.notifyLevel = previous
+            errorMessage = friendlyError(error)
+        }
+    }
+
     func setHiddenFromFeed(_ hidden: Bool) async {
         guard community?.isMuted != hidden else { return }
         await toggleMute()

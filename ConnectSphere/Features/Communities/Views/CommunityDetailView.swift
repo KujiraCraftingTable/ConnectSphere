@@ -19,6 +19,7 @@ struct CommunityDetailView: View {
     @State private var showInfo          = false
     @State private var showMyContent     = false
     @State private var showPendingPosts  = false
+    @State private var showNotifications = false
     /// Search field under the header, opened by the toolbar's magnifier.
     @State private var showSearch        = false
     /// Scrolling down hides the search field, Feed/Members and the tab bar.
@@ -125,6 +126,9 @@ struct CommunityDetailView: View {
                 .environment(appState)
             }
         }
+        .sheet(isPresented: $showNotifications) {
+            CommunityNotificationsSheet(viewModel: viewModel)
+        }
         .sheet(isPresented: $showSettings) {
             CommunitySettingsSheet(viewModel: viewModel) { dismiss() }
         }
@@ -205,6 +209,9 @@ struct CommunityDetailView: View {
         if viewModel.community?.isMember == true {
             Button { showMyContent = true } label: {
                 Label(bundle.loc("Manage your content"), systemImage: "doc.text.magnifyingglass")
+            }
+            Button { showNotifications = true } label: {
+                Label(bundle.loc("Manage notifications"), systemImage: "bell")
             }
             Button { showSettings = true } label: {
                 Label(bundle.loc("Community settings"), systemImage: "gearshape")

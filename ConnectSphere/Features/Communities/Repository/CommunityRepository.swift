@@ -276,6 +276,12 @@ extension CommunityRepository {
                                    method: pinned ? "PUT" : "DELETE", token: token)
     }
 
+    func setNotifyLevel(_ level: CommunityNotifyLevel, communityId: String, token: String) async throws {
+        struct R: Decodable { let notify_level: String }
+        _ = try await client.fetch(R.self, path: "/communities/\(communityId)/notifications", method: "PUT", token: token,
+                                   bodyData: try JSONSerialization.data(withJSONObject: ["level": level.rawValue]))
+    }
+
     func fetchInfo(communityId: String, token: String) async throws -> CommunityInfo {
         try await client.fetch(CommunityInfo.self, path: "/communities/\(communityId)/info", token: token)
     }
