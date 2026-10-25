@@ -17,6 +17,8 @@ struct CommunityDetailView: View {
     @State private var showEdit          = false
     @State private var showReportCommunity = false
     @State private var showInfo          = false
+    @State private var showMyContent     = false
+    @State private var showPendingPosts  = false
     /// Search field under the header, opened by the toolbar's magnifier.
     @State private var showSearch        = false
     /// Scrolling down hides the search field, Feed/Members and the tab bar.
@@ -135,6 +137,17 @@ struct CommunityDetailView: View {
             ReportSheet(targetType: "community", targetId: communityId,
                         communityId: communityId, token: appState.authToken ?? "")
         }
+        .navigationDestination(isPresented: $showMyContent) {
+            ManageCommunityContentView(communityId: communityId)
+        }
+        .navigationDestination(isPresented: $showPendingPosts) {
+            PendingPostsView(communityId: communityId)
+        }
+        .alert(bundle.loc("Your post is waiting for approval"), isPresented: $viewModel.awaitingApprovalNotice) {
+            Button(bundle.loc("OK")) {}
+        } message: {
+            Text("An admin or moderator will review it. You'll find it in \"...\" › Manage your content.", bundle: bundle)
+        }
         .navigationDestination(isPresented: $showInfo) {
             if let community = viewModel.community {
                 CommunityInfoView(community: community) { selectedTab = 1 }
@@ -190,6 +203,9 @@ struct CommunityDetailView: View {
     @ViewBuilder
     private var moreMenu: some View {
         if viewModel.community?.isMember == true {
+            Button { showMyContent = true } label: {
+                Label(bundle.loc("Manage your content"), systemImage: "doc.text.magnifyingglass")
+            }
             Button { showSettings = true } label: {
                 Label(bundle.loc("Community settings"), systemImage: "gearshape")
             }
@@ -197,6 +213,9 @@ struct CommunityDetailView: View {
                 Section {
                     Button { showEdit = true } label: {
                         Label(bundle.loc("Edit community"), systemImage: "pencil")
+                    }
+                    Button { showPendingPosts = true } label: {
+                        Label(bundle.loc("Pending posts"), systemImage: "hourglass")
                     }
                     Button { showModeration = true } label: {
                         Label(bundle.loc("Moderation"), systemImage: "shield.lefthalf.filled")

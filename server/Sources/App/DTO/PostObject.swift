@@ -26,6 +26,8 @@ struct PostObject: Content {
     var status: String? = nil
     /// When a scheduled post goes out.
     var publish_at: Date? = nil
+    /// Why a community moderator declined it (author's own declined posts only).
+    var decline_reason: String? = nil
     /// en | vi | other | none — set once the translation pipeline has run.
     @NullCoded var lang: String? = nil
     /// The text in the other of en/vi (migration 048); null when there's none

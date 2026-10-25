@@ -161,6 +161,106 @@ enum CommunityStore {
             """).first(decoding: R.self) != nil
     }
 
+    // MARK: post approval
+
+    /// A member's live post here waits for a moderator: approval is on and
+    /// they aren't an admin or moderator.
+    static func needsApproval(_ communityID: String, author: String, on db: any SQLDatabase) async throws -> Bool {
+        struct R: Decodable { let needs: Bool }
+        return try await db.raw("""
+            SELECT (c.require_post_approval AND COALESCE(m.role, 'member') NOT IN ('admin', 'moderator')) AS needs
+            FROM communities c
+            LEFT JOIN community_members m ON m.community_id = c.id AND m.user_id = \(uuid: author)
+            WHERE c.id = \(uuid: communityID)
+            """).first(decoding: R.self)?.needs ?? false
+    }
+
+    static func pendingPosts(_ communityID: String, viewer: String, on db: any SQLDatabase) async throws -> [PostObject] {
+        try await db.raw(PostStore.buildPostSelect(viewer)
+            + " WHERE p.community_id = \(uuid: communityID) AND p.status = 'pending'"
+            + " GROUP BY p.id, u.id ORDER BY p.created_at").all(decoding: PostStore.PostRow.self).map(PostStore.map)
+    }
+
+    struct Reviewed: Decodable { let author_id: String }
+
+    /// nil when it isn't a pending post of this community. Approving dates
+    /// it now, so it reaches feeds as new.
+    static func review(_ postID: String, in communityID: String, approve: Bool, reason: String?, reviewer: String,
+                       on db: any SQLDatabase) async throws -> Reviewed? {
+        try await db.raw("""
+            UPDATE posts SET
+              status = \(unsafeRaw: approve ? "'posted'" : "'declined'")::post_status,
+              created_at = CASE WHEN \(bind: approve) THEN NOW() ELSE created_at END,
+              decline_reason = CASE WHEN \(bind: approve) THEN NULL ELSE \(bind: reason) END,
+              reviewed_by = \(uuid: reviewer), reviewed_at = NOW()
+            WHERE id = \(uuid: postID) AND community_id = \(uuid: communityID) AND status = 'pending'
+            RETURNING author_id::text AS author_id
+            """).first(decoding: Reviewed.self)
+    }
+
+    // MARK: manage your content
+
+    struct MyComment: Content {
+        var id: String
+        var content: String
+        @NullCoded var image_url: String?
+        var created_at: Date
+        var post_id: String
+        /// The start of the post it's under.
+        var post_excerpt: String
+    }
+
+    struct MyContentCounts: Content {
+        var published: Int
+        var pending: Int
+        var declined: Int
+        var comments: Int
+    }
+
+    struct MyContent: Content {
+        var counts: MyContentCounts
+        var posts: [PostObject]
+        var comments: [MyComment]
+    }
+
+    static func myContent(_ communityID: String, viewer: String, kind: String, newestFirst: Bool, status: String,
+                          limit: Int, offset: Int, on db: any SQLDatabase) async throws -> MyContent {
+        let counts = try await db.raw("""
+            SELECT
+              COUNT(*) FILTER (WHERE p.status = 'posted')::int AS published,
+              COUNT(*) FILTER (WHERE p.status = 'pending')::int AS pending,
+              COUNT(*) FILTER (WHERE p.status = 'declined')::int AS declined,
+              (SELECT COUNT(*)::int FROM comments c JOIN posts cp ON cp.id = c.post_id
+                 WHERE cp.community_id = \(uuid: communityID) AND c.author_id = \(uuid: viewer)
+                   AND c.deleted_at IS NULL AND c.status = 'posted' AND cp.status = 'posted') AS comments
+            FROM posts p WHERE p.community_id = \(uuid: communityID) AND p.author_id = \(uuid: viewer)
+            """).first(decoding: MyContentCounts.self) ?? MyContentCounts(published: 0, pending: 0, declined: 0, comments: 0)
+        let direction: SQLQueryString = newestFirst ? " DESC" : " ASC"
+        if kind == "comments" {
+            let comments = try await db.raw("""
+                SELECT c.id::text AS id, c.content, c.image_url, c.created_at, cp.id::text AS post_id,
+                  LEFT(COALESCE(cp.content, ''), 80) AS post_excerpt
+                FROM comments c JOIN posts cp ON cp.id = c.post_id
+                WHERE cp.community_id = \(uuid: communityID) AND c.author_id = \(uuid: viewer)
+                  AND c.deleted_at IS NULL AND c.status = 'posted' AND cp.status = 'posted'
+                ORDER BY c.created_at
+                """ + direction + " LIMIT \(bind: limit) OFFSET \(bind: offset)").all(decoding: MyComment.self)
+            return MyContent(counts: counts, posts: [], comments: comments)
+        }
+        let statuses: SQLQueryString
+        switch status {
+        case "published": statuses = "('posted')"
+        case "pending": statuses = "('pending')"
+        case "declined": statuses = "('declined')"
+        default: statuses = "('posted', 'pending', 'declined')"
+        }
+        let posts = try await db.raw(PostStore.buildPostSelect(viewer)
+            + " WHERE p.community_id = \(uuid: communityID) AND p.author_id = \(uuid: viewer) AND p.status::text IN " + statuses
+            + " GROUP BY p.id, u.id ORDER BY p.created_at" + direction
+            + " LIMIT \(bind: limit) OFFSET \(bind: offset)").all(decoding: PostStore.PostRow.self).map(PostStore.map)
+        return MyContent(counts: counts, posts: posts, comments: [])
+    }
+
     // MARK: info page
 
     struct InfoPerson: Content {

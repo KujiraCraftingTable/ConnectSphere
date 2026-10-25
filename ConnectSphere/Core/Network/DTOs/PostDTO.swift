@@ -152,6 +152,7 @@ struct PostDTO: Decodable {
     let community: CommunityRefDTO?
     let status: String?
     let publishAt: Date?
+    let declineReason: String?
 
     enum CodingKeys: String, CodingKey {
         case id, content, mode, privacy, tags, author
@@ -178,6 +179,7 @@ struct PostDTO: Decodable {
         case pinnedAt      = "pinned_at"
         case community, status
         case publishAt = "publish_at"
+        case declineReason = "decline_reason"
     }
 
     // Custom init (instead of synthesized) so isSaved/postType/pollData/
@@ -218,6 +220,7 @@ struct PostDTO: Decodable {
         community     = try c.decodeIfPresent(CommunityRefDTO.self, forKey: .community)
         status        = try c.decodeIfPresent(String.self, forKey: .status)
         publishAt     = try? c.decodeIfPresent(Date.self, forKey: .publishAt)
+        declineReason = try c.decodeIfPresent(String.self, forKey: .declineReason)
     }
 
     func toPost() -> Post {
@@ -251,7 +254,8 @@ struct PostDTO: Decodable {
             pinnedAt:               pinnedAt,
             community:              community?.toCommunityRef(),
             publishStatus:          status,
-            publishAt:              publishAt
+            publishAt:              publishAt,
+            declineReason:          declineReason
         )
     }
 }

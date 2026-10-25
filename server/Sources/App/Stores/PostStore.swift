@@ -67,7 +67,7 @@ enum PostStore {
         let avSp = PersonaSQL.expr("avatar_url", modeRef: "sp.mode", alias: "su")
         return """
         SELECT
-          p.id::text AS id, p.content, p.mode, p.privacy, p.image_urls[1] AS image_url, p.image_urls, p.image_alts, p.status::text AS status, p.publish_at,
+          p.id::text AS id, p.content, p.mode, p.privacy, p.image_urls[1] AS image_url, p.image_urls, p.image_alts, p.status::text AS status, p.publish_at, p.decline_reason,
           p.lang, \(unsafeRaw: TranslationService.translatedColumn("p")) AS translated_text, p.article_title, p.link_url,
           p.like_count, p.comment_count, p.share_count, p.created_at,
           p.post_type, p.is_pinned, p.pinned_at, p.shared_post_id::text AS shared_post_id,
@@ -217,6 +217,7 @@ enum PostStore {
         var link_url: String?
         var status: String
         var publish_at: Date?
+        var decline_reason: String?
         var lang: String?
         var translated_text: String?
         var like_count: Int
@@ -248,6 +249,7 @@ enum PostStore {
             id: r.id, content: r.content, mode: r.mode, privacy: r.privacy,
             image_url: r.image_url, image_urls: r.image_urls, image_alts: r.image_alts, article_title: r.article_title,
             link_url: r.link_url, status: r.status == "posted" ? nil : r.status, publish_at: r.publish_at,
+            decline_reason: r.decline_reason,
             lang: r.lang, translated_text: r.translated_text,
             like_count: r.like_count, comment_count: r.comment_count, share_count: r.share_count,
             created_at: r.created_at, post_type: r.post_type, is_pinned: r.is_pinned, pinned_at: r.pinned_at,
@@ -399,12 +401,12 @@ enum PostStore {
         return alts
     }
 
-    /// `includeOwnUnpublished`: also return the viewer's own draft or
-    /// scheduled post — only for its author, right after saving it.
+    /// `includeOwnUnpublished`: also return the viewer's own draft, scheduled,
+    /// pending (awaiting approval) or declined post — only to its author.
     static func findById(_ id: String, viewer: String, includeOwnUnpublished: Bool = false,
                          on db: any SQLDatabase) async throws -> PostObject? {
         let status: SQLQueryString = includeOwnUnpublished
-            ? "(p.status = 'posted' OR (p.author_id = \(uuid: viewer) AND p.status IN ('draft', 'scheduled')))"
+            ? "(p.status = 'posted' OR (p.author_id = \(uuid: viewer) AND p.status IN ('draft', 'scheduled', 'pending', 'declined')))"
             : "p.status = 'posted'"
         let q = buildPostSelect(viewer)
             + " WHERE p.id = \(uuid: id) AND " + status + " AND "
@@ -434,14 +436,14 @@ enum PostStore {
             """).first(decoding: I.self) != nil
     }
 
-    /// Removes a draft or scheduled post outright (it was never public, so
-    /// there's no Recently Deleted for it). Its rows in poll_options,
+    /// Removes a draft, scheduled, pending or declined post outright (it was
+    /// never public, so there's no Recently Deleted for it). Its rows in poll_options,
     /// community_events, job_posts and post_tags go with it (ON DELETE CASCADE).
     @discardableResult
     static func deleteUnpublished(_ id: String, author: String, on db: any SQLDatabase) async throws -> Bool {
         struct I: Decodable { let id: String }
         return try await db.raw("""
-            DELETE FROM posts WHERE id = \(uuid: id) AND author_id = \(uuid: author) AND status IN ('draft', 'scheduled')
+            DELETE FROM posts WHERE id = \(uuid: id) AND author_id = \(uuid: author) AND status IN ('draft', 'scheduled', 'pending', 'declined')
             RETURNING id::text AS id
             """).first(decoding: I.self) != nil
     }
