@@ -1532,3 +1532,4 @@
 "Say something about this community..." = "Viết gì đó về cộng đồng này...";
 "Share to my feed" = "Chia sẻ lên bảng tin của tôi";
 "Send in a chat" = "Gửi trong đoạn chat";
+"6-digit code, %lld of %lld entered" = "Mã 6 chữ số, đã nhập %lld/%lld";

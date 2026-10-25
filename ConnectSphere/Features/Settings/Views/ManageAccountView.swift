@@ -263,17 +263,13 @@ struct DeleteScopeView: View {
                     }
                     .disabled(viewModel.isSending)
                 } else {
-                    CodeField(title: bundle.loc("6-digit code"), code: $viewModel.code)
-                    ResendButton(availableAt: viewModel.resendAt, isSending: viewModel.isSending) {
-                        Task { await viewModel.sendCode(token: token) }
-                    }
-                    Button(role: .destructive) { confirming = true } label: {
-                        HStack {
-                            Text(title)
-                            if viewModel.isDeleting { Spacer(); ProgressView() }
-                        }
-                    }
-                    .disabled(!viewModel.canDelete)
+                    CodeEntry(code: $viewModel.code, confirmTitle: title, confirmIsDestructive: true,
+                              canConfirm: viewModel.canDelete, isWorking: viewModel.isDeleting,
+                              onConfirm: { confirming = true },
+                              resendAt: viewModel.resendAt, isSending: viewModel.isSending,
+                              onResend: { Task { await viewModel.sendCode(token: token) } })
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets())
                 }
             } header: {
                 Text("Confirm with your email", bundle: bundle)

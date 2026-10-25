@@ -153,27 +153,20 @@ struct LoginView: View {
                 .font(.system(size: 14))
                 .foregroundColor(AppColors.textSecondary(.light))
                 .fixedSize(horizontal: false, vertical: true)
-            AuthTextField(icon: "number", placeholder: bundle.loc("6-digit code"), text: $viewModel.code,
-                          keyboardType: .numberPad)
-                .textContentType(.oneTimeCode)
             if let errorMessage = viewModel.errorMessage {
                 Text(errorMessage)
                     .font(.system(size: 13))
                     .foregroundColor(AppColors.danger(.light))
             }
-            GradientButton(title: bundle.loc("Verify"), isLoading: viewModel.isLoading) {
-                Task { await viewModel.verifyCode(appState: appState) }
-            }
-            .disabled(!viewModel.canVerify)
-            HStack {
-                Button(bundle.loc("Back")) { viewModel.cancelCode() }
-                    .font(.system(size: 14))
-                    .foregroundColor(AppColors.textSecondary(.light))
-                Spacer()
-                ResendButton(availableAt: viewModel.resendAt, isSending: false) {
-                    Task { await viewModel.resendCode() }
-                }
-            }
+            CodeEntry(code: $viewModel.code, confirmTitle: bundle.loc("Verify"),
+                      canConfirm: viewModel.canVerify, isWorking: viewModel.isLoading,
+                      onConfirm: { Task { await viewModel.verifyCode(appState: appState) } },
+                      resendAt: viewModel.resendAt,
+                      onResend: { Task { await viewModel.resendCode() } })
+            Button(bundle.loc("Back")) { viewModel.cancelCode() }
+                .font(.system(size: 14))
+                .foregroundColor(AppColors.textSecondary(.light))
+                .frame(maxWidth: .infinity)
         }
     }
 
