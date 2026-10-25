@@ -410,7 +410,6 @@
 "Community Notifications" = "Community Notifications";
 "Mark all read" = "Mark all read";
 "Community activity will appear here" = "Community activity will appear here";
-"New post in %@" = "New post in %@";
 "A post was pinned in %@" = "A post was pinned in %@";
 "Someone wants to join %@" = "Someone wants to join %@";
 "Your request to join %@ was approved" = "Your request to join %@ was approved";
@@ -618,7 +617,6 @@
 "%@ reacted %@ to your message" = "%@ reacted %@ to your message";
 "%@ added you to a group chat" = "%@ added you to a group chat";
 "%@ removed you from a group chat" = "%@ removed you from a group chat";
-"%d new posts in %@" = "%d new posts in %@";
 "%@ wants to join %@" = "%@ wants to join %@";
 "You were approved to join %@" = "You were approved to join %@";
 "Your role in %@ changed" = "Your role in %@ changed";
@@ -1513,3 +1511,11 @@
 "Your post was approved and is now live in the community" = "Your post was approved and is now live in the community";
 "Your post wasn't approved: %@" = "Your post wasn't approved: %@";
 "Your post wasn't approved by the community's moderators" = "Your post wasn't approved by the community's moderators";
+"Manage notifications" = "Manage notifications";
+"All posts" = "All posts";
+"Friends' posts" = "Friends' posts";
+"Every new post in this community." = "Every new post in this community.";
+"Only when one of your connections posts here." = "Only when one of your connections posts here.";
+"No notifications about new posts here." = "No notifications about new posts here.";
+"Connections are the people you're connected with in this community's mode." = "Connections are the people you're connected with in this community's mode.";
+"%@ posted in %@" = "%@ posted in %@";

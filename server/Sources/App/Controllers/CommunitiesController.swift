@@ -47,6 +47,7 @@ struct CommunitiesController {
         c.get(":id", "pending-posts", use: pendingPosts)
         c.patch(":id", "posts", ":postId", "review", use: reviewPost)
         c.get(":id", "my-content", use: myContent)
+        c.put(":id", "notifications", use: setNotifications)
         // moderation / analytics / member-report → ReportsController (same phase)
         ReportsController.registerCommunityRoutes(on: c)
     }
@@ -343,8 +344,31 @@ struct CommunitiesController {
         if let old = b.replaces_draft {
             try await PostStore.deleteUnpublished(old, author: req.userID, on: req.db.sql())
         }
-        if publishing.isLive { await TranslationService.enqueue(req, .post, id: post.id) }
+        if publishing.isLive {
+            await TranslationService.enqueue(req, .post, id: post.id)
+            NotifyService.communityNewPost(app: req.application, postID: post.id, communityID: id,
+                                           authorID: req.userID, logger: req.logger)
+        }
         return try await ConnectionsController.encode(DataResponse(data: post), req, .created)
+    }
+
+    // MARK: notifications
+
+    struct NotifyBody: Content { var level: String? }
+    struct NotifyResult: Content { var notify_level: String }
+
+    /// All posts / friends' posts / off — this member's own choice.
+    static func setNotifications(_ req: Request) async throws -> NotifyResult {
+        let id = req.parameters.get("id")!
+        guard let level = try req.content.decode(NotifyBody.self).level, ["all", "friends", "off"].contains(level) else {
+            throw Abort(.badRequest, reason: "level must be all, friends or off")
+        }
+        let db = req.db.sql()
+        guard try await CommunityStore.membership(id, req.userID, on: db) != nil else {
+            throw Abort(.badRequest, reason: "You are not a member of this community")
+        }
+        try await CommunityStore.setNotifyLevel(id, req.userID, level, on: db)
+        return NotifyResult(notify_level: level)
     }
 
     // MARK: post approval
@@ -383,6 +407,8 @@ struct CommunitiesController {
         if action == "approve" {
             try await CommunityStore.incrementPostCount(id, 1, on: db)
             await TranslationService.enqueue(req, .post, id: postID)
+            NotifyService.communityNewPost(app: req.application, postID: postID, communityID: id,
+                                           authorID: reviewed.author_id, logger: req.logger)
         }
         let author = reviewed.author_id
         let reviewer = req.userID

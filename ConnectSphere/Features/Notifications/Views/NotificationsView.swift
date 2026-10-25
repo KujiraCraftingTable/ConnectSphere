@@ -451,11 +451,9 @@ struct ActorNotifRow: View {
         return notif.payload.peerDisplayName ?? senderName
     }
 
+    /// "Linh posted in Pokémon TCG VN" — each post is its own notification.
     private var newPostText: String {
-        if group.eventCount > 1 {
-            return String(format: bundle.loc("%d new posts in %@"), group.eventCount, communityLabel)
-        }
-        return String(format: bundle.loc("New post in %@"), communityLabel)
+        String(format: bundle.loc("%@ posted in %@"), senderName, communityLabel)
     }
 
     private var badgeIcon: String {

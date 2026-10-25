@@ -54,7 +54,7 @@ enum PostService {
             imageUrls: imageUrls, linkUrl: linkUrl, articleTitle: articleTitle,
             hashtags: hashtags, mode: mode, privacy: privacy, publishing: publishing, on: db)
         if let communityID, publishing.isLive { try await CommunityMemberStore.incrementPostCount(communityID, 1, on: db.sql()) }
-        // TODO(phase 5): enqueueTagExtraction; (phase 3) notifyCommunityOfNewPost; (phase 4) emit
+        // TODO(phase 5): enqueueTagExtraction; (phase 4) emit
         guard let post = try await PostStore.findById(id, viewer: userID, includeOwnUnpublished: !publishing.isLive, on: db.sql()) else {
             throw Abort(.internalServerError)
         }
