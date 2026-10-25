@@ -1,6 +1,12 @@
 import Foundation
 import Observation
 
+extension Notification.Name {
+    /// The viewer's own communities changed (joined, left, pinned, edited) —
+    /// My communities reloads.
+    static let communitiesChanged = Notification.Name("communitiesChanged")
+}
+
 @Observable
 class CommunityDetailViewModel {
     var community: Community?
@@ -307,6 +313,49 @@ class CommunityDetailViewModel {
         } catch {
             errorMessage = friendlyError(error)
         }
+    }
+
+    // MARK: - Community settings
+
+    func setPinned(_ pinned: Bool) async {
+        guard community?.isPinned != pinned else { return }
+        community?.isPinned = pinned
+        do {
+            try await repository.setPinned(pinned, communityId: communityId, token: token)
+            NotificationCenter.default.post(name: .communitiesChanged, object: nil)
+        } catch {
+            community?.isPinned = !pinned
+            errorMessage = friendlyError(error)
+        }
+    }
+
+    func setHiddenFromFeed(_ hidden: Bool) async {
+        guard community?.isMuted != hidden else { return }
+        await toggleMute()
+    }
+
+    /// True once left — the page closes.
+    func leave() async -> Bool {
+        do {
+            try await repository.leave(communityId: communityId, token: token)
+            NotificationCenter.default.post(name: .communitiesChanged, object: nil)
+            return true
+        } catch {
+            errorMessage = friendlyError(error)
+            return false
+        }
+    }
+
+    /// After Edit community saved.
+    func applyEdited(_ updated: Community) {
+        community = community.map {
+            var c = updated
+            c.isMember = $0.isMember; c.isMuted = $0.isMuted; c.role = $0.role
+            c.isPinned = $0.isPinned; c.notifyLevel = $0.notifyLevel
+            c.joinRequestStatus = $0.joinRequestStatus
+            return c
+        }
+        NotificationCenter.default.post(name: .communitiesChanged, object: nil)
     }
 
     // MARK: - Pin / Unpin

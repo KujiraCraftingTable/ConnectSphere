@@ -13,6 +13,15 @@ struct CommunityDetailView: View {
     @State private var showAnalytics     = false
     @State private var reportTargetId: String? = nil
     @State private var showReportMember  = false
+    @State private var showSettings      = false
+    @State private var showEdit          = false
+    @State private var showReportCommunity = false
+    @State private var showInfo          = false
+    /// Search field under the header, opened by the toolbar's magnifier.
+    @State private var showSearch        = false
+    /// Scrolling down hides the search field, Feed/Members and the tab bar.
+    @State private var barsHidden        = false
+    @Environment(\.dismiss) private var dismiss
     // Tap-to-open-post-detail — same PostRoute/PostDetailView navigation Feed uses.
     @State private var detailRoute: PostRoute?
     @State private var searchText = ""
@@ -33,9 +42,7 @@ struct CommunityDetailView: View {
 
     // MARK: - Computed helpers
 
-    private var accentColor: Color {
-        Color(hex: viewModel.community?.coverColor ?? "#7F5AF0")
-    }
+    private var accentColor: Color { themeManager.theme.primary }
 
     private var currentUserRole: MemberRole? {
         viewModel.community?.role
@@ -59,7 +66,7 @@ struct CommunityDetailView: View {
             LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
                 communityHeader
 
-                Section(header: tabBar) {
+                Section(header: stickyBar) {
                     if selectedTab == 0 {
                         feedContent
                     } else {
@@ -68,72 +75,27 @@ struct CommunityDetailView: View {
                 }
             }
         }
+        .hidesBarsOnScroll($barsHidden)
         .appBackground()
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            // Share link — available to any viewer (member or not), not staff-gated.
-            if let shareURL = URL(string: "connectsphere://community/\(communityId)") {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    ShareLink(
-                        item: shareURL,
-                        subject: Text(viewModel.community?.name ?? bundle.loc("Community")),
-                        message: Text(String(format: bundle.loc("Join %@ on ConnectSphere"), viewModel.community?.name ?? bundle.loc("Community")))
-                    ) {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 17))
-                    }
+            // Like Facebook: search, then "..." — no share icon.
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    withAnimation(.snappy) { showSearch.toggle() }
+                    if !showSearch { searchText = "" }
+                } label: {
+                    Image(systemName: "magnifyingglass").font(.system(size: 17))
                 }
+                .accessibilityLabel(Text("Search this community", bundle: bundle))
             }
-            if isStaff {
-                // Moderation queue (admin/mod)
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button { showModeration = true } label: {
-                        Image(systemName: "shield.lefthalf.filled")
-                            .font(.system(size: 17))
-                    }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Menu { moreMenu } label: {
+                    Image(systemName: "ellipsis").font(.system(size: 17))
                 }
-                // Join-request button (admin/mod, private communities only)
-                if viewModel.community?.privacy == .private {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button { showJoinRequests = true } label: {
-                            Image(systemName: "person.badge.plus")
-                                .font(.system(size: 17))
-                        }
-                    }
-                }
-            }
-            // Analytics (admin only)
-            if currentUserRole == .admin {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button { showAnalytics = true } label: {
-                        Image(systemName: "chart.xyaxis.line")
-                            .font(.system(size: 17))
-                    }
-                }
-            }
-            // Mute — hides this community's posts from the viewer's own main
-            // Feed without leaving/unfollowing (see PostStore.notMutedClause);
-            // available to any member, not staff-gated.
-            if viewModel.community?.isMember == true {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        Button {
-                            Task<Void, Never>(name: nil) { await viewModel.toggleMute() }
-                        } label: {
-                            if viewModel.community?.isMuted == true {
-                                Label(bundle.loc("Unmute this community"), systemImage: "bell")
-                            } else {
-                                Label(bundle.loc("Mute this community"), systemImage: "bell.slash")
-                            }
-                        }
-                    } label: {
-                        Image(systemName: viewModel.community?.isMuted == true ? "bell.slash.fill" : "ellipsis")
-                            .font(.system(size: 17))
-                    }
-                }
+                .accessibilityLabel(Text("More", bundle: bundle))
             }
         }
-        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: bundle.loc("Search posts"))
         .onChange(of: searchText) { _, newValue in
             searchTask?.cancel()
             let trimmed = newValue.trimmingCharacters(in: .whitespaces)
@@ -159,6 +121,23 @@ struct CommunityDetailView: View {
                     viewModel.prependPost(post)
                 }
                 .environment(appState)
+            }
+        }
+        .sheet(isPresented: $showSettings) {
+            CommunitySettingsSheet(viewModel: viewModel) { dismiss() }
+        }
+        .sheet(isPresented: $showEdit) {
+            if let community = viewModel.community {
+                EditCommunityView(community: community) { viewModel.applyEdited($0) }
+            }
+        }
+        .sheet(isPresented: $showReportCommunity) {
+            ReportSheet(targetType: "community", targetId: communityId,
+                        communityId: communityId, token: appState.authToken ?? "")
+        }
+        .navigationDestination(isPresented: $showInfo) {
+            if let community = viewModel.community {
+                CommunityInfoView(community: community) { selectedTab = 1 }
             }
         }
         .navigationDestination(isPresented: Binding(
@@ -206,43 +185,123 @@ struct CommunityDetailView: View {
         }
     }
 
+    // MARK: - "..." menu
+
+    @ViewBuilder
+    private var moreMenu: some View {
+        if viewModel.community?.isMember == true {
+            Button { showSettings = true } label: {
+                Label(bundle.loc("Community settings"), systemImage: "gearshape")
+            }
+            if isStaff {
+                Section {
+                    Button { showEdit = true } label: {
+                        Label(bundle.loc("Edit community"), systemImage: "pencil")
+                    }
+                    Button { showModeration = true } label: {
+                        Label(bundle.loc("Moderation"), systemImage: "shield.lefthalf.filled")
+                    }
+                    if viewModel.community?.privacy == .private {
+                        Button { showJoinRequests = true } label: {
+                            Label(bundle.loc("Join requests"), systemImage: "person.badge.plus")
+                        }
+                    }
+                    if currentUserRole == .admin {
+                        Button { showAnalytics = true } label: {
+                            Label(bundle.loc("Analytics"), systemImage: "chart.xyaxis.line")
+                        }
+                    }
+                }
+            }
+        } else {
+            Button { showReportCommunity = true } label: {
+                Label(bundle.loc("Report community"), systemImage: "flag")
+            }
+        }
+    }
+
     // MARK: - Header
 
     private var communityHeader: some View {
-        ZStack(alignment: .bottomLeading) {
-            AppColors.surface(colorScheme)
-                .frame(height: 112)
+        VStack(alignment: .leading, spacing: 0) {
+            if let community = viewModel.community {
+                CommunityCover(community: community, emojiSize: 56)
+                    .frame(height: 190)
+                    .frame(maxWidth: .infinity)
+            } else {
+                AppColors.surface(colorScheme).frame(height: 190)
+            }
 
-            HStack(alignment: .bottom, spacing: AppSpacing.md) {
-                // Real uploaded photo when set, else the emoji/color fallback —
-                // same Avatar component every user pfp already uses.
-                Avatar(name: viewModel.community?.iconEmoji ?? "👥",
-                       colorHex: viewModel.community?.coverColor,
-                       imageURL: viewModel.community?.avatarUrl, diameter: 60)
-                    .padding(.leading, AppSpacing.lg)
-                    .padding(.bottom, AppSpacing.md)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(viewModel.community?.name ?? "")
-                        .appFont(.title3)
-                        .foregroundColor(AppColors.textPrimary(colorScheme))
-                    if let count = viewModel.community?.memberCount {
-                        Text(String(format: bundle.loc("%lld members"), count))
-                            .appFont(.footnote)
+            VStack(alignment: .leading, spacing: 6) {
+                // The name opens "About this community", like Facebook.
+                Button { showInfo = true } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(viewModel.community?.name ?? "")
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundColor(AppColors.textPrimary(colorScheme))
+                            .multilineTextAlignment(.leading)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
                 }
-                .padding(.bottom, AppSpacing.md + 2)
-                Spacer()
+                .buttonStyle(.plain)
+                .disabled(viewModel.community == nil)
 
-                // Join / Request / Pending button for non-members
+                if let community = viewModel.community {
+                    HStack(spacing: 5) {
+                        Image(systemName: community.privacy == .private ? "lock.fill" : "globe")
+                        Text(community.privacy == .private ? bundle.loc("Private") : bundle.loc("Public"))
+                        Text("·")
+                        Text(String(format: bundle.loc("%lld members"), community.memberCount))
+                    }
+                    .font(.system(size: 14))
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
+                }
+
                 if viewModel.community?.isMember == false {
-                    joinButton
-                        .padding(.trailing, AppSpacing.lg)
-                        .padding(.bottom, AppSpacing.md)
+                    joinButton.padding(.top, 6)
                 }
             }
+            .padding(.horizontal, AppSpacing.lg)
+            .padding(.vertical, AppSpacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AppColors.surface(colorScheme))
         }
+    }
+
+    /// The search field (when open) and Feed/Members — pinned under the nav
+    /// bar, and out of the way while scrolling down the posts.
+    private var stickyBar: some View {
+        VStack(spacing: 0) {
+            if showSearch {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass").foregroundColor(AppColors.textSecondary(colorScheme))
+                    TextField(bundle.loc("Search posts"), text: $searchText)
+                        .textInputAutocapitalization(.never)
+                        .submitLabel(.search)
+                    if !searchText.isEmpty {
+                        Button { searchText = "" } label: {
+                            Image(systemName: "xmark.circle.fill").foregroundColor(AppColors.textTertiary(colorScheme))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(AppColors.elevated(colorScheme), in: Capsule())
+                .padding(.horizontal, AppSpacing.md)
+                .padding(.vertical, 8)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+            tabBar
+        }
+        .background(AppColors.surface(colorScheme))
+        // Slides up behind the nav bar instead of collapsing, so the posts
+        // underneath don't jump.
+        .offset(y: barsHidden ? -120 : 0)
+        .opacity(barsHidden ? 0 : 1)
+        .allowsHitTesting(!barsHidden)
     }
 
     @ViewBuilder

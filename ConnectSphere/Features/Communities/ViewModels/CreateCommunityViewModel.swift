@@ -56,10 +56,11 @@ final class CreateCommunityViewModel {
         errorMessage = nil
         defer { isCreating = false }
 
-        var avatarUrl: String?
+        // Communities have a cover photo, not a profile picture.
+        var coverUrl: String?
         if let data = pickedImage?.jpegData(compressionQuality: 1) {
-            avatarUrl = try? await postRepository.uploadImage(data)
-            if avatarUrl == nil {
+            coverUrl = try? await postRepository.uploadImage(data)
+            if coverUrl == nil {
                 errorMessage = Bundle.app.loc("Couldn't upload photo, please try again")
                 return nil
             }
@@ -72,7 +73,7 @@ final class CreateCommunityViewModel {
                 privacy:     privacy.rawValue,
                 iconEmoji:   selectedEmoji,
                 coverColor:  selectedColor,
-                avatarUrl:   avatarUrl,
+                coverUrl:    coverUrl,
                 description: descTrimmed.isEmpty ? nil : descTrimmed,
                 token:       token ?? "")
         } catch {

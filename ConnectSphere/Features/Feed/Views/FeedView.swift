@@ -13,10 +13,6 @@ struct FeedView: View {
     /// The tab bar (and the mode switch) slide away while reading down the
     /// feed and come back on the way up (or near the top).
     @State private var tabBarHidden = false
-    /// Distance scrolled in the current direction (+ down, − up); a short
-    /// run is needed before the bar moves, so finger jitter and the bounce
-    /// at either end don't make it flicker.
-    @State private var scrollRun: CGFloat = 0
     @Binding var selectedTab: Int
     var body: some View {
         NavigationStack {
@@ -90,12 +86,7 @@ struct FeedView: View {
             .background(AppColors.base(colorScheme))
             .scrollIndicators(.hidden)
             .navigationBarTitleDisplayMode(.inline)
-            .onScrollGeometryChange(for: CGFloat.self) { geo in
-                geo.contentOffset.y + geo.contentInsets.top
-            } action: { old, new in
-                tabBarFollowScroll(from: old, to: new)
-            }
-            .toolbar(tabBarHidden ? .hidden : .visible, for: .tabBar)
+            .hidesBarsOnScroll($tabBarHidden)
             .refreshable {
                 async let suggestions: Void = people.refresh(appState.currentMode)
                 await viewModel.loadPosts(for: appState.currentMode)
@@ -197,22 +188,6 @@ struct FeedView: View {
                 Text(people.error ?? "")
             }
         }
-    }
-
-    // MARK: Tab bar on scroll
-
-    private func tabBarFollowScroll(from old: CGFloat, to new: CGFloat) {
-        let delta = new - old
-        guard delta != 0 else { return }
-        // Restart the run when the direction flips.
-        scrollRun = (delta > 0) == (scrollRun > 0) ? scrollRun + delta : delta
-        let hide: Bool
-        if new < 40 { hide = false }                 // at (or pulled past) the top
-        else if scrollRun > 24 { hide = true }       // reading on, down the feed
-        else if scrollRun < -24 { hide = false }     // heading back up
-        else { return }
-        guard hide != tabBarHidden else { return }
-        withAnimation(.easeInOut(duration: 0.25)) { tabBarHidden = hide }
     }
 
     // MARK: Mode Switch Pill (leading edge of nav bar, icon-only)
