@@ -12,6 +12,7 @@ struct LoginView: View {
     @State private var logoScale: CGFloat = 0.6
     @State private var cardOffset: CGFloat = 60
     @State private var cardOpacity: Double = 0
+    @FocusState private var passwordFocused: Bool
 
     var body: some View {
         NavigationStack {
@@ -108,8 +109,10 @@ struct LoginView: View {
                 icon: "lock.fill",
                 placeholder: bundle.loc("Password"),
                 text: $viewModel.password,
-                isSecure: true
+                isSecure: true,
+                isFocused: $passwordFocused
             )
+            .onChange(of: viewModel.passwordFocusRequest) { passwordFocused = true }
 
             HStack {
                 Spacer()

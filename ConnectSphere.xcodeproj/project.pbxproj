@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		4C9F54AF2FD1658400531410 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 4C9F54AE2FD1658400531410 /* GoogleSignIn */; };
-		4C9F54B12FD1658800531410 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 4C9F54B02FD1658800531410 /* GoogleSignInSwift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,7 +57,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				4C9F54AF2FD1658400531410 /* GoogleSignIn in Frameworks */,
-				4C9F54B12FD1658800531410 /* GoogleSignInSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -120,7 +118,6 @@
 			name = ConnectSphere;
 			packageProductDependencies = (
 				4C9F54AE2FD1658400531410 /* GoogleSignIn */,
-				4C9F54B02FD1658800531410 /* GoogleSignInSwift */,
 			);
 			productName = ConnectSphere;
 			productReference = 4CAFED032FC0D65000412094 /* ConnectSphere.app */;
@@ -598,11 +595,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 4C9F54AC2FD164D200531410 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
 			productName = GoogleSignIn;
-		};
-		4C9F54B02FD1658800531410 /* GoogleSignInSwift */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 4C9F54AC2FD164D200531410 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
-			productName = GoogleSignInSwift;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

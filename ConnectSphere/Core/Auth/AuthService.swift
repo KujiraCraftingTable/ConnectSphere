@@ -122,12 +122,23 @@ class AuthService {
         try signInResult(try await post("/auth/login", ["username": identifier, "password": password]))
     }
 
+    /// The last profile `/auth/me` returned, for opening the app without
+    /// waiting on the server.
+    func cachedMe() -> AuthUserDTO? {
+        CacheStore.shared.get(MeResponse.self, CacheStore.Key.me)?.user
+    }
+
     /// `mode` asks for that mode's persona; nil is the account's default mode.
-    func fetchMe(token: String, mode: AppMode? = nil) async throws -> AuthUserDTO {
+    /// `cacheFallback` returns the cached profile when the server can't be
+    /// reached (not on a 401).
+    func fetchMe(token: String, mode: AppMode? = nil, cacheFallback: Bool = true) async throws -> AuthUserDTO {
         var comps = URLComponents(string: APIConfig.baseURL + "/auth/me")
         if let mode { comps?.queryItems = [URLQueryItem(name: "mode", value: mode.rawValue)] }
         guard let url = comps?.url else { throw URLError(.badURL) }
         var req = URLRequest(url: url)
+        // The default 60 s held the launch splash for a minute whenever the
+        // server was busy with Ollama work.
+        req.timeoutInterval = 10
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         do {
             let (data, resp) = try await URLSession.shared.data(for: req)
@@ -141,7 +152,7 @@ class AuthService {
             // fetch must not replace it.
             if mode == nil { await CacheStore.shared.put(CacheStore.Key.me, body: data) }   // for an offline cold launch
             return user
-        } catch let err as URLError where err.code != .userAuthenticationRequired && mode == nil {
+        } catch let err as URLError where err.code != .userAuthenticationRequired && mode == nil && cacheFallback {
             // Offline / server down (not a 401) — restore the last-known profile
             // so the app opens to its cached state instead of the login screen.
             if let cached = await CacheStore.shared.get(MeResponse.self, CacheStore.Key.me) {

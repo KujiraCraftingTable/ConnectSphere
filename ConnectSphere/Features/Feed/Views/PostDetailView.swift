@@ -46,6 +46,16 @@ struct PostDetailView: View {
     private var post: Post? { viewModel.post }
 
     var body: some View {
+        // A Marketplace item opens as its item page wherever it's tapped
+        // from (a chat card, a notification, Saved…) — no likes or comments.
+        if let post, post.postType == .listing {
+            ListingDetailView(post: post)
+        } else {
+            postPage
+        }
+    }
+
+    private var postPage: some View {
         // ScrollViewReader wraps the whole screen body (not just the
         // ScrollView below) so the composer's Send button can also reach
         // `proxy` — it needs to scroll to a just-sent comment directly,
@@ -124,7 +134,7 @@ struct PostDetailView: View {
     private func loadAll(proxy: ScrollViewProxy) async {
         let firstLoad = viewModel.post == nil
         guard await viewModel.loadPost() else { return }
-        if firstLoad { await commentVM.load(postId: postId) }
+        if firstLoad && viewModel.post?.postType != .listing { await commentVM.load(postId: postId) }
 
         if let target = scrollToCommentId {
             try? await Task.sleep(for: .milliseconds(300))
@@ -320,13 +330,9 @@ private struct PostDetailHeader: View {
                     NavigationLink(destination: communityPage(community)) { name(community.name) }
                         .buttonStyle(.plain)
                     detail {
-                        NavigationLink(destination:
-                            CommunityMemberProfileView(communityId: community.id, userId: post.author.id)
-                                .environment(appState)
-                        ) {
+                        CommunityProfileLink(communityId: community.id, userId: post.author.id) {
                             Text(String(format: bundle.loc("Posted by %@"), post.author.name))
                         }
-                        .buttonStyle(.plain)
                         Text("·")
                         Text(post.timestamp.timeAgoString)
                     }

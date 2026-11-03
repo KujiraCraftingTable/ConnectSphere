@@ -234,6 +234,39 @@ enum PostService {
         return post
     }
 
+    /// A marketplace listing: a community post whose description is the
+    /// text (optional) and whose photos are its images.
+    /// A Marketplace listing (migration 073): its own public post in `mode`,
+    /// also listed in up to 5 of the seller's communities. Returns the post
+    /// and the communities it went live in (the rest wait for approval).
+    static func createListingPost(
+        authorID: String, mode: String, content: String?, imageUrls: [String]?,
+        details: PostsController.CreateBody.ListingDataIn?, communityIDs: [String]?,
+        on db: AppDatabase
+    ) async throws -> (post: PostObject, liveIn: [String]) {
+        let description = content?.trimmedText ?? ""
+        if description.count > 2000 { throw Abort(.badRequest, reason: "Post content must be at most 2000 characters") }
+        let listing = try ListingStore.validate(details)
+        let ids = try ListingStore.communityIDs(communityIDs)
+        let links = try await ListingStore.links(ids, seller: authorID, mode: mode, on: db.sql())
+        let id = try await createCommunityPostRow(
+            content: description, authorID: authorID, communityID: nil, postType: "listing",
+            imageUrls: imageUrls, linkUrl: nil, articleTitle: nil,
+            hashtags: [], mode: mode, privacy: "public", on: db)
+        do {
+            try await db.tx { t in
+                let listingID = try await ListingStore.create(postID: id, listing, on: t)
+                try await ListingStore.link(listingID: listingID, links, on: t)
+            }
+        } catch {
+            // Without its details the post would be a bare listing; take it back out.
+            try? await db.sql().raw("DELETE FROM posts WHERE id = \(uuid: id)").run()
+            throw error
+        }
+        guard let post = try await PostStore.findById(id, viewer: authorID, on: db.sql()) else { throw Abort(.internalServerError) }
+        return (post, links.filter { !$0.pending }.map(\.communityID))
+    }
+
     // MARK: delete / restore
 
     static func deletePost(requesterID: String, postID: String, on db: AppDatabase) async throws {

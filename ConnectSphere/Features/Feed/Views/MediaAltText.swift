@@ -71,8 +71,9 @@ struct AltTextEditorSheet: View {
             .background(AppColors.base(colorScheme))
             .navigationTitle(bundle.loc("Alt text"))
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled()
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button(bundle.loc("Cancel")) { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { ConfirmCancelButton { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(bundle.loc("Done")) {
                         onSave(text.trimmingCharacters(in: .whitespacesAndNewlines))

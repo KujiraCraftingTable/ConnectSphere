@@ -88,9 +88,10 @@ struct ApplySheet: View {
             }
             .navigationTitle(bundle.loc("Apply"))
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(bundle.loc("Cancel")) { dismiss() }
+                    ConfirmCancelButton { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     if viewModel.isSubmitting {

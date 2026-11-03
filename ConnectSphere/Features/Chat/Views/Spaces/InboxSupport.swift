@@ -154,6 +154,52 @@ struct WaitingChatsView: View {
     }
 }
 
+/// The inbox's Dating button: chats with your Dating matches. They're in the
+/// main list too; this just gathers them.
+struct DatingChatsView: View {
+    @Environment(AppState.self) private var appState
+    @Environment(ThemeManager.self) private var themeManager
+    @Environment(\.appBundle) private var bundle
+    @Environment(\.colorScheme) private var colorScheme
+
+    let viewModel: ConversationListViewModel
+    let onOpen: (Conversation) -> Void
+
+    var body: some View {
+        Group {
+            if viewModel.datingChats.isEmpty {
+                EmptyStateView(systemImage: "heart",
+                               title: bundle.loc("No Dating chats"),
+                               message: bundle.loc("When you match with someone in Dating, your chat shows up here."))
+            } else {
+                List {
+                    Section {
+                        ForEach(viewModel.datingChats) { conversation in
+                            Button { onOpen(conversation) } label: {
+                                ConversationRow(conversation: conversation,
+                                                currentUserId: appState.currentUser?.id ?? "",
+                                                accentColor: themeManager.theme.primary)
+                            }
+                            .buttonStyle(.plain)
+                            .listRowInsets(EdgeInsets())
+                            .listRowBackground(AppColors.surface(colorScheme))
+                            .alignmentGuide(.listRowSeparatorLeading) { _ in ConversationRow.textInset }
+                        }
+                    } footer: {
+                        Text("To end a match, unmatch in Dating (account menu).", bundle: bundle)
+                    }
+                }
+                .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)
+                .contentMargins(.horizontal, AppSpacing.sm, for: .scrollContent)
+            }
+        }
+        .background(AppColors.base(colorScheme))
+        .navigationTitle(bundle.loc("Dating"))
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
 /// Where a row sits inside a space's coloured folder (see `spaceFolder`).
 struct FolderSlot {
     let tint: Color

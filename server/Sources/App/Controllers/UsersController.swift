@@ -140,7 +140,8 @@ struct UsersController {
     static func updateMe(_ req: Request) async throws -> DataResponse<PrivateUserObject> {
         let raw = try req.content.decode(UpdateMeBody.self)
         // Before anything is written, so a bad list doesn't leave half an update.
-        if let skills = raw.skills { _ = try EndorsementStore.cleanSkills(skills) }
+        var skills = raw.skills
+        if let picks = skills { skills = try await SkillStore.cleanPicks(picks, userID: req.userID, on: req.db.sql()) }
         // Which keys were actually present in the JSON body.
         let presentKeys: Set<String> = {
             guard let dict = try? req.content.decode([String: AnyCodableValue].self) else { return [] }
@@ -228,9 +229,11 @@ struct UsersController {
             let column = mode == "work" ? "work_links_hobby" : "hobby_links_work"
             try await sdb.raw("UPDATE users SET \(unsafeRaw: column) = \(bind: link) WHERE id = \(uuid: req.userID)").run()
         }
+        var interests = raw.interests
+        if let picks = interests { interests = try await InterestStore.cleanPicks(picks, userID: req.userID, on: sdb) }
         _ = try await UserStore.updateProfile(
             userID: req.userID, fields: fields,
-            interests: raw.interests, skills: raw.skills, mode: mode, on: req.db)
+            interests: interests, skills: skills, mode: mode, on: req.db)
         await BackgroundJobs.refreshEmbedding(req, .profile, id: req.userID)
 
         guard let pub = try await UserStore.findById(req.userID, mode: mode, on: sdb) else {
@@ -238,17 +241,18 @@ struct UsersController {
         }
         struct Priv: Decodable {
             let email: String?; let email_verified: Bool; let two_factor_enabled: Bool
-            let dob: Date?; let dob_visibility: String?; let age: Int?; let has_password: Bool
+            let dob: Date?; let dob_visibility: String?; let age: Int?; let has_password: Bool; let dob_changes: Int
         }
         let priv = try await sdb.raw("""
-            SELECT email, (email_verified_at IS NOT NULL) AS email_verified, two_factor_enabled, dob, dob_visibility, age,
+            SELECT email, (email_verified_at IS NOT NULL) AS email_verified, two_factor_enabled, dob, dob_visibility, age, dob_changes,
                    (password_hash IS NOT NULL AND password_hash <> '' AND password_hash <> 'SEED_DATA') AS has_password
             FROM users WHERE id = \(uuid: req.userID)
             """).first(decoding: Priv.self)!
         return DataResponse(data: PrivateUserObject(
             pub: pub, email: priv.email, email_verified: priv.email_verified,
             two_factor_enabled: priv.two_factor_enabled, has_password: priv.has_password,
-            dob: priv.dob, dob_visibility: priv.dob_visibility, age: priv.age))
+            dob: priv.dob, dob_visibility: priv.dob_visibility, age: priv.age,
+            dob_changes_left: BirthdayRules.changesLeft(used: priv.dob_changes)))
     }
 
     // MARK: POST /api/users/me/personas
@@ -268,7 +272,11 @@ struct UsersController {
         guard let mode = b.mode, ["hobby", "work"].contains(mode) else {
             throw InlineError(.badRequest, "mode must be hobby or work")
         }
-        if mode == "work", let skills = b.skills { _ = try EndorsementStore.cleanSkills(skills) }
+        var skills: [String]?
+        if mode == "work", let picks = b.skills {
+            skills = try await SkillStore.cleanPicks(picks, userID: req.userID, on: req.db.sql())
+        }
+        let cleanSkills = skills
         let displayName = (b.display_name ?? "").trimmingCharacters(in: .whitespaces)
         guard !displayName.isEmpty else { throw InlineError(.badRequest, "display_name is required") }
         guard UserStore.displayNameFits(displayName) else { throw InlineError(.badRequest, UserStore.displayNameTooLong) }
@@ -286,6 +294,11 @@ struct UsersController {
         }
 
         let bioVal = (b.bio?.trimmingCharacters(in: .whitespaces)).flatMap { $0.isEmpty ? nil : $0 }
+        var interests = b.interests
+        if mode == "hobby", let picks = interests {
+            interests = try await InterestStore.cleanPicks(picks, userID: req.userID, on: sdb)
+        }
+        let cleanInterests = interests
         try await req.db.tx { t in
             if mode == "work" {
                 let jt = (b.job_title?.trimmingCharacters(in: .whitespaces)).flatMap { $0.isEmpty ? nil : $0 }
@@ -301,7 +314,7 @@ struct UsersController {
                     WHERE id = \(uuid: req.userID)
                     """).run()
             }
-            let list = mode == "work" ? b.skills : b.interests
+            let list = mode == "work" ? cleanSkills : cleanInterests
             let table = mode == "work" ? "user_skills" : "user_interests"
             let col = mode == "work" ? "skill" : "interest"
             if let list, mode == "work" {

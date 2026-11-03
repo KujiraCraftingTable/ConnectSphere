@@ -45,6 +45,8 @@ struct AuthUserObject: Content {
     @NullCoded var work_cover_url: String?
     @NullCoded var dob_visibility: String?
     @NullCoded var age: Int?
+    /// Birthday changes still allowed (migration 083, `BirthdayRules`).
+    var dob_changes_left: Int
     var hobby_setup: Bool
     var work_setup: Bool
     var has_password: Bool

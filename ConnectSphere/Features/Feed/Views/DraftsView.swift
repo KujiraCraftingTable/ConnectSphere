@@ -14,6 +14,7 @@ struct DraftRow: View {
         case .poll: return "chart.bar.fill"
         case .event: return "calendar"
         case .job: return "briefcase.fill"
+        case .listing: return "bag.fill"
         case .text: return post.imageUrls.isEmpty ? (post.linkUrl == nil ? "text.alignleft" : "link") : "photo"
         }
     }
@@ -169,7 +170,7 @@ struct DraftsView: View {
                     .environment(appState)
                     .environment(themeManager)
             case .community(let community):
-                CommunityCreatePostView(community: community, draft: opened.draft, onPostCreated: { _ in })
+                CreatePostView(community: community, draft: opened.draft)
                     .environment(appState)
                     .environment(themeManager)
             }

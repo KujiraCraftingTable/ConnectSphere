@@ -1,53 +1,5 @@
 import SwiftUI
-import MapKit
 import Observation
-
-/// Thin `MKLocalSearchCompleter` wrapper feeding the location-autocomplete
-/// list below `MeetingProposalComposerView`'s location field. Text-based
-/// place/address search only (no "near me" / current-location search), which
-/// per Apple's `MKLocalSearchCompleter` docs needs no `CLLocationManager`
-/// authorization and no `Info.plist` usage-description key — confirmed
-/// during Phase 3 investigation, so none was added.
-@Observable
-final class LocationSearchCompleter: NSObject, MKLocalSearchCompleterDelegate {
-    private(set) var results: [MKLocalSearchCompletion] = []
-
-    private let completer: MKLocalSearchCompleter = {
-        let c = MKLocalSearchCompleter()
-        c.resultTypes = [.address, .pointOfInterest]
-        return c
-    }()
-
-    override init() {
-        super.init()
-        completer.delegate = self
-    }
-
-    /// Updates the search query — matching results arrive asynchronously via
-    /// `completerDidUpdateResults`. Clears immediately for an empty/whitespace
-    /// fragment rather than waiting on the completer.
-    func search(_ fragment: String) {
-        guard !fragment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            results = []
-            return
-        }
-        completer.queryFragment = fragment
-    }
-
-    /// Clears the results list (e.g. after a suggestion is picked, or the field loses focus).
-    func clear() {
-        results = []
-        completer.queryFragment = ""
-    }
-
-    func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
-        results = completer.results
-    }
-
-    func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
-        results = []
-    }
-}
 
 /// Meeting proposal composer used by `ChatView` for both "new proposal" and
 /// "reschedule" (`ChatView.meetingComposerSheet`). Forked from Communities'
@@ -66,9 +18,6 @@ struct MeetingProposalComposerView: View {
     @Binding var endsAt: Date?
     @Binding var showEndDate: Bool
     @Binding var reminderOffset: MeetingReminderOffset
-
-    @State private var locationCompleter = LocationSearchCompleter()
-    @FocusState private var locationFieldFocused: Bool
 
     private let titleLimit = 40
 
@@ -104,26 +53,16 @@ struct MeetingProposalComposerView: View {
                     }
                 }
 
-            // Location — MapKit-backed autocomplete. Typing updates the
-            // completer's query; tapping a suggestion fills the text field
-            // with the full address and dismisses the results list.
-            fieldRow(label: "Location") {
-                TextField(bundle.loc("Search for a location"), text: $location)
-                    .font(.system(size: 15))
-                    .foregroundColor(AppColors.textPrimary(colorScheme))
-                    .focused($locationFieldFocused)
-                    .onChange(of: location) { _, newValue in
-                        locationCompleter.search(newValue)
-                    }
-                    // Clear stale results on blur (not just hide them) — otherwise
-                    // an old suggestion list flashes back the instant focus
-                    // returns, before any new typing has re-queried.
-                    .onChange(of: locationFieldFocused) { _, isFocused in
-                        if !isFocused { locationCompleter.clear() }
-                    }
-            }
-            if locationFieldFocused && !locationCompleter.results.isEmpty {
-                locationResultsList
+            // Location — MapKit suggestions under the field; tapping one fills it.
+            VStack(alignment: .leading, spacing: 4) {
+                Text(bundle.loc("Location"))
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(AppColors.textTertiary(colorScheme))
+                LocationSearchField(bundle.loc("Search for a location"), text: $location) { field in
+                    fieldBox(field
+                        .font(.system(size: 15))
+                        .foregroundColor(AppColors.textPrimary(colorScheme)))
+                }
             }
 
             Divider()
@@ -185,51 +124,6 @@ struct MeetingProposalComposerView: View {
         .background(AppColors.surface(colorScheme))
     }
 
-    /// Dropdown of place suggestions shown under the location field while it
-    /// has focus and the completer has results. Each row shows the
-    /// completion's title (bold) + subtitle, matching MapKit's own
-    /// `MKLocalSearchCompletion` shape.
-    private var locationResultsList: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(locationCompleter.results.enumerated()), id: \.offset) { _, result in
-                Button {
-                    selectLocation(result)
-                } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(result.title)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(AppColors.textPrimary(colorScheme))
-                            .lineLimit(1)
-                        if !result.subtitle.isEmpty {
-                            Text(result.subtitle)
-                                .font(.system(size: 12))
-                                .foregroundColor(AppColors.textSecondary(colorScheme))
-                                .lineLimit(1)
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.plain)
-
-                if result.title != locationCompleter.results.last?.title {
-                    Divider().padding(.leading, 12)
-                }
-            }
-        }
-        .background(AppColors.elevated(colorScheme))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-    }
-
-    /// Fills `location` from a tapped suggestion (title + subtitle joined,
-    /// e.g. "Coffee House, 123 Main St, City") and dismisses the results list.
-    private func selectLocation(_ result: MKLocalSearchCompletion) {
-        location = result.subtitle.isEmpty ? result.title : "\(result.title), \(result.subtitle)"
-        locationCompleter.clear()
-        locationFieldFocused = false
-    }
-
     private func sectionLabel(_ key: String) -> some View {
         Text(bundle.loc(key))
             .font(.system(size: 13, weight: .semibold))
@@ -241,11 +135,15 @@ struct MeetingProposalComposerView: View {
             Text(bundle.loc(label))
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(AppColors.textTertiary(colorScheme))
-            field()
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
-                .background(AppColors.elevated(colorScheme))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+            fieldBox(field())
         }
+    }
+
+    private func fieldBox<F: View>(_ field: F) -> some View {
+        field
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(AppColors.elevated(colorScheme))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }

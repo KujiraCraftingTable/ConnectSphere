@@ -5,12 +5,9 @@ enum ProfileStat {
     case posts, friends, followers, following
 }
 
-/// A profile's whole header as one component, Facebook-style: the cover runs
-/// edge to edge up under the status bar (its top fades into the page so the
-/// clock and nav buttons stay legible) and stays sharp to its bottom edge,
-/// where a mirrored, softly blurred reflection of it carries on behind a
-/// floating rounded card — inset like the post cards — and fades to the page
-/// colour by the card's bottom. The card holds a large centred
+/// A profile's whole header as one component, on a `CoverHeader` (the cover
+/// under the status bar, its reflection behind a floating rounded card).
+/// The card holds a large centred
 /// avatar, name, job, the four counts, the full bio, this mode's interests or
 /// skills, and the action buttons.
 /// Shared by your own `ProfileView` and other people's `UserProfileView`.
@@ -34,74 +31,9 @@ struct ProfileHeaderCard<Actions: View>: View {
 
     private let avatarSize: CGFloat = 132
     private let cardRadius: CGFloat = 24
-    /// How far the card rises over the cover's bottom. 0 = the whole framed
-    /// cover stays visible (only the avatar overlaps it), so the photo reads big.
-    private let cardOverlap: CGFloat = 0
 
     var body: some View {
-        VStack(spacing: 0) {
-            cover
-            sheet
-                .padding(.horizontal, AppSpacing.sm)    // same inset as the post cards
-                .padding(.top, -cardOverlap)
-                .padding(.bottom, AppSpacing.md)        // a strip of faded cover under the card
-        }
-        .background(alignment: .top) {
-            VStack(spacing: 0) {
-                // A soft copy of the cover behind it, for its bottom to dissolve into.
-                CoverPhotoView(coverUrl: user.coverUrl)
-                    .blur(radius: 12, opaque: true)
-                coverExtension
-                // The strip under the card stays clear: the fade ends with the card.
-                Color.clear.frame(height: AppSpacing.md)
-            }
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-        }
-    }
-
-    // MARK: Cover extension
-
-    /// The cover's continuation behind the card. The saved cover is exactly
-    /// 3 : 2, so there's no more photo below its edge: this mirrors it (its
-    /// top row is the photo's bottom row, so it carries on without a seam),
-    /// blurs it softly and fades it out by the card's bottom — what shows in
-    /// the margins beside the card. The sharp cover's bottom dissolves into a
-    /// soft copy of itself just above (see `cover`), so there's no line where
-    /// sharp turns soft.
-    private var coverExtension: some View {
-        Color.clear
-            .overlay { CoverArtwork(coverUrl: user.coverUrl, stretch: true) }
-            .scaleEffect(x: 1, y: -1)
-            .blur(radius: 12, opaque: true)
-            .mask(LinearGradient(stops: [
-                .init(color: .black, location: 0),
-                .init(color: .black.opacity(0.55), location: 0.45),
-                .init(color: .clear, location: 1),
-            ], startPoint: .top, endPoint: .bottom))
-            .clipped()
-    }
-
-    // MARK: Cover
-
-    /// The framed cover as cropped, its top fading into the page so the clock
-    /// and buttons stay legible. Its bottom dissolves into a soft copy of itself behind it.
-    private var cover: some View {
-        CoverPhotoView(coverUrl: user.coverUrl)
-            .mask(LinearGradient(stops: [
-                .init(color: .black, location: 0.82),
-                .init(color: .clear, location: 1),
-            ], startPoint: .top, endPoint: .bottom))
-            .overlay(alignment: .top) {
-                GeometryReader { geo in
-                    LinearGradient(
-                        colors: [AppColors.base(colorScheme).opacity(0.85), AppColors.base(colorScheme).opacity(0)],
-                        startPoint: .top, endPoint: .bottom)
-                        .frame(height: geo.size.height * CoverPhotoView.fadedTopFraction)
-                }
-                .allowsHitTesting(false)
-            }
-            .accessibilityHidden(true)
+        CoverHeader(coverUrl: user.coverUrl) { sheet }
     }
 
     // MARK: Sheet
@@ -239,11 +171,11 @@ struct ProfileHeaderCard<Actions: View>: View {
                 ForEach(items, id: \.self) { Chip(text: $0, style: .neutral) }
             }
             // Always one line: centred when it fits, otherwise it scrolls
-            // sideways instead of wrapping onto more lines.
+            // sideways instead of wrapping onto more lines. Clipped to the
+            // card's padding, so chips never slide out over the cover.
             ViewThatFits(in: .horizontal) {
                 row
                 ScrollView(.horizontal, showsIndicators: false) { row }
-                    .scrollClipDisabled()
             }
             .padding(.top, 4)
         }

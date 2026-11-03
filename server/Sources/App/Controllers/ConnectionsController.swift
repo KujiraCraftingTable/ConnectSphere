@@ -171,6 +171,7 @@ struct ConnectionsController {
                 NotifyService.dispatchSocial(req, .init(
                     type: "connection_request", actorID: req.userID, recipientID: addresseeID,
                     connectionID: updated.id))
+                SearchController.creditOutcome(req, to: addresseeID, column: "connected_at")
                 return try await encode(ConnResult(connection_id: updated.id, status: "pending_sent"), req, .created)
             default: break
             }
@@ -184,6 +185,7 @@ struct ConnectionsController {
             NotifyService.dispatchSocial(req, .init(
                 type: "connection_request", actorID: req.userID, recipientID: addresseeID,
                 connectionID: created.id))
+            SearchController.creditOutcome(req, to: addresseeID, column: "connected_at")
             return try await encode(ConnResult(connection_id: created.id, status: "pending_sent"), req, .created)
         } catch {
             // Folded review fix: concurrent duplicate insert → 409, not an

@@ -41,7 +41,7 @@ struct StoryViewerView: View {
 
             // Current story's image
             if let story = currentStory, let url = APIConfig.mediaURL(story.imageUrl) {
-                AsyncImage(url: url) { phase in
+                RemoteImage(url: url) { phase in
                     if let image = phase.image {
                         image.resizable().scaledToFit()
                     } else {
@@ -202,7 +202,7 @@ struct StoryViewerView: View {
                                     .font(.system(size: 15, weight: .bold))
                                     .foregroundColor(.white)
                                 if let url = APIConfig.mediaURL(viewer.avatarUrl) {
-                                    AsyncImage(url: url) { phase in
+                                    RemoteImage(url: url) { phase in
                                         if let image = phase.image {
                                             image.resizable().scaledToFill()
                                         }

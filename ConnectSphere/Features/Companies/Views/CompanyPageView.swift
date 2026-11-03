@@ -75,7 +75,7 @@ struct CompanyPageView: View {
             ZStack(alignment: .bottomLeading) {
                 Group {
                     if let cover = company.coverUrl.flatMap(APIConfig.mediaURL) {
-                        AsyncImage(url: cover) { phase in
+                        RemoteImage(url: cover) { phase in
                             if let image = phase.image { image.resizable().scaledToFill() }
                             else { coverFallback }
                         }

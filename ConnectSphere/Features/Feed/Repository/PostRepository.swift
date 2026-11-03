@@ -48,6 +48,13 @@ struct PostRepository {
         }
     }
 
+    /// The last first page of the recommended feed, from the offline cache —
+    /// shown while the fresh one loads. Nil when nothing is cached.
+    func cachedRecommendedFeed(mode: AppMode) -> [Post]? {
+        CacheStore.shared.get(CursorResponse<PostDTO>.self, CacheStore.Key.recommendedFeed(mode.rawValue))?
+            .data.map { $0.toPost() }
+    }
+
     /// Fetches a single post by id (used for the screen opened from a notification)
     func fetchPost(id: String) async throws -> Post {
         let response = try await client.fetch(
@@ -336,6 +343,26 @@ struct PostRepository {
         )
     }
 
+    /// "Not interested" (`less`) or "Show more like this" (`more`): the For you
+    /// feed shows less / more like it, and from its author, for 30 days.
+    func sendFeedback(postId: String, kind: String) async throws {
+        guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
+            throw APIError.serverError(statusCode: 401, message: "Not authenticated")
+        }
+        struct FeedbackResponse: Decodable { let kind: String? }
+        _ = try await client.fetch(FeedbackResponse.self, path: "/posts/\(postId)/feedback", method: "POST",
+                                   token: token, bodyData: NetworkClient.encode(["kind": kind]))
+    }
+
+    /// Takes feedback back (the toast's Undo).
+    func removeFeedback(postId: String) async throws {
+        guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
+            throw APIError.serverError(statusCode: 401, message: "Not authenticated")
+        }
+        struct FeedbackResponse: Decodable { let kind: String? }
+        _ = try await client.fetch(FeedbackResponse.self, path: "/posts/\(postId)/feedback", method: "DELETE", token: token)
+    }
+
     /// Un-hides a post previously hidden with `hidePost` — backs the "Undo" on
     /// the hide toast (`DELETE /posts/:id/hide`, mirrors `hidePost`).
     func unhidePost(postId: String) async throws {
@@ -397,7 +424,8 @@ struct PostRepository {
     /// mirrors fetchDeletedPosts's own dedicated inline decoder (no `total`
     /// field, unlike `PaginatedResponse`). No pagination UI for v1 — a single
     /// fetch covers the whole list.
-    func fetchSavedPosts(limit: Int = 30, offset: Int = 0) async throws -> [Post] {
+    /// `listings` picks saved Marketplace items instead of saved posts.
+    func fetchSavedPosts(listings: Bool = false, limit: Int = 30, offset: Int = 0) async throws -> [Post] {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")
         }
@@ -408,6 +436,7 @@ struct PostRepository {
             method: "GET",
             token: token,
             queryItems: [
+                .init(name: "kind",   value: listings ? "listings" : "posts"),
                 .init(name: "limit",  value: "\(limit)"),
                 .init(name: "offset", value: "\(offset)"),
             ]
@@ -450,7 +479,8 @@ struct PostRepository {
         /// nil = leave the descriptions as they are (media unchanged).
         imageAlts: [String]? = nil,
         linkUrl: String? = nil,
-        articleTitle: String? = nil
+        articleTitle: String? = nil,
+        communityAudience: CommunityAudience? = nil
     ) async throws -> Post {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")
@@ -465,6 +495,7 @@ struct PostRepository {
         if let imageAlts          { body["image_alts"]    = imageAlts }
         if let lnk = linkUrl      { body["link_url"]      = lnk }
         if let ttl = articleTitle { body["article_title"] = ttl }
+        if let communityAudience  { body["community_audience"] = communityAudience.rawValue }
 
         let bodyData = try? JSONSerialization.data(withJSONObject: body)
 
@@ -491,6 +522,12 @@ struct PostRepository {
         body.append("Content-Disposition: form-data; name=\"file\"; filename=\"photo.\(clean.fileExtension)\"\r\n".data(using: .utf8)!)
         body.append("Content-Type: \(clean.mimeType)\r\n\r\n".data(using: .utf8)!)
         body.append(clean.data)
+        if let thumbnail = clean.thumbnail {
+            body.append("\r\n--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"thumbnail\"; filename=\"thumb.jpg\"\r\n".data(using: .utf8)!)
+            body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+            body.append(thumbnail)
+        }
         body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
 
         guard let url = URL(string: APIConfig.baseURL + "/uploads") else { return nil }

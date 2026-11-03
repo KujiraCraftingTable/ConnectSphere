@@ -99,6 +99,26 @@ struct PostOptionsMenu: View {
                     Label(bundle.loc("Delete post"), systemImage: "trash")
                 }
             } else {
+                // Teach the For you feed: more or less like this (and from this person).
+                Button {
+                    Task { await actions.showMoreLikeThis(postId: post.id) }
+                    let id = post.id
+                    toastPresenter.show(message: bundle.loc("You'll see more posts like this")) {
+                        Task { await actions.undoFeedback(postId: id) }
+                    }
+                } label: {
+                    Label(bundle.loc("Show more like this"), systemImage: "hand.thumbsup")
+                }
+                Button {
+                    Task { await actions.notInterested(postId: post.id) }
+                    let id = post.id
+                    toastPresenter.show(message: bundle.loc("You'll see fewer posts like this")) {
+                        Task { await actions.undoFeedback(postId: id) }
+                    }
+                    onPostHidden?()
+                } label: {
+                    Label(bundle.loc("Not interested"), systemImage: "hand.thumbsdown")
+                }
                 Button {
                     // Undo un-hides in place: on the feed the post never left the list.
                     Task { await actions.hide(postId: post.id) }

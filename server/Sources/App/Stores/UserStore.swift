@@ -42,6 +42,7 @@ enum UserStore {
               u.hobby_display_name, u.hobby_bio, u.hobby_avatar_url, u.hobby_cover_url,
               u.work_display_name, u.work_bio, u.work_avatar_url, u.work_cover_url,
               u.dob_visibility, u.age,
+              GREATEST(0, \(unsafeRaw: String(BirthdayRules.maxChanges)) - u.dob_changes) AS dob_changes_left,
               (u.hobby_display_name IS NOT NULL) AS hobby_setup,
               (u.work_display_name  IS NOT NULL) AS work_setup,
               (u.password_hash IS NOT NULL AND u.password_hash <> ''

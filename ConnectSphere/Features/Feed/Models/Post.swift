@@ -134,6 +134,8 @@ struct Post: Identifiable {
     var pollData: PollData? = nil
     var eventData: EventData? = nil
     var jobData: JobData? = nil
+    /// A marketplace listing's details (post type `.listing`).
+    var listingData: ListingData? = nil
     /// Set only for a post from a community the viewer's feed surfaces —
     /// drives PostCard's combined "community avatar/name + actual poster"
     /// header instead of the normal single-author one.

@@ -81,7 +81,7 @@ struct BlockedUsersView: View {
                 .font(.system(size: 17, weight: .bold))
                 .foregroundColor(.white)
             if let url = APIConfig.mediaURL(user.avatarUrl) {
-                AsyncImage(url: url) { phase in
+                RemoteImage(url: url) { phase in
                     if let image = phase.image {
                         image.resizable().scaledToFill()
                     }

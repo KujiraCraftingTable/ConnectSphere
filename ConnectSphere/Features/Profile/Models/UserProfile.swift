@@ -51,6 +51,8 @@ struct UserProfile: Identifiable {
     // same as email/hasPassword above
     var dob: String? = nil
     var dobVisibility: String? = nil
+    /// Birthday changes still allowed — the age decides what the account may use (Dating is 16+).
+    var dobChangesLeft: Int? = nil
     // Stats
     var followerCount: Int
     var followingCount: Int

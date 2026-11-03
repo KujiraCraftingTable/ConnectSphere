@@ -360,10 +360,9 @@ struct CommentRow: View {
             ViewThatFits(in: .horizontal) {
                 ForEach(Self.nameScales, id: \.self) { scale in
                     HStack(spacing: 4) {
-                        NavigationLink(destination: profile(comment.author.id)) {
+                        profileLink(comment.author.id) {
                             nameText(comment.author.displayName, scale: scale)
                         }
-                        .buttonStyle(.plain)
                         if isPostAuthor { authorBadge }
                     }
                 }
@@ -377,10 +376,9 @@ struct CommentRow: View {
                             Text("replied to", bundle: bundle)
                                 .font(.system(size: Self.nameFontSize(level: level)))
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
-                            NavigationLink(destination: profile(replyTarget.userId)) {
+                            profileLink(replyTarget.userId) {
                                 nameText(replyTarget.name, scale: scale)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -489,7 +487,7 @@ struct CommentRow: View {
     @ViewBuilder
     private var avatar: some View {
         if let url = APIConfig.mediaURL(comment.author.avatarUrl) {
-            AsyncImage(url: url) { phase in
+            RemoteImage(url: url) { phase in
                 if let image = phase.image {
                     image.resizable().scaledToFill()
                 } else {
@@ -514,13 +512,15 @@ struct CommentRow: View {
         }
     }
 
-    /// Under a community post, someone's community profile; else their profile.
+    /// Under a community post, someone's community profile as a pop-up;
+    /// elsewhere their profile page.
     @ViewBuilder
-    private func profile(_ userId: String) -> some View {
+    private func profileLink<L: View>(_ userId: String, @ViewBuilder label: @escaping () -> L) -> some View {
         if let communityId {
-            CommunityMemberProfileView(communityId: communityId, userId: userId).environment(appState)
+            CommunityProfileLink(communityId: communityId, userId: userId, label: label)
         } else {
-            UserProfileView(userId: userId).environment(appState)
+            NavigationLink(destination: UserProfileView(userId: userId).environment(appState), label: label)
+                .buttonStyle(.plain)
         }
     }
 }

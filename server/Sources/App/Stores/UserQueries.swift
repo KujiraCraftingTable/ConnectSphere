@@ -330,6 +330,22 @@ extension UserStore {
         try await db.tx { t in
             var sets: [SQLQueryString] = []
             var dobChanged = false
+            var fields = fields
+            if let newDob = fields.first(where: { $0.0 == "dob" })?.1 as String?? {
+                // Locked so two saves at once can't both spend the last change.
+                struct D: Decodable { let dob: String?; let dob_changes: Int }
+                let current = try await t.raw("""
+                    SELECT to_char(dob, 'YYYY-MM-DD') AS dob, dob_changes FROM users WHERE id = \(uuid: userID) FOR UPDATE
+                    """).first(decoding: D.self)
+                if BirthdayRules.isChange(from: current?.dob, to: newDob) {
+                    guard BirthdayRules.changesLeft(used: current?.dob_changes ?? 0) > 0 else {
+                        throw InlineError(.forbidden, BirthdayRules.limitReason)
+                    }
+                    sets.append("dob_changes = dob_changes + 1")
+                } else {
+                    fields.removeAll { $0.0 == "dob" }
+                }
+            }
             for (col, value) in fields where editableColumns.contains(col) {
                 let valExpr: SQLQueryString = col == "dob" ? "\(bind: value)::date" : "\(bind: value)"
                 if let mode, personaColumns.contains(col) {

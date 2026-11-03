@@ -41,6 +41,9 @@ struct CreatePostView: View {
     @State private var scheduleAt: Date?
     @State private var showSchedulePicker = false
 
+    /// Posts into this community instead of the feed: its mode, always
+    /// public, and the community's own endpoint.
+    var community: Community? = nil
     /// When set, the view operates in Edit mode instead of Create
     var editingPost: Post? = nil
     /// Opens the composer on a saved draft (Settings → Drafts).
@@ -54,14 +57,35 @@ struct CreatePostView: View {
 
     private var isEditMode: Bool { editingPost != nil }
 
+    /// Who sees a community post: members only unless the poster picks Public.
+    @State private var communityAudience: CommunityAudience = .members
+    /// The Sell form, from the community composer's "Sell" tab.
+    @State private var showSell = false
+    /// The community this post goes to (new) or is in (editing).
+    private var target: (name: String, icon: String, isPrivate: Bool)? {
+        if let community { return (community.name, community.iconEmoji, community.privacy == .private) }
+        if let c = editingPost?.community { return (c.name, c.iconEmoji, c.privacy == "private") }
+        return nil
+    }
+
+    /// A community's mode comes from its type; the feed's from the app.
+    private var effectiveMode: AppMode {
+        community.map { $0.type == .work ? .work : .hobby } ?? appState.currentMode
+    }
+
+    private var isPosting: Bool { viewModel.isPosting || composerViewModel.isPosting }
+
+    private var takesMedia: Bool { postType == .text }
+
     /// Anything typed or attached — closing would lose it, so ask first.
     private var hasUnsavedWork: Bool {
         !isEditMode && (!content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                         || !selectedMedia.isEmpty || viewModel.linkPreview != nil)
     }
 
-    /// The other feed drafts (not the one already open).
-    private var feedDrafts: [Post] { drafts.drafts(inCommunity: nil).filter { $0.id != draftId } }
+    /// The other drafts for the same place — the feed, or this community
+    /// (not the one already open).
+    private var feedDrafts: [Post] { drafts.drafts(inCommunity: community?.id).filter { $0.id != draftId } }
 
     /// Edit mode only: does the post being edited ALREADY have media or a link that
     /// hasn't been changed? `selectedMedia`/`linkPreview` only ever reflect NEWLY
@@ -79,7 +103,8 @@ struct CreatePostView: View {
         // is delegated to composerViewModel.isValid — same rule the Community
         // composer already enforces for identical post types.
         guard postType == .text else {
-            return !composerViewModel.isValid || composerViewModel.isPosting
+            // Photos are picked through this screen's model, so wait for them too.
+            return !composerViewModel.isValid || composerViewModel.isPosting || viewModel.pendingMediaCount > 0
         }
         // Allow posting when there's text OR media/link (an image/video/link-only post
         // doesn't need a caption) — in edit mode, media/link the post already has also
@@ -90,7 +115,8 @@ struct CreatePostView: View {
             || editingPostHasExistingMediaOrLink
         // Picked media still loading would be left out of the post, so wait
         // until every item is in.
-        return !hasContent || viewModel.isPosting || viewModel.pendingMediaCount > 0
+        return !hasContent || isPosting || viewModel.pendingMediaCount > 0
+            || content.count > composerViewModel.maxLength
     }
 
     var body: some View {
@@ -110,28 +136,32 @@ struct CreatePostView: View {
                                     .font(.system(size: 16, weight: .bold))
                                     .foregroundColor(AppColors.textPrimary(colorScheme))
 
-                                Button { showPrivacyPicker = true } label: {
-                                    HStack(spacing: 5) {
-                                        Image(systemName: privacy.icon)
-                                            .font(.system(size: 11, weight: .semibold))
-                                        Text(privacy.label(for: appState.currentMode))
-                                            .font(.system(size: 13, weight: .semibold))
-                                        Image(systemName: "chevron.down")
-                                            .font(.system(size: 9, weight: .bold))
+                                if let target {
+                                    communityChip(target)
+                                } else {
+                                    Button { showPrivacyPicker = true } label: {
+                                        HStack(spacing: 5) {
+                                            Image(systemName: privacy.icon)
+                                                .font(.system(size: 11, weight: .semibold))
+                                            Text(privacy.label(for: appState.currentMode))
+                                                .font(.system(size: 13, weight: .semibold))
+                                            Image(systemName: "chevron.down")
+                                                .font(.system(size: 9, weight: .bold))
+                                        }
+                                        .foregroundColor(themeManager.theme.primary)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .background(Capsule().fill(themeManager.theme.softFill))
                                     }
-                                    .foregroundColor(themeManager.theme.primary)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(Capsule().fill(themeManager.theme.softFill))
+                                    .buttonStyle(.plain)
                                 }
-                                .buttonStyle(.plain)
                             }
 
                             Spacer()
 
                             // Mode badge (icon only) — hobby vs work,
                             // kept fully separate from the privacy icon to avoid confusion.
-                            Image(systemName: appState.currentMode.glyph)
+                            Image(systemName: effectiveMode.glyph)
                                 .font(.system(size: 15, weight: .semibold))
                                 .foregroundColor(themeManager.theme.primary)
                                 .frame(width: 40, height: 40)
@@ -150,21 +180,31 @@ struct CreatePostView: View {
                                 // Job posts are a Work-mode-only concept — hidden
                                 // from the picker in Hobby mode (also enforced
                                 // server-side, see PostService.createJobPost).
-                                if appState.currentMode == .work {
+                                if effectiveMode == .work {
                                     Text("Job", bundle: bundle).tag(PostType.job)
+                                }
+                                // In a community: sell an item there straight away.
+                                if community != nil {
+                                    Text("Sell", bundle: bundle).tag(PostType.listing)
                                 }
                             }
                             .pickerStyle(.segmented)
                             .padding(.horizontal, 16)
-                            .onChange(of: postType) { _, new in composerViewModel.postType = new }
+                            .onChange(of: postType) { old, new in
+                                // "Sell" opens the Sell form; the composer stays on its tab.
+                                if new == .listing {
+                                    postType = old
+                                    showSell = true
+                                } else {
+                                    composerViewModel.postType = new
+                                }
+                            }
                         }
 
                         // ── Row 2: Text box ────────────────────────────────────
                         ZStack(alignment: .topLeading) {
                             if content.isEmpty {
-                                Text(appState.currentMode == .hobby
-                                     ? bundle.loc("What's on your mind?")
-                                     : bundle.loc("Share a professional update..."))
+                                Text(placeholderText)
                                     .font(.system(size: 16))
                                     .foregroundColor(AppColors.textTertiary(colorScheme))
                                     .padding(.top, 12)
@@ -187,11 +227,18 @@ struct CreatePostView: View {
                                         .stroke(AppColors.borderDefault(colorScheme), lineWidth: 1)
                                 )
                         )
+                        .overlay(alignment: .bottomTrailing) {
+                            // The server caps posts at this length.
+                            let remaining = composerViewModel.maxLength - content.count
+                            Text("\(remaining)")
+                                .font(.system(size: 12))
+                                .foregroundColor(remaining < 50 ? AppColors.danger(colorScheme) : AppColors.textTertiary(colorScheme))
+                                .padding(10)
+                        }
                         .padding(.horizontal, 16)
 
-                        // ── Poll/Event inline sections — same @Binding-only
-                        // components CommunityCreatePostView uses, zero changes
-                        // needed since they're already post-type-agnostic. ─────
+                        // ── Poll/Event/Job inline sections — @Binding-only
+                        // components, already post-type-agnostic. ────────────
                         if postType == .poll {
                             CreatePollSheet(
                                 options:     $composerViewModel.pollOptions,
@@ -225,13 +272,13 @@ struct CreatePostView: View {
                             .padding(.top, 10)
                         }
 
-                        if postType == .text {
-                            // ── Media preview ────────────────────────────────
-                            if !selectedMedia.isEmpty || viewModel.pendingMediaCount > 0 {
-                                mediaPreview
-                                    .padding(.horizontal, 16)
-                            }
+                        // ── Media preview (text posts) ───────────────────────
+                        if takesMedia && (!selectedMedia.isEmpty || viewModel.pendingMediaCount > 0) {
+                            mediaPreview
+                                .padding(.horizontal, 16)
+                        }
 
+                        if postType == .text {
                             // ── Link preview card ────────────────────────────
                             if viewModel.isFetchingLink {
                                 HStack(spacing: 8) {
@@ -254,9 +301,9 @@ struct CreatePostView: View {
                                 .padding(.horizontal, 16)
                         }
 
-                        // ── Photo/Video button (text posts only — backend only
-                        // accepts image_urls on post_type='text') ──────────────
-                        if postType == .text {
+                        // ── Photo/Video button (text posts — the only type the
+                        // backend takes image_urls on here) ───────────────────
+                        if takesMedia {
                             PhotosPicker(
                                 selection: $selectedItems,
                                 maxSelectionCount: 10,
@@ -315,7 +362,7 @@ struct CreatePostView: View {
                     Button {
                         handlePost()
                     } label: {
-                        if viewModel.isPosting {
+                        if isPosting {
                             HStack(spacing: 6) {
                                 ProgressView().scaleEffect(0.8).tint(.white)
                                 Text("Posting...", bundle: bundle)
@@ -347,13 +394,14 @@ struct CreatePostView: View {
             .background(AppColors.base(colorScheme))
             .navigationTitle(isEditMode ? bundle.loc("Edit post") : bundle.loc("New post"))
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled()
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(bundle.loc("Cancel")) {
-                        if hasUnsavedWork { showLeaveDialog = true } else { dismiss() }
-                    }
+                    // Always asks, even with nothing typed yet.
+                    Button(bundle.loc("Cancel")) { showLeaveDialog = true }
                     .foregroundColor(AppColors.textSecondary(colorScheme))
-                    .confirmationDialog(bundle.loc(draftId == nil ? "Save this post as a draft?" : "Save your changes to this draft?"),
+                    .confirmationDialog(bundle.loc(!hasUnsavedWork ? "Discard changes?"
+                                                   : draftId == nil ? "Save this post as a draft?" : "Save your changes to this draft?"),
                                         isPresented: $showLeaveDialog, titleVisibility: .visible) {
                         if !isPostDisabled {
                             Button(bundle.loc("Save draft")) { savePost(as: .draft) }
@@ -367,6 +415,18 @@ struct CreatePostView: View {
                         Button(String(format: bundle.loc("Drafts (%lld)"), feedDrafts.count)) { showDraftPicker = true }
                             .foregroundColor(themeManager.theme.primary)
                     }
+                }
+            }
+            .sheet(isPresented: $showSell) {
+                if let community {
+                    // Listed in this community (already ticked in step 2) and the Marketplace.
+                    CreateListingView(mode: effectiveMode, preselectedCommunityId: community.id) { listing in
+                        if listing.publishStatus != "pending" { onPostCreated?(listing) }
+                        showSell = false
+                        dismiss()
+                    }
+                    .environment(appState)
+                    .environment(themeManager)
                 }
             }
             .sheet(isPresented: $showSchedulePicker) {
@@ -384,6 +444,7 @@ struct CreatePostView: View {
                 if let post = editingPost {
                     content = post.content
                     privacy = post.privacy
+                    communityAudience = post.community?.audience ?? .members
                     if let linkUrl = post.linkUrl {
                         suppressNextLinkDetect = true
                         viewModel.linkPreview = LinkPreviewDTO(
@@ -412,18 +473,19 @@ struct CreatePostView: View {
             .sheet(isPresented: $showPrivacyPicker) {
                 PrivacyPickerSheet(selected: $privacy, mode: appState.currentMode)
             }
-            // Upload or post failure (feed text posts) — the composer stays open
-            // with everything intact so the user can retry or remove the media.
+            // Upload or post failure — the composer stays open with everything
+            // intact so the user can retry or remove the media. Either view
+            // model can fail: feed text posts use one, everything else the other.
             .alert(
                 bundle.loc("Couldn't post"),
                 isPresented: Binding(
-                    get: { viewModel.errorMessage != nil },
-                    set: { if !$0 { viewModel.errorMessage = nil } }
+                    get: { (viewModel.errorMessage ?? composerViewModel.errorMessage) != nil },
+                    set: { if !$0 { viewModel.errorMessage = nil; composerViewModel.errorMessage = nil } }
                 )
             ) {
                 Button(bundle.loc("OK"), role: .cancel) {}
             } message: {
-                Text(viewModel.errorMessage ?? "")
+                Text(viewModel.errorMessage ?? composerViewModel.errorMessage ?? "")
             }
         }
     }
@@ -460,7 +522,9 @@ struct CreatePostView: View {
             }
             dismiss()
         }
-        if postType == .text {
+        if let community {
+            submitToCommunity(community, publish: publish)
+        } else if postType == .text {
             viewModel.submitPost(
                 content: content,
                 mode: appState.currentMode,
@@ -484,6 +548,56 @@ struct CreatePostView: View {
                     hashtags: hashtags
                 ) { communityPost in finish(feedPost(from: communityPost)) }
             }
+        }
+    }
+
+    /// A community takes every post type through its own endpoint, text
+    /// included, so the text post's media and link go to the composer
+    /// model too. The server makes it public and applies post approval.
+    private func submitToCommunity(_ community: Community, publish: PublishChoice) {
+        let mode = effectiveMode
+        composerViewModel.postType = postType
+        composerViewModel.content = content
+        composerViewModel.selectedMedia = selectedMedia
+        composerViewModel.linkPreview = viewModel.linkPreview
+        composerViewModel.publish = publish
+        composerViewModel.replacesDraftId = draftId
+        composerViewModel.communityAudience = community.privacy == .private ? .members : communityAudience
+        let replaced = draftId
+        Task<Void, Never>(name: nil) {
+            await composerViewModel.submitPost(
+                communityId: community.id,
+                token: appState.authToken ?? "",
+                mode: mode,
+                privacy: .publicAll,
+                hashtags: hashtags
+            ) { communityPost in
+                if publish.isLive {
+                    onPostCreated?(communityPost.toPost(
+                        author: appState.currentUser ?? MockData.currentUser,
+                        mode: mode, privacy: .publicAll
+                    ))
+                }
+                if !publish.isLive || replaced != nil {
+                    NotificationCenter.default.post(name: .draftsChanged, object: nil)
+                }
+                dismiss()
+            }
+        }
+    }
+
+    private var placeholderText: String {
+        guard community != nil else {
+            return effectiveMode == .hobby
+                ? bundle.loc("What's on your mind?")
+                : bundle.loc("Share a professional update...")
+        }
+        switch postType {
+        case .text:  return bundle.loc("Share something with the community…")
+        case .poll:  return bundle.loc("What do you want to ask?")
+        case .event: return bundle.loc("Describe this event…")
+        case .job:   return bundle.loc("Describe this role…")
+        case .listing: return bundle.loc("Describe what you're selling…")
         }
     }
 
@@ -535,6 +649,56 @@ struct CreatePostView: View {
         )
     }
 
+    /// Where it goes, then who can see it — "Community only ▾" / "Public ▾".
+    /// A private community's posts are members-only, so there's no choice.
+    private func communityChip(_ target: (name: String, icon: String, isPrivate: Bool)) -> some View {
+        let audience: CommunityAudience = target.isPrivate ? .members : communityAudience
+        return VStack(alignment: .leading, spacing: 6) {
+            chip {
+                Text(target.icon).font(.system(size: 12))
+                Text(target.name)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+            }
+            .accessibilityLabel(Text(String(format: bundle.loc("Post to %@"), target.name)))
+
+            if target.isPrivate {
+                chip { audienceLabel(audience) }
+                    .accessibilityLabel(Text(bundle.loc("Only members of a private community can see its posts")))
+            } else {
+                Menu {
+                    Picker(bundle.loc("Who can see this post"), selection: $communityAudience) {
+                        Label(bundle.loc("Community only"), systemImage: CommunityAudience.members.icon)
+                            .tag(CommunityAudience.members)
+                        Label(bundle.loc("Public"), systemImage: CommunityAudience.publicAll.icon)
+                            .tag(CommunityAudience.publicAll)
+                    }
+                } label: {
+                    chip {
+                        audienceLabel(audience)
+                        Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
+                    }
+                }
+                .accessibilityLabel(Text(bundle.loc("Who can see this post")))
+            }
+        }
+    }
+
+    private func audienceLabel(_ audience: CommunityAudience) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: audience.icon).font(.system(size: 11, weight: .semibold))
+            Text(bundle.loc(audience.label)).font(.system(size: 13, weight: .semibold))
+        }
+    }
+
+    private func chip<C: View>(@ViewBuilder _ content: () -> C) -> some View {
+        HStack(spacing: 5) { content() }
+            .foregroundColor(themeManager.theme.primary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(Capsule().fill(themeManager.theme.softFill))
+    }
+
     private func saveEdit() {
         guard let post = editingPost else { return }
         viewModel.updatePost(
@@ -542,7 +706,8 @@ struct CreatePostView: View {
             content: content,
             privacy: privacy,
             selectedMedia: selectedMedia,
-            existingImageUrls: post.displayImageUrls
+            existingImageUrls: post.displayImageUrls,
+            communityAudience: post.community == nil ? nil : communityAudience
         ) { updatedPost in
             NotificationCenter.default.post(name: .postUpdated, object: nil, userInfo: ["post": updatedPost])
             onPostUpdated?(updatedPost)
