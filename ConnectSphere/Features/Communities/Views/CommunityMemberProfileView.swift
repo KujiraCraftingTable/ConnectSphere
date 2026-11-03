@@ -11,8 +11,12 @@ struct CommunityMemberProfileView: View {
     let userId: String
     @State private var viewModel: CommunityMemberProfileViewModel
     @State private var detailRoute: PostRoute?
+    @State private var pull: CGFloat = 0
+
+    private let communityId: String
 
     init(communityId: String, userId: String) {
+        self.communityId = communityId
         self.userId = userId
         _viewModel = State(initialValue: CommunityMemberProfileViewModel(communityId: communityId, userId: userId))
     }
@@ -33,7 +37,8 @@ struct CommunityMemberProfileView: View {
                     ForEach(viewModel.posts) { post in
                         PostCard(post: post,
                                  onPostDeleted: { viewModel.removePost(id: post.id) },
-                                 onOpenDetail: { focus in detailRoute = PostRoute(postId: post.id, focusComposer: focus) })
+                                 onOpenDetail: { focus in detailRoute = PostRoute(postId: post.id, focusComposer: focus) },
+                                 insideCommunityId: communityId)
                             .cardStyle()
                             .padding(.horizontal, AppSpacing.sm)
                             .task { if post.id == viewModel.posts.last?.id { await viewModel.loadMore(token: token) } }
@@ -43,11 +48,15 @@ struct CommunityMemberProfileView: View {
             }
             .padding(.bottom, AppSpacing.lg)
         }
+        // The cover runs up under the status bar; its fade keeps it legible.
+        .ignoresSafeArea(edges: .top)
+        .trackPull($pull)
+        .refreshable { await viewModel.refresh(token: token) }
+        .overlay(alignment: .top) { PullRefreshIndicator(pull: pull, isRefreshing: viewModel.isRefreshing) }
         .appBackground()
-        .navigationTitle(viewModel.profile?.displayName ?? "")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.hidden, for: .navigationBar)
         .task { await viewModel.load(token: token) }
-        .refreshable { await viewModel.load(token: token) }
         .navigationDestination(isPresented: Binding(get: { detailRoute != nil }, set: { if !$0 { detailRoute = nil } })) {
             if let route = detailRoute { PostDetailView(postId: route.postId, focusComposer: route.focusComposer) }
         }
@@ -57,56 +66,74 @@ struct CommunityMemberProfileView: View {
         } message: { Text(viewModel.errorMessage ?? "") }
     }
 
+    /// Laid out like a profile's header (`ProfileHeaderCard`): the same cover
+    /// and floating card, holding what this community knows about them.
     private func header(_ p: CommunityMemberProfile) -> some View {
-        VStack(spacing: 0) {
-            CoverArtwork(coverUrl: p.coverUrl)
-                .frame(height: 150)
-                .frame(maxWidth: .infinity)
-                .clipped()
-            VStack(spacing: 6) {
-                Avatar(name: p.displayName, colorHex: p.avatarColor, imageURL: p.avatarUrl, diameter: 88)
-                    .overlay(Circle().stroke(AppColors.surface(colorScheme), lineWidth: 4))
-                    .padding(.top, -44)
-                Text(p.displayName)
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundColor(AppColors.textPrimary(colorScheme))
-                Text("@\(p.username)")
-                    .font(.system(size: 14))
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-                HStack(spacing: 14) {
-                    stat(p.connectionsCount, bundle.loc("connections"))
-                    stat(p.postCount, bundle.loc("posts here"))
-                }
-                .padding(.top, 4)
-                if let line = membershipLine(p) {
-                    Text(line)
-                        .font(.system(size: 13))
+        CoverHeader(coverUrl: p.coverUrl) {
+            VStack(spacing: 12) {
+                Avatar(name: p.displayName, colorHex: p.avatarColor, imageURL: p.avatarUrl, diameter: 132)
+                    .overlay(Circle().stroke(AppColors.surface(colorScheme), lineWidth: 5))
+                    .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+                    .padding(.top, -66)
+
+                VStack(spacing: 4) {
+                    Text(p.displayName)
+                        .font(.system(size: 26, weight: .bold))
+                        .foregroundColor(AppColors.textPrimary(colorScheme))
+                        .multilineTextAlignment(.center)
+                    Text("@\(p.username)")
+                        .font(.system(size: 15))
                         .foregroundColor(AppColors.textSecondary(colorScheme))
+                    if let line = membershipLine(p) {
+                        Text(line)
+                            .font(.system(size: 14))
+                            .foregroundColor(AppColors.textSecondary(colorScheme))
+                    }
                 }
+
+                HStack(spacing: 0) {
+                    stat(p.postCount, bundle.loc("posts here"))
+                    stat(p.connectionsCount, bundle.loc("connections"))
+                }
+                .padding(.vertical, 4)
+
                 NavigationLink {
                     UserProfileView(userId: userId).environment(appState)
                 } label: {
                     Text("View full profile", bundle: bundle)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(themeManager.theme.primary)
-                        .padding(.horizontal, 16).padding(.vertical, 8)
-                        .background(themeManager.theme.primary.opacity(0.12), in: Capsule())
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, AppSpacing.sm + 2)
+                        .background(themeManager.theme.primary.opacity(0.12),
+                                    in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .padding(.top, 6)
+                .padding(.top, 4)
             }
             .padding(.horizontal, AppSpacing.lg)
-            .padding(.bottom, AppSpacing.md)
+            .padding(.bottom, AppSpacing.lg)
             .frame(maxWidth: .infinity)
-            .background(AppColors.surface(colorScheme))
+            .background(AppColors.surface(colorScheme),
+                        in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .shadow(color: AppElevation.overlay.color(colorScheme), radius: AppElevation.overlay.radius,
+                    y: AppElevation.overlay.y)
         }
     }
 
     private func stat(_ n: Int, _ label: String) -> some View {
-        HStack(spacing: 4) {
-            Text("\(n)").font(.system(size: 15, weight: .bold))
-            Text(label).font(.system(size: 14)).foregroundColor(AppColors.textSecondary(colorScheme))
+        VStack(spacing: 2) {
+            Text("\(n)")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(AppColors.textPrimary(colorScheme))
+            Text(label)
+                .font(.system(size: 12))
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
     }
 
     /// "Admin · Joined 4 August 2024".

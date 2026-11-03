@@ -10,7 +10,10 @@ struct ManageCommunityContentView: View {
     @State private var viewModel: ManageCommunityContentViewModel
     @State private var detailRoute: PostRoute?
 
+    private let communityId: String
+
     init(communityId: String) {
+        self.communityId = communityId
         _viewModel = State(initialValue: ManageCommunityContentViewModel(communityId: communityId))
     }
 
@@ -34,7 +37,8 @@ struct ManageCommunityContentView: View {
                             statusBadge(post)
                             PostCard(post: post,
                                      onPostDeleted: { viewModel.removePost(id: post.id) },
-                                     onOpenDetail: { focus in detailRoute = PostRoute(postId: post.id, focusComposer: focus) })
+                                     onOpenDetail: { focus in detailRoute = PostRoute(postId: post.id, focusComposer: focus) },
+                                 insideCommunityId: communityId)
                                 .cardStyle()
                         }
                         .task { if post.id == viewModel.posts.last?.id { await viewModel.loadMore(token: token) } }

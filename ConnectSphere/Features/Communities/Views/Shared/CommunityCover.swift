@@ -14,7 +14,7 @@ struct CommunityCover: View {
         ZStack {
             Color(hex: community.coverColor).opacity(0.22)
             if showsPhoto, let url = APIConfig.mediaURL(community.coverUrl) {
-                AsyncImage(url: url) { phase in
+                RemoteImage(url: url) { phase in
                     if let image = phase.image {
                         image.resizable().scaledToFill()
                     } else {

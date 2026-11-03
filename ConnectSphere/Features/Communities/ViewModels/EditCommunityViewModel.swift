@@ -8,11 +8,12 @@ import SwiftUI
 @MainActor
 @Observable
 final class EditCommunityViewModel {
-    static let maxAbout = 500
-
     var name: String
     var about: String {
-        didSet { if about.count > Self.maxAbout { about = String(about.prefix(Self.maxAbout)) } }
+        didSet {
+            let clamped = CommunityDescription.clamped(about)
+            if clamped != about { about = clamped }
+        }
     }
     var privacy: CommunityPrivacy
     var requirePostApproval: Bool

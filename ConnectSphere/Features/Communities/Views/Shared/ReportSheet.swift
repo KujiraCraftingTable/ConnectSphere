@@ -37,9 +37,10 @@ struct ReportSheet: View {
             .navigationTitle(bundle.loc(targetType == "post" ? "Report post"
                                         : targetType == "community" ? "Report community" : "Report member"))
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(bundle.loc("Cancel")) { dismiss() }
+                    ConfirmCancelButton { dismiss() }
                 }
                 if !viewModel.submitted {
                     ToolbarItem(placement: .confirmationAction) {

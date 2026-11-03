@@ -60,7 +60,8 @@ struct EditCommunityView: View {
                 } header: {
                     Text("About", bundle: bundle)
                 } footer: {
-                    Text("\(viewModel.about.count)/\(EditCommunityViewModel.maxAbout)")
+                    Text(String(format: bundle.loc("%lld/%lld words"),
+                                CommunityDescription.wordCount(viewModel.about), CommunityDescription.maxWords))
                 }
 
                 Section {
@@ -79,8 +80,9 @@ struct EditCommunityView: View {
             }
             .navigationTitle(bundle.loc("Edit community"))
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled()
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button(bundle.loc("Cancel")) { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { ConfirmCancelButton { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     if viewModel.isSaving {
                         ProgressView()

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Inline section shown inside CommunityCreatePostView when post type = Poll.
+/// Inline section shown inside CreatePostView when post type = Poll.
 /// Lets the user enter 2–6 options and an optional end date.
 struct CreatePollSheet: View {
     @Environment(\.colorScheme) var colorScheme

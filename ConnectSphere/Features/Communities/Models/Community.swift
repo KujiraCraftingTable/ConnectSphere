@@ -88,6 +88,10 @@ struct CommunityMember: Identifiable {
     let company: String?
     let role: MemberRole
     let joinedAt: Date
+    /// Their photo in the community's mode.
+    var avatarUrl: String? = nil
+    /// Connected with you in the community's mode.
+    var isFriend = false
 }
 
 /// The "About this community" page (`GET /communities/:id/info`).
@@ -234,5 +238,29 @@ struct CommunityMemberProfile: Decodable {
         joinedAt = try c.decodeIfPresent(Date.self, forKey: .joinedAt)
         postCount = try c.decode(Int.self, forKey: .postCount)
         posts = try c.decode([PostDTO].self, forKey: .posts).map { $0.toPost() }
+    }
+}
+
+/// A community's description: up to 200 words.
+enum CommunityDescription {
+    static let maxWords = 200
+
+    static func wordCount(_ text: String) -> Int {
+        text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+    }
+
+    /// `text` cut at the 200th word, so typing past the limit just stops.
+    static func clamped(_ text: String) -> String {
+        guard wordCount(text) > maxWords else { return text }
+        var count = 0, inWord = false
+        for i in text.indices {
+            let space = text[i].isWhitespace || text[i].isNewline
+            if !space && !inWord {
+                count += 1
+                if count > maxWords { return String(text[..<i]).trimmingCharacters(in: .whitespacesAndNewlines) }
+            }
+            inWord = !space
+        }
+        return text
     }
 }
