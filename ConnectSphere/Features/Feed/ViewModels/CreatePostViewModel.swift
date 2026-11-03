@@ -167,6 +167,7 @@ class CreatePostViewModel {
         privacy: PostPrivacy,
         selectedMedia: [PickedPostMedia],
         existingImageUrls: [String],
+        communityAudience: CommunityAudience? = nil,
         onSuccess: @escaping (Post) -> Void
     ) {
         let capturedPreview = linkPreview
@@ -199,7 +200,8 @@ class CreatePostViewModel {
                 imageUrls: imageUrls,
                 imageAlts: selectedMedia.isEmpty ? nil : selectedMedia.map(\.altText),
                 linkUrl: capturedPreview?.url,
-                articleTitle: capturedPreview?.title
+                articleTitle: capturedPreview?.title,
+                communityAudience: communityAudience
             )
             if let post = updatedPost {
                 onSuccess(post)

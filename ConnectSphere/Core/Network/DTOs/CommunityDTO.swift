@@ -103,6 +103,8 @@ struct CommunityMemberDTO: Decodable {
     let company: String?
     let role: String
     let joinedAt: Date
+    let avatarUrl: String?
+    let isFriend: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id, username, role, company
@@ -110,6 +112,8 @@ struct CommunityMemberDTO: Decodable {
         case avatarColor = "avatar_color"
         case jobTitle    = "job_title"
         case joinedAt    = "joined_at"
+        case avatarUrl   = "avatar_url"
+        case isFriend    = "is_friend"
     }
 
     func toMember() -> CommunityMember {
@@ -121,7 +125,9 @@ struct CommunityMemberDTO: Decodable {
             jobTitle:    jobTitle,
             company:     company,
             role:        MemberRole(rawValue: role) ?? .member,
-            joinedAt:    joinedAt
+            joinedAt:    joinedAt,
+            avatarUrl:   avatarUrl,
+            isFriend:    isFriend ?? false
         )
     }
 }
@@ -152,9 +158,13 @@ struct CommunityPostDTO: Decodable {
     let linkUrl: String?
     let articleTitle: String?
     let tags: [String]?
+    /// "pending" when the community holds posts for approval.
+    let status: String?
+    let listingData: ListingDataDTO?
 
     enum CodingKeys: String, CodingKey {
-        case id, content, author, community, tags
+        case id, content, author, community, tags, status
+        case listingData  = "listing_data"
         case postType     = "post_type"
         case isPinned     = "is_pinned"
         case likeCount    = "like_count"
@@ -196,6 +206,8 @@ struct CommunityPostDTO: Decodable {
         linkUrl      = try c.decodeIfPresent(String.self, forKey: .linkUrl)
         articleTitle = try c.decodeIfPresent(String.self, forKey: .articleTitle)
         tags         = try c.decodeIfPresent([String].self, forKey: .tags)
+        status       = try c.decodeIfPresent(String.self, forKey: .status)
+        listingData  = try c.decodeIfPresent(ListingDataDTO.self, forKey: .listingData)
     }
 
     func toCommunityPost() -> CommunityPost {
@@ -220,7 +232,9 @@ struct CommunityPostDTO: Decodable {
             contentLang:    lang,
             translatedContent: translatedText,
             articleTitle: articleTitle,
-            tags:         tags ?? []
+            tags:         tags ?? [],
+            publishStatus: status,
+            listingData:  listingData?.toListingData()
         )
     }
 }
@@ -255,15 +269,18 @@ struct CommunityRefDTO: Decodable {
     let name: String
     let iconEmoji: String
     let avatarUrl: String?
+    let privacy: String?
+    let audience: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, name
+        case id, name, privacy, audience
         case iconEmoji = "icon_emoji"
         case avatarUrl = "avatar_url"
     }
 
     func toCommunityRef() -> CommunityRef {
-        CommunityRef(id: id, name: name, iconEmoji: iconEmoji, avatarUrl: avatarUrl)
+        CommunityRef(id: id, name: name, iconEmoji: iconEmoji, avatarUrl: avatarUrl, privacy: privacy,
+                     audience: audience.flatMap(CommunityAudience.init(rawValue:)) ?? .members)
     }
 }
 
@@ -362,6 +379,47 @@ struct EventDataDTO: Decodable {
 }
 
 // ── Job DTOs ──────────────────────────────────────────────────────────────────
+
+struct ListingDataDTO: Decodable {
+    let id: String
+    let title: String
+    let price: Int64
+    let condition: String
+    let location: String?
+    let status: String
+    let hideFromFriends: Bool
+    let hasAutoReply: Bool
+    let autoReply: String?
+    let communities: [ListedInDTO]?
+    let latitude: Double?
+    let longitude: Double?
+
+    struct ListedInDTO: Decodable {
+        let id: String
+        let name: String
+        let iconEmoji: String
+        enum CodingKeys: String, CodingKey {
+            case id, name
+            case iconEmoji = "icon_emoji"
+        }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, price, condition, location, status, communities, latitude, longitude
+        case hideFromFriends = "hide_from_friends"
+        case hasAutoReply    = "has_auto_reply"
+        case autoReply       = "auto_reply"
+    }
+
+    func toListingData() -> ListingData {
+        ListingData(id: id, title: title, price: price,
+                    condition: ListingCondition(rawValue: condition) ?? .good,
+                    location: location, isSold: status == "sold",
+                    hideFromFriends: hideFromFriends, hasAutoReply: hasAutoReply, autoReply: autoReply,
+                    communities: (communities ?? []).map { .init(id: $0.id, name: $0.name, iconEmoji: $0.iconEmoji) },
+                    latitude: latitude, longitude: longitude)
+    }
+}
 
 struct JobDataDTO: Decodable {
     let id: String

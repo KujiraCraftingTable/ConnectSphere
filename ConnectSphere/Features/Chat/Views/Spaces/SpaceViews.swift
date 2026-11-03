@@ -126,9 +126,10 @@ struct SpaceEditorSheet: View {
             .background(AppColors.base(colorScheme))
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(bundle.loc("Cancel")) { dismiss() }
+                    ConfirmCancelButton { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(confirmTitle) {

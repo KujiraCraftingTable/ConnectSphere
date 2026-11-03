@@ -71,7 +71,7 @@ struct HighlightsRow: View {
     }
 
     private func cover(_ path: String) -> some View {
-        AsyncImage(url: APIConfig.mediaURL(path)) { phase in
+        RemoteImage(url: APIConfig.mediaURL(path)) { phase in
             if let image = phase.image { image.resizable().scaledToFill() }
             else { AppColors.elevated(colorScheme) }
         }
@@ -111,7 +111,7 @@ struct HighlightViewerView: View {
         ZStack {
             Color.black.ignoresSafeArea()
             if let item = viewModel.current {
-                AsyncImage(url: APIConfig.mediaURL(item.imageUrl)) { phase in
+                RemoteImage(url: APIConfig.mediaURL(item.imageUrl)) { phase in
                     if let image = phase.image { image.resizable().scaledToFit() }
                     else { ProgressView().tint(.white) }
                 }
@@ -265,7 +265,7 @@ struct HighlightEditorView: View {
                         LazyVGrid(columns: columns, spacing: 8) {
                             ForEach(viewModel.myStories) { story in
                                 Button { viewModel.toggleStory(story.id) } label: {
-                                    AsyncImage(url: APIConfig.mediaURL(story.imageUrl)) { phase in
+                                    RemoteImage(url: APIConfig.mediaURL(story.imageUrl)) { phase in
                                         if let image = phase.image { image.resizable().scaledToFill() }
                                         else { AppColors.elevated(colorScheme) }
                                     }
@@ -287,8 +287,9 @@ struct HighlightEditorView: View {
             }
             .navigationTitle(bundle.loc(viewModel.editing == nil ? "New highlight" : "Edit highlight"))
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled()
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button(bundle.loc("Cancel")) { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { ConfirmCancelButton { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     if viewModel.isSaving {
                         ProgressView()
@@ -371,7 +372,7 @@ struct AddToHighlightSheet: View {
                         }
                     } label: {
                         HStack(spacing: 12) {
-                            AsyncImage(url: APIConfig.mediaURL(highlight.coverUrl)) { phase in
+                            RemoteImage(url: APIConfig.mediaURL(highlight.coverUrl)) { phase in
                                 if let image = phase.image { image.resizable().scaledToFill() }
                                 else { AppColors.elevated(colorScheme) }
                             }

@@ -14,8 +14,11 @@ posts. Built for **COMP1682**.
   `node-backend-final`.)*
 - **Bilingual** — English / Vietnamese, switchable in‑app.
 
-For how the AI search pipeline works end to end, see
-[`AI_SEARCH_OVERVIEW.md`](AI_SEARCH_OVERVIEW.md). For deliberately deferred
+Who the app is for, what people do in it and what sets it apart:
+[`PRODUCT.md`](PRODUCT.md). For how the AI search pipeline works end to end, see
+[`AI_SEARCH_OVERVIEW.md`](AI_SEARCH_OVERVIEW.md), and for how it compares with Spotify, Netflix
+and Amazon, see [`AI_SEARCH_REVIEW.md`](AI_SEARCH_REVIEW.md); for how the Home feed ranks posts
+compared with Facebook and TikTok, see [`FEED_RANKING_REVIEW.md`](FEED_RANKING_REVIEW.md). For deliberately deferred
 scope, see [`KNOWN_GAPS.md`](KNOWN_GAPS.md).
 
 ---

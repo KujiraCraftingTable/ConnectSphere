@@ -40,7 +40,7 @@ class PostComposerViewModel {
     /// VND million / month, as typed.
     var jobSalaryMin = ""
     var jobSalaryMax = ""
-    /// Required skills, added one at a time in a SkillTagField.
+    /// Required skills, picked from the skill catalogue (SkillPickerView).
     var jobSkills: [String] = []
     /// The company pages you can post jobs as.
     private(set) var myCompanies: [Company] = []
@@ -111,10 +111,17 @@ class PostComposerViewModel {
             guard !trimmed.isEmpty else { return false }
             return !jobTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 && jobSalaryValid && jobSkills.count <= 10
+        case .listing:
+            // Listings are made in the Marketplace (CreateListingView), not here.
+            return false
         }
     }
 
     var remaining: Int { maxLength - content.count }
+
+    /// Community posts only: who can see it. Members only unless the poster
+    /// picks Public (not offered in a private community).
+    var communityAudience: CommunityAudience = .members
 
     // MARK: - Submit
 
@@ -147,6 +154,8 @@ class PostComposerViewModel {
             case .poll:  post = try await submitPoll(communityId: communityId, token: token, mode: mode, privacy: privacy, hashtags: hashtags)
             case .event: post = try await submitEvent(communityId: communityId, token: token, mode: mode, privacy: privacy, hashtags: hashtags)
             case .job:   post = try await submitJob(communityId: communityId, token: token, mode: mode, privacy: privacy, hashtags: hashtags)
+            case .listing:
+                throw APIError.serverError(statusCode: 400, message: Bundle.app.loc("Listings are created from the Marketplace"))
             }
             content = ""
             selectedItems = []
@@ -284,6 +293,7 @@ class PostComposerViewModel {
         if let title = capturedPreview?.title   { dict["article_title"] = title }
         if !hashtags.isEmpty                    { dict["hashtags"]      = hashtags }
         publish.apply(to: &dict, replacing: replacesDraftId)
+        if communityId != nil { dict["community_audience"] = communityAudience.rawValue }
 
         let body = try? JSONSerialization.data(withJSONObject: dict)
         let res = try await client.fetch(DataResponse<CommunityPostDTO>.self,
@@ -309,6 +319,7 @@ class PostComposerViewModel {
         }
         if !hashtags.isEmpty { dict["hashtags"] = hashtags }
         publish.apply(to: &dict, replacing: replacesDraftId)
+        if communityId != nil { dict["community_audience"] = communityAudience.rawValue }
         let body = try? JSONSerialization.data(withJSONObject: dict)
         let res = try await client.fetch(DataResponse<CommunityPostDTO>.self,
                                           path: postPath(communityId: communityId),
@@ -334,6 +345,7 @@ class PostComposerViewModel {
         ]
         if !hashtags.isEmpty { dict["hashtags"] = hashtags }
         publish.apply(to: &dict, replacing: replacesDraftId)
+        if communityId != nil { dict["community_audience"] = communityAudience.rawValue }
         let body = try? JSONSerialization.data(withJSONObject: dict)
         let res = try await client.fetch(DataResponse<CommunityPostDTO>.self,
                                           path: postPath(communityId: communityId),
@@ -375,6 +387,7 @@ class PostComposerViewModel {
         ]
         if !hashtags.isEmpty { dict["hashtags"] = hashtags }
         publish.apply(to: &dict, replacing: replacesDraftId)
+        if communityId != nil { dict["community_audience"] = communityAudience.rawValue }
         let body = try? JSONSerialization.data(withJSONObject: dict)
         let res = try await client.fetch(DataResponse<CommunityPostDTO>.self,
                                           path: postPath(communityId: communityId),

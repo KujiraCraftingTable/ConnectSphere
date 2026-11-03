@@ -11,6 +11,9 @@ public func configure(_ app: Application) async throws {
     app.appEnv = env
     app.http.server.configuration.port = env.port
     app.http.server.configuration.hostname = "0.0.0.0"
+    // JSON lists (feed, search) shrink several times over; only applied when
+    // the client sends Accept-Encoding, which URLSession always does.
+    app.http.server.configuration.responseCompression = .enabled
 
     // JSON in/out matching Node's `res.json` (fractional-second ISO-8601 dates).
     JSONCoding.install()
@@ -25,6 +28,8 @@ public func configure(_ app: Application) async throws {
     // 4. Middleware — order matches index.js. Vapor's own ErrorMiddleware is
     //    replaced by ours so the JSON error shape matches Node.
     app.middleware = .init()
+    // Outermost, so it sees the final status of every request, errors included.
+    app.middleware.use(RequestTimingMiddleware())
     app.middleware.use(AppErrorMiddleware(isProduction: env.isProduction, logger: app.logger))
     app.middleware.use(SecurityHeadersMiddleware())
     app.middleware.use(RateLimitMiddleware.global())
@@ -32,6 +37,7 @@ public func configure(_ app: Application) async throws {
     app.asyncCommands.use(StripUploadMetadataCommand(), as: "strip-upload-metadata")
     app.asyncCommands.use(VerifyCompanyCommand(), as: "verify-company")
     app.asyncCommands.use(CommunityReportsCommand(), as: "community-reports")
+    app.asyncCommands.use(SeedDemoCommand(), as: "seed-demo")
 
     // 5. Routes.
     HealthController.register(app)

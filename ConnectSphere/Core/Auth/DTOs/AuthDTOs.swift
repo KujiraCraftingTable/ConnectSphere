@@ -38,6 +38,8 @@ struct AuthUserDTO: Decodable {
     let age: Int?
     let dob: String?
     let dobVisibility: String?
+    /// Birthday changes still allowed (2 per account).
+    let dobChangesLeft: Int?
     let defaultMode: String
     let followerCount: Int
     let followingCount: Int
@@ -60,6 +62,7 @@ struct AuthUserDTO: Decodable {
         case relationshipStatus = "relationship_status"
         case isLocked = "is_locked"
         case dobVisibility  = "dob_visibility"
+        case dobChangesLeft = "dob_changes_left"
         case displayName    = "display_name"
         case avatarColor    = "avatar_color"
         case avatarUrl      = "avatar_url"
@@ -104,6 +107,7 @@ struct AuthUserDTO: Decodable {
         age            = try c.decodeIfPresent(Int.self, forKey: .age)
         dob            = try c.decodeIfPresent(String.self, forKey: .dob)
         dobVisibility  = try c.decodeIfPresent(String.self, forKey: .dobVisibility)
+        dobChangesLeft = try c.decodeIfPresent(Int.self, forKey: .dobChangesLeft)
         defaultMode    = try c.decodeIfPresent(String.self, forKey: .defaultMode) ?? "hobby"
         followerCount  = try c.decodeIfPresent(Int.self, forKey: .followerCount) ?? 0
         followingCount = try c.decodeIfPresent(Int.self, forKey: .followingCount) ?? 0
@@ -138,6 +142,7 @@ struct AuthUserDTO: Decodable {
             age: age,
             dob: dob,
             dobVisibility: dobVisibility,
+            dobChangesLeft: dobChangesLeft,
             followerCount: followerCount,
             followingCount: followingCount,
             postCount: postCount

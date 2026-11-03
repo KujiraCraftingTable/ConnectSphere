@@ -12,7 +12,7 @@ final class PersonaSetupViewModel {
     }
     var jobTitle = ""
     var company = ""
-    /// Work skills, added one at a time in a SkillTagField.
+    /// Work skills, picked from the skill catalogue (SkillPickerView).
     var skills: [String] = []
     var selectedInterests: [InterestItem] = []
     private(set) var isSaving = false

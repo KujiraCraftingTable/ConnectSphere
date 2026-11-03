@@ -175,6 +175,11 @@ enum SocketHandlers {
             Task { await NotifyService.notifyNewMessage(conversationID: cid, senderID: conn.userID, message: msg,
                 on: session.db.sql(), hub: session.hub, logger: session.logger) }
             await ackData(session, ackID, msg)
+            do {
+                try await ListingAutoReply.afterMessage(msg, conversationID: cid, participants: parts, hub: session.hub, on: db)
+            } catch {
+                session.logger.error("listing auto-reply failed: \(error)")
+            }
         } catch {
             session.logger.error("send_message error: \(error)")
             await session.ackError(ackID, "Failed to send message")

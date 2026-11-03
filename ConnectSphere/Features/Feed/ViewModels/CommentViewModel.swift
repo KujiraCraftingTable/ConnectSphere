@@ -60,13 +60,27 @@ class CommentViewModel {
         comments.filter { $0.parentCommentId == parentId }
     }
 
+    /// Every comment, a page at a time — sorting and threading happen here,
+    /// so a post past one page needs them all (it used to stop at 50).
+    static let pageSize = 100
+    static let maxPages = 20
+
     func load(postId: String) async {
         isLoading = true
-        if let res = try? await APIClient.shared.fetch(CommentsResponse.self,
-                                                       from: .listComments(postId: postId)) {
-            comments = res.data
+        defer { isLoading = false }
+        var all: [CommentDTO] = []
+        for page in 0..<Self.maxPages {
+            guard let res = try? await APIClient.shared.fetch(
+                CommentsResponse.self,
+                from: .listComments(postId: postId, limit: Self.pageSize, offset: page * Self.pageSize))
+            else {
+                if page == 0 { return }   // keep what's shown when the first page fails
+                break
+            }
+            all += res.data
+            if res.data.count < Self.pageSize || all.count >= res.total { break }
         }
-        isLoading = false
+        comments = all
     }
 
     /// Loads a photo picked from the library into the composer (one per comment;
@@ -89,9 +103,8 @@ class CommentViewModel {
     }
 
     /// Posts a comment (or a reply, when `replyingTo` is set), uploading the
-    /// attached photo first. Routes through `PostRepository` like every other
-    /// post API call; reloads the whole list on success to guarantee an
-    /// accurate sync.
+    /// attached photo first. The server's copy of the new comment goes
+    /// straight into the list — no reload of every page.
     func addComment(postId: String, content: String) async -> Bool {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || attachedPhotoData != nil else { return false }
@@ -105,13 +118,13 @@ class CommentViewModel {
             imageUrl = url
         }
         let parentId = replyingTo?.id
-        guard (try? await repository.addComment(postId: postId, content: trimmed, parentCommentId: parentId,
-                                                 imageUrl: imageUrl)) != nil else {
+        guard let created = try? await repository.addComment(postId: postId, content: trimmed, parentCommentId: parentId,
+                                                              imageUrl: imageUrl) else {
             return false
         }
+        comments.append(created)
         replyingTo = nil
         removePhoto()
-        await load(postId: postId)
         return true
     }
 
@@ -148,19 +161,25 @@ class CommentViewModel {
         return true
     }
 
-    /// Toggles a like on a comment; updates in place from the response
+    /// Toggles a like on a comment: flips at once, then takes the server's
+    /// count, or flips back if the request fails.
     func toggleLike(postId: String, commentId: String) async {
-        guard let token = authToken() else { return }
-        guard let res = try? await NetworkClient.shared.fetch(
+        guard let token = authToken(), let i = comments.firstIndex(where: { $0.id == commentId }) else { return }
+        let before = (comments[i].isLiked, comments[i].likeCount)
+        comments[i].isLiked.toggle()
+        comments[i].likeCount += comments[i].isLiked ? 1 : -1
+        let res = try? await NetworkClient.shared.fetch(
             LikeResponse.self,
             path: "/posts/\(postId)/comments/\(commentId)/like",
             method: "POST",
             token: token
-        ) else { return }
-
-        if let i = comments.firstIndex(where: { $0.id == commentId }) {
-            comments[i].isLiked   = res.liked
-            comments[i].likeCount = res.likeCount
+        )
+        guard let j = comments.firstIndex(where: { $0.id == commentId }) else { return }
+        if let res {
+            comments[j].isLiked   = res.liked
+            comments[j].likeCount = res.likeCount
+        } else {
+            (comments[j].isLiked, comments[j].likeCount) = before
         }
     }
 

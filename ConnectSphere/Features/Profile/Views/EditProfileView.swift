@@ -13,6 +13,7 @@ struct EditProfileView: View {
     var onSaved: ((UserProfile) -> Void)? = nil
 
     @State private var viewModel = EditProfileViewModel()
+    @State private var confirmDobChange = false
 
     @State private var pickingLanguages = false
 
@@ -89,9 +90,11 @@ struct EditProfileView: View {
                     }
                     TextField(bundle.loc("About yourself"), text: $viewModel.bio, axis: .vertical)
                         .lineLimit(3...5)
-                    TextField(bundle.loc("Location"), text: $viewModel.location)
+                    LocationSearchField(bundle.loc("Location"), text: $viewModel.location)
                     DatePicker(bundle.loc("Date of birth"), selection: $viewModel.dobDate,
                                displayedComponents: .date)
+                        .disabled(viewModel.isDobLocked)
+                    dobNote
 
                     DobVisibilityToggle(
                         visibility: $viewModel.dobVisibility,
@@ -154,7 +157,7 @@ struct EditProfileView: View {
                     Section(bundle.loc("Work")) {
                         TextField(bundle.loc("Job title"), text: $viewModel.jobTitle)
                         TextField(bundle.loc("Company"), text: $viewModel.company)
-                        SkillTagField(skills: $viewModel.skills, colorScheme: colorScheme)
+                        SkillPickerView(skills: $viewModel.skills, jobTitle: viewModel.jobTitle, colorScheme: colorScheme)
                             .padding(.vertical, 4)
                     }
                 }
@@ -178,18 +181,14 @@ struct EditProfileView: View {
             }
             .navigationTitle(bundle.loc("Edit profile"))
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled()
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(bundle.loc("Cancel")) { dismiss() }
+                    ConfirmCancelButton { dismiss() }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
-                        Task {
-                            guard let updated = await viewModel.save(mode: appState.currentMode) else { return }
-                            appState.currentUser = updated
-                            onSaved?(updated)
-                            dismiss()
-                        }
+                        if viewModel.dobChanged { confirmDobChange = true } else { save() }
                     } label: {
                         if viewModel.isSaving {
                             ProgressView().scaleEffect(0.8)
@@ -220,7 +219,45 @@ struct EditProfileView: View {
                 }
             }
             .onAppear { viewModel.load(from: appState.currentUser) }
+            .alert(bundle.loc("Change your birthday?"), isPresented: $confirmDobChange) {
+                Button(bundle.loc("Change it"), role: .destructive) { save() }
+                Button(bundle.loc("Cancel"), role: .cancel) {}
+            } message: {
+                Text(dobChangeWarning)
+            }
         }
+    }
+
+    private func save() {
+        Task {
+            guard let updated = await viewModel.save(mode: appState.currentMode) else { return }
+            appState.currentUser = updated
+            onSaved?(updated)
+            dismiss()
+        }
+    }
+
+    /// Your age decides what you can use (Dating is 16+), so a birthday can
+    /// only change twice; after that, support has to do it.
+    @ViewBuilder
+    private var dobNote: some View {
+        if let left = viewModel.dobChangesLeft {
+            Text(left == 0
+                 ? String(format: bundle.loc("You've used both birthday changes. To change it again, email %@."),
+                          EditProfileViewModel.supportEmail)
+                 : String(format: bundle.loc(left == 1 ? "You can change your birthday 1 more time." : "You can change your birthday %lld more times."), left))
+                .font(.system(size: 13))
+                .foregroundColor(left == 0 ? AppColors.danger(colorScheme) : AppColors.textSecondary(colorScheme))
+        }
+    }
+
+    private var dobChangeWarning: String {
+        let left = max(0, (viewModel.dobChangesLeft ?? 2) - 1)
+        let after = left == 0
+            ? String(format: bundle.loc("This is your last change — after it, only support (%@) can change your birthday."),
+                     EditProfileViewModel.supportEmail)
+            : bundle.loc("After this you'll have 1 change left.")
+        return bundle.loc("Your age decides what you can use in ConnectSphere, like Dating, so a birthday can only be changed twice.") + " " + after
     }
 
     // MARK: - Cover preview

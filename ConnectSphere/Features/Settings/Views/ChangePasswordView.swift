@@ -50,9 +50,10 @@ struct ChangePasswordView: View {
             }
             .navigationTitle(bundle.loc(viewModel.hasPassword ? "Change password" : "Set password"))
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled()
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(bundle.loc("Cancel")) { dismiss() }
+                    ConfirmCancelButton { dismiss() }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {

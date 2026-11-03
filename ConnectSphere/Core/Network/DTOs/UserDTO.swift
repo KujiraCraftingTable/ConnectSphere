@@ -17,6 +17,8 @@ struct UserDTO: Decodable {
     /// profile lost its date of birth and Edit profile showed "20 years ago".
     let dob: String?
     let dobVisibility: String?
+    /// Owner's own responses only: birthday changes still allowed (2 per account).
+    let dobChangesLeft: Int?
     /// The persona's "See my other profile" switch; missing → on.
     let linksOtherMode: Bool?
     /// Owner's own response only (PATCH /users/me).
@@ -44,6 +46,7 @@ struct UserDTO: Decodable {
     enum CodingKeys: String, CodingKey {
         case id, username, bio, location, gender, email, company, interests, skills, score, age, dob
         case dobVisibility   = "dob_visibility"
+        case dobChangesLeft  = "dob_changes_left"
         case linksOtherMode  = "links_other_mode"
         case emailVerified   = "email_verified"
         case twoFactorEnabled = "two_factor_enabled"
@@ -97,6 +100,7 @@ struct UserDTO: Decodable {
             age:            age,
             dob:            dob,
             dobVisibility:  dobVisibility,
+            dobChangesLeft: dobChangesLeft,
             followerCount:  followerCount,
             followingCount: followingCount,
             postCount:      postCount,

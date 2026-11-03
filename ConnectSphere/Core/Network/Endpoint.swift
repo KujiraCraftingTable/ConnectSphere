@@ -10,6 +10,9 @@ enum Endpoint {
     case getPost(id: String)
     case recommendedFeed(mode: String, cursor: String? = nil, limit: Int = 20)
     case aiSearch(query: String, mode: String? = nil, radiusKm: Int? = nil)
+    /// Refines an earlier AI people search (same POST /search/ai): free text,
+    /// people more like one result, or closer to the user's own city.
+    case aiRefine(sessionId: String, mode: String, refine: String?, moreLike: String?, closer: Bool)
     /// AI search over posts — same body as `aiSearch` minus the radius
     /// (posts carry no location). POST /search/ai/posts.
     case aiPostSearch(query: String, mode: String? = nil)
@@ -17,10 +20,19 @@ enum Endpoint {
     case listWards(provinceCode: String)
     case analyzePost(content: String, currentMode: String)
     case linkPreview(url: String)
-    case listComments(postId: String)
+    /// One page of a post's comments, oldest first (the server caps a page at 100).
+    case listComments(postId: String, limit: Int = 100, offset: Int = 0)
     case searchSuggestions(mode: String?)
     /// Prefix-match hashtag suggestions while typing in `HashtagInputView` — GET /tags/suggest.
     case suggestTags(prefix: String, limit: Int = 8)
+    /// The curated interest catalogue — GET /interests/catalog. Open, so an
+    /// email sign-up can pick interests before its account exists.
+    case interestCatalog
+    /// Checks a "Category · specific" pick ("Gaming" + "roblox") — POST /interests/specific.
+    case interestSpecific(base: String, text: String)
+    /// The curated Work skill catalogue — GET /skills/catalog; a job title
+    /// adds the skills people with a similar title hold.
+    case skillCatalog(jobTitle: String?)
 
     // Computed, not cached — APIConfig.baseURL can change at runtime
     // (devServerOverride); a `let` here would freeze the old value.
@@ -29,7 +41,7 @@ enum Endpoint {
     /// Per-endpoint timeout. AI search allows up to 90 s for LLM inference.
     var timeoutInterval: TimeInterval {
         switch self {
-        case .aiSearch, .aiPostSearch: return 90
+        case .aiSearch, .aiRefine, .aiPostSearch: return 90
         default:        return 30
         }
     }
@@ -42,7 +54,7 @@ enum Endpoint {
 
     var httpMethod: String {
         switch self {
-        case .aiSearch, .aiPostSearch, .analyzePost, .linkPreview: return "POST"
+        case .aiSearch, .aiRefine, .aiPostSearch, .analyzePost, .linkPreview, .interestSpecific: return "POST"
         default:                                    return "GET"
         }
     }
@@ -54,6 +66,12 @@ enum Endpoint {
             if let mode     = mode     { dict["mode"]     = mode }
             if let radiusKm = radiusKm { dict["radiusKm"] = radiusKm }
             return try? JSONSerialization.data(withJSONObject: dict)
+        case .aiRefine(let sessionId, let mode, let refine, let moreLike, let closer):
+            var dict: [String: Any] = ["session_id": sessionId, "mode": mode]
+            if let refine   { dict["refine"] = refine }
+            if let moreLike { dict["more_like"] = moreLike }
+            if closer       { dict["closer"] = true }
+            return try? JSONSerialization.data(withJSONObject: dict)
         case .aiPostSearch(let q, let mode):
             var dict: [String: Any] = ["query": q]
             if let mode = mode { dict["mode"] = mode }
@@ -62,6 +80,8 @@ enum Endpoint {
             return try? JSONEncoder().encode(["content": content, "currentMode": mode])
         case .linkPreview(let url):
             return try? JSONEncoder().encode(["url": url])
+        case .interestSpecific(let base, let text):
+            return try? JSONEncoder().encode(["base": base, "text": text])
         default:
             return nil
         }
@@ -76,11 +96,14 @@ enum Endpoint {
         case .recommendedFeed:          return "/feed/recommendations"
         case .analyzePost:              return "/posts/analyze"
         case .linkPreview:              return "/link-preview"
-        case .listComments(let postId): return "/posts/\(postId)/comments"
-        case .aiSearch:                 return "/search/ai"
+        case .listComments(let postId, _, _): return "/posts/\(postId)/comments"
+        case .aiSearch, .aiRefine:      return "/search/ai"
         case .aiPostSearch:             return "/search/ai/posts"
         case .searchSuggestions:        return "/search/suggestions"
         case .suggestTags:              return "/tags/suggest"
+        case .interestCatalog:          return "/interests/catalog"
+        case .interestSpecific:         return "/interests/specific"
+        case .skillCatalog:             return "/skills/catalog"
         case .listProvinces:            return "/wards/provinces"
         case .listWards:                return "/wards"
         }
@@ -109,6 +132,13 @@ enum Endpoint {
 
         case .listWards(let provinceCode):
             return [.init(name: "province_code", value: provinceCode)]
+
+        case .listComments(_, let limit, let offset):
+            return [.init(name: "limit", value: "\(limit)"), .init(name: "offset", value: "\(offset)")]
+
+        case .skillCatalog(let jobTitle):
+            guard let jobTitle, !jobTitle.isEmpty else { return [] }
+            return [.init(name: "job_title", value: jobTitle)]
 
         case .suggestTags(let prefix, let limit):
             return [

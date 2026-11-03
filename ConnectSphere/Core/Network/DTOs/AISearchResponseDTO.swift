@@ -99,9 +99,11 @@ struct AISearchResponseDTO: Decodable {
     let criteria:  AISearchCriteriaDTO
     let entity_suggestions: [EntitySuggestionDTO]
     let warnings:  [SearchWarningDTO]
+    /// Ties taps, "Not a fit", refinements and "why they fit you" to this search.
+    let search_session_id: String?
 
     private enum CodingKeys: String, CodingKey {
-        case data, criteria, entity_suggestions, warnings
+        case data, criteria, entity_suggestions, warnings, search_session_id
     }
 
     init(from decoder: Decoder) throws {
@@ -111,6 +113,7 @@ struct AISearchResponseDTO: Decodable {
         // New field — still decodes fine against an older backend or an empty response
         entity_suggestions = (try? c.decode([EntitySuggestionDTO].self, forKey: .entity_suggestions)) ?? []
         warnings           = (try? c.decode([SearchWarningDTO].self, forKey: .warnings)) ?? []
+        search_session_id  = try? c.decodeIfPresent(String.self, forKey: .search_session_id)
     }
 }
 

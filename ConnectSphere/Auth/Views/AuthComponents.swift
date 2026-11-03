@@ -94,6 +94,15 @@ struct GlassCard<Content: View>: View {
 
 // MARK: - Custom Text Field
 
+/// `.focused` when the caller passed a binding.
+private struct OptionalFocus: ViewModifier {
+    let binding: FocusState<Bool>.Binding?
+
+    func body(content: Content) -> some View {
+        if let binding { content.focused(binding) } else { content }
+    }
+}
+
 struct AuthTextField: View {
     let icon: String
     let placeholder: String
@@ -103,6 +112,8 @@ struct AuthTextField: View {
     var prefix: String? = nil
     /// Shows "n/limit" at the trailing edge (the caller caps the text).
     var characterLimit: Int? = nil
+    /// Lets the screen move the cursor here.
+    var isFocused: FocusState<Bool>.Binding? = nil
 
     @Environment(ThemeManager.self) var themeManager
     @State private var isRevealed = false
@@ -135,6 +146,7 @@ struct AuthTextField: View {
             }
             .foregroundColor(AppColors.textPrimary(.light))
             .font(.system(size: 15))
+            .modifier(OptionalFocus(binding: isFocused))
 
             if let characterLimit {
                 CharacterCounter(count: text.count, limit: characterLimit)

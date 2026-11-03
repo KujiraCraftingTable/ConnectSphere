@@ -149,8 +149,9 @@ struct EducationEditorView: View {
             }
             .navigationTitle(bundle.loc(viewModel.editing == nil ? "Add school" : "Edit school"))
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled()
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button(bundle.loc("Cancel")) { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { ConfirmCancelButton { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     if viewModel.isSaving {
                         ProgressView()

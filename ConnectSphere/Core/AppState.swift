@@ -214,6 +214,14 @@ class AppState {
         defer { Task { @MainActor in isCheckingAuth = false } }
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else { return }
 
+        // Open straight from the last-known profile and check with the server
+        // behind it, so a slow or busy server never holds the splash.
+        if let cached = AuthService.shared.cachedMe(), cached.isSetup {
+            await MainActor.run { finishLogin(token: token, user: cached, isNew: false) }
+            Task { await refreshSession(token: token) }
+            return
+        }
+
         do {
             let user = try await AuthService.shared.fetchMe(token: token)
             if !user.isSetup {
@@ -234,6 +242,23 @@ class AppState {
             if (error as? URLError)?.code == .userAuthenticationRequired {
                 KeychainHelper.delete(forKey: KeychainHelper.tokenKey)
             }
+        }
+    }
+
+    /// The server's word on a session opened from the cache: a fresh
+    /// profile, or a sign-out when the token is no longer valid. The mode
+    /// the person may already have switched to is kept.
+    private func refreshSession(token: String) async {
+        do {
+            let user = try await AuthService.shared.fetchMe(token: token, cacheFallback: false)
+            await MainActor.run {
+                guard authToken == token else { return }
+                if user.isSetup { currentUser = user.toUserProfile() } else { logout() }
+            }
+        } catch {
+            guard (error as? URLError)?.code == .userAuthenticationRequired else { return }
+            KeychainHelper.delete(forKey: KeychainHelper.tokenKey)
+            await MainActor.run { if authToken == token { logout() } }
         }
     }
 

@@ -19,6 +19,9 @@ skills-lock.json
 # User-uploaded media (dev)
 backend/uploads/
 
+# Database backups (pg_dump) — real user data
+backend/backups/
+
 # Redis runtime dump
 backend/dump.rdb
 legacy/backend-node/dump.rdb

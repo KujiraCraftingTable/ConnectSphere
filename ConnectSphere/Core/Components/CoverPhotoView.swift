@@ -39,7 +39,7 @@ struct CoverArtwork: View {
 
     var body: some View {
         if let url = APIConfig.mediaURL(coverUrl) {
-            AsyncImage(url: url) { phase in
+            RemoteImage(url: url) { phase in
                 if let image = phase.image {
                     if stretch {
                         image.resizable()

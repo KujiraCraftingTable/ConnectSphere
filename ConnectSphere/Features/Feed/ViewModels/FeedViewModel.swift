@@ -81,32 +81,66 @@ class FeedViewModel {
         await loadPosts(for: mode)
     }
 
+    /// Bumped by every `loadPosts`: a response from an older load (a quick
+    /// mode switch, scope change, Home re-tap or refresh) is dropped instead
+    /// of overwriting the newer one.
+    private var loadGeneration = 0
+    private var loadTask: Task<Void, Never>?
+
     /// Loads the first page (resets pagination) — the data source depends on the current feedScope.
+    /// Cancels a load still in flight.
     func loadPosts(for mode: AppMode) async {
+        loadTask?.cancel()
+        loadGeneration += 1
+        let generation = loadGeneration
+        let scope = feedScope
         isLoading = true
         error = nil
+        let task = Task { await loadFirstPage(for: mode, scope: scope, generation: generation) }
+        loadTask = task
+        await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
+    }
+
+    private func isCurrent(_ generation: Int) -> Bool {
+        generation == loadGeneration && !Task.isCancelled
+    }
+
+    private func loadFirstPage(for mode: AppMode, scope: FeedScope, generation: Int) async {
+        defer { if generation == loadGeneration { isLoading = false } }
+        // The first time a mode's For you shows, the last cached page appears
+        // at once instead of a spinner; the fresh page replaces it.
+        if scope == .forYou, posts(for: mode).isEmpty,
+           let cached = repository.cachedRecommendedFeed(mode: mode) {
+            setPosts(cached, for: mode)
+        }
         do {
-            switch feedScope {
+            switch scope {
             case .forYou:
                 let page = try await repository.fetchRecommendedFeed(
                     mode: mode, cursor: nil, limit: pageSize
                 )
+                guard isCurrent(generation) else { return }
                 nextCursor[mode] = page.nextCursor
                 hasMore[mode]    = page.nextCursor != nil
                 setPosts(page.posts, for: mode)
             case .connections, .following:
                 let fetched = try await repository.fetchPosts(
-                    mode: mode, filter: feedScope.listFilter, limit: pageSize, offset: 0
+                    mode: mode, filter: scope.listFilter, limit: pageSize, offset: 0
                 )
+                guard isCurrent(generation) else { return }
                 connectionsOffset[mode] = fetched.count
                 hasMore[mode] = fetched.count == pageSize
                 setPosts(fetched, for: mode)
             }
             loadedModes.insert(mode)
         } catch {
+            guard isCurrent(generation) else { return }
             self.error = friendlyError(error)
         }
-        isLoading = false
     }
 
     /// Loads the next page when the user scrolls to the end of the list
@@ -114,6 +148,7 @@ class FeedViewModel {
         guard !isLoadingMore, hasMore[mode] == true else { return }
         isLoadingMore = true
         defer { isLoadingMore = false }
+        let generation = loadGeneration
         let current = posts(for: mode)
         let existingIds = Set(current.map(\.id))
         do {
@@ -122,6 +157,8 @@ class FeedViewModel {
                 let page = try await repository.fetchRecommendedFeed(
                     mode: mode, cursor: nextCursor[mode] ?? nil, limit: pageSize
                 )
+                // A reload started meanwhile: this page belongs to the old list.
+                guard generation == loadGeneration else { return }
                 nextCursor[mode] = page.nextCursor
                 hasMore[mode]    = page.nextCursor != nil
                 // Avoid duplicates when a new post slips in between two fetches
@@ -131,6 +168,7 @@ class FeedViewModel {
                 let fetched = try await repository.fetchPosts(
                     mode: mode, filter: feedScope.listFilter, limit: pageSize, offset: offset
                 )
+                guard generation == loadGeneration else { return }
                 connectionsOffset[mode] = offset + fetched.count
                 hasMore[mode] = fetched.count == pageSize
                 appendPosts(fetched.filter { !existingIds.contains($0.id) }, for: mode)

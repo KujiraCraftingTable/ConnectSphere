@@ -29,9 +29,10 @@ struct ForgotPasswordView: View {
             }
             .navigationTitle(bundle.loc("Reset password"))
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled()
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(bundle.loc("Cancel")) { dismiss() }
+                    ConfirmCancelButton { dismiss() }
                 }
             }
         }

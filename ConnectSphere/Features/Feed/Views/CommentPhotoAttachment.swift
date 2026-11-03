@@ -75,7 +75,7 @@ struct CommentPhoto: View {
 
     var body: some View {
         if let url = APIConfig.mediaURL(path) {
-            AsyncImage(url: url) { phase in
+            RemoteImage(url: url) { phase in
                 if let image = phase.image {
                     image.resizable().scaledToFit()
                         .frame(maxWidth: Self.maxWidth, maxHeight: Self.maxHeight, alignment: .leading)

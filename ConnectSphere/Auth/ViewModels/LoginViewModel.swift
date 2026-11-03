@@ -16,6 +16,9 @@ final class LoginViewModel {
     private(set) var isLoading = false
     /// Shown in the form's error banner; nil = no banner.
     private(set) var errorMessage: String?
+    /// Bumped when a saved password account is picked: the view moves the
+    /// cursor to the password field.
+    private(set) var passwordFocusRequest = 0
 
     func clearError() { errorMessage = nil }
 
@@ -67,15 +70,18 @@ final class LoginViewModel {
         errorMessage = nil
     }
 
-    /// A saved account: fills its username (the password is still asked
-    /// for), or signs in with Google for a Google-only account.
+    /// A saved account goes straight to that account: a password account
+    /// fills its username and waits for the password; a Google account opens
+    /// Google on its own email, so only its password or passkey is asked for,
+    /// not the list of every Google account on the phone.
     func pick(_ account: SavedAccount, presenting rootViewController: UIViewController?, appState: AppState) async {
         errorMessage = nil
         if account.hasPassword {
             identifier = account.username
             password = ""
+            passwordFocusRequest += 1
         } else {
-            await loginWithGoogle(presenting: rootViewController, appState: appState)
+            await loginWithGoogle(presenting: rootViewController, appState: appState, hint: account.email)
         }
     }
 
@@ -104,7 +110,10 @@ final class LoginViewModel {
 
     /// Google's SDK needs a view controller to present its sheet from — the
     /// one UI piece the view supplies (nil if no window is available).
-    func loginWithGoogle(presenting rootViewController: UIViewController?, appState: AppState) async {
+    /// `hint` is the email to sign in as (a saved account); nil shows
+    /// Google's account chooser.
+    func loginWithGoogle(presenting rootViewController: UIViewController?, appState: AppState,
+                         hint: String? = nil) async {
         guard let rootViewController else {
             errorMessage = Bundle.app.loc("Couldn't sign in, please try again")
             return
@@ -112,7 +121,7 @@ final class LoginViewModel {
         isLoading = true
         errorMessage = nil
         do {
-            let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: rootViewController)
+            let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: rootViewController, hint: hint)
             guard let idToken = result.user.idToken?.tokenString else {
                 isLoading = false
                 errorMessage = Bundle.app.loc("Could not get Google token")

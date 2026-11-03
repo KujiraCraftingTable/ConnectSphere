@@ -53,8 +53,9 @@ struct TwoFactorSheet: View {
             }
             .navigationTitle(bundle.loc("Two-factor authentication"))
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled()
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button(bundle.loc("Cancel")) { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { ConfirmCancelButton { dismiss() } }
             }
         }
     }

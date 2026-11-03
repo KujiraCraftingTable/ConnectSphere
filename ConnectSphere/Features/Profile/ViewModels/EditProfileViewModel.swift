@@ -19,12 +19,16 @@ final class EditProfileViewModel {
     /// "yyyy-MM-dd", the same format onboarding uses; empty = not set.
     var dob = ""
     var dobVisibility = "private"
+    /// The birthday as loaded, to tell a real change from an untouched picker.
+    private(set) var originalDob = ""
+    /// Birthday changes still allowed; nil until the server says.
+    private(set) var dobChangesLeft: Int?
     var selectedInterests: [InterestItem] = []
     /// Hobby-only details.
     var languages: [String] = []
     var relationship: RelationshipStatus?
     /// Comma-separated, the same as onboarding.
-    /// Added one at a time in a SkillTagField.
+    /// Picked from the skill catalogue (SkillPickerView).
     var skills: [String] = []
 
     /// New avatar picked this session (nil = keep the current one).
@@ -43,6 +47,12 @@ final class EditProfileViewModel {
     private static let dobFormatter: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f
     }()
+
+    static let supportEmail = "kujira.gwer@gmail.com"
+
+    var dobChanged: Bool { dob != originalDob }
+    /// No changes left: only support can change the birthday now.
+    var isDobLocked: Bool { dobChangesLeft == 0 }
 
     var canSave: Bool { !isSaving && !displayName.trimmingCharacters(in: .whitespaces).isEmpty }
 
@@ -66,6 +76,8 @@ final class EditProfileViewModel {
         // Postgres DATE in JSON) — the first 10 characters are yyyy-MM-dd either
         // way. Older accounts may have none: leave it blank.
         dob           = String((user.dob ?? "").prefix(10))
+        originalDob   = dob
+        dobChangesLeft = user.dobChangesLeft
         dobVisibility = user.dobVisibility ?? "private"
         // Reverse-parse displayText "Anime · Dandadan" → category + rawInput.
         selectedInterests = user.interests.map { text in
@@ -129,6 +141,10 @@ final class EditProfileViewModel {
             relationship_status: mode == .hobby ? (relationship?.rawValue ?? "") : nil)
         do {
             return try await profileRepository.updateProfile(update)
+        } catch APIError.serverError(statusCode: 403, _) where dobChanged {
+            errorMessage = String(format: Bundle.app.loc("You've used both birthday changes. To change it again, email %@."),
+                                  Self.supportEmail)
+            return nil
         } catch {
             errorMessage = Bundle.app.loc("Couldn't save profile, please try again")
             return nil

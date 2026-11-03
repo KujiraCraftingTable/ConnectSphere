@@ -1,10 +1,33 @@
 import Vapor
 import SQLKit
 
-/// GET /api/feed/recommendations — port of feedController.js.
+/// GET /api/feed/recommendations — port of feedController.js; and
+/// POST /api/feed/impressions — what the viewer looked at.
 struct FeedController {
     static func register(routes: any RoutesBuilder) {
-        routes.grouped("feed").grouped(AuthMiddleware()).get("recommendations", use: recommendations)
+        let feed = routes.grouped("feed").grouped(AuthMiddleware())
+        feed.get("recommendations", use: recommendations)
+        feed.post("impressions", use: impressions)
+    }
+
+    struct ImpressionsBody: Content {
+        var source: String
+        var items: [ImpressionStore.Item]
+    }
+
+    /// A batch of sightings from the Home or a community feed (up to 100).
+    struct ImpressionsResp: Content { var recorded: Int }
+    static func impressions(_ req: Request) async throws -> ImpressionsResp {
+        let b = try req.content.decode(ImpressionsBody.self)
+        guard ImpressionStore.sources.contains(b.source) else {
+            throw Abort(.badRequest, reason: "source must be home or community")
+        }
+        guard b.items.count <= ImpressionStore.maxItems else {
+            throw Abort(.badRequest, reason: "Too many impressions in one batch")
+        }
+        let totals = ImpressionStore.fold(b.items)
+        try await ImpressionStore.record(totals, viewer: req.userID, source: b.source, on: req.db.sql())
+        return ImpressionsResp(recorded: totals.count)
     }
     struct CursorResp: Content { var data: [FeedPostObject]; @NullCoded var nextCursor: String? }
     static func recommendations(_ req: Request) async throws -> CursorResp {

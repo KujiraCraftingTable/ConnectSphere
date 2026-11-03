@@ -148,6 +148,7 @@ struct PostDTO: Decodable {
     let pollData: PollDataDTO?
     let eventData: EventDataDTO?
     let jobData: JobDataDTO?
+    let listingData: ListingDataDTO?
     let isPinned: Bool
     let pinnedAt: Date?
     let community: CommunityRefDTO?
@@ -177,6 +178,7 @@ struct PostDTO: Decodable {
         case pollData      = "poll_data"
         case eventData     = "event_data"
         case jobData       = "job_data"
+        case listingData   = "listing_data"
         case isPinned      = "is_pinned"
         case pinnedAt      = "pinned_at"
         case community, status
@@ -218,6 +220,7 @@ struct PostDTO: Decodable {
         pollData      = try c.decodeIfPresent(PollDataDTO.self, forKey: .pollData)
         eventData     = try c.decodeIfPresent(EventDataDTO.self, forKey: .eventData)
         jobData       = try c.decodeIfPresent(JobDataDTO.self, forKey: .jobData)
+        listingData   = try c.decodeIfPresent(ListingDataDTO.self, forKey: .listingData)
         isPinned      = try c.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
         pinnedAt      = try c.decodeIfPresent(Date.self, forKey: .pinnedAt)
         community     = try c.decodeIfPresent(CommunityRefDTO.self, forKey: .community)
@@ -254,6 +257,7 @@ struct PostDTO: Decodable {
             pollData:               pollData?.toPollData(),
             eventData:              eventData?.toEventData(),
             jobData:                jobData?.toJobData(),
+            listingData:            listingData?.toListingData(),
             isPinned:               isPinned,
             pinnedAt:               pinnedAt,
             community:              community?.toCommunityRef(),

@@ -49,6 +49,7 @@ struct PostObject: Content {
     @NullCoded var event_data: EventData?
     @NullCoded var poll_data: PollData?
     @NullCoded var job_data: JobData?
+    @NullCoded var listing_data: ListingData? = nil
     /// Only present on community-post responses (getPostsByCommunity's outer
     /// wrapper). Plain Optional — the key is *absent* on Feed posts, matching
     /// Node's `buildPostSelect` which doesn't project it at all.
@@ -115,6 +116,29 @@ struct PostObject: Content {
             @NullCoded var ends_at: Date?
         }
     }
+    /// A marketplace listing's details (migration 072). `auto_reply` is only
+    /// filled in for the seller.
+    struct ListingData: Content {
+        var id: String
+        var title: String
+        var price: Int64
+        var condition: String
+        @NullCoded var location: String?
+        var status: String
+        var hide_from_friends: Bool
+        var has_auto_reply: Bool
+        @NullCoded var auto_reply: String?
+        /// The communities it's showing in (migration 073).
+        var communities: [ListedIn]? = nil
+        /// Where it is on the map (migration 074).
+        @NullCoded var latitude: Double? = nil
+        @NullCoded var longitude: Double? = nil
+        struct ListedIn: Content {
+            var id: String
+            var name: String
+            var icon_emoji: String
+        }
+    }
     struct JobData: Content {
         var id: String
         var title: String
@@ -139,5 +163,9 @@ struct PostObject: Content {
         var name: String
         var icon_emoji: String
         @NullCoded var avatar_url: String?
+        /// The community's own privacy, and who this post is for: "public"
+        /// (anyone) or "members" (migration 075).
+        var privacy: String? = nil
+        var audience: String? = nil
     }
 }

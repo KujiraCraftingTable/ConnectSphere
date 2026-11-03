@@ -129,7 +129,8 @@ final class AppTests: XCTestCase {
             id: "u1", username: "lurker", display_name: nil, bio: nil, avatar_url: nil, cover_url: nil,
             avatar_color: nil, location: nil, job_title: nil, company: nil, default_mode: "hobby",
             gender: nil, age: nil, follower_count: 0, following_count: 0, post_count: 0,
-            interests: "[]", skills: "[]", score: 0.6, match_evidence: evidence, mutual_count: 0)
+            interests: "[]", skills: "[]", score: 0.6, retrieval: 0.6, name_match: 0,
+            match_evidence: evidence, mutual_count: 0)
     }
 
     func testEngagementEvidenceMapsToItsOwnType() {
