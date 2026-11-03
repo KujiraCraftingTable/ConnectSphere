@@ -106,7 +106,7 @@ enum EventStore {
 enum JobStore {
     static let workFormats: Set<String> = ["onsite", "hybrid", "remote"]
     static let levels: Set<String> = ["intern", "fresher", "junior", "mid", "senior", "lead", "manager"]
-    static let maxSkills = 10
+    static let maxSkills = SkillStore.maxJob
 
     /// The Jobs-tab details of a job, checked.
     struct Extra {
@@ -146,14 +146,8 @@ enum JobStore {
         }
         extra.salaryMin = d.salaryMin
         extra.salaryMax = d.salaryMax
-        var seen = Set<String>()
-        for raw in d.skills ?? [] {
-            let s = raw.trimmedText
-            guard !s.isEmpty, seen.insert(s.lowercased()).inserted else { continue }
-            guard s.count <= 50 else { throw Abort(.badRequest, reason: "Each skill must be at most 50 characters") }
-            extra.skills.append(s)
-        }
-        guard extra.skills.count <= maxSkills else { throw Abort(.badRequest, reason: "A job can list up to \(maxSkills) skills") }
+        // Same catalogue as profiles, so job matching compares like with like.
+        extra.skills = try await SkillStore.cleanPicks(d.skills ?? [], userID: nil, limit: maxSkills, on: db)
         return extra
     }
 

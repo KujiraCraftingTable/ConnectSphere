@@ -98,8 +98,20 @@ enum EndorsementStore {
 
     static func replaceSkills(of user: String, with wanted: [String], on db: any SQLDatabase) async throws {
         let clean = try cleanSkills(wanted)
+        let lowered = clean.map { $0.lowercased() }
+        // A spelling change ("swift" → "Swift") renames the row rather than
+        // replacing it, so its endorsements stay.
         try await db.raw("""
-            DELETE FROM user_skills WHERE user_id = \(uuid: user) AND NOT (skill = ANY(\(bind: clean)::text[]))
+            DELETE FROM user_skills WHERE user_id = \(uuid: user) AND NOT (LOWER(skill) = ANY(\(bind: lowered)::text[]))
+            """).run()
+        try await db.raw("""
+            DELETE FROM user_skills u WHERE u.user_id = \(uuid: user) AND NOT (u.skill = ANY(\(bind: clean)::text[]))
+              AND EXISTS (SELECT 1 FROM user_skills d WHERE d.user_id = u.user_id AND d.id <> u.id
+                          AND LOWER(d.skill) = LOWER(u.skill) AND (d.skill = ANY(\(bind: clean)::text[]) OR d.id < u.id))
+            """).run()
+        try await db.raw("""
+            UPDATE user_skills u SET skill = w.s FROM unnest(\(bind: clean)::text[]) AS w(s)
+            WHERE u.user_id = \(uuid: user) AND LOWER(u.skill) = LOWER(w.s) AND u.skill <> w.s
             """).run()
         if !clean.isEmpty {
             try await db.raw("""
