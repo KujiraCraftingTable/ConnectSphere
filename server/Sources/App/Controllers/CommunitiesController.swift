@@ -80,7 +80,7 @@ struct CommunitiesController {
         guard name.count <= 100 else { throw Abort(.badRequest, reason: "Community name must be at most 100 characters") }
         guard let type = b.type, validTypes.contains(type) else { throw Abort(.badRequest, reason: "type must be fandom or work") }
         if let p = b.privacy, !validPrivacy.contains(p) { throw Abort(.badRequest, reason: "privacy must be public or private") }
-        if let d = b.description, d.count > 500 { throw Abort(.badRequest, reason: "Description must be at most 500 characters") }
+        try validateDescription(b.description)
 
         let privacy = b.privacy ?? "public"
         let icon = b.icon_emoji ?? "👥"
@@ -110,6 +110,17 @@ struct CommunitiesController {
         return try await ConnectionsController.encode(DataResponse(data: community), req, .created)
     }
 
+    /// A community's description: up to 200 words (and 2,000 characters).
+    static let maxDescriptionWords = 200
+    static func validateDescription(_ d: String?) throws {
+        guard let d else { return }
+        if d.count > 2000 { throw Abort(.badRequest, reason: "Description is too long") }
+        let words = d.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+        if words > maxDescriptionWords {
+            throw Abort(.badRequest, reason: "Description must be at most \(maxDescriptionWords) words")
+        }
+    }
+
     // MARK: update (avatar/name/description/icon/cover — admin/moderator only)
 
     struct UpdateBody: Content {
@@ -130,7 +141,7 @@ struct CommunitiesController {
                 throw Abort(.badRequest, reason: "Community name must be 3-100 characters")
             }
         }
-        if let d = b.description, d.count > 500 { throw Abort(.badRequest, reason: "Description must be at most 500 characters") }
+        try validateDescription(b.description)
         if let p = b.privacy, !CommunitiesController.validPrivacy.contains(p) { throw Abort(.badRequest, reason: "privacy must be public or private") }
         guard try await CommunityStore.update(id, name: b.name, description: b.description, privacy: b.privacy,
             iconEmoji: b.icon_emoji, coverColor: b.cover_color, avatarURL: b.avatar_url.map { MediaPath.storable($0) ?? "" },
@@ -291,7 +302,8 @@ struct CommunitiesController {
         }
         let limit = (try? req.query.get(Int.self, at: "limit")) ?? 20
         let offset = (try? req.query.get(Int.self, at: "offset")) ?? 0
-        return DataListResponse(data: try await CommunityStore.members(id, limit: limit, offset: offset, on: db))
+        return DataListResponse(data: try await CommunityStore.members(id, communityType: community.type, viewer: req.userID,
+                                                                       limit: limit, offset: offset, on: db))
     }
 
     // MARK: posts
@@ -314,6 +326,11 @@ struct CommunitiesController {
         let b = try req.content.decode(PostsController.CreateBody.self)
         let hashtags = b.hashtags ?? []
         let postType = b.post_type ?? "text"
+        // Who sees it: members only unless the poster chose Public.
+        let audience = b.community_audience ?? "members"
+        guard PostStore.communityAudiences.contains(audience) else {
+            throw Abort(.badRequest, reason: "community_audience must be public or members")
+        }
         var publishing = try Publishing.from(b.publish, at: b.publish_at)
         // A community that approves posts holds a member's live post as pending.
         if publishing.isLive, try await CommunityStore.needsApproval(id, author: req.userID, on: req.db.sql()) {
@@ -335,11 +352,14 @@ struct CommunitiesController {
                 employmentType: b.jobData?.employmentType, salaryRange: b.jobData?.salaryRange,
                 applicationDeadline: b.jobData?.applicationDeadline, details: b.jobData,
                 hashtags: hashtags, mode: nil, privacy: nil, publishing: publishing, on: req.db)
+        } else if postType == "listing" {
+            throw Abort(.badRequest, reason: "Listings are created from the Marketplace")
         } else {
             post = try await PostService.createTextCommunityPost(userID: req.userID, content: b.content, communityID: id,
                 imageUrls: PostsController.normalizeImageUrls(b.image_urls), linkUrl: b.link_url?.nilIfEmpty,
                 articleTitle: b.article_title?.nilIfEmpty, hashtags: hashtags, mode: nil, privacy: nil, publishing: publishing, on: req.db)
         }
+        post.community?.audience = try await PostStore.setCommunityAudience(post.id, audience, on: req.db.sql())
         if b.image_alts != nil {
             post.image_alts = try await PostStore.setImageAlts(post.id, b.image_alts, on: req.db.sql())
         }
@@ -454,8 +474,15 @@ struct CommunitiesController {
         guard staff(try await CommunityStore.membership(id, req.userID, on: db)) else {
             throw Abort(.forbidden, reason: "Only admins and moderators can review posts")
         }
-        guard let reviewed = try await CommunityStore.review(postID, in: id, approve: action == "approve",
-                                                             reason: reason, reviewer: req.userID, on: db) else {
+        // The community's own pending post, or else a Marketplace listing
+        // waiting to show here.
+        let ownPost = try await CommunityStore.review(postID, in: id, approve: action == "approve",
+                                                      reason: reason, reviewer: req.userID, on: db)
+        let listing = ownPost == nil
+            ? try await ListingStore.reviewLink(postID: postID, in: id, approve: action == "approve",
+                                                reviewer: req.userID, on: db)
+            : nil
+        guard let reviewed = ownPost ?? listing else {
             throw Abort(.notFound, reason: "This post isn't waiting for approval")
         }
         if action == "approve" {

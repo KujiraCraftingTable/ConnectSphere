@@ -9,12 +9,11 @@ import UIKit
 @MainActor
 @Observable
 final class CreateCommunityViewModel {
-    static let descriptionLimit = 500
-
     var name = ""
     var description = "" {
         didSet {
-            if description.count > Self.descriptionLimit { description = String(description.prefix(Self.descriptionLimit)) }
+            let clamped = CommunityDescription.clamped(description)
+            if clamped != description { description = clamped }
         }
     }
     var type: CommunityType = .fandom

@@ -17,6 +17,7 @@ class CommunityDetailViewModel {
     var errorMessage: String?
     var canLoadMorePosts = true
     var joinStatus: JoinStatus = .notMember
+    private(set) var isRefreshing = false
 
     /// Results for this community's own search box — a real server-side
     /// search scoped to this community (`GET /communities/:id/posts?search=`),
@@ -63,6 +64,14 @@ class CommunityDetailViewModel {
         async let feed: ()   = fetchPosts(reset: true)
         async let roster: () = fetchMembers()
         _ = await (feed, roster)
+    }
+
+    /// Pull-to-refresh: drives the page's own spinner, since the cover hides
+    /// the system one.
+    func refresh() async {
+        isRefreshing = true
+        defer { isRefreshing = false }
+        await fetchAll()
     }
 
     func fetchDetail() async {
@@ -253,7 +262,9 @@ class CommunityDetailViewModel {
             return nil
         }
         if post.community == nil, let community {
-            post.community = CommunityRef(id: community.id, name: community.name, iconEmoji: community.iconEmoji, avatarUrl: community.avatarUrl)
+            post.community = CommunityRef(id: community.id, name: community.name, iconEmoji: community.iconEmoji,
+                                          avatarUrl: community.avatarUrl, privacy: community.privacy.rawValue,
+                                          audience: post.community?.audience ?? .members)
         }
         return post
     }
@@ -423,7 +434,8 @@ class CommunityDetailViewModel {
                 members[idx] = CommunityMember(
                     id: m.id, username: m.username, displayName: m.displayName,
                     avatarColor: m.avatarColor, jobTitle: m.jobTitle, company: m.company,
-                    role: newRole, joinedAt: m.joinedAt
+                    role: newRole, joinedAt: m.joinedAt,
+                    avatarUrl: m.avatarUrl, isFriend: m.isFriend
                 )
             }
         } catch {

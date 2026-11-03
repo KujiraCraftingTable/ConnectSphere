@@ -1,20 +1,22 @@
 import SwiftUI
 
 /// "About this community": opened by tapping the community's name.
-struct CommunityInfoView: View {
+struct CommunityInfoView<Members: View>: View {
     @Environment(AppState.self) private var appState
     @Environment(\.appBundle) private var bundle
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.dismiss) private var dismiss
 
     let community: Community
-    /// "See all" members — the page switches to its Members tab.
-    let onSeeAllMembers: () -> Void
+    /// The members the community page has loaded, for the latest-joined row.
+    let roster: [CommunityMember]
+    /// What "See all" opens — the only way to the full list.
+    @ViewBuilder let members: () -> Members
     @State private var viewModel: CommunityInfoViewModel
 
-    init(community: Community, onSeeAllMembers: @escaping () -> Void) {
+    init(community: Community, roster: [CommunityMember], @ViewBuilder members: @escaping () -> Members) {
         self.community = community
-        self.onSeeAllMembers = onSeeAllMembers
+        self.roster = roster
+        self.members = members
         _viewModel = State(initialValue: CommunityInfoViewModel(communityId: community.id))
     }
 
@@ -54,33 +56,23 @@ struct CommunityInfoView: View {
         }
     }
 
+    /// One box: the admins and moderators, then your connections who joined
+    /// (or the latest to join). A private community shows only who runs it.
     private func membersSection(_ info: CommunityInfo) -> some View {
         Section {
-            if !info.friends.isEmpty, let line = viewModel.friendsLine {
-                VStack(alignment: .leading, spacing: 8) {
-                    avatarStack(info.friends)
-                    Text(line).font(.system(size: 14)).foregroundColor(AppColors.textSecondary(colorScheme))
-                }
-                .padding(.vertical, 4)
-            }
             if !info.staff.isEmpty, let line = viewModel.staffLine {
-                VStack(alignment: .leading, spacing: 8) {
-                    avatarStack(Array(info.staff.prefix(3)))
-                    Text(line).font(.system(size: 14)).foregroundColor(AppColors.textSecondary(colorScheme))
-                }
-                .padding(.vertical, 4)
+                peopleRow(Array(info.staff.prefix(5)), line)
             }
-            Text(String(format: bundle.loc("%lld members"), info.memberCount))
-                .font(.system(size: 14))
+            if community.privacy != .private,
+               let others = viewModel.otherMembers(roster: roster, viewerId: appState.currentUser?.id ?? "") {
+                peopleRow(others.people, others.line)
+            }
         } header: {
             HStack {
                 Text("Members", bundle: bundle)
                 Spacer()
-                Button(bundle.loc("See all")) {
-                    onSeeAllMembers()
-                    dismiss()
-                }
-                .font(.system(size: 14))
+                NavigationLink(bundle.loc("See all"), destination: members)
+                    .font(.system(size: 14))
                 .textCase(nil)
             }
         }
@@ -117,6 +109,14 @@ struct CommunityInfoView: View {
             }
         }
         .padding(.vertical, 2)
+    }
+
+    private func peopleRow(_ people: [CommunityInfo.Person], _ line: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            avatarStack(people)
+            Text(line).font(.system(size: 14)).foregroundColor(AppColors.textSecondary(colorScheme))
+        }
+        .padding(.vertical, 4)
     }
 
     private func avatarStack(_ people: [CommunityInfo.Person]) -> some View {

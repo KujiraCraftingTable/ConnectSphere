@@ -66,10 +66,8 @@ struct ShareCommunitySheet: View {
                             HStack(alignment: .top, spacing: 14) {
                                 ForEach(viewModel.recent) { conversation in
                                     ShareRecipientTile(conversation: conversation,
-                                                       state: viewModel.sendStates[conversation.id],
-                                                       canUndo: viewModel.undoable.contains(conversation.id),
-                                                       onSend: { Task { await viewModel.send(.community(community.id), to: conversation, token: token) } },
-                                                       onUndo: { Task { await viewModel.undo(conversation, token: token) } })
+                                                       isSelected: viewModel.isSelected(conversation),
+                                                       onTap: { viewModel.toggle(conversation) })
                                 }
                                 Button { showAllChats = true } label: {
                                     Image(systemName: "ellipsis")
@@ -82,6 +80,9 @@ struct ShareCommunitySheet: View {
                                 .accessibilityLabel(Text("All chats", bundle: bundle))
                             }
                         }
+                        ShareSendButton(viewModel: viewModel) {
+                            if await viewModel.sendSelected(.community(community.id), token: token) { dismiss() }
+                        }
                     }
                 }
                 .padding(16)
@@ -92,7 +93,7 @@ struct ShareCommunitySheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button(bundle.loc("Close")) { dismiss() } }
             }
             .navigationDestination(isPresented: $showAllChats) {
-                ShareRecipientsView(viewModel: viewModel, target: .community(community.id))
+                ShareRecipientsView(viewModel: viewModel)
             }
             .task { await viewModel.loadRecipients(mode: community.type == .work ? "work" : "hobby", token: token) }
         }

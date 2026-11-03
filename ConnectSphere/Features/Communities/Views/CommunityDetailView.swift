@@ -6,13 +6,10 @@ struct CommunityDetailView: View {
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.appBundle) var bundle
     @State private var viewModel: CommunityDetailViewModel
-    @State private var selectedTab = 0
     @State private var showCreatePost = false
     @State private var showJoinRequests  = false
     @State private var showModeration    = false
     @State private var showAnalytics     = false
-    @State private var reportTargetId: String? = nil
-    @State private var showReportMember  = false
     @State private var showSettings      = false
     @State private var showEdit          = false
     @State private var showReportCommunity = false
@@ -26,9 +23,15 @@ struct CommunityDetailView: View {
     @State private var showSearch        = false
     /// Scrolling down hides the search field, Feed/Members and the tab bar.
     @State private var barsHidden        = false
+    /// Status bar + navigation bar: the cover runs up under both.
+    @State private var topInset: CGFloat = 0
+    @State private var pull: CGFloat = 0
     @Environment(\.dismiss) private var dismiss
     // Tap-to-open-post-detail — same PostRoute/PostDetailView navigation Feed uses.
     @State private var detailRoute: PostRoute?
+    /// What's looked at here, for ranking feeds.
+    @State private var impressions = ImpressionTracker(source: .community)
+    @Environment(\.scenePhase) private var scenePhase
     @State private var searchText = ""
     @State private var searchTask: Task<Void, Never>?
 
@@ -69,20 +72,28 @@ struct CommunityDetailView: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                // Pulled up under the bars rather than ignoring the safe area
+                // on the scroll view, so Feed/Members still pins below them.
                 communityHeader
+                    .padding(.top, -topInset)
 
                 Section(header: stickyBar) {
-                    if selectedTab == 0 {
-                        feedContent
-                    } else {
-                        membersContent
-                    }
+                    feedContent
                 }
             }
         }
         .hidesBarsOnScroll($barsHidden)
+        // Back, search and "..." slide away with the tab bar while reading down.
+        .toolbar(barsHidden ? .hidden : .visible, for: .navigationBar)
+        .trackPull($pull)
+        // Measured with the bars showing only: hiding them shrinks the inset,
+        // and the header (long scrolled past by then) shouldn't move.
+        .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { if !barsHidden { topInset = $0 } }
         .appBackground()
         .navigationBarTitleDisplayMode(.inline)
+        // Back, search and "..." float on the cover.
+        .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
+        .hidesTopScrollEdgeEffect()
         .toolbar {
             // Like Facebook: search, then "..." — no share icon.
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -112,9 +123,14 @@ struct CommunityDetailView: View {
             }
         }
         .task { await viewModel.fetchAll() }
-        .refreshable { await viewModel.fetchAll() }
+        .refreshable { await viewModel.refresh() }
+        .overlay(alignment: .top) { PullRefreshIndicator(pull: pull, isRefreshing: viewModel.isRefreshing) }
         .onAppear { viewModel.joinCommunityRoom() }
-        .onDisappear { viewModel.leaveCommunityRoom() }
+        .onDisappear {
+            viewModel.leaveCommunityRoom()
+            impressions.pause()
+        }
+        .onChange(of: scenePhase) { _, phase in if phase != .active { impressions.pause() } }
         .overlay(alignment: .bottomTrailing) {
             if viewModel.community?.isMember == true {
                 createPostFAB
@@ -122,10 +138,11 @@ struct CommunityDetailView: View {
         }
         .sheet(isPresented: $showCreatePost) {
             if let community = viewModel.community {
-                CommunityCreatePostView(community: community) { post in
+                CreatePostView(community: community, onPostCreated: { post in
                     viewModel.prependPost(post)
-                }
+                })
                 .environment(appState)
+                .environment(themeManager)
             }
         }
         .sheet(isPresented: $showShare) {
@@ -133,8 +150,8 @@ struct CommunityDetailView: View {
                 ShareCommunitySheet(community: community)
             }
         }
-        .navigationDestination(isPresented: $showMyProfile) {
-            CommunityMemberProfileView(communityId: communityId, userId: appState.currentUser?.id ?? "")
+        .sheet(isPresented: $showMyProfile) {
+            ProfilePopup { CommunityMemberProfileView(communityId: communityId, userId: appState.currentUser?.id ?? "") }
         }
         .sheet(isPresented: $showNotifications) {
             CommunityNotificationsSheet(viewModel: viewModel)
@@ -164,7 +181,9 @@ struct CommunityDetailView: View {
         }
         .navigationDestination(isPresented: $showInfo) {
             if let community = viewModel.community {
-                CommunityInfoView(community: community) { selectedTab = 1 }
+                CommunityInfoView(community: community, roster: viewModel.members) {
+                    CommunityMembersView(viewModel: viewModel)
+                }
             }
         }
         .navigationDestination(isPresented: Binding(
@@ -194,16 +213,6 @@ struct CommunityDetailView: View {
                 token:       appState.authToken ?? "",
                 coverColor:  viewModel.community?.coverColor ?? "#7F5AF0"
             )
-        }
-        .sheet(isPresented: $showReportMember) {
-            if let memberId = reportTargetId {
-                ReportSheet(
-                    targetType:  "member",
-                    targetId:    memberId,
-                    communityId: viewModel.community?.id ?? "",
-                    token:       appState.authToken ?? ""
-                )
-            }
         }
         .alert(bundle.loc("Error"), isPresented: .constant(viewModel.errorMessage != nil)) {
             Button(bundle.loc("OK")) { viewModel.errorMessage = nil }
@@ -267,56 +276,22 @@ struct CommunityDetailView: View {
 
     // MARK: - Header
 
+    @ViewBuilder
     private var communityHeader: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if let community = viewModel.community {
-                CommunityCover(community: community, emojiSize: 56)
-                    .frame(height: 190)
-                    .frame(maxWidth: .infinity)
-            } else {
-                AppColors.surface(colorScheme).frame(height: 190)
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                // The name opens "About this community", like Facebook.
-                Button { showInfo = true } label: {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text(viewModel.community?.name ?? "")
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundColor(AppColors.textPrimary(colorScheme))
-                            .multilineTextAlignment(.leading)
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(AppColors.textSecondary(colorScheme))
-                    }
-                }
-                .buttonStyle(.plain)
-                .disabled(viewModel.community == nil)
-
-                if let community = viewModel.community {
-                    HStack(spacing: 5) {
-                        Image(systemName: community.privacy == .private ? "lock.fill" : "globe")
-                        Text(community.privacy == .private ? bundle.loc("Private") : bundle.loc("Public"))
-                        Text("·")
-                        Text(String(format: bundle.loc("%lld members"), community.memberCount))
-                    }
-                    .font(.system(size: 14))
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-                }
-
-                if viewModel.community?.isMember == false {
+        if let community = viewModel.community {
+            CommunityHeaderCard(community: community, topInset: topInset, onInfo: { showInfo = true }) {
+                if !community.isMember {
                     joinButton.padding(.top, 6)
                 }
             }
-            .padding(.horizontal, AppSpacing.lg)
-            .padding(.vertical, AppSpacing.md)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(AppColors.surface(colorScheme))
+        } else {
+            AppColors.surface(colorScheme)
+                .frame(height: topInset + CommunityHeaderCard<EmptyView>.visibleCoverHeight)
         }
     }
 
-    /// The search field (when open) and Feed/Members — pinned under the nav
-    /// bar, and out of the way while scrolling down the posts.
+    /// The search field, when open — pinned under the nav bar, and out of the
+    /// way while scrolling down the posts.
     private var stickyBar: some View {
         VStack(spacing: 0) {
             if showSearch {
@@ -339,7 +314,6 @@ struct CommunityDetailView: View {
                 .padding(.vertical, 8)
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
-            tabBar
         }
         .background(AppColors.surface(colorScheme))
         // Slides up behind the nav bar instead of collapsing, so the posts
@@ -365,8 +339,8 @@ struct CommunityDetailView: View {
 
         case .loading:
             ProgressView()
-                .padding(.horizontal, AppSpacing.lg)
-                .padding(.vertical, AppSpacing.sm)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, AppSpacing.sm + 2)
 
         case .pending:
             joinButtonLabel(title: bundle.loc("Pending"),
@@ -384,44 +358,10 @@ struct CommunityDetailView: View {
             .appFont(.subheadline)
             .fontWeight(.semibold)
             .foregroundColor(fg)
-            .padding(.horizontal, AppSpacing.md + 2)
-            .padding(.vertical, AppSpacing.sm)
+            .frame(maxWidth: .infinity)     // spans the header card
+            .padding(.vertical, AppSpacing.sm + 2)
             .background(bg)
-            .clipShape(Capsule())
-    }
-
-    // MARK: - Tab bar
-
-    private var tabBar: some View {
-        HStack(spacing: 0) {
-            tabButton(title: bundle.loc("Feed"),   index: 0)
-            tabButton(title: bundle.loc("Members"), index: 1)
-        }
-        .background(AppColors.surface(colorScheme))
-        .overlay(alignment: .bottom) {
-            Divider().background(AppColors.borderSubtle(colorScheme))
-        }
-    }
-
-    private func tabButton(title: String, index: Int) -> some View {
-        Button {
-            selectedTab = index
-        } label: {
-            VStack(spacing: 0) {
-                Text(title)
-                    .font(.system(size: 15, weight: selectedTab == index ? .semibold : .regular))
-                    .foregroundColor(selectedTab == index
-                        ? AppColors.textPrimary(colorScheme)
-                        : AppColors.textSecondary(colorScheme))
-                    .padding(.vertical, 12)
-
-                Rectangle()
-                    .fill(selectedTab == index ? accentColor : Color.clear)
-                    .frame(height: 2)
-            }
-            .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.plain)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     // MARK: - Feed
@@ -450,6 +390,7 @@ struct CommunityDetailView: View {
                             }
                         },
                         onOpenDetail: { focus in
+                            impressions.opened(post.id)
                             detailRoute = PostRoute(postId: post.id, focusComposer: focus)
                         },
                         onPin: isStaff ? {
@@ -457,9 +398,11 @@ struct CommunityDetailView: View {
                         } : nil,
                         onUnpin: isStaff ? {
                             Task<Void, Never>(name: nil) { await viewModel.unpinPost(post.id) }
-                        } : nil
+                        } : nil,
+                        insideCommunityId: communityId
                     )
                     .cardStyle()
+                    .tracksImpression(post.id, in: impressions)
                     .task { await viewModel.loadMorePostsIfNeeded(currentPost: post) }
                 }
                 if viewModel.isLoadingPosts {
@@ -494,6 +437,7 @@ struct CommunityDetailView: View {
                         post: post,
                         onPostDeleted: { viewModel.searchResults.removeAll { $0.id == post.id } },
                         onOpenDetail: { focus in
+                            impressions.opened(post.id)
                             detailRoute = PostRoute(postId: post.id, focusComposer: focus)
                         },
                         onPin: isStaff ? {
@@ -501,9 +445,11 @@ struct CommunityDetailView: View {
                         } : nil,
                         onUnpin: isStaff ? {
                             Task<Void, Never>(name: nil) { await viewModel.unpinPost(post.id) }
-                        } : nil
+                        } : nil,
+                        insideCommunityId: communityId
                     )
                     .cardStyle()
+                    .tracksImpression(post.id, in: impressions)
                 }
             }
             .padding(.horizontal, AppSpacing.sm)
@@ -543,116 +489,6 @@ struct CommunityDetailView: View {
         }
         .padding(.top, 60)
         .frame(maxWidth: .infinity)
-    }
-
-    // MARK: - Members
-
-    @ViewBuilder
-    private var membersContent: some View {
-        if isPrivateLockedOut {
-            privateLockedNotice(bundle.loc("Members of a private community are only visible to its members."))
-        } else if viewModel.isLoadingMembers {
-            ProgressView().padding(.top, 40).frame(maxWidth: .infinity)
-        } else {
-            LazyVStack(spacing: 0) {
-                ForEach(viewModel.members) { member in
-                    NavigationLink {
-                        CommunityMemberProfileView(communityId: communityId, userId: member.id)
-                    } label: {
-                        memberRow(member)
-                    }
-                    .buttonStyle(.plain)
-                    Divider()
-                        .background(AppColors.borderSubtle(colorScheme))
-                        .padding(.leading, 60)
-                }
-            }
-            .surfaceBackground()
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-            .padding(10)
-        }
-    }
-
-    private func memberRow(_ member: CommunityMember) -> some View {
-        HStack(spacing: 12) {
-            ZStack {
-                Circle().fill(Color(hex: member.avatarColor))
-                Text(String(member.displayName.prefix(1)))
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(.white)
-            }
-            .frame(width: 40, height: 40)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(member.displayName)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(AppColors.textPrimary(colorScheme))
-                Text("@\(member.username)")
-                    .font(.system(size: 13))
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-            }
-            Spacer()
-            if member.role != .member {
-                Text(bundle.loc(member.role.label))
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(accentColor)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(accentColor.opacity(0.12))
-                    .clipShape(Capsule())
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .contentShape(Rectangle())
-        .contextMenu { memberContextMenu(member) }
-    }
-
-    @ViewBuilder
-    private func memberContextMenu(_ member: CommunityMember) -> some View {
-        let isSelf  = member.id == (appState.currentUser?.id ?? "")
-        let canKick = currentUserRole == .admin
-                   || (currentUserRole == .moderator && member.role == .member)
-
-        // Staff actions (not on self)
-        if isStaff && !isSelf {
-            // Role change — admin only
-            if currentUserRole == .admin && member.role == .member {
-                Button {
-                    Task<Void, Never>(name: nil) { await viewModel.updateRole(userId: member.id, newRole: .moderator) }
-                } label: {
-                    Label(bundle.loc("Promote to moderator"), systemImage: "person.badge.shield.checkmark")
-                }
-            }
-            if currentUserRole == .admin && member.role == .moderator {
-                Button {
-                    Task<Void, Never>(name: nil) { await viewModel.updateRole(userId: member.id, newRole: .member) }
-                } label: {
-                    Label(bundle.loc("Demote to member"), systemImage: "person.badge.minus")
-                }
-            }
-
-            // Kick
-            if canKick {
-                Divider()
-                Button(role: .destructive) {
-                    Task<Void, Never>(name: nil) { await viewModel.kickMember(member.id) }
-                } label: {
-                    Label(bundle.loc("Remove from community"), systemImage: "person.crop.circle.badge.xmark")
-                }
-            }
-        }
-
-        // Report — any member can report another member (not self)
-        if !isSelf {
-            Divider()
-            Button {
-                reportTargetId  = member.id
-                showReportMember = true
-            } label: {
-                Label(bundle.loc("Report this member"), systemImage: "flag")
-            }
-        }
     }
 
     // MARK: - FAB

@@ -168,6 +168,11 @@ struct CreateCommunityView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 10))
                             .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
                             .frame(height: 80)
+                        Text(String(format: bundle.loc("%lld/%lld words"),
+                                    CommunityDescription.wordCount(viewModel.description), CommunityDescription.maxWords))
+                            .font(.system(size: 12))
+                            .foregroundColor(AppColors.textTertiary(colorScheme))
+                            .frame(maxWidth: .infinity, alignment: .trailing)
                     }
 
                     // Privacy picker
@@ -283,9 +288,10 @@ struct CreateCommunityView: View {
             .appBackground()
             .navigationTitle(bundle.loc("Create community"))
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(bundle.loc("Cancel")) { dismiss() }
+                    ConfirmCancelButton { dismiss() }
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 ToolbarItem(placement: .confirmationAction) {

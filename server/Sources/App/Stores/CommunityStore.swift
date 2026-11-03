@@ -204,7 +204,9 @@ enum CommunityStore {
             WHERE u.id = \(uuid: userID) AND u.deleted_at IS NULL
             """).first(decoding: Row.self) else { return nil }
         let posts = try await db.raw(PostStore.buildPostSelect(viewer)
-            + " WHERE p.community_id = \(uuid: communityID) AND p.author_id = \(uuid: userID) AND p.status = 'posted'"
+            + " WHERE (p.community_id = \(uuid: communityID) OR " + ListingStore.listedInClause(communityID) + ")"
+            + " AND p.author_id = \(uuid: userID) AND p.status = 'posted'"
+            + " AND " + ListingStore.notHiddenFromFriendClause(viewer)
             + " GROUP BY p.id, u.id ORDER BY p.created_at DESC LIMIT 20 OFFSET \(bind: offset)")
             .all(decoding: PostStore.PostRow.self).map(PostStore.map)
         return MemberProfile(id: r.id, username: r.username, display_name: r.display_name, avatar_url: r.avatar_url,
@@ -253,8 +255,10 @@ enum CommunityStore {
     }
 
     static func pendingPosts(_ communityID: String, viewer: String, on db: any SQLDatabase) async throws -> [PostObject] {
+        // The community's own pending posts, plus listings waiting to show here.
         try await db.raw(PostStore.buildPostSelect(viewer)
-            + " WHERE p.community_id = \(uuid: communityID) AND p.status = 'pending'"
+            + " WHERE ((p.community_id = \(uuid: communityID) AND p.status = 'pending')"
+            + " OR (p.status = 'posted' AND " + ListingStore.listedInClause(communityID, status: "pending") + "))"
             + " GROUP BY p.id, u.id ORDER BY p.created_at").all(decoding: PostStore.PostRow.self).map(PostStore.map)
     }
 
@@ -417,10 +421,24 @@ enum CommunityStore {
         @NullCoded var company: String?
         var role: String
         var joined_at: Date
+        /// Their photo in the community's mode.
+        @NullCoded var avatar_url: String?
+        /// Connected with the viewer in the community's mode — the list splits
+        /// friends from everyone else.
+        var is_friend: Bool
     }
-    static func members(_ communityID: String, limit: Int, offset: Int, on db: any SQLDatabase) async throws -> [MemberRow] {
-        try await db.raw("""
-            SELECT u.id::text AS id, u.username, u.display_name, u.avatar_color, u.job_title, u.company, cm.role, cm.joined_at
+    /// `communityType` is the community's own `type` ("work" or "hobby").
+    static func members(_ communityID: String, communityType: String, viewer: String,
+                        limit: Int, offset: Int, on db: any SQLDatabase) async throws -> [MemberRow] {
+        // A fixed literal, as in `info`.
+        let mode = communityType == "work" ? "'work'" : "'hobby'"
+        let modeValue = communityType == "work" ? "work" : "hobby"
+        return try await db.raw("""
+            SELECT u.id::text AS id, u.username, u.display_name, u.avatar_color, u.job_title, u.company, cm.role, cm.joined_at,
+              \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: mode)) AS avatar_url,
+              EXISTS (SELECT 1 FROM connections k WHERE k.status = 'accepted' AND k.mode = \(bind: modeValue)
+                AND ((k.requester_id = \(uuid: viewer) AND k.addressee_id = u.id)
+                  OR (k.addressee_id = \(uuid: viewer) AND k.requester_id = u.id))) AS is_friend
             FROM community_members cm JOIN users u ON u.id = cm.user_id
             WHERE cm.community_id = \(uuid: communityID)
             ORDER BY CASE cm.role WHEN 'admin' THEN 0 WHEN 'moderator' THEN 1 ELSE 2 END, cm.joined_at ASC
