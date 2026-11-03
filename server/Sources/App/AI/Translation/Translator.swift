@@ -63,7 +63,7 @@ struct OllamaChatTranslator: Translator {
         req.method = .POST
         req.headers.add(name: "content-type", value: "application/json")
         req.body = .bytes(try JSONSerialization.data(withJSONObject: body))
-        let res = try await client.execute(req, timeout: timeout)
+        let res = try await OllamaGate.run { try await client.execute(req, timeout: timeout) }
         guard (200..<300).contains(Int(res.status.code)) else {
             throw Abort(.badGateway, reason: "Translation model error: \(res.status.code)")
         }

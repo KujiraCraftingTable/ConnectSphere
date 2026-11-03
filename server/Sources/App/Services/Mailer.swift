@@ -115,6 +115,8 @@ struct Mailer {
                         subject: subject, textContent: text)
         do {
             let res = try await client.post("https://api.brevo.com/v3/smtp/email") { r in
+                // A stuck send must not hold the sign-up or 2FA request open.
+                r.timeout = .seconds(10)
                 r.headers.replaceOrAdd(name: "api-key", value: mail.brevoKey)
                 r.headers.replaceOrAdd(name: .accept, value: "application/json")
                 try r.content.encode(body)

@@ -9,6 +9,9 @@ services:
       POSTGRES_PASSWORD: connectsphere_pass
     ports:
       - "5432:5432"
+    # Any statement over half a second goes to the container log
+    # (`docker logs connectsphere_db`) — the slow-query half of tracing.
+    command: ["postgres", "-c", "log_min_duration_statement=500"]
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

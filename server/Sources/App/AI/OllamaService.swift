@@ -1,5 +1,6 @@
 import Vapor
 import AsyncHTTPClient
+import SQLKit
 import NIOFoundationCompat
 
 /// Port of `backend/src/services/aiService.js` — query understanding,
@@ -33,15 +34,17 @@ enum OllamaService {
         intent_en: the core search intent translated to English. Preserve proper nouns exactly (anime/movie/song titles, artist names, team names, brands, companies, universities, frameworks, tools, places). Remove greetings, filler ("help me", "I want to"), and emotional noise. Keep only what describes WHO the user wants to find.
         mode: "hobby" if looking for friends or social connections, "work" if looking for work or study partners, null if unclear.
         target_gender: "male" or "female" ONLY when explicitly asked ("bạn nam", "female friend"). Never guess from context.
-        target_age_min / target_age_max: ALWAYS set these when the query mentions any age — never skip them. "20-30" -> min 20, max 30. "over 25"/"trên 25"/"trên 25 tuổi" -> min 25, max null. "under 30"/"dưới 30" -> min null, max 30. A single age ("25 tuổi", "around 25") -> a ±2 range, min 23 max 27. Only omit when no age is mentioned at all.
+        target_age_min / target_age_max: ALWAYS set these when the query mentions any age — never skip them. A bare number without "tuổi" / "years old" ("thích 8", "số 67") is never an age. "20-30" -> min 20, max 30. "over 25"/"trên 25"/"trên 25 tuổi" -> min 25, max null. "under 30"/"dưới 30" -> min null, max 30. A single age ("25 tuổi", "around 25") -> a ±2 range, min 23 max 27. Only omit when no age is mentioned at all.
         entity_type: type of the specific named entity, one of: anime, manga, movie, tv_show, book, game, music, podcast, celebrity, art, food, sport, company, university, industry, programming_language, framework, tool, certification, job_role, professional_field, startup. null if the query names no specific entity.
         entity_name: canonical English name of that entity. null if none.
-        interest_groups: 2D array for hobbies/lifestyle. Each inner array is ONE concept plus its synonyms, base-form nouns/verbs only, no adjectives or emotion words. AND between groups, OR within a group. CORRECT: [["cook","cooking","food"],["travel","hiking"]]. WRONG: [["cook","travel"]] — never mix concepts.
+        interest_groups: 2D array for hobbies/lifestyle. Each inner array is ONE concept plus its synonyms, base-form nouns/verbs only, no adjectives or emotion words. AND between groups, OR within a group. Include every activity, habit or lifestyle asked for, including smoking, drinking or chatting — never drop one. CORRECT: [["cook","cooking","food"],["travel","hiking"]]. WRONG: [["cook","travel"]] — never mix concepts.
         skills: work or study skills only (iOS, React, Python, Accounting, Marketing). Never put these in interest_groups.
         bio_keywords: words describing the person type (student, freelancer, senior, teacher).
         job_title_keywords: job or role titles (developer, designer, accountant).
         location: exact match from this list only — \(locationList) — null if not mentioned.
         place_name: a specific venue name when the city is unknown (e.g. "CGV Go Vap"). null if not mentioned.
+        unsupported: body or appearance traits asked for — height ("1m8", "cao 1m7"), weight, looks ("đẹp trai"). Omit otherwise.
+        like_me: true when the user wants people similar to themselves — who share their own interests or taste ("same stuff as me", "giống mình", "hợp gu với tôi"). Omit otherwise.
 
         For a hobby-mode query leave skills and job_title_keywords empty. For a work-mode query leave interest_groups empty.
 
@@ -91,7 +94,7 @@ enum OllamaService {
         req.method = .POST
         req.headers.add(name: "content-type", value: "application/json")
         req.body = .bytes(try JSONSerialization.data(withJSONObject: body))
-        let res = try await cfg.client.execute(req, timeout: .seconds(60))
+        let res = try await OllamaGate.run { try await cfg.client.execute(req, timeout: .seconds(60)) }
         guard (200..<300).contains(Int(res.status.code)) else {
             throw Abort(.badGateway, reason: "Ollama error: \(res.status.code)")
         }
@@ -149,6 +152,8 @@ enum OllamaService {
                 "job_title_keywords": ["type": "array", "items": ["type": "string"]],
                 "location": ["type": ["string", "null"]],
                 "place_name": ["type": ["string", "null"]],
+                "like_me": ["type": "boolean"],
+                "unsupported": ["type": "array", "items": ["type": "string"]],
             ],
             "required": ["intent_en", "mode"],
         ]
@@ -202,6 +207,19 @@ enum OllamaService {
         @NullCoded var location: String?
         @NullCoded var place_name: String?
         @NullCoded var mode: String?
+        /// "Someone into the same stuff as me": your own taste becomes part
+        /// of the query (AI_SEARCH_REVIEW.md, phase S2).
+        var like_me = false
+        /// Height, weight or looks asked for — not searchable (phase S6).
+        var unsupported: [String] = []
+    }
+
+    /// The analyzer misses some "like me" phrasings, so these always count.
+    private static let likeMePattern = try! NSRegularExpression(
+        pattern: #"\b(like me|same (stuff|things|interests|taste|vibe)( as me)?|similar to me)\b|(giống|như|hợp gu( với)?|cùng gu( với)?) (mình|tôi|tớ|tui)\b"#,
+        options: [.caseInsensitive])
+    static func mentionsLikeMe(_ query: String) -> Bool {
+        likeMePattern.firstMatch(in: query, range: NSRange(query.startIndex..., in: query)) != nil
     }
 
     private struct Analyzed {
@@ -218,6 +236,10 @@ enum OllamaService {
         var job_title_keywords: [String]
         var location: String?
         var place_name: String?
+        var like_me = false
+        var unsupported: [String] = []
+        /// The LLM call failed and these are the defaults; never cached.
+        var failed = false
     }
 
     private static func sanitizeAge(_ rawMin: Any?, _ rawMax: Any?) -> (Int?, Int?) {
@@ -259,12 +281,14 @@ enum OllamaService {
                 bio_keywords: strArray(j["bio_keywords"]),
                 job_title_keywords: strArray(j["job_title_keywords"]),
                 location: j["location"] as? String,
-                place_name: j["place_name"] as? String)
+                place_name: j["place_name"] as? String,
+                like_me: j["like_me"] as? Bool ?? false,
+                unsupported: strArray(j["unsupported"]))
         } catch {
             logger.warning("Query analyzer failed — using defaults: \(error)")
             return Analyzed(intent_en: query, mode: nil, target_gender: nil, target_age_min: nil, target_age_max: nil,
                             entity_type: nil, entity_name: nil, interest_groups: [], skills: [], bio_keywords: [],
-                            job_title_keywords: [], location: nil, place_name: nil)
+                            job_title_keywords: [], location: nil, place_name: nil, failed: true)
         }
     }
 
@@ -280,7 +304,40 @@ enum OllamaService {
         return (loc.isEmpty ? nil : loc, place.isEmpty ? nil : place)
     }
 
-    static func extractSearchCriteria(_ cfg: Config, _ userQuery: String, mode: String?, logger: Logger) async -> SearchCriteria {
+    /// How long a prompt's reading is reused: the slowest step of a search,
+    /// and the same prompt reads the same way.
+    static let criteriaCacheHours = 24
+
+    static func criteriaCacheKey(_ query: String, mode: String?) -> String {
+        let words = query.lowercased().split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        return "\(mode ?? "-")|\(words)"
+    }
+
+    /// `db` turns on the cache (`search_criteria_cache`, migration 086).
+    static func extractSearchCriteria(_ cfg: Config, _ userQuery: String, mode: String?, logger: Logger,
+                                      db: (any SQLDatabase)? = nil) async -> SearchCriteria {
+        let key = criteriaCacheKey(userQuery, mode: mode)
+        struct Cached: Decodable { let criteria: String }
+        if let db, let row = try? await db.raw("""
+            SELECT criteria::text AS criteria FROM search_criteria_cache
+            WHERE key = \(bind: key) AND created_at > NOW() - make_interval(hours => \(bind: criteriaCacheHours))
+            """).first(decoding: Cached.self),
+           let hit = try? JSONDecoder().decode(SearchCriteria.self, from: Data(row.criteria.utf8)) {
+            return hit
+        }
+        let (criteria, failed) = await analyzeCriteria(cfg, userQuery, mode: mode, logger: logger)
+        if let db, !failed, let json = try? JSONEncoder().encode(criteria) {
+            try? await db.raw("""
+                INSERT INTO search_criteria_cache (key, criteria)
+                VALUES (\(bind: key), \(bind: String(decoding: json, as: UTF8.self))::jsonb)
+                ON CONFLICT (key) DO UPDATE SET criteria = EXCLUDED.criteria, created_at = NOW()
+                """).run()
+        }
+        return criteria
+    }
+
+    private static func analyzeCriteria(_ cfg: Config, _ userQuery: String, mode: String?,
+                                        logger: Logger) async -> (SearchCriteria, failed: Bool) {
         let a = await analyzeQuery(cfg, userQuery.trimmingCharacters(in: .whitespaces), logger: logger)
         let resolvedMode = mode ?? a.mode
 
@@ -301,7 +358,7 @@ enum OllamaService {
         }
         let (loc, place) = reconcileLocation(a.location, a.place_name)
 
-        return SearchCriteria(
+        return (SearchCriteria(
             intent_en: a.intent_en,
             target_gender: a.target_gender,
             target_age_min: a.target_age_min,
@@ -316,7 +373,56 @@ enum OllamaService {
             job_title_keywords: jobKw,
             location: loc,
             place_name: place,
-            mode: resolvedMode)
+            mode: resolvedMode,
+            like_me: a.like_me || mentionsLikeMe(userQuery),
+            unsupported: cleanKeywords(a.unsupported)), a.failed)
+    }
+
+    // MARK: "why they fit you" (AI_SEARCH_REVIEW.md, phase S4)
+
+    static func explainPrompt(vietnamese: Bool) -> String {
+        """
+        You write one short sentence per person explaining why they could be a good fit for the searcher, for a social app's search results.
+        Input JSON: "query" (what the searcher asked for), "searcher" (their own interests), and "people" (each with an "id" and "evidence": what they post or say about themselves).
+        Rules:
+        - Write exactly one sentence for every id in "people" — never skip one.
+        - Use only facts in the evidence and the searcher's interests. Never invent facts.
+        - Say only what fits: what they share with the searcher, or what in their evidence matches the query. No "but", "though" or differences.
+        - At most 20 words each, friendly, \(vietnamese ? "starting like \"Hai bạn đều…\" or \"Bạn ấy hay đăng về…\"" : "starting like \"You both…\" or \"They post about…\"").
+        - Write in \(vietnamese ? "Vietnamese" : "English").
+        Output a JSON object mapping each id to its sentence, nothing else.
+        """
+    }
+
+    struct ExplainPerson: Encodable { let id: String; let evidence: [String] }
+
+    /// One batched call for the top people. Empty on any failure — the
+    /// evidence chips are already on screen, so the sentence is optional.
+    static func explainFits(_ cfg: Config, query: String, searcherInterests: [String], people: [ExplainPerson],
+                            vietnamese: Bool, logger: Logger) async -> [String: String] {
+        guard !people.isEmpty else { return [:] }
+        struct In: Encodable { let query: String; let searcher: [String]; let people: [ExplainPerson] }
+        var out: [String: String] = [:]
+        // The model now and then skips someone; ask once more for just them.
+        for _ in 0..<2 {
+            let missing = people.filter { out[$0.id] == nil }
+            guard !missing.isEmpty else { break }
+            do {
+                let input = String(decoding: try JSONEncoder().encode(
+                    In(query: query, searcher: searcherInterests, people: missing)), as: UTF8.self)
+                let obj = try parseObject(try await chat(cfg, system: explainPrompt(vietnamese: vietnamese),
+                                                         user: input, temperature: 0.3))
+                let ids = Set(missing.map(\.id))
+                for (key, value) in obj where ids.contains(key) {
+                    guard let text = (value as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                          !text.isEmpty else { continue }
+                    out[key] = String(text.prefix(200))
+                }
+            } catch {
+                logger.warning("explainFits failed: \(error)")
+            }
+        }
+        return out
     }
 
     // MARK: translate + embed
@@ -337,7 +443,7 @@ enum OllamaService {
             req.body = .bytes(try JSONSerialization.data(withJSONObject: [
                 "model": embedModel, "prompt": text, "keep_alive": keepAlive,
             ]))
-            let res = try await cfg.client.execute(req, timeout: .seconds(15))
+            let res = try await OllamaGate.run { try await cfg.client.execute(req, timeout: .seconds(15)) }
             guard (200..<300).contains(Int(res.status.code)) else { throw Abort(.badGateway, reason: "Embed \(res.status.code)") }
             let buf = try await res.body.collect(upTo: 2 * 1024 * 1024)
             struct R: Decodable { let embedding: [Double]? }
@@ -346,6 +452,15 @@ enum OllamaService {
             logger.warning("embedText failed: \(error)")
             return nil
         }
+    }
+
+    /// mxbai's retrieval instruction: a short query embedded with it lands
+    /// nearer the passages about it than the bare words do. Stored chunks are
+    /// embedded without it.
+    static let queryInstruction = "Represent this sentence for searching relevant passages: "
+
+    static func embedQuery(_ cfg: Config, _ text: String, logger: Logger) async -> [Double]? {
+        await embedText(cfg, queryInstruction + text, logger: logger)
     }
 
     /// Raw one-shot chat used by `PostAnalyzeService` / `PostTagExtractService`.

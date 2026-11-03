@@ -15,6 +15,9 @@ nonisolated enum MediaSanitizer {
         let data: Data
         let mimeType: String
         let fileExtension: String
+        /// A `thumbnailEdge` JPEG for feeds and grids; nil when the photo is
+        /// already that small, or keeps transparency (JPEG would fill it black).
+        var thumbnail: Data? = nil
     }
 
     enum Failure: Error { case unreadableImage, encodeFailed, exportFailed }
@@ -25,6 +28,9 @@ nonisolated enum MediaSanitizer {
     /// The single lossy pass a photo gets — callers hand over the original
     /// (or a lossless copy), so it's compressed once, not twice.
     static let jpegQuality = 0.8
+    /// The feed's copy: sharp on a full-width card, about a quarter of the
+    /// full photo's weight.
+    static let thumbnailEdge = 960
 
     /// Re-encodes the image with no metadata dictionaries at all, its longest
     /// edge brought down to `maxPhotoEdge` (smaller photos keep their size).
@@ -70,9 +76,22 @@ nonisolated enum MediaSanitizer {
         CGImageDestinationAddImage(destination, image, encodeOptions as CFDictionary)
         guard CGImageDestinationFinalize(destination) else { throw Failure.encodeFailed }
 
+        var thumbnail: Data?
+        if !isPNG, max(width, height) > thumbnailEdge {
+            var small = decodeOptions
+            small[kCGImageSourceThumbnailMaxPixelSize] = thumbnailEdge
+            let thumbData = NSMutableData()
+            if let thumbImage = CGImageSourceCreateThumbnailAtIndex(source, 0, small as CFDictionary),
+               let thumbDest = CGImageDestinationCreateWithData(thumbData, UTType.jpeg.identifier as CFString, 1, nil) {
+                CGImageDestinationAddImage(thumbDest, thumbImage, [kCGImageDestinationLossyCompressionQuality: 0.75] as CFDictionary)
+                if CGImageDestinationFinalize(thumbDest) { thumbnail = thumbData as Data }
+            }
+        }
+
         return Image(data: out as Data,
                      mimeType: isPNG ? "image/png" : "image/jpeg",
-                     fileExtension: isPNG ? "png" : "jpg")
+                     fileExtension: isPNG ? "png" : "jpg",
+                     thumbnail: thumbnail)
     }
 
     /// Copies the video's tracks into a new file without any metadata. A video
