@@ -1,6 +1,7 @@
 # AI Search — Cách hoạt động (ConnectSphere)
 
 > Tài liệu đọc hiểu, không phải thiết kế. Mọi mô tả đều phản ánh code hiện tại.
+> So sánh với Spotify / Netflix / Amazon và kế hoạch nâng cấp: [`AI_SEARCH_REVIEW.md`](AI_SEARCH_REVIEW.md).
 > Cập nhật 2026-07-04: chunk-based retrieval + query pipeline mới
 > (Normalizer → Extractor → Query Builder), chuẩn hóa tiếng Anh cả hai phía.
 >

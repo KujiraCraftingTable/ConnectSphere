@@ -14,6 +14,8 @@ struct SearchController {
         let s = routes.grouped("search").grouped(AuthMiddleware())
         s.grouped(RateLimitMiddleware.aiSearch()).post("ai", use: aiSearch)
         s.grouped(RateLimitMiddleware.aiSearch()).post("ai", "posts", use: aiPostSearch)
+        s.grouped(RateLimitMiddleware.aiSearch()).post("sessions", ":id", "explain", use: explain)
+        s.post("sessions", ":id", "events", use: sessionEvent)
         s.get("suggestions", use: suggestions)
         s.post("lookup", use: lookup)
 
@@ -105,33 +107,114 @@ struct SearchController {
         var criteria: OllamaService.SearchCriteria
         var entity_suggestions: [EntitySuggestion]
         var warnings: [Warning]
+        /// Ties taps, "Not a fit", refinements and explanations to this search.
+        @NullCoded var search_session_id: String?
     }
 
     // MARK: POST /api/search/ai
 
-    struct AIBody: Content { var query: String?; var mode: String?; var radiusKm: Double? }
+    struct AIBody: Content {
+        var query: String?; var mode: String?; var radiusKm: Double?
+        /// Refining an earlier search of yours (AI_SEARCH_REVIEW.md, phase S4):
+        /// its id, plus what to change — free text ("only in Hanoi"), people
+        /// more like one of its results, or closer to where you live.
+        var session_id: String?
+        var refine: String?
+        var more_like: String?
+        var closer: Bool?
+    }
+    static let maxRefineLength = 200
+    /// Taste vectors used as extra queries for a "like me" prompt.
+    static let maxLikeMeVectors = 3
+    /// Profiles all read alike to the embedding model (0.6 matches most of
+    /// them), so a profile or taste used as the query needs a higher bar.
+    static let personalThreshold = 0.7
 
     static func aiSearch(_ req: Request) async throws -> AISearchResponse {
         let b = try req.content.decode(AIBody.self)
-        guard let userQuery = b.query?.trimmingCharacters(in: .whitespaces), !userQuery.isEmpty else {
-            throw StatusMessageError(.badRequest, "query is required")
+        if let m = b.mode, !["hobby", "work"].contains(m) {
+            throw StatusMessageError(.badRequest, "mode must be hobby or work")
         }
         let db = req.db.sql()
         let cfg = req.ollama
         let searcher = req.userID
         let log = req.logger
 
-        var criteria = await OllamaService.extractSearchCriteria(cfg, userQuery, mode: b.mode, logger: log)
+        var userQuery = b.query?.trimmingCharacters(in: .whitespaces) ?? ""
+        if let sid = b.session_id {
+            guard UUID(uuidString: sid) != nil, let prev = try await SearchStore.session(sid, userID: searcher, on: db) else {
+                throw StatusMessageError(.notFound, "Search not found")
+            }
+            userQuery = prev.query
+        }
+        if let r = b.refine?.trimmingCharacters(in: .whitespacesAndNewlines), !r.isEmpty {
+            guard b.session_id != nil else { throw StatusMessageError(.badRequest, "refine needs session_id") }
+            guard r.count <= maxRefineLength else {
+                throw StatusMessageError(.badRequest, "refine must be \(maxRefineLength) characters or fewer")
+            }
+            // The analyzer reads the earlier prompt with the change appended,
+            // so the criteria are edited rather than started over.
+            userQuery += ". " + r
+        }
+        guard !userQuery.isEmpty else { throw StatusMessageError(.badRequest, "query is required") }
+        if let ml = b.more_like, UUID(uuidString: ml) == nil {
+            throw StatusMessageError(.badRequest, "more_like must be a user id")
+        }
+
+        var criteria = await OllamaService.extractSearchCriteria(cfg, userQuery, mode: b.mode, logger: log, db: db)
 
         async let ctxTask = SearchStore.getUserContext(searcher, on: db)
-        async let entityTask = buildEntityVector(cfg, criteria, on: db, logger: log)
-        async let generalTask = buildGeneralVector(cfg, criteria, logger: log)
+        async let tasteTask = SearchStore.searchTaste(searcher, on: db)
+        async let entriesTask = SearchConcepts.searchEntries(mode: b.mode ?? criteria.mode, on: db)
         let ctx = try await ctxTask
+        let tastes = try await tasteTask
+        let entries = try await entriesTask
+
+        // Every search is recorded (phase S3), empty ones too: the zero-result
+        // rate is one of the weekly metrics.
+        func respond(_ users: [SearchStore.RawUser], _ warnings: [Warning], terms: [String] = [],
+                     communities: [String: [String]] = [:], suggestions: [EntitySuggestion] = []) async -> AISearchResponse {
+            let finalUsers = finalize(users, terms: terms, communityByUser: communities)
+            try? await SearchStore.logSearch(userQuery, mode: b.mode, on: db)
+            var sessionID: String? = nil
+            do {
+                let criteriaJSON = String(decoding: try JSONEncoder().encode(criteria), as: UTF8.self)
+                sessionID = try await SearchStore.recordSession(
+                    userID: searcher, query: userQuery, mode: b.mode ?? criteria.mode, criteriaJSON: criteriaJSON,
+                    shown: finalUsers.map { ($0.id, $0.score) }, on: db)
+            } catch { log.warning("Search session not recorded: \(error)") }
+            return AISearchResponse(data: finalUsers, criteria: criteria, entity_suggestions: suggestions,
+                                    warnings: warnings, search_session_id: sessionID)
+        }
+
+        // What people search doesn't do (phase S6): a partner is for Dating,
+        // and height, weight or looks aren't stored.
+        if SearchConcepts.seeksPartner(userQuery) {
+            let code = (ctx?.age ?? 0) >= datingMinAge ? "dating_elsewhere" : "dating_age_locked"
+            return await respond([], [Warning(code: code, value: nil)])
+        }
+        if let trait = SearchConcepts.unsupportedTrait(userQuery) ?? criteria.unsupported.first {
+            return await respond([], [Warning(code: "unsupported_trait", value: trait)])
+        }
+        if !SearchConcepts.mentionsAge(userQuery) {
+            criteria.target_age_min = nil
+            criteria.target_age_max = nil
+        }
+        let concepts = SearchConcepts.concepts(prompt: userQuery, criteria: criteria, entries: entries)
+
+        let parsed = criteria
+        async let entityTask = buildEntityVector(cfg, parsed, on: db, logger: log)
+        async let generalTask = buildGeneralVector(cfg, parsed, logger: log)
+        async let conceptVecTask = conceptVectors(cfg, concepts, logger: log)
         let entityResult = await entityTask
         let generalVec = await generalTask
+        let conceptVecs = await conceptVecTask
 
         var warnings: [Warning] = []
         var searchCoords: (lat: Double, lng: Double)? = nil
+        if b.closer == true, criteria.location == nil, criteria.place_name == nil, let home = ctx?.location {
+            criteria.location = home
+        }
         if let place = criteria.place_name, criteria.location == nil {
             if let loc = await VenueLocationService.resolveVenueToCity(
                 place, client: HTTPClient.shared, on: db, logger: log), let prov = loc.provinceName {
@@ -149,64 +232,161 @@ struct SearchController {
         let entityVec = entityResult.vec
         let entitySuggestions = entityResult.suggestion.map { [$0] } ?? []
 
-        var fallbackVec: [Double]? = nil
-        if entityVec == nil, generalVec == nil {
-            warnings.append(Warning(code: "query_unclear", value: nil))
-            fallbackVec = await OllamaService.embedText(cfg, criteria.intent_en.isEmpty ? userQuery : criteria.intent_en, logger: log)
-            if fallbackVec == nil {
-                try? await SearchStore.logSearch(userQuery, mode: b.mode, on: db)
-                return AISearchResponse(data: [], criteria: criteria, entity_suggestions: entitySuggestions, warnings: warnings)
-            }
-        }
+        // "Like me" and "More like @x" add vectors of their own: your taste,
+        // or that person's profile.
+        var personalVecs: [[Double]] = criteria.like_me ? Array(tastes.prefix(maxLikeMeVectors)) : []
+        if let ml = b.more_like, let v = try await SearchStore.profileVector(ml, on: db) { personalVecs.append(v) }
 
-        let hasDatingIntent = criteria.bio_keywords.contains { SearchStore.datingKeywords.contains($0.lowercased()) }
-        let hasInterestGroups = !criteria.interest_groups.isEmpty
-
+        let groups = criteria.interest_groups.isEmpty ? nil : criteria.interest_groups
         var base = SearchStore.Params(queryVector: [])
         base.mode = b.mode ?? criteria.mode
         base.location = criteria.location
         base.targetGender = criteria.target_gender
         base.targetAgeMin = criteria.target_age_min
         base.targetAgeMax = criteria.target_age_max
-        base.hasDatingIntent = hasDatingIntent
-        base.currentUserGender = ctx?.gender
         base.radiusKm = b.radiusKm
         base.searchLat = searchCoords?.lat
         base.searchLng = searchCoords?.lng
         base.excludeUserID = searcher
         base.threshold = 0.6
+        base.interestGroups = groups
+        let params = base
+        let hasFilter = criteria.target_gender != nil || criteria.target_age_min != nil
+            || criteria.target_age_max != nil || criteria.location != nil || searchCoords != nil
 
-        var users: [SearchStore.RawUser]
-        if let fv = fallbackVec {
-            var pp = base; pp.queryVector = fv
-            pp.interestGroups = hasInterestGroups ? criteria.interest_groups : nil
-            users = try await SearchStore.vectorSearch(pp, on: db)
+        // Names typed in the prompt are found whatever else it asks for.
+        var keywordParams = params
+        keywordParams.threshold = 0
+        keywordParams.keyword = SearchStore.KeywordQuery(terms: keywordTerms(criteria), nameQuery: userQuery)
+        let kwRows = try await SearchStore.vectorSearch(keywordParams, on: db)
+        let nameHits = kwRows.filter { $0.name_match >= strongNameMatch }
+
+        var users: [SearchStore.RawUser] = []
+        if !concepts.isEmpty {
+            // The prompt is the gate: only people who match every topic it
+            // names. Your taste orders them later; it never adds anyone.
+            var gates: [Set<String>] = []
+            for (c, v) in zip(concepts, conceptVecs) {
+                gates.append(try await SearchStore.conceptPeople(c, vector: v, mode: params.mode, on: db))
+            }
+            let missing = zip(concepts, gates).filter { $0.1.isEmpty }.map(\.0.label)
+            let allowed = gates.dropFirst().reduce(gates[0]) { $0.intersection($1) }
+            if allowed.isEmpty {
+                if nameHits.isEmpty {
+                    warnings.append(missing.isEmpty
+                        ? Warning(code: "no_match_together", value: concepts.map(\.label).joined(separator: ", "))
+                        : Warning(code: "no_match", value: missing.joined(separator: ", ")))
+                }
+                users = fuse(semantic: [], keyword: nameHits)
+            } else {
+                // Within the gate every qualifying person is ranked, so no bar.
+                var gated = params
+                gated.threshold = 0
+                gated.allowedUsers = Array(allowed)
+                let g = gated, personal = personalVecs
+                async let semanticRows = semanticSearch(g, entityVec: entityVec, generalVec: generalVec, on: db)
+                async let personalRows = bestOfVectors(g, personal, on: db)
+                let keyword = kwRows.filter { allowed.contains($0.id) || $0.name_match >= strongNameMatch }
+                users = fuse(semantic: try await semanticRows, keyword: keyword, personal: try await personalRows)
+            }
+        } else if !personalVecs.isEmpty {
+            var personalParams = params
+            personalParams.threshold = personalThreshold
+            users = fuse(semantic: [], keyword: nameHits,
+                         personal: try await bestOfVectors(personalParams, personalVecs, on: db))
+        } else if hasFilter {
+            // Only filters ("bạn nữ ở Hà Nội"): everyone who passes them,
+            // nearest your taste first.
+            var tasteVecs = Array(tastes.prefix(maxLikeMeVectors))
+            if tasteVecs.isEmpty, let mine = try await SearchStore.profileVector(searcher, on: db) { tasteVecs = [mine] }
+            var open = params
+            open.threshold = 0
+            users = fuse(semantic: [], keyword: nameHits, personal: try await bestOfVectors(open, tasteVecs, on: db))
+        } else if !nameHits.isEmpty {
+            users = fuse(semantic: [], keyword: nameHits)
         } else {
-            async let entityRows: [SearchStore.RawUser] = {
-                guard let ev = entityVec else { return [] }
-                var pp = base; pp.queryVector = ev; pp.interestGroups = nil
-                return try await SearchStore.vectorSearch(pp, on: db)
-            }()
-            async let generalRows: [SearchStore.RawUser] = {
-                guard let gv = generalVec else { return [] }
-                var pp = base; pp.queryVector = gv
-                pp.interestGroups = hasInterestGroups ? criteria.interest_groups : nil
-                return try await SearchStore.vectorSearch(pp, on: db)
-            }()
-            users = mergeWeighted(try await entityRows, try await generalRows)
+            warnings.append(Warning(code: "query_unclear", value: nil))
         }
+
+        // Who fits *you*, then spread by place (phases S2, S3, S5).
+        do {
+            let features = try await SearchStore.rankFeatures(searcher: searcher, candidates: users.map(\.id),
+                                                              tastes: tastes, mode: params.mode, on: db)
+            users = SearchRanking.rerank(users, features: features)
+        } catch { log.warning("Search ranking features failed: \(error)") }
+        users = SearchRanking.diversify(users, byPlace: criteria.location == nil && searchCoords == nil)
 
         let terms = collectCriteriaTerms(criteria)
         var communityByUser: [String: [String]] = [:]
         do {
             communityByUser = try await SearchStore.findCommunityEvidence(users.map(\.id), terms: terms, on: db)
         } catch { log.warning("Community evidence lookup failed: \(error)") }
+        return await respond(users, warnings, terms: terms, communities: communityByUser, suggestions: entitySuggestions)
+    }
 
-        let finalUsers = finalize(users, terms: terms, communityByUser: communityByUser)
-        try? await SearchStore.logSearch(userQuery, mode: b.mode, on: db)
+    // MARK: POST /api/search/sessions/:id/events
 
-        return AISearchResponse(data: finalUsers, criteria: criteria,
-                                entity_suggestions: entitySuggestions, warnings: warnings)
+    struct EventBody: Content { var user_id: String?; var kind: String? }
+    struct StatusOK: Content { var status = "ok" }
+
+    /// The app reports a tap on a result, or "Not a fit".
+    static func sessionEvent(_ req: Request) async throws -> StatusOK {
+        let b = try req.content.decode(EventBody.self)
+        guard let sid = req.parameters.get("id"), UUID(uuidString: sid) != nil,
+              let uid = b.user_id, UUID(uuidString: uid) != nil else {
+            throw StatusMessageError(.badRequest, "session id and user_id are required")
+        }
+        guard let kind = b.kind, SearchStore.eventColumns[kind] != nil else {
+            throw StatusMessageError(.badRequest, "kind must be tap or dismiss")
+        }
+        guard try await SearchStore.stampEvent(sessionID: sid, userID: req.userID, shownUserID: uid, kind: kind,
+                                               on: req.db.sql()) else {
+            throw StatusMessageError(.notFound, "Search result not found")
+        }
+        return StatusOK()
+    }
+
+    /// A connection request or message to someone a recent search showed you
+    /// counts for that search (phase S3). Never fails the request.
+    static func creditOutcome(_ req: Request, to otherID: String, column: String) {
+        let uid = req.userID
+        NotifyService.fireAndForget(req) { db, _, log in
+            do { try await SearchStore.creditOutcome(from: uid, to: otherID, column: column, on: db) }
+            catch { log.warning("Search outcome not credited: \(error)") }
+        }
+    }
+
+    // MARK: POST /api/search/sessions/:id/explain
+
+    static let explainTop = 5
+    struct ExplainBody: Content { var lang: String? }
+    struct ExplainResponse: Content { var explanations: [String: String] }
+
+    /// "Why they fit you" for the top results (phase S4): one LLM call grounded
+    /// in what they post and what you're into, cached on the session.
+    static func explain(_ req: Request) async throws -> ExplainResponse {
+        guard let sid = req.parameters.get("id"), UUID(uuidString: sid) != nil else {
+            throw StatusMessageError(.badRequest, "session id is required")
+        }
+        let lang = (try? req.content.decode(ExplainBody.self))?.lang ?? "en"
+        guard ["en", "vi"].contains(lang) else { throw StatusMessageError(.badRequest, "lang must be en or vi") }
+        let db = req.db.sql()
+        guard let session = try await SearchStore.session(sid, userID: req.userID, on: db) else {
+            throw StatusMessageError(.notFound, "Search not found")
+        }
+        // Cached per language: { "en": { user id: sentence }, "vi": … }.
+        var cache = session.explanations
+            .flatMap { try? JSONDecoder().decode([String: [String: String]].self, from: Data($0.utf8)) } ?? [:]
+        if let map = cache[lang] { return ExplainResponse(explanations: map) }
+        let people = try await SearchStore.explainEvidence(sessionID: sid, top: explainTop, mode: session.mode, on: db)
+        let mine = try await SearchStore.interestsOf(req.userID, on: db)
+        let map = await OllamaService.explainFits(req.ollama, query: session.query, searcherInterests: mine,
+                                                  people: people, vietnamese: lang == "vi", logger: req.logger)
+        cache[lang] = map
+        if !map.isEmpty, let json = try? JSONEncoder().encode(cache) {
+            try? await SearchStore.saveExplanations(sessionID: sid, json: String(decoding: json, as: UTF8.self), on: db)
+        }
+        return ExplainResponse(explanations: map)
     }
 
     // MARK: POST /api/search/ai/posts
@@ -221,9 +401,9 @@ struct SearchController {
         var match_scores: [String: Double]
     }
 
-    /// AI search over posts: the same LLM breakdown and query vectors as
-    /// people search, then nearest post chunks. Each post keeps its best
-    /// similarity across the vectors. Radius/location filters don't apply —
+    /// AI search over posts: the same LLM breakdown and topics as people
+    /// search, then the posts about every topic. A post's similarity is its
+    /// average closeness to the topics. Radius/location filters don't apply —
     /// posts carry no location.
     static func aiPostSearch(_ req: Request) async throws -> AIPostSearchResponse {
         let b = try req.content.decode(AIBody.self)
@@ -237,38 +417,53 @@ struct SearchController {
         let cfg = req.ollama
         let log = req.logger
 
-        let criteria = await OllamaService.extractSearchCriteria(cfg, userQuery, mode: b.mode, logger: log)
-        async let entityTask = buildEntityVector(cfg, criteria, on: db, logger: log)
-        async let generalTask = buildGeneralVector(cfg, criteria, logger: log)
-        var vectors = [await entityTask.vec, await generalTask].compactMap { $0 }
-
-        // The breakdown prompt is written for finding *people*, so a post query
-        // ("posts about …") often yields no interests/entity. Embedding the
-        // whole query is then the normal path, not a failure — only warn when
-        // no vector could be built at all.
-        var warnings: [Warning] = []
-        if vectors.isEmpty {
-            if let fv = await OllamaService.embedText(cfg, criteria.intent_en.isEmpty ? userQuery : criteria.intent_en, logger: log) {
-                vectors = [fv]
-            } else {
-                warnings.append(Warning(code: "query_unclear", value: nil))
-            }
-        }
+        let criteria = await OllamaService.extractSearchCriteria(cfg, userQuery, mode: b.mode, logger: log, db: db)
         let mode = b.mode ?? criteria.mode
-        var best: [String: Double] = [:]
-        try await withThrowingTaskGroup(of: [SearchStore.PostHit].self) { group in
-            for v in vectors {
-                group.addTask { try await SearchStore.nearestPosts(v, mode: mode, on: db) }
-            }
-            for try await hits in group {
-                for h in hits { best[h.id] = max(best[h.id] ?? 0, h.sim) }
-            }
+        func empty(_ code: String, _ value: String? = nil) -> AIPostSearchResponse {
+            AIPostSearchResponse(data: [], criteria: criteria, warnings: [Warning(code: code, value: value)], match_scores: [:])
         }
+
+        // Same rule as people search (phase S6): every topic the prompt names
+        // must be in the post, and without a topic there is nothing to find.
+        let concepts = SearchConcepts.concepts(prompt: userQuery, criteria: criteria,
+                                               entries: try await SearchConcepts.searchEntries(mode: mode, on: db))
+        guard !concepts.isEmpty else {
+            try? await SearchStore.logSearch(userQuery, mode: b.mode, on: db)
+            return empty("query_unclear")
+        }
+        let vectors = await conceptVectors(cfg, concepts, logger: log)
+        var perConcept: [[String: Double]] = []
+        for (c, v) in zip(concepts, vectors) {
+            let hits = try await SearchStore.conceptPosts(c, vector: v, mode: mode, on: db)
+            perConcept.append(Dictionary(hits.map { ($0.id, $0.sim) }, uniquingKeysWith: max))
+        }
+        let missing = zip(concepts, perConcept).filter { $0.1.isEmpty }.map(\.0.label)
+        guard missing.isEmpty else { return empty("no_match", missing.joined(separator: ", ")) }
+        let ids = perConcept.dropFirst().reduce(Set(perConcept[0].keys)) { $0.intersection($1.keys) }
+        guard !ids.isEmpty else { return empty("no_match_together", concepts.map(\.label).joined(separator: ", ")) }
+        // How close a post is to everything asked for.
+        let best = Dictionary(uniqueKeysWithValues: ids.map { id in
+            (id, perConcept.reduce(0) { $0 + ($1[id] ?? 0) } / Double(perConcept.count))
+        })
+        let warnings: [Warning] = []
 
         let visible = try await PostStore.findVisible(Array(best.keys), viewer: req.userID, on: db)
-        // Engagement only reorders; `match_scores` below stays the pure match.
+        var personal: [String: SearchStore.PostFeatures] = [:]
+        do {
+            let tastes = try await FeedStore.buildTasteVectors(req.userID, on: db) ?? []
+            personal = try await SearchStore.postFeatures(viewer: req.userID, postIDs: visible.map(\.id),
+                                                          tastes: tastes, on: db)
+        } catch { log.warning("Post search personal features failed: \(error)") }
+        // Engagement and your taste only reorder; `match_scores` below stays
+        // the pure match.
         func rank(_ p: PostObject) -> Double {
-            PostRanking.rankScore(similarity: best[p.id] ?? 0, likes: p.like_count, comments: p.comment_count)
+            let f = personal[p.id]
+            return PostRanking.rankScore(
+                similarity: best[p.id] ?? 0, likes: p.like_count, comments: p.comment_count,
+                taste: SearchRanking.taste(f?.taste),
+                seenPenalty: FeedStore.seenPenalty(firstSeenHoursAgo: f?.seen_hours_ago),
+                feedback: f.map { FeedStore.feedbackAdjustment(lessSimilar: $0.less_similar, lessAuthor: $0.less_author,
+                                                               moreSimilar: $0.more_similar, moreAuthor: $0.more_author) } ?? 0)
         }
         let ranked = visible
             .sorted { rank($0) > rank($1) }
@@ -377,6 +572,122 @@ struct SearchController {
             uu.match_evidence = String(data: enc, encoding: .utf8) ?? "[]"
             return uu
         }
+    }
+
+    // MARK: hybrid (AI_SEARCH_REVIEW.md, phase S1)
+
+    /// Dating is a separate space for people 16 and older; normal search
+    /// points there instead of finding partners (phase S6).
+    static let datingMinAge = 16
+    /// A name this close to words of the prompt is what was asked for, whatever
+    /// else the prompt says ("Lý Thảo" → @lythao). Weaker name hits ("Nam" in
+    /// "bạn nam") only rank.
+    static let strongNameMatch = 0.8
+    /// RRF constant: large enough that being 1st vs 3rd in one list matters
+    /// less than appearing in two lists.
+    static let rrfK = 60.0
+    /// A name typed in the prompt is the most explicit signal there is, so the
+    /// name ranking counts double: "Lý Thảo" puts @lythao first.
+    static let nameWeight = 2.0
+
+    /// The vector legs, entity and general, merged. The whole prompt is never
+    /// embedded on its own: "find a friend who likes …" reads close to every
+    /// profile, whatever follows it (phase S6).
+    static func semanticSearch(_ p: SearchStore.Params, entityVec: [Double]?, generalVec: [Double]?,
+                               on db: any SQLDatabase) async throws -> [SearchStore.RawUser] {
+        async let entityRows: [SearchStore.RawUser] = {
+            guard let ev = entityVec else { return [] }
+            var pp = p; pp.queryVector = ev; pp.interestGroups = nil
+            return try await SearchStore.vectorSearch(pp, on: db)
+        }()
+        async let generalRows: [SearchStore.RawUser] = {
+            guard let gv = generalVec else { return [] }
+            var pp = p; pp.queryVector = gv
+            return try await SearchStore.vectorSearch(pp, on: db)
+        }()
+        return mergeWeighted(try await entityRows, try await generalRows)
+    }
+
+    /// Each topic embedded on its own, for the topic gate's post check.
+    static func conceptVectors(_ cfg: OllamaService.Config, _ concepts: [SearchConcepts.Concept],
+                               logger: Logger) async -> [[Double]?] {
+        await withTaskGroup(of: (Int, [Double]?).self) { group in
+            for (i, c) in concepts.enumerated() {
+                let text = c.vectorText
+                group.addTask { (i, await OllamaService.embedQuery(cfg, text, logger: logger)) }
+            }
+            var out = [[Double]?](repeating: nil, count: concepts.count)
+            for await (i, v) in group { out[i] = v }
+            return out
+        }
+    }
+
+    /// Each vector searched on its own; a person keeps their best match.
+    static func bestOfVectors(_ p: SearchStore.Params, _ vectors: [[Double]],
+                              on db: any SQLDatabase) async throws -> [SearchStore.RawUser] {
+        guard !vectors.isEmpty else { return [] }
+        var best: [String: SearchStore.RawUser] = [:]
+        try await withThrowingTaskGroup(of: [SearchStore.RawUser].self) { group in
+            for v in vectors {
+                var pp = p; pp.queryVector = v
+                let q = pp
+                group.addTask { try await SearchStore.vectorSearch(q, on: db) }
+            }
+            for try await rows in group {
+                for u in rows where u.score > (best[u.id]?.score ?? -1) { best[u.id] = u }
+            }
+        }
+        return best.values.sorted { $0.score > $1.score }
+    }
+
+    /// What the keyword leg looks for: every concrete term the LLM pulled out.
+    static func keywordTerms(_ c: OllamaService.SearchCriteria) -> [String] {
+        let all = collectCriteriaTerms(c) + c.interests.filter { $0.trimmingCharacters(in: .whitespaces).count >= 2 }
+        return Array(Set(all).filter { $0.count <= 60 }.sorted().prefix(20))
+    }
+
+    /// Reciprocal Rank Fusion: each list adds weight / (k + rank) for every id
+    /// in it (rank from 1; weight 1 unless given). Ranks, not scores, so lists
+    /// scored on different scales (cosine vs text rank) combine fairly.
+    static func rrf(_ lists: [[String]], weights: [Double] = []) -> [String: Double] {
+        var fused: [String: Double] = [:]
+        for (li, list) in lists.enumerated() {
+            let w = li < weights.count ? weights[li] : 1
+            for (i, id) in list.enumerated() { fused[id, default: 0] += w / (rrfK + Double(i + 1)) }
+        }
+        return fused
+    }
+
+    /// One list from up to four rankings — meaning (vector), words (full
+    /// text), names, and the personal vectors ("like me", "More like @x").
+    /// Someone found by more than one rises; `score` becomes the fused one.
+    static func fuse(semantic: [SearchStore.RawUser], keyword: [SearchStore.RawUser],
+                     personal: [SearchStore.RawUser] = []) -> [SearchStore.RawUser] {
+        let text = keyword.filter { $0.retrieval > 0 }.sorted { $0.score > $1.score }.map(\.id)
+        let names = keyword.filter { $0.name_match > 0 }.sorted { $0.name_match > $1.name_match }.map(\.id)
+        let fused = rrf([semantic.map(\.id), text, names, personal.map(\.id)], weights: [1, 1, nameWeight, 1])
+        let semanticRank = Dictionary(uniqueKeysWithValues: semantic.enumerated().map { ($1.id, $0) })
+
+        var byID = Dictionary(keyword.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        for u in personal where byID[u.id] == nil { byID[u.id] = u }
+        for u in semantic {
+            var merged = u
+            if let k = byID[u.id] {
+                let ev = mergeEvidence(decodeEvidence(u.match_evidence), decodeEvidence(k.match_evidence))
+                let enc = (try? JSONCoding.makeEncoder().encode(ev)) ?? Data("[]".utf8)
+                merged.match_evidence = String(data: enc, encoding: .utf8) ?? "[]"
+                merged.name_match = k.name_match
+            }
+            byID[u.id] = merged
+        }
+        return byID.values
+            .map { u -> SearchStore.RawUser in var uu = u; uu.score = fused[u.id] ?? 0; return uu }
+            .sorted {
+                if $0.score != $1.score { return $0.score > $1.score }
+                return (semanticRank[$0.id] ?? .max) < (semanticRank[$1.id] ?? .max)
+            }
+            .prefix(20)
+            .map { $0 }
     }
 
     // MARK: finalize evidence

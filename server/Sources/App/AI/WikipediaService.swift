@@ -47,17 +47,45 @@ enum WikipediaService {
 
     private static let ua = "ConnectSphere/1.0 (education project)"
 
+    struct Summary: Decodable { let type: String?; let title: String; let description: String?; let extract: String? }
+
+    /// The page summary for an exact title; nil when there's no such page.
+    private static func summary(_ title: String, client: HTTPClient) async throws -> Summary? {
+        let encoded = title.replacingOccurrences(of: " ", with: "_")
+            .addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? title
+        var req = HTTPClientRequest(url: "https://en.wikipedia.org/api/rest_v1/page/summary/\(encoded)")
+        req.headers.add(name: "user-agent", value: ua)
+        let res = try await client.execute(req, timeout: .seconds(8))
+        guard (200..<300).contains(Int(res.status.code)) else { return nil }
+        return try JSONDecoder().decode(Summary.self, from: try await res.body.collect(upTo: 512 * 1024))
+    }
+
+    /// Titles are case-sensitive after the first letter ("Kimishinu" 404s,
+    /// "KimiShinu" redirects to the anime), so a miss asks Wikipedia's
+    /// case-insensitive title search for the page instead.
+    private static func searchTitle(_ term: String, client: HTTPClient) async throws -> String? {
+        let q = term.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? term
+        var req = HTTPClientRequest(url: "https://en.wikipedia.org/w/api.php?action=opensearch&search=\(q)&limit=1&namespace=0&format=json")
+        req.headers.add(name: "user-agent", value: ua)
+        let res = try await client.execute(req, timeout: .seconds(8))
+        guard (200..<300).contains(Int(res.status.code)) else { return nil }
+        return firstOpenSearchTitle(Data(buffer: try await res.body.collect(upTo: 256 * 1024)))
+    }
+
+    /// `["term", ["Title", …], [descriptions], [urls]]` → "Title".
+    static func firstOpenSearchTitle(_ data: Data) -> String? {
+        guard let arr = try? JSONSerialization.jsonObject(with: data) as? [Any], arr.count > 1,
+              let title = (arr[1] as? [String])?.first, !title.isEmpty else { return nil }
+        return title
+    }
+
     static func searchWikipedia(_ term: String, client: HTTPClient, logger: Logger) async -> WikiData? {
         do {
-            let encoded = term.replacingOccurrences(of: " ", with: "_")
-                .addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? term
-            var sreq = HTTPClientRequest(url: "https://en.wikipedia.org/api/rest_v1/page/summary/\(encoded)")
-            sreq.headers.add(name: "user-agent", value: ua)
-            let sres = try await client.execute(sreq, timeout: .seconds(8))
-            guard (200..<300).contains(Int(sres.status.code)) else { return nil }
-            struct Summary: Decodable { let type: String?; let title: String; let description: String?; let extract: String? }
-            let summary = try JSONDecoder().decode(Summary.self, from: try await sres.body.collect(upTo: 512 * 1024))
-            if summary.type == "disambiguation" { return nil }
+            var found = try await summary(term, client: client)
+            if found == nil, let title = try await searchTitle(term, client: client) {
+                found = try await summary(title, client: client)
+            }
+            guard let summary = found, summary.type != "disambiguation" else { return nil }
 
             var titles = ["en": summary.title]
             var categories: [String] = []
