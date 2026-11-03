@@ -1,0 +1,408 @@
+{
+  "companies": [
+    { "key": "techviet", "name": "TechViet Solutions", "slug": "techviet-solutions", "owner": "hanh_hrbp", "admins": ["linh_talent"],
+      "industry": "Software outsourcing", "size": "201-500", "hq": "Ho Chi Minh", "founded": 2014, "website": "https://techviet.example",
+      "about": "Công ty phần mềm 300 kỹ sư, làm sản phẩm cho khách hàng Nhật và Úc. Văn hóa kỹ thuật, review code nghiêm túc, học phí khóa học được công ty trả." },
+    { "key": "vixanh", "name": "Ví Xanh", "slug": "vi-xanh", "owner": "viet_founder", "admins": ["quynh_growth"],
+      "industry": "Fintech", "size": "11-50", "hq": "Ho Chi Minh", "founded": 2023, "website": "https://vixanh.example",
+      "about": "Ví điện tử giúp sinh viên quản lý chi tiêu và tiết kiệm theo mục tiêu. Đang có 80.000 người dùng và tìm thêm đồng đội cho vòng tăng trưởng tiếp theo." },
+    { "key": "lingoleaf", "name": "LingoLeaf", "slug": "lingoleaf", "owner": "mia_cofounder", "admins": [],
+      "industry": "Edtech", "size": "1-10", "hq": "Hanoi", "founded": 2024, "website": "https://lingoleaf.example",
+      "about": "An app that teaches English through 5-minute stories set in Vietnamese daily life. Small team, big ambitions, lots of tea." },
+    { "key": "giaonhanh", "name": "Giao Nhanh 4.0", "slug": "giao-nhanh-4-0", "owner": "son_cto", "admins": [],
+      "industry": "Logistics", "size": "11-50", "hq": "Da Nang", "founded": 2022, "website": "https://giaonhanh.example",
+      "about": "Nền tảng giao hàng chặng cuối cho các tỉnh miền Trung, tối ưu tuyến đường bằng dữ liệu thời gian thực." },
+    { "key": "caphepos", "name": "CàPhêPOS", "slug": "caphepos", "owner": "dat_indiehacker", "admins": [],
+      "industry": "SaaS", "size": "1-10", "hq": "Ho Chi Minh", "founded": 2025, "website": "https://caphepos.example",
+      "about": "Phần mềm bán hàng gọn nhẹ cho quán cà phê nhỏ: gọi món trên điện thoại, in bill, báo cáo cuối ngày." }
+  ],
+  "people": [
+    {
+      "u": "duonghung", "n": "Dương Văn Hùng", "g": "male", "dob": "1990-05-12", "loc": "Ho Chi Minh", "grp": "experienced",
+      "title": "Senior Backend Engineer", "company": "TechViet Solutions",
+      "bio": "12 năm làm backend, từ PHP thời sinh viên tới Go và PostgreSQL bây giờ. Thích thiết kế hệ thống chịu tải và kèm cặp các bạn junior.",
+      "skills": ["Go", "PostgreSQL", "System design", "Microservices", "Docker", "Kubernetes", "Mentoring"],
+      "exp": [["TechViet Solutions", "Senior Backend Engineer", "full_time", "hybrid", "2019-03", null, "Dẫn dắt nhóm 6 kỹ sư xây hệ thống thanh toán cho khách hàng Nhật."],
+              ["FPT Software", "Backend Developer", "full_time", "onsite", "2014-07", "2019-02", "Phát triển API cho hệ thống quản lý bệnh viện."]],
+      "edu": [["Đại học Bách khoa TP.HCM", "university", "Khoa học máy tính", 2008, 2013]],
+      "posts": [
+        { "d": 2, "t": "Bài học sau 12 năm làm backend: phần lớn sự cố production không đến từ code phức tạp, mà từ những giả định không ai viết ra. Hãy viết giả định vào README. #backend",
+          "c": [["an_hoc_ai", "Anh có template README nào gợi ý cho sinh viên không ạ?"], ["duonghung", "Có, mục Assumptions và mục How it fails là hai mục anh luôn thêm", 0], ["kevin_le_dev", "The 'how it fails' section is so underrated"]] },
+        { "d": 9, "t": "Vừa chuyển một service từ polling sang PostgreSQL LISTEN/NOTIFY, giảm 70% truy vấn thừa. Đôi khi giải pháp tốt nhất đã nằm sẵn trong database bạn đang dùng. #postgresql" },
+        { "d": 17, "t": "Mình nhận kèm 2 bạn junior backend mỗi quý, mỗi tuần 1 buổi review code và nói chuyện nghề. Bạn nào quan tâm thì nhắn, ưu tiên bạn đã có project cá nhân.",
+          "c": [["hoang_fresher_qa", "Em làm QA nhưng muốn chuyển sang backend, có được tham gia không anh?"], ["sophie_codes", "This is so generous, sending you a message!"]] },
+        { "d": 29, "t": "Go không phải ngôn ngữ đẹp nhất, nhưng là ngôn ngữ mà 2 năm sau đọc lại code cũ mình vẫn hiểu. Với team đông người, điều đó đáng giá hơn mọi cú pháp hay." },
+        { "d": 46, "t": "Checklist trước khi deploy thứ Sáu: có rollback plan chưa, có dashboard theo dõi chưa, và người deploy có rảnh tới tối không. Thiếu một cái thì để thứ Hai." }
+      ]
+    },
+    {
+      "u": "thanh_designlead", "n": "Lê Hoài Thanh", "g": "female", "dob": "1992-08-21", "loc": "Hanoi", "grp": "experienced",
+      "title": "Product Design Lead", "company": "TechViet Solutions",
+      "bio": "Dẫn dắt nhóm thiết kế sản phẩm 8 người. Tin rằng nghiên cứu người dùng tốt sẽ tiết kiệm cho team hàng tháng code sai hướng.",
+      "skills": ["UI/UX Design", "Figma", "UX research", "Design systems", "Leadership"],
+      "exp": [["TechViet Solutions", "Product Design Lead", "full_time", "hybrid", "2021-01", null, "Xây design system dùng chung cho 5 sản phẩm."],
+              ["VNG", "UI/UX Designer", "full_time", "onsite", "2016-06", "2020-12", "Thiết kế ứng dụng ví điện tử và mini app."]],
+      "edu": [["Đại học Kiến trúc Hà Nội", "university", "Thiết kế đồ họa", 2010, 2015]],
+      "posts": [
+        { "d": 3, "t": "Tuần này team mình phỏng vấn 8 người dùng cho tính năng mới. 6/8 người không hiểu nút mà cả team đều thấy hiển nhiên. Đó là lý do phải đi hỏi người thật. #uxresearch",
+          "c": [["minhthu_pm", "Câu chuyện quen thuộc của mọi PM 😅"], ["bich_ielts", "Chị có hay dùng script phỏng vấn cố định không ạ?"], ["thanh_designlead", "Có khung câu hỏi nhưng luôn để người dùng kể chuyện trước", 1]] },
+        { "d": 11, "t": "Design system không phải là thư viện component đẹp. Nó là thỏa thuận chung của cả team về cách xây sản phẩm. Phần khó nhất luôn là con người, không phải Figma." },
+        { "d": 22, "t": "Mẹo Figma cho team đông người: đặt tên layer theo component trong code, dùng variables cho màu và khoảng cách, và đừng bao giờ detach instance nếu không ghi chú lý do.",
+          "c": [["kevin_le_dev", "Naming layers after code components saved my team so many handoff meetings"]] },
+        { "d": 35, "t": "Đang tuyển 1 Product Designer middle cho team ở Hà Nội. Portfolio có case study nghiên cứu người dùng là điểm cộng lớn. Inbox mình nhé." },
+        { "d": 50, "t": "10 năm làm thiết kế, câu mình nói nhiều nhất trong các buổi review là: người dùng sẽ làm gì tiếp theo sau màn hình này?" }
+      ]
+    },
+    {
+      "u": "minhthu_pm", "n": "Trần Minh Thư", "g": "female", "dob": "1993-02-03", "loc": "Ho Chi Minh", "grp": "experienced",
+      "title": "Senior Product Manager", "company": "Tiki",
+      "bio": "PM mảng thương mại điện tử 7 năm. Mê dữ liệu nhưng tin vào trực giác được kiểm chứng. Hay viết về cách ra quyết định sản phẩm.",
+      "skills": ["Product Management", "Product strategy", "Data analysis", "Agile", "Communication"],
+      "exp": [["Tiki", "Senior Product Manager", "full_time", "hybrid", "2020-04", null, "Phụ trách trải nghiệm thanh toán và giỏ hàng."],
+              ["Lazada Vietnam", "Business Analyst", "full_time", "onsite", "2016-01", "2020-03", "Phân tích dữ liệu bán hàng và đề xuất cải tiến luồng mua."]],
+      "edu": [["Đại học Kinh tế TP.HCM", "university", "Hệ thống thông tin quản lý", 2011, 2015]],
+      "posts": [
+        { "d": 4, "t": "Cách mình ưu tiên backlog khi mọi thứ đều gấp: tính tác động lên người dùng, chi phí làm, và cái giá của việc không làm. Cột thứ ba thường làm cả team im lặng. #productmanagement",
+          "c": [["viet_founder", "Cột thứ ba đúng là câu hỏi startup nào cũng nên hỏi"], ["quynh_growth", "Chị có template bảng này không, em xin với ạ"]] },
+        { "d": 12, "t": "A/B test thất bại cũng là kết quả. Tuần trước tụi mình test bỏ một bước trong checkout, tỉ lệ chuyển đổi không đổi, nhưng tỉ lệ hoàn đơn giảm. Dữ liệu luôn có câu chuyện riêng." },
+        { "d": 21, "t": "Gửi các bạn muốn chuyển sang làm PM: hãy bắt đầu bằng việc viết lại một tính năng bạn ghét trong app quen thuộc, kèm lý do và cách đo. Đó là bài portfolio tốt nhất.",
+          "c": [["bich_ielts", "Em đang muốn chuyển từ marketing sang PM, lời khuyên này quý quá"], ["sophie_codes", "Saving this, great practical advice"]] },
+        { "d": 33, "t": "Họp ít hơn, viết nhiều hơn. Một tài liệu 1 trang rõ ràng tiết kiệm được ba cuộc họp 1 tiếng." },
+        { "d": 48, "t": "Sau 7 năm làm sản phẩm, mình vẫn tin câu này: người dùng không cần thêm tính năng, họ cần ít lý do để bỏ cuộc hơn." }
+      ]
+    },
+    {
+      "u": "kevin_le_dev", "n": "Kevin Lê", "g": "male", "dob": "1991-11-30", "loc": "Ho Chi Minh", "grp": "experienced",
+      "title": "Staff iOS Engineer", "company": "Grab",
+      "bio": "Staff iOS engineer, 10 years shipping apps used by millions. SwiftUI convert, accessibility advocate, occasional conference speaker.",
+      "skills": ["Swift", "SwiftUI", "iOS development", "System design", "Public speaking", "Mentoring"],
+      "exp": [["Grab", "Staff iOS Engineer", "full_time", "hybrid", "2018-09", null, "Leading the iOS platform team behind the driver app."],
+              ["Atlassian", "iOS Engineer", "full_time", "onsite", "2014-02", "2018-08", "Built offline sync for the mobile issue tracker."]],
+      "edu": [["University of New South Wales", "university", "Software Engineering", 2009, 2013]],
+      "posts": [
+        { "d": 2, "t": "We migrated our biggest screen to SwiftUI this quarter. Scroll performance is equal, code is 40% smaller, and new engineers ship their first change in days instead of weeks. #swiftui #ios",
+          "c": [["duonghung", "40% ít code hơn là con số rất thuyết phục"], ["an_hoc_ai", "Anh có gặp vấn đề gì với List khi dữ liệu lớn không ạ?"], ["kevin_le_dev", "Yes, we use LazyVStack plus stable IDs, List gave us odd diffing issues", 1]] },
+        { "d": 10, "t": "Accessibility is not a feature, it's a quality bar. Turn on VoiceOver and try to buy something in your own app today. You'll learn more than any audit report tells you." },
+        { "d": 19, "t": "Speaking at a Saigon iOS meetup next month about modular app architecture. If there's a question you want me to cover, drop it below.",
+          "c": [["sophie_codes", "How do you decide when a module is too small?"], ["thanh_designlead", "Would love a section on design system components in SwiftUI"]] },
+        { "d": 31, "t": "Best career advice I got as a junior: write down what you learned every Friday. Ten years later that file is my most valuable document." },
+        { "d": 47, "t": "Hiring tip for engineering managers: ask candidates to explain a bug they're proud of fixing. You learn how they think, communicate and stay curious." }
+      ]
+    },
+    {
+      "u": "phuong_data", "n": "Nguyễn Thị Phương", "g": "female", "dob": "1989-04-09", "loc": "Hanoi", "grp": "experienced",
+      "title": "Data Engineering Manager", "company": "Viettel Digital",
+      "bio": "Quản lý đội kỹ sư dữ liệu 10 người. Làm pipeline xử lý hàng tỷ sự kiện mỗi ngày, thích nói về chất lượng dữ liệu hơn là mô hình.",
+      "skills": ["Data engineering", "Apache Spark", "Kafka", "Python", "SQL", "People management"],
+      "exp": [["Viettel Digital", "Data Engineering Manager", "full_time", "onsite", "2019-08", null, "Xây nền tảng dữ liệu cho dịch vụ thanh toán số."],
+              ["Teko Vietnam", "Data Engineer", "full_time", "onsite", "2015-03", "2019-07", "Thiết kế data warehouse cho chuỗi bán lẻ."]],
+      "edu": [["Đại học Quốc gia Hà Nội", "university", "Toán tin ứng dụng", 2007, 2011]],
+      "posts": [
+        { "d": 5, "t": "Một dashboard sai còn nguy hiểm hơn không có dashboard. Tuần này team mình dành trọn 3 ngày chỉ để viết kiểm tra chất lượng dữ liệu, và tìm ra 2 chỉ số đã sai suốt 4 tháng. #dataengineering",
+          "c": [["an_hoc_ai", "Chị dùng công cụ gì để kiểm tra chất lượng dữ liệu ạ?"], ["phuong_data", "Great Expectations cho batch và một bộ rule tự viết cho stream em ạ", 0]] },
+        { "d": 13, "t": "Kafka không giải quyết được vấn đề tổ chức. Nếu ba team cùng ghi vào một topic mà không ai sở hữu schema, bạn chỉ đang chuyển hỗn loạn từ database sang message queue." },
+        { "d": 24, "t": "Gợi ý lộ trình cho bạn muốn làm data engineer: SQL thật vững, một ngôn ngữ lập trình (Python), hiểu cách dữ liệu được lưu trữ, rồi mới đến Spark hay Airflow.",
+          "c": [["khanh_cloud", "Em đang làm sysadmin, phần lưu trữ dữ liệu này em nên đọc gì ạ?"], ["phuong_data", "Designing Data-Intensive Applications là cuốn đầu tiên nên đọc nhé", 0]] },
+        { "d": 36, "t": "Làm quản lý được 4 năm, mình học được rằng 1-1 hàng tuần quan trọng hơn mọi buổi họp chiến lược. Người ta chỉ kể khó khăn khi tin bạn sẽ lắng nghe." },
+        { "d": 51, "t": "Team mình đang mở 1 vị trí Data Engineer middle ở Hà Nội, làm với Spark và Kafka trên hạ tầng nội bộ. Ai quan tâm thì inbox mình." }
+      ]
+    },
+    {
+      "u": "an_hoc_ai", "n": "Võ Thành An", "g": "male", "dob": "2004-10-11", "loc": "Ho Chi Minh", "grp": "learner",
+      "title": "Computer Science Student", "company": "Đại học Khoa học Tự nhiên",
+      "bio": "Sinh viên năm 3 ngành Khoa học máy tính. Đang tự học Machine Learning, mỗi tuần một project nhỏ và ghi lại những gì học được.",
+      "skills": ["Python", "Machine Learning", "PyTorch", "Data structures & algorithms", "Self-learning"],
+      "exp": [["AI Lab trường KHTN", "Research Assistant", "part_time", "onsite", "2025-09", null, "Gán nhãn dữ liệu và chạy thí nghiệm nhận diện chữ viết tay tiếng Việt."]],
+      "edu": [["Đại học Khoa học Tự nhiên TP.HCM", "university", "Khoa học máy tính", 2022, 2026]],
+      "posts": [
+        { "d": 1, "t": "Tuần 12 của hành trình tự học ML: train xong mô hình phân loại món ăn Việt với 20 lớp, độ chính xác 87%. Bánh xèo và bánh khọt vẫn bị nhầm nhiều nhất 😅 #machinelearning #python",
+          "c": [["phuong_data", "Dữ liệu ảnh bánh khọt chắc ít, em thử tăng cường dữ liệu xem"], ["sophie_codes", "Bánh xèo vs bánh khọt is a hard problem even for humans lol"]] },
+        { "d": 8, "t": "Vừa hoàn thành khóa Deep Learning Specialization. Phần khó nhất không phải toán, mà là kiên nhẫn chờ mô hình chạy xong để biết mình sai ở đâu." },
+        { "d": 16, "t": "Ai đang tự học ML thì cùng lập nhóm học không? Mỗi tuần đọc một paper, mỗi người tóm tắt 10 phút. Mình ở Thủ Đức, có thể học online.",
+          "c": [["hoang_fresher_qa", "Mình không làm ML nhưng muốn tham gia nghe cho biết"], ["an_hoc_ai", "Hoan nghênh luôn, càng đông góc nhìn càng tốt", 0]] },
+        { "d": 27, "t": "Lần đầu đọc hết một paper Transformer mà hiểu được 70%. Bí quyết là vẽ lại sơ đồ bằng tay và tự giải thích cho chính mình nghe." },
+        { "d": 39, "t": "Đang tìm thực tập AI/ML hè năm sau. Đã có project nhận diện chữ viết tay tiếng Việt và phân loại ảnh món ăn trên GitHub. Mọi góp ý CV đều quý." }
+      ]
+    },
+    {
+      "u": "bich_ielts", "n": "Huỳnh Ngọc Bích", "g": "female", "dob": "2001-12-18", "loc": "Da Nang", "grp": "learner",
+      "title": "Junior Marketing Executive", "company": "Sun Group",
+      "bio": "Marketer năm đầu đi làm, đang ôn IELTS 7.0 và tự học SEO buổi tối. Mục tiêu năm sau chuyển sang làm Product Marketing.",
+      "skills": ["Digital marketing", "SEO", "Content marketing", "IELTS", "Canva"],
+      "exp": [["Sun Group", "Junior Marketing Executive", "full_time", "onsite", "2024-07", null, "Viết nội dung và chạy chiến dịch cho các khu nghỉ dưỡng."]],
+      "edu": [["Đại học Kinh tế Đà Nẵng", "university", "Marketing", 2019, 2023]],
+      "posts": [
+        { "d": 2, "t": "Thi thử IELTS lần 3 được 6.5, Writing vẫn kẹt ở 6.0. Ai có kinh nghiệm luyện Task 2 thì chỉ mình với, mình đang viết mỗi ngày một bài. #ielts",
+          "c": [["mia_cofounder", "Try reading your essay out loud, awkward sentences become obvious"], ["oanh_ld", "Em thử dàn ý 4 đoạn cố định trước khi viết, chị thấy hiệu quả lắm"]] },
+        { "d": 9, "t": "Tự học SEO được 2 tháng, bài blog đầu tiên của công ty lên top 3 Google cho từ khóa nghỉ dưỡng Đà Nẵng tháng 12. Vui muốn khóc." },
+        { "d": 18, "t": "Mình đang ghi chép lại 30 ngày học Product Marketing: mỗi ngày một khái niệm, một ví dụ thật. Hôm nay là positioning statement.",
+          "c": [["minhthu_pm", "Series này hay đó em, nhớ đăng đủ 30 ngày nha"], ["quynh_growth", "Positioning làm tốt là nửa chặng đường rồi"]] },
+        { "d": 30, "t": "Canva đã cứu đời marketer junior như mình rất nhiều lần. Nhưng tuần này mình quyết định học Figma để làm việc với team thiết kế dễ hơn." },
+        { "d": 45, "t": "Bài học năm đầu đi làm: hỏi lại khi chưa rõ yêu cầu không phải là kém, mà là tiết kiệm thời gian cho cả hai bên." }
+      ]
+    },
+    {
+      "u": "hoang_fresher_qa", "n": "Lâm Văn Hoàng", "g": "male", "dob": "2002-06-25", "loc": "Ho Chi Minh", "grp": "learner",
+      "title": "QA Engineer (Fresher)", "company": "TechViet Solutions",
+      "bio": "QA fresher, đang học automation testing với Playwright. Muốn hiểu sâu backend để viết test tốt hơn, có thể chuyển sang làm dev sau này.",
+      "skills": ["Software testing", "Automation testing", "SQL", "Jira", "Self-learning"],
+      "exp": [["TechViet Solutions", "QA Engineer", "full_time", "hybrid", "2025-03", null, "Kiểm thử thủ công và viết test tự động cho ứng dụng web."],
+              ["TechViet Solutions", "QA Intern", "internship", "onsite", "2024-09", "2025-02", "Viết test case cho hệ thống quản lý kho."]],
+      "edu": [["Đại học Công nghệ Thông tin", "university", "Kỹ thuật phần mềm", 2020, 2024]],
+      "posts": [
+        { "d": 3, "t": "Viết xong bộ test Playwright đầu tiên chạy trên CI: 42 test case, chạy 6 phút. Lần đầu thấy dashboard xanh lè mà tự hào ghê. #automationtesting",
+          "c": [["duonghung", "Giỏi lắm, tiếp theo là làm sao cho nó chạy dưới 3 phút nhé"], ["hoang_fresher_qa", "Em đang thử chạy song song, anh có mẹo gì không ạ?", 0]] },
+        { "d": 10, "t": "Bug thú vị nhất tuần: nút thanh toán hoạt động đúng trên mọi trình duyệt, trừ khi người dùng đổi ngôn ngữ sang tiếng Việt. Nguyên nhân là dấu phẩy trong định dạng tiền." },
+        { "d": 20, "t": "Học SQL để làm QA tốt hơn: kiểm tra dữ liệu sau mỗi test thay vì chỉ nhìn giao diện. Phát hiện ra 3 bug mà giao diện không hề báo lỗi.",
+          "c": [["phuong_data", "Tư duy này sẽ giúp em rất nhiều nếu chuyển sang dev hoặc data"]] },
+        { "d": 32, "t": "Một năm làm QA, điều mình học được: tester tốt không phải người tìm nhiều bug nhất, mà là người giúp team hiểu rủi ro nằm ở đâu." },
+        { "d": 44, "t": "Đang ôn ISTQB Foundation, ai thi rồi cho mình xin kinh nghiệm với. Phần kỹ thuật thiết kế test đọc mãi vẫn dễ nhầm." }
+      ]
+    },
+    {
+      "u": "sophie_codes", "n": "Sophie Đặng", "g": "female", "dob": "1998-03-07", "loc": "Hanoi", "grp": "learner",
+      "title": "Junior Frontend Developer", "company": "LingoLeaf",
+      "bio": "Former English teacher turned frontend developer after a 6-month bootcamp. Learning React in public and writing about career switching.",
+      "skills": ["React", "JavaScript", "TypeScript", "HTML & CSS", "English teaching", "Self-learning"],
+      "exp": [["LingoLeaf", "Junior Frontend Developer", "full_time", "remote", "2025-06", null, "Building the web version of the story reader."],
+              ["Apollo English", "English Teacher", "full_time", "onsite", "2020-08", "2024-12", "Taught teenagers and adult learners."]],
+      "edu": [["Hanoi University", "university", "English Language", 2016, 2020]],
+      "posts": [
+        { "d": 2, "t": "Six months ago I was teaching present perfect to teenagers. Today I shipped my first React feature to real users. Career switching is scary but possible. #react #careerswitch",
+          "c": [["kevin_le_dev", "Teaching experience makes you great at explaining code, that's a superpower"], ["bich_ielts", "Truyền cảm hứng quá chị ơi"], ["mia_cofounder", "So proud of you, the feature looks great!"]] },
+        { "d": 9, "t": "Things nobody told me about my first dev job: reading code is 80% of the work, asking questions early saves days, and git rebase will humble you." },
+        { "d": 17, "t": "TypeScript finally clicked for me this week. I stopped thinking of types as rules and started thinking of them as documentation the computer checks for me.",
+          "c": [["duonghung", "Cách nghĩ rất đúng, type là tài liệu sống"]] },
+        { "d": 28, "t": "Writing a blog series: what teaching English taught me about learning to code. Part 1 is about why making mistakes out loud is how you learn fastest." },
+        { "d": 42, "t": "Free resource list for anyone switching into frontend: MDN, javascript.info, the React docs, and Frontend Mentor challenges. That's all I used for the first 3 months." }
+      ]
+    },
+    {
+      "u": "khanh_cloud", "n": "Tạ Quốc Khánh", "g": "male", "dob": "1996-09-14", "loc": "Can Tho", "grp": "learner",
+      "title": "System Administrator", "company": "Mekong Bank",
+      "bio": "Sysadmin 5 năm ở Cần Thơ, đang học AWS và Kubernetes để chuyển sang DevOps. Thích tự động hóa mọi việc phải làm hai lần.",
+      "skills": ["Linux", "Networking", "AWS", "Docker", "Bash", "Kubernetes"],
+      "exp": [["Mekong Bank", "System Administrator", "full_time", "onsite", "2020-05", null, "Quản trị hệ thống máy chủ và mạng cho 40 chi nhánh."]],
+      "edu": [["Đại học Cần Thơ", "university", "Mạng máy tính và truyền thông", 2014, 2018]],
+      "posts": [
+        { "d": 4, "t": "Vừa đậu AWS Solutions Architect Associate sau 3 tháng học buổi tối! Bước đầu tiên trên con đường từ sysadmin sang DevOps. #aws #devops",
+          "c": [["phuong_data", "Chúc mừng em, kiến thức hạ tầng sẽ là lợi thế lớn"], ["son_cto", "Tụi anh đang cần người biết AWS ở Đà Nẵng, có muốn nói chuyện không?"], ["khanh_cloud", "Dạ có anh, em inbox anh liền", 1]] },
+        { "d": 11, "t": "Viết script Bash tự động backup cấu hình 40 router mỗi đêm. Trước đây mất 2 tiếng làm tay mỗi tuần, giờ chỉ cần đọc báo cáo sáng hôm sau." },
+        { "d": 21, "t": "Dựng cụm Kubernetes 3 node bằng mấy máy tính cũ ở nhà để học. Lỗi đầu tiên gặp là quên tắt swap, lỗi thứ hai là quên mình đã tắt swap chưa." },
+        { "d": 34, "t": "Ở Cần Thơ học DevOps hơi thiếu cộng đồng. Ai ở miền Tây quan tâm cloud thì lập nhóm cà phê chia sẻ mỗi tháng một lần nhé.",
+          "c": [["hoang_fresher_qa", "Em ở Sài Gòn nhưng quê Vĩnh Long, về quê sẽ ghé"]] },
+        { "d": 49, "t": "Quy tắc mình áp dụng: việc gì làm tay lần thứ hai thì viết ghi chú, lần thứ ba thì viết script." }
+      ]
+    },
+    {
+      "u": "linh_talent", "n": "Phạm Khánh Linh", "g": "female", "dob": "1995-07-19", "loc": "Ho Chi Minh", "grp": "hr",
+      "title": "Technical Recruiter", "company": "TechViet Solutions",
+      "bio": "Tech recruiter 6 năm. Hiểu đủ kỹ thuật để không hỏi một dev React có biết Java không. Luôn trả lời ứng viên, kể cả khi kết quả là chưa phù hợp.",
+      "skills": ["Technical recruiting", "Interviewing", "Employer branding", "Negotiation", "Communication"],
+      "exp": [["TechViet Solutions", "Technical Recruiter", "full_time", "hybrid", "2021-02", null, "Tuyển kỹ sư phần mềm cho các dự án Nhật và Úc."],
+              ["Navigos Group", "Recruitment Consultant", "full_time", "onsite", "2018-06", "2021-01", "Tư vấn tuyển dụng mảng công nghệ."]],
+      "edu": [["Đại học Khoa học Xã hội và Nhân văn TP.HCM", "university", "Tâm lý học", 2013, 2017]],
+      "posts": [
+        { "d": 1, "t": "Một CV kỹ sư tốt trong mắt recruiter: mỗi dòng kinh nghiệm có một con số hoặc kết quả cụ thể. \"Tối ưu API\" không bằng \"giảm thời gian phản hồi từ 800ms xuống 120ms\". #tuyendung #cv",
+          "c": [["an_hoc_ai", "Sinh viên chưa đi làm thì ghi con số từ project cá nhân được không chị?"], ["linh_talent", "Được em, số người dùng, độ chính xác mô hình, thời gian chạy đều tốt", 0], ["trung_headhunt", "Đồng ý, CV có số liệu luôn được gọi phỏng vấn nhanh hơn"]] },
+        { "d": 7, "t": "Recruiter cũng cần được phản hồi. Nếu bạn từ chối offer, chỉ cần một tin nhắn ngắn nói lý do. Lần sau có vị trí phù hợp hơn, mình sẽ nhớ bạn đầu tiên." },
+        { "d": 15, "t": "Quy trình phỏng vấn ở công ty mình: 1 vòng nói chuyện 30 phút, 1 bài kỹ thuật làm tại nhà tối đa 3 tiếng, 1 vòng với team. Không có vòng nào quá 1 tuần chờ kết quả.",
+          "c": [["sophie_codes", "A take-home capped at 3 hours is so respectful of candidates' time"]] },
+        { "d": 26, "t": "Lương không phải lý do duy nhất ứng viên chọn công ty. Trong 50 người mình hỏi năm nay, 31 người nhắc đến người quản lý trực tiếp đầu tiên." },
+        { "d": 40, "t": "Mẹo deal lương cho dev: hãy đưa ra một khoảng thay vì một con số, và nói rõ bạn đánh giá thêm những gì ngoài lương như remote, học phí hay thời gian nghỉ." }
+      ]
+    },
+    {
+      "u": "hanh_hrbp", "n": "Đoàn Mỹ Hạnh", "g": "female", "dob": "1988-01-27", "loc": "Ho Chi Minh", "grp": "hr",
+      "title": "HR Business Partner", "company": "TechViet Solutions",
+      "bio": "HRBP cho khối kỹ thuật 300 người. Làm cầu nối giữa ban lãnh đạo và kỹ sư, quan tâm nhất là giữ chân người giỏi và làm cho quản lý mới bớt lạc lõng.",
+      "skills": ["Human resources", "Employee relations", "Performance management", "Onboarding", "Leadership"],
+      "exp": [["TechViet Solutions", "HR Business Partner", "full_time", "onsite", "2019-10", null, "Đồng hành cùng quản lý khối kỹ thuật về con người và tổ chức."],
+              ["Unilever Vietnam", "HR Generalist", "full_time", "onsite", "2012-03", "2019-09", "Phụ trách quan hệ lao động và đánh giá hiệu suất."]],
+      "edu": [["Đại học Kinh tế TP.HCM", "university", "Quản trị nhân lực", 2006, 2010]],
+      "posts": [
+        { "d": 3, "t": "Kỹ sư giỏi được thăng chức lên quản lý nhưng không được đào tạo gì là cách nhanh nhất để mất một kỹ sư giỏi và có thêm một quản lý tệ. Năm nay tụi mình làm chương trình 8 tuần cho quản lý mới. #hr #leadership",
+          "c": [["duonghung", "Ước gì hồi anh lên lead cũng có chương trình như vậy"], ["oanh_ld", "Chị chia sẻ khung chương trình được không, em đang làm cái tương tự"], ["hanh_hrbp", "Được em, cuối tuần chị gửi bản tóm tắt nhé", 1]] },
+        { "d": 12, "t": "Exit interview năm nay cho thấy lý do nghỉ việc số một không phải lương, mà là cảm giác không biết mình sẽ phát triển đi đâu. Lộ trình nghề nghiệp rõ ràng quan trọng hơn ta nghĩ." },
+        { "d": 23, "t": "Onboarding không kết thúc sau ngày đầu tiên. Tụi mình đo cảm nhận của nhân viên mới ở ngày 7, 30 và 90. Ngày 30 luôn là thời điểm dễ chán nản nhất." },
+        { "d": 37, "t": "Đánh giá hiệu suất hiệu quả nhất mình từng thấy: không bất ngờ. Mọi điều được nói trong buổi đánh giá đều đã từng được nói trong các buổi 1-1 trước đó.",
+          "c": [["phuong_data", "Không bất ngờ, câu này em sẽ dùng cho team mình"]] },
+        { "d": 52, "t": "TechViet đang tuyển 1 HR Executive mảng tuyển dụng và đào tạo. Ai yêu thích làm việc với kỹ sư thì gửi CV cho mình nhé." }
+      ]
+    },
+    {
+      "u": "trung_headhunt", "n": "Cao Đức Trung", "g": "male", "dob": "1990-10-05", "loc": "Hanoi", "grp": "hr",
+      "title": "Senior Headhunter", "company": "TalentBridge Vietnam",
+      "bio": "Headhunter vị trí quản lý cấp trung và cấp cao mảng công nghệ, tài chính. Hay viết về thị trường lương và xu hướng tuyển dụng.",
+      "skills": ["Headhunting", "Recruiting", "Negotiation", "Business development", "Market research"],
+      "exp": [["TalentBridge Vietnam", "Senior Headhunter", "full_time", "hybrid", "2018-01", null, "Tìm kiếm ứng viên cấp quản lý cho khách hàng công nghệ và ngân hàng."]],
+      "edu": [["Học viện Ngoại giao", "university", "Kinh doanh quốc tế", 2008, 2012]],
+      "posts": [
+        { "d": 2, "t": "Thị trường tuyển dụng IT quý này: vị trí data và AI tăng mạnh, frontend thuần chững lại, kỹ sư có kinh nghiệm cloud vẫn rất khó tìm. #thitruonglaodong",
+          "c": [["khanh_cloud", "Nghe xong thấy có động lực học tiếp Kubernetes"], ["linh_talent", "Bên em cũng thấy y vậy, cloud engineer là vị trí khó nhất năm nay"]] },
+        { "d": 10, "t": "Ứng viên cấp quản lý hay hỏi mình: có nên nhận offer cao hơn 30% nhưng ở công ty kém ổn định không? Câu trả lời của mình luôn là: hãy hỏi về runway và người quản lý trực tiếp trước." },
+        { "d": 19, "t": "Đang tìm Data Engineering Lead cho một ngân hàng ở Hà Nội: 7+ năm kinh nghiệm, từng quản lý team, biết Spark và Kafka. Thu nhập cạnh tranh. Inbox để biết thêm chi tiết.",
+          "c": [["phuong_data", "Mình không tìm việc nhưng sẽ chia sẻ cho mạng lưới nhé"]] },
+        { "d": 30, "t": "LinkedIn và các mạng nghề nghiệp vẫn là nơi tốt nhất để được headhunter tìm thấy. Viết rõ bạn đã làm gì, đừng chỉ ghi chức danh." },
+        { "d": 46, "t": "Một lời khuyên khi nói chuyện với headhunter: hãy thành thật về mức lương hiện tại và mong muốn. Chúng tôi đứng về phía bạn khi deal, nhưng chỉ khi có đủ thông tin." }
+      ]
+    },
+    {
+      "u": "ngan_cnb", "n": "Bùi Thanh Ngân", "g": "female", "dob": "1994-03-16", "loc": "Da Nang", "grp": "hr",
+      "title": "C&B Specialist", "company": "Giao Nhanh 4.0",
+      "bio": "Chuyên viên lương thưởng và phúc lợi. Mê Excel, mê bảng lương minh bạch và tin rằng phúc lợi tốt là phúc lợi nhân viên thực sự dùng.",
+      "skills": ["Compensation & benefits", "Excel", "Human resources", "Data analysis", "Employee relations"],
+      "exp": [["Giao Nhanh 4.0", "C&B Specialist", "full_time", "onsite", "2023-02", null, "Xây khung lương và chính sách phúc lợi cho 45 nhân sự và 300 tài xế đối tác."],
+              ["Deloitte Vietnam", "Payroll Associate", "full_time", "onsite", "2017-07", "2023-01", "Tính lương cho khách hàng doanh nghiệp."]],
+      "edu": [["Đại học Kinh tế Đà Nẵng", "university", "Kế toán", 2012, 2016]],
+      "posts": [
+        { "d": 5, "t": "Công ty mình vừa công khai khung lương theo cấp bậc cho toàn bộ nhân viên. Sau 2 tháng, số câu hỏi về lương giảm một nửa và không ai nghỉ việc vì chuyện đó. Minh bạch đáng sợ ít hơn ta nghĩ. #candb",
+          "c": [["son_cto", "Quyết định này ban đầu anh cũng lo, giờ thấy rất đúng"], ["hanh_hrbp", "Chị đang thuyết phục ban lãnh đạo làm tương tự, cho chị xin kinh nghiệm nhé"]] },
+        { "d": 14, "t": "Khảo sát phúc lợi tụi mình làm: nhân viên trẻ chọn ngân sách học tập và làm việc linh hoạt, trên 30 tuổi chọn bảo hiểm sức khỏe cho gia đình. Một gói cho tất cả không còn phù hợp." },
+        { "d": 25, "t": "Mẹo Excel cho dân C&B: dùng XLOOKUP thay VLOOKUP, khóa ô công thức trước khi gửi file, và luôn giữ một sheet ghi lại mọi thay đổi.",
+          "c": [["bich_ielts", "Em làm marketing mà cũng lưu mẹo này lại"]] },
+        { "d": 38, "t": "Tài xế đối tác cũng cần phúc lợi. Năm nay Giao Nhanh thêm bảo hiểm tai nạn và quỹ hỗ trợ sửa xe, chi phí không lớn nhưng tỉ lệ gắn bó tăng rõ." },
+        { "d": 50, "t": "Mùa xét tăng lương sắp đến, lời khuyên cho quản lý: đừng để nhân viên biết kết quả qua bảng lương. Một cuộc nói chuyện 15 phút thay đổi mọi thứ." }
+      ]
+    },
+    {
+      "u": "oanh_ld", "n": "Hồ Kim Oanh", "g": "female", "dob": "1991-09-08", "loc": "Hanoi", "grp": "hr",
+      "title": "Learning & Development Manager", "company": "Viettel Digital",
+      "bio": "Thiết kế chương trình đào tạo cho 2.000 nhân viên công nghệ. Tin rằng đào tạo tốt là đào tạo người học áp dụng được vào thứ Hai tuần sau.",
+      "skills": ["Learning & development", "Curriculum design", "Public speaking", "Mentoring", "Human resources"],
+      "exp": [["Viettel Digital", "Learning & Development Manager", "full_time", "onsite", "2020-11", null, "Xây học viện nội bộ cho khối công nghệ."],
+              ["British Council Vietnam", "Training Coordinator", "full_time", "onsite", "2015-05", "2020-10", "Điều phối các khóa đào tạo kỹ năng cho doanh nghiệp."]],
+      "edu": [["Đại học Ngoại ngữ - ĐHQGHN", "university", "Sư phạm tiếng Anh", 2009, 2013]],
+      "posts": [
+        { "d": 4, "t": "Khóa học hiệu quả nhất năm nay của tụi mình không phải khóa đắt nhất, mà là chương trình kỹ sư senior dạy kỹ sư junior mỗi tuần 1 tiếng. Người dạy cũng học được rất nhiều. #learninganddevelopment",
+          "c": [["duonghung", "Anh làm đúng mô hình này ở team mình, hiệu quả thật"], ["oanh_ld", "Anh có đo kết quả bằng cách nào không ạ? Em đang tìm cách đo cho chương trình", 0]] },
+        { "d": 13, "t": "Đào tạo trực tuyến tự học có tỉ lệ hoàn thành chỉ 12%. Thêm một buổi thảo luận nhóm 30 phút mỗi tuần, tỉ lệ tăng lên 64%. Con người học từ con người." },
+        { "d": 22, "t": "Thiết kế khóa học cho người lớn: mở đầu bằng vấn đề họ đang gặp, không phải lý thuyết. Ai cũng chú ý hơn khi thấy bài học giải quyết chuyện của chính mình.",
+          "c": [["sophie_codes", "As a former teacher, this is so true for adults and teens alike"]] },
+        { "d": 35, "t": "Kỹ năng mềm khó dạy nhất cho kỹ sư theo khảo sát của tụi mình: đưa phản hồi khó nghe một cách tử tế. Năm nay sẽ có workshop riêng cho chủ đề này." },
+        { "d": 48, "t": "Ai làm L&D ở Hà Nội muốn lập nhóm chia sẻ tài liệu và kinh nghiệm không? Mỗi tháng gặp một lần, mỗi người mang một case thật." }
+      ]
+    },
+    {
+      "u": "viet_founder", "n": "Nguyễn Quốc Việt", "g": "male", "dob": "1993-12-12", "loc": "Ho Chi Minh", "grp": "startup",
+      "title": "Founder & CEO", "company": "Ví Xanh",
+      "bio": "Founder Ví Xanh, ví điện tử giúp sinh viên tiết kiệm. Trước đó 6 năm làm PM ở các công ty thanh toán. Đang tìm đồng đội cùng xây sản phẩm tài chính cho người trẻ.",
+      "skills": ["Entrepreneurship", "Fundraising", "Product strategy", "Leadership", "Business strategy"],
+      "exp": [["Ví Xanh", "Founder & CEO", "self_employed", "hybrid", "2023-01", null, "Xây ví điện tử cho sinh viên với 80.000 người dùng."],
+              ["MoMo", "Product Manager", "full_time", "onsite", "2017-04", "2022-12", "Phụ trách sản phẩm thanh toán học phí và hóa đơn."]],
+      "edu": [["Đại học Ngoại thương", "university", "Tài chính ngân hàng", 2011, 2015]],
+      "posts": [
+        { "d": 1, "t": "Ví Xanh vừa chạm mốc 80.000 người dùng sau 18 tháng, không tốn một đồng quảng cáo. Toàn bộ đến từ sinh viên giới thiệu cho nhau. Cảm ơn đội 14 người đã làm điều tưởng như không thể. #startup",
+          "c": [["minhthu_pm", "Tăng trưởng tự nhiên vậy là product-market fit rõ rồi, chúc mừng em"], ["quynh_growth", "Proud to be part of this team 💚"], ["mia_cofounder", "Congrats! Would love to swap notes on student growth sometime"]] },
+        { "d": 8, "t": "Ví Xanh đang tuyển Backend Engineer làm với Go và PostgreSQL. Bạn sẽ xây hệ thống ghi sổ cho hàng trăm nghìn giao dịch mỗi ngày. Chi tiết trong tin tuyển dụng bên dưới nhé." },
+        { "d": 16, "t": "Gọi vốn vòng seed thất bại 2 lần trước khi thành công. Lần thứ ba khác hai lần trước ở một điểm: mình nói ít về tầm nhìn hơn và nói nhiều về những gì người dùng đã làm.",
+          "c": [["dat_indiehacker", "Bài học này áp dụng cho cả bán hàng nữa anh"], ["trung_headhunt", "Nhà đầu tư nào cũng muốn thấy bằng chứng, rất đúng"]] },
+        { "d": 27, "t": "Văn hóa ở startup 14 người: ai cũng được xem số liệu kinh doanh mỗi tuần. Khi mọi người hiểu tình hình, họ tự đưa ra quyết định tốt hơn." },
+        { "d": 41, "t": "Điều khó nhất khi làm founder không phải là gọi vốn hay xây sản phẩm, mà là giữ bình tĩnh khi mọi thứ cùng lúc trục trặc vào tối thứ Sáu." }
+      ]
+    },
+    {
+      "u": "mia_cofounder", "n": "Mia Hoàng", "g": "female", "dob": "1995-05-22", "loc": "Hanoi", "grp": "startup",
+      "title": "Co-founder & COO", "company": "LingoLeaf",
+      "bio": "Co-founder of LingoLeaf. Ex-English teacher, now running operations and content for a tiny edtech team. Hiring people who love stories and learning.",
+      "skills": ["Entrepreneurship", "Operations management", "Content marketing", "Curriculum design", "English"],
+      "exp": [["LingoLeaf", "Co-founder & COO", "self_employed", "remote", "2024-02", null, "Running content, operations and hiring."],
+              ["IDP Education", "Academic Coordinator", "full_time", "onsite", "2018-09", "2024-01", "Managed IELTS preparation programs."]],
+      "edu": [["University of Melbourne", "university", "Master of Education", 2016, 2018]],
+      "posts": [
+        { "d": 3, "t": "LingoLeaf now has 300 short stories set in Vietnamese daily life: ordering phở, haggling at the market, explaining Tết to a foreign friend. Learners finish 3x more lessons than with textbook dialogues. #edtech",
+          "c": [["bich_ielts", "Mình thích ý tưởng này quá, học tiếng Anh qua chuyện đời thường dễ nhớ hơn hẳn"], ["oanh_ld", "Context-based learning works so well, congrats on the milestone"]] },
+        { "d": 10, "t": "We're hiring a Content Marketing Intern in Hanoi. You'll write stories, run our TikTok and talk to learners every week. Fluent English and curiosity required, experience not. Job post below!" },
+        { "d": 19, "t": "Running a 5-person startup means my job title changes daily: COO in the morning, customer support at lunch, content writer at night. I wouldn't trade it.",
+          "c": [["viet_founder", "Founder nào cũng có 5 chức danh một ngày, đồng cảm"], ["sophie_codes", "And you still find time to review my pull requests 😄"]] },
+        { "d": 31, "t": "Lesson from our first year: talk to 5 users every week, even when you're busy. Especially when you're busy." },
+        { "d": 45, "t": "Edtech founders in Vietnam: let's start a monthly coffee meetup in Hanoi to share what's working and what isn't. Comment if you're in." }
+      ]
+    },
+    {
+      "u": "son_cto", "n": "Trương Thanh Sơn", "g": "male", "dob": "1990-02-28", "loc": "Da Nang", "grp": "startup",
+      "title": "Co-founder & CTO", "company": "Giao Nhanh 4.0",
+      "bio": "CTO Giao Nhanh 4.0, nền tảng giao hàng chặng cuối cho miền Trung. Thích bài toán tối ưu tuyến đường và xây team kỹ sư ở Đà Nẵng.",
+      "skills": ["Flutter", "Backend development", "AWS", "System design", "People management", "Entrepreneurship"],
+      "exp": [["Giao Nhanh 4.0", "Co-founder & CTO", "self_employed", "onsite", "2022-03", null, "Xây ứng dụng tài xế và hệ thống điều phối đơn hàng."],
+              ["Axon Active Vietnam", "Software Architect", "full_time", "onsite", "2015-08", "2022-02", "Thiết kế hệ thống cho khách hàng logistics châu Âu."]],
+      "edu": [["Đại học Bách khoa Đà Nẵng", "university", "Công nghệ thông tin", 2008, 2013]],
+      "posts": [
+        { "d": 2, "t": "Thuật toán gom đơn mới giúp tài xế Giao Nhanh giảm 18% quãng đường mỗi ngày. Với 300 tài xế, đó là hàng nghìn lít xăng mỗi tháng và thêm thời gian về nhà ăn cơm. #logistics",
+          "c": [["ngan_cnb", "Con số tài xế về sớm hơn là thứ em thích nhất trong báo cáo tháng này"], ["duonghung", "Bài toán gom đơn thực tế khó hơn sách vở nhiều, chúc mừng team"]] },
+        { "d": 9, "t": "Giao Nhanh đang tuyển Mobile Developer biết Flutter ở Đà Nẵng. Bạn sẽ làm ứng dụng tài xế dùng hằng ngày bởi 300 người, phản hồi trực tiếp từ người dùng mỗi tuần." },
+        { "d": 18, "t": "Xây team kỹ sư ở Đà Nẵng: khó tìm người hơn Sài Gòn, nhưng người đã vào thì gắn bó lâu hơn hẳn. Hai năm chưa có ai nghỉ việc.",
+          "c": [["khanh_cloud", "Em đang tính ra Đà Nẵng làm việc, nghe hấp dẫn quá anh"], ["trung_headhunt", "Xu hướng dịch chuyển về Đà Nẵng đang rõ dần, mình thấy nhiều ứng viên hỏi"]] },
+        { "d": 30, "t": "Bài học từ sự cố tuần trước: ứng dụng tài xế phải chạy được khi mất mạng. Ở đèo Hải Vân không có 4G, nhưng đơn hàng vẫn phải được giao." },
+        { "d": 44, "t": "Mỗi tháng một lần, cả team kỹ sư đi giao hàng cùng tài xế một ngày. Không tài liệu yêu cầu nào thay được trải nghiệm đó." }
+      ]
+    },
+    {
+      "u": "quynh_growth", "n": "Lê Như Quỳnh", "g": "female", "dob": "1997-04-30", "loc": "Ho Chi Minh", "grp": "startup",
+      "title": "Growth Lead", "company": "Ví Xanh",
+      "bio": "Growth lead ở Ví Xanh. Chạy thử nghiệm mỗi tuần, đo mọi thứ, và tin rằng chương trình giới thiệu bạn bè tốt hơn mọi quảng cáo.",
+      "skills": ["Growth hacking", "Digital marketing", "Data analysis", "Social media marketing", "TikTok marketing"],
+      "exp": [["Ví Xanh", "Growth Lead", "full_time", "hybrid", "2023-06", null, "Xây chương trình giới thiệu đưa Ví Xanh lên 80.000 người dùng."],
+              ["Shopee Vietnam", "Marketing Executive", "full_time", "onsite", "2019-08", "2023-05", "Chạy chiến dịch cho ngành hàng thời trang."]],
+      "edu": [["Đại học RMIT Việt Nam", "university", "Digital Marketing", 2015, 2019]],
+      "posts": [
+        { "d": 4, "t": "Thử nghiệm tuần này: đổi thông điệp giới thiệu từ \"nhận 20 nghìn\" sang \"cùng bạn tiết kiệm cho chuyến đi Đà Lạt\". Tỉ lệ giới thiệu tăng 34%. Người trẻ không chỉ muốn tiền, họ muốn mục tiêu. #growth",
+          "c": [["viet_founder", "Insight này nên in ra dán tường văn phòng"], ["bich_ielts", "Chị ơi cho em hỏi chị đo tỉ lệ giới thiệu bằng công cụ gì ạ?"], ["quynh_growth", "Bên chị tự dựng trên dữ liệu sự kiện, dùng thêm dashboard Metabase em nhé", 1]] },
+        { "d": 11, "t": "Ví Xanh đang tìm 1 bạn Growth Marketing Intern ở Sài Gòn, yêu thích TikTok và con số. Inbox mình hoặc xem tin tuyển dụng trên trang công ty nhé." },
+        { "d": 20, "t": "TikTok cho fintech không phải là nhảy theo trend. Video hiệu quả nhất của tụi mình là một bạn sinh viên kể thật cách tiết kiệm được 3 triệu trong một học kỳ.",
+          "c": [["minhthu_pm", "Nội dung thật luôn thắng nội dung đẹp, nhất là với sản phẩm tài chính"]] },
+        { "d": 33, "t": "Growth không phải hack. Là chạy thật nhiều thử nghiệm nhỏ, ghi lại cẩn thận, và chấp nhận 8/10 cái sẽ thất bại." },
+        { "d": 47, "t": "Dashboard đầu tiên mỗi sáng của mình chỉ có 3 con số: người dùng mới, người dùng quay lại sau 7 ngày, và số lượt giới thiệu. Mọi thứ khác để chiều xem." }
+      ]
+    },
+    {
+      "u": "dat_indiehacker", "n": "Mạc Tiến Đạt", "g": "male", "dob": "1996-07-03", "loc": "Ho Chi Minh", "grp": "startup",
+      "title": "Founder", "company": "CàPhêPOS",
+      "bio": "Indie hacker, tự build CàPhêPOS cho quán cà phê nhỏ. Code ban ngày, đi gặp chủ quán buổi chiều. Đang tìm đồng đội frontend bán thời gian.",
+      "skills": ["Full-stack development", "React", "Node.js", "Entrepreneurship", "Sales"],
+      "exp": [["CàPhêPOS", "Founder", "self_employed", "remote", "2025-01", null, "Xây và bán phần mềm bán hàng cho 60 quán cà phê."],
+              ["Haravan", "Full-stack Developer", "full_time", "onsite", "2019-05", "2024-12", "Phát triển tính năng cho nền tảng bán hàng đa kênh."]],
+      "edu": [["Đại học Sư phạm Kỹ thuật TP.HCM", "university", "Công nghệ thông tin", 2014, 2018]],
+      "posts": [
+        { "d": 3, "t": "CàPhêPOS vừa có quán thứ 60 dùng trả phí! Không gọi vốn, không quảng cáo, chỉ có mình đi bộ gõ cửa từng quán ở Bình Thạnh và Phú Nhuận suốt 10 tháng. #indiehacker",
+          "c": [["viet_founder", "Đi gõ cửa từng quán là cách học khách hàng tốt nhất, respect"], ["mia_cofounder", "60 paying customers solo is incredible, congrats!"]] },
+        { "d": 10, "t": "CàPhêPOS cần 1 bạn React developer bán thời gian, làm remote, khoảng 20 giờ mỗi tuần. Hợp với bạn đang đi làm muốn thêm dự án thật hoặc sinh viên năm cuối." },
+        { "d": 19, "t": "Chủ quán cà phê không quan tâm phần mềm dùng công nghệ gì. Họ chỉ hỏi: in bill có nhanh không, mất mạng có bán được không, và cuối ngày có biết lời lỗ không.",
+          "c": [["son_cto", "Câu hỏi mất mạng có bán được không, bên anh cũng gặp y chang"], ["dat_indiehacker", "Offline-first đúng là bắt buộc ở Việt Nam anh ạ", 0]] },
+        { "d": 29, "t": "Một năm làm indie hacker: doanh thu đủ trả lương cho chính mình, chưa đủ để thuê người toàn thời gian. Chậm nhưng chắc, và tự do." },
+        { "d": 43, "t": "Tính năng được yêu cầu nhiều nhất từ các quán: tách bill cho nhóm bạn. Nghe đơn giản nhưng làm đúng mọi trường hợp chia tiền mất cả tháng." }
+      ]
+    }
+  ],
+  "jobs": [
+    { "by": "linh_talent", "company": "techviet", "d": 5, "t": "TechViet Solutions tuyển Senior iOS Developer cho dự án ứng dụng sức khỏe của khách hàng Úc. Làm hybrid ở quận 3, team 5 người, review code nghiêm túc và có ngân sách học tập riêng.",
+      "title": "Senior iOS Developer", "location": "Ho Chi Minh", "type": "full_time", "format": "hybrid", "level": "senior", "min": 45, "max": 70, "deadline": 30,
+      "skills": ["Swift", "SwiftUI", "iOS development", "Unit testing"] },
+    { "by": "linh_talent", "company": "techviet", "d": 14, "t": "Tuyển Backend Developer (Go) middle cho hệ thống thanh toán của khách hàng Nhật. Bạn sẽ làm cùng anh Hùng và team 6 người, có cơ hội onsite Tokyo 3 tháng.",
+      "title": "Backend Developer (Go)", "location": "Ho Chi Minh", "type": "full_time", "format": "hybrid", "level": "mid", "min": 30, "max": 45, "deadline": 25,
+      "skills": ["Go", "PostgreSQL", "Docker", "REST API"] },
+    { "by": "trung_headhunt", "company": null, "d": 19, "t": "Khách hàng ngân hàng của TalentBridge cần Data Engineering Lead ở Hà Nội: quản lý team 6 người, xây nền tảng dữ liệu thời gian thực. Thông tin khách hàng sẽ chia sẻ sau vòng trao đổi đầu tiên.",
+      "title": "Data Engineering Lead", "company_name": "Ngân hàng (khách hàng TalentBridge)", "location": "Hanoi", "type": "full_time", "format": "onsite", "level": "lead", "min": 80, "max": 120, "deadline": 40,
+      "skills": ["Data engineering", "Apache Spark", "Kafka", "People management"] },
+    { "by": "viet_founder", "company": "vixanh", "d": 8, "t": "Ví Xanh tuyển Backend Engineer: xây hệ thống ghi sổ kép cho ví điện tử, xử lý hàng trăm nghìn giao dịch mỗi ngày. Có cổ phần cho thành viên đầu tiên của team backend.",
+      "title": "Backend Engineer", "location": "Ho Chi Minh", "type": "full_time", "format": "hybrid", "level": "mid", "min": 35, "max": 55, "deadline": 35,
+      "skills": ["Go", "PostgreSQL", "System design", "Microservices"] },
+    { "by": "quynh_growth", "company": "vixanh", "d": 11, "t": "Ví Xanh tìm Growth Marketing Intern 6 tháng: lên ý tưởng nội dung TikTok, chạy thử nghiệm giới thiệu bạn bè và đọc số liệu mỗi tuần cùng Growth Lead.",
+      "title": "Growth Marketing Intern", "location": "Ho Chi Minh", "type": "internship", "format": "onsite", "level": "intern", "min": 5, "max": 7, "deadline": 20,
+      "skills": ["TikTok marketing", "Social media marketing", "Data analysis"] },
+    { "by": "mia_cofounder", "company": "lingoleaf", "d": 10, "t": "LingoLeaf is hiring a Content Marketing Intern in Hanoi. Write short English stories, run our TikTok, and talk to learners every week. Flexible hours, mentorship from the founders.",
+      "title": "Content Marketing Intern", "location": "Hanoi", "type": "internship", "format": "hybrid", "level": "intern", "min": 4, "max": 6, "deadline": 21,
+      "skills": ["Content marketing", "Copywriting", "English", "TikTok marketing"] },
+    { "by": "son_cto", "company": "giaonhanh", "d": 9, "t": "Giao Nhanh 4.0 tuyển Mobile Developer (Flutter) ở Đà Nẵng. Phát triển ứng dụng tài xế chạy được cả khi mất mạng, làm việc trực tiếp với CTO và đi giao hàng cùng tài xế mỗi tháng.",
+      "title": "Mobile Developer (Flutter)", "location": "Da Nang", "type": "full_time", "format": "onsite", "level": "junior", "min": 18, "max": 30, "deadline": 30,
+      "skills": ["Flutter", "Dart", "Mobile development", "Firebase"] },
+    { "by": "dat_indiehacker", "company": "caphepos", "d": 10, "t": "CàPhêPOS tuyển React developer bán thời gian, remote, khoảng 20 giờ mỗi tuần. Làm màn hình gọi món và báo cáo cho 60 quán cà phê đang dùng thật.",
+      "title": "Part-time React Developer", "location": "Ho Chi Minh", "type": "part_time", "format": "remote", "level": "junior", "min": 10, "max": 15, "deadline": 28,
+      "skills": ["React", "TypeScript", "Node.js"] }
+  ],
+  "real": {
+    "follow": [["linh_talent", "kujira1307"], ["kevin_le_dev", "kujira1307"]],
+    "like": [],
+    "comment": []
+  }
+}
