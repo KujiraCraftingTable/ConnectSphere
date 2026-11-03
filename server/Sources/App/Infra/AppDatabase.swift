@@ -19,13 +19,20 @@ final class AppDatabase: @unchecked Sendable {
             database: env.db.database,
             tls: .disable
         )
-        // Node's `DB_POOL_MAX` is a total; spread it across the event loops.
+        // Node's `DB_POOL_MAX` is a total; spread it across the event loops,
+        // but never below 4 each: on a 10-core Mac 10 / 10 left every loop one
+        // connection, so one slow query (or a job) stalled every request on it.
         var loops = 0
         for _ in eventLoopGroup.makeIterator() { loops += 1 }
-        let perLoop = max(1, env.db.poolMax / max(1, loops))
+        let perLoop = max(4, env.db.poolMax / max(1, loops))
         self.pool = EventLoopGroupConnectionPool(
             source: PostgresConnectionSource(sqlConfiguration: config),
             maxConnectionsPerEventLoop: perLoop,
+            // How long a request waits for a free connection; Node's 2 s is
+            // too tight while the job workers are busy.
+            requestTimeout: .milliseconds(Int64(max(env.db.connectionTimeoutMS, 5000))),
+            pruneInterval: .seconds(30),
+            maxIdleTimeBeforePruning: .milliseconds(Int64(env.db.idleTimeoutMS)),
             on: eventLoopGroup
         )
         self.logger = logger

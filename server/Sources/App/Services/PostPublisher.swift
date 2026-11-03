@@ -41,8 +41,12 @@ enum PostPublisher {
         await TranslationService.enqueue(.post, id: postID, app: app, queue: queue, logger: logger)
         if !content.isEmpty {
             let cfg = app.ollama, db = app.db.sql(), hub = app.socketHub
+            // Background priority: nobody is waiting on this check, and the
+            // gate runs one such call at a time.
             Task {
-                let r = await PostAnalyzeService.analyze(cfg, content, logger: logger)
+                let r = await OllamaGate.$isBackground.withValue(true) {
+                    await PostAnalyzeService.analyze(cfg, content, logger: logger)
+                }
                 if r.confidence >= 0.75, r.suggestedMode != "neutral", r.suggestedMode != mode {
                     _ = await NotifyService.pushUserNotification(userID: authorID, type: "mode_mismatch",
                         postID: postID,
