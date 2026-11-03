@@ -1,0 +1,295 @@
+{
+  "people": [
+    {
+      "u": "khoa_valorant", "n": "Trần Minh Khoa", "g": "male", "dob": "2002-03-14", "loc": "Ho Chi Minh", "grp": "games",
+      "bio": "Leo rank Valorant mỗi tối, cuối tuần thì rủ hội đi xem phim suất khuya. Trà sữa ít đường là chân ái.",
+      "interests": ["Gaming · Valorant", "Esports", "Movies", "Board games", "Bubble tea"],
+      "posts": [
+        { "d": 2, "t": "Tối qua thua liền 4 trận vì team toàn duelist không ai cầm smoke 😭 Ai main Omen hay Brimstone thì duo với mình nha, đang kẹt Gold 3. #valorant",
+          "c": [["tuan_lmht", "Gold 3 vẫn ổn mà ông, tui bên LMHT kẹt Bạch Kim 4 cả mùa rồi"], ["khoa_valorant", "Ông qua Valo đi, tui cầm Omen cho ông chơi Jett", 0], ["chiu_streamer", "Tối nay mình stream rank, vào duo luôn không?"]] },
+        { "d": 6, "t": "Vừa xem Dune: Part Two lần thứ 2 ở IMAX Landmark. Cảnh cưỡi sâu cát vẫn nổi da gà y như lần đầu. Có ai muốn đi lần 3 không 😂 #dune #phim",
+          "c": [["thuha_phimdem", "Lần 3 thì rủ mình, mình mới xem bản thường thôi"], ["jess_nguyen", "IMAX for Dune is the only correct way, no notes"]] },
+        { "d": 11, "t": "Cuối tuần này hội mình đi quán board game ở Phú Nhuận, đang thiếu 2 người cho ván Avalon. Ai rảnh comment nha, mình bao trà sữa." },
+        { "d": 19, "t": "Crosshair mình đang xài: 0 / 1 / 4 / 2, màu xanh cyan. Đổi qua cái này aim đỡ run tay hẳn, ai cần code thì inbox.",
+          "c": [["baoan_boardgame", "Tui không chơi Valo nhưng thấy ông nói chuyện như hacker 🤣"]] },
+        { "d": 33, "t": "Đội tuyển Việt Nam vào được playoffs giải khu vực rồi! Tối thứ Sáu ai coi chung ở quán net Tân Bình không? #esports" }
+      ]
+    },
+    {
+      "u": "thuha_phimdem", "n": "Nguyễn Thu Hà", "g": "female", "dob": "2000-09-02", "loc": "Hanoi", "grp": "games",
+      "bio": "Mê phim kinh dị và phim Hàn, review dạo trên story. Cuối tuần hay ngồi quán cà phê sách ở phố cổ.",
+      "interests": ["Horror movies", "K-drama", "Movies", "Café hopping", "Board games"],
+      "posts": [
+        { "d": 1, "t": "Review nhanh phim kinh dị mới ra rạp: 30 phút đầu dựng không khí rất tốt, nửa sau hơi lạm dụng jump scare. Chấm 7/10, vẫn đáng đi xem với hội bạn. #phimkinhdi",
+          "c": [["khoa_valorant", "7/10 từ bà là cao rồi, bà khó tính lắm"], ["ngoc_filmroll", "Có cảnh nào ám ảnh không chị, em nhát lắm 😅"], ["thuha_phimdem", "Có một cảnh trong nhà tắm, em nhắm mắt đoạn đó là ổn", 1]] },
+        { "d": 8, "t": "Đang cày lại Reply 1988 lần thứ ba. Mỗi lần xem tới tập bố Deok-sun là khóc như mưa, phim gì mà chữa lành dữ vậy. #kdrama" },
+        { "d": 15, "t": "Tìm hội xem phim ở Hà Nội: mỗi tháng đi rạp 2 lần, xem xong ngồi cà phê bàn phim. Ai thích thể loại kinh dị hoặc tâm lý thì nhắn mình nha.",
+          "c": [["mai_caphe_sang", "Em ở Đống Đa, đi xem xong ra quán em hay ngồi nha chị"], ["long_podcast", "Nghe giống format podcast review phim ghê, có ghi âm lại không 😄"]] },
+        { "d": 27, "t": "Top 3 phim kinh dị Á Đông mình thấy đáng xem nhất: The Wailing, Incantation, và Ju-on bản gốc. Ai có đề cử thêm không?" },
+        { "d": 41, "t": "Cafe sách ở Hàng Bạc có góc gác xép nhìn ra mái ngói, mưa xuống nghe tiếng lộp độp đọc truyện trinh thám là đúng bài." }
+      ]
+    },
+    {
+      "u": "baoan_boardgame", "n": "Lê Bảo An", "g": "male", "dob": "1999-11-20", "loc": "Ho Chi Minh", "grp": "games",
+      "bio": "Chủ xị mấy buổi board game tối thứ Bảy. Thích Catan, Ma Sói, cờ vua online và hát karaoke sai tông.",
+      "interests": ["Board games", "Chess", "Movies", "Night life", "Karaoke"],
+      "posts": [
+        { "d": 3, "t": "Tối thứ Bảy vừa rồi chơi Catan 4 tiếng, cuối cùng bị đứa mới chơi lần đầu thắng. Đúng là luật nhân quả cho người hay giữ đá 😤 #boardgame",
+          "c": [["khoa_valorant", "Lần sau tui vào, tui sẽ trade gỗ cho ông với giá cắt cổ"], ["jess_nguyen", "Beginner's luck in Catan is a real phenomenon"]] },
+        { "d": 9, "t": "Ai chơi cờ vua online thì add mình trên chess.com nhé, rating đang 1350 rapid. Đánh vui là chính, thua thì không cay (nói vậy thôi chứ cay lắm).",
+          "c": [["tuan_lmht", "1350 là trên tui 200 điểm, ông dạy tui khai cuộc đi"]] },
+        { "d": 16, "t": "Hôm qua karaoke tới 1 giờ sáng, giọng giờ như vịt đực. Bài tủ của mình vẫn là Nắng Ấm Xa Dần, hát hoài không chán." },
+        { "d": 24, "t": "Gợi ý board game cho nhóm đông mà dễ học: Codenames, Just One, và Wavelength. Cả ba đều chơi được 15 phút là hiểu luật.",
+          "c": [["thuha_phimdem", "Wavelength chơi với hội bạn thân là cãi nhau vui nhất"], ["memlord_kien", "Codenames mà gặp đứa gợi ý bằng meme thì thua chắc"]] },
+        { "d": 38, "t": "Vừa mua bản Việt hóa của Ma Sói Một Đêm, ai ở Gò Vấp muốn chơi thử thì cuối tuần ghé nhà mình." }
+      ]
+    },
+    {
+      "u": "jess_nguyen", "n": "Jessica Nguyễn", "g": "female", "dob": "2001-06-08", "loc": "Ho Chi Minh", "grp": "games",
+      "bio": "Souls-like enjoyer, Marvel apologist, and the friend who always knows the best late-night food spot in District 4.",
+      "interests": ["PC & console games", "Gaming · Elden Ring", "Superhero movies", "Concerts", "Food hunting"],
+      "posts": [
+        { "d": 4, "t": "Finally beat Malenia after 63 tries. My hands are shaking and my neighbours probably think I'm being murdered. #eldenring",
+          "c": [["khoa_valorant", "63 tries là còn nhanh đó, bạn tui bỏ game luôn ở con này"], ["baoan_boardgame", "Respect. Tui chỉ đủ kiên nhẫn cho cờ vua"]] },
+        { "d": 10, "t": "Hot take: the best superhero movie of the last decade is still Spider-Man: Into the Spider-Verse. The animation alone deserves a museum.",
+          "c": [["thuha_phimdem", "Đồng ý 100%, nhạc phim cũng đỉnh"], ["jess_nguyen", "See, someone with taste 😌", 0]] },
+        { "d": 18, "t": "Late-night food crawl in District 4 last night: snail at Vĩnh Khánh, then grilled squid, then sugarcane juice. 10/10 would ruin my diet again." },
+        { "d": 29, "t": "Anyone going to the indie concert at the Saigon Opera House next month? Looking for people to split a Grab with." },
+        { "d": 47, "t": "Started a co-op run of It Takes Two with my cousin. We have argued more in 3 hours than in 20 years of being family." }
+      ]
+    },
+    {
+      "u": "tuan_lmht", "n": "Phạm Anh Tuấn", "g": "male", "dob": "2005-01-30", "loc": "Da Nang", "grp": "games",
+      "bio": "Sinh viên năm 2 ở Đà Nẵng. Main đường giữa LMHT, xem anime lúc rảnh và săn bánh tráng cuốn thịt heo.",
+      "interests": ["League of Legends", "Esports", "Mobile games", "Anime", "Street food"],
+      "posts": [
+        { "d": 2, "t": "Vừa lên Bạch Kim 3 sau 2 tuần cày, Ahri carry cả team. Ai ở Đà Nẵng đánh flex 5 người thì rủ mình với. #lienminh",
+          "c": [["khoa_valorant", "Chúc mừng ông, giờ qua Valo khổ chung với tui đi"], ["chiu_streamer", "Ahri mid đỉnh vậy thì lên stream chung kênh mình đi"]] },
+        { "d": 7, "t": "Bánh tráng cuốn thịt heo ở Hải Châu: 50 nghìn ăn no căng, nước chấm đậm vị. Đà Nẵng mãi đỉnh. #amthuc" },
+        { "d": 14, "t": "Chung kết thế giới năm nay ai bắt kèo không? Mình vẫn tin đội LCK sẽ vô địch dù meta đổi nhiều.",
+          "c": [["chiu_streamer", "Năm nay LPL mạnh lắm, kèo này khó"]] },
+        { "d": 22, "t": "Đang xem Frieren, phim chậm mà sâu ghê. Ai xem rồi đừng spoil nha, mình mới tới tập 12." },
+        { "d": 36, "t": "Mùa thi tới rồi, tạm biệt rank một tháng. Hẹn gặp lại các chiến hữu sau khi qua môn Giải tích." }
+      ]
+    },
+    {
+      "u": "mai_caphe_sang", "n": "Đỗ Ngọc Mai", "g": "female", "dob": "1998-04-17", "loc": "Hanoi", "grp": "lowkey",
+      "bio": "Một ly cà phê muối buổi sáng, một cuốn sách, một chiếc máy film cũ. Sống chậm giữa Hà Nội.",
+      "interests": ["Coffee", "Café hopping", "Reading", "Film photography", "Travel"],
+      "posts": [
+        { "d": 1, "t": "Sáng nay Hà Nội se lạnh, ngồi quán cà phê nhỏ ở Phan Đình Phùng nhìn lá vàng rơi. Thu Hà Nội không cần filter. #caphe",
+          "c": [["ngoc_filmroll", "Chị chụp film đoạn này chưa, nắng xiên qua lá đẹp lắm"], ["vy_traxanh", "Ghen tị quá, Cần Thơ nóng như đổ lửa 🥲"]] },
+        { "d": 5, "t": "Đọc xong Rừng Na Uy lần hai. Lần đầu năm 18 tuổi thấy buồn, giờ đọc lại thấy nhẹ nhõm. Sách không đổi, mình đổi.",
+          "c": [["sam_slowtravel", "Murakami hits different at every age, totally agree"]] },
+        { "d": 12, "t": "Danh sách 5 quán cà phê yên tĩnh để làm việc ở Hà Nội: có ổ cắm, wifi ổn, nhạc không to. Ai cần mình gửi chi tiết." },
+        { "d": 23, "t": "Cuối tuần lên Tam Đảo, trời mù sương, ngồi uống trà gừng nghe mưa. Chuyến đi ngắn mà sạc pin được cả tháng. #dulich" },
+        { "d": 44, "t": "Pha cà phê phin ở nhà: 20g cà phê, nước 92 độ, ủ 30 giây rồi mới chế. Kiên nhẫn chút là ly cà phê thơm hơn hẳn." }
+      ]
+    },
+    {
+      "u": "quang_dilang", "n": "Hoàng Quang", "g": "male", "dob": "1996-12-03", "loc": "Da Nang", "grp": "lowkey",
+      "bio": "Đi để thấy mình nhỏ bé. Đã chạy xe máy hết đèo Hải Vân, Mã Pí Lèng và Khau Phạ. Thích cắm trại và ngắm sao.",
+      "interests": ["Travel", "Backpacking", "Photography", "Coffee", "Camping"],
+      "posts": [
+        { "d": 3, "t": "Vừa về từ chuyến Hà Giang 5 ngày. Đèo Mã Pí Lèng lúc 6 giờ sáng, mây phủ kín sông Nho Quế. Không ảnh nào tả hết được. #hagiang #phuot",
+          "c": [["sam_slowtravel", "Been wanting to do the Hà Giang loop forever, did you ride yourself?"], ["quang_dilang", "Tự chạy luôn, có 1 đoạn phải dắt bộ vì đường sạt", 0], ["nam_climb", "Lần sau đi rủ em, em mang đồ leo núi theo"]] },
+        { "d": 9, "t": "Cắm trại ở bãi Rạng, Sơn Trà: dựng lều lúc hoàng hôn, nửa đêm nằm nghe sóng. Nhớ mang theo túi rác về nha mọi người." },
+        { "d": 17, "t": "Kinh nghiệm phượt một mình: luôn báo lịch trình cho người nhà, mang sạc dự phòng 20.000mAh, và đừng bao giờ tin Google Maps ở đường đèo.",
+          "c": [["mai_caphe_sang", "Câu cuối thấm quá, em từng bị dẫn vào đường đất 10km"]] },
+        { "d": 30, "t": "Cà phê ở Đà Nẵng ngon nhất là mấy quán cóc ven sông Hàn lúc 5 giờ sáng. Ngồi xem người ta tập thể dục, rẻ mà vui." },
+        { "d": 52, "t": "Đang lên kế hoạch đi xuyên Tây Nguyên tháng sau: Kon Tum, Pleiku, Buôn Ma Thuột. Ai có quán homestay quen thì chỉ mình với." }
+      ]
+    },
+    {
+      "u": "vy_traxanh", "n": "Trương Tường Vy", "g": "female", "dob": "2003-08-25", "loc": "Can Tho", "grp": "lowkey",
+      "bio": "Cần Thơ girl. Nuôi hai bé mèo, trồng rau ban công, cuối tuần nướng bánh và pha trà.",
+      "interests": ["Tea", "Baking", "Books", "Gardening", "Cats"],
+      "posts": [
+        { "d": 2, "t": "Mẻ bánh chuối nướng thứ ba trong tuần, lần này bỏ thêm óc chó và ít đường hơn. Hai bé mèo đứng canh lò nướng như bảo vệ 🐱 #baking",
+          "c": [["mai_caphe_sang", "Cho chị xin công thức với, nhìn ngon quá"], ["trang_gymrat", "Ít đường là được, em ăn ké một miếng thôi"]] },
+        { "d": 8, "t": "Ban công nhà mình giờ có húng quế, rau răm, ớt và một chậu cà chua bi đang ra trái. Trồng rau chữa lành hơn mọi app thiền." },
+        { "d": 13, "t": "Trà ô long ủ lạnh qua đêm uống mát hơn trà đá nhiều. Cho 5g trà vào 500ml nước, để tủ lạnh 8 tiếng là xong.",
+          "c": [["long_podcast", "Thử rồi, ngon thật, giờ ngày nào cũng ủ một bình"]] },
+        { "d": 26, "t": "Đọc xong Hoàng tử bé bản dịch mới. Có những câu đọc lúc nhỏ không hiểu, giờ đọc lại thì thấy cả đời mình trong đó." },
+        { "d": 39, "t": "Mèo nhà mình tên Bơ và Sữa, một đứa thích ngủ trên bàn phím, một đứa thích đẩy ly xuống đất. Ai nuôi mèo chắc hiểu cảm giác này." }
+      ]
+    },
+    {
+      "u": "sam_slowtravel", "n": "Sam Phan", "g": "male", "dob": "1997-02-11", "loc": "Ho Chi Minh", "grp": "lowkey",
+      "bio": "Viet-Aussie writer living in Saigon. I travel slowly, drink too much coffee and record a tiny podcast about small towns.",
+      "interests": ["Travel", "Coffee", "Writing", "Hiking", "Podcasts"],
+      "posts": [
+        { "d": 4, "t": "Spent a week in Quy Nhơn doing absolutely nothing. Morning swims, fish noodle soup, afternoon naps. Highly recommend doing nothing there. #quynhon",
+          "c": [["quang_dilang", "Quy Nhơn mùa này vắng, đi là đúng thời điểm"], ["mai_caphe_sang", "Doing nothing is an underrated travel plan"]] },
+        { "d": 11, "t": "New episode of my podcast is out: a 30-minute chat with a woman who has run the same sugarcane stall in Đà Lạt for 25 years." },
+        { "d": 20, "t": "Saigon coffee ranking after two years here: cà phê sữa đá > egg coffee > coconut coffee > anything with cheese foam. Fight me.",
+          "c": [["long_podcast", "Cheese foam slander, nhưng mà đúng"], ["jess_nguyen", "Coconut coffee deserves second place and I will die on this hill"]] },
+        { "d": 31, "t": "Hiked Bà Đen mountain at sunrise instead of taking the cable car. Legs destroyed, view absolutely worth it." },
+        { "d": 49, "t": "Writing tip that changed my travel journal: describe one smell from every place you visit. Smells bring memories back faster than photos." }
+      ]
+    },
+    {
+      "u": "ngoc_filmroll", "n": "Phạm Bích Ngọc", "g": "female", "dob": "2000-05-29", "loc": "Hanoi", "grp": "lowkey",
+      "bio": "Chụp film bằng chiếc Pentax K1000 của bố. Nghe nhạc indie, đọc tiểu thuyết và lang thang phố cổ.",
+      "interests": ["Film photography", "Travel", "Indie", "Café hopping", "Novels"],
+      "posts": [
+        { "d": 2, "t": "Cuộn Kodak Gold 200 mới tráng về. Ánh nắng chiều trên phố Hàng Mã ra màu vàng ấm đúng kiểu mình thích. #chupanhfilm",
+          "c": [["mai_caphe_sang", "Màu Gold lên phố cổ là hết nước chấm"], ["quang_dilang", "Em chụp phong cảnh bằng film có bị lệch sáng nhiều không?"], ["ngoc_filmroll", "Em đo sáng bằng app điện thoại anh ạ, sai lệch ít lắm", 1]] },
+        { "d": 10, "t": "Playlist indie Việt mình nghe cả tuần nay: Ngọt, Cá Hồi Hoang, Chillies, và mấy bài cũ của Thủy Triều Đỏ." },
+        { "d": 19, "t": "Giá film tăng mạnh quá, một cuộn Portra giờ gần 400 nghìn. Đành chuyển sang chụp ít mà chắc, mỗi kiểu chỉ bấm một lần." },
+        { "d": 34, "t": "Đọc xong Nỗi buồn chiến tranh của Bảo Ninh. Có những cuốn sách đọc xong phải ngồi im rất lâu.",
+          "c": [["vy_traxanh", "Cuốn này em đọc dở vì nặng quá, chắc phải đọc lại"]] },
+        { "d": 46, "t": "Ai ở Hà Nội muốn đi chụp film chung buổi sáng Chủ nhật ở Long Biên không? Mình có dư một máy cho người mới mượn." }
+      ]
+    },
+    {
+      "u": "duc_dabanh", "n": "Ngô Minh Đức", "g": "male", "dob": "2001-07-07", "loc": "Ho Chi Minh", "grp": "sporty",
+      "bio": "Đá banh sân 7 tối thứ Ba và thứ Năm, sáng tập gym, cuối tuần coi Ngoại hạng Anh với anh em. Fan MU lâu năm.",
+      "interests": ["Football", "Gym", "Running", "Drinking / Beer"],
+      "posts": [
+        { "d": 1, "t": "Đội mình đang thiếu một thủ môn cho giải phong trào quận Bình Thạnh tháng sau. Ai bắt gôn được thì nhắn mình nha, có áo đấu sẵn. #dabanh",
+          "c": [["hieu_caulong", "Tui ở Cần Thơ không thì đăng ký liền"], ["nam_climb", "Em chỉ bắt được bóng chuyền thôi anh 😂"]] },
+        { "d": 5, "t": "Tối qua đá xong 90 phút sân 7, cả đội ra quán bia hơi ngồi tới khuya. Thua 3-2 nhưng vẫn vui, quan trọng là có kèo." },
+        { "d": 12, "t": "MU lại thua. Mình không còn buồn nữa, chỉ thấy bình thản như người đã quen với nghịch cảnh.",
+          "c": [["trang_gymrat", "Anh nên chuyển qua tập yoga cho tâm an 🤣"], ["memlord_kien", "Fan MU là những người có sức chịu đựng tốt nhất hành tinh"]] },
+        { "d": 21, "t": "Lịch tập gym tuần này: thứ Hai ngực, thứ Tư lưng, thứ Sáu chân. Chân thì lúc nào cũng muốn bỏ nhưng vẫn phải tập." },
+        { "d": 35, "t": "Chạy 5km ven kênh Nhiêu Lộc lúc 5h30 sáng, gió mát, không khói bụi. Ai ở Phú Nhuận chạy chung thì nhắn mình." }
+      ]
+    },
+    {
+      "u": "lan_marathon", "n": "Vũ Phương Lan", "g": "female", "dob": "1995-10-15", "loc": "Hanoi", "grp": "sporty",
+      "bio": "Runner phong trào, đã hoàn thành 3 full marathon. Đạp xe cuối tuần quanh Hồ Tây và tập yoga để phục hồi.",
+      "interests": ["Running", "Cycling", "Yoga", "Swimming"],
+      "posts": [
+        { "d": 3, "t": "Hoàn thành full marathon Hà Nội với thành tích 3:58, lần đầu sub 4! Cảm ơn các bạn trong nhóm chạy đã kéo nhịp suốt 30km đầu. #marathon",
+          "c": [["duc_dabanh", "Sub 4 đỉnh quá chị, em chạy 10km đã muốn xỉu"], ["hieu_caulong", "Chúc mừng chị, giờ nhắm sub 3:45 thôi"], ["lan_marathon", "Từ từ em ơi, giờ chị chỉ muốn nằm 😂", 1]] },
+        { "d": 9, "t": "Đạp xe một vòng Hồ Tây 17km lúc 6 giờ sáng, trời trong veo, sen tàn nhưng vẫn đẹp. Hà Nội sáng sớm là Hà Nội dễ thương nhất." },
+        { "d": 16, "t": "Mẹo cho người mới chạy bộ: chạy chậm tới mức vừa chạy vừa nói chuyện được. Tốc độ sẽ tự đến, chấn thương thì không tự đi.",
+          "c": [["trang_gymrat", "Đúng quá chị, hồi đầu em chạy nhanh bị đau ống quyển cả tháng"]] },
+        { "d": 28, "t": "Yoga 20 phút sau buổi chạy dài giúp chân hồi nhanh hơn hẳn. Tư thế yêu thích của mình là chó úp mặt và bồ câu." },
+        { "d": 43, "t": "Nhóm chạy Hồ Tây đang tuyển thành viên mới, chạy sáng thứ Bảy, tốc độ nào cũng được, không bỏ ai lại phía sau." }
+      ]
+    },
+    {
+      "u": "hieu_caulong", "n": "Đặng Trung Hiếu", "g": "male", "dob": "1999-01-22", "loc": "Can Tho", "grp": "sporty",
+      "bio": "Cầu lông mỗi tối, bóng bàn cuối tuần. Đang làm ở Cần Thơ, tìm thêm bạn đánh đôi trình độ trung bình khá.",
+      "interests": ["Badminton", "Table tennis", "Football", "Fitness"],
+      "posts": [
+        { "d": 2, "t": "Ai ở Ninh Kiều đánh cầu lông đôi nam nữ thì nhắn mình, sân trong nhà, tối thứ Hai và thứ Tư từ 7 giờ. #caulong",
+          "c": [["vy_traxanh", "Em đánh dở lắm nhưng muốn tập, có được không anh?"], ["hieu_caulong", "Được chứ, nhóm mình có người mới tập luôn", 0]] },
+        { "d": 7, "t": "Mới thay vợt mới đầu nặng, đập cầu có lực hơn hẳn nhưng cổ tay mỏi ghê. Ai có kinh nghiệm chọn vợt cho người mới lên trình không?" },
+        { "d": 15, "t": "Giải bóng bàn công ty mình vừa xong, vào được bán kết rồi thua anh bảo vệ. Hóa ra anh từng là vận động viên tỉnh 😅",
+          "c": [["baoan_boardgame", "Cao thủ ẩn mình luôn ở những chỗ không ngờ nhất"]] },
+        { "d": 25, "t": "Bài tập bổ trợ cho người chơi cầu lông: nhảy dây 5 phút, squat nhảy 3 hiệp, và tập cổ tay với chai nước." },
+        { "d": 40, "t": "Xem Lee Chong Wei đánh lại mấy trận cũ, thấy cầu lông đúng là môn thể thao của phản xạ và đầu óc." }
+      ]
+    },
+    {
+      "u": "trang_gymrat", "n": "Lý Thu Trang", "g": "female", "dob": "2002-12-09", "loc": "Ho Chi Minh", "grp": "sporty",
+      "bio": "Gym 5 buổi một tuần, mê pickleball và nấu ăn healthy. Không ăn kiêng, chỉ ăn thông minh hơn.",
+      "interests": ["Gym", "Fitness", "Pickleball", "Cooking"],
+      "posts": [
+        { "d": 1, "t": "Deadlift được 80kg rồi mọi người ơi! Tám tháng trước mình còn không nhấc nổi thanh đòn không. #gym",
+          "c": [["duc_dabanh", "Hơn cả anh rồi đó, anh đang kẹt ở 90kg"], ["lan_marathon", "Mạnh quá em, chị toàn tập cardio nên tay yếu xìu"]] },
+        { "d": 6, "t": "Pickleball đúng là môn dễ nghiện nhất năm nay. Chơi lần đầu mà ba tiếng không muốn về. Ai ở quận 7 chơi thì rủ mình.",
+          "c": [["thao_tiktok", "Em mới quay video pickleball tuần trước, hot lắm luôn chị"]] },
+        { "d": 13, "t": "Meal prep cho cả tuần: ức gà áp chảo, khoai lang nướng, bông cải xanh và trứng luộc. Mất 2 tiếng Chủ nhật nhưng đỡ cả tuần." },
+        { "d": 24, "t": "Đừng so sánh hành trình tập của mình với người khác trên mạng. Ánh sáng phòng gym và góc máy đã làm được 50% rồi." },
+        { "d": 37, "t": "Công thức sinh tố sau tập: chuối, sữa chua không đường, bơ đậu phộng và một muỗng yến mạch. No lâu mà ngon." }
+      ]
+    },
+    {
+      "u": "nam_climb", "n": "Bùi Hải Nam", "g": "male", "dob": "1998-06-01", "loc": "Da Nang", "grp": "sporty",
+      "bio": "Leo núi trong nhà và ngoài trời, bơi biển mỗi sáng ở Mỹ Khê. Đang học trượt ván để không bị trẻ con vượt mặt.",
+      "interests": ["Rock climbing", "Swimming", "Hiking", "Skateboarding", "Volleyball"],
+      "posts": [
+        { "d": 3, "t": "Vừa leo xong tuyến 6b đầu tiên ở phòng leo Đà Nẵng. Tay rát, ngón chân đau, nhưng cảm giác chạm đỉnh thì đáng mọi thứ. #leonui",
+          "c": [["quang_dilang", "Lần sau ra núi thật ở Ngũ Hành Sơn đi em"], ["trang_gymrat", "Em muốn thử leo mà sợ độ cao quá anh"], ["nam_climb", "Phòng leo có dây an toàn, sợ cũng leo được nha", 1]] },
+        { "d": 8, "t": "Bơi biển Mỹ Khê lúc 5 giờ sáng, nước mát lạnh, mặt trời lên đỏ rực phía Sơn Trà. Cả ngày tỉnh táo không cần cà phê." },
+        { "d": 18, "t": "Tập trượt ván được 3 tuần, đã biết đứng và đẩy, chưa biết thắng. Cách thắng hiện tại là nhảy xuống và cầu nguyện.",
+          "c": [["memlord_kien", "Phương pháp thắng xe kinh điển của người Việt"]] },
+        { "d": 27, "t": "Bóng chuyền bãi biển chiều thứ Bảy ở bãi tắm Phạm Văn Đồng, ai muốn chơi thì cứ ra, thiếu người là ghép đội liền." },
+        { "d": 45, "t": "Trekking Bà Nà theo đường mòn cũ mất 5 tiếng, nhiều đoạn dốc đứng phải bám rễ cây. Nhớ mang đủ nước và đi theo nhóm." }
+      ]
+    },
+    {
+      "u": "chiu_streamer", "n": "Hà Gia Huy (Chíu)", "g": "male", "dob": "2003-02-14", "loc": "Ho Chi Minh", "grp": "online",
+      "bio": "Streamer Minecraft và Valorant mỗi tối 8 giờ. Hay chém gió với người xem, thỉnh thoảng làm video edit cho vui.",
+      "interests": ["Content creation", "Minecraft", "Esports", "Chatting / Banter", "Videography"],
+      "posts": [
+        { "d": 1, "t": "Tối nay 8 giờ stream xây lại cả thành phố Hội An trong Minecraft, ai có ý tưởng công trình nào thì comment nhé! #minecraft #stream",
+          "c": [["khoa_valorant", "Xây chùa Cầu đi ông, chi tiết mái ngói vào là đẹp"], ["ellie_cosplay", "Pls build the lantern street, it'd look amazing at night"], ["tuan_lmht", "Tui vào xem, nhớ để chế độ sinh tồn cho khó nha"]] },
+        { "d": 5, "t": "Kênh vừa chạm mốc 10.000 người theo dõi! Cảm ơn mọi người đã ngồi nghe mình chém gió suốt một năm qua 🥹",
+          "c": [["memlord_kien", "Chúc mừng ông, giờ là influencer rồi, nhớ anh em nha"], ["thao_tiktok", "Chúc mừng anh, mai mốt collab nha"]] },
+        { "d": 12, "t": "Setup stream mới: micro dynamic, đèn LED hai bên và một cái ghế không làm đau lưng. Đầu tư cái ghế là quyết định sáng suốt nhất." },
+        { "d": 23, "t": "Làm thử video edit highlight Valorant với nhạc lo-fi, mất 6 tiếng cho 45 giây. Giờ mới hiểu sao editor đòi giá cao." },
+        { "d": 34, "t": "Hôm qua stream bị mất mạng 20 phút, quay lại thấy chat tự nói chuyện với nhau vui hơn cả lúc có mình." }
+      ]
+    },
+    {
+      "u": "memlord_kien", "n": "Phan Trung Kiên", "g": "male", "dob": "2004-09-19", "loc": "Hanoi", "grp": "online",
+      "bio": "Admin một page meme 200 nghìn follow. Ngày lướt mạng 10 tiếng, đêm nghĩ caption. Fan stand-up comedy.",
+      "interests": ["Content creation", "Chatting / Banter", "Stand-up comedy", "Mobile games"],
+      "posts": [
+        { "d": 2, "t": "Meme hôm nay: sinh viên tháng cuối nhìn ví giống như nhìn tủ lạnh nhà người ta lúc 2 giờ sáng. Có gì đâu mà vẫn mở ra xem 🥲",
+          "c": [["tuan_lmht", "Đọc mà thấy chính mình tuần này"], ["chiu_streamer", "Cho tui xin để đọc trên stream tối nay"]] },
+        { "d": 7, "t": "Vừa đi xem show stand-up ở Hà Nội, có một bạn kể chuyện đi xe ôm công nghệ mà cả rạp cười 5 phút không dừng. Hài độc thoại Việt đang lên thật.",
+          "c": [["long_podcast", "Show nào vậy, cho mình xin tên với"], ["memlord_kien", "Nhóm Saigon Tếu ra Hà Nội diễn anh ơi", 0]] },
+        { "d": 15, "t": "Bí kíp làm meme viral: lấy tình huống ai cũng gặp, nói ngắn hơn mức bạn nghĩ, và đăng lúc 9 giờ tối." },
+        { "d": 26, "t": "Thử thách: kể một câu chuyện hài về nhóm chat gia đình mà không dùng chữ \"mẹ\". Mình bắt đầu: ba gửi 14 ảnh hoa sen lúc 5 giờ sáng." },
+        { "d": 42, "t": "Page vừa bị report sập một ngày vì đăng ảnh con mèo đeo kính. Thuật toán ơi, con mèo đó vô tội." }
+      ]
+    },
+    {
+      "u": "ellie_cosplay", "n": "Ellie Trần", "g": "female", "dob": "2002-11-05", "loc": "Ho Chi Minh", "grp": "online",
+      "bio": "Cosplayer and digital artist. I make my own props, post progress videos, and cry about anime endings.",
+      "interests": ["Cosplay", "Anime · Frieren", "Makeup", "Digital art"],
+      "posts": [
+        { "d": 3, "t": "Frieren cosplay is DONE. The staff took 3 weeks of foam, resin and way too much hot glue. Debuting it at the anime festival this weekend! #cosplay #frieren",
+          "c": [["tuan_lmht", "Đẹp quá chị ơi, em đang xem Frieren luôn nè"], ["thao_tiktok", "Need a TikTok of the staff build pls"], ["ellie_cosplay", "Filming the timelapse tonight!", 1]] },
+        { "d": 9, "t": "Makeup tip for anime cosplay: draw your lower lash line lower than your real one. It makes the eyes look so much bigger on camera." },
+        { "d": 16, "t": "New digital art piece: a cozy Saigon alley at night with a cat sleeping on a motorbike. Took 14 hours in Procreate.",
+          "c": [["vy_traxanh", "Con mèo giống bé Bơ nhà em quá"], ["ngoc_filmroll", "Ánh đèn vàng trong tranh nhìn rất Sài Gòn"]] },
+        { "d": 28, "t": "Cosplay doesn't need to be expensive. My first costume was made from a curtain and a cardboard box and I still love it." },
+        { "d": 40, "t": "Looking for a photographer who shoots cosplay in District 1 for a small shoot next month. Happy to trade prints or pay." }
+      ]
+    },
+    {
+      "u": "thao_tiktok", "n": "Mai Phương Thảo", "g": "female", "dob": "2001-03-27", "loc": "Da Nang", "grp": "online",
+      "bio": "TikToker review quán ăn và cover dance K-pop ở Đà Nẵng. Ngày nào cũng có video mới, trừ khi trời mưa.",
+      "interests": ["Content creation", "Dancing", "Makeup", "Fashion", "K-pop"],
+      "posts": [
+        { "d": 1, "t": "Video cover dance mới nhất vừa chạm 500 nghìn view! Quay ở cầu Rồng lúc hoàng hôn, gió thổi tóc bay đúng nhịp nhạc luôn 💃 #kpop #dance",
+          "c": [["ellie_cosplay", "The lighting in that video was unreal"], ["chiu_streamer", "Ê đỉnh vậy, bao giờ dạy tui nhảy"], ["thao_tiktok", "Anh chịu tập thì em dạy, mà không được bỏ giữa chừng nha", 1]] },
+        { "d": 6, "t": "Review quán mì Quảng ếch ở Đà Nẵng: nước dùng đậm, ếch chiên giòn, 45 nghìn một tô. Video full trên TikTok của mình nha." },
+        { "d": 14, "t": "Outfit đi biển mùa này: áo sơ mi linen rộng, quần short trắng, dép quai ngang. Mát, dễ phối, chụp ảnh lại xinh.",
+          "c": [["trang_gymrat", "Áo linen đúng là chân ái mùa nóng"]] },
+        { "d": 25, "t": "Làm TikTok một năm, bài học lớn nhất: 3 giây đầu quyết định tất cả. Không ai đợi bạn \"vào việc\" đâu." },
+        { "d": 38, "t": "Đang tìm bạn quay cover dance nhóm 4 người ở Đà Nẵng, tập cuối tuần, ưu tiên ai thích nhạc của BLACKPINK và NewJeans." }
+      ]
+    },
+    {
+      "u": "long_podcast", "n": "Trịnh Bảo Long", "g": "male", "dob": "1997-08-13", "loc": "Hanoi", "grp": "online",
+      "bio": "Làm podcast về công nghệ và AI cho người không biết code. Mê cà phê, mê tranh luận và hay chém gió tới khuya.",
+      "interests": ["Podcasts", "Technology", "Artificial intelligence", "Chatting / Banter", "Coffee"],
+      "posts": [
+        { "d": 2, "t": "Tập podcast mới: AI có thay được nghề viết lách không? Mình nói chuyện với một nhà văn và một kỹ sư AI, hai người cãi nhau rất lịch sự. #podcast #AI",
+          "c": [["sam_slowtravel", "As a writer I'm both scared and curious, listening tonight"], ["memlord_kien", "AI viết caption meme vẫn chưa hài bằng người đâu anh"]] },
+        { "d": 8, "t": "Thử dùng AI tóm tắt cuốn sách 300 trang trong 2 phút. Tóm tắt đúng ý chính nhưng mất hết cái hay của văn. Công cụ tốt, nhưng đừng thay việc đọc." },
+        { "d": 17, "t": "Setup thu podcast giá rẻ: micro USB 1 triệu, chăn treo sau lưng để giảm vang, và một căn phòng không có máy lạnh kêu.",
+          "c": [["chiu_streamer", "Cái chăn treo là bí kíp thật, tui cũng xài"]] },
+        { "d": 29, "t": "Mỗi sáng một ly bạc xỉu và 30 phút đọc tin công nghệ trước khi mở điện thoại xem mạng xã hội. Thói quen nhỏ mà đầu óc nhẹ hẳn." },
+        { "d": 48, "t": "Ai ở Hà Nội muốn lên podcast kể về nghề của mình không? Mình đang tìm khách mời làm những công việc ít người biết." }
+      ]
+    }
+  ],
+  "real": {
+    "follow": [["khoa_valorant", "takataiyo"], ["ellie_cosplay", "takataiyo"], ["tuan_lmht", "takataiyo"], ["vy_traxanh", "takataiyo"],
+               ["chiu_streamer", "kujira1307"], ["memlord_kien", "kujira1307"], ["mai_caphe_sang", "kujira1307"], ["nam_climb", "kujira1307"]],
+    "like": [["ellie_cosplay", "takataiyo"], ["tuan_lmht", "takataiyo"], ["vy_traxanh", "takataiyo"],
+             ["chiu_streamer", "kujira1307"], ["memlord_kien", "kujira1307"], ["mai_caphe_sang", "kujira1307"]],
+    "comment": [["ellie_cosplay", "takataiyo", "Trầm tư vậy là đang nghĩ xem anime gì tiếp theo đúng không 😆"],
+                ["vy_traxanh", "takataiyo", "Nhìn caption là biết đang suy nghĩ chuyện lớn rồi nha"],
+                ["memlord_kien", "kujira1307", "Câu này để làm meme được đó, cho mình xin nha"]]
+  }
+}
