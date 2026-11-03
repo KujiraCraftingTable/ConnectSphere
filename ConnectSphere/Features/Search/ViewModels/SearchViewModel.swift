@@ -36,6 +36,24 @@ class SearchViewModel {
     var suggestions: [String] = []
     var entitySuggestions: [EntitySuggestionDTO] = []   // gray "did you mean …?" area
     var matchEvidence: [String: [MatchEvidenceDTO]] = [:]   // userId → match reasons (mini CV)
+    /// The last AI people search's id on the server — refinements, taps,
+    /// "Not a fit" and the "why they fit you" lines all refer to it.
+    private(set) var searchSessionId: String?
+    /// userId → one "why they fit you" sentence, filled in after the results show.
+    var fitReasons: [String: String] = [:]
+    var isRefining = false
+    /// People whose name is the prompt ("Lý Thảo"), shown while the AI search
+    /// runs — no need to wait on the LLM for a name. A topic prompt matches no
+    /// name, so it shows nothing here.
+    private(set) var quickMatches: [UserProfile] = []
+
+    static func isNameMatch(_ user: UserProfile, prompt: String) -> Bool {
+        let q = InterestCatalogViewModel.fold(prompt.trimmingCharacters(in: .whitespaces))
+        guard q.count >= 3, q.split(separator: " ").count <= 4 else { return false }
+        return [user.name, user.username].contains { InterestCatalogViewModel.fold($0).contains(q) }
+    }
+    /// Shown under the refine chips; the current results stay on screen.
+    var refineError: String?
 
     var currentUserId: String? = nil
 
@@ -175,13 +193,21 @@ class SearchViewModel {
         lastAIPrompt = prompt.trimmingCharacters(in: .whitespaces)
         lastMode     = mode
         lastRadiusKm = radiusKm
+        searchSessionId = nil
+        fitReasons = [:]
+        quickMatches = []
+        let generation = loadGeneration
+        let quick = Task {
+            guard let users = try? await repository.fetchUsers(mode: mode, search: prompt, limit: 5, offset: 0),
+                  generation == loadGeneration, isLoading else { return }
+            quickMatches = excluding(users).filter { Self.isNameMatch($0, prompt: prompt) }
+        }
+        defer {
+            quick.cancel()
+            quickMatches = []
+        }
         do {
-            let result = try await repository.aiSearch(prompt: prompt, mode: mode, radiusKm: radiusKm)
-            results           = excluding(result.users)
-            aiCriteria        = result.criteria
-            searchWarnings    = result.warnings
-            entitySuggestions = result.suggestions
-            matchEvidence     = result.evidence
+            apply(try await repository.aiSearch(prompt: prompt, mode: mode, radiusKm: radiusKm))
         } catch {
             print("❌ aiSearch failed: \(error)")
             // Don't keep the old results (from browse or a previous AI search) — otherwise
@@ -192,6 +218,90 @@ class SearchViewModel {
         }
         print("✅ aiSearch done — criteria: \(String(describing: aiCriteria))")
         isLoading = false
+    }
+
+    private func apply(_ result: UserRepository.AISearchResult) {
+        results           = excluding(result.users)
+        aiCriteria        = result.criteria
+        searchWarnings    = result.warnings
+        entitySuggestions = result.suggestions
+        matchEvidence     = result.evidence
+        searchSessionId   = result.sessionId
+        fitReasons        = [:]
+    }
+
+    // MARK: - Refine, feedback, "why they fit you" (AI_SEARCH_REVIEW.md S3–S4)
+
+    enum Refinement { case text(String), moreLike(userId: String), closer }
+
+    /// Re-runs the last AI people search with one change, keeping the prompt.
+    func refine(_ refinement: Refinement, mode: AppMode) async {
+        guard let sid = searchSessionId, !isRefining else { return }
+        if case .text(let t) = refinement, t.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return }
+        loadGeneration += 1
+        let generation = loadGeneration
+        isRefining = true
+        refineError = nil
+        defer { isRefining = false }
+        do {
+            let result: UserRepository.AISearchResult
+            switch refinement {
+            case .text(let t):
+                result = try await repository.refineAISearch(sessionId: sid, mode: mode,
+                                                             refine: t.trimmingCharacters(in: .whitespacesAndNewlines))
+            case .moreLike(let uid):
+                result = try await repository.refineAISearch(sessionId: sid, mode: mode, moreLike: uid)
+            case .closer:
+                result = try await repository.refineAISearch(sessionId: sid, mode: mode, closer: true)
+            }
+            guard generation == loadGeneration else { return }
+            apply(result)
+        } catch {
+            guard generation == loadGeneration else { return }
+            #if DEBUG
+            print("❌ refine failed: \(error)")
+            #endif
+            refineError = Bundle.app.loc("Couldn't refine the search. Please try again.")
+        }
+    }
+
+    /// "Not a fit": the person leaves this list now, and sinks in your
+    /// searches for the next 30 days.
+    func notAFit(userId: String) {
+        results.removeAll { $0.id == userId }
+        report(userId: userId, kind: "dismiss")
+    }
+
+    /// A result was opened.
+    func didOpenResult(userId: String) {
+        report(userId: userId, kind: "tap")
+    }
+
+    private func report(userId: String, kind: String) {
+        guard let sid = searchSessionId else { return }
+        Task {
+            do { try await repository.reportSearchEvent(sessionId: sid, userId: userId, kind: kind) }
+            catch {
+                #if DEBUG
+                print("⚠️ search event \(kind) not sent: \(error)")
+                #endif
+            }
+        }
+    }
+
+    /// Fetches the "why they fit you" lines for the current results. Missing
+    /// lines just aren't shown — the match reasons are already on screen.
+    func loadFitReasons(lang: String) async {
+        guard let sid = searchSessionId, fitReasons.isEmpty else { return }
+        do {
+            let reasons = try await repository.explainSearch(sessionId: sid, lang: lang)
+            guard sid == searchSessionId else { return }
+            fitReasons = reasons
+        } catch {
+            #if DEBUG
+            print("⚠️ fit reasons failed: \(error)")
+            #endif
+        }
     }
 
     /// User answers "what is 'landmark hcmc'?" in the warning box. The backend
@@ -328,6 +438,8 @@ class SearchViewModel {
         entitySuggestions = []
         matchEvidence = [:]
         clarifyUnconfirmed = false
+        searchSessionId = nil
+        fitReasons = [:]
     }
 
     private func excluding(_ list: [UserProfile]) -> [UserProfile] {

@@ -11,6 +11,9 @@ struct MiniCVCard: View {
     @Environment(\.colorScheme) var colorScheme
     let user: UserProfile
     let evidence: [MatchEvidenceDTO]
+    /// "Why they fit you" — arrives a moment after the results.
+    var fitReason: String? = nil
+    var onOpen: () -> Void = {}
 
     /// Bullets to display: drop the "profile" type since the bio already appears in part 1 of the card.
     private var displayEvidence: [MatchEvidenceDTO] {
@@ -57,6 +60,22 @@ struct MiniCVCard: View {
                     }
                 }
 
+                if let fitReason {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 12))
+                            .foregroundColor(themeManager.theme.primary)
+                            .frame(width: 16)
+                            .padding(.top, 1)
+                        Text(fitReason)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(AppColors.textPrimary(colorScheme))
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .transition(.opacity)
+                }
+
                 // ── Part 2: match reasons ──
                 if !displayEvidence.isEmpty {
                     Divider()
@@ -85,6 +104,7 @@ struct MiniCVCard: View {
             .clipShape(RoundedRectangle(cornerRadius: 14))
         }
         .buttonStyle(.plain)
+        .simultaneousGesture(TapGesture().onEnded { onOpen() })
     }
 
     /// Icon based on evidence type: profile / post / engagement / community.

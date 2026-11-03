@@ -15,6 +15,8 @@ struct SearchView: View {
     @State private var clarifyText = ""
     @State private var isResettingSearch = false
     @State private var detailRoute: PostRoute?
+    @State private var showsRefinePrompt = false
+    @State private var refineText = ""
     @FocusState private var isFieldFocused: Bool
     @AppStorage("aiSearchEnabled") private var aiEnabled = false
     @AppStorage("searchRadiusKm") private var searchRadiusKm: Int = 0
@@ -53,7 +55,10 @@ struct SearchView: View {
                         if viewModel.scope == .companies {
                             CompanySearchResults(query: trimmedText)
                         } else if viewModel.isLoading && !showsAIResults {
-                            ProgressView().padding(.top, 40)
+                            VStack(spacing: 4) {
+                                ForEach(0..<6, id: \.self) { _ in SkeletonRow(colorScheme: colorScheme) }
+                            }
+                            .padding(.horizontal, 16).padding(.top, 8)
                         } else if viewModel.error != nil {
                             networkErrorState
                         } else if viewModel.scope == .people {
@@ -77,9 +82,12 @@ struct SearchView: View {
             .overlay {
                 // The Kujira loading scene, shown while an AI search runs.
                 if viewModel.isLoading && showsAIResults {
-                    AISearchLoadingView()
-                        .environment(appState)
-                        .transition(.opacity.animation(.easeInOut(duration: 0.25)))
+                    ZStack(alignment: .top) {
+                        AISearchLoadingView()
+                            .environment(appState)
+                        if !viewModel.quickMatches.isEmpty { quickMatchesCard }
+                    }
+                    .transition(.opacity.animation(.easeInOut(duration: 0.25)))
                 }
             }
             // `isPresented:` (not `item:`), same reason as FeedView: other
@@ -251,6 +259,27 @@ struct SearchView: View {
 
     // MARK: Results
 
+    /// Name matches over the AI loading scene, while the AI keeps looking.
+    private var quickMatchesCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Quick matches", bundle: bundle)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+            ForEach(viewModel.quickMatches) { user in
+                if appState.currentMode == .hobby {
+                    FriendSearchCard(user: user)
+                } else {
+                    ColleagueSearchCard(user: user)
+                }
+            }
+        }
+        .padding(12)
+        .background(AppColors.base(colorScheme), in: RoundedRectangle(cornerRadius: 18))
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
+        .transition(.move(edge: .top).combined(with: .opacity))
+    }
+
     @ViewBuilder
     private var peopleResults: some View {
         // lastAIPrompt marks "an AI search has run" — gated on having results
@@ -258,10 +287,14 @@ struct SearchView: View {
         if !trimmedText.isEmpty && !viewModel.results.isEmpty {
             resultCount(viewModel.results.count)
         }
+        if showsAIResults && viewModel.searchSessionId != nil
+            && (!viewModel.results.isEmpty || viewModel.isRefining) {
+            refineBar
+        }
         if viewModel.results.isEmpty && showsAIResults && !viewModel.isLoading {
             if viewModel.aiSearchFailed {
                 kujiraRetryState
-            } else {
+            } else if !explainsEmptyResult {
                 kujiraEmptyState
             }
         } else if viewModel.results.isEmpty && !trimmedText.isEmpty && !viewModel.isLoading {
@@ -271,7 +304,22 @@ struct SearchView: View {
                 Group {
                     // AI search results → mini CV with match reasons; regular search keeps the old card
                     if showsAIResults {
-                        MiniCVCard(user: user, evidence: viewModel.matchEvidence[user.id] ?? [])
+                        MiniCVCard(user: user, evidence: viewModel.matchEvidence[user.id] ?? [],
+                                   fitReason: viewModel.fitReasons[user.id],
+                                   onOpen: { viewModel.didOpenResult(userId: user.id) })
+                            .contextMenu {
+                                Button {
+                                    Task { await viewModel.refine(.moreLike(userId: user.id), mode: appState.currentMode) }
+                                } label: {
+                                    Label(String(format: bundle.loc("More like %@"), user.name),
+                                          systemImage: "person.2")
+                                }
+                                Button(role: .destructive) {
+                                    withAnimation { viewModel.notAFit(userId: user.id) }
+                                } label: {
+                                    Label(bundle.loc("Not a fit"), systemImage: "hand.thumbsdown")
+                                }
+                            }
                     } else if appState.currentMode == .hobby {
                         FriendSearchCard(user: user)
                     } else {
@@ -303,7 +351,7 @@ struct SearchView: View {
         } else if viewModel.postResults.isEmpty && !viewModel.isLoading {
             if viewModel.aiSearchFailed {
                 kujiraRetryState
-            } else {
+            } else if !explainsEmptyResult {
                 emptyKeywordState
             }
         } else {
@@ -381,6 +429,78 @@ struct SearchView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 48)
+    }
+
+    // MARK: Refine an AI people search (AI_SEARCH_REVIEW.md, phase S4)
+
+    private var refineBar: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    if let top = viewModel.results.first {
+                        refineChip(String(format: bundle.loc("More like %@"), top.name), icon: "person.2") {
+                            await viewModel.refine(.moreLike(userId: top.id), mode: appState.currentMode)
+                        }
+                    }
+                    refineChip(bundle.loc("Closer to me"), icon: "location") {
+                        await viewModel.refine(.closer, mode: appState.currentMode)
+                    }
+                    Button {
+                        refineText = ""
+                        showsRefinePrompt = true
+                    } label: {
+                        chipLabel(bundle.loc("Refine…"), icon: "slider.horizontal.3")
+                    }
+                    .buttonStyle(.plain)
+                    if viewModel.isRefining {
+                        ProgressView().controlSize(.small)
+                    }
+                }
+                .padding(.horizontal, 4)
+            }
+            .disabled(viewModel.isRefining)
+            if let message = viewModel.refineError {
+                Text(message)
+                    .font(.system(size: 12))
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
+                    .padding(.horizontal, 4)
+            }
+        }
+        .padding(.top, 4)
+        .task(id: viewModel.searchSessionId) {
+            await viewModel.loadFitReasons(lang: appState.appLanguage.rawValue)
+        }
+        .alert(bundle.loc("Refine your search"), isPresented: $showsRefinePrompt) {
+            TextField(bundle.loc("e.g. only in Hanoi, into film cameras"), text: $refineText)
+            Button(bundle.loc("Cancel"), role: .cancel) {}
+            Button(bundle.loc("Search")) {
+                let text = refineText
+                Task { await viewModel.refine(.text(text), mode: appState.currentMode) }
+            }
+        } message: {
+            Text("Say what to change — your search stays as it is.", bundle: bundle)
+        }
+    }
+
+    private func refineChip(_ title: String, icon: String, action: @escaping () async -> Void) -> some View {
+        Button {
+            Task { await action() }
+        } label: {
+            chipLabel(title, icon: icon)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func chipLabel(_ title: String, icon: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+            Text(title).lineLimit(1)
+        }
+        .font(.system(size: 13, weight: .medium))
+        .foregroundColor(themeManager.theme.primary)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(Capsule().fill(themeManager.theme.primary.opacity(0.1)))
     }
 
     // MARK: Trending prompts (AI on, empty field)
@@ -531,10 +651,30 @@ struct SearchView: View {
             guard let place = warning.value, !place.isEmpty else { return nil }
             return String(format: bundle.loc("Couldn't tell which city \"%@\" is in — add a province to narrow it down."), place)
         case "query_unclear":
-            return bundle.loc("Couldn't pick out anything specific to search for — try naming an interest, skill, or place.")
+            return bundle.loc("Tell us what they're into, e.g. \"bạn nữ thích chụp ảnh film ở Hà Nội\".")
+        case "no_match":
+            return String(format: bundle.loc("No one here is into \"%@\" yet. Try a related interest or check the spelling."),
+                          warning.value ?? "")
+        case "no_match_together":
+            return String(format: bundle.loc("No one is into all of these together: %@. Try fewer of them."),
+                          warning.value ?? "")
+        case "unsupported_trait":
+            return bundle.loc("ConnectSphere doesn't search by height, weight or looks. Try interests, skills or a place.")
+        case "dating_elsewhere":
+            return bundle.loc("Looking for a partner? Search here is for friends and colleagues — Dating is a separate space.")
+        case "dating_age_locked":
+            return bundle.loc("Dating is only for people 16 and older.")
         default:
             return nil   // unknown code from a newer backend — stay silent
         }
+    }
+
+    /// Warnings that say why nothing came back — they replace the generic
+    /// empty state rather than sit on top of it.
+    private var explainsEmptyResult: Bool {
+        let codes: Set<String> = ["query_unclear", "no_match", "no_match_together", "unsupported_trait",
+                                  "dating_elsewhere", "dating_age_locked"]
+        return viewModel.searchWarnings.contains { codes.contains($0.code) }
     }
 
     /// The one unresolved place in this batch, if any — it's what the clarify
@@ -560,6 +700,18 @@ struct SearchView: View {
                                 .font(.system(size: 13))
                                 .foregroundColor(AppColors.textPrimary(colorScheme))
                                 .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        // Partner-seeking prompts belong in Dating, not here.
+                        if warnings.contains(where: { $0.code == "dating_elsewhere" }) {
+                            NavigationLink {
+                                DatingHomeView()
+                            } label: {
+                                Label(bundle.loc("Open Dating"), systemImage: "heart.fill")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(themeManager.theme.primary)
+                            }
+                            .buttonStyle(.plain)
                         }
 
                         // Teach-the-app row: only for a place we couldn't locate,
@@ -593,16 +745,18 @@ struct SearchView: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(AppColors.textPrimary(colorScheme))
 
-            HStack(spacing: 8) {
-                TextField(bundle.loc("e.g. Landmark 81"), text: $clarifyText)
-                    .font(.system(size: 13))
-                    .textFieldStyle(.plain)
-                    .autocorrectionDisabled()
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
-                    .background(AppColors.surface(colorScheme))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .onSubmit { submitClarification(for: place) }
+            HStack(alignment: .top, spacing: 8) {
+                LocationSearchField(bundle.loc("e.g. Landmark 81"), text: $clarifyText) { field in
+                    field
+                        .font(.system(size: 13))
+                        .textFieldStyle(.plain)
+                        .autocorrectionDisabled()
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(AppColors.surface(colorScheme))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .onSubmit { submitClarification(for: place) }
 
                 Button { submitClarification(for: place) } label: {
                     if viewModel.isClarifying {
