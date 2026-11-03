@@ -29,9 +29,10 @@ struct ForgotPasswordView: View {
             }
             .navigationTitle(bundle.loc("Reset password"))
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled()
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(bundle.loc("Cancel")) { dismiss() }
+                    ConfirmCancelButton { dismiss() }
                 }
             }
         }
@@ -66,8 +67,10 @@ struct ForgotPasswordView: View {
 
     private var resetSection: some View {
         Section {
-            TextField(bundle.loc("Verification code"), text: $viewModel.otp)
-                .keyboardType(.numberPad)
+            OTPCodeField(code: $viewModel.otp)
+                .padding(.vertical, 6)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
             SecureField(bundle.loc("New password (at least 8 characters)"), text: $viewModel.newPassword)
             SecureField(bundle.loc("Confirm new password"), text: $viewModel.confirmPassword)
 

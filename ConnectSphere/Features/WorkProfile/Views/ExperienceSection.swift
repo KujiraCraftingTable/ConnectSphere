@@ -224,7 +224,7 @@ struct ExperienceEditorView: View {
                     problems(viewModel.titleProblem, viewModel.companyProblem)
                 }
                 Section {
-                    TextField(bundle.loc("Location (e.g. Ho Chi Minh City)"), text: $viewModel.location)
+                    LocationSearchField(bundle.loc("Location (e.g. Ho Chi Minh City)"), text: $viewModel.location)
                     Picker(bundle.loc("Work format"), selection: $viewModel.locationType) {
                         Text("Not set", bundle: bundle).tag(WorkExperience.LocationKind?.none)
                         ForEach(WorkExperience.LocationKind.allCases, id: \.self) {
@@ -263,8 +263,9 @@ struct ExperienceEditorView: View {
             .onChange(of: focus) { left, _ in if let left { viewModel.touched.insert(left) } }
             .navigationTitle(bundle.loc(viewModel.editing == nil ? "Add a role" : "Edit role"))
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled()
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button(bundle.loc("Cancel")) { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { ConfirmCancelButton { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     if viewModel.isSaving {
                         ProgressView()

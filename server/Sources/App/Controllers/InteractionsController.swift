@@ -17,6 +17,7 @@ struct InteractionsController {
         routes.post("comments", ":commentId", "like", use: likeComment)
         routes.on(.POST, "hide", use: hide); routes.on(.DELETE, "hide", use: unhide)
         routes.on(.POST, "save", use: save); routes.on(.DELETE, "save", use: unsave)
+        routes.on(.POST, "feedback", use: feedback); routes.on(.DELETE, "feedback", use: unfeedback)
     }
 
     struct VisibleMeta { let id: String; let authorID: String; let mode: String; let communityID: String? }
@@ -370,6 +371,42 @@ struct InteractionsController {
         try await req.db.sql().raw("DELETE FROM hidden_posts WHERE user_id = \(uuid: req.userID) AND post_id = \(uuid: req.parameters.get("id")!)").run()
         return HiddenResponse(hidden: false)
     }
+    // MARK: "Not interested" / "Show more like this" (migration 077)
+
+    struct FeedbackBody: Content { var kind: String }
+    struct FeedbackResponse: Content { @NullCoded var kind: String? }
+
+    /// Tells the For you feed to show less (or more) like this post — and
+    /// from its author — for the next 30 days. Not for your own posts.
+    static func feedback(_ req: Request) async throws -> FeedbackResponse {
+        let postID = req.parameters.get("id")!
+        let b = try req.content.decode(FeedbackBody.self)
+        guard FeedStore.feedbackKinds.contains(b.kind) else {
+            throw Abort(.badRequest, reason: "kind must be less or more")
+        }
+        guard let meta = try await visibleMeta(postID, viewer: req.userID, req.db.sql()) else {
+            throw InlineError(.notFound, "Post not found")
+        }
+        guard meta.authorID.caseInsensitiveCompare(req.userID) != .orderedSame else {
+            throw Abort(.badRequest, reason: "That's your own post")
+        }
+        try await req.db.sql().raw("""
+            INSERT INTO post_feedback (user_id, post_id, author_id, kind)
+            VALUES (\(uuid: req.userID), \(uuid: postID), \(uuid: meta.authorID), \(bind: b.kind))
+            ON CONFLICT (user_id, post_id) DO UPDATE SET kind = EXCLUDED.kind, created_at = NOW()
+            """).run()
+        return FeedbackResponse(kind: b.kind)
+    }
+
+    /// Takes it back (the toast's Undo).
+    static func unfeedback(_ req: Request) async throws -> FeedbackResponse {
+        guard UUID(uuidString: req.parameters.get("id")!) != nil else { throw InlineError(.notFound, "Post not found") }
+        try await req.db.sql().raw("""
+            DELETE FROM post_feedback WHERE user_id = \(uuid: req.userID) AND post_id = \(uuid: req.parameters.get("id")!)
+            """).run()
+        return FeedbackResponse(kind: nil)
+    }
+
     static func save(_ req: Request) async throws -> SavedResponse {
         let postID = req.parameters.get("id")!
         guard try await visibleMeta(postID, viewer: req.userID, req.db.sql()) != nil else { throw InlineError(.notFound, "Post not found") }

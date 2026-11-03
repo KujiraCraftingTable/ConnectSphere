@@ -19,6 +19,10 @@ struct ConnectSphereApp: App {
     /// Rendered by `MainTabView`'s overlay, same shape as `toastPresenter`.
     @State private var floatingChatPresenter = FloatingChatPresenter()
 
+    init() {
+        RemoteImageLoader.configureCache()
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()

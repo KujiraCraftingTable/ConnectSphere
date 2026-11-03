@@ -3,6 +3,7 @@ import Observation
 
 @Observable
 class CommunitiesViewModel {
+    /// This mode's communities — only for the duplicate-name hint when creating one.
     var discoverCommunities: [Community] = []
     var myCommunities: [Community] = []
     var isLoading = false
@@ -17,14 +18,14 @@ class CommunitiesViewModel {
     private var token: String = ""
     private var searchTask: Task<Void, Never>?
 
-    func fetchInitial(token: String) async {
+    func fetchInitial(token: String, type: CommunityType) async {
         self.token = token
-        async let discover: () = loadDiscover()
+        async let discover: () = loadDiscover(type: type)
         async let mine: ()     = loadMyCommunities()
         _ = await (discover, mine)
     }
 
-    func scheduleSearch(query: String, type: CommunityType?) {
+    func scheduleSearch(query: String, type: CommunityType) {
         searchTask?.cancel()
         searchTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 300_000_000)
@@ -33,7 +34,7 @@ class CommunitiesViewModel {
         }
     }
 
-    func loadDiscover(query: String = "", type: CommunityType? = nil) async {
+    func loadDiscover(query: String = "", type: CommunityType) async {
         isLoading = true
         errorMessage = nil
         do {

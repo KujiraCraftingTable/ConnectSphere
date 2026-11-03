@@ -27,11 +27,15 @@ func routes(_ app: Application) throws {
     ActivityController.register(routes: api)        // your comments and reactions (activity log)
     EndorsementsController.register(routes: api)    // skills + endorsements
     JobBoardController.register(routes: api)        // Jobs tab: recommended, search, saved
+    MarketplaceController.register(routes: api)     // Marketplace tab + a listing's page and edits
     ApplicationsController.register(routes: api, app: app)  // Easy Apply + private CVs
     AccountController.register(routes: api)         // verified email + deleting a persona / the account
     NotificationsController.register(routes: api)
     MessagesController.register(routes: api)
     SearchController.register(routes: api)          // + /entities/alias, /locations/clarify
+    DatingController.register(routes: api)          // Dating space, 16+ (migration 081)
+    InterestsController.register(routes: api)       // the interest picker's catalogue
+    SkillsController.register(routes: api)          // the Work skill picker's catalogue
     WardsController.register(routes: api)           // GET /api/wards/* — no auth (matches Node)
     UploadsController.register(routes: api)         // POST /api/uploads — generic media upload
 

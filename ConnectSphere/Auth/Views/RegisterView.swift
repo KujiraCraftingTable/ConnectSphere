@@ -120,9 +120,9 @@ struct RegisterView: View {
                 .font(.system(size: 14))
                 .foregroundColor(AppColors.textSecondary(.light))
                 .fixedSize(horizontal: false, vertical: true)
-            AuthTextField(icon: "number", placeholder: bundle.loc("6-digit code"), text: $viewModel.code,
-                          keyboardType: .numberPad)
-                .textContentType(.oneTimeCode)
+            // No Confirm: the code is checked as soon as all six digits are in.
+            CodeEntry(code: $viewModel.code, resendAt: viewModel.resendAt, isSending: viewModel.isLoading,
+                      onResend: { Task { await viewModel.resendCode() } })
                 .onChange(of: viewModel.code) { _, code in
                     if code.count == 6 { Task { await viewModel.submitCode() } }
                 }
@@ -136,15 +136,10 @@ struct RegisterView: View {
             if let errorMessage = viewModel.errorMessage {
                 errorBanner(errorMessage)
             }
-            HStack {
-                Button(bundle.loc("Change email")) { viewModel.changeEmail() }
-                    .font(.system(size: 14))
-                    .foregroundColor(AppColors.textSecondary(.light))
-                Spacer()
-                ResendButton(availableAt: viewModel.resendAt, isSending: viewModel.isLoading) {
-                    Task { await viewModel.resendCode() }
-                }
-            }
+            Button(bundle.loc("Change email")) { viewModel.changeEmail() }
+                .font(.system(size: 14))
+                .foregroundColor(AppColors.textSecondary(.light))
+                .frame(maxWidth: .infinity)
         }
     }
 

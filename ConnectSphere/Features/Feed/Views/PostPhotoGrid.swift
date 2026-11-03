@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Convention for media in image_urls: .mp4/.mov extension = video, everything else is an image
 /// (backend upload only allows these two video extensions).
-fileprivate extension String {
+extension String {
     var isVideoURL: Bool {
         let ext = URL(string: self)?.pathExtension.lowercased() ?? ""
         return ext == "mp4" || ext == "mov"
@@ -136,7 +136,7 @@ struct PostPhotoGrid: View {
                     if urls[index].isVideoURL {
                         VideoPosterView(url: APIConfig.mediaURL(urls[index]))
                     } else {
-                        AsyncImage(url: APIConfig.mediaURL(urls[index])) { phase in
+                        RemoteImage(url: APIConfig.thumbnailURL(urls[index])) { phase in
                             switch phase {
                             case .success(let image):
                                 image.resizable().scaledToFill()

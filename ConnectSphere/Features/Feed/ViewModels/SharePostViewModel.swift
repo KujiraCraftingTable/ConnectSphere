@@ -1,9 +1,15 @@
 import Foundation
+
+/// What a share sheet passes on.
+enum ShareTarget: Equatable {
+    case post(String)
+    case community(String)
+}
 import Observation
 
-/// Sharing a post: sending it straight into chats (the most recent 20, or
-/// any chat from the full list), and reposting it to your own Feed. The note
-/// typed at the top goes with either.
+/// Sharing a post: picking chats (the most recent 20, or any chat from the
+/// full list) and sending to them all with one Send, or reposting it to your
+/// own Feed. The note typed at the top goes with either.
 @MainActor
 @Observable
 final class SharePostViewModel {
@@ -11,24 +17,18 @@ final class SharePostViewModel {
     private(set) var isSharing = false
     private(set) var shareFailed = false
 
-    /// Where a send to one chat stands.
-    enum SendState: Equatable {
-        case sending
-        case sent(messageId: String)
-        case failed
-    }
-
     /// The chats a post can go to, as the Messages screen orders them.
     private(set) var recipients: [Conversation] = []
     private(set) var isLoadingRecipients = false
-    private(set) var sendStates: [String: SendState] = [:]
-    /// Chats whose send can still be taken back (for a few seconds).
-    private(set) var undoable: Set<String> = []
+    /// Chats picked to send to — tapping a chat only picks it; Send sends.
+    private(set) var selected: Set<String> = []
+    private(set) var isSending = false
+    /// Some picked chats couldn't be sent to (they stay picked for a retry).
+    private(set) var sendFailed = false
     /// The full list's search.
     var query = ""
 
     static let recentCount = 20
-    static let undoWindow: Duration = .seconds(5)
 
     private let repository = PostRepository()
     private let messages = MessageRepository()
@@ -46,50 +46,54 @@ final class SharePostViewModel {
         }
     }
 
-    /// Sends the post into `conversation` at once; the avatar shows "Sent".
-    func send(postId: String, to conversation: Conversation, token: String) async {
-        switch sendStates[conversation.id] {
-        case .sending, .sent: return
-        default: break
-        }
-        sendStates[conversation.id] = .sending
-        do {
-            let message = try await messages.sendPost(
-                conversationId: conversation.id, postId: postId,
-                note: comment.trimmingCharacters(in: .whitespacesAndNewlines), token: token)
-            sendStates[conversation.id] = .sent(messageId: message.id)
-            undoable.insert(conversation.id)
-            Task {
-                try? await Task.sleep(for: Self.undoWindow)
-                undoable.remove(conversation.id)
+    func isSelected(_ conversation: Conversation) -> Bool { selected.contains(conversation.id) }
+
+    func toggle(_ conversation: Conversation) {
+        if selected.contains(conversation.id) { selected.remove(conversation.id) } else { selected.insert(conversation.id) }
+    }
+
+    /// Sends the post (or community), with the note, to every picked chat.
+    /// True when all went through; chats that failed stay picked.
+    func sendSelected(_ target: ShareTarget, token: String) async -> Bool {
+        guard !selected.isEmpty else { return false }
+        isSending = true
+        sendFailed = false
+        defer { isSending = false }
+        let note = comment.trimmingCharacters(in: .whitespacesAndNewlines)
+        var failed: Set<String> = []
+        for conversationId in selected {
+            do {
+                switch target {
+                case .post(let id):
+                    _ = try await messages.sendPost(conversationId: conversationId, postId: id, note: note, token: token)
+                case .community(let id):
+                    _ = try await messages.sendCommunity(conversationId: conversationId, communityId: id,
+                                                         note: note, token: token)
+                }
+            } catch {
+                failed.insert(conversationId)
             }
-        } catch {
-            sendStates[conversation.id] = .failed
         }
+        selected = failed
+        sendFailed = !failed.isEmpty
+        return failed.isEmpty
     }
 
-    /// Takes a just-sent post back out of the chat (unsend).
-    func undo(_ conversation: Conversation, token: String) async {
-        guard case .sent(let messageId) = sendStates[conversation.id], undoable.contains(conversation.id) else { return }
-        undoable.remove(conversation.id)
-        do {
-            try await messages.recallMessage(conversationId: conversation.id, messageId: messageId, token: token)
-            sendStates[conversation.id] = nil
-        } catch {
-            sendStates[conversation.id] = .sent(messageId: messageId)
-        }
-    }
-
-    /// Reposts to your own Feed. Returns true on success. Sharing a share
-    /// points at the original — the backend resolves that.
-    func share(postId: String, mode: AppMode) async -> Bool {
+    /// Posts it to your own Feed. Returns true on success. Sharing a share
+    /// points at the original — the backend resolves that. A community goes
+    /// to the feed of its own mode.
+    func share(_ target: ShareTarget, mode: AppMode, token: String) async -> Bool {
         isSharing = true
         shareFailed = false
         defer { isSharing = false }
+        let note = comment.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
-            _ = try await repository.sharePost(postId: postId,
-                                               content: comment.trimmingCharacters(in: .whitespacesAndNewlines),
-                                               mode: mode)
+            switch target {
+            case .post(let id):
+                _ = try await repository.sharePost(postId: id, content: note, mode: mode)
+            case .community(let id):
+                try await CommunityRepository().shareToFeed(communityId: id, note: note, token: token)
+            }
             return true
         } catch {
             shareFailed = true

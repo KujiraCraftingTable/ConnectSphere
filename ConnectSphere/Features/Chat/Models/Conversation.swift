@@ -48,6 +48,8 @@ struct Conversation: Identifiable, Decodable, Equatable {
     var requestState: MessageRequestState?
     /// How many more messages I can send before they accept (`.sent` only).
     var requestsLeft: Int?
+    /// The chat of a Dating match — listed under the inbox's Dating button too.
+    let isDating: Bool
     let peer: ConversationPeer
 
     let lastMessageContent: String?
@@ -68,6 +70,7 @@ struct Conversation: Identifiable, Decodable, Equatable {
         case archivedAt = "archived_at"
         case requestState = "request_state"
         case requestsLeft = "requests_left"
+        case isDating = "is_dating"
 
         case otherUserId          = "other_user_id"
         case otherUserUsername    = "other_user_username"
@@ -102,6 +105,7 @@ struct Conversation: Identifiable, Decodable, Equatable {
         isArchived = try c.decodeIfPresent(Date.self, forKey: .archivedAt) != nil
         requestState = try? c.decodeIfPresent(MessageRequestState.self, forKey: .requestState)
         requestsLeft = try c.decodeIfPresent(Int.self, forKey: .requestsLeft)
+        isDating = try c.decodeIfPresent(Bool.self, forKey: .isDating) ?? false
 
         if isGroup {
             let name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""

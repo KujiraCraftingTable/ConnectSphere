@@ -29,7 +29,9 @@ enum EntityLookupService {
         return e.canonical_name
     }
 
-    static func lookupEntity(_ text: String, category: String?, cfg: OllamaService.Config,
+    /// `isName` skips the proper-noun check: an interest's specific item is a
+    /// name even when typed in lowercase ("kimishinu").
+    static func lookupEntity(_ text: String, category: String?, isName: Bool = false, cfg: OllamaService.Config,
                              client: HTTPClient, on db: any SQLDatabase, logger: Logger) async -> Result {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return Result(confidence: "none", genreTags: []) }
@@ -50,13 +52,16 @@ enum EntityLookupService {
         }
 
         // Tier 3 — Wikipedia (proper nouns)
-        if WikipediaService.isProperNoun(trimmed) {
+        if isName || WikipediaService.isProperNoun(trimmed) {
             if let wiki = await WikipediaService.searchWikipedia(trimmed, client: client, logger: logger),
                let parsed = await WikipediaService.parseWikiData(wiki, cfg: cfg, logger: logger) {
+                // Keep what was typed, so the nickname resolves at Tier 1 next time.
+                let aliases = parsed.aliases.contains { $0.caseInsensitiveCompare(trimmed) == .orderedSame }
+                    ? parsed.aliases : parsed.aliases + [trimmed]
                 struct R: Decodable { let id: String; let canonical_name: String; let category: String? }
                 if let row = try? await db.raw("""
                     INSERT INTO interest_entities (canonical_name, aliases, category)
-                    VALUES (\(bind: parsed.canonicalName), \(bind: parsed.aliases)::text[], \(bind: parsed.category))
+                    VALUES (\(bind: parsed.canonicalName), \(bind: aliases)::text[], \(bind: parsed.category))
                     ON CONFLICT (canonical_name, category) DO UPDATE
                       SET aliases = (SELECT array_agg(DISTINCT a ORDER BY a)
                                      FROM UNNEST(interest_entities.aliases || EXCLUDED.aliases) a)

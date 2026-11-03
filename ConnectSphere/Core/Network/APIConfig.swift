@@ -46,4 +46,16 @@ enum APIConfig {
         comps.queryItems = (comps.queryItems ?? []) + [URLQueryItem(name: "token", value: token)]
         return comps.url
     }
+
+    /// The feed-size copy of a public photo (`/uploads/x.jpg` → `/uploads/x_t.jpg`).
+    /// The server answers with the original when an older upload has none,
+    /// so this never costs a second request.
+    static func thumbnailURL(_ link: String?) -> URL? {
+        guard let link, link.hasPrefix("/uploads/"),
+              !link.hasPrefix("/uploads/messages/"), !link.hasPrefix("/uploads/cv/"),
+              let dot = link.lastIndex(of: "."),
+              ["jpg", "jpeg", "png", "webp", "heic", "heif"].contains(link[link.index(after: dot)...].lowercased())
+        else { return mediaURL(link) }
+        return mediaURL(String(link[..<dot]) + "_t.jpg")
+    }
 }

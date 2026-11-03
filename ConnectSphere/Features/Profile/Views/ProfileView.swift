@@ -107,7 +107,8 @@ struct ProfileView: View {
                             }
                             postsSection.id("posts")
                         } else {
-                            ProgressView().padding(.top, 120).frame(maxWidth: .infinity)
+                            SkeletonPostList(count: 2, colorScheme: colorScheme)
+                                .padding(.horizontal, 8).padding(.top, 24)
                         }
                     }
                 }
@@ -268,7 +269,7 @@ struct ProfileView: View {
             .padding(.top, 4)
 
             if shown.isLoading && shown.posts.isEmpty {
-                ProgressView().padding(.top, 20).frame(maxWidth: .infinity)
+                SkeletonPostList(count: 2, colorScheme: colorScheme).padding(.top, 8)
             } else if let error = shown.error, shown.posts.isEmpty {
                 // A single failed load (e.g. a dropped connection) otherwise
                 // left this permanently stuck empty — .task only fires once

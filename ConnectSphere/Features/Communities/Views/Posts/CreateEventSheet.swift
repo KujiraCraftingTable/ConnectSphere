@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Inline section shown inside CommunityCreatePostView when post type = Event.
+/// Inline section shown inside CreatePostView when post type = Event.
 /// Captures title, optional location, starts_at, and optional ends_at.
 struct CreateEventSheet: View {
     @Environment(\.colorScheme) var colorScheme
@@ -24,10 +24,15 @@ struct CreateEventSheet: View {
             }
 
             // Location
-            fieldRow(label: bundle.loc("Location")) {
-                TextField(bundle.loc("Optional"), text: $location)
-                    .font(.system(size: 15))
-                    .foregroundColor(AppColors.textPrimary(colorScheme))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(bundle.loc("Location"))
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(AppColors.textTertiary(colorScheme))
+                LocationSearchField(bundle.loc("Optional"), text: $location) { field in
+                    fieldBox(field
+                        .font(.system(size: 15))
+                        .foregroundColor(AppColors.textPrimary(colorScheme)))
+                }
             }
 
             Divider()
@@ -89,11 +94,15 @@ struct CreateEventSheet: View {
             Text(label)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(AppColors.textTertiary(colorScheme))
-            field()
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
-                .background(AppColors.elevated(colorScheme))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+            fieldBox(field())
         }
+    }
+
+    private func fieldBox<F: View>(_ field: F) -> some View {
+        field
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(AppColors.elevated(colorScheme))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }

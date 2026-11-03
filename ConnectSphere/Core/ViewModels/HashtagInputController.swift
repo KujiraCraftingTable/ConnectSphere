@@ -3,7 +3,7 @@ import Observation
 
 /// Owns the text-entry/suggestion state for `HashtagInputView` (typed-but-not-yet-
 /// committed text, the debounced suggestion fetch, and the actual chip-commit logic)
-/// so the PARENT view (`CreatePostView`/`CommunityCreatePostView`) can reach in and
+/// so the PARENT view (`CreatePostView`) can reach in and
 /// flush whatever's still sitting in the text field via `commitPending(into:)` right
 /// before reading its `hashtags` array at submit time — without this, a hashtag typed
 /// but never followed by space/return/a suggestion tap was silently dropped.

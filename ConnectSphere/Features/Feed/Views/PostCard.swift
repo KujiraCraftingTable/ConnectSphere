@@ -43,6 +43,11 @@ struct PostCard: View {
     /// `false` in `PostDetailView`, whose top bar shows the author and the ⋯
     /// menu instead, so the card starts with the post itself.
     var showsHeader: Bool = true
+    /// The community whose page this card is on (its feed, a member's profile
+    /// there…). Naming the community on every post would be redundant, so the
+    /// header shows the poster, and tapping them — yourself included — pops up
+    /// their profile in this community. Covers Marketplace items listed there too.
+    var insideCommunityId: String? = nil
 
     @State private var shakeAmount: CGFloat = 0
     /// Drives the in-app browser (see `openLink(_:)`) for a tapped http(s)
@@ -61,7 +66,8 @@ struct PostCard: View {
         onUnpin: (() -> Void)? = nil,
         showConnectButton: Bool = true,
         cornerRadius: CGFloat = 12,
-        showsHeader: Bool = true
+        showsHeader: Bool = true,
+        insideCommunityId: String? = nil
     ) {
         self.post = post
         self.disableSelfNavigation = disableSelfNavigation
@@ -75,6 +81,7 @@ struct PostCard: View {
         self.showConnectButton = showConnectButton
         self.cornerRadius = cornerRadius
         self.showsHeader = showsHeader
+        self.insideCommunityId = insideCommunityId
         _actions = State(initialValue: PostActionsViewModel(post: post))
     }
 
@@ -183,11 +190,21 @@ struct PostCard: View {
             }
             // Real uploaded images — Facebook-style grid, supports multiple images
             else if !post.displayImageUrls.isEmpty {
-                PostPhotoGrid(urls: post.displayImageUrls, alts: post.displayImageAlts)
-                    .padding(.top, 10)
+                if post.postType == .listing {
+                    // An item for sale: its photos one at a time, as in the Marketplace.
+                    ListingPhotoCarousel(urls: post.displayImageUrls, aspectRatio: 4.0 / 3.0, cornerRadius: 0)
+                        .padding(.top, 10)
+                } else {
+                    PostPhotoGrid(urls: post.displayImageUrls, alts: post.displayImageAlts)
+                        .padding(.top, 10)
+                }
             }
 
             // Embedded original post (if this is a shared post)
+            if let shared = post.sharedCommunity {
+                SharedCommunityCard(community: shared)
+                    .padding(.horizontal, 12)
+            }
             if post.sharedPostId != nil {
                 sharedPostEmbed
                     .padding(.horizontal, 12)
@@ -223,6 +240,9 @@ struct PostCard: View {
                     )
                     .padding(.top, 10)
                 }
+            case .listing:
+                ListingPostCard(post: post)
+                    .padding(.top, 10)
             case .text:
                 EmptyView()
             }
@@ -299,7 +319,7 @@ struct PostCard: View {
             VStack(spacing: 0) {
                 // Thumbnail
                 if let imageUrl = APIConfig.mediaURL(post.imageUrl) {
-                    AsyncImage(url: imageUrl) { phase in
+                    RemoteImage(url: imageUrl) { phase in
                         switch phase {
                         case .success(let img):
                             img.resizable().scaledToFill()
@@ -346,7 +366,9 @@ struct PostCard: View {
 
     @ViewBuilder
     private var postHeader: some View {
-        if let community = post.community {
+        if let communityId = insideCommunityId {
+            posterHeader(communityId)
+        } else if let community = post.community {
             communityPostHeader(community)
         } else {
             regularPostHeader
@@ -372,16 +394,19 @@ struct PostCard: View {
                 // alone, before even reading the text. Taller than a plain
                 // circle, so the timestamp moves to its own line below to
                 // give the extra height somewhere to go (see the VStack).
-                ZStack(alignment: .bottomTrailing) {
-                    Avatar(name: community.iconEmoji, imageURL: community.avatarUrl,
-                           size: .md, shape: .roundedSquare)
+                Avatar(name: community.iconEmoji, imageURL: community.avatarUrl,
+                       size: .md, shape: .roundedSquare)
+            }
+            .buttonStyle(.plain)
+            // The poster's own small avatar opens their profile in this community.
+            .overlay(alignment: .bottomTrailing) {
+                CommunityProfileLink(communityId: community.id, userId: post.author.id) {
                     Avatar(name: post.author.name, colorHex: post.author.avatarColor,
                            imageURL: post.author.avatarUrl, size: .xs)
                         .overlay(Circle().stroke(AppColors.surface(colorScheme), lineWidth: 2))
-                        .offset(x: 6, y: 6)
                 }
+                .offset(x: 6, y: 6)
             }
-            .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 2) {
                 NavigationLink(destination:
@@ -395,10 +420,12 @@ struct PostCard: View {
                 }
                 .buttonStyle(.plain)
 
-                Text(String(format: bundle.loc("Posted by %@"), post.author.name))
-                    .lineLimit(1)
-                    .appFont(.footnote)
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
+                CommunityProfileLink(communityId: community.id, userId: post.author.id) {
+                    Text(String(format: bundle.loc("Posted by %@"), post.author.name))
+                        .lineLimit(1)
+                        .appFont(.footnote)
+                        .foregroundColor(AppColors.textSecondary(colorScheme))
+                }
 
                 HStack(spacing: 3) {
                     if post.isPinned {
@@ -407,6 +434,12 @@ struct PostCard: View {
                         Text("·")
                     }
                     Text(post.timestamp.timeAgoString)
+                    if let audience = post.community?.audience {
+                        // Who can see it: anyone, or the community only.
+                        Text("·")
+                        Image(systemName: audience.icon)
+                            .accessibilityLabel(Text(bundle.loc(audience.label)))
+                    }
                 }
                 .appFont(.footnote)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
@@ -482,6 +515,43 @@ struct PostCard: View {
 
             Spacer()
 
+            postHeaderMenu
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 12)
+    }
+
+    /// A community post seen inside its community: the poster, like a feed
+    /// post's header, with "Pinned" when it is.
+    private func posterHeader(_ communityId: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            CommunityProfileLink(communityId: communityId, userId: post.author.id) {
+                AvatarView(user: post.author, size: 42)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                CommunityProfileLink(communityId: communityId, userId: post.author.id) {
+                    Text(post.author.name)
+                        .appFont(.headline)
+                        .foregroundColor(AppColors.textPrimary(colorScheme))
+                }
+                HStack(spacing: 3) {
+                    if post.isPinned {
+                        Image(systemName: "pin.fill")
+                        Text("Pinned", bundle: bundle)
+                        Text("·")
+                    }
+                    Text(post.timestamp.timeAgoString)
+                    if let audience = post.community?.audience {
+                        // Who can see it: anyone, or the community only.
+                        Text("·")
+                        Image(systemName: audience.icon)
+                            .accessibilityLabel(Text(bundle.loc(audience.label)))
+                    }
+                }
+                .appFont(.footnote)
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+            }
+            Spacer()
             postHeaderMenu
         }
         .padding(.horizontal, 12)

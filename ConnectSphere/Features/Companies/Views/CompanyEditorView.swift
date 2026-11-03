@@ -40,7 +40,7 @@ struct CompanyEditorView: View {
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    TextField(bundle.loc("Headquarters"), text: $viewModel.headquarters)
+                    LocationSearchField(bundle.loc("Headquarters"), text: $viewModel.headquarters)
                     TextField(bundle.loc("Founded (year)"), text: $viewModel.foundedYear)
                         .keyboardType(.numberPad)
                 }
@@ -61,9 +61,10 @@ struct CompanyEditorView: View {
             }
             .navigationTitle(bundle.loc(viewModel.editing == nil ? "New company page" : "Edit page"))
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(bundle.loc("Cancel")) { dismiss() }
+                    ConfirmCancelButton { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     if viewModel.isSaving {

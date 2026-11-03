@@ -17,16 +17,23 @@ enum CommunityStore {
         var privacy: String
         var icon_emoji: String
         @NullCoded var avatar_url: String?
+        /// The community's picture (migration 070) — no profile picture any more.
+        @NullCoded var cover_url: String?
         var cover_color: String
         var member_count: Int
         var post_count: Int
         var created_at: Date
+        @NullCoded var name_changed_at: Date?
+        var require_post_approval: Bool
         var created_by: String
         var is_member: Bool
         @NullCoded var role: String?
         @NullCoded var join_request_status: String?
         /// Feed-visibility mute — false for a non-member (nothing to mute).
         var is_muted: Bool
+        var is_pinned: Bool
+        /// all | friends | off — null for a non-member.
+        @NullCoded var notify_level: String?
     }
 
     /// List endpoints (`search`, `/me`, `recommendations`, `trending`,
@@ -40,23 +47,33 @@ enum CommunityStore {
         var privacy: String
         var icon_emoji: String
         @NullCoded var avatar_url: String?
+        @NullCoded var cover_url: String?
         var cover_color: String
         var member_count: Int
         var post_count: Int
         var created_at: Date
         @NullCoded var role: String?
-        var is_member: Bool?
-        var trending_score: Double?
+        var is_member: Bool
+        var trending_score: Double
+        /// Pinned to the top of the viewer's own list.
+        var is_pinned: Bool
     }
+
+    /// The columns every list row shares (`c` = communities).
+    static let rowColumns: SQLQueryString = """
+        c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.avatar_url, c.cover_url,
+        c.cover_color, c.member_count, c.post_count, c.created_at
+        """
 
     static func byID(_ id: String, viewer: String?, on db: any SQLDatabase) async throws -> CommunityDetail? {
         let q: SQLQueryString
         if let viewer {
             q = """
-                SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.avatar_url, c.cover_color,
-                  c.member_count, c.post_count, c.created_by::text AS created_by, c.created_at,
+                SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.avatar_url, c.cover_url, c.cover_color,
+                  c.member_count, c.post_count, c.created_by::text AS created_by, c.created_at, c.name_changed_at,
+                  c.require_post_approval,
                   (cm.user_id IS NOT NULL) AS is_member, cm.role, jr.status AS join_request_status,
-                  COALESCE(cm.muted, false) AS is_muted
+                  COALESCE(cm.muted, false) AS is_muted, (cm.pinned_at IS NOT NULL) AS is_pinned, cm.notify_level
                 FROM communities c
                 LEFT JOIN community_members cm ON cm.community_id = c.id AND cm.user_id = \(uuid: viewer)
                 LEFT JOIN community_join_requests jr ON jr.community_id = c.id AND jr.user_id = \(uuid: viewer)
@@ -64,10 +81,11 @@ enum CommunityStore {
                 """
         } else {
             q = """
-                SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.avatar_url, c.cover_color,
-                  c.member_count, c.post_count, c.created_by::text AS created_by, c.created_at,
+                SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.avatar_url, c.cover_url, c.cover_color,
+                  c.member_count, c.post_count, c.created_by::text AS created_by, c.created_at, c.name_changed_at,
+                  c.require_post_approval,
                   false AS is_member, NULL::VARCHAR AS role, NULL::VARCHAR AS join_request_status,
-                  false AS is_muted
+                  false AS is_muted, false AS is_pinned, NULL::VARCHAR AS notify_level
                 FROM communities c WHERE c.id = \(uuid: id)
                 """
         }
@@ -125,6 +143,275 @@ enum CommunityStore {
         try await db.raw("UPDATE community_members SET muted = \(bind: muted) WHERE community_id = \(uuid: communityID) AND user_id = \(uuid: userID)").run()
     }
 
+    static func setPinned(_ communityID: String, _ userID: String, _ pinned: Bool, on db: any SQLDatabase) async throws {
+        try await db.raw("""
+            UPDATE community_members SET pinned_at = CASE WHEN \(bind: pinned) THEN COALESCE(pinned_at, NOW()) END
+            WHERE community_id = \(uuid: communityID) AND user_id = \(uuid: userID)
+            """).run()
+    }
+
+    /// False when this person already reported it.
+    static func reportCommunity(_ communityID: String, by reporter: String, reason: String, detail: String?,
+                                on db: any SQLDatabase) async throws -> Bool {
+        struct R: Decodable { let id: String }
+        return try await db.raw("""
+            INSERT INTO community_reports (reporter_id, target_type, target_id, community_id, reason, detail)
+            VALUES (\(uuid: reporter), 'community', \(uuid: communityID), \(uuid: communityID), \(bind: reason), \(bind: detail))
+            ON CONFLICT DO NOTHING RETURNING id::text AS id
+            """).first(decoding: R.self) != nil
+    }
+
+    // MARK: member profile
+
+    struct MemberProfile: Content {
+        var id: String
+        var username: String
+        var display_name: String
+        @NullCoded var avatar_url: String?
+        @NullCoded var cover_url: String?
+        @NullCoded var avatar_color: String?
+        /// Connections in the community's mode.
+        var connections_count: Int
+        /// admin | moderator | member — null when not (or no longer) a member.
+        @NullCoded var role: String?
+        @NullCoded var joined_at: Date?
+        var post_count: Int
+        var posts: [PostObject]
+    }
+
+    static func memberProfile(_ userID: String, in communityID: String, type: String, viewer: String, offset: Int,
+                              on db: any SQLDatabase) async throws -> MemberProfile? {
+        // The community's mode as a fixed literal.
+        let mode = type == "work" ? "'work'" : "'hobby'"
+        let modeValue = type == "work" ? "work" : "hobby"
+        struct Row: Decodable {
+            let id: String; let username: String; let display_name: String
+            let avatar_url: String?; let cover_url: String?; let avatar_color: String?
+            let connections_count: Int; let role: String?; let joined_at: Date?; let post_count: Int
+        }
+        guard let r = try await db.raw("""
+            SELECT u.id::text AS id, u.username,
+              \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: mode)) AS display_name,
+              \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: mode)) AS avatar_url,
+              \(unsafeRaw: PersonaSQL.expr("cover_url", modeRef: mode)) AS cover_url, u.avatar_color,
+              (SELECT COUNT(*)::int FROM connections k WHERE k.status = 'accepted' AND k.mode = \(bind: modeValue)
+                 AND (k.requester_id = u.id OR k.addressee_id = u.id)) AS connections_count,
+              m.role, m.joined_at,
+              (SELECT COUNT(*)::int FROM posts p WHERE p.community_id = \(uuid: communityID)
+                 AND p.author_id = u.id AND p.status = 'posted') AS post_count
+            FROM users u
+            LEFT JOIN community_members m ON m.community_id = \(uuid: communityID) AND m.user_id = u.id
+            WHERE u.id = \(uuid: userID) AND u.deleted_at IS NULL
+            """).first(decoding: Row.self) else { return nil }
+        let posts = try await db.raw(PostStore.buildPostSelect(viewer)
+            + " WHERE (p.community_id = \(uuid: communityID) OR " + ListingStore.listedInClause(communityID) + ")"
+            + " AND p.author_id = \(uuid: userID) AND p.status = 'posted'"
+            + " AND " + ListingStore.notHiddenFromFriendClause(viewer)
+            + " GROUP BY p.id, u.id ORDER BY p.created_at DESC LIMIT 20 OFFSET \(bind: offset)")
+            .all(decoding: PostStore.PostRow.self).map(PostStore.map)
+        return MemberProfile(id: r.id, username: r.username, display_name: r.display_name, avatar_url: r.avatar_url,
+                             cover_url: r.cover_url, avatar_color: r.avatar_color, connections_count: r.connections_count,
+                             role: r.role, joined_at: r.joined_at, post_count: r.post_count, posts: posts)
+    }
+
+    // MARK: notifications
+
+    static func setNotifyLevel(_ communityID: String, _ userID: String, _ level: String, on db: any SQLDatabase) async throws {
+        try await db.raw("""
+            UPDATE community_members SET notify_level = \(bind: level)
+            WHERE community_id = \(uuid: communityID) AND user_id = \(uuid: userID)
+            """).run()
+    }
+
+    /// Who hears about a new post: members on "all posts", plus those on
+    /// "friends' posts" who are connected to the author in the community's mode.
+    static func newPostRecipients(_ communityID: String, author: String, on db: any SQLDatabase) async throws -> [String] {
+        struct R: Decodable { let user_id: String }
+        return try await db.raw("""
+            SELECT m.user_id::text AS user_id
+            FROM community_members m JOIN communities c ON c.id = m.community_id
+            WHERE m.community_id = \(uuid: communityID) AND m.user_id <> \(uuid: author)
+              AND (m.notify_level = 'all'
+                OR (m.notify_level = 'friends' AND EXISTS (
+                      SELECT 1 FROM connections k
+                      WHERE k.status = 'accepted' AND k.mode = CASE WHEN c.type = 'work' THEN 'work' ELSE 'hobby' END
+                        AND ((k.requester_id = m.user_id AND k.addressee_id = \(uuid: author))
+                          OR (k.addressee_id = m.user_id AND k.requester_id = \(uuid: author))))))
+            """).all(decoding: R.self).map(\.user_id)
+    }
+
+    // MARK: post approval
+
+    /// A member's live post here waits for a moderator: approval is on and
+    /// they aren't an admin or moderator.
+    static func needsApproval(_ communityID: String, author: String, on db: any SQLDatabase) async throws -> Bool {
+        struct R: Decodable { let needs: Bool }
+        return try await db.raw("""
+            SELECT (c.require_post_approval AND COALESCE(m.role, 'member') NOT IN ('admin', 'moderator')) AS needs
+            FROM communities c
+            LEFT JOIN community_members m ON m.community_id = c.id AND m.user_id = \(uuid: author)
+            WHERE c.id = \(uuid: communityID)
+            """).first(decoding: R.self)?.needs ?? false
+    }
+
+    static func pendingPosts(_ communityID: String, viewer: String, on db: any SQLDatabase) async throws -> [PostObject] {
+        // The community's own pending posts, plus listings waiting to show here.
+        try await db.raw(PostStore.buildPostSelect(viewer)
+            + " WHERE ((p.community_id = \(uuid: communityID) AND p.status = 'pending')"
+            + " OR (p.status = 'posted' AND " + ListingStore.listedInClause(communityID, status: "pending") + "))"
+            + " GROUP BY p.id, u.id ORDER BY p.created_at").all(decoding: PostStore.PostRow.self).map(PostStore.map)
+    }
+
+    struct Reviewed: Decodable { let author_id: String }
+
+    /// nil when it isn't a pending post of this community. Approving dates
+    /// it now, so it reaches feeds as new.
+    static func review(_ postID: String, in communityID: String, approve: Bool, reason: String?, reviewer: String,
+                       on db: any SQLDatabase) async throws -> Reviewed? {
+        try await db.raw("""
+            UPDATE posts SET
+              status = \(unsafeRaw: approve ? "'posted'" : "'declined'")::post_status,
+              created_at = CASE WHEN \(bind: approve) THEN NOW() ELSE created_at END,
+              decline_reason = CASE WHEN \(bind: approve) THEN NULL ELSE \(bind: reason) END,
+              reviewed_by = \(uuid: reviewer), reviewed_at = NOW()
+            WHERE id = \(uuid: postID) AND community_id = \(uuid: communityID) AND status = 'pending'
+            RETURNING author_id::text AS author_id
+            """).first(decoding: Reviewed.self)
+    }
+
+    // MARK: manage your content
+
+    struct MyComment: Content {
+        var id: String
+        var content: String
+        @NullCoded var image_url: String?
+        var created_at: Date
+        var post_id: String
+        /// The start of the post it's under.
+        var post_excerpt: String
+    }
+
+    struct MyContentCounts: Content {
+        var published: Int
+        var pending: Int
+        var declined: Int
+        var comments: Int
+    }
+
+    struct MyContent: Content {
+        var counts: MyContentCounts
+        var posts: [PostObject]
+        var comments: [MyComment]
+    }
+
+    static func myContent(_ communityID: String, viewer: String, kind: String, newestFirst: Bool, status: String,
+                          limit: Int, offset: Int, on db: any SQLDatabase) async throws -> MyContent {
+        let counts = try await db.raw("""
+            SELECT
+              COUNT(*) FILTER (WHERE p.status = 'posted')::int AS published,
+              COUNT(*) FILTER (WHERE p.status = 'pending')::int AS pending,
+              COUNT(*) FILTER (WHERE p.status = 'declined')::int AS declined,
+              (SELECT COUNT(*)::int FROM comments c JOIN posts cp ON cp.id = c.post_id
+                 WHERE cp.community_id = \(uuid: communityID) AND c.author_id = \(uuid: viewer)
+                   AND c.deleted_at IS NULL AND c.status = 'posted' AND cp.status = 'posted') AS comments
+            FROM posts p WHERE p.community_id = \(uuid: communityID) AND p.author_id = \(uuid: viewer)
+            """).first(decoding: MyContentCounts.self) ?? MyContentCounts(published: 0, pending: 0, declined: 0, comments: 0)
+        let direction: SQLQueryString = newestFirst ? " DESC" : " ASC"
+        if kind == "comments" {
+            let comments = try await db.raw("""
+                SELECT c.id::text AS id, c.content, c.image_url, c.created_at, cp.id::text AS post_id,
+                  LEFT(COALESCE(cp.content, ''), 80) AS post_excerpt
+                FROM comments c JOIN posts cp ON cp.id = c.post_id
+                WHERE cp.community_id = \(uuid: communityID) AND c.author_id = \(uuid: viewer)
+                  AND c.deleted_at IS NULL AND c.status = 'posted' AND cp.status = 'posted'
+                ORDER BY c.created_at
+                """ + direction + " LIMIT \(bind: limit) OFFSET \(bind: offset)").all(decoding: MyComment.self)
+            return MyContent(counts: counts, posts: [], comments: comments)
+        }
+        let statuses: SQLQueryString
+        switch status {
+        case "published": statuses = "('posted')"
+        case "pending": statuses = "('pending')"
+        case "declined": statuses = "('declined')"
+        default: statuses = "('posted', 'pending', 'declined')"
+        }
+        let posts = try await db.raw(PostStore.buildPostSelect(viewer)
+            + " WHERE p.community_id = \(uuid: communityID) AND p.author_id = \(uuid: viewer) AND p.status::text IN " + statuses
+            + " GROUP BY p.id, u.id ORDER BY p.created_at" + direction
+            + " LIMIT \(bind: limit) OFFSET \(bind: offset)").all(decoding: PostStore.PostRow.self).map(PostStore.map)
+        return MyContent(counts: counts, posts: posts, comments: [])
+    }
+
+    // MARK: info page
+
+    struct InfoPerson: Content {
+        var id: String
+        var display_name: String
+        @NullCoded var avatar_url: String?
+        @NullCoded var avatar_color: String?
+        @NullCoded var role: String?
+    }
+
+    struct CommunityInfo: Content {
+        @NullCoded var about: String?
+        var privacy: String
+        var created_at: Date
+        @NullCoded var name_changed_at: Date?
+        var member_count: Int
+        /// The viewer's connections (in the community's mode) who joined — a few, and how many.
+        var friends: [InfoPerson]
+        var friends_count: Int
+        /// Admins first, then moderators.
+        var staff: [InfoPerson]
+        var posts_today: Int
+        var posts_week: Int
+        var new_members_week: Int
+    }
+
+    static func info(_ id: String, viewer: String, on db: any SQLDatabase) async throws -> CommunityInfo? {
+        guard let c = try await byID(id, viewer: viewer, on: db) else { return nil }
+        // Each person as they appear in this community's mode; a fixed literal.
+        let mode = c.type == "work" ? "'work'" : "'hobby'"
+        let modeValue = c.type == "work" ? "work" : "hobby"
+        let person: SQLQueryString = """
+            u.id::text AS id, \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: mode)) AS display_name,
+            \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: mode)) AS avatar_url, u.avatar_color
+            """
+        let friendWhere: SQLQueryString = """
+            FROM community_members cm JOIN users u ON u.id = cm.user_id
+            WHERE cm.community_id = \(uuid: id) AND u.id <> \(uuid: viewer) AND u.deleted_at IS NULL
+              AND EXISTS (SELECT 1 FROM connections k WHERE k.status = 'accepted' AND k.mode = \(bind: modeValue)
+                AND ((k.requester_id = \(uuid: viewer) AND k.addressee_id = u.id)
+                  OR (k.addressee_id = \(uuid: viewer) AND k.requester_id = u.id)))
+            """
+        let friends = try await db.raw("SELECT " + person + ", NULL::VARCHAR AS role " + friendWhere
+                                       + " ORDER BY cm.joined_at DESC LIMIT 3").all(decoding: InfoPerson.self)
+        struct N: Decodable { let n: Int }
+        let friendsCount = try await db.raw("SELECT COUNT(*)::int AS n " + friendWhere).first(decoding: N.self)?.n ?? 0
+        let staff = try await db.raw("""
+            SELECT \(person), cm.role FROM community_members cm JOIN users u ON u.id = cm.user_id
+            WHERE cm.community_id = \(uuid: id) AND cm.role IN ('admin', 'moderator') AND u.deleted_at IS NULL
+            ORDER BY (cm.role = 'admin') DESC, cm.joined_at LIMIT 10
+            """).all(decoding: InfoPerson.self)
+        struct Activity: Decodable { let posts_today: Int; let posts_week: Int; let new_members_week: Int }
+        let activity = try await db.raw("""
+            SELECT
+              (SELECT COUNT(*)::int FROM posts WHERE community_id = \(uuid: id) AND status = 'posted'
+                 AND created_at >= date_trunc('day', NOW())) AS posts_today,
+              (SELECT COUNT(*)::int FROM posts WHERE community_id = \(uuid: id) AND status = 'posted'
+                 AND created_at >= NOW() - INTERVAL '7 days') AS posts_week,
+              (SELECT COUNT(*)::int FROM community_members WHERE community_id = \(uuid: id)
+                 AND joined_at >= NOW() - INTERVAL '7 days') AS new_members_week
+            """).first(decoding: Activity.self)
+        // A private community's about stays with its members (as on its page).
+        let about = c.privacy == "private" && !c.is_member ? nil : c.description
+        return CommunityInfo(about: about, privacy: c.privacy, created_at: c.created_at,
+                             name_changed_at: c.name_changed_at, member_count: c.member_count,
+                             friends: friends, friends_count: friendsCount, staff: staff,
+                             posts_today: activity?.posts_today ?? 0, posts_week: activity?.posts_week ?? 0,
+                             new_members_week: activity?.new_members_week ?? 0)
+    }
+
     struct MemberRow: Content {
         var id: String
         var username: String
@@ -134,10 +421,24 @@ enum CommunityStore {
         @NullCoded var company: String?
         var role: String
         var joined_at: Date
+        /// Their photo in the community's mode.
+        @NullCoded var avatar_url: String?
+        /// Connected with the viewer in the community's mode — the list splits
+        /// friends from everyone else.
+        var is_friend: Bool
     }
-    static func members(_ communityID: String, limit: Int, offset: Int, on db: any SQLDatabase) async throws -> [MemberRow] {
-        try await db.raw("""
-            SELECT u.id::text AS id, u.username, u.display_name, u.avatar_color, u.job_title, u.company, cm.role, cm.joined_at
+    /// `communityType` is the community's own `type` ("work" or "hobby").
+    static func members(_ communityID: String, communityType: String, viewer: String,
+                        limit: Int, offset: Int, on db: any SQLDatabase) async throws -> [MemberRow] {
+        // A fixed literal, as in `info`.
+        let mode = communityType == "work" ? "'work'" : "'hobby'"
+        let modeValue = communityType == "work" ? "work" : "hobby"
+        return try await db.raw("""
+            SELECT u.id::text AS id, u.username, u.display_name, u.avatar_color, u.job_title, u.company, cm.role, cm.joined_at,
+              \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: mode)) AS avatar_url,
+              EXISTS (SELECT 1 FROM connections k WHERE k.status = 'accepted' AND k.mode = \(bind: modeValue)
+                AND ((k.requester_id = \(uuid: viewer) AND k.addressee_id = u.id)
+                  OR (k.addressee_id = \(uuid: viewer) AND k.requester_id = u.id))) AS is_friend
             FROM community_members cm JOIN users u ON u.id = cm.user_id
             WHERE cm.community_id = \(uuid: communityID)
             ORDER BY CASE cm.role WHEN 'admin' THEN 0 WHEN 'moderator' THEN 1 ELSE 2 END, cm.joined_at ASC
@@ -145,26 +446,18 @@ enum CommunityStore {
             """).all(decoding: MemberRow.self)
     }
 
-    /// `getTrendingCommunities` — hardcodes `is_member=false`, `role=null`.
-    static func trendingCommunities(type: String?, limit: Int, on db: any SQLDatabase) async throws -> [CommunityRow] {
-        struct R: Decodable {
-            let id: String; let name: String; let description: String?; let type: String; let privacy: String
-            let icon_emoji: String; let avatar_url: String?; let cover_color: String; let member_count: Int; let post_count: Int
-            let created_at: Date; let trending_score: Double
-        }
-        var q: SQLQueryString = """
-            SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.avatar_url, c.cover_color,
-              c.member_count, c.post_count, c.created_at, COALESCE(tr.score, 0)::float AS trending_score
-            FROM communities c LEFT JOIN community_trending tr ON tr.community_id = c.id
-            WHERE c.privacy = 'public'
-            """
-        if let type { q = q + " AND c.type = \(bind: type)" }
-        q = q + " ORDER BY COALESCE(tr.score, 0) DESC, c.member_count DESC LIMIT \(bind: limit)"
-        return try await db.raw(q).all(decoding: R.self).map {
-            CommunityRow(id: $0.id, description: $0.description, name: $0.name, type: $0.type, privacy: $0.privacy,
-                icon_emoji: $0.icon_emoji, avatar_url: $0.avatar_url, cover_color: $0.cover_color, member_count: $0.member_count, post_count: $0.post_count,
-                created_at: $0.created_at, role: nil, is_member: false, trending_score: $0.trending_score)
-        }
+    /// Public communities of one type, busiest first — with the viewer's own
+    /// membership, so ones they've joined show as joined.
+    static func trendingCommunities(type: String, limit: Int, viewer: String, on db: any SQLDatabase) async throws -> [CommunityRow] {
+        try await db.raw("""
+            SELECT \(rowColumns), cm.role, (cm.user_id IS NOT NULL) AS is_member,
+              COALESCE(tr.score, 0)::float AS trending_score, (cm.pinned_at IS NOT NULL) AS is_pinned
+            FROM communities c
+            LEFT JOIN community_trending tr ON tr.community_id = c.id
+            LEFT JOIN community_members cm ON cm.community_id = c.id AND cm.user_id = \(uuid: viewer)
+            WHERE c.privacy = 'public' AND c.type = \(bind: type)
+            ORDER BY COALESCE(tr.score, 0) DESC, c.member_count DESC LIMIT \(bind: limit)
+            """).all(decoding: CommunityRow.self)
     }
 
     static func userHasInterests(_ userID: String, on db: any SQLDatabase) async throws -> Bool {
@@ -183,6 +476,7 @@ enum CommunityStore {
         var privacy: String
         var icon_emoji: String
         @NullCoded var avatar_url: String?
+        @NullCoded var cover_url: String?
         var cover_color: String
         var member_count: Int
         var post_count: Int
@@ -193,10 +487,10 @@ enum CommunityStore {
         var tag_overlap: Double
         var rec_score: Double
     }
-    static func recommendedCommunities(_ userID: String, limit: Int, type: String? = nil, on db: any SQLDatabase) async throws -> [RecommendedRow] {
-        var q: SQLQueryString = """
+    static func recommendedCommunities(_ userID: String, limit: Int, type: String, on db: any SQLDatabase) async throws -> [RecommendedRow] {
+        let q: SQLQueryString = """
             WITH user_tags AS (SELECT tag, weight FROM recommendation_interests WHERE user_id = \(uuid: userID) ORDER BY weight DESC LIMIT 10)
-            SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.avatar_url, c.cover_color,
+            SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.avatar_url, c.cover_url, c.cover_color,
               c.member_count, c.post_count, false AS is_member, NULL::VARCHAR AS role, c.created_at,
               COUNT(DISTINCT ct.tag)::FLOAT AS tag_overlap,
               COALESCE(tr.score, 0)::float AS trending_score,
@@ -206,47 +500,36 @@ enum CommunityStore {
             JOIN user_tags ut ON ut.tag = ct.tag
             LEFT JOIN community_trending tr ON tr.community_id = c.id
             WHERE c.id NOT IN (SELECT community_id FROM community_members WHERE user_id = \(uuid: userID)) AND c.privacy = 'public'
+              AND c.type = \(bind: type)
             """
-        if let type { q = q + " AND c.type = \(bind: type)" }
-        q = q + " GROUP BY c.id, tr.score ORDER BY rec_score DESC LIMIT \(bind: limit)"
-        return try await db.raw(q).all(decoding: RecommendedRow.self)
+        return try await db.raw(q + " GROUP BY c.id, tr.score ORDER BY rec_score DESC LIMIT \(bind: limit)")
+            .all(decoding: RecommendedRow.self)
     }
 
+    /// The viewer's communities (both modes; the app shows one): pinned
+    /// first in the order they were pinned, then the most recently joined.
     static func byUser(_ userID: String, on db: any SQLDatabase) async throws -> [CommunityRow] {
-        struct R: Decodable {
-            let id: String; let name: String; let description: String?; let type: String; let privacy: String
-            let icon_emoji: String; let avatar_url: String?; let cover_color: String; let member_count: Int; let post_count: Int
-            let created_at: Date; let role: String
-        }
-        let rows = try await db.raw("""
-            SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.avatar_url, c.cover_color,
-              c.member_count, c.post_count, c.created_at, cm.role
+        try await db.raw("""
+            SELECT \(rowColumns), cm.role, true AS is_member, COALESCE(tr.score, 0)::float AS trending_score,
+              (cm.pinned_at IS NOT NULL) AS is_pinned
             FROM communities c JOIN community_members cm ON cm.community_id = c.id
-            WHERE cm.user_id = \(uuid: userID) ORDER BY cm.joined_at DESC
-            """).all(decoding: R.self)
-        return rows.map { CommunityRow(id: $0.id, description: $0.description, name: $0.name, type: $0.type, privacy: $0.privacy,
-            icon_emoji: $0.icon_emoji, avatar_url: $0.avatar_url, cover_color: $0.cover_color, member_count: $0.member_count, post_count: $0.post_count,
-            created_at: $0.created_at, role: $0.role, is_member: nil, trending_score: nil) }
+            LEFT JOIN community_trending tr ON tr.community_id = c.id
+            WHERE cm.user_id = \(uuid: userID)
+            ORDER BY (cm.pinned_at IS NULL), cm.pinned_at, cm.joined_at DESC
+            """).all(decoding: CommunityRow.self)
     }
 
-    static func search(searchQuery: String, type: String?, tags: [String], sort: String, limit: Int, offset: Int, viewer: String, on db: any SQLDatabase) async throws -> [CommunityRow] {
-        struct R: Decodable {
-            let id: String; let name: String; let description: String?; let type: String; let privacy: String
-            let icon_emoji: String; let avatar_url: String?; let cover_color: String; let member_count: Int; let post_count: Int
-            let created_at: Date; let is_member: Bool; let role: String?; let trending_score: Double
-        }
+    static func search(searchQuery: String, type: String, tags: [String], sort: String, limit: Int, offset: Int, viewer: String, on db: any SQLDatabase) async throws -> [CommunityRow] {
         let like = "%\(searchQuery)%"
         var q: SQLQueryString = """
-            SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.avatar_url, c.cover_color,
-              c.member_count, c.post_count, c.created_at,
-              (cm.user_id IS NOT NULL) AS is_member, cm.role,
-              COALESCE(tr.score, 0)::float AS trending_score
+            SELECT \(rowColumns), cm.role, (cm.user_id IS NOT NULL) AS is_member,
+              COALESCE(tr.score, 0)::float AS trending_score, (cm.pinned_at IS NOT NULL) AS is_pinned
             FROM communities c
             LEFT JOIN community_members cm ON cm.community_id = c.id AND cm.user_id = \(uuid: viewer)
             LEFT JOIN community_trending tr ON tr.community_id = c.id
             WHERE (c.name ILIKE \(bind: like) OR c.description ILIKE \(bind: like)) AND c.privacy = 'public'
+              AND c.type = \(bind: type)
             """
-        if let type { q = q + " AND c.type = \(bind: type)" }
         if !tags.isEmpty {
             q = q + " AND EXISTS (SELECT 1 FROM community_tags ct WHERE ct.community_id = c.id AND ct.tag = ANY(\(bind: tags)::text[]))"
         }
@@ -255,11 +538,7 @@ enum CommunityStore {
         case "trending": q = q + " ORDER BY COALESCE(tr.score, 0) DESC, c.member_count DESC"
         default: q = q + " ORDER BY c.member_count DESC, c.created_at DESC"
         }
-        q = q + " LIMIT \(bind: limit) OFFSET \(bind: offset)"
-        let rows = try await db.raw(q).all(decoding: R.self)
-        return rows.map { CommunityRow(id: $0.id, description: $0.description, name: $0.name, type: $0.type, privacy: $0.privacy,
-            icon_emoji: $0.icon_emoji, avatar_url: $0.avatar_url, cover_color: $0.cover_color, member_count: $0.member_count, post_count: $0.post_count,
-            created_at: $0.created_at, role: $0.role, is_member: $0.is_member, trending_score: $0.trending_score) }
+        return try await db.raw(q + " LIMIT \(bind: limit) OFFSET \(bind: offset)").all(decoding: CommunityRow.self)
     }
 
     // MARK: join requests
@@ -344,9 +623,17 @@ enum CommunityStore {
     /// written), same convention as `UserQueries.updateProfile`. Returns false
     /// when nothing matched `id` (already-deleted community).
     static func update(_ id: String, name: String?, description: String?, privacy: String?,
-                        iconEmoji: String?, coverColor: String?, avatarURL: String?, on db: any SQLDatabase) async throws -> Bool {
+                        iconEmoji: String?, coverColor: String?, avatarURL: String?,
+                        coverURL: String? = nil, requirePostApproval: Bool? = nil, on db: any SQLDatabase) async throws -> Bool {
         var sets: [SQLQueryString] = []
-        if let name { sets.append("name = \(bind: name.trimmingCharacters(in: .whitespaces))") }
+        if let name {
+            let trimmed = name.trimmingCharacters(in: .whitespaces)
+            sets.append("name = \(bind: trimmed)")
+            // "Name last changed on …" on the info page — only a real change counts.
+            sets.append("name_changed_at = CASE WHEN name IS DISTINCT FROM \(bind: trimmed) THEN NOW() ELSE name_changed_at END")
+        }
+        if let coverURL { sets.append("cover_url = \(bind: coverURL.trimmingCharacters(in: .whitespaces).nilIfEmpty)") }
+        if let requirePostApproval { sets.append("require_post_approval = \(bind: requirePostApproval)") }
         if let description { sets.append("description = \(bind: description.trimmingCharacters(in: .whitespaces).nilIfEmpty)") }
         if let privacy { sets.append("privacy = \(bind: privacy)") }
         if let iconEmoji { sets.append("icon_emoji = \(bind: iconEmoji)") }

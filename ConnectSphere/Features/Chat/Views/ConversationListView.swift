@@ -147,6 +147,10 @@ struct ConversationListView: View {
             activeRoute = route
             Task { await viewModel.load(mode: mode, token: token) }
         }
+        // A Dating match made or ended elsewhere: the Dating button re-checks.
+        .onReceive(NotificationCenter.default.publisher(for: .datingMatchesChanged)) { _ in
+            Task { await viewModel.load(mode: mode, token: token) }
+        }
         .onChange(of: spacesOn) { _, on in if on { spacesIntroSeen = true } }
         .sheet(item: $spaceEditor) { target in spaceEditorSheet(target) }
         .sheet(item: $peoplePickerSpace) { space in
@@ -293,6 +297,17 @@ struct ConversationListView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(Text(String(format: bundle.loc("Waiting, %lld"), viewModel.waiting.count)))
+
+                if !viewModel.datingChats.isEmpty {
+                    NavigationLink {
+                        DatingChatsView(viewModel: viewModel, onOpen: open)
+                    } label: {
+                        inboxButtonLabel(icon: "heart")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text(bundle.loc("Dating chats")))
+                    .transition(.opacity.combined(with: .scale))
+                }
 
                 Spacer()
 

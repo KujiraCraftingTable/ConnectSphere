@@ -4,12 +4,16 @@ import Foundation
 /// Pass a `token` for authenticated requests; omit for public endpoints.
 final class NetworkClient {
     static let shared = NetworkClient()
+    /// Path-based calls; endpoint-based ones carry their own (`Endpoint.timeoutInterval`).
+    static let pathTimeout: TimeInterval = 30
 
     private let session: URLSession
 
     private init() {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
+        // A whole request, retries included, never outlives AI search's 90 s.
+        config.timeoutIntervalForResource = 120
         session = URLSession(configuration: config)
     }
 
@@ -45,7 +49,7 @@ final class NetworkClient {
         if !queryItems.isEmpty { components.queryItems = queryItems }
         guard let url = components.url else { throw APIError.invalidURL }
 
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: url, timeoutInterval: Self.pathTimeout)
         request.httpMethod = method
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         if let bodyData {
@@ -85,7 +89,7 @@ final class NetworkClient {
         var components = URLComponents(string: APIConfig.baseURL + path)!
         if !queryItems.isEmpty { components.queryItems = queryItems }
         guard let url = components.url else { throw APIError.invalidURL }
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: url, timeoutInterval: Self.pathTimeout)
         request.httpMethod = method
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         if let bodyData {

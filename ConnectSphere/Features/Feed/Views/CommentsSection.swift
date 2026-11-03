@@ -18,6 +18,8 @@ struct CommentsSection: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let postId: String
+    /// Set for a community post: names open the person's community profile.
+    var communityId: String? = nil
     /// The post's own author — compared against each comment's author to show
     /// the "Author" badge on their comments/replies.
     let postAuthorId: String
@@ -209,6 +211,7 @@ struct CommentsSection: View {
             ?? parent.map { CommentReplyTarget(name: $0.author.displayName, userId: $0.author.id) }
         return CommentRow(
             comment: comment,
+            communityId: communityId,
             level: level,
             isOwn: comment.author.id == appState.currentUser?.id,
             isPostAuthor: comment.author.id == postAuthorId,
@@ -279,6 +282,8 @@ struct CommentRow: View {
     @Environment(\.colorScheme) var colorScheme
 
     let comment: CommentDTO
+    /// Set under a community post: names open the person's community profile.
+    var communityId: String? = nil
     /// 0 for a comment, 1 for a reply, 2 for a reply to a reply.
     var level: Int = 0
     var isOwn: Bool = false
@@ -355,10 +360,9 @@ struct CommentRow: View {
             ViewThatFits(in: .horizontal) {
                 ForEach(Self.nameScales, id: \.self) { scale in
                     HStack(spacing: 4) {
-                        NavigationLink(destination: UserProfileView(userId: comment.author.id).environment(appState)) {
+                        profileLink(comment.author.id) {
                             nameText(comment.author.displayName, scale: scale)
                         }
-                        .buttonStyle(.plain)
                         if isPostAuthor { authorBadge }
                     }
                 }
@@ -372,10 +376,9 @@ struct CommentRow: View {
                             Text("replied to", bundle: bundle)
                                 .font(.system(size: Self.nameFontSize(level: level)))
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
-                            NavigationLink(destination: UserProfileView(userId: replyTarget.userId).environment(appState)) {
+                            profileLink(replyTarget.userId) {
                                 nameText(replyTarget.name, scale: scale)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -484,7 +487,7 @@ struct CommentRow: View {
     @ViewBuilder
     private var avatar: some View {
         if let url = APIConfig.mediaURL(comment.author.avatarUrl) {
-            AsyncImage(url: url) { phase in
+            RemoteImage(url: url) { phase in
                 if let image = phase.image {
                     image.resizable().scaledToFill()
                 } else {
@@ -506,6 +509,18 @@ struct CommentRow: View {
             Text(String(comment.author.displayName.prefix(1)).uppercased())
                 .font(.system(size: 14, weight: .bold))
                 .foregroundColor(.white)
+        }
+    }
+
+    /// Under a community post, someone's community profile as a pop-up;
+    /// elsewhere their profile page.
+    @ViewBuilder
+    private func profileLink<L: View>(_ userId: String, @ViewBuilder label: @escaping () -> L) -> some View {
+        if let communityId {
+            CommunityProfileLink(communityId: communityId, userId: userId, label: label)
+        } else {
+            NavigationLink(destination: UserProfileView(userId: userId).environment(appState), label: label)
+                .buttonStyle(.plain)
         }
     }
 }

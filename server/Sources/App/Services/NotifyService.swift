@@ -41,7 +41,8 @@ enum NotifyService {
         case "chat": return ["message": "conversation", "meeting_proposed": "meeting", "meeting_updated": "meeting",
                              "meeting_rsvp": "meeting", "meeting_reminder": "meeting", "message_reaction": "message",
                              "group_added": "conversation", "group_removed": "conversation"][type]
-        case "community": return ["new_post": "post", "pinned_post": "post", "join_request": "join_request",
+        case "community": return ["new_post": "post", "pinned_post": "post", "post_approved": "post",
+                                 "post_declined": "community", "join_request": "join_request",
                                  "join_approved": "join_request", "join_rejected": "join_request",
                                  "role_changed": "community", "new_report": "report", "content_removed": "community"][type]
         default: return nil
@@ -297,6 +298,29 @@ enum NotifyService {
         }
     }
 
+    /// A post just went live in a community: tell the members whose level
+    /// asks for it. Detached — it never holds up or fails the post.
+    static func communityNewPost(app: Application, postID: String, communityID: String, authorID: String,
+                                 logger: Logger) {
+        let db = app.db.sql(), hub = app.socketHub
+        Task {
+            do {
+                let recipients = try await CommunityStore.newPostRecipients(communityID, author: authorID, on: db)
+                guard !recipients.isEmpty else { return }
+                struct N: Decodable { let name: String }
+                let name = try await db.raw("SELECT name FROM communities WHERE id = \(uuid: communityID)")
+                    .first(decoding: N.self)?.name ?? ""
+                for user in recipients {
+                    _ = await pushUserNotification(userID: user, type: "new_post", actorID: authorID, postID: postID,
+                                                   communityID: communityID, payload: ["communityName": name],
+                                                   on: db, hub: hub, logger: logger)
+                }
+            } catch {
+                logger.warning("community new_post for \(postID) failed: \(error)")
+            }
+        }
+    }
+
     static func messagePreview(_ m: MessageObject) -> String? {
         switch m.message_type {
         case "image": return "📷 Photo"
@@ -309,6 +333,9 @@ enum NotifyService {
         case "post":
             let note = m.content?.trimmedText ?? ""
             return note.isEmpty ? "📰 Shared a post" : "📰 " + String(note.prefix(previewLength))
+        case "community":
+            let note = m.content?.trimmedText ?? ""
+            return note.isEmpty ? "👥 Shared a community" : "👥 " + String(note.prefix(previewLength))
         default:
             let c = m.content ?? ""
             return c.isEmpty ? nil : String(c.prefix(previewLength))

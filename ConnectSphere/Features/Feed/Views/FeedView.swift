@@ -10,13 +10,12 @@ struct FeedView: View {
     @State private var showCreatePost = false
     @State private var showMessages = false
     @State private var detailRoute: PostRoute?
+    /// What's looked at here, for ranking the feed.
+    @State private var impressions = ImpressionTracker(source: .home)
+    @Environment(\.scenePhase) private var scenePhase
     /// The tab bar (and the mode switch) slide away while reading down the
     /// feed and come back on the way up (or near the top).
     @State private var tabBarHidden = false
-    /// Distance scrolled in the current direction (+ down, − up); a short
-    /// run is needed before the bar moves, so finger jitter and the bounce
-    /// at either end don't make it flicker.
-    @State private var scrollRun: CGFloat = 0
     @Binding var selectedTab: Int
     var body: some View {
         NavigationStack {
@@ -36,8 +35,8 @@ struct FeedView: View {
                     feedScopeRow
 
                     if viewModel.isLoading && viewModel.posts(for: appState.currentMode).isEmpty {
-                        ProgressView()
-                            .padding(.top, 40)
+                        SkeletonPostList(count: 3, colorScheme: colorScheme)
+                            .padding(.horizontal, 8)
                     } else if let error = viewModel.error, viewModel.posts(for: appState.currentMode).isEmpty {
                         VStack(spacing: 10) {
                             Image(systemName: "wifi.exclamationmark")
@@ -90,21 +89,23 @@ struct FeedView: View {
             .background(AppColors.base(colorScheme))
             .scrollIndicators(.hidden)
             .navigationBarTitleDisplayMode(.inline)
-            .onScrollGeometryChange(for: CGFloat.self) { geo in
-                geo.contentOffset.y + geo.contentInsets.top
-            } action: { old, new in
-                tabBarFollowScroll(from: old, to: new)
-            }
-            .toolbar(tabBarHidden ? .hidden : .visible, for: .tabBar)
+            .hidesBarsOnScroll($tabBarHidden)
+            // No bar behind the top buttons: while scrolling, only the floating
+            // message button stays (the mode switch hides with the tab bar).
+            .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
+            .hidesTopScrollEdgeEffect()
             .refreshable {
                 async let suggestions: Void = people.refresh(appState.currentMode)
                 await viewModel.loadPosts(for: appState.currentMode)
                 await suggestions
             }
             .task {
-                if people.suggestions[appState.currentMode] == nil { await people.refresh(appState.currentMode) }
-                await viewModel.loadPostsIfNeeded(for: appState.currentMode)
-                await viewModel.loadMyProfile(userId: appState.currentUser?.id, mode: appState.currentMode)
+                // Posts first: they mustn't wait on the suggestions' vector query.
+                let mode = appState.currentMode
+                await viewModel.loadPostsIfNeeded(for: mode)
+                async let profile: Void = viewModel.loadMyProfile(userId: appState.currentUser?.id, mode: mode)
+                if people.suggestions[mode] == nil { await people.refresh(mode) }
+                await profile
             }
             .onChange(of: appState.currentMode) { _, newMode in
                 withAnimation(.easeInOut(duration: 0.4)) {
@@ -188,7 +189,11 @@ struct FeedView: View {
             .onAppear {
                 viewModel.startChatBadge(appState: appState)
             }
-            .onDisappear { viewModel.stopChatBadge() }
+            .onDisappear {
+                viewModel.stopChatBadge()
+                impressions.pause()
+            }
+            .onChange(of: scenePhase) { _, phase in if phase != .active { impressions.pause() } }
             .alert(bundle.loc("Error"), isPresented: Binding(
                 get: { people.error != nil }, set: { if !$0 { people.error = nil } }
             )) {
@@ -197,22 +202,6 @@ struct FeedView: View {
                 Text(people.error ?? "")
             }
         }
-    }
-
-    // MARK: Tab bar on scroll
-
-    private func tabBarFollowScroll(from old: CGFloat, to new: CGFloat) {
-        let delta = new - old
-        guard delta != 0 else { return }
-        // Restart the run when the direction flips.
-        scrollRun = (delta > 0) == (scrollRun > 0) ? scrollRun + delta : delta
-        let hide: Bool
-        if new < 40 { hide = false }                 // at (or pulled past) the top
-        else if scrollRun > 24 { hide = true }       // reading on, down the feed
-        else if scrollRun < -24 { hide = false }     // heading back up
-        else { return }
-        guard hide != tabBarHidden else { return }
-        withAnimation(.easeInOut(duration: 0.25)) { tabBarHidden = hide }
     }
 
     // MARK: Mode Switch Pill (leading edge of nav bar, icon-only)
@@ -318,11 +307,13 @@ struct FeedView: View {
             onPostDeleted: { viewModel.removePost(id: post.id) },
             onPostUpdated: { updated in viewModel.updatePost(updated) },
             onOpenDetail: { focus in
+                impressions.opened(post.id)
                 detailRoute = PostRoute(postId: post.id, focusComposer: focus)
             },
             showConnectButton: false
         )
         .cardStyle()
+        .tracksImpression(post.id, in: impressions)
         // Makes a just-created post visibly slide/fade in at the top instead
         // of silently popping into place — the "yes, this actually posted"
         // confirmation.

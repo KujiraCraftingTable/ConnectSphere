@@ -17,7 +17,7 @@ struct JobsHomeView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 10) {
+                LazyVStack(spacing: 10) {
                     Picker("", selection: $viewModel.segment) {
                         Text("For you", bundle: bundle).tag(JobsHomeViewModel.Segment.forYou)
                         Text("Search", bundle: bundle).tag(JobsHomeViewModel.Segment.search)
@@ -134,7 +134,7 @@ struct JobFiltersSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                TextField(bundle.loc("Location (e.g. Ho Chi Minh City)"), text: $filters.location)
+                LocationSearchField(bundle.loc("Location (e.g. Ho Chi Minh City)"), text: $filters.location)
                 Picker(bundle.loc("Employment type"), selection: $filters.employmentType) {
                     Text("Any", bundle: bundle).tag(EmploymentType?.none)
                     ForEach(EmploymentType.allCases, id: \.self) { Text(bundle.loc($0.label)).tag(EmploymentType?.some($0)) }

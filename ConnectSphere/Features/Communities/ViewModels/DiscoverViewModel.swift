@@ -25,7 +25,7 @@ class DiscoverViewModel {
         self.token = token
     }
 
-    func fetchDiscover(type: CommunityType? = nil) async {
+    func fetchDiscover(type: CommunityType) async {
         isLoading = true
         errorMessage = nil
         do {
@@ -38,7 +38,7 @@ class DiscoverViewModel {
         isLoading = false
     }
 
-    func search(query: String, type: CommunityType?) async {
+    func search(query: String, type: CommunityType) async {
         searchGeneration += 1
         let generation = searchGeneration
         isSearching = true
@@ -53,10 +53,8 @@ class DiscoverViewModel {
         if generation == searchGeneration { isSearching = false }
     }
 
-    /// Join/leave straight from a search result row — mirrors
-    /// `CommunitiesViewModel.join`/`leave`'s optimistic-update-then-revert-
-    /// on-failure shape, scoped to `searchResults` instead of
-    /// `discoverCommunities`.
+    /// Join/leave straight from any row (trending, recommended or a search
+    /// result) — optimistic, reverted on failure.
     func toggleMembership(_ community: Community) async {
         let joining = !community.isMember
         updateSearchMembership(id: community.id, isMember: joining, delta: joining ? 1 : -1)
@@ -73,8 +71,10 @@ class DiscoverViewModel {
     }
 
     private func updateSearchMembership(id: String, isMember: Bool, delta: Int) {
-        guard let i = searchResults.firstIndex(where: { $0.id == id }) else { return }
-        searchResults[i].isMember = isMember
-        searchResults[i].memberCount = max(0, searchResults[i].memberCount + delta)
+        for keyPath in [\DiscoverViewModel.trending, \.recommended, \.searchResults] {
+            guard let i = self[keyPath: keyPath].firstIndex(where: { $0.id == id }) else { continue }
+            self[keyPath: keyPath][i].isMember = isMember
+            self[keyPath: keyPath][i].memberCount = max(0, self[keyPath: keyPath][i].memberCount + delta)
+        }
     }
 }

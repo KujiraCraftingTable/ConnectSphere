@@ -2,11 +2,12 @@ import SwiftUI
 
 // Tabs for the Communities top-level screen
 private enum CommunityTab: CaseIterable {
-    case myCommunities, discover
+    case myCommunities, discover, marketplace
     var label: String {
         switch self {
         case .myCommunities: return "My communities"
         case .discover:      return "Discover"
+        case .marketplace:   return "Marketplace"
         }
     }
 }
@@ -21,6 +22,8 @@ struct CommunitiesView: View {
     @State private var selectedTab: CommunityTab = .myCommunities
     @State private var searchText = ""
     @State private var showCreate = false
+    /// The top-right "Sell" on the Marketplace tab; MarketplaceView reacts to each bump.
+    @State private var sellRequest = 0
 
     /// Binding from MainTabView — resets to root whenever the tab is re-selected
     @Binding var navPath: NavigationPath
@@ -49,23 +52,43 @@ struct CommunitiesView: View {
                     DiscoverView(token: appState.authToken ?? "") { communityId in
                         navPath.append(communityId)
                     }
+                case .marketplace:
+                    MarketplaceView(sellRequest: $sellRequest)
                 }
             }
             .appBackground()
-            .navigationTitle(bundle.loc("Community"))
+            .navigationTitle(bundle.loc(selectedTab == .marketplace ? "Marketplace" : "Community"))
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button { showCreate = true } label: {
-                        // Plain glyph — a filled disc read as a button inside the glass.
-                        Image(systemName: "plus")
-                            .font(.system(size: 17, weight: .semibold))
+                    if selectedTab == .marketplace {
+                        // Icon and word spelled out: the toolbar shows a Label as its icon alone.
+                        Button { sellRequest += 1 } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "plus")
+                                Text(bundle.loc("Sell"))
+                            }
+                            .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(themeManager.theme.primary)
+                            .padding(.horizontal, 6)
+                        }
+                    } else {
+                        Button { showCreate = true } label: {
+                            // Plain glyph — a filled disc read as a button inside the glass.
+                            Image(systemName: "plus")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(themeManager.theme.primary)
+                        }
                     }
                 }
             }
             .task {
-                await viewModel.fetchInitial(token: appState.authToken ?? "")
+                await viewModel.fetchInitial(token: appState.authToken ?? "",
+                                             type: appState.currentMode == .hobby ? .fandom : .work)
+            }
+            // Joined, left, pinned or edited elsewhere: refresh the list.
+            .onReceive(NotificationCenter.default.publisher(for: .communitiesChanged)) { _ in
+                Task { await viewModel.loadMyCommunities() }
             }
             .sheet(isPresented: $showCreate) {
                 CreateCommunityView(
@@ -150,7 +173,7 @@ struct CommunitiesView: View {
         } else {
             ForEach(visible) { community in
                 NavigationLink(value: community.id) {
-                    CommunityCard(community: community) {
+                    CommunityRow(community: community) {
                         Task<Void, Never>(name: nil) { await viewModel.leave(community) }
                     }
                     .padding(.horizontal, 16)

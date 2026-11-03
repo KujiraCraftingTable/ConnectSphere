@@ -263,6 +263,8 @@ struct MessagesController {
         var poll: PollIn?
         /// For `message_type == "post"`; `content` is the sender's optional note.
         var shared_post_id: String?
+        /// For `message_type == "community"`; `content` is the sender's optional note.
+        var shared_community_id: String?
     }
     struct PollIn: Content { var options: [String]?; var ends_at: String? }
     static let maxAlbumPhotos = 10
@@ -331,7 +333,25 @@ struct MessagesController {
             guard try await !PostStore.findVisible([pid], viewer: req.userID, on: db).isEmpty else {
                 throw Abort(.notFound, reason: "Post not found")
             }
+            // Once it's sold, buyers can't contact the seller about the item
+            // ("Message seller" sends the listing into their chat).
+            if let seller = try await ListingStore.sellerIfSold(post: pid, on: db),
+               seller.caseInsensitiveCompare(req.userID) != .orderedSame,
+               try await ChatStore.isParticipant(id, seller, on: db) {
+                throw Abort(.conflict, reason: "This item has been sold")
+            }
             sharedPost = pid
+        }
+
+        var sharedCommunity: String? = nil
+        if type == "community" {
+            // A community the sender can see: public, or one they're in.
+            guard let cid = b.shared_community_id?.lowercased(), UUID(uuidString: cid) != nil,
+                  let community = try await CommunityStore.byID(cid, viewer: req.userID, on: db),
+                  community.privacy == "public" || community.is_member else {
+                throw Abort(.notFound, reason: "Community not found")
+            }
+            sharedCommunity = cid
         }
 
         var replyTo: String? = nil
@@ -351,7 +371,7 @@ struct MessagesController {
             content: storedContent, messageType: type,
             mediaUrl: album?.first?.url ?? b.media_url, mediaItems: album, replyToMessageID: replyTo,
             voiceDuration: b.voice_duration_seconds, voiceWaveform: b.voice_waveform,
-            sharedPostID: sharedPost, on: db)
+            sharedPostID: sharedPost, sharedCommunityID: sharedCommunity, on: db)
         if let v = validated {
             try await ChatStore.createMeetingProposalRow(messageID: newID, v, on: db)
         }
@@ -362,8 +382,17 @@ struct MessagesController {
         let parts = try await ChatStore.participants(id, on: db)
         req.socketHub.emitConversation(id, participants: parts, event: "new_message", msg)
         let uid = req.userID
+        if parts.count == 2, let other = parts.first(where: { $0 != uid }) {
+            SearchController.creditOutcome(req, to: other, column: "messaged_at")
+        }
         NotifyService.fireAndForget(req) { d, h, l in
             await NotifyService.notifyNewMessage(conversationID: id, senderID: uid, message: msg, on: d, hub: h, logger: l)
+        }
+        // The message is sent either way; a failed auto-reply only gets logged.
+        do {
+            try await ListingAutoReply.afterMessage(msg, conversationID: id, participants: parts, hub: req.socketHub, on: db)
+        } catch {
+            req.logger.error("listing auto-reply failed: \(error)")
         }
         return try await ConnectionsController.encode(DataResponse(data: msg), req, .created)
     }

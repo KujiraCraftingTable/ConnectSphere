@@ -22,7 +22,7 @@ struct SharePostSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    TextField(bundle.loc("Say something about this post..."), text: $viewModel.comment, axis: .vertical)
+                    TextField(bundle.loc(post.postType == .listing ? "Say something about this item..." : "Say something about this post..."), text: $viewModel.comment, axis: .vertical)
                         .font(.system(size: 15))
                         .lineLimit(1...4)
                         .padding(12)
@@ -33,28 +33,37 @@ struct SharePostSheet: View {
 
                     sendRow
 
-                    Button {
-                        Task {
-                            guard await viewModel.share(postId: post.id, mode: appState.currentMode) else { return }
-                            onShared?()
-                            dismiss()
-                        }
-                    } label: {
-                        HStack(spacing: 8) {
-                            if viewModel.isSharing {
-                                ProgressView().tint(.white)
-                            } else {
-                                Image(systemName: "square.and.pencil")
-                            }
-                            Text("Share to Feed", bundle: bundle).fontWeight(.semibold)
-                        }
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 13)
-                        .background(themeManager.theme.primary, in: RoundedRectangle(cornerRadius: 14))
+                    ShareSendButton(viewModel: viewModel) {
+                        guard await viewModel.sendSelected(.post(post.id), token: token) else { return }
+                        onShared?()
+                        dismiss()
                     }
-                    .buttonStyle(.plain)
-                    .disabled(viewModel.isSharing)
+
+                    // Marketplace items are passed on by message only, never reposted.
+                    if post.postType != .listing {
+                        Button {
+                            Task {
+                                guard await viewModel.share(.post(post.id), mode: appState.currentMode, token: token) else { return }
+                                onShared?()
+                                dismiss()
+                            }
+                        } label: {
+                            HStack(spacing: 8) {
+                                if viewModel.isSharing {
+                                    ProgressView().tint(.white)
+                                } else {
+                                    Image(systemName: "square.and.pencil")
+                                }
+                                Text("Share to Feed", bundle: bundle).fontWeight(.semibold)
+                            }
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                            .background(themeManager.theme.primary, in: RoundedRectangle(cornerRadius: 14))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(viewModel.isSharing)
+                    }
 
                     if viewModel.shareFailed {
                         Text("Couldn't share, please try again", bundle: bundle)
@@ -65,7 +74,7 @@ struct SharePostSheet: View {
                 .padding(16)
             }
             .background(AppColors.surface(colorScheme))
-            .navigationTitle(bundle.loc("Share post"))
+            .navigationTitle(bundle.loc(post.postType == .listing ? "Send in a message" : "Share post"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -73,7 +82,7 @@ struct SharePostSheet: View {
                 }
             }
             .navigationDestination(isPresented: $showAllChats) {
-                ShareRecipientsView(viewModel: viewModel, postId: post.id)
+                ShareRecipientsView(viewModel: viewModel)
             }
             .task { await viewModel.loadRecipients(mode: appState.currentMode.rawValue, token: token) }
         }
@@ -121,10 +130,8 @@ struct SharePostSheet: View {
                     HStack(alignment: .top, spacing: 14) {
                         ForEach(viewModel.recent) { conversation in
                             ShareRecipientTile(conversation: conversation,
-                                               state: viewModel.sendStates[conversation.id],
-                                               canUndo: viewModel.undoable.contains(conversation.id),
-                                               onSend: { Task { await viewModel.send(postId: post.id, to: conversation, token: token) } },
-                                               onUndo: { Task { await viewModel.undo(conversation, token: token) } })
+                                               isSelected: viewModel.isSelected(conversation),
+                                               onTap: { viewModel.toggle(conversation) })
                         }
                         Button { showAllChats = true } label: {
                             VStack(spacing: 6) {
@@ -148,79 +155,93 @@ struct SharePostSheet: View {
     }
 }
 
-/// One chat in the "Send to" row: its avatar and name; tap sends, then it
-/// shows "Sent" — with "Undo" for the first few seconds.
-private struct ShareRecipientTile: View {
+/// One chat in the "Send to" row: its avatar and name. Tapping only picks it
+/// (a ring and a tick); the sheet's Send button sends to everyone picked.
+struct ShareRecipientTile: View {
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.appBundle) private var bundle
     @Environment(\.colorScheme) private var colorScheme
 
     let conversation: Conversation
-    let state: SharePostViewModel.SendState?
-    let canUndo: Bool
-    let onSend: () -> Void
-    let onUndo: () -> Void
-
-    private var isSent: Bool { if case .sent = state { true } else { false } }
+    let isSelected: Bool
+    let onTap: () -> Void
 
     var body: some View {
-        VStack(spacing: 6) {
-            Button(action: onSend) {
+        Button(action: onTap) {
+            VStack(spacing: 6) {
                 Avatar(name: conversation.displayName, colorHex: conversation.avatarColor,
                        imageURL: conversation.avatarUrl, size: .lg)
+                    .padding(3)
+                    .overlay(Circle().stroke(isSelected ? themeManager.theme.primary : .clear, lineWidth: 2.5))
                     .overlay(alignment: .bottomTrailing) {
-                        if isSent {
+                        if isSelected {
                             Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 20))
+                                .font(.system(size: 22))
                                 .foregroundStyle(.white, themeManager.theme.primary)
-                        } else if state == .sending {
-                            ProgressView().scaleEffect(0.8)
                         }
                     }
-                    .opacity(isSent ? 0.7 : 1)
-            }
-            .buttonStyle(.plain)
-            .disabled(state == .sending || isSent)
-
-            Text(conversation.displayName)
-                .font(.system(size: 12))
-                .foregroundColor(AppColors.textPrimary(colorScheme))
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
-                .frame(width: 70)
-
-            if canUndo {
-                Button(bundle.loc("Undo"), action: onUndo)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(themeManager.theme.primary)
-            } else if isSent {
-                Text("Sent", bundle: bundle)
-                    .font(.system(size: 11))
-                    .foregroundColor(AppColors.textTertiary(colorScheme))
-            } else if state == .failed {
-                Text("Retry", bundle: bundle)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.red)
+                Text(conversation.displayName)
+                    .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
+                    .foregroundColor(AppColors.textPrimary(colorScheme))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .frame(width: 72)
             }
         }
-        .frame(width: 72)
-        .accessibilityElement(children: .combine)
+        .buttonStyle(.plain)
+        .frame(width: 76)
         .accessibilityLabel(Text(conversation.displayName))
-        .accessibilityValue(Text(isSent ? bundle.loc("Sent") : ""))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
-/// Every chat, searchable, each with Send / Sent — "⋯" in the share sheet.
-private struct ShareRecipientsView: View {
-    @Environment(AppState.self) private var appState
+/// "Send" / "Send to 3" — sends to every picked chat at once.
+struct ShareSendButton: View {
+    @Environment(ThemeManager.self) private var themeManager
+    @Environment(\.appBundle) private var bundle
+    @Environment(\.colorScheme) private var colorScheme
+
+    let viewModel: SharePostViewModel
+    let send: () async -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button { Task<Void, Never>(name: nil) { await send() } } label: {
+                HStack(spacing: 8) {
+                    if viewModel.isSending {
+                        ProgressView().tint(.white)
+                    } else {
+                        Image(systemName: "paperplane.fill")
+                    }
+                    Text(viewModel.selected.isEmpty ? bundle.loc("Send")
+                         : String(format: bundle.loc("Send to %lld"), viewModel.selected.count))
+                        .fontWeight(.semibold)
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 13)
+                .background(themeManager.theme.primary.opacity(viewModel.selected.isEmpty ? 0.4 : 1),
+                            in: RoundedRectangle(cornerRadius: 14))
+            }
+            .buttonStyle(.plain)
+            .disabled(viewModel.selected.isEmpty || viewModel.isSending)
+            if viewModel.sendFailed {
+                Text("Couldn't send to some chats", bundle: bundle)
+                    .font(.system(size: 13))
+                    .foregroundColor(AppColors.danger(colorScheme))
+            }
+        }
+    }
+}
+
+/// Every chat, searchable, each tapped to pick it — "⋯" in the share sheet.
+/// Picks are shared with the sheet's row; Send there sends to them all.
+struct ShareRecipientsView: View {
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.appBundle) private var bundle
     @Environment(\.colorScheme) private var colorScheme
 
     @Bindable var viewModel: SharePostViewModel
-    let postId: String
-
-    private var token: String { appState.authToken ?? "" }
 
     var body: some View {
         List(viewModel.searched) { conversation in
@@ -232,8 +253,10 @@ private struct ShareRecipientsView: View {
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .lineLimit(1)
                 Spacer(minLength: 8)
-                sendButton(conversation)
+                tick(conversation)
             }
+            .contentShape(Rectangle())
+            .onTapGesture { viewModel.toggle(conversation) }
             .listRowBackground(AppColors.surface(colorScheme))
         }
         .listStyle(.plain)
@@ -245,28 +268,10 @@ private struct ShareRecipientsView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    @ViewBuilder
-    private func sendButton(_ conversation: Conversation) -> some View {
-        switch viewModel.sendStates[conversation.id] {
-        case .sending:
-            ProgressView()
-        case .sent:
-            if viewModel.undoable.contains(conversation.id) {
-                Button(bundle.loc("Undo")) { Task { await viewModel.undo(conversation, token: token) } }
-                    .font(.system(size: 13, weight: .semibold))
-                    .buttonStyle(.bordered)
-            } else {
-                Label(bundle.loc("Sent"), systemImage: "checkmark")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(AppColors.textTertiary(colorScheme))
-            }
-        case .failed, nil:
-            Button(bundle.loc(viewModel.sendStates[conversation.id] == .failed ? "Retry" : "Send")) {
-                Task { await viewModel.send(postId: postId, to: conversation, token: token) }
-            }
-            .font(.system(size: 13, weight: .semibold))
-            .buttonStyle(.borderedProminent)
-            .tint(themeManager.theme.primary)
-        }
+    private func tick(_ conversation: Conversation) -> some View {
+        let picked = viewModel.isSelected(conversation)
+        return Image(systemName: picked ? "checkmark.circle.fill" : "circle")
+            .font(.system(size: 22))
+            .foregroundStyle(picked ? themeManager.theme.primary : AppColors.textTertiary(colorScheme))
     }
 }

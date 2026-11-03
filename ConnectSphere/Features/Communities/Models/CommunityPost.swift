@@ -7,6 +7,8 @@ enum PostType: String, Codable {
     case poll  = "poll"
     case event = "event"
     case job   = "job"
+    /// A marketplace listing — community posts only.
+    case listing = "listing"
 }
 
 // MARK: - Poll
@@ -110,6 +112,68 @@ struct JobData: Codable {
     }
 }
 
+// MARK: - Listing
+
+/// A marketplace listing's details. The description is the post's text and
+/// the photos its images.
+struct ListingData: Equatable {
+    let id: String
+    var title: String
+    /// Whole VND; 0 = free.
+    var price: Int64
+    var condition: ListingCondition
+    var location: String?
+    var isSold: Bool
+    var hideFromFriends: Bool
+    var hasAutoReply: Bool
+    /// Only filled in for the seller.
+    var autoReply: String?
+    /// The communities it's also showing in as a post (none = Marketplace only).
+    var communities: [ListedIn] = []
+    /// Where it is, picked on a map (both or neither).
+    var latitude: Double? = nil
+    var longitude: Double? = nil
+
+    struct ListedIn: Equatable, Identifiable {
+        let id: String
+        let name: String
+        let iconEmoji: String
+    }
+
+    /// "1.200.000 ₫", or "Free".
+    func priceText(loc: (String) -> String) -> String {
+        guard price > 0 else { return loc("Free") }
+        return Self.priceFormatter.string(from: NSNumber(value: price)).map { $0 + " ₫" } ?? "\(price) ₫"
+    }
+
+    /// VND is written with dots between thousands, whatever the app language.
+    private static let priceFormatter: NumberFormatter = {
+        let f = NumberFormatter()
+        f.numberStyle = .decimal
+        f.groupingSeparator = "."
+        f.usesGroupingSeparator = true
+        f.maximumFractionDigits = 0
+        return f
+    }()
+}
+
+enum ListingCondition: String, CaseIterable {
+    case new
+    case likeNew = "like_new"
+    case good
+    case fair
+
+    /// Localization key — callers must wrap this in `bundle.loc(...)`.
+    var label: String {
+        switch self {
+        case .new:     return "New"
+        case .likeNew: return "Used – like new"
+        case .good:    return "Used – good"
+        case .fair:    return "Used – fair"
+        }
+    }
+}
+
 enum EmploymentType: String, Codable, CaseIterable {
     case fullTime   = "full_time"
     case partTime   = "part_time"
@@ -161,6 +225,9 @@ struct CommunityPost: Identifiable {
     var translatedContent: String? = nil
     var articleTitle: String? = nil
     var tags: [String] = []
+    /// "pending" while the community's admins review it.
+    var publishStatus: String? = nil
+    var listingData: ListingData? = nil
 
     /// Images to render in the grid — same rule as `Post.displayImageUrls`: prefer
     /// the new array; posts with a link preview don't count (that image belongs to the link card).
@@ -197,6 +264,20 @@ struct CommunityRef {
     let name: String
     let iconEmoji: String
     let avatarUrl: String?
+    /// The community's own privacy ("public" / "private").
+    var privacy: String? = nil
+    /// Who the post is for: anyone, or the community's members only.
+    var audience: CommunityAudience = .members
+}
+
+/// Who a community post is for (migration 075). A private community's posts
+/// are always `.members`.
+enum CommunityAudience: String {
+    case publicAll = "public"
+    case members
+
+    var label: String { self == .publicAll ? "Public" : "Community only" }
+    var icon: String { self == .publicAll ? "globe.americas" : "person.2.fill" }
 }
 
 extension CommunityPost {
@@ -207,7 +288,7 @@ extension CommunityPost {
     /// Feed's own composer to Communities). mode/privacy come from what was
     /// just submitted (already known), not decoded from the response.
     func toPost(author: UserProfile, mode: AppMode, privacy: PostPrivacy) -> Post {
-        Post(
+        var post = Post(
             id:            id,
             author:        author,
             content:       content,
@@ -237,5 +318,9 @@ extension CommunityPost {
             pinnedAt:      nil,
             community:     community
         )
+        // The community page holds a pending post back and says it's waiting.
+        post.publishStatus = publishStatus
+        post.listingData = listingData
+        return post
     }
 }

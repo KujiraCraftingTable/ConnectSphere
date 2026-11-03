@@ -56,7 +56,10 @@ struct PostsController {
     // MARK: GET /api/posts/:id
 
     static func getOne(_ req: Request) async throws -> DataResponse<PostObject> {
-        guard let post = try await PostStore.findById(req.parameters.get("id")!, viewer: req.userID, on: req.db.sql()) else {
+        // Authors can open their own posts that aren't public yet (pending
+        // approval, declined) from Manage your content.
+        guard let post = try await PostStore.findById(req.parameters.get("id")!, viewer: req.userID,
+                                                      includeOwnUnpublished: true, on: req.db.sql()) else {
             throw Abort(.notFound, reason: "Post not found")
         }
         return DataResponse(data: post)
@@ -88,6 +91,8 @@ struct PostsController {
 
     struct CreateBody: Content {
         var content: String?
+        /// Community posts only: "public" or "members" (the default).
+        var community_audience: String?
         var mode: String?
         var privacy: String?
         var post_type: String?
@@ -109,6 +114,20 @@ struct PostsController {
         var endsAt: String?
         var eventData: EventDataIn?
         var jobData: JobDataIn?
+        var listingData: ListingDataIn?
+        /// A marketplace listing (community posts only); the description is `content`.
+        struct ListingDataIn: Content {
+            var title: String?
+            /// Whole VND; 0 = free.
+            var price: Int64?
+            var condition: String?
+            var location: String?
+            var autoReply: String?
+            var hideFromFriends: Bool?
+            /// Where it is, picked on a map (both or neither).
+            var latitude: Double?
+            var longitude: Double?
+        }
         struct EventDataIn: Content {
             var title: String?
             var location: String?
@@ -271,6 +290,10 @@ struct PostsController {
         guard let original = try await PostStore.findById(req.parameters.get("id")!, viewer: req.userID, on: req.db.sql()) else {
             throw Abort(.notFound, reason: "Post not found")
         }
+        // Marketplace items are passed on by message only, never reposted.
+        guard original.post_type != "listing" else {
+            throw Abort(.badRequest, reason: "Listings can only be shared in a message")
+        }
         let rootID = original.shared_post_id ?? original.id
         guard let post = try await PostStore.create(.init(
             authorID: req.userID, content: b.content?.trimmedText ?? "",
@@ -321,6 +344,8 @@ struct PostsController {
         var image_alts: [String]?
         var link_url: String?
         var article_title: String?
+        /// Community posts only: "public" or "members".
+        var community_audience: String?
     }
     static func update(_ req: Request) async throws -> DataResponse<PostObject> {
         let id = req.parameters.get("id")!
@@ -332,6 +357,9 @@ struct PostsController {
         let oldContent = old?.content
 
         let b = try req.content.decode(UpdateBody.self)
+        if let a = b.community_audience, !PostStore.communityAudiences.contains(a) {
+            throw Abort(.badRequest, reason: "community_audience must be public or members")
+        }
         let contentProvided = (try? req.content.decode([String: AnyCodableValue].self))?.keys.contains("content") ?? false
         let imageUrls = normalizeImageUrls(b.image_urls)
         let result = try await PostStore.updatePost(
@@ -343,6 +371,9 @@ struct PostsController {
         case .empty: throw Abort(.badRequest, reason: "A post must have a caption, image, or link")
         case .notFound: throw Abort(.notFound, reason: "Post not found or already deleted")
         case .updated(var post):
+            if let a = b.community_audience, post.community != nil {
+                post.community?.audience = try await PostStore.setCommunityAudience(id, a, on: sdb)
+            }
             // The app resends the current media on every edit, so only a real
             // change of media drops the old descriptions (they described other
             // photos); otherwise they stay unless new ones were sent.
@@ -373,7 +404,11 @@ struct PostsController {
     static func listSaved(_ req: Request) async throws -> PagedNoTotal<PostObject> {
         let limit = clamp(try? req.query.get(Int.self, at: "limit"), 20, 1, 50)
         let offset = max((try? req.query.get(Int.self, at: "offset")) ?? 0, 0)
-        return PagedNoTotal(data: try await PostStore.listSaved(req.userID, limit: limit, offset: offset, on: req.db.sql()),
+        // Saved posts and saved Marketplace items are listed separately.
+        let kind = (try? req.query.get(String.self, at: "kind")) ?? "posts"
+        guard ["posts", "listings"].contains(kind) else { throw Abort(.badRequest, reason: "kind must be posts or listings") }
+        return PagedNoTotal(data: try await PostStore.listSaved(req.userID, listings: kind == "listings",
+                                                                limit: limit, offset: offset, on: req.db.sql()),
                             pagination: .init(limit: limit, offset: offset))
     }
 

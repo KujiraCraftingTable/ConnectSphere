@@ -29,11 +29,25 @@ struct UserRepository {
         return response.data.map { $0.toUserProfile() }
     }
 
-    func aiSearch(prompt: String, mode: AppMode, radiusKm: Int? = nil) async throws -> (users: [UserProfile], criteria: AISearchCriteriaDTO?, suggestions: [EntitySuggestionDTO], evidence: [String: [MatchEvidenceDTO]], warnings: [SearchWarningDTO]) {
-        let response = try await client.fetch(
+    typealias AISearchResult = (users: [UserProfile], criteria: AISearchCriteriaDTO?, suggestions: [EntitySuggestionDTO], evidence: [String: [MatchEvidenceDTO]], warnings: [SearchWarningDTO], sessionId: String?)
+
+    func aiSearch(prompt: String, mode: AppMode, radiusKm: Int? = nil) async throws -> AISearchResult {
+        map(try await client.fetch(
             AISearchResponseDTO.self,
             from: .aiSearch(query: prompt, mode: mode.rawValue, radiusKm: radiusKm)
-        )
+        ))
+    }
+
+    /// Refines the search `sessionId` started — see `Endpoint.aiRefine`.
+    func refineAISearch(sessionId: String, mode: AppMode, refine: String? = nil, moreLike: String? = nil,
+                        closer: Bool = false) async throws -> AISearchResult {
+        map(try await client.fetch(
+            AISearchResponseDTO.self,
+            from: .aiRefine(sessionId: sessionId, mode: mode.rawValue, refine: refine, moreLike: moreLike, closer: closer)
+        ))
+    }
+
+    private func map(_ response: AISearchResponseDTO) -> AISearchResult {
         // Map userId → match reasons (mini CV) — kept outside UserProfile since only AI search uses it
         let evidence = Dictionary(
             response.data.compactMap { dto -> (String, [MatchEvidenceDTO])? in
@@ -47,8 +61,37 @@ struct UserRepository {
             criteria: response.criteria,
             suggestions: response.entity_suggestions,
             evidence: evidence,
-            warnings: response.warnings
+            warnings: response.warnings,
+            sessionId: response.search_session_id
         )
+    }
+
+    private struct SearchEventBody: Encodable { let user_id: String; let kind: String }
+    private struct StatusResponse: Decodable { let status: String }
+
+    /// "tap" when a result is opened, "dismiss" for "Not a fit".
+    func reportSearchEvent(sessionId: String, userId: String, kind: String) async throws {
+        _ = try await client.fetch(
+            StatusResponse.self,
+            path: "/search/sessions/\(sessionId)/events",
+            method: "POST",
+            token: try token(),
+            bodyData: NetworkClient.encode(SearchEventBody(user_id: userId, kind: kind))
+        )
+    }
+
+    private struct ExplainBody: Encodable { let lang: String }
+    private struct ExplainResponse: Decodable { let explanations: [String: String] }
+
+    /// One "why they fit you" sentence per top result (user id → sentence).
+    func explainSearch(sessionId: String, lang: String) async throws -> [String: String] {
+        try await client.fetch(
+            ExplainResponse.self,
+            path: "/search/sessions/\(sessionId)/explain",
+            method: "POST",
+            token: try token(),
+            bodyData: NetworkClient.encode(ExplainBody(lang: lang))
+        ).explanations
     }
 
     private struct LocationClarifyBody: Encodable { let alias: String; let canonical: String }

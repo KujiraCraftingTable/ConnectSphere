@@ -40,7 +40,7 @@ struct PersonaSetupView: View {
                             AuthTextField(icon: "building.2",
                                           placeholder: bundle.loc("Company / School"),
                                           text: $viewModel.company)
-                            SkillTagField(skills: $viewModel.skills, colorScheme: .light, boxed: true)
+                            SkillPickerView(skills: $viewModel.skills, jobTitle: viewModel.jobTitle, colorScheme: .light)
                         } else {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Select what you like", bundle: bundle)
@@ -88,9 +88,10 @@ struct PersonaSetupView: View {
             }
             .background(AppColors.base(colorScheme))
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled()
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(bundle.loc("Cancel")) {
+                    ConfirmCancelButton {
                         appState.pendingPersonaMode = nil
                         dismiss()
                     }

@@ -7,13 +7,14 @@ struct CommunityRepository {
 
     // MARK: - Discovery & Listing
 
-    func fetchCommunities(query: String = "", type: CommunityType? = nil, token: String) async throws -> [Community] {
+    /// One mode's public communities (the server never mixes modes).
+    func fetchCommunities(query: String = "", type: CommunityType, token: String) async throws -> [Community] {
         var items: [URLQueryItem] = [
             .init(name: "limit",  value: "20"),
             .init(name: "offset", value: "0"),
+            .init(name: "type",   value: type.rawValue),
         ]
         if !query.isEmpty { items.append(.init(name: "query", value: query)) }
-        if let type        { items.append(.init(name: "type",  value: type.rawValue)) }
 
         let res = try await client.fetch(DataListResponse<CommunityDTO>.self,
                                          path: "/communities", token: token, queryItems: items)
@@ -32,23 +33,14 @@ struct CommunityRepository {
         return res.data.toCommunity()
     }
 
-    func fetchDiscover(type: CommunityType?, token: String) async throws -> (trending: [Community], recommended: [Community]) {
-        var items: [URLQueryItem] = []
-        if let type { items.append(.init(name: "type", value: type.rawValue)) }
-
+    func fetchDiscover(type: CommunityType, token: String) async throws -> (trending: [Community], recommended: [Community]) {
         let res = try await client.fetch(DataResponse<DiscoverPayload>.self,
-                                         path: "/communities/discover", token: token, queryItems: items)
+                                         path: "/communities/discover", token: token,
+                                         queryItems: [.init(name: "type", value: type.rawValue)])
         return (
             trending:    res.data.trending.map    { $0.toCommunity() },
             recommended: res.data.recommended.map { $0.toCommunity() }
         )
-    }
-
-    func fetchRecommendations(token: String) async throws -> [Community] {
-        let res = try await client.fetch(DataListResponse<CommunityDTO>.self,
-                                         path: "/communities/recommendations", token: token,
-                                         queryItems: [.init(name: "limit", value: "10")])
-        return res.data.map { $0.toCommunity() }
     }
 
     // MARK: - Membership
@@ -196,41 +188,41 @@ struct CommunityRepository {
         privacy: String,
         iconEmoji: String,
         coverColor: String,
-        avatarUrl: String? = nil,
+        coverUrl: String? = nil,
         description: String?,
         token: String
     ) async throws -> Community {
         struct Body: Encodable {
             let name, type, privacy, icon_emoji, cover_color: String
-            let avatar_url: String?
+            let cover_url: String?
             let description: String?
         }
         let body = NetworkClient.encode(Body(name: name, type: type, privacy: privacy,
                                              icon_emoji: iconEmoji, cover_color: coverColor,
-                                             avatar_url: avatarUrl, description: description))
+                                             cover_url: coverUrl, description: description))
         let res = try await client.fetch(DataResponse<CommunityDTO>.self,
                                           path: "/communities", method: "POST",
                                           token: token, bodyData: body)
         return res.data.toCommunity(isMemberOverride: true)
     }
 
-    /// Partial edit (name/description/privacy/icon/cover/avatar) — admin/moderator
-    /// only, enforced server-side. A nil field leaves that column untouched.
+    /// Partial edit — admin/moderator only, enforced server-side. A nil field
+    /// leaves that column untouched; an empty `coverUrl` removes the cover.
     func updateCommunity(
         communityId: String,
         name: String? = nil,
         description: String? = nil,
         privacy: String? = nil,
-        iconEmoji: String? = nil,
-        coverColor: String? = nil,
-        avatarUrl: String? = nil,
+        coverUrl: String? = nil,
+        requirePostApproval: Bool? = nil,
         token: String
     ) async throws -> Community {
         struct Body: Encodable {
-            let name, description, privacy, icon_emoji, cover_color, avatar_url: String?
+            let name, description, privacy, cover_url: String?
+            let require_post_approval: Bool?
         }
         let body = NetworkClient.encode(Body(name: name, description: description, privacy: privacy,
-                                             icon_emoji: iconEmoji, cover_color: coverColor, avatar_url: avatarUrl))
+                                             cover_url: coverUrl, require_post_approval: requirePostApproval))
         let res = try await client.fetch(DataResponse<CommunityDTO>.self,
                                           path: "/communities/\(communityId)", method: "PATCH",
                                           token: token, bodyData: body)
@@ -265,11 +257,74 @@ struct CommunityRepository {
         if targetType == "post" {
             path = "/posts/\(targetId)/report"
             body["communityId"] = communityId
+        } else if targetType == "community" {
+            path = "/communities/\(communityId)/report"
         } else {
             path = "/communities/\(communityId)/members/\(targetId)/report"
         }
         _ = try await client.fetch(OKResponse.self, path: path, method: "POST", token: token,
                                    bodyData: try? JSONSerialization.data(withJSONObject: body))
+    }
+}
+
+// MARK: - Pin / info
+
+extension CommunityRepository {
+    /// Pinned communities sit at the top of My communities.
+    func setPinned(_ pinned: Bool, communityId: String, token: String) async throws {
+        _ = try await client.fetch(OKResponse.self, path: "/communities/\(communityId)/pin",
+                                   method: pinned ? "PUT" : "DELETE", token: token)
+    }
+
+    func setNotifyLevel(_ level: CommunityNotifyLevel, communityId: String, token: String) async throws {
+        struct R: Decodable { let notify_level: String }
+        _ = try await client.fetch(R.self, path: "/communities/\(communityId)/notifications", method: "PUT", token: token,
+                                   bodyData: try JSONSerialization.data(withJSONObject: ["level": level.rawValue]))
+    }
+
+    /// A post on your own feed carrying the community's card.
+    func shareToFeed(communityId: String, note: String, token: String) async throws {
+        _ = try await client.fetch(DataResponse<PostDTO>.self, path: "/communities/\(communityId)/share",
+                                   method: "POST", token: token,
+                                   bodyData: try JSONSerialization.data(withJSONObject: ["content": note]))
+    }
+
+    func fetchMemberProfile(communityId: String, userId: String, offset: Int, token: String) async throws -> CommunityMemberProfile {
+        try await client.fetch(CommunityMemberProfile.self, path: "/communities/\(communityId)/members/\(userId)/profile",
+                               token: token, queryItems: [.init(name: "offset", value: String(offset))])
+    }
+
+    func fetchInfo(communityId: String, token: String) async throws -> CommunityInfo {
+        try await client.fetch(CommunityInfo.self, path: "/communities/\(communityId)/info", token: token)
+    }
+}
+
+// MARK: - Post approval / Manage your content
+
+extension CommunityRepository {
+    /// Staff: posts waiting for approval.
+    func fetchPendingPosts(communityId: String, token: String) async throws -> [Post] {
+        let res = try await client.fetch(DataListResponse<PostDTO>.self,
+                                         path: "/communities/\(communityId)/pending-posts", token: token)
+        return res.data.map { $0.toPost() }
+    }
+
+    func reviewPost(communityId: String, postId: String, approve: Bool, reason: String?, token: String) async throws {
+        var body: [String: Any] = ["action": approve ? "approve" : "decline"]
+        if let reason { body["reason"] = reason }
+        struct R: Decodable { let status: String }
+        _ = try await client.fetch(R.self, path: "/communities/\(communityId)/posts/\(postId)/review",
+                                   method: "PATCH", token: token,
+                                   bodyData: try JSONSerialization.data(withJSONObject: body))
+    }
+
+    func fetchMyContent(communityId: String, kind: MyCommunityContent.Kind, newestFirst: Bool,
+                        status: MyCommunityContent.Status, offset: Int, token: String) async throws -> MyCommunityContent {
+        try await client.fetch(MyCommunityContent.self, path: "/communities/\(communityId)/my-content", token: token,
+                               queryItems: [.init(name: "kind", value: kind.rawValue),
+                                            .init(name: "order", value: newestFirst ? "newest" : "oldest"),
+                                            .init(name: "status", value: status.rawValue),
+                                            .init(name: "offset", value: String(offset))])
     }
 }
 

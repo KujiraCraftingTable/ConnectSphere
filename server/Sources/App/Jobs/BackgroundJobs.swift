@@ -58,8 +58,13 @@ enum BackgroundJobs {
         try app.queues.startInProcessJobs(on: .default)
         try app.queues.startScheduledJobs()
 
-        // chunkSweep also runs once at boot (backfill after a fresh DB).
-        Task { try? await chunkSweep(app) }
+        // chunkSweep also runs once at boot (backfill after a fresh DB), a
+        // couple of minutes in so the first requests after a restart aren't
+        // queued behind it.
+        Task {
+            try? await Task.sleep(for: .seconds(120))
+            try? await OllamaGate.$isBackground.withValue(true) { try await chunkSweep(app) }
+        }
     }
 
     // MARK: scheduled jobs
@@ -105,6 +110,16 @@ enum BackgroundJobs {
                 WHERE (used_at IS NOT NULL OR expires_at < NOW()) AND created_at < NOW() - INTERVAL '7 days'
                 """).run()
             try await db.raw("DELETE FROM search_logs WHERE created_at < NOW() - INTERVAL '90 days'").run()
+            try await db.raw("DELETE FROM post_impressions WHERE last_seen_at < NOW() - INTERVAL '90 days'").run()
+            try await db.raw("DELETE FROM search_sessions WHERE created_at < NOW() - INTERVAL '90 days'").run()
+            try await db.raw("""
+                DELETE FROM search_criteria_cache
+                WHERE created_at < NOW() - make_interval(hours => \(bind: OllamaService.criteriaCacheHours))
+                """).run()
+            // AI people search health (AI_SEARCH_REVIEW.md, phase S3).
+            if let m = try await SearchStore.weeklyMetrics(on: db) {
+                context.logger.info("AI search, last 7 days: \(m.searches) searches, \(m.zero_result) with no results, top-5 tap rate \(m.top5_tap_rate.map { String(format: "%.2f", $0) } ?? "-"), connect rate \(m.connect_rate.map { String(format: "%.2f", $0) } ?? "-")")
+            }
         }
     }
 
@@ -117,7 +132,9 @@ enum BackgroundJobs {
     }
 
     struct ChunkSweepJob: AsyncScheduledJob {
-        func run(context: QueueContext) async throws { try await chunkSweep(context.application) }
+        func run(context: QueueContext) async throws {
+            try await OllamaGate.$isBackground.withValue(true) { try await chunkSweep(context.application) }
+        }
     }
 
     /// Daily birthday greetings — notify each birthday user's accepted
@@ -223,6 +240,10 @@ enum BackgroundJobs {
         static let budget: TimeInterval = 50
         static let batch = 5
         func run(context: QueueContext) async throws {
+            try await OllamaGate.$isBackground.withValue(true) { try await sweep(context) }
+        }
+
+        private func sweep(_ context: QueueContext) async throws {
             let app = context.application, db = app.db.sql()
             guard app.appEnv.translation.enabled else { return }
             let started = Date()
@@ -251,7 +272,9 @@ enum BackgroundJobs {
     struct TranslateContentJob: AsyncJob {
         struct Payload: Codable, Sendable { let kind: TranslationService.Kind; let id: String }
         func dequeue(_ context: QueueContext, _ payload: Payload) async throws {
-            await TranslationService.translate(payload.kind, id: payload.id, app: context.application, logger: context.logger)
+            await OllamaGate.$isBackground.withValue(true) {
+                await TranslationService.translate(payload.kind, id: payload.id, app: context.application, logger: context.logger)
+            }
         }
     }
 
@@ -261,9 +284,11 @@ enum BackgroundJobs {
         struct Payload: Codable, Sendable { let postId: String; let content: String }
         func dequeue(_ context: QueueContext, _ payload: Payload) async throws {
             let app = context.application
-            try await PostTagExtractService.extractAndSave(
-                app.ollama, postID: payload.postId, content: payload.content,
-                client: app.http.client.shared, on: app.db.sql(), logger: context.logger)
+            try await OllamaGate.$isBackground.withValue(true) {
+                try await PostTagExtractService.extractAndSave(
+                    app.ollama, postID: payload.postId, content: payload.content,
+                    client: app.http.client.shared, on: app.db.sql(), logger: context.logger)
+            }
             try await context.queue.dispatch(ChunkEmbedJob.self, .init(kind: .post, id: payload.postId), maxRetryCount: 3)
         }
     }
@@ -272,7 +297,9 @@ enum BackgroundJobs {
         enum Kind: String, Codable, Sendable { case post, profile }
         struct Payload: Codable, Sendable { let kind: Kind; let id: String }
         func dequeue(_ context: QueueContext, _ payload: Payload) async throws {
-            _ = try await Self.build(payload.kind, id: payload.id, app: context.application, logger: context.logger)
+            _ = try await OllamaGate.$isBackground.withValue(true) {
+                try await Self.build(payload.kind, id: payload.id, app: context.application, logger: context.logger)
+            }
         }
 
         /// Also called directly by `chunkSweep` when the queue isn't getting through.

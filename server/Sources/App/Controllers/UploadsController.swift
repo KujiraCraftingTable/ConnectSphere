@@ -79,9 +79,14 @@ struct UploadsController {
     ]
     static let uploadDir = "../backend/uploads"
 
+    /// A photo's feed-size copy (`<name>_t.jpg`), made on the phone — the
+    /// server has no image library. Optional: older apps and videos send none.
+    static let maxThumbnailBytes = 2 * 1024 * 1024
+
     static func create(_ req: Request) async throws -> UploadResponse {
-        struct FileBody: Content { var file: File }
-        guard let file = try? req.content.decode(FileBody.self).file,
+        struct FileBody: Content { var file: File; var thumbnail: File? }
+        let upload = try? req.content.decode(FileBody.self)
+        guard let file = upload?.file,
               let mime = file.contentType.map({ "\($0.type)/\($0.subType)" }),
               let ext = extByMime[mime] else {
             throw Abort(.badRequest, reason: "Invalid or missing file")
@@ -91,6 +96,13 @@ struct UploadsController {
         // GPS, camera and other identifying metadata never reach the disk.
         let cleaned = ByteBuffer(bytes: MetadataStripper.strip(Array(file.data.readableBytesView)))
         try await req.fileio.writeFile(cleaned, at: "\(uploadDir)/\(name)")
+        if mime.hasPrefix("image/"), let thumb = upload?.thumbnail,
+           thumb.contentType.map({ "\($0.type)/\($0.subType)" }) == "image/jpeg",
+           thumb.data.readableBytes <= maxThumbnailBytes {
+            let base = String(name.prefix(while: { $0 != "." }))
+            let cleanThumb = ByteBuffer(bytes: MetadataStripper.strip(Array(thumb.data.readableBytesView)))
+            try await req.fileio.writeFile(cleanThumb, at: "\(uploadDir)/\(base)_t.jpg")
+        }
         let size = cleaned.readableBytes
         return UploadResponse(
             url: "/uploads/\(name)", filename: name,
@@ -99,9 +111,22 @@ struct UploadsController {
     }
 
     static func serve(_ req: Request) async throws -> Response {
-        guard let filename = req.parameters.get("filename") else { throw Abort(.notFound) }
-        let path = "\(uploadDir)/\(filename)"
-        guard FileManager.default.fileExists(atPath: path) else { throw Abort(.notFound) }
-        return req.fileio.streamFile(at: path)
+        guard let filename = req.parameters.get("filename"),
+              let path = resolve(filename, exists: { FileManager.default.fileExists(atPath: "\(uploadDir)/\($0)") })
+        else { throw Abort(.notFound) }
+        let response = req.fileio.streamFile(at: "\(uploadDir)/\(path)")
+        // Names are fresh UUIDs, so a file never changes under its URL.
+        response.headers.replaceOrAdd(name: .cacheControl, value: "public, max-age=31536000, immutable")
+        return response
+    }
+
+    /// The file to send for a requested name. A thumbnail (`<uuid>_t.jpg`)
+    /// that was never made — an older upload, or a PNG kept for its
+    /// transparency — falls back to its original.
+    static func resolve(_ filename: String, exists: (String) -> Bool) -> String? {
+        if exists(filename) { return filename }
+        guard filename.hasSuffix("_t.jpg") else { return nil }
+        let base = String(filename.dropLast("_t.jpg".count))
+        return extByMime.values.sorted().map { "\(base).\($0)" }.first(where: exists)
     }
 }

@@ -28,6 +28,8 @@ extension ChatStore {
         @NullCoded var request_state: String?
         /// Messages you can still send before they accept ("sent" only).
         @NullCoded var requests_left: Int?
+        /// The chat of a Dating match (migration 081) — the inbox's Dating button lists these.
+        var is_dating: Bool
         @NullCoded var last_message_content: String?
         @NullCoded var last_message_type: String?
         /// Photo count when the last message is an album ("📷 4 photos").
@@ -55,6 +57,7 @@ extension ChatStore {
                 CASE WHEN \(unsafeRaw: pending) AND c.request_from = \(uuid: userID) THEN
                   GREATEST(0, \(unsafeRaw: String(MessageRequests.limit)) - (SELECT COUNT(*)::int FROM messages mm
                     WHERE mm.conversation_id = c.id AND mm.sender_id = \(uuid: userID))) END AS requests_left,
+                (c.dating_match_id IS NOT NULL) AS is_dating,
                 lm.content AS last_message_content, lm.message_type AS last_message_type,
                 jsonb_array_length(lm.media_items) AS last_message_media_count,
                 lm.sender_id::text AS last_message_sender_id, lm.created_at AS last_message_at,
@@ -86,7 +89,7 @@ extension ChatStore {
                 c.name AS name, c.avatar_url AS avatar_url, c.avatar_color AS avatar_color,
                 (SELECT COUNT(*)::INT FROM conversation_participants cp2 WHERE cp2.conversation_id = c.id) AS member_count,
                 my_cp.muted_until AS muted_until, my_cp.pinned_at, my_cp.archived_at,
-                NULL::text AS request_state, NULL::int AS requests_left,
+                NULL::text AS request_state, NULL::int AS requests_left, FALSE AS is_dating,
                 lm.content AS last_message_content, lm.message_type AS last_message_type,
                 jsonb_array_length(lm.media_items) AS last_message_media_count,
                 lm.sender_id::text AS last_message_sender_id, lm.created_at AS last_message_at,

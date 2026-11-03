@@ -1,6 +1,12 @@
 import Foundation
 import Observation
 
+extension Notification.Name {
+    /// The viewer's own communities changed (joined, left, pinned, edited) —
+    /// My communities reloads.
+    static let communitiesChanged = Notification.Name("communitiesChanged")
+}
+
 @Observable
 class CommunityDetailViewModel {
     var community: Community?
@@ -11,6 +17,7 @@ class CommunityDetailViewModel {
     var errorMessage: String?
     var canLoadMorePosts = true
     var joinStatus: JoinStatus = .notMember
+    private(set) var isRefreshing = false
 
     /// Results for this community's own search box — a real server-side
     /// search scoped to this community (`GET /communities/:id/posts?search=`),
@@ -57,6 +64,14 @@ class CommunityDetailViewModel {
         async let feed: ()   = fetchPosts(reset: true)
         async let roster: () = fetchMembers()
         _ = await (feed, roster)
+    }
+
+    /// Pull-to-refresh: drives the page's own spinner, since the cover hides
+    /// the system one.
+    func refresh() async {
+        isRefreshing = true
+        defer { isRefreshing = false }
+        await fetchAll()
     }
 
     func fetchDetail() async {
@@ -247,7 +262,9 @@ class CommunityDetailViewModel {
             return nil
         }
         if post.community == nil, let community {
-            post.community = CommunityRef(id: community.id, name: community.name, iconEmoji: community.iconEmoji, avatarUrl: community.avatarUrl)
+            post.community = CommunityRef(id: community.id, name: community.name, iconEmoji: community.iconEmoji,
+                                          avatarUrl: community.avatarUrl, privacy: community.privacy.rawValue,
+                                          audience: post.community?.audience ?? .members)
         }
         return post
     }
@@ -259,7 +276,15 @@ class CommunityDetailViewModel {
     // the same statement triggers a Swift exclusivity-access crash
     // (overlapping getter/setter access on the @Observable `community`
     // property).
+    /// Set after posting into a community that approves posts first.
+    var awaitingApprovalNotice = false
+
     func prependPost(_ post: Post) {
+        // Held for approval: not in the feed yet (it's in Manage your content).
+        guard post.publishStatus != "pending" else {
+            awaitingApprovalNotice = true
+            return
+        }
         posts.insert(post, at: 0)
         if let currentCount = community?.postCount {
             community?.postCount = currentCount + 1
@@ -309,6 +334,61 @@ class CommunityDetailViewModel {
         }
     }
 
+    // MARK: - Community settings
+
+    func setPinned(_ pinned: Bool) async {
+        guard community?.isPinned != pinned else { return }
+        community?.isPinned = pinned
+        do {
+            try await repository.setPinned(pinned, communityId: communityId, token: token)
+            NotificationCenter.default.post(name: .communitiesChanged, object: nil)
+        } catch {
+            community?.isPinned = !pinned
+            errorMessage = friendlyError(error)
+        }
+    }
+
+    func setNotifyLevel(_ level: CommunityNotifyLevel) async {
+        let previous = community?.notifyLevel
+        guard previous != level else { return }
+        community?.notifyLevel = level
+        do {
+            try await repository.setNotifyLevel(level, communityId: communityId, token: token)
+        } catch {
+            community?.notifyLevel = previous
+            errorMessage = friendlyError(error)
+        }
+    }
+
+    func setHiddenFromFeed(_ hidden: Bool) async {
+        guard community?.isMuted != hidden else { return }
+        await toggleMute()
+    }
+
+    /// True once left — the page closes.
+    func leave() async -> Bool {
+        do {
+            try await repository.leave(communityId: communityId, token: token)
+            NotificationCenter.default.post(name: .communitiesChanged, object: nil)
+            return true
+        } catch {
+            errorMessage = friendlyError(error)
+            return false
+        }
+    }
+
+    /// After Edit community saved.
+    func applyEdited(_ updated: Community) {
+        community = community.map {
+            var c = updated
+            c.isMember = $0.isMember; c.isMuted = $0.isMuted; c.role = $0.role
+            c.isPinned = $0.isPinned; c.notifyLevel = $0.notifyLevel
+            c.joinRequestStatus = $0.joinRequestStatus
+            return c
+        }
+        NotificationCenter.default.post(name: .communitiesChanged, object: nil)
+    }
+
     // MARK: - Pin / Unpin
 
     func pinPost(_ postId: String) async {
@@ -354,7 +434,8 @@ class CommunityDetailViewModel {
                 members[idx] = CommunityMember(
                     id: m.id, username: m.username, displayName: m.displayName,
                     avatarColor: m.avatarColor, jobTitle: m.jobTitle, company: m.company,
-                    role: newRole, joinedAt: m.joinedAt
+                    role: newRole, joinedAt: m.joinedAt,
+                    avatarUrl: m.avatarUrl, isFriend: m.isFriend
                 )
             }
         } catch {

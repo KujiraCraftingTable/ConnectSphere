@@ -124,6 +124,8 @@ struct Post: Identifiable {
     /// non-nil = this is a shared post; sharedPost is nil when the original post has been deleted
     var sharedPostId: String? = nil
     var sharedPost: SharedPostPreview? = nil
+    /// A community shared to the feed: its card under the note.
+    var sharedCommunity: SharedCommunityRef? = nil
     /// Poll/event posts on the Feed reuse the same community-agnostic
     /// PostType/PollData/EventData types from Communities (see
     /// CommunityPost.swift) — a Feed post and a community post render polls
@@ -132,16 +134,21 @@ struct Post: Identifiable {
     var pollData: PollData? = nil
     var eventData: EventData? = nil
     var jobData: JobData? = nil
+    /// A marketplace listing's details (post type `.listing`).
+    var listingData: ListingData? = nil
     /// Set only for a post from a community the viewer's feed surfaces —
     /// drives PostCard's combined "community avatar/name + actual poster"
     /// header instead of the normal single-author one.
     var isPinned: Bool = false
     var pinnedAt: Date? = nil
     var community: CommunityRef? = nil
-    /// Only on your own drafts ("draft") and scheduled posts ("scheduled").
+    /// Only on your own unpublished posts: "draft", "scheduled", or in a
+    /// community that approves posts "pending" / "declined".
     var publishStatus: String? = nil
     /// When a scheduled post goes out.
     var publishAt: Date? = nil
+    /// Why a community moderator declined it.
+    var declineReason: String? = nil
 
     /// Images to render the grid: prefer the new array, fall back to the old post's single image.
     /// Posts with a link preview don't count (that image belongs to the link card).

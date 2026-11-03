@@ -210,9 +210,10 @@ struct ChatPollComposer: View {
             .background(AppColors.base(colorScheme))
             .navigationTitle(bundle.loc("New poll"))
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(bundle.loc("Cancel")) { dismiss() }
+                    ConfirmCancelButton { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(bundle.loc("Send")) { send() }

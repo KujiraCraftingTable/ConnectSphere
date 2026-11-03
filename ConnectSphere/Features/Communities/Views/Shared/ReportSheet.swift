@@ -10,7 +10,7 @@ struct ReportSheet: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.appBundle) var bundle
 
-    let targetType: String           // "post" | "member"
+    let targetType: String           // "post" | "member" | "community"
     let targetId:   String
     let communityId: String
     let token: String
@@ -34,11 +34,13 @@ struct ReportSheet: View {
                 }
                 Spacer()
             }
-            .navigationTitle(bundle.loc(targetType == "post" ? "Report post" : "Report member"))
+            .navigationTitle(bundle.loc(targetType == "post" ? "Report post"
+                                        : targetType == "community" ? "Report community" : "Report member"))
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(bundle.loc("Cancel")) { dismiss() }
+                    ConfirmCancelButton { dismiss() }
                 }
                 if !viewModel.submitted {
                     ToolbarItem(placement: .confirmationAction) {

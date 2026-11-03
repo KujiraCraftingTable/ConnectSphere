@@ -164,6 +164,13 @@ struct NotificationsView: View {
                         .listRowSeparator(.hidden)
                     }
 
+                    if viewModel.isLoading && viewModel.groups.isEmpty {
+                        ForEach(0..<6, id: \.self) { _ in
+                            SkeletonRow(colorScheme: colorScheme)
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                        }
+                    }
                     if viewModel.isEmpty { emptyState }
                 }
                 // Rounded section cards like the rest of the app, inset 8 pt
@@ -336,6 +343,8 @@ struct ActorNotifRow: View {
             return String(format: bundle.loc("🎂 It's %@'s birthday today!"), senderName)
         case "skill_endorsed":
             return String(format: bundle.loc("%@ endorsed your %@ skill"), senderName, notif.payload.skill ?? "")
+        case "dating_match":
+            return String(format: bundle.loc("You and %@ matched in Dating. Say hi!"), senderName)
         case "job_application":
             return String(format: bundle.loc("%@ applied to %@"), senderName, notif.payload.jobTitle ?? "")
         case "new_login":
@@ -377,6 +386,13 @@ struct ActorNotifRow: View {
             return String(format: bundle.loc("%@ shared your post"), actorLabel)
         case "scheduled_post_live":
             return bundle.loc("Your scheduled post is live")
+        case "post_approved":
+            return bundle.loc("Your post was approved and is now live in the community")
+        case "post_declined":
+            if let reason = notif.payload.reason, !reason.isEmpty {
+                return String(format: bundle.loc("Your post wasn't approved: %@"), reason)
+            }
+            return bundle.loc("Your post wasn't approved by the community's moderators")
 
         // ── Chat ─────────────────────────────────────────────────────────
         case "message":
@@ -444,11 +460,9 @@ struct ActorNotifRow: View {
         return notif.payload.peerDisplayName ?? senderName
     }
 
+    /// "Linh posted in Pokémon TCG VN" — each post is its own notification.
     private var newPostText: String {
-        if group.eventCount > 1 {
-            return String(format: bundle.loc("%d new posts in %@"), group.eventCount, communityLabel)
-        }
-        return String(format: bundle.loc("New post in %@"), communityLabel)
+        String(format: bundle.loc("%@ posted in %@"), senderName, communityLabel)
     }
 
     private var badgeIcon: String {
@@ -457,6 +471,7 @@ struct ActorNotifRow: View {
         case "connection_accepted": return "person.badge.shield.checkmark"
         case "birthday":            return "gift.fill"
         case "skill_endorsed":      return "hand.thumbsup.circle.fill"
+        case "dating_match":        return "heart.fill"
         case "job_application":     return "doc.text.fill"
         case "new_login":           return "lock.shield.fill"
         case "application_status":  return "briefcase.fill"
@@ -466,6 +481,8 @@ struct ActorNotifRow: View {
         case "comment_replied":     return "arrowshape.turn.up.left.fill"
         case "post_shared":         return "arrowshape.turn.up.right.fill"
         case "scheduled_post_live": return "clock.fill"
+        case "post_approved":       return "checkmark.seal.fill"
+        case "post_declined":       return "xmark.octagon.fill"
         case "message":             return "message.fill"
         case "message_reaction":    return "face.smiling.fill"
         case "meeting_proposed",
@@ -539,7 +556,7 @@ struct ActorNotifRow: View {
     @ViewBuilder
     private var senderAvatar: some View {
         if let url = APIConfig.mediaURL(avatarUrl) {
-            AsyncImage(url: url) { phase in
+            RemoteImage(url: url) { phase in
                 if let image = phase.image {
                     image.resizable().scaledToFill()
                 } else {

@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>APIBaseURL</key>
+	<string>http://Tris-MacBook-Pro.local:3000</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -14,64 +16,6 @@
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
-	<key>CFBundleVersion</key>
-	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
-		<key>NSExceptionDomains</key>
-		<dict>
-			<key>localhost</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-			</dict>
-			<!-- Bonjour hostname của Mac dev (không đổi khi đổi mạng WiFi — macOS tự
-			     advertise tên này qua mDNS trên bất kỳ LAN nào). Dùng thay cho IP
-			     LAN cụ thể (hay đổi mỗi lần chuyển WiFi) — xem APIBaseURL bên dưới.
-			     Kiểm tra tên hiện tại bằng `scutil --get LocalHostName`.
-			     Lưu ý: mDNS bị chặn trên một số mạng công cộng/công ty có client
-			     isolation — nếu vậy fallback về IP LAN qua `ipconfig getifaddr en0`
-			     và thêm một entry IP riêng ở đây + APIBaseURL bên dưới như trước. -->
-			<key>Tris-MacBook-Pro.local</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-			</dict>
-		</dict>
-	</dict>
-	<!-- Cần cho request tới mạng nội bộ (mDNS/Bonjour, IP LAN) từ iOS 14+ — thiếu
-	     key này iOS có thể chặn âm thầm request thay vì hiện prompt xin quyền. -->
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>ConnectSphere cần truy cập mạng nội bộ để kết nối tới server phát triển khi test trên thiết bị thật.</string>
-	<key>NSBonjourServices</key>
-	<array>
-		<string>_http._tcp</string>
-	</array>
-	<key>UIApplicationSceneManifest</key>
-	<dict>
-		<key>UIApplicationSupportsMultipleScenes</key>
-		<false/>
-	</dict>
-	<!-- Base URL của backend khi chạy trên thiết bị thật (simulator luôn dùng
-	     localhost — override trong APIConfig.swift — nên không phụ thuộc dòng này).
-	     Dùng hostname .local của Mac dev (ổn định qua mọi mạng WiFi) thay vì IP
-	     LAN cụ thể — không cần sửa mỗi lần đổi WiFi nữa. Kiểm tra tên hiện tại
-	     bằng `scutil --get LocalHostName`.
-	     Một số router/AP chặn mDNS multicast giữa các client dù cùng subnet
-	     (gặp trên 1 iPad — báo "cannot find host" dù IP LAN trực tiếp thì vào
-	     bình thường) — cho mạng đó, đừng sửa dòng này, thay vào đó vào app:
-	     Profile → Settings → Developer → Server address, nhập
-	     http://<IP LAN của Mac>:3000 (`ipconfig getifaddr en0`), rồi mở lại
-	     app (xem DevServerSettingsView.swift, DEBUG-only). Override đó luôn
-	     được ưu tiên trước giá trị ở đây, nên giá trị dưới đây có thể luôn
-	     giữ nguyên là hostname .local cho trường hợp phổ biến. -->
-	<key>APIBaseURL</key>
-	<string>http://Tris-MacBook-Pro.local:3000</string>
-	<!-- Google Sign-In: thay YOUR_CLIENT_ID bằng ID từ Google Cloud Console -->
-	<key>GIDClientID</key>
-	<string>518394941509-iitibu52ufov7mm8u570g919e0ah9nkn.apps.googleusercontent.com</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -80,10 +24,6 @@
 				<string>com.googleusercontent.apps.518394941509-iitibu52ufov7mm8u570g919e0ah9nkn</string>
 			</array>
 		</dict>
-		<!-- Custom scheme for community share links (connectsphere://community/<id>) —
-		     no Universal Links: that needs a hosted domain + apple-app-site-association +
-		     paid Apple Developer Associated Domains entitlement, which this project doesn't
-		     have (same infra gap as APNs push, see KNOWN_GAPS.md). -->
 		<dict>
 			<key>CFBundleURLName</key>
 			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
@@ -93,21 +33,51 @@
 			</array>
 		</dict>
 	</array>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>ConnectSphere cần truy cập thư viện ảnh để bạn có thể đăng ảnh và video lên bài viết.</string>
-	<!-- Add-only: "Save to Photos" on shared media never needs to read the library. -->
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>ConnectSphere cần quyền thêm vào thư viện ảnh để lưu ảnh và video bạn chọn.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>ConnectSphere cần quyền truy cập micro để bạn có thể gửi tin nhắn thoại.</string>
-	<!-- Lets canOpenURL(_:) probe for the Google Maps app (comgooglemaps://) when
-	     a meeting proposal's location is tapped — required since iOS 9, otherwise
-	     canOpenURL always returns false and we'd silently skip straight to the
-	     web fallback even when the app is installed. -->
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>GIDClientID</key>
+	<string>518394941509-iitibu52ufov7mm8u570g919e0ah9nkn.apps.googleusercontent.com</string>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>comgooglemaps</string>
 	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>Tris-MacBook-Pro.local</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+			<key>localhost</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+		</dict>
+	</dict>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_http._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>ConnectSphere cần truy cập mạng nội bộ để kết nối tới server phát triển khi test trên thiết bị thật.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>ConnectSphere cần vị trí của bạn để chọn nơi đặt món đồ bạn bán trên Marketplace, và để Hẹn hò gợi ý người ở gần bạn (người khác chỉ thấy quận/huyện và thành phố).</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>ConnectSphere cần quyền truy cập micro để bạn có thể gửi tin nhắn thoại.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>ConnectSphere cần quyền thêm vào thư viện ảnh để lưu ảnh và video bạn chọn.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>ConnectSphere cần truy cập thư viện ảnh để bạn có thể đăng ảnh và video lên bài viết.</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchScreen</key>

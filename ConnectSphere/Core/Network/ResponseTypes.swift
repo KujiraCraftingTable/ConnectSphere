@@ -73,6 +73,19 @@ struct OKResponse: Decodable {
     let status: String
 }
 
+/// `{status, code, message}`, or the inline `{error}` shape a few routes
+/// inherited from the Node backend.
 struct ErrorResponse: Decodable {
     let message: String
+
+    private enum CodingKeys: String, CodingKey { case message, error }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        if let m = try c.decodeIfPresent(String.self, forKey: .message) {
+            message = m
+        } else {
+            message = try c.decode(String.self, forKey: .error)
+        }
+    }
 }

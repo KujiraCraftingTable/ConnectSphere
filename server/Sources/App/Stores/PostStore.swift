@@ -57,7 +57,7 @@ enum PostStore {
               'skills', COALESCE((SELECT json_agg(js.skill ORDER BY js.skill) FROM job_skills js WHERE js.job_id = jp.id), '[]'))
             FROM job_posts jp LEFT JOIN companies jc ON jc.id = jp.company_id WHERE jp.post_id = p.id
           ) ELSE NULL END)::text AS job_data,
-        """
+        """ + ListingStore.dataColumn(v)
     }
 
     static func buildPostSelect(_ v: String) -> SQLQueryString {
@@ -67,7 +67,7 @@ enum PostStore {
         let avSp = PersonaSQL.expr("avatar_url", modeRef: "sp.mode", alias: "su")
         return """
         SELECT
-          p.id::text AS id, p.content, p.mode, p.privacy, p.image_urls[1] AS image_url, p.image_urls, p.image_alts, p.status::text AS status, p.publish_at,
+          p.id::text AS id, p.content, p.mode, p.privacy, p.image_urls[1] AS image_url, p.image_urls, p.image_alts, p.status::text AS status, p.publish_at, p.decline_reason,
           p.lang, \(unsafeRaw: TranslationService.translatedColumn("p")) AS translated_text, p.article_title, p.link_url,
           p.like_count, p.comment_count, p.share_count, p.created_at,
           p.post_type, p.is_pinned, p.pinned_at, p.shared_post_id::text AS shared_post_id,
@@ -86,16 +86,20 @@ enum PostStore {
                      AND ((c.requester_id = sp.author_id AND c.addressee_id = \(uuid: v))
                        OR (c.addressee_id = sp.author_id AND c.requester_id = \(uuid: v))))))
               AND (sp.community_id IS NULL OR sp.author_id = \(uuid: v)
-                OR EXISTS (SELECT 1 FROM communities co WHERE co.id = sp.community_id AND co.privacy = 'public')
+                OR EXISTS (SELECT 1 FROM communities co WHERE co.id = sp.community_id AND co.privacy = 'public' AND sp.community_audience = 'public')
                 OR EXISTS (SELECT 1 FROM community_members cm WHERE cm.community_id = sp.community_id AND cm.user_id = \(uuid: v)))
           ) ELSE NULL END)::text AS shared_post,
+          (SELECT json_build_object('id', sc.id, 'name', sc.name, 'cover_url', sc.cover_url, 'cover_color', sc.cover_color,
+              'icon_emoji', sc.icon_emoji, 'member_count', sc.member_count, 'privacy', sc.privacy)
+            FROM communities sc WHERE sc.id = p.shared_community_id)::text AS shared_community,
           COALESCE(json_agg(DISTINCT pt.tag) FILTER (WHERE pt.tag IS NOT NULL AND pt.source = 'user'), '[]')::text AS tags,
           json_build_object('id', u.id, 'username', u.username, 'display_name', \(unsafeRaw: dnP),
             'avatar_color', u.avatar_color, 'avatar_url', \(unsafeRaw: avP),
             'job_title', u.job_title, 'company', u.company)::text AS author,
           \(typeDataColumns(v))
           (CASE WHEN p.community_id IS NOT NULL THEN (
-            SELECT json_build_object('id', co.id, 'name', co.name, 'icon_emoji', co.icon_emoji, 'avatar_url', co.avatar_url)
+            SELECT json_build_object('id', co.id, 'name', co.name, 'icon_emoji', co.icon_emoji, 'avatar_url', co.avatar_url,
+                'privacy', co.privacy, 'audience', COALESCE(p.community_audience, 'members'))
             FROM communities co WHERE co.id = p.community_id
           ) ELSE NULL END)::text AS community
         FROM posts p
@@ -106,8 +110,13 @@ enum PostStore {
 
     /// Who may see a post. A locked persona (migration 064) turns its public
     /// posts into "connections in this mode" ones — except in communities,
-    /// whose own visibility rules apply.
+    /// whose own visibility rules apply. A listing hidden from friends (072)
+    /// is hidden from the seller's connections on top of that.
     static func privacyClause(_ v: String) -> SQLQueryString {
+        ListingStore.notHiddenFromFriendClause(v) + " AND " + audienceClause(v)
+    }
+
+    private static func audienceClause(_ v: String) -> SQLQueryString {
         """
         (p.author_id = \(uuid: v)
          OR (p.privacy = 'public' AND (p.community_id IS NOT NULL OR NOT COALESCE(
@@ -121,10 +130,29 @@ enum PostStore {
                 OR (c.addressee_id = p.author_id AND c.requester_id = \(uuid: v))))))
         """
     }
+    /// Who a community post is for: anyone, or the community's members.
+    static let communityAudiences: Set<String> = ["public", "members"]
+
+    /// Sets a community post's audience (already checked against
+    /// `communityAudiences`). A private community's posts stay members-only
+    /// whatever was asked. The stored value, or nil for a non-community post.
+    static func setCommunityAudience(_ postID: String, _ audience: String, on db: any SQLDatabase) async throws -> String? {
+        struct R: Decodable { let audience: String }
+        return try await db.raw("""
+            UPDATE posts p
+            SET community_audience = CASE WHEN c.privacy = 'public' THEN \(bind: audience) ELSE 'members' END
+            FROM communities c
+            WHERE c.id = p.community_id AND p.id = \(uuid: postID)
+            RETURNING p.community_audience AS audience
+            """).first(decoding: R.self)?.audience
+    }
+
+    /// A community post shows to its members and author; to anyone else only
+    /// when the poster chose Public and the community is (still) public.
     static func communityVisibilityClause(_ v: String) -> SQLQueryString {
         """
         (p.community_id IS NULL OR p.author_id = \(uuid: v)
-         OR EXISTS (SELECT 1 FROM communities co WHERE co.id = p.community_id AND co.privacy = 'public')
+         OR EXISTS (SELECT 1 FROM communities co WHERE co.id = p.community_id AND co.privacy = 'public' AND p.community_audience = 'public')
          OR EXISTS (SELECT 1 FROM community_members cm WHERE cm.community_id = p.community_id AND cm.user_id = \(uuid: v)))
         """
     }
@@ -217,6 +245,7 @@ enum PostStore {
         var link_url: String?
         var status: String
         var publish_at: Date?
+        var decline_reason: String?
         var lang: String?
         var translated_text: String?
         var like_count: Int
@@ -235,7 +264,9 @@ enum PostStore {
         var event_data: String?
         var poll_data: String?
         var job_data: String?
+        var listing_data: String?
         var community: String?
+        var shared_community: String?
     }
 
     static func map(_ r: PostRow) throws -> PostObject {
@@ -248,6 +279,7 @@ enum PostStore {
             id: r.id, content: r.content, mode: r.mode, privacy: r.privacy,
             image_url: r.image_url, image_urls: r.image_urls, image_alts: r.image_alts, article_title: r.article_title,
             link_url: r.link_url, status: r.status == "posted" ? nil : r.status, publish_at: r.publish_at,
+            decline_reason: r.decline_reason,
             lang: r.lang, translated_text: r.translated_text,
             like_count: r.like_count, comment_count: r.comment_count, share_count: r.share_count,
             created_at: r.created_at, post_type: r.post_type, is_pinned: r.is_pinned, pinned_at: r.pinned_at,
@@ -258,7 +290,9 @@ enum PostStore {
             event_data: try parse(r.event_data, PostObject.EventData.self),
             poll_data: try parse(r.poll_data, PostObject.PollData.self),
             job_data: try parse(r.job_data, PostObject.JobData.self),
-            community: try parse(r.community, PostObject.CommunityRef.self)
+            listing_data: try parse(r.listing_data, PostObject.ListingData.self),
+            community: try parse(r.community, PostObject.CommunityRef.self),
+            shared_community: try parse(r.shared_community, PostObject.SharedCommunity.self)
         )
     }
 
@@ -276,6 +310,9 @@ enum PostStore {
         var followingOnly = false
         var limit: Int
         var offset: Int
+        /// Listings live in the Marketplace and their communities, not in
+        /// Home, profile or tag feeds — only a lookup by id keeps them.
+        var includeListings = false
     }
 
     static func feedWhere(_ v: String, _ f: FeedFilters) -> SQLQueryString {
@@ -283,6 +320,7 @@ enum PostStore {
         w = w + communityVisibilityClause(v) + " AND " + notMutedClause(v) + " AND "
         w = w + privacyClause(v) + " AND " + notBlockedClause(v) + " AND " + notHiddenClause(v)
         w = w + " AND " + notMutedWordsClause(v)
+        if !f.includeListings { w = w + " AND p.post_type <> 'listing'" }
         if f.connectionsOnly { w = w + " AND " + connectionsOnlyClause(v) }
         if f.followingOnly { w = w + " AND " + followingOnlyClause(v) }
         if let m = f.mode { w = w + " AND p.mode = \(bind: m)" }
@@ -363,7 +401,9 @@ enum PostStore {
     /// visibility, hidden, muted). Order is not preserved — callers re-sort.
     static func findVisible(_ ids: [String], viewer: String, on db: any SQLDatabase) async throws -> [PostObject] {
         guard !ids.isEmpty else { return [] }
-        let all = FeedFilters(mode: nil, authorID: nil, tag: nil, search: nil, connectionsOnly: false, limit: 0, offset: 0)
+        // A listing sent into a chat ("Message seller") must still be found.
+        let all = FeedFilters(mode: nil, authorID: nil, tag: nil, search: nil, connectionsOnly: false, limit: 0, offset: 0,
+                              includeListings: true)
         let q = buildPostSelect(viewer) + " " + feedWhere(viewer, all)
             + " AND p.id = ANY(\(bind: ids)::uuid[]) GROUP BY p.id, u.id"
         return try await db.raw(q).all(decoding: PostRow.self).map(map)
@@ -399,12 +439,12 @@ enum PostStore {
         return alts
     }
 
-    /// `includeOwnUnpublished`: also return the viewer's own draft or
-    /// scheduled post — only for its author, right after saving it.
+    /// `includeOwnUnpublished`: also return the viewer's own draft, scheduled,
+    /// pending (awaiting approval) or declined post — only to its author.
     static func findById(_ id: String, viewer: String, includeOwnUnpublished: Bool = false,
                          on db: any SQLDatabase) async throws -> PostObject? {
         let status: SQLQueryString = includeOwnUnpublished
-            ? "(p.status = 'posted' OR (p.author_id = \(uuid: viewer) AND p.status IN ('draft', 'scheduled')))"
+            ? "(p.status = 'posted' OR (p.author_id = \(uuid: viewer) AND p.status IN ('draft', 'scheduled', 'pending', 'declined')))"
             : "p.status = 'posted'"
         let q = buildPostSelect(viewer)
             + " WHERE p.id = \(uuid: id) AND " + status + " AND "
@@ -434,14 +474,14 @@ enum PostStore {
             """).first(decoding: I.self) != nil
     }
 
-    /// Removes a draft or scheduled post outright (it was never public, so
-    /// there's no Recently Deleted for it). Its rows in poll_options,
+    /// Removes a draft, scheduled, pending or declined post outright (it was
+    /// never public, so there's no Recently Deleted for it). Its rows in poll_options,
     /// community_events, job_posts and post_tags go with it (ON DELETE CASCADE).
     @discardableResult
     static func deleteUnpublished(_ id: String, author: String, on db: any SQLDatabase) async throws -> Bool {
         struct I: Decodable { let id: String }
         return try await db.raw("""
-            DELETE FROM posts WHERE id = \(uuid: id) AND author_id = \(uuid: author) AND status IN ('draft', 'scheduled')
+            DELETE FROM posts WHERE id = \(uuid: id) AND author_id = \(uuid: author) AND status IN ('draft', 'scheduled', 'pending', 'declined')
             RETURNING id::text AS id
             """).first(decoding: I.self) != nil
     }
@@ -584,7 +624,10 @@ enum PostStore {
     /// its own outer wrapper to merge it in.
     static func getPostsByCommunity(_ communityID: String, viewer: String, tag: String?, search: String? = nil, limit: Int, offset: Int, on db: any SQLDatabase) async throws -> [PostObject] {
         var q = buildPostSelect(viewer)
-        q = q + " WHERE p.community_id = \(uuid: communityID) AND p.status = 'posted' AND " + notMutedWordsClause(viewer)
+        // The community's own posts, plus Marketplace listings tied to it.
+        q = q + " WHERE (p.community_id = \(uuid: communityID) OR " + ListingStore.listedInClause(communityID) + ")"
+            + " AND p.status = 'posted' AND " + notMutedWordsClause(viewer)
+            + " AND " + ListingStore.notHiddenFromFriendClause(viewer)
         if let tag {
             q = q + " AND EXISTS (SELECT 1 FROM post_tags ptf WHERE ptf.post_id = p.id AND LOWER(ptf.tag) = LOWER(\(bind: tag)) AND ptf.source = 'user')"
         }
@@ -595,10 +638,11 @@ enum PostStore {
         return try await db.raw(q).all(decoding: PostRow.self).map(map)
     }
 
-    static func listSaved(_ userID: String, limit: Int, offset: Int, on db: any SQLDatabase) async throws -> [PostObject] {
+    static func listSaved(_ userID: String, listings: Bool, limit: Int, offset: Int, on db: any SQLDatabase) async throws -> [PostObject] {
+        let kind: SQLQueryString = listings ? " AND p.post_type = 'listing'" : " AND p.post_type <> 'listing'"
         let q = buildPostSelect(userID)
             + " JOIN saved_posts sap ON sap.post_id = p.id AND sap.user_id = \(uuid: userID)"
-            + " WHERE p.status = 'posted' AND " + privacyClause(userID) + " AND " + notBlockedClause(userID)
+            + " WHERE p.status = 'posted'" + kind + " AND " + privacyClause(userID) + " AND " + notBlockedClause(userID)
             + " AND " + communityVisibilityClause(userID)
             + " GROUP BY p.id, u.id, sap.created_at ORDER BY sap.created_at DESC LIMIT \(bind: limit) OFFSET \(bind: offset)"
         return try await db.raw(q).all(decoding: PostRow.self).map(map)

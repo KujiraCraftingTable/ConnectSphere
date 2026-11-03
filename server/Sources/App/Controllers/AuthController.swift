@@ -142,7 +142,9 @@ struct AuthController {
         guard password.count >= minPasswordLen else {
             throw InlineError(.badRequest, "Password must be at least \(minPasswordLen) characters")
         }
-        let fields = try ProfileFields.validate(body.profile)
+        var fields = try ProfileFields.validate(body.profile)
+        if let picks = fields.interests { fields.interests = try await InterestStore.cleanPicks(picks, userID: nil, on: db) }
+        fields.skills = try await SkillStore.cleanPicks(fields.skills, userID: nil, on: db)
         var email: String?
         if let raw = body.email, !raw.trimmingCharacters(in: .whitespaces).isEmpty {
             let cleaned = try await newEmail(raw, on: db)
@@ -470,13 +472,14 @@ struct AuthController {
             WHERE id = \(uuid: userID)
             """).run()
         try await replaceList(table: "user_interests", col: "interest", userID: userID, items: f.interests, db: db)
-        try await replaceList(table: "user_skills", col: "skill", userID: userID, items: f.skills, db: db)
+        // Kept skills keep their row, and so their endorsements.
+        try await EndorsementStore.replaceSkills(of: userID, with: f.skills, on: db)
     }
 
     /// Onboarding for an account that already exists (a Google sign-up).
     static func setup(_ req: Request) async throws -> MeResponse {
         let b = try req.content.decode(SetupBody.self)
-        let fields = try ProfileFields.validate(b)
+        var fields = try ProfileFields.validate(b)
         let username = (b.username ?? "").trimmingCharacters(in: .whitespaces).lowercased()
         guard !username.isEmpty else { throw InlineError(.badRequest, "username is required") }
         // Same format as /register — a Google account picks its name here.
@@ -487,6 +490,8 @@ struct AuthController {
         if try await UserStore.usernameTaken(username, excluding: req.userID, on: db) {
             throw InlineError(.conflict, "Username already taken")
         }
+        if let picks = fields.interests { fields.interests = try await InterestStore.cleanPicks(picks, userID: req.userID, on: db) }
+        fields.skills = try await SkillStore.cleanPicks(fields.skills, userID: req.userID, on: db)
         try await applyProfile(req.userID, username: username, fields, on: db)
         return MeResponse(user: try await loadUser(req.userID, db))
     }

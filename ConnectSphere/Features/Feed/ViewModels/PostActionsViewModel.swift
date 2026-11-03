@@ -117,6 +117,38 @@ final class PostActionsViewModel {
         }
     }
 
+    // MARK: Not interested / Show more like this
+
+    /// Leaves the feed at once (like Hide) and tells ranking to show less
+    /// like it, and less from its author.
+    func notInterested(postId: String) async {
+        isHidden = true
+        do {
+            try await repository.sendFeedback(postId: postId, kind: "less")
+        } catch {
+            isHidden = false
+            actionErrorMessage = Bundle.app.loc("Couldn't save that, please try again")
+        }
+    }
+
+    func showMoreLikeThis(postId: String) async {
+        do {
+            try await repository.sendFeedback(postId: postId, kind: "more")
+        } catch {
+            actionErrorMessage = Bundle.app.loc("Couldn't save that, please try again")
+        }
+    }
+
+    /// Undo for either: the post comes back and the feedback is removed.
+    func undoFeedback(postId: String) async {
+        isHidden = false
+        do {
+            try await repository.removeFeedback(postId: postId)
+        } catch {
+            actionErrorMessage = Bundle.app.loc("Couldn't save that, please try again")
+        }
+    }
+
     // MARK: Report
 
     func report(postId: String, reason: ReportReason) async {
