@@ -31,7 +31,6 @@ struct NotificationsController {
         "job_application":     .init(category: "social", destination: "jobApplicants"),
         "application_status":  .init(category: "social", destination: "job"),
         "scheduled_post_live": .init(category: "social", destination: "post"),
-        "dating_match":        .init(category: "social", destination: "conversation"),
         "message":             .init(category: "chat", destination: "conversation"),
         "meeting_proposed":    .init(category: "chat", destination: "conversation"),
         "meeting_updated":     .init(category: "chat", destination: "conversation"),

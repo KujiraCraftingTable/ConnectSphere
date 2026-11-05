@@ -157,15 +157,22 @@ enum SearchConcepts {
         pattern: #"\b\d+\s?m\s?\d+\b|\b\d+([.,]\d+)?\s?(cm|kg|m|mét|met|meters?|feet|ft)\b|chiều cao|cân nặng|ngoại hình|đẹp trai|xinh gái|cao ráo|\b(tall|height|weight|handsome|good[- ]looking)\b"#,
         options: [.caseInsensitive])
 
-    /// Looking for a partner rather than a friend or colleague. Dating is its
-    /// own space, so normal search answers these with a pointer instead.
-    /// Unaccented forms are listed only where they can't be another phrase
-    /// ("tim bo" is also "tìm bộ phim").
-    static func seeksPartner(_ prompt: String) -> Bool {
+    /// ConnectSphere is for finding friends and colleagues, not partners, so
+    /// the partner wording is dropped from a prompt and the rest — gender,
+    /// place, interests — is searched ("a man to date in HCMC" → "a man in
+    /// HCMC"). Unaccented forms are listed only where they can't be another
+    /// phrase ("tim bo" is also "tìm bộ phim").
+    static func withoutPartnerWords(_ prompt: String) -> String {
+        let range = NSRange(prompt.startIndex..., in: prompt)
+        return partnerPattern.stringByReplacingMatches(in: prompt, range: range, withTemplate: " ")
+            .split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    }
+    /// Whether the prompt carries any partner wording at all.
+    static func mentionsPartner(_ prompt: String) -> Bool {
         firstMatch(partnerPattern, in: prompt) != nil
     }
     private static let partnerPattern = try! NSRegularExpression(
-        pattern: #"người yêu|người iu|người thương|bạn trai|bạn gái|bạn đời|hẹn hò|nửa kia|\bny\b|(tìm|kiếm|có) bồ\b|nguoi yeu|nguoi iu|ban trai|ban gai|hen ho|\b(crush|girlfriend|boyfriend|dating|lover|soulmate)\b|\bsomeone to date\b|\ba date\b"#,
+        pattern: #"người yêu|người iu|người thương|bạn trai|bạn gái|bạn đời|hẹn hò|nửa kia|\bny\b|(tìm|kiếm|có) bồ\b|nguoi yeu|nguoi iu|ban trai|ban gai|hen ho|\b(crush|girlfriend|boyfriend|dating|lover|soulmate)\b|\b(someone )?to date\b|\ba date\b"#,
         options: [.caseInsensitive])
 
     /// Whether the prompt mentions an age, so a bare number ("thích 8") is

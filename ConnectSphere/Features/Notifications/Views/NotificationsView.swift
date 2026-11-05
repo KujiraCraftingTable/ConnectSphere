@@ -343,8 +343,6 @@ struct ActorNotifRow: View {
             return String(format: bundle.loc("🎂 It's %@'s birthday today!"), senderName)
         case "skill_endorsed":
             return String(format: bundle.loc("%@ endorsed your %@ skill"), senderName, notif.payload.skill ?? "")
-        case "dating_match":
-            return String(format: bundle.loc("You and %@ matched in Dating. Say hi!"), senderName)
         case "job_application":
             return String(format: bundle.loc("%@ applied to %@"), senderName, notif.payload.jobTitle ?? "")
         case "new_login":
@@ -471,7 +469,6 @@ struct ActorNotifRow: View {
         case "connection_accepted": return "person.badge.shield.checkmark"
         case "birthday":            return "gift.fill"
         case "skill_endorsed":      return "hand.thumbsup.circle.fill"
-        case "dating_match":        return "heart.fill"
         case "job_application":     return "doc.text.fill"
         case "new_login":           return "lock.shield.fill"
         case "application_status":  return "briefcase.fill"

@@ -14,34 +14,12 @@ prototype surface for the project; finishing them is post-submission work.
 - **Interest suggestions have no review screen** (`interest_suggestions`,
   migration 080): there is no app-wide admin role, so suggestions are reviewed
   in the database and added to `interest_catalog` by hand.
-- **Dating** (account menu, migration 081, `DatingController` /
-  `Features/Dating/`) is built: its own profile shared by both modes (1–6
-  photos, bio, interested in, age range, distance, optional height, a place on
-  the map), locked under 16 or with no birthday, 16–17 kept apart from 18+,
-  likes and passes, "Likes you", mutual matches that chat in the Hobby inbox
-  (Dating button beside Waiting), unmatch, take a break and delete. What's
-  deliberately left out:
-  - **No report or safety review for dating profiles**: blocking someone
-    (from their main profile or the chat) hides them from Dating both ways,
-    but there's no "Report" on a dating card and no moderation queue.
-  - **No photo or age verification**: age comes from the birthday the account
-    gave at sign-up (`users.age`); nothing checks it.
-  - **Height is shown, never filtered or sorted on**, on purpose — search
-    doesn't judge people by looks (`unsupported_trait`), and neither does
-    Dating.
-  - **Gender comes from the main account** (male / female / other); "other"
-    is shown only to people interested in "everyone".
-  - **Location is the phone's GPS only** (migration 082), sent on setup and
-    each time Dating opens, never in the background; with location off,
-    Discover is shut. The server can't verify it, so a phone with a faked GPS
-    could still pose as being elsewhere.
-  - **Hobby friends are never suggested** to each other (accepted Hobby
-    connections); an existing match isn't undone if two people connect later.
-  - **No push** for a new match (in-app notification only, as for everything
-    else).
-  - **Server tests cover the rules only** (`DatingRulesTests`); the SQL that
-    applies them was checked by hand against a running server, not by an
-    automated integration test.
+- **Dating is archived, not running.** The app is for friends and colleagues;
+  finding a partner is deliberately out of scope. The code lives in
+  `legacy/dating/` (see its README to restore it). The database keeps the
+  inert `dating_*` tables and `conversations.dating_match_id`
+  (migrations 081–082); nothing reads or writes them. AI search ignores
+  partner wording ("to date", "người yêu") and searches the rest.
 
 - **Ward/commune location picker** (`Core/Components/WardPickerView.swift`,
   `WardRepository`, `WardDTO`/`ProvinceDTO`): built but not wired into onboarding

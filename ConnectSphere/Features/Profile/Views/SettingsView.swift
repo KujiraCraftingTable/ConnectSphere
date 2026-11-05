@@ -10,7 +10,6 @@ struct SettingsView: View {
 
     @State private var showThemePicker = false
     @State private var showLogoutConfirm = false
-    @State private var datingEntry = DatingEntryViewModel()
     @AppStorage("searchRadiusKm") private var searchRadiusKm: Int = 0
 
 
@@ -55,22 +54,6 @@ struct SettingsView: View {
                 Text(searchRadiusKm == 0
                      ? bundle.loc("No distance limit when searching with location.")
                      : String(format: bundle.loc("Kujira only suggests people within %dkm when searching with location."), searchRadiusKm))
-            }
-
-            // Dating — its own space and profile, shared by both modes; only
-            // accounts aged 16+ see it at all.
-            if datingEntry.isAvailable {
-            Section {
-                NavigationLink {
-                    DatingHomeView()
-                        .environment(appState)
-                        .environment(themeManager)
-                } label: {
-                    settingsRow(icon: "heart.fill", label: bundle.loc("Dating"), color: Color(hex: "#E91E63"), showsChevron: false)
-                }
-            } footer: {
-                Text("A separate space for meeting someone, with its own profile.", bundle: bundle)
-            }
             }
 
             // Account — identity, privacy, activity and deleting live in Manage account
@@ -185,7 +168,6 @@ struct SettingsView: View {
                 }
             }
         }
-        .task { await datingEntry.load(token: appState.authToken ?? "") }
         // .alert (not .confirmationDialog) — always a centered box regardless
         // of action count, matching the familiar Facebook-style "Log out of
         // your account?" pattern. .confirmationDialog with just one

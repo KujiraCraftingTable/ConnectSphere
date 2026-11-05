@@ -223,7 +223,7 @@ Các trọng số là hằng số đầu file `searchModel.js` (`W_MAX`, `W_AVG`
 | `mode` | `u.default_mode = 'friend'` hoặc `'colleague'` |
 | `location` | `u.location ILIKE '%...%'` |
 | `target_gender` | `u.gender = <giới user nói rõ>` — **thắng** heuristic hẹn hò |
-| `dating intent` | fallback: `u.gender = <ngược giới người tìm>` khi bio_keywords có từ hẹn hò (chỉ khi không có target_gender) |
+| `partner words` | các từ hẹn hò ("to date", "người yêu"…) bị bỏ khỏi câu tìm; phần còn lại (giới tính, nơi ở, sở thích) vẫn được tìm. Không còn lọc ngược giới. |
 | `radius` | Haversine qua `vn_wards` khi có searchCoords + radiusKm |
 | `interest_groups` | AND giữa các nhóm, OR trong nhóm (substring 2 chiều) |
 | `block / self` | loại user chặn nhau 2 chiều + loại chính mình |

@@ -660,10 +660,6 @@ struct SearchView: View {
                           warning.value ?? "")
         case "unsupported_trait":
             return bundle.loc("ConnectSphere doesn't search by height, weight or looks. Try interests, skills or a place.")
-        case "dating_elsewhere":
-            return bundle.loc("Looking for a partner? Search here is for friends and colleagues — Dating is a separate space.")
-        case "dating_age_locked":
-            return bundle.loc("Dating is only for people 16 and older.")
         default:
             return nil   // unknown code from a newer backend — stay silent
         }
@@ -672,8 +668,7 @@ struct SearchView: View {
     /// Warnings that say why nothing came back — they replace the generic
     /// empty state rather than sit on top of it.
     private var explainsEmptyResult: Bool {
-        let codes: Set<String> = ["query_unclear", "no_match", "no_match_together", "unsupported_trait",
-                                  "dating_elsewhere", "dating_age_locked"]
+        let codes: Set<String> = ["query_unclear", "no_match", "no_match_together", "unsupported_trait"]
         return viewModel.searchWarnings.contains { codes.contains($0.code) }
     }
 
@@ -700,18 +695,6 @@ struct SearchView: View {
                                 .font(.system(size: 13))
                                 .foregroundColor(AppColors.textPrimary(colorScheme))
                                 .fixedSize(horizontal: false, vertical: true)
-                        }
-
-                        // Partner-seeking prompts belong in Dating, not here.
-                        if warnings.contains(where: { $0.code == "dating_elsewhere" }) {
-                            NavigationLink {
-                                DatingHomeView()
-                            } label: {
-                                Label(bundle.loc("Open Dating"), systemImage: "heart.fill")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundColor(themeManager.theme.primary)
-                            }
-                            .buttonStyle(.plain)
                         }
 
                         // Teach-the-app row: only for a place we couldn't locate,

@@ -33,7 +33,6 @@ func routes(_ app: Application) throws {
     NotificationsController.register(routes: api)
     MessagesController.register(routes: api)
     SearchController.register(routes: api)          // + /entities/alias, /locations/clarify
-    DatingController.register(routes: api)          // Dating space, 16+ (migration 081)
     InterestsController.register(routes: api)       // the interest picker's catalogue
     SkillsController.register(routes: api)          // the Work skill picker's catalogue
     WardsController.register(routes: api)           // GET /api/wards/* — no auth (matches Node)

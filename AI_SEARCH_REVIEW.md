@@ -373,7 +373,7 @@ qwen's own interests, entity, skills and roles are added after that.
 | Topics no one has together | `no_match_together` |
 | Nothing to search for ("thích số 67") | `query_unclear` |
 | Height, weight or looks ("1m8", "50kg", "đẹp trai") | `unsupported_trait` |
-| Looking for a partner ("người iu", "tìm ny") | `dating_elsewhere`, or `dating_age_locked` under 16 |
+| Partner wording ("to date", "người iu", "tìm ny") | not refused: the wording is dropped and the rest (gender, place, interests) is searched; nothing left → `query_unclear` |
 
 A bare number is never an age unless "tuổi" or "years old" follows it.
 
@@ -395,9 +395,9 @@ topics:
 - The same check runs on every save: sign-up, persona setup and edit profile.
   Picks made before the catalogue stay valid.
 
-**Dating.** Dating is now a separate 16+ space, so normal search no longer
-pairs "dating intent" with the opposite gender. Building Dating itself is its
-own task.
+**Partners.** Search is for friends and colleagues, so normal search no longer
+pairs "dating intent" with the opposite gender. A Dating space was built and
+archived (`legacy/dating/`); partner wording in a prompt is simply ignored.
 
 **Tests.** 19 new server tests: `SearchConceptTests` and `InterestRulesTests`.
 

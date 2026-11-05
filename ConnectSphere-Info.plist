@@ -66,7 +66,7 @@
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>ConnectSphere cần truy cập mạng nội bộ để kết nối tới server phát triển khi test trên thiết bị thật.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>ConnectSphere cần vị trí của bạn để chọn nơi đặt món đồ bạn bán trên Marketplace, và để Hẹn hò gợi ý người ở gần bạn (người khác chỉ thấy quận/huyện và thành phố).</string>
+	<string>ConnectSphere cần vị trí của bạn để chọn nơi đặt món đồ bạn bán trên Marketplace.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>ConnectSphere cần quyền truy cập micro để bạn có thể gửi tin nhắn thoại.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

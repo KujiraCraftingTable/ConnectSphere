@@ -98,14 +98,17 @@ final class SearchConceptTests: XCTestCase {
         XCTAssertNil(SearchConcepts.unsupportedTrait("bạn thích chạy 10 km"))
     }
 
-    func testPartnerSeekingGoesToDating() {
-        for q in ["người iu nam 1m8", "tìm người yêu", "tìm ny ở Hà Nội", "kiếm bồ", "looking for a girlfriend",
-                  "nguoi yeu nu"] {
-            XCTAssertTrue(SearchConcepts.seeksPartner(q), q)
+    func testPartnerWordsAreDroppedAndTheRestIsSearched() {
+        XCTAssertEqual(SearchConcepts.withoutPartnerWords("looking for a men to date in hcmc"), "looking for a men in hcmc")
+        XCTAssertEqual(SearchConcepts.withoutPartnerWords("tìm người yêu nam ở Hà Nội"), "tìm nam ở Hà Nội")
+        XCTAssertEqual(SearchConcepts.withoutPartnerWords("tìm người yêu"), "tìm")
+        for q in ["người iu nam 1m8", "tìm ny ở Hà Nội", "kiếm bồ", "looking for a girlfriend", "nguoi yeu nu"] {
+            XCTAssertTrue(SearchConcepts.mentionsPartner(q), q)
         }
         for q in ["tìm bạn nữ thích chém gió", "tìm bộ phim hay", "study partner for IELTS",
-                  "people who love football", "bạn nữ yêu thích mèo"] {
-            XCTAssertFalse(SearchConcepts.seeksPartner(q), q)
+                  "people who love football", "bạn nữ yêu thích mèo", "update my profile"] {
+            XCTAssertFalse(SearchConcepts.mentionsPartner(q), q)
+            XCTAssertEqual(SearchConcepts.withoutPartnerWords(q), q.split(separator: " ").joined(separator: " "), q)
         }
     }
 

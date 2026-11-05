@@ -26,8 +26,7 @@ means keyword search that only matches exact words.
 ## Who it's for
 
 People aged **16 and up** (from high school on), since the app mixes a social
-life with a first professional network. Younger people can still use it, but
-Dating, a separate space kept out of normal search, is locked under 16.
+life with a first professional network. Younger people can still use it.
 
 | Group | What they want | Example |
 |---|---|---|
@@ -129,6 +128,9 @@ Rules the app already follows — keep them when adding features:
 
 Summarised from [`KNOWN_GAPS.md`](KNOWN_GAPS.md):
 
+- **Dating and partner-finding.** ConnectSphere is for finding friends and
+  colleagues; people looking for a partner are better served by a dating app.
+  A Dating space was built and then archived (`legacy/dating/`).
 - **Push notifications** while the app is closed (in-app notifications work).
 - Chat "delivered" receipts are best-effort (read receipts work).
 - No list of your *sent* connection requests yet.

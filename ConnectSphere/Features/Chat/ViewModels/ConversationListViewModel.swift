@@ -63,9 +63,6 @@ class ConversationListViewModel {
     var archived: [Conversation] { conversations.filter { $0.isArchived && $0.requestState != .waiting } }
     /// Chats from people who aren't friends yet, until accepted.
     var waiting: [Conversation] { conversations.filter { $0.requestState == .waiting } }
-    /// Chats with Dating matches. They stay in the main list as well; the
-    /// Dating button only shows while there's at least one.
-    var datingChats: [Conversation] { conversations.filter { $0.isDating && $0.requestState != .waiting } }
 
     func accept(_ conversation: Conversation, token: String) async {
         await change(conversation.id, { $0.requestState = nil }) {

@@ -157,6 +157,12 @@ struct SearchController {
             userQuery += ". " + r
         }
         guard !userQuery.isEmpty else { throw StatusMessageError(.badRequest, "query is required") }
+        // Partner wording ("to date", "người yêu") is ignored; the rest is searched.
+        var onlyPartnerWords = false
+        if SearchConcepts.mentionsPartner(userQuery) {
+            let rest = SearchConcepts.withoutPartnerWords(userQuery)
+            if rest.isEmpty { onlyPartnerWords = true } else { userQuery = rest }
+        }
         if let ml = b.more_like, UUID(uuidString: ml) == nil {
             throw StatusMessageError(.badRequest, "more_like must be a user id")
         }
@@ -187,12 +193,9 @@ struct SearchController {
                                     warnings: warnings, search_session_id: sessionID)
         }
 
-        // What people search doesn't do (phase S6): a partner is for Dating,
-        // and height, weight or looks aren't stored.
-        if SearchConcepts.seeksPartner(userQuery) {
-            let code = (ctx?.age ?? 0) >= datingMinAge ? "dating_elsewhere" : "dating_age_locked"
-            return await respond([], [Warning(code: code, value: nil)])
-        }
+        // Nothing left to search once the partner wording is gone.
+        if onlyPartnerWords { return await respond([], [Warning(code: "query_unclear", value: nil)]) }
+        // Height, weight and looks aren't stored (phase S6).
         if let trait = SearchConcepts.unsupportedTrait(userQuery) ?? criteria.unsupported.first {
             return await respond([], [Warning(code: "unsupported_trait", value: trait)])
         }
@@ -576,9 +579,6 @@ struct SearchController {
 
     // MARK: hybrid (AI_SEARCH_REVIEW.md, phase S1)
 
-    /// Dating is a separate space for people 16 and older; normal search
-    /// points there instead of finding partners (phase S6).
-    static let datingMinAge = 16
     /// A name this close to words of the prompt is what was asked for, whatever
     /// else the prompt says ("Lý Thảo" → @lythao). Weaker name hits ("Nam" in
     /// "bạn nam") only rank.

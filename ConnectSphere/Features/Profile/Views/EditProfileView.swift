@@ -237,8 +237,7 @@ struct EditProfileView: View {
         }
     }
 
-    /// Your age decides what you can use (Dating is 16+), so a birthday can
-    /// only change twice; after that, support has to do it.
+    /// A birthday can only change twice; after that, support has to do it.
     @ViewBuilder
     private var dobNote: some View {
         if let left = viewModel.dobChangesLeft {
@@ -257,7 +256,7 @@ struct EditProfileView: View {
             ? String(format: bundle.loc("This is your last change — after it, only support (%@) can change your birthday."),
                      EditProfileViewModel.supportEmail)
             : bundle.loc("After this you'll have 1 change left.")
-        return bundle.loc("Your age decides what you can use in ConnectSphere, like Dating, so a birthday can only be changed twice.") + " " + after
+        return bundle.loc("Your birthday sets the age shown on your account, so it can only be changed twice.") + " " + after
     }
 
     // MARK: - Cover preview
