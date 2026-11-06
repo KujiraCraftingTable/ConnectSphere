@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Card body for poll-type posts. Works like a chat poll (`ChatPollCard`):
-/// one vote each, which can be moved or taken back until the poll ends —
+/// one vote each, which can be moved or taken back until the poll ends,
 /// but shows each option's percentage rather than who picked it.
 struct PollPostCard: View {
     @Environment(\.colorScheme) var colorScheme
@@ -18,7 +18,7 @@ struct PollPostCard: View {
             }
 
             // Footer: total votes, then when it ends (or that it has) and
-            // what a tap does — the same footer as a chat poll.
+            // what a tap does. The same footer as a chat poll.
             Text(footerText)
                 .font(.system(size: 12))
                 .foregroundColor(AppColors.textTertiary(colorScheme))
@@ -49,7 +49,7 @@ struct PollPostCard: View {
     }
 
     /// One option as in chat polls: a bar sized by its share, your choice
-    /// ticked, and — instead of the voters' faces — its percentage. Tapping
+    /// ticked, and, instead of the voters' faces, its percentage. Tapping
     /// votes, moves your vote here, or on your choice takes it back.
     private func optionRow(_ option: PollOption) -> some View {
         let isSelected = vm.pollData.userVote == option.id

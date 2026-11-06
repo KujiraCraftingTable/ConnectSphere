@@ -2,7 +2,7 @@ import Foundation
 
 /// Posted after a successful "leave group" call so screens still open
 /// underneath the one that performed it (`ChatSettingsView`, `ChatView`) can
-/// navigate back out together — mirrors `UserRepository`'s
+/// navigate back out together. Mirrors `UserRepository`'s
 /// `.userBlockStatusChanged` cross-screen sync pattern. `userInfo["conversationId"]`
 /// carries which conversation was left.
 extension Notification.Name {
@@ -59,7 +59,7 @@ struct MessageRepository {
     /// Create a new group conversation with the given members (and optional name).
     /// Returns the new conversation's id. The create response's shape is narrower
     /// than a list-endpoint `Conversation` row (no `updated_at`/last-message/
-    /// unread-count columns yet — it has `created_at` instead), so only the id
+    /// unread-count columns yet. It has `created_at` instead), so only the id
     /// is decoded here rather than the full `Conversation` model.
     func createGroup(memberIds: [String], mode: String, name: String?, token: String) async throws -> String {
         struct Body: Encodable { let member_ids: [String]; let mode: String; let name: String? }
@@ -141,7 +141,7 @@ struct MessageRepository {
         )
     }
 
-    // MARK: - Block alert (groups only — 1:1 always returns shouldAlert: false)
+    // MARK: - Block alert (groups only, 1:1 always returns shouldAlert: false)
 
     /// Whether the current user should be alerted that someone they've blocked
     /// (or who's blocked them) is in this group.
@@ -481,7 +481,7 @@ struct MessageRepository {
 
     // MARK: - Pinned messages
     // NOTE: response/body field names assumed per the Phase 4 plan's working
-    // shape (parallel backend task not landed at write time) — reconcile
+    // shape (parallel backend task not landed at write time). Reconcile
     // against the real controller once it lands. See `PinnedMessage`.
 
     /// Fetch all pins for a conversation (server caps at 10, ordered newest-pinned first).
@@ -499,7 +499,7 @@ struct MessageRepository {
     /// nil means "never expires". 400s server-side once the conversation
     /// already has 10 pins. The POST response is the raw `message_pins` row
     /// (no joined sender_name/message_type/content), which doesn't satisfy
-    /// `PinnedMessage`'s required fields — don't try to decode it as one;
+    /// `PinnedMessage`'s required fields, don't try to decode it as one;
     /// the caller should refetch via `fetchPins` for the properly-joined row.
     func pinMessage(conversationId: String, messageId: String, expiresAt: Date?, token: String) async throws {
         struct PinResult: Decodable { let id: String }
@@ -540,7 +540,7 @@ struct MessageRepository {
     }
 
     /// Mark all sent messages in a conversation as delivered (REST catch-up for
-    /// messages that arrived while the recipient's socket was offline — the live
+    /// messages that arrived while the recipient's socket was offline. The live
     /// path is handled by the `message_delivered` socket event instead).
     func markDelivered(conversationId: String, token: String) async throws {
         _ = try await client.fetch(
@@ -552,7 +552,7 @@ struct MessageRepository {
     }
 
     /// Total unread message count for the badge on the chat icon.
-    /// Accept a message request — the chat moves from Waiting to my inbox.
+    /// Accept a message request. The chat moves from Waiting to my inbox.
     func acceptRequest(conversationId: String, token: String) async throws {
         struct Accepted: Decodable { let accepted: Bool }
         _ = try await client.fetch(Accepted.self, path: "/messages/conversations/\(conversationId)/accept",
@@ -665,7 +665,7 @@ struct MessageRepository {
         return response.data
     }
 
-    /// Cross-conversation search — conversation name AND message content,
+    /// Cross-conversation search, conversation name AND message content,
     /// across every conversation the user participates in for this mode.
     func searchAll(mode: String, query: String, token: String) async throws -> [ConversationSearchHit] {
         let response = try await client.fetch(

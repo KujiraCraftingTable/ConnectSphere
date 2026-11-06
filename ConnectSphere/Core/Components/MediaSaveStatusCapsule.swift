@@ -2,7 +2,7 @@ import SwiftUI
 
 extension View {
     /// Floats `MediaSaveViewModel`'s progress/result line at the top of this
-    /// view — a glass capsule that fades in and out on its own.
+    /// view, a glass capsule that fades in and out on its own.
     func mediaSaveStatus(_ viewModel: MediaSaveViewModel) -> some View {
         overlay(alignment: .top) {
             if let message = viewModel.message {

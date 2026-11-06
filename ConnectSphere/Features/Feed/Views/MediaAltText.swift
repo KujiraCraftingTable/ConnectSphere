@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The "ALT" chip on a picked photo/video in the composer — filled once the
+/// The "ALT" chip on a picked photo/video in the composer. Filled once the
 /// item has a description. Tapping opens `AltTextEditorSheet`.
 struct AltTextChip: View {
     let hasText: Bool
@@ -71,9 +71,9 @@ struct AltTextEditorSheet: View {
             .background(AppColors.base(colorScheme))
             .navigationTitle(bundle.loc("Alt text"))
             .navigationBarTitleDisplayMode(.inline)
-            .interactiveDismissDisabled()
+            .interactiveDismissDisabled(text != initialText)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { ConfirmCancelButton { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { ConfirmCancelButton(hasChanges: text != initialText) { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(bundle.loc("Done")) {
                         onSave(text.trimmingCharacters(in: .whitespacesAndNewlines))

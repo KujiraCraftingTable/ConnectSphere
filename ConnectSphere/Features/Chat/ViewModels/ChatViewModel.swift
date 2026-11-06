@@ -35,16 +35,16 @@ class ChatViewModel {
     var groupMembers: [GroupMember] = []
 
     /// Set once the current user has been removed from this group (by the
-    /// owner, or by leaving themselves) — `ChatView` observes this to
+    /// owner, or by leaving themselves), `ChatView` observes this to
     /// navigate back out, since the conversation is no longer accessible.
     var wasRemovedFromGroup = false
 
     /// Non-nil (and `shouldAlert == true`) when a blocked/blocking person is
-    /// in this group and hasn't been acknowledged yet. Groups only — 1:1
+    /// in this group and hasn't been acknowledged yet. Groups only, 1:1
     /// keeps its existing hard-block behaviour untouched.
     var blockAlertState: (shouldAlert: Bool, blockedUserIds: [String])?
 
-    /// Live, socket-updated pins for this conversation (server caps at 10) —
+    /// Live, socket-updated pins for this conversation (server caps at 10),
     /// drives `ChatView`'s pinned-banner and the context menu's Pin/Unpin
     /// label. `ChatSettingsViewModel` keeps its own separate copy for the
     /// settings-sheet-scoped `ChatPinnedMessagesView` list.
@@ -60,7 +60,7 @@ class ChatViewModel {
     }
 
     /// "X is typing…" / "N people are typing…" summary for the typing
-    /// indicator — formatted here so `ChatView` doesn't need its own
+    /// indicator, formatted here so `ChatView` doesn't need its own
     /// singular/plural or 1:1-vs-group branching.
     var typingSummary: String? {
         guard !typingUserIds.isEmpty else { return nil }
@@ -73,11 +73,11 @@ class ChatViewModel {
     }
 
     let isGroup: Bool
-    /// Not `private` — `FloatingChatPresenter` keys its bubbles by this so at
+    /// Not `private`, `FloatingChatPresenter` keys its bubbles by this so at
     /// most one bubble exists per conversation.
     let conversationId: String
     private let currentUserId: String
-    /// The other 1:1 participant's id — nil for groups (no single "other person").
+    /// The other 1:1 participant's id. Nil for groups (no single "other person").
     private let otherUserId: String?
     private let token: String
     private let repository = MessageRepository()
@@ -92,14 +92,14 @@ class ChatViewModel {
     /// Registration key for every `ws.on(...)`/`ws.off(...)` call below. Plain
     /// `"chat"` for a normal full-screen `ChatView`; `FloatingChatPresenter`
     /// re-tags this to `"chatBubble-<conversationId>"` when minimizing a
-    /// conversation into a floating bubble — `WebSocketClient` stores exactly
+    /// conversation into a floating bubble, `WebSocketClient` stores exactly
     /// one handler per (event, tag) pair, so two different `ChatViewModel`
     /// instances sharing the same tag would silently clobber each other's
     /// listeners (e.g. a full `ChatView` opened on a different conversation
     /// while a bubble for this one is still live, both tagged plain "chat").
     private var socketTag = "chat"
     /// Guards `joinConversation()`/`leaveConversation()` against double
-    /// registration — needed because a bubble's already-joined view model can
+    /// registration, needed because a bubble's already-joined view model can
     /// be handed straight into a freshly-created `ChatView` (restoring from a
     /// floating bubble), whose own `.task` calls `joinConversation()` again.
     private(set) var hasJoinedConversation = false
@@ -112,7 +112,7 @@ class ChatViewModel {
         self.token          = token
     }
 
-    /// Re-tags this view model's socket listeners — tears down whatever's
+    /// Re-tags this view model's socket listeners. Tears down whatever's
     /// registered under the current tag and re-registers everything under
     /// `newTag`. Used only by `FloatingChatPresenter` when a conversation
     /// transitions between a full `ChatView` and a floating bubble.
@@ -144,7 +144,7 @@ class ChatViewModel {
     private var isLoadingOlder = false
 
     func loadOlderMessages() async {
-        // One page at a time — a fast scroll-to-top fires this repeatedly, and
+        // One page at a time. A fast scroll-to-top fires this repeatedly, and
         // without the guard every call reads the same `oldest` and prepends a
         // duplicate page.
         guard !isLoadingOlder, hasMoreMessages, let oldest = messages.first else { return }
@@ -166,7 +166,7 @@ class ChatViewModel {
         }
     }
 
-    /// Load older history pages until messageId is found (up to maxPages pages) —
+    /// Load older history pages until messageId is found (up to maxPages pages),
     /// used for jumping to a message from search results.
     /// Returns true if the message is present in the list after loading.
     func loadUntilFound(messageId: String, maxPages: Int = 10) async -> Bool {
@@ -220,7 +220,7 @@ class ChatViewModel {
         }
     }
 
-    /// Accept their message request (I'm the recipient) — same as replying.
+    /// Accept their message request (I'm the recipient). Same as replying.
     func acceptRequest() async {
         do {
             try await repository.acceptRequest(conversationId: conversationId, token: token)
@@ -245,7 +245,7 @@ class ChatViewModel {
     /// Leave this group (any member). Sets `wasRemovedFromGroup` so `ChatView`
     /// navigates back out, mirroring what happens when the owner removes me.
     /// (Add/remove/promote/rename/photo live on `GroupParticipantsViewModel`
-    /// and `ChatSettingsViewModel` instead — each screen owns the mutations it
+    /// and `ChatSettingsViewModel` instead. Each screen owns the mutations it
     /// actually performs, matching this codebase's existing per-screen-VM
     /// pattern. `leaveGroup` lives here because it's driven directly from
     /// `ChatView`'s block-alert "Leave the group" action.)
@@ -331,7 +331,7 @@ class ChatViewModel {
     // MARK: - Send media
 
     /// `voiceDurationSeconds`/`voiceWaveform` are only ever passed for a
-    /// recorded voice message (`VoiceRecorderControl`'s stop callback) —
+    /// recorded voice message (`VoiceRecorderControl`'s stop callback),
     /// every other caller (photo/video attachment) leaves them nil, mirroring
     /// how `mediaUrl` is already the only required extra field for those types.
     func sendMedia(
@@ -487,7 +487,7 @@ class ChatViewModel {
         }
     }
 
-    /// Reschedule an existing meeting proposal (proposer only — the server clears
+    /// Reschedule an existing meeting proposal (proposer only. The server clears
     /// prior RSVPs, and resets `reminder_sent_at` so the reminder re-arms against
     /// the new time). Prefers the socket (server fans out `meeting_proposal_updated`
     /// to both sides); falls back to REST when disconnected, applying the result
@@ -568,7 +568,7 @@ class ChatViewModel {
     /// Shared posts by id, loaded once each as the cards come into view.
     private(set) var sharedPosts: [String: SharedPostState] = [:]
 
-    /// Loads a shared post through the normal post route, as this user — so
+    /// Loads a shared post through the normal post route, as this user, so
     /// the post's privacy decides, not the sender's.
     func loadSharedPost(_ id: String?) async {
         guard let id else { return }
@@ -601,8 +601,8 @@ class ChatViewModel {
         }
     }
 
-    /// A tap on a poll option: votes for it, moves your vote to it, or — on
-    /// the option you already picked — takes the vote back. Shown at once,
+    /// A tap on a poll option: votes for it, moves your vote to it, or. On
+    /// the option you already picked. Takes the vote back. Shown at once,
     /// undone if the server refuses. Nothing changes once the poll has ended.
     func tapPollOption(messageId: String, optionId: String) async {
         guard let i = messages.firstIndex(where: { $0.id == messageId }), let poll = messages[i].poll,
@@ -656,7 +656,7 @@ class ChatViewModel {
         emitJoin()
 
         // After a socket reconnect: re-join the room (server-side membership is
-        // lost on disconnect) AND re-fetch the message history — messages sent
+        // lost on disconnect) AND re-fetch the message history. Messages sent
         // while the socket was down never arrived as live `new_message` events,
         // so an emit-join alone would leave a silent gap.
         reconnectObserver = NotificationCenter.default.addObserver(
@@ -672,7 +672,7 @@ class ChatViewModel {
                   msg.conversationId == self.conversationId else { return }
             if !self.messages.contains(where: { $0.id == msg.id }) {
                 self.messages.append(msg)
-                // Tell the sender this message has arrived — flips their bubble
+                // Tell the sender this message has arrived. Flips their bubble
                 // from `.sent` to `.delivered` via the `message_delivered` echo.
                 if msg.senderId != self.currentUserId {
                     self.ws.emit("message_delivered", [
@@ -716,11 +716,11 @@ class ChatViewModel {
         // conversation. Reconciled against the real backend broadcast
         // (`backend/index.js`'s `mark_read` handler): `{ conversationId, readBy }`
         // where `readBy` is the reading user's id (not `user_id`/`userId`, and
-        // no message ids — `mark_read` is conversation-scoped, so every message
+        // no message ids, `mark_read` is conversation-scoped, so every message
         // not sent by the reader is affected, matching `markRead()`'s "mark my
         // whole unread tail as read" semantics). Appends `readBy` to `readBy`
         // (and `deliveredTo`, since read implies delivered) for the affected
-        // messages only — NOT a blanket flip of every message.
+        // messages only, NOT a blanket flip of every message.
         ws.on("messages_read", tag: socketTag) { [weak self] payload in
             guard let self,
                   let dict = payload as? [String: Any],
@@ -750,7 +750,7 @@ class ChatViewModel {
                   let i = self.messages.firstIndex(where: { $0.id == messageId }) else { return }
             self.messages[i].markDeleted()
             // Any OTHER message quoting this one via reply-preview would otherwise
-            // keep showing stale content until the conversation reloads — patch its
+            // keep showing stale content until the conversation reloads. Patch its
             // embedded `repliedMessage` to the same "deleted" shape a fresh fetch
             // would already return (mirrors how `replyPreview` renders `isDeleted`).
             self.patchRepliedPreviews(forDeletedMessageId: messageId)
@@ -769,7 +769,7 @@ class ChatViewModel {
         }
 
         // A meeting proposal was rescheduled or cancelled (proposer-only actions);
-        // apply whatever the server sends — a reschedule's response already
+        // apply whatever the server sends. A reschedule's response already
         // reflects cleared RSVP counts/userResponse, so no extra clearing needed.
         ws.on("meeting_proposal_updated", tag: socketTag) { [weak self] payload in
             guard let self,
@@ -808,14 +808,14 @@ class ChatViewModel {
         }
 
         // Shared settings (theme/nickname) changed by either participant.
-        // The nickname-target match only applies in the 1:1 case — a group has
+        // The nickname-target match only applies in the 1:1 case. A group has
         // no single "other person" for `otherUserId` to compare against.
         ws.on("conversation_settings_updated", tag: socketTag) { [weak self] payload in
             guard let self,
                   let dict = payload as? [String: Any],
                   let convId = dict["conversation_id"] as? String,
                   convId == self.conversationId else { return }
-            // Only touch the theme when the broadcast actually carries one — a
+            // Only touch the theme when the broadcast actually carries one. A
             // nickname-only update omits "theme", and blindly assigning
             // `dict["theme"] as? String` (nil) wiped the other participant's
             // chat theme.
@@ -827,7 +827,7 @@ class ChatViewModel {
             }
         }
 
-        // Group identity (name/photo) changed by the owner — refetch rather
+        // Group identity (name/photo) changed by the owner. Refetch rather
         // than patch individual fields from the payload, since the exact
         // broadcast shape isn't pinned down; a refetch is resilient to that
         // and this is a low-frequency event.
@@ -839,7 +839,7 @@ class ChatViewModel {
             Task { await self.loadSettings() }
         }
 
-        // A member was added to this group — refetch the roster.
+        // A member was added to this group. Refetch the roster.
         ws.on("member_added", tag: socketTag) { [weak self] payload in
             guard let self, self.isGroup,
                   let dict = payload as? [String: Any],
@@ -849,7 +849,7 @@ class ChatViewModel {
         }
 
         // A message was pinned by any participant. The server broadcasts the
-        // conversation's full current pin list (not a single row) — replace
+        // conversation's full current pin list (not a single row). Replace
         // wholesale rather than trying to merge one row in.
         ws.on("pin_added", tag: socketTag) { [weak self] payload in
             guard let self,
@@ -870,7 +870,7 @@ class ChatViewModel {
             self.pinnedMessages.removeAll { $0.id == messageId }
         }
 
-        // A member was removed from this group — refetch the roster, then check
+        // A member was removed from this group. Refetch the roster, then check
         // (independent of the payload's exact shape) whether I'm still in it;
         // if not, I was the one removed and the conversation is no longer
         // accessible to me.
@@ -915,7 +915,7 @@ class ChatViewModel {
         ws.off("pin_removed", tag: socketTag)
     }
 
-    /// Emits `join_conversation` for this conversation's room — factored out of
+    /// Emits `join_conversation` for this conversation's room. Factored out of
     /// `joinConversation()` so it can also be called after a socket reconnect
     /// without re-registering the listeners above (which are still live).
     private func emitJoin() {
@@ -974,7 +974,7 @@ class ChatViewModel {
 
     // MARK: - Pinned messages
     // NOTE: socket payload/REST field names assumed per the Phase 4 plan's
-    // working shape (parallel backend task not landed at write time) —
+    // working shape (parallel backend task not landed at write time),
     // reconcile against the real backend once it lands. See `PinnedMessage`.
 
     /// Load this conversation's pinned messages (server caps at 10).
@@ -1002,7 +1002,7 @@ class ChatViewModel {
                     conversationId: conversationId, messageId: messageId, expiresAt: expiresAt, token: token
                 )
                 // The create response is the raw pin row (no joined sender
-                // name/content) — refetch for the properly-joined list.
+                // name/content), refetch for the properly-joined list.
                 await loadPins()
             } catch {
                 self.error = Bundle.app.loc("Could not pin message")
@@ -1103,7 +1103,7 @@ class ChatViewModel {
         }
     }
 
-    /// Decodes the `pins` array from a `pin_added` socket payload — the
+    /// Decodes the `pins` array from a `pin_added` socket payload. The
     /// server broadcasts the conversation's full current pin list on every
     /// change, not a single row.
     private func decodePinnedMessages(_ value: Any?) -> [PinnedMessage]? {
@@ -1114,7 +1114,7 @@ class ChatViewModel {
 
     /// Extracts the affected message id(s) from a `message_delivered`/
     /// `messages_read` receipt payload, tolerating a single `message_id`/
-    /// `messageId` string or a `message_ids`/`messageIds` array — exact shape
+    /// `messageId` string or a `message_ids`/`messageIds` array. Exact shape
     /// TBD until the parallel backend task lands (see the listener comments
     /// in `joinConversation()`). Returns an empty set when neither key is
     /// present, which callers treat as "no messages matched" rather than
@@ -1135,7 +1135,7 @@ class ChatViewModel {
     }
 
     /// Decodes a meeting proposal from a `meeting_proposal_updated`/`meeting_response_updated`
-    /// socket payload — accepts either a nested `meeting_proposal` dict (mirroring the REST
+    /// socket payload, accepts either a nested `meeting_proposal` dict (mirroring the REST
     /// embed shape used elsewhere) or the proposal's fields flattened at the payload's top
     /// level, to tolerate whichever broadcast shape the backend ends up sending.
     private func decodeMeetingProposal(_ dict: [String: Any]) -> MeetingProposal? {
@@ -1146,7 +1146,7 @@ class ChatViewModel {
 
     // MARK: - Block state & forwarding
 
-    /// A block in either direction with the other 1:1 participant — the input
+    /// A block in either direction with the other 1:1 participant. The input
     /// bar is disabled while it holds. Refreshed on load and whenever
     /// `.userBlockStatusChanged` fires for that person.
     var isBlocked = false
@@ -1161,7 +1161,7 @@ class ChatViewModel {
 
     /// Re-sends `message`'s content/media to another conversation. No re-upload:
     /// the server doesn't tie `media_url` to the original sender or conversation,
-    /// so the URL is reused. Not threaded as a reply there — the original
+    /// so the URL is reused. Not threaded as a reply there. The original
     /// message doesn't exist in the target conversation.
     func forward(_ message: Message, to targetConversationId: String) async {
         guard !isForwarding else { return }

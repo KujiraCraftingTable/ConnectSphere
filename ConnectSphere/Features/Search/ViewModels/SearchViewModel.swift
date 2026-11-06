@@ -29,21 +29,21 @@ class SearchViewModel {
     private var lastMode: AppMode? = nil
     private var lastRadiusKm: Int? = nil
     /// Set when a clarification was submitted but the backend still couldn't place
-    /// it — the box switches to "flagged for review" instead of asking again.
+    /// it, the box switches to "flagged for review" instead of asking again.
     var clarifyUnconfirmed = false
     var isClarifying = false
     var aiSearchFailed = false
     var suggestions: [String] = []
     var entitySuggestions: [EntitySuggestionDTO] = []   // gray "did you mean …?" area
     var matchEvidence: [String: [MatchEvidenceDTO]] = [:]   // userId → match reasons (mini CV)
-    /// The last AI people search's id on the server — refinements, taps,
+    /// The last AI people search's id on the server. Refinements, taps,
     /// "Not a fit" and the "why they fit you" lines all refer to it.
     private(set) var searchSessionId: String?
     /// userId → one "why they fit you" sentence, filled in after the results show.
     var fitReasons: [String: String] = [:]
     var isRefining = false
     /// People whose name is the prompt ("Lý Thảo"), shown while the AI search
-    /// runs — no need to wait on the LLM for a name. A topic prompt matches no
+    /// runs, no need to wait on the LLM for a name. A topic prompt matches no
     /// name, so it shows nothing here.
     private(set) var quickMatches: [UserProfile] = []
 
@@ -57,7 +57,7 @@ class SearchViewModel {
 
     var currentUserId: String? = nil
 
-    /// Paging state for the plain browse/text-search list — mirrors
+    /// Paging state for the plain browse/text-search list. Mirrors
     /// `FeedViewModel`'s `.connections` offset pattern. Does NOT apply to
     /// `aiSearch`, which returns one full ranked result set with no
     /// limit/offset support on the backend.
@@ -66,13 +66,13 @@ class SearchViewModel {
     private var offset = 0
     private let pageSize = 20
     /// nil = last load was `loadAll` (browse); set = the active text search
-    /// query — lets `loadMore()` continue the right fetch with no parameter.
+    /// query, lets `loadMore()` continue the right fetch with no parameter.
     private var lastQuery: String? = nil
 
     private let repository = UserRepository()
     private let postRepository = PostRepository()
     private var searchTask: Task<Void, Never>?
-    /// Incremented every time a new load starts — a late response from an older load
+    /// Incremented every time a new load starts. A late response from an older load
     /// (e.g. switching modes in quick succession) is discarded instead of overwriting newer results
     private var loadGeneration = 0
 
@@ -102,7 +102,7 @@ class SearchViewModel {
         }
     }
 
-    /// AI search for the current `scope` — run on submit, not per keystroke,
+    /// AI search for the current `scope`. Run on submit, not per keystroke,
     /// since each run is an LLM call.
     func submitAI(prompt: String, mode: AppMode, radiusKm: Int?) async {
         searchTask?.cancel()
@@ -122,7 +122,7 @@ class SearchViewModel {
         aiCriteria = nil
         searchWarnings = []
         aiSearchFailed = false
-        lastAIPrompt = ""   // browse list, not AI results — fully exit AI state
+        lastAIPrompt = ""   // browse list, not AI results. Fully exit AI state
         entitySuggestions = []
         matchEvidence = [:]
         offset = 0
@@ -137,7 +137,7 @@ class SearchViewModel {
             hasMore = users.count == pageSize
         } catch {
             guard generation == loadGeneration else { return }
-            // Don't keep the old list — it could be data from a different mode, causing the wrong mode to display
+            // Don't keep the old list. It could be data from a different mode, causing the wrong mode to display
             results = []
             hasMore = false
             self.error = error.localizedDescription
@@ -150,7 +150,7 @@ class SearchViewModel {
     }
 
     /// Fetches the next page of the current browse/text-search list and
-    /// appends it — called when the last visible row appears (see
+    /// appends it, called when the last visible row appears (see
     /// `SearchView`'s `.onAppear` on each row). No-op mid-AI-search (that
     /// path has no pagination; see this file's paging-state doc comment).
     func loadMore(mode: AppMode) async {
@@ -171,7 +171,7 @@ class SearchViewModel {
             hasMore = fetched.count == pageSize
         } catch {
             guard generation == loadGeneration else { return }
-            // Leave the already-loaded rows in place — only stop trying to
+            // Leave the already-loaded rows in place. Only stop trying to
             // load further, don't wipe what's already showing.
             hasMore = false
         }
@@ -210,13 +210,13 @@ class SearchViewModel {
             apply(try await repository.aiSearch(prompt: prompt, mode: mode, radiusKm: radiusKm))
         } catch {
             print("❌ aiSearch failed: \(error)")
-            // Don't keep the old results (from browse or a previous AI search) — otherwise
+            // Don't keep the old results (from browse or a previous AI search), otherwise
             // results.isEmpty in SearchView stays false and the error/kujiraRetryState
             // never displays, so the user sees stale data as if it still matched.
             results = []
             aiSearchFailed = true
         }
-        print("✅ aiSearch done — criteria: \(String(describing: aiCriteria))")
+        print("✅ aiSearch done, criteria: \(String(describing: aiCriteria))")
         isLoading = false
     }
 
@@ -290,7 +290,7 @@ class SearchViewModel {
     }
 
     /// Fetches the "why they fit you" lines for the current results. Missing
-    /// lines just aren't shown — the match reasons are already on screen.
+    /// lines just aren't shown. The match reasons are already on screen.
     func loadFitReasons(lang: String) async {
         guard let sid = searchSessionId, fitReasons.isEmpty else { return }
         do {
@@ -317,13 +317,13 @@ class SearchViewModel {
             let result = try await repository.clarifyLocation(alias: alias, canonical: answer)
             if result.resolved, let mode = lastMode, !lastAIPrompt.isEmpty {
                 // Clearing the warning first means the re-run can only ever surface a
-                // *fresh* warning — the clarified place now resolves via the alias
+                // *fresh* warning, the clarified place now resolves via the alias
                 // pool, so this can't bounce back into the same clarify prompt.
                 searchWarnings = []
                 await aiSearch(prompt: lastAIPrompt, mode: mode, radiusKm: lastRadiusKm)
             } else {
                 // Saved as pending for the data controller, but we still can't place
-                // it — say so rather than leaving the user retyping into a void.
+                // it, say so rather than leaving the user retyping into a void.
                 clarifyUnconfirmed = true
             }
         } catch {

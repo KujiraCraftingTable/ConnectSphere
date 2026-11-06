@@ -2,7 +2,7 @@ import Foundation
 
 /// An account that signed in on this device, offered on the login screen so
 /// nobody has to remember which username goes with which account. No
-/// password or token is kept here — signing in still needs the password
+/// password or token is kept here. Signing in still needs the password
 /// (or Google).
 struct SavedAccount: Codable, Identifiable, Equatable {
     /// The user id: a renamed username still matches its row.

@@ -30,7 +30,7 @@ enum MessageRequestState: String, Decodable {
     case sent
 }
 
-/// A row from `GET /messages/conversations` — either a 1:1 or a group
+/// A row from `GET /messages/conversations`. Either a 1:1 or a group
 /// conversation. The "irrelevant half" of the backend row (direct-only or
 /// group-only columns) is NULL and folded into `peer` at decode time.
 struct Conversation: Identifiable, Decodable, Equatable {
@@ -111,7 +111,7 @@ struct Conversation: Identifiable, Decodable, Equatable {
             peer = .group(name: name, avatarUrl: avatarUrl, avatarColor: avatarColor, memberCount: memberCount)
         } else {
             // A 1:1 conversation whose peer deleted their account comes back with
-            // null identity fields — decode leniently so one such row never
+            // null identity fields. Decode leniently so one such row never
             // fails the whole conversation list.
             let otherUserId = try c.decodeIfPresent(String.self, forKey: .otherUserId) ?? ""
             let username = try c.decodeIfPresent(String.self, forKey: .otherUserUsername) ?? "deleted"
@@ -140,7 +140,7 @@ struct Conversation: Identifiable, Decodable, Equatable {
 
     var isMuted: Bool { mutedUntil.map { $0 > Date() } ?? false }
 
-    /// The other 1:1 participant's id — nil for groups (no single "other person").
+    /// The other 1:1 participant's id. Nil for groups (no single "other person").
     var otherUserId: String? {
         if case .direct(let id, _, _, _, _, _, _) = peer { return id }
         return nil
@@ -174,7 +174,7 @@ struct Conversation: Identifiable, Decodable, Equatable {
         }
     }
 
-    /// Member count — 0 for 1:1 (always exactly 2 there, so callers should
+    /// Member count, 0 for 1:1 (always exactly 2 there, so callers should
     /// branch on `isGroup` rather than rely on this for 1:1 rows).
     var memberCount: Int {
         if case .group(_, _, _, let count) = peer { return count }
@@ -182,7 +182,7 @@ struct Conversation: Identifiable, Decodable, Equatable {
     }
 
     /// Formatted preview text for the conversation list row. Uses `Bundle.app`
-    /// since this model has no `@Environment(\.appBundle)` access — same
+    /// since this model has no `@Environment(\.appBundle)` access. Same
     /// convention as `Message.preview`, which this mirrors.
     func previewText(currentUserId: String) -> String {
         let isOwn = lastMessageSenderId == currentUserId
@@ -206,7 +206,7 @@ struct Conversation: Identifiable, Decodable, Equatable {
 
 // MARK: - ChatPeer (lean UI descriptor for ChatView/ChatSettingsView)
 
-/// What `ChatView`/`ChatSettingsView` need to render their header/settings —
+/// What `ChatView`/`ChatSettingsView` need to render their header/settings,
 /// a leaner subset of `ConversationPeer`'s fields (no username/job title,
 /// which those two views never display). Kept separate from `ConversationPeer`
 /// so call sites that don't have a full `Conversation` (e.g. opening chat from
@@ -253,7 +253,7 @@ enum ChatPeer: Hashable {
 }
 
 extension ChatPeer {
-    /// Builds a `ChatPeer` from a conversation list row — used when navigating
+    /// Builds a `ChatPeer` from a conversation list row. Used when navigating
     /// into `ChatView` straight from `ConversationListView`'s row list.
     init(_ conversation: Conversation) {
         switch conversation.peer {
@@ -265,7 +265,7 @@ extension ChatPeer {
     }
 }
 
-/// A row from `GET /messages/search` — a normal conversation-list row (same
+/// A row from `GET /messages/search`. A normal conversation-list row (same
 /// JSON shape `Conversation` already decodes) plus what matched and why.
 /// Composed rather than duplicating `Conversation`'s field list: reading a
 /// second keyed container from the same decoder is well-defined and doesn't

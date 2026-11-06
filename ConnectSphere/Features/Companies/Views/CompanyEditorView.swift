@@ -61,10 +61,10 @@ struct CompanyEditorView: View {
             }
             .navigationTitle(bundle.loc(viewModel.editing == nil ? "New company page" : "Edit page"))
             .navigationBarTitleDisplayMode(.inline)
-            .interactiveDismissDisabled()
+            .interactiveDismissDisabled(viewModel.hasChanges)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    ConfirmCancelButton { dismiss() }
+                    ConfirmCancelButton(hasChanges: viewModel.hasChanges) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     if viewModel.isSaving {

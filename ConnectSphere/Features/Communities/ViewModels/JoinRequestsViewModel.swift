@@ -19,12 +19,12 @@ class JoinRequestsViewModel {
 
     // MARK: - WebSocket / Realtime
 
-    /// Start listening for `join_request_created` — call from the view's
+    /// Start listening for `join_request_created`. Call from the view's
     /// `.onAppear`. This view is only ever pushed from an already-live
     /// `CommunityDetailView` (see `CommunityDetailView.swift`'s
     /// `showJoinRequests` navigation destination), which already holds this
     /// community's `community:<id>` room open for the lifetime of this
-    /// screen — so no `leave_community` is emitted here; only
+    /// screen, so no `leave_community` is emitted here; only
     /// `CommunityDetailViewModel` owns that. The `join_community` emit below
     /// is a defensive no-op re-join (Socket.IO room joins are idempotent),
     /// covering the edge case where this view somehow outlives the parent's
@@ -37,14 +37,14 @@ class JoinRequestsViewModel {
                   let dict = payload as? [String: Any],
                   (dict["communityId"] as? String) == self.communityId else { return }
             // The payload only carries requesterId/requesterName, not the full
-            // joined row (avatarColor, etc.) `JoinRequest` needs — refetch the
+            // joined row (avatarColor, etc.) `JoinRequest` needs. Refetch the
             // list rather than constructing a partial model, same pattern
             // `ChatViewModel` uses for `group_updated`/`member_added`.
             Task { await self.fetchRequests() }
         }
     }
 
-    /// Stop listening — call from the view's `.onDisappear`. Does NOT leave
+    /// Stop listening, call from the view's `.onDisappear`. Does NOT leave
     /// the community room (see `startListening()`'s comment).
     func stopListening() {
         ws.off("join_request_created", tag: "joinRequests")

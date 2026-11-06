@@ -4,7 +4,7 @@ import SwiftUI
 /// in `ChatView`. 1:1: shared nickname, other person's profile, shared chat theme,
 /// media, search, mute, block, clear. Group: group name/photo (owner-only) +
 /// participants management, in place of the nickname/profile pills; block toggle
-/// is hidden (no single target — per-member block still reachable via each
+/// is hidden (no single target, per-member block still reachable via each
 /// member's profile from `GroupParticipantsView`).
 struct ChatSettingsView: View {
     @Environment(AppState.self) var appState
@@ -17,10 +17,10 @@ struct ChatSettingsView: View {
     let peer: ChatPeer
     let token: String
     var onCleared: () -> Void = {}
-    /// Selecting a search result — the sheet closes itself then tells ChatView to jump to the message
+    /// Selecting a search result. The sheet closes itself then tells ChatView to jump to the message
     var onJumpToMessage: (String) -> Void = { _ in }
     /// Fires after a successful block/unblock so `ChatView` can react (disable input, show notice).
-    /// 1:1 only — the block row is hidden entirely for groups.
+    /// 1:1 only, the block row is hidden entirely for groups.
     var onBlockStatusChanged: ((Bool) -> Void)? = nil
 
     @State private var viewModel: ChatSettingsViewModel
@@ -29,7 +29,7 @@ struct ChatSettingsView: View {
     @State private var showThemePicker = false
     @State private var showDeleteWarning = false
 
-    // Pin default auto-delete preference (client-side-only convenience —
+    // Pin default auto-delete preference (client-side-only convenience,
     // there's no server-side conversation-level default, `expires_at` is
     // per-pin at pin time). Scoped per-conversation via a dynamic key set in `init`.
     @AppStorage private var pinAutoDeleteRaw: String
@@ -46,7 +46,7 @@ struct ChatSettingsView: View {
     @State private var showGroupNameEditor = false
     @State private var groupNameDraft = ""
     @State private var showGroupColorPicker = false
-    /// Removed symmetrically in `.onDisappear` — lets `GroupParticipantsView`
+    /// Removed symmetrically in `.onDisappear`. Lets `GroupParticipantsView`
     /// (pushed on top of this sheet) tell this screen to close itself too
     /// once the current user leaves the group.
     @State private var leftGroupObserver: NSObjectProtocol?
@@ -380,7 +380,7 @@ struct ChatSettingsView: View {
                 remainingSlots: 98,  // 100-member cap minus me and this person
                 confirmTitle: bundle.loc("Next"),
                 minimumSelection: 1,
-                note: String(format: bundle.loc("With %@ — add at least 1 more person. A group needs 3 people or more."), displayName),
+                note: String(format: bundle.loc("With %@, add at least 1 more person. A group needs 3 people or more."), displayName),
                 onConfirm: { ids in
                     pendingGroupMemberIds = ids
                     Task {
@@ -514,7 +514,7 @@ struct ChatSettingsView: View {
             .buttonStyle(.plain)
             divider
 
-            // No single block target from this screen for groups — per-member
+            // No single block target from this screen for groups, per-member
             // block is still reachable via each member's profile in
             // `GroupParticipantsView`, using `UserProfileView`'s block flow unchanged.
             if !isGroup {
@@ -648,7 +648,7 @@ struct ChatSettingsView: View {
     // No photo-upload flow exists for chat groups yet (only the media-message
     // upload path exists), so "Group photo" exposes the same avatar_color
     // fallback every `ConversationPeer`/`ChatPeer` already renders when a
-    // group has no `avatar_url` photo — mirrors the chat-theme swatch picker above.
+    // group has no `avatar_url` photo. Mirrors the chat-theme swatch picker above.
 
     private var groupColorPickerSheet: some View {
         NavigationStack {
@@ -713,7 +713,7 @@ struct ChatSettingsView: View {
 
 // MARK: - Pin auto-delete preference (client-side-only convenience default)
 
-/// How long a newly-pinned message should stay pinned before auto-expiring —
+/// How long a newly-pinned message should stay pinned before auto-expiring,
 /// there is no conversation-level default server-side (`expires_at` is set
 /// per-pin at pin time); this only prefills the expiry sheet `ChatView` shows
 /// when pinning a message.
@@ -749,7 +749,7 @@ enum PinAutoDeleteOption: String, CaseIterable, Identifiable {
 /// default, so each conversation remembers its own preference independently.
 func pinAutoDeleteStorageKey(conversationId: String) -> String { "pinAutoDelete.\(conversationId)" }
 func pinAutoDeleteCustomDateStorageKey(conversationId: String) -> String { "pinAutoDeleteCustomDate.\(conversationId)" }
-/// Per-conversation quick-emoji send — the emoji the send button becomes while
+/// Per-conversation quick-emoji send. The emoji the send button becomes while
 /// the message box is empty. Read by `ChatView` and `FloatingChatComposerBar`.
 func quickEmojiStorageKey(conversationId: String) -> String { "quickEmoji.\(conversationId)" }
 

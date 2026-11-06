@@ -8,7 +8,7 @@ enum TranslationMode: String, CaseIterable {
 
     static let storageKey = "translationMode"
 
-    /// Localization key — callers wrap it in `bundle.loc(...)`.
+    /// Localization key, callers wrap it in `bundle.loc(...)`.
     var label: String { self == .original ? "Show original" : "Show translated" }
 }
 

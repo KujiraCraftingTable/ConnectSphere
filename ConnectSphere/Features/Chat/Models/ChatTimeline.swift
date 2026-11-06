@@ -19,7 +19,7 @@ enum ChatTimeline {
 
     /// Whether a centered time label goes above `entries[i]`: the first
     /// message, 30+ minutes of silence from both sides, or a calendar-day
-    /// change. The day change applies even under 30 minutes — otherwise a
+    /// change. The day change applies even under 30 minutes, otherwise a
     /// 23:50 → 00:05 exchange sits under one label naming the wrong day.
     static func showsSeparator<E: ChatTimelineEntry>(before i: Int, in entries: [E],
                                                      calendar: Calendar = .current) -> Bool {
@@ -49,7 +49,7 @@ enum ChatTimeline {
     /// before that (English; Vietnamese orders day before month).
     ///
     /// Two locales on purpose. Day and month words follow the app's own
-    /// language setting (`dayLocale`), like `Date.timeAgoString` — the device
+    /// language setting (`dayLocale`), like `Date.timeAgoString`. The device
     /// may be English while the app is set to Vietnamese. The time follows
     /// `timeLocale`, the device's, so it carries the user's 12/24-hour choice
     /// and matches the time shown under each run's last bubble; a locale built
@@ -75,7 +75,7 @@ enum ChatTimeline {
         return day.map { "\($0) \(time)" } ?? time
     }
 
-    /// The app's chosen language as a locale — same source and fallback as
+    /// The app's chosen language as a locale. Same source and fallback as
     /// `Date.timeAgoString` (`appLanguage`, else the device language).
     static var appLanguageLocale: Locale {
         let language = UserDefaults.standard.string(forKey: "appLanguage")

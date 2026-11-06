@@ -134,7 +134,7 @@ enum PeopleSuggestionText {
 }
 
 /// "See all": every suggestion for this mode, as the same cards People
-/// search uses — with how closely each profile matches yours.
+/// search uses, with how closely each profile matches yours.
 struct PeopleSuggestionsListView: View {
     @Environment(AppState.self) private var appState
     @Environment(ThemeManager.self) private var themeManager

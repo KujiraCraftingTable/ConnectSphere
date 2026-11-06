@@ -13,7 +13,7 @@ final class RegisterViewModel {
 
     enum Stage: Equatable { case details, code }
 
-    /// Lowercased as typed — the only silent normalization; anything else
+    /// Lowercased as typed. The only silent normalization; anything else
     /// invalid is surfaced as a live hint so the user sees why.
     var username = "" {
         didSet { if username != username.lowercased() { username = username.lowercased() } }
@@ -24,7 +24,7 @@ final class RegisterViewModel {
     var email = ""
     var code = "" { didSet { if code != AccountCode.clean(code) { code = AccountCode.clean(code) } } }
     private(set) var stage: Stage = .details
-    /// Set when the form is done — the view opens onboarding with it.
+    /// Set when the form is done. The view opens onboarding with it.
     var pending: PendingSignup?
 
     enum UsernameStatus: Equatable { case idle, checking, available, taken, failed }
@@ -76,7 +76,7 @@ final class RegisterViewModel {
     }
 
     var emailHint: String {
-        emailError ?? Bundle.app.loc("Optional. Add one to reset your password and use two-factor sign-in — we'll send it a code.")
+        emailError ?? Bundle.app.loc("Optional. Add one to reset your password and use two-factor sign-in, we'll send it a code.")
     }
 
     var passwordError: String? {

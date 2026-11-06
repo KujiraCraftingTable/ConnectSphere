@@ -3,8 +3,8 @@ import SwiftUI
 /// A person's header, Facebook-style: the cover runs edge to edge up under the
 /// status bar (its top fades into the page so the clock and nav buttons stay
 /// legible) and stays sharp to its bottom edge, where its bottom strip, softly
-/// blurred and stretched downwards, carries on behind a floating rounded card — inset
-/// like the post cards — and fades to the page colour by the card's bottom.
+/// blurred and stretched downwards, carries on behind a floating rounded card. Inset
+/// like the post cards, and fades to the page colour by the card's bottom.
 /// The page's scroll view ignores the top safe area so the cover reaches the top.
 /// Shared by `ProfileHeaderCard` and a community member's profile.
 struct CoverHeader<Card: View>: View {
@@ -39,7 +39,7 @@ struct CoverHeader<Card: View>: View {
 
     /// A soft copy of the cover with its continuation behind the card. The
     /// sharp cover's bottom dissolves into it (see `cover`), and it fades out
-    /// by the card's bottom — what shows in the margins beside the card.
+    /// by the card's bottom. What shows in the margins beside the card.
     private var backdrop: some View {
         VStack(spacing: 0) {
             CoverPhotoView(coverUrl: coverUrl)

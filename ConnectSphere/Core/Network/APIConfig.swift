@@ -6,7 +6,7 @@ import Foundation
 enum APIConfig {
     /// Computed (not cached) so a `devServerOverride` change from
     /// DevServerSettingsView takes effect on the next call, no relaunch
-    /// needed — see Endpoint.swift's baseURL for the one place that still
+    /// needed, see Endpoint.swift's baseURL for the one place that still
     /// needs its own fix to stay in sync with this.
     static var serverBase: String {
         // The simulator runs on the same machine as the backend → always use localhost,
@@ -28,7 +28,7 @@ enum APIConfig {
 
     /// The URL to load a stored media link from. Our uploads are stored as a
     /// bare path (`/uploads/x.jpg`) and get this device's server address in
-    /// front — never the uploader's, which other devices can't reach. Outside
+    /// front, never the uploader's, which other devices can't reach. Outside
     /// links (YouTube thumbnails, link previews) are used as they are.
     /// Message media (`/uploads/messages/*`) and CVs (`/uploads/cv/*`) are
     /// auth-gated on the server;

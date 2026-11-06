@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Bottom sheet for reporting a community member — used from the member row's
+/// Bottom sheet for reporting a community member. Used from the member row's
 /// context menu on `CommunityDetailView`. Post reports go through `PostCard`'s
 /// own inline confirmation-dialog flow instead (`targetType` here still
 /// accepts "post" server-side if a future caller needs it).
@@ -37,10 +37,10 @@ struct ReportSheet: View {
             .navigationTitle(bundle.loc(targetType == "post" ? "Report post"
                                         : targetType == "community" ? "Report community" : "Report member"))
             .navigationBarTitleDisplayMode(.inline)
-            .interactiveDismissDisabled()
+            .interactiveDismissDisabled(viewModel.hasChanges)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    ConfirmCancelButton { dismiss() }
+                    ConfirmCancelButton(hasChanges: viewModel.hasChanges) { dismiss() }
                 }
                 if !viewModel.submitted {
                     ToolbarItem(placement: .confirmationAction) {

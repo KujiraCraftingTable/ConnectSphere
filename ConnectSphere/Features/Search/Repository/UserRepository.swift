@@ -1,6 +1,6 @@
 import Foundation
 
-/// Posted after a block/unblock succeeds — carries the target user's id in
+/// Posted after a block/unblock succeeds. Carries the target user's id in
 /// `userInfo["userId"]`. Mirrors `.webSocketDidReconnect`'s pattern: any open
 /// `ChatView` for that user observes this and refreshes its local block state
 /// live, instead of staying stale until the view is torn down and rebuilt.
@@ -38,7 +38,7 @@ struct UserRepository {
         ))
     }
 
-    /// Refines the search `sessionId` started — see `Endpoint.aiRefine`.
+    /// Refines the search `sessionId` started. See `Endpoint.aiRefine`.
     func refineAISearch(sessionId: String, mode: AppMode, refine: String? = nil, moreLike: String? = nil,
                         closer: Bool = false) async throws -> AISearchResult {
         map(try await client.fetch(
@@ -48,7 +48,7 @@ struct UserRepository {
     }
 
     private func map(_ response: AISearchResponseDTO) -> AISearchResult {
-        // Map userId → match reasons (mini CV) — kept outside UserProfile since only AI search uses it
+        // Map userId → match reasons (mini CV). Kept outside UserProfile since only AI search uses it
         let evidence = Dictionary(
             response.data.compactMap { dto -> (String, [MatchEvidenceDTO])? in
                 guard let ev = dto.matchEvidence, !ev.isEmpty else { return nil }
@@ -141,7 +141,7 @@ struct UserRepository {
     // MARK: - Block
 
     /// `blockedEitherWay` is optional to tolerate the backend not having landed
-    /// the bidirectional field yet — falls back to `blocked` (one-directional)
+    /// the bidirectional field yet. Falls back to `blocked` (one-directional)
     /// in `fetchBlockStatusDetailed` below when absent.
     private struct BlockStatusResponse: Decodable {
         let blocked: Bool
@@ -155,7 +155,7 @@ struct UserRepository {
         return token
     }
 
-    /// Whether I'm currently blocking this user (one-directional — used by the
+    /// Whether I'm currently blocking this user (one-directional. Used by the
     /// Block/Unblock toggle's own state).
     func fetchBlockStatus(userId: String) async throws -> Bool {
         try await fetchBlockStatusDetailed(userId: userId).blocked
@@ -163,7 +163,7 @@ struct UserRepository {
 
     /// Both the one-directional and bidirectional block state with `userId`.
     /// Use `blockedEitherWay` to decide whether to disable the chat composer /
-    /// show "You've blocked this user" — `blocked` alone misses the case where
+    /// show "You've blocked this user", `blocked` alone misses the case where
     /// the *other* person blocked *me*.
     func fetchBlockStatusDetailed(userId: String) async throws -> BlockStatus {
         let response = try await client.fetch(
@@ -184,6 +184,17 @@ struct UserRepository {
             method: "POST",
             token: try token()
         )
+    }
+
+    /// "Hide all from this person": their posts leave my feed and lists, no block.
+    func hideAuthorPosts(userId: String) async throws {
+        struct HiddenResponse: Decodable { let hidden: Bool }
+        _ = try await client.fetch(HiddenResponse.self, path: "/users/\(userId)/hide-posts", method: "PUT", token: try token())
+    }
+
+    func unhideAuthorPosts(userId: String) async throws {
+        struct HiddenResponse: Decodable { let hidden: Bool }
+        _ = try await client.fetch(HiddenResponse.self, path: "/users/\(userId)/hide-posts", method: "DELETE", token: try token())
     }
 
     func unblockUser(userId: String) async throws {

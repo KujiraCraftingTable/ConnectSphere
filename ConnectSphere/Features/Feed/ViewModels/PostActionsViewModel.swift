@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// One post card's actions — like, save, hide, delete, restore, report — with
+/// One post card's actions, like, save, hide, delete, restore, report, with
 /// optimistic updates and rollback, and the app-wide notifications that keep
 /// every other list showing this post in step. Held per card, seeded from the
 /// post it renders.
@@ -13,16 +13,28 @@ final class PostActionsViewModel {
     private(set) var likeCount: Int
     private(set) var commentCount: Int
     private(set) var shareCount: Int
-    /// Someone else's post the user just hid (kept in the list so Undo can bring it back).
-    private(set) var isHidden = false
-    /// Outcome of a report, shown as an alert.
+    /// Why this post is showing as the "Hidden, Undo" card, if it is. Kept in
+    /// the shared registry (not in the card) so scrolling away doesn't lose it.
+    var hiddenKind: HiddenKind? { HiddenPostsRegistry.shared.kind(for: postId) }
+    var isHidden: Bool { hiddenKind != nil }
+    /// Set after a report goes through: the "Thanks for letting us know" sheet
+    /// offering to block or hide all from the author.
+    var showReportFollowUp = false
+    /// Outcome of a report that failed, shown as an alert.
     var reportResultMessage: String?
     /// A delete / hide / restore failure, shown as an alert.
     var actionErrorMessage: String?
 
     private let repository = PostRepository()
+    private let userRepository = UserRepository()
+    private let postId: String
+    private let authorId: String
+    let authorName: String
 
     init(post: Post) {
+        postId = post.id
+        authorId = post.author.id
+        authorName = post.author.name
         isLiked = post.isLiked
         isSaved = post.isSaved
         likeCount = post.likeCount
@@ -53,7 +65,7 @@ final class PostActionsViewModel {
         }
     }
 
-    /// Broadcasts the new saved state via `.postUpdated` — the Saved list drops
+    /// Broadcasts the new saved state via `.postUpdated`. The Saved list drops
     /// an unsaved post right away.
     func toggleSave(post: Post) async {
         isSaved.toggle()
@@ -99,17 +111,17 @@ final class PostActionsViewModel {
     /// Hidden at once, persisted server-side so a reload doesn't bring it back;
     /// shown again if the server refuses.
     func hide(postId: String) async {
-        isHidden = true
+        HiddenPostsRegistry.shared.set(.hidden, for: postId)
         do {
             try await repository.hidePost(postId: postId)
         } catch {
-            isHidden = false
+            HiddenPostsRegistry.shared.remove(postId)
             actionErrorMessage = Bundle.app.loc("Couldn't hide post, please try again")
         }
     }
 
     func unhide(postId: String) async {
-        isHidden = false
+        HiddenPostsRegistry.shared.remove(postId)
         do {
             try await repository.unhidePost(postId: postId)
         } catch {
@@ -122,11 +134,11 @@ final class PostActionsViewModel {
     /// Leaves the feed at once (like Hide) and tells ranking to show less
     /// like it, and less from its author.
     func notInterested(postId: String) async {
-        isHidden = true
+        HiddenPostsRegistry.shared.set(.lessLikeThis, for: postId)
         do {
             try await repository.sendFeedback(postId: postId, kind: "less")
         } catch {
-            isHidden = false
+            HiddenPostsRegistry.shared.remove(postId)
             actionErrorMessage = Bundle.app.loc("Couldn't save that, please try again")
         }
     }
@@ -141,10 +153,51 @@ final class PostActionsViewModel {
 
     /// Undo for either: the post comes back and the feedback is removed.
     func undoFeedback(postId: String) async {
-        isHidden = false
+        HiddenPostsRegistry.shared.remove(postId)
         do {
             try await repository.removeFeedback(postId: postId)
         } catch {
+            actionErrorMessage = Bundle.app.loc("Couldn't save that, please try again")
+        }
+    }
+
+    // MARK: Hide all from / block the author, and the one Undo for every kind
+
+    /// "Hide all from this person", no block; their posts leave my lists.
+    func hideAuthor() async {
+        HiddenPostsRegistry.shared.set(.hiddenAuthor(name: authorName, authorId: authorId), for: postId)
+        do {
+            try await userRepository.hideAuthorPosts(userId: authorId)
+        } catch {
+            HiddenPostsRegistry.shared.remove(postId)
+            actionErrorMessage = Bundle.app.loc("Couldn't save that, please try again")
+        }
+    }
+
+    func blockAuthor() async {
+        HiddenPostsRegistry.shared.set(.blocked(name: authorName, authorId: authorId), for: postId)
+        do {
+            try await userRepository.blockUser(userId: authorId)
+        } catch {
+            HiddenPostsRegistry.shared.remove(postId)
+            actionErrorMessage = Bundle.app.loc("Couldn't save that, please try again")
+        }
+    }
+
+    /// The Undo on the "Hidden" card: brings the post back and takes back
+    /// whatever put it there.
+    func undoHidden() async {
+        guard let kind = hiddenKind else { return }
+        HiddenPostsRegistry.shared.remove(postId)
+        do {
+            switch kind {
+            case .hidden:               try await repository.unhidePost(postId: postId)
+            case .lessLikeThis:         try await repository.removeFeedback(postId: postId)
+            case .hiddenAuthor:         try await userRepository.unhideAuthorPosts(userId: authorId)
+            case .blocked:              try await userRepository.unblockUser(userId: authorId)
+            }
+        } catch {
+            HiddenPostsRegistry.shared.set(kind, for: postId)
             actionErrorMessage = Bundle.app.loc("Couldn't save that, please try again")
         }
     }
@@ -154,7 +207,7 @@ final class PostActionsViewModel {
     func report(postId: String, reason: ReportReason) async {
         do {
             try await repository.reportPost(postId: postId, reason: reason)
-            reportResultMessage = Bundle.app.loc("Report submitted")
+            showReportFollowUp = true
         } catch {
             reportResultMessage = Bundle.app.loc("Could not submit report. Please try again.")
         }

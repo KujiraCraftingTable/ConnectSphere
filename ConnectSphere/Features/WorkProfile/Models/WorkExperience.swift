@@ -63,8 +63,8 @@ struct WorkExperience: Identifiable, Decodable, Hashable {
         }
     }
 
-    /// Roles at the same company are grouped — by page, or by name when not
-    /// linked — in the order the list already has (current, then recent).
+    /// Roles at the same company are grouped. By page, or by name when not
+    /// linked, in the order the list already has (current, then recent).
     static func grouped(_ roles: [WorkExperience]) -> [Group] {
         var order: [String] = []
         var byKey: [String: [WorkExperience]] = [:]

@@ -10,6 +10,10 @@ struct ChangePasswordView: View {
 
     @State private var viewModel: ChangePasswordViewModel
     @State private var showSuccess = false
+    /// Anything typed, closing would lose it.
+    private var hasInput: Bool {
+        ![viewModel.currentPassword, viewModel.newPassword, viewModel.confirmPassword].allSatisfy(\.isEmpty)
+    }
 
     init(hasPassword: Bool) {
         _viewModel = State(initialValue: ChangePasswordViewModel(hasPassword: hasPassword))
@@ -33,7 +37,7 @@ struct ChangePasswordView: View {
                     Text("New password", bundle: bundle)
                 } footer: {
                     if !viewModel.hasPassword {
-                        Text("Set a password to also sign in without Google.", bundle: bundle)
+                        Text("Set a password so you can also sign in with your username and password, not only with Google.", bundle: bundle)
                     } else if viewModel.passwordsMismatch {
                         Text("Passwords do not match", bundle: bundle)
                             .foregroundColor(.red)
@@ -50,10 +54,10 @@ struct ChangePasswordView: View {
             }
             .navigationTitle(bundle.loc(viewModel.hasPassword ? "Change password" : "Set password"))
             .navigationBarTitleDisplayMode(.inline)
-            .interactiveDismissDisabled()
+            .interactiveDismissDisabled(hasInput)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    ConfirmCancelButton { dismiss() }
+                    ConfirmCancelButton(hasChanges: hasInput) { dismiss() }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {

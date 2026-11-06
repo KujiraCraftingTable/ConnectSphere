@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 /// A person's followers or the people they follow, in one mode. Friends are
-/// excluded (they're in the Friends list) — the same people the counts count.
+/// excluded (they're in the Friends list). The same people the counts count.
 @MainActor
 @Observable
 final class FollowListViewModel {

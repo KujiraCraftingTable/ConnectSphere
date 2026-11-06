@@ -20,17 +20,17 @@ enum AppMode: String, Identifiable {
 
 /// A deep link that opens the app from outside (e.g. tapping a shared community link in
 /// Notes/Messages). Set in `onOpenURL`, consumed (and cleared) once the destination screen
-/// is ready to navigate — see `AppState.pendingDeepLink`.
+/// is ready to navigate. See `AppState.pendingDeepLink`.
 enum DeepLink: Equatable {
     case community(id: String)
 }
 
 /// Navigation signal set by the in-app AI assistant when it resolves a
 /// request to a screen the user should land on. Mirrors `DeepLink`/
-/// `pendingDeepLink`'s exact shape — see `AppState.pendingAssistantNavigation`.
+/// `pendingDeepLink`'s exact shape. See `AppState.pendingAssistantNavigation`.
 /// Each case names the deepest screen reachable via a `NavigationPath` push;
 /// three guidance topics land one level deeper still, inside a `.sheet` local
-/// to that screen's own `@State` — those set `AppState.pendingAssistantSheet`
+/// to that screen's own `@State`. Those set `AppState.pendingAssistantSheet`
 /// as a second signal (see below) after the push lands.
 enum AssistantNavigationTarget: Equatable {
     case tab(Int)
@@ -47,7 +47,7 @@ enum AssistantNavigationTarget: Equatable {
 }
 
 /// A `.sheet` the assistant wants opened once its `AssistantNavigationTarget`
-/// push has landed on that sheet's owning screen — set alongside
+/// push has landed on that sheet's owning screen. Set alongside
 /// `pendingAssistantNavigation` for the three destinations that are local
 /// `@State` sheets, not `NavigationPath` pushes. Consumed and cleared by the
 /// owning view (`PrivacySecurityView`/`ProfileView`) the same way
@@ -82,7 +82,7 @@ enum AppearanceMode: String, CaseIterable {
     case light  = "light"
     case dark   = "dark"
 
-    /// Localization key — callers must wrap this in `bundle.loc(...)`. This
+    /// Localization key, callers must wrap this in `bundle.loc(...)`. This
     /// used to be a bespoke `label(for: AppLanguage)` bilingual switch that
     /// bypassed `.strings` entirely; every call site always passed the
     /// *current* language anyway, so it added a second localization mechanism
@@ -111,7 +111,7 @@ class AppState {
     var isCheckingAuth:  Bool = true   // splash while checking Keychain
     var currentMode:  AppMode = .hobby
     var currentUser:  UserProfile? = nil
-    /// Mode the user wants to switch to but hasn't set up a persona for yet — triggers the
+    /// Mode the user wants to switch to but hasn't set up a persona for yet. Triggers the
     /// PersonaSetupView sheet; only completing the form actually switches, canceling keeps the old mode
     var pendingPersonaMode: AppMode? = nil
     /// Tapping the "Search" tab again while already on it → SearchView resets to its default browse state
@@ -120,19 +120,19 @@ class AppState {
     var shouldResetFeed: Bool = false
     var chatUnreadCount: Int = 0
     /// Unread notifications, shared so the Notifications tab badge and the
-    /// notification list can never disagree — reading a row decrements it
+    /// notification list can never disagree. Reading a row decrements it
     /// immediately instead of waiting for the next fetch.
     var notificationUnreadCount: Int = 0
-    /// Deep link waiting to be navigated to — survives both a cold launch (set before
+    /// Deep link waiting to be navigated to. Survives both a cold launch (set before
     /// RootView/MainTabView exist) and a warm launch (app already running).
     /// The consuming view reads it and sets it back to `nil` so navigation doesn't repeat.
     var pendingDeepLink: DeepLink? = nil
     /// Navigation set by the AI assistant after resolving a "go to X"/"open
-    /// Settings" request — sibling to `pendingDeepLink`, same consume-then-clear
+    /// Settings" request, sibling to `pendingDeepLink`, same consume-then-clear
     /// pattern (see `MainTabView.consumePendingAssistantNavigation`).
     var pendingAssistantNavigation: AssistantNavigationTarget? = nil
     /// A sheet the assistant wants opened once its navigation push above has
-    /// landed on that sheet's owning screen (see `AssistantSheetTarget`) —
+    /// landed on that sheet's owning screen (see `AssistantSheetTarget`),
     /// consumed by `PrivacySecurityView`/`ProfileView`, same consume-then-clear
     /// pattern as `pendingDeepLink`.
     var pendingAssistantSheet: AssistantSheetTarget? = nil
@@ -166,44 +166,27 @@ class AppState {
             appLanguage = AppLanguage(rawValue: code) ?? .english
         }
 
-        NotificationCenter.default.addObserver(
-            forName: .postDeleted, object: nil, queue: .main
-        ) { [weak self] note in
-            // Read `postCount` into a local BEFORE assigning — reading and
-            // writing `currentUser?.postCount` in the same statement triggers
-            // a Swift exclusivity-access crash (overlapping getter/setter
-            // access on the @Observable `currentUser` property). Same fix as
-            // `ProfileViewModel.removePost`.
-            guard let authorId = note.userInfo?["authorId"] as? String,
-                  self?.currentUser?.id == authorId,
-                  let currentCount = self?.currentUser?.postCount else { return }
-            self?.currentUser?.postCount = max(currentCount - 1, 0)
+        // Posts made, deleted or restored change the profile's count, but
+        // only some of them count (this mode's own posts, never one made in a
+        // community), so the number is asked of the server instead of nudged
+        // by one here.
+        for name in [Notification.Name.postDeleted, .postRestored, .postCreated] {
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                self?.refreshPostCount()
+            }
         }
+    }
 
-        // Symmetric with the `.postDeleted` observer above — without this,
-        // restoring a post (via the Undo toast or Recently Deleted) leaves
-        // `currentUser.postCount` permanently one too low, since delete
-        // decrements it but nothing was bringing it back up.
-        NotificationCenter.default.addObserver(
-            forName: .postRestored, object: nil, queue: .main
-        ) { [weak self] note in
-            guard let post = note.userInfo?["post"] as? Post,
-                  self?.currentUser?.id == post.author.id,
-                  let currentCount = self?.currentUser?.postCount else { return }
-            self?.currentUser?.postCount = currentCount + 1
-        }
-
-        // A new post was created — the backend only bumps `users.post_count`
-        // for Feed posts (never community posts), so mirror that exactly
-        // here: no extra check needed beyond author-id, `.postCreated` is
-        // only ever broadcast from Feed's composer.
-        NotificationCenter.default.addObserver(
-            forName: .postCreated, object: nil, queue: .main
-        ) { [weak self] note in
-            guard let post = note.userInfo?["post"] as? Post,
-                  self?.currentUser?.id == post.author.id,
-                  let currentCount = self?.currentUser?.postCount else { return }
-            self?.currentUser?.postCount = currentCount + 1
+    /// This persona's post count, as the server counts it.
+    private func refreshPostCount() {
+        guard let token = authToken else { return }
+        let mode = currentMode
+        Task { [weak self] in
+            guard let user = try? await AuthService.shared.fetchMe(token: token, mode: mode, cacheFallback: false) else { return }
+            await MainActor.run {
+                guard let self, self.currentMode == mode else { return }
+                self.currentUser?.postCount = user.postCount
+            }
         }
     }
 
@@ -227,7 +210,7 @@ class AppState {
             if !user.isSetup {
                 // Account exists but onboarding was never finished (app was
                 // killed or lost connectivity mid-signup). This is a silent,
-                // non-interactive restore — not an explicit login — so
+                // non-interactive restore, not an explicit login, so
                 // require a fresh login instead of dropping the user
                 // straight back into OnboardingView with a token they
                 // never re-entered this launch.
@@ -297,7 +280,7 @@ class AppState {
         handle(try await AuthService.shared.login(identifier: identifier, password: password))
     }
 
-    /// Registering also logs the user in right away — is_new_user=true so the root view auto-navigates into onboarding.
+    /// Registering also logs the user in right away, is_new_user=true so the root view auto-navigates into onboarding.
     /// The end of a manual sign-up: the account is created, already set up.
     func registerAndSetUp(_ signup: PendingSignup, form: OnboardingForm) async throws {
         let response = try await AuthService.shared.register(signup, form: form)
@@ -360,7 +343,7 @@ class AppState {
     /// PersonaSetupView successfully created a persona → update the setup flag,
     /// switch to the new mode and dismiss the sheet.
     func personaCreated(_ user: UserProfile, mode: AppMode) {
-        // Keep the existing email/hasPassword — the persona response is a public profile
+        // Keep the existing email/hasPassword. The persona response is a public profile
         if var updated = currentUser {
             updated.hobbySetup = user.hobbySetup
             updated.workSetup  = user.workSetup
@@ -387,7 +370,7 @@ class AppState {
     }
 
     /// `currentUser` is loaded for the mode the app opened in, and Edit
-    /// profile, the composer, the Apply sheet… all read "me" from it — so a
+    /// profile, the composer, the Apply sheet… all read "me" from it, so a
     /// switch must swap in the other persona's name, bio, photos and
     /// skills / interests, or they keep showing the old one until a relaunch.
     private func refreshPersona(for mode: AppMode) {
@@ -400,7 +383,7 @@ class AppState {
         }
     }
 
-    /// Syncs the switch to the server so it survives the next cold launch —
+    /// Syncs the switch to the server so it survives the next cold launch,
     /// `restoreSession()` re-derives `currentMode` from the account's
     /// `default_mode` on every launch, so without this a switch reverted
     /// silently. Fire-and-forget: the mode is already switched locally, this

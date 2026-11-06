@@ -11,7 +11,7 @@ final class SkillCatalogViewModel {
     private(set) var categories: [SkillCategory] = []
     private(set) var suggested: [String] = []
     private(set) var loadError: String?
-    /// One line after a suggestion ("Thanks — we'll review it").
+    /// One line after a suggestion ("Thanks, we'll review it").
     var suggestNotice: String?
     var query = ""
 
@@ -63,9 +63,9 @@ final class SkillCatalogViewModel {
         guard !t.isEmpty else { return }
         do {
             if let existing = try await repository.suggest(t) {
-                suggestNotice = String(format: Bundle.app.loc("It's already here as \"%@\" — search for it above."), existing)
+                suggestNotice = String(format: Bundle.app.loc("It's already here as \"%@\". Search for it above."), existing)
             } else {
-                suggestNotice = Bundle.app.loc("Thanks — we'll review your suggestion.")
+                suggestNotice = Bundle.app.loc("Thanks, we'll review your suggestion.")
             }
         } catch {
             suggestNotice = friendlyError(error)

@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// A post's ⋯ menu — pin/unpin (community staff), edit/delete (your own
-/// post), hide/report (anyone else's) — together with the sheet, alerts and
+/// A post's ⋯ menu, pin/unpin (community staff), edit/delete (your own
+/// post), hide/report (anyone else's). Together with the sheet, alerts and
 /// dialog those open. Lives in `PostCard`'s header on the feed, and in the
 /// top bar of `PostDetailView`, which shows the post without its header.
 struct PostOptionsMenu: View {
@@ -19,7 +19,7 @@ struct PostOptionsMenu: View {
     var onUnpin: (() -> Void)? = nil
     var onPostDeleted: (() -> Void)? = nil
     var onPostUpdated: ((Post) -> Void)? = nil
-    /// Called once the post is hidden — the detail screen leaves; the feed
+    /// Called once the post is hidden. The detail screen leaves; the feed
     /// keeps the collapsed card so Undo can bring it back in place.
     var onPostHidden: (() -> Void)? = nil
     /// In a toolbar the bar's Liquid Glass is the only background, so the
@@ -28,6 +28,7 @@ struct PostOptionsMenu: View {
 
     @State private var showDeleteAlert = false
     @State private var showEditSheet = false
+    @State private var showEditListing = false
 
     var body: some View {
         menu
@@ -37,6 +38,19 @@ struct PostOptionsMenu: View {
                 })
                 .environment(appState)
                 .environment(themeManager)
+            }
+            .sheet(isPresented: $showEditListing) {
+                // A listing post is bound to one item: its edits go through the listing.
+                if let listing = post.listingData {
+                    EditListingSheet(post: post, listing: listing) { fields in
+                        let viewModel = ListingViewModel(post: post)
+                        guard await viewModel.save(fields, token: appState.authToken ?? "") else { return false }
+                        onPostUpdated?(viewModel.post)
+                        return true
+                    }
+                    .environment(appState)
+                    .environment(themeManager)
+                }
             }
             .alert(bundle.loc("Delete post?"), isPresented: $showDeleteAlert) {
                 Button(bundle.loc("Delete"), role: .destructive) {
@@ -53,6 +67,16 @@ struct PostOptionsMenu: View {
                 Button(bundle.loc("Cancel"), role: .cancel) {}
             } message: {
                 Text("This post won't be shown in the app. You can restore it from Recently Deleted within 30 days.", bundle: bundle)
+            }
+            // After a report: thanks, and the optional block / hide-all steps.
+            // Done leaves the post exactly as it was.
+            .sheet(isPresented: Binding(get: { actions.showReportFollowUp }, set: { actions.showReportFollowUp = $0 })) {
+                ReportFollowUpSheet(
+                    authorName: actions.authorName,
+                    onBlock: { Task { await actions.blockAuthor() }; onPostHidden?() },
+                    onHideAll: { Task { await actions.hideAuthor() }; onPostHidden?() }
+                )
+                .environment(themeManager)
             }
             .alert(actions.reportResultMessage ?? "", isPresented: Binding(
                 get: { actions.reportResultMessage != nil },
@@ -87,8 +111,14 @@ struct PostOptionsMenu: View {
             }
 
             if post.author.id == appState.currentUser?.id {
-                Button { showEditSheet = true } label: {
-                    Label(bundle.loc("Edit post"), systemImage: "pencil")
+                if post.postType == .listing {
+                    Button { showEditListing = true } label: {
+                        Label(bundle.loc("Edit listing"), systemImage: "pencil")
+                    }
+                } else {
+                    Button { showEditSheet = true } label: {
+                        Label(bundle.loc("Edit post"), systemImage: "pencil")
+                    }
                 }
                 Button(role: .destructive) {
                     // Delay so the menu finishes dismissing before the alert appears (SwiftUI timing bug)
@@ -111,21 +141,13 @@ struct PostOptionsMenu: View {
                 }
                 Button {
                     Task { await actions.notInterested(postId: post.id) }
-                    let id = post.id
-                    toastPresenter.show(message: bundle.loc("You'll see fewer posts like this")) {
-                        Task { await actions.undoFeedback(postId: id) }
-                    }
                     onPostHidden?()
                 } label: {
                     Label(bundle.loc("Not interested"), systemImage: "hand.thumbsdown")
                 }
                 Button {
-                    // Undo un-hides in place: on the feed the post never left the list.
+                    // The feed keeps a "Hidden, Undo" card where the post was.
                     Task { await actions.hide(postId: post.id) }
-                    let hiddenPostId = post.id
-                    toastPresenter.show(message: bundle.loc("Post hidden")) {
-                        Task { await actions.unhide(postId: hiddenPostId) }
-                    }
                     onPostHidden?()
                 } label: {
                     Label(bundle.loc("Hide post"), systemImage: "eye.slash")

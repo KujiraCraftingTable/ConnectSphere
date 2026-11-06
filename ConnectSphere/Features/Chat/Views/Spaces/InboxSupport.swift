@@ -163,7 +163,7 @@ struct FolderSlot {
 
 extension View {
     /// Plain card row when `folder` is nil; otherwise a row of the white card
-    /// that floats on the space's tint — rounded at the card's top and
+    /// that floats on the space's tint. Rounded at the card's top and
     /// bottom, inset so the colour shows round it, with its own hairline
     /// (the list's separators would run out across the colour margin).
     @ViewBuilder

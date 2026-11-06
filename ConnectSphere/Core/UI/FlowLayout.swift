@@ -25,7 +25,7 @@ struct FlowLayout: Layout {
         widestRow = max(widestRow, x - spacing)
 
         // DO NOT return .infinity: when proposal.width is nil (the first layout pass), return
-        // the actual content width — returning infinity makes the parent collapse the chip area
+        // the actual content width. Returning infinity makes the parent collapse the chip area
         // to ~0 (chips "vanish" until some interaction forces a re-layout).
         let resolvedWidth = maxWidth.isFinite ? maxWidth : max(widestRow, 0)
         return CGSize(width: resolvedWidth, height: y + rowHeight)

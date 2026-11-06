@@ -9,10 +9,10 @@ import SwiftUI
 @MainActor
 @Observable
 final class CreateListingViewModel {
-    // Step 1 — the item. The description is the post's text; the photos and
+    // Step 1, the item. The description is the post's text; the photos and
     // videos its media.
     var title = ""
-    /// Whole VND as typed; empty or 0 = free.
+    /// Whole VND, shown grouped ("150.000"); empty or 0 = free.
     var price = ""
     var condition: ListingCondition = .good
     /// Where the item is, picked on the map.
@@ -21,10 +21,13 @@ final class CreateListingViewModel {
     var autoReplyOn = true
     var autoReply = Bundle.app.loc("Hi! Yes, it's still available.")
     var hideFromFriends = false
-    var pickerItems: [PhotosPickerItem] = []
-    var media: [PickedPostMedia] = []
+    /// Re-up automatically on a schedule (Vietnam time).
+    var autoReupOn = false
+    var autoReupDays = 3
+    var autoReupHour = 9
+    let photos = ListingPhotosViewModel()
 
-    // Step 2 — where else it shows.
+    // Step 2, where else it shows.
     private(set) var communities: [Community] = []
     private(set) var selected: [String] = []
     private(set) var isLoadingCommunities = false
@@ -33,13 +36,10 @@ final class CreateListingViewModel {
     var errorMessage: String?
 
     static let maxCommunities = 5
-    static let maxMedia = 10
 
     private let mode: AppMode
     private let repository = MarketplaceRepository()
     private let communityRepository = CommunityRepository()
-    /// The feed composer's photo/video loader and uploader.
-    private let mediaHelper = CreatePostViewModel()
 
     /// `preselected`: communities already ticked in step 2 (selling from a
     /// community's own composer).
@@ -48,34 +48,21 @@ final class CreateListingViewModel {
         self.selected = Array(preselected.prefix(Self.maxCommunities))
     }
 
-    var priceValue: Int64? {
-        let digits = price.filter(\.isNumber)
-        return digits.isEmpty ? 0 : Int64(digits)
+    var priceValue: Int64? { ListingPrice.value(price) }
+
+    /// Anything entered, closing the form would lose it, so Cancel asks.
+    var hasChanges: Bool {
+        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !price.isEmpty
+            || !details.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || place != nil || photos.hasPhotos
     }
 
-    var pendingMediaCount: Int { mediaHelper.pendingMediaCount }
+
 
     var canContinue: Bool {
         let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
         return !t.isEmpty && t.count <= 100 && priceValue != nil
-            && details.count <= 2000 && autoReply.count <= 500 && pendingMediaCount == 0
-    }
-
-    // MARK: media
-
-    func loadPicked() async {
-        media = await mediaHelper.loadSelectedMedia(pickerItems, keeping: media) { [weak self] soFar in
-            self?.media = soFar
-        }
-    }
-
-    func removeMedia(_ item: PickedPostMedia) {
-        media.removeAll { $0.id == item.id }
-        if let picker = item.pickerItem { pickerItems.removeAll { $0 == picker } }
-    }
-
-    func setAltText(_ text: String, for id: PickedPostMedia.ID) {
-        if let i = media.firstIndex(where: { $0.id == id }) { media[i].altText = text }
+            && details.count <= 2000 && autoReply.count <= 500 && photos.isReady
     }
 
     // MARK: communities
@@ -109,7 +96,7 @@ final class CreateListingViewModel {
         isPublishing = true
         defer { isPublishing = false }
         do {
-            let urls = try await mediaHelper.uploadMedia(media)
+            let uploaded = try await photos.upload()
             var listing: [String: Any] = [
                 "title": title.trimmingCharacters(in: .whitespacesAndNewlines),
                 "price": priceValue ?? 0,
@@ -123,14 +110,15 @@ final class CreateListingViewModel {
             }
             let reply = autoReply.trimmingCharacters(in: .whitespacesAndNewlines)
             if autoReplyOn && !reply.isEmpty { listing["autoReply"] = reply }
+            if autoReupOn { listing["autoReup"] = ["every_days": autoReupDays, "hour": autoReupHour] }
             var fields: [String: Any] = [
                 "content": details.trimmingCharacters(in: .whitespacesAndNewlines),
                 "mode": mode.rawValue,
                 "listingData": listing,
                 "community_ids": selected,
+                "image_urls": uploaded.urls,
             ]
-            if !urls.isEmpty { fields["image_urls"] = urls }
-            if media.contains(where: { !$0.altText.isEmpty }) { fields["image_alts"] = media.map(\.altText) }
+            if let alts = uploaded.alts { fields["image_alts"] = alts }
             return try await repository.create(fields: fields, token: token)
         } catch let upload as MediaUploadError {
             errorMessage = upload.errorDescription

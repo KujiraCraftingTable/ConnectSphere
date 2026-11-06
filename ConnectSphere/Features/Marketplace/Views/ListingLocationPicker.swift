@@ -1,7 +1,7 @@
 import MapKit
 import SwiftUI
 
-/// Sell / Edit listing: where the item is, picked on a map — search for a
+/// Sell / Edit listing: where the item is, picked on a map. Search for a
 /// place or use the phone's location. Done hands back the pinned place.
 struct ListingLocationPicker: View {
     @Environment(ThemeManager.self) private var themeManager

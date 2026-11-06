@@ -48,9 +48,13 @@ struct CommentDTO: Decodable, Identifiable {
     let translatedText: String?
     /// The comment's photo (a stored `/uploads/…` path), if it has one.
     let imageUrl: String?
+    /// 'markdown' when written with Markdown; comments from before it are plain.
+    let contentFormat: String?
+    var isMarkdown: Bool { contentFormat == "markdown" }
 
     enum CodingKeys: String, CodingKey {
         case id, content, author, muted, lang
+        case contentFormat   = "content_format"
         case translatedText  = "translated_text"
         case imageUrl        = "image_url"
         case replyTo         = "reply_to"
@@ -74,6 +78,7 @@ struct CommentDTO: Decodable, Identifiable {
         lang            = try c.decodeIfPresent(String.self, forKey: .lang)
         translatedText  = try c.decodeIfPresent(String.self, forKey: .translatedText)
         imageUrl        = try c.decodeIfPresent(String.self, forKey: .imageUrl)
+        contentFormat   = try c.decodeIfPresent(String.self, forKey: .contentFormat)
     }
 }
 
@@ -92,7 +97,7 @@ struct CommentsResponse: Decodable {
     let total: Int
 }
 
-/// One of the current user's own soft-deleted comments — shape returned by
+/// One of the current user's own soft-deleted comments. Shape returned by
 /// `GET /posts/comments/deleted` (no `author`; the "Recently Deleted" screen
 /// only ever lists the viewer's own comments, so it's always "you").
 struct DeletedComment: Decodable, Identifiable {

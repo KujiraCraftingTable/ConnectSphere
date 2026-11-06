@@ -68,7 +68,7 @@ struct AISearchLoadingView: View {
                         .fill(themeManager.theme.primary.opacity(0.12))
                         .frame(width: 80, height: 80)
 
-                    // Sparkles icon — SF Symbol animation
+                    // Sparkles icon, SF Symbol animation
                     Image(systemName: "sparkles")
                         .font(.system(size: 36, weight: .medium))
                         .foregroundColor(themeManager.theme.primary)

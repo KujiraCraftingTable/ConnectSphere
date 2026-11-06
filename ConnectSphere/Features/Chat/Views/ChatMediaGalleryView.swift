@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Target for opening the viewer from the grid — holds the starting page index
+/// Target for opening the viewer from the grid. Holds the starting page index
 private struct GalleryViewerTarget: Identifiable {
     let id = UUID()
     let startIndex: Int

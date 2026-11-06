@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// In-app notification settings — only includes options that actually have an effect.
+/// In-app notification settings. Only includes options that actually have an effect.
 /// Push notifications while the app is closed (APNs) will be added in a later build.
 struct NotificationSettingsView: View {
     @Environment(ThemeManager.self) var themeManager

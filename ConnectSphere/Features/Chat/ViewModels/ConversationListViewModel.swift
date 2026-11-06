@@ -8,7 +8,7 @@ class ConversationListViewModel {
     var conversations: [Conversation] = []
     var isLoading = false
     var error: String?
-    /// A swipe action the server refused — shown as an alert over the list.
+    /// A swipe action the server refused. Shown as an alert over the list.
     var actionError: String?
     var unreadCount: Int = 0
 
@@ -21,7 +21,7 @@ class ConversationListViewModel {
     var isSearching = false
     private var searchTask: Task<Void, Never>?
 
-    /// Connections that are currently online — used for the active avatar row at the top of the Messages screen.
+    /// Connections that are currently online. Used for the active avatar row at the top of the Messages screen.
     var activeConnections: [ConnectionItemDTO] {
         connections.filter { onlineUserIds.contains($0.user.id) }
     }
@@ -201,7 +201,7 @@ class ConversationListViewModel {
 
     // MARK: - Search
 
-    /// Debounced cross-conversation search — cancels any in-flight search so
+    /// Debounced cross-conversation search. Cancels any in-flight search so
     /// only the latest keystroke's request lands. An empty (or whitespace-only)
     /// query clears results immediately without a round trip.
     func search(query: String, mode: String, token: String) {

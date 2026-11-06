@@ -10,7 +10,7 @@ enum ConnectionStatus {
 }
 
 /// Button that displays connection status + handles sending/canceling/accepting/declining a request.
-/// Every request carries a Bearer token — the backend determines identity from the JWT.
+/// Every request carries a Bearer token. The backend determines identity from the JWT.
 @MainActor
 @Observable
 class ConnectViewModel {
@@ -21,7 +21,7 @@ class ConnectViewModel {
     /// Following is independent of friendship: friends can unfollow each
     /// other and stay friends.
     private(set) var isFollowing = false
-    /// False when the person turned friend requests off — offer Follow instead.
+    /// False when the person turned friend requests off. Offer Follow instead.
     private(set) var acceptsRequests = true
 
     private let client = NetworkClient.shared

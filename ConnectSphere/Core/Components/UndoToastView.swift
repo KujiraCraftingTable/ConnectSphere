@@ -1,7 +1,7 @@
 import SwiftUI
 import Observation
 
-/// One active toast — created by `UndoToastPresenter.show(message:onUndo:)`,
+/// One active toast. Created by `UndoToastPresenter.show(message:onUndo:)`,
 /// or `show(message:)` for a plain notice with nothing to undo.
 struct UndoToastItem: Identifiable {
     let id = UUID()
@@ -12,7 +12,7 @@ struct UndoToastItem: Identifiable {
 /// Presenter for a non-blocking bottom "Undo" toast, shown right after a
 /// soft-delete (post/comment) so the user has a brief window to reverse it.
 /// One instance is injected app-wide via `.environment` (see
-/// `ConnectSphereApp`) and rendered by `MainTabView`'s overlay — any view can
+/// `ConnectSphereApp`) and rendered by `MainTabView`'s overlay. Any view can
 /// call `show(message:onUndo:)`. Screens presented modally (e.g. `CommentSheet`,
 /// a `.sheet`) sit above that overlay, so they own a private instance instead
 /// (see `CommentSheet`).
@@ -40,7 +40,7 @@ final class UndoToastPresenter {
         show(message: message, onUndo: nil)
     }
 
-    /// User tapped "Undo" — runs the action and dismisses immediately.
+    /// User tapped "Undo", runs the action and dismisses immediately.
     func undo() {
         guard let item = current else { return }
         dismissTask?.cancel()
@@ -61,7 +61,7 @@ final class UndoToastPresenter {
     }
 }
 
-/// Bottom banner UI for one `UndoToastItem` — message + an "Undo" button.
+/// Bottom banner UI for one `UndoToastItem`. Message + an "Undo" button.
 struct UndoToastView: View {
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
@@ -95,7 +95,7 @@ struct UndoToastView: View {
 
 extension View {
     /// Attaches the shared Undo-toast overlay bound to `presenter`'s current
-    /// item — put this on a screen-level view (see `MainTabView`,
+    /// item, put this on a screen-level view (see `MainTabView`,
     /// `CommentSheet`).
     func undoToastOverlay(_ presenter: UndoToastPresenter) -> some View {
         overlay(alignment: .bottom) {

@@ -1,4 +1,4 @@
-/* Localizable.strings (English) — English keys, identity. Auto-generated. */
+/* Localizable.strings (English), English keys, identity. Auto-generated. */
 
 "🎂 It's %@'s birthday today!" = "🎂 It's %@'s birthday today!";
 "%@ accepted your connection request" = "%@ accepted your connection request";
@@ -56,9 +56,9 @@
 "What is \"%@\"?" = "What is \"%@\"?";
 "e.g. Landmark 81" = "e.g. Landmark 81";
 "Search again" = "Search again";
-"Thanks — we couldn't confirm that one either, so it's been flagged for review." = "Thanks — we couldn't confirm that one either, so it's been flagged for review.";
+"Thanks, we couldn't confirm that one either, so it's been flagged for review." = "Thanks, we couldn't confirm that one either, so it's been flagged for review.";
 "Couldn't load results" = "Couldn't load results";
-"Couldn't tell which city \"%@\" is in — add a province to narrow it down." = "Couldn't tell which city \"%@\" is in — add a province to narrow it down.";
+"Couldn't tell which city \"%@\" is in. Add a province to narrow it down." = "Couldn't tell which city \"%@\" is in. Add a province to narrow it down.";
 "Tell us what they're into, e.g. \"bạn nữ thích chụp ảnh film ở Hà Nội\"." = "Tell us what they're into, e.g. \"bạn nữ thích chụp ảnh film ở Hà Nội\".";
 "No one here is into \"%@\" yet. Try a related interest or check the spelling." = "No one here is into \"%@\" yet. Try a related interest or check the spelling.";
 "No one is into all of these together: %@. Try fewer of them." = "No one is into all of these together: %@. Try fewer of them.";
@@ -68,8 +68,8 @@
 "Suggest an interest" = "Suggest an interest";
 "e.g. Pickleball" = "e.g. Pickleball";
 "We review suggestions before adding them to the list." = "We review suggestions before adding them to the list.";
-"It's already here as \"%@\" — search for it above." = "It's already here as \"%@\" — search for it above.";
-"Thanks — we'll review your suggestion." = "Thanks — we'll review your suggestion.";
+"It's already here as \"%@\". Search for it above." = "It's already here as \"%@\". Search for it above.";
+"Thanks, we'll review your suggestion." = "Thanks, we'll review your suggestion.";
 "Quick matches" = "Quick matches";
 "Search skills" = "Search skills";
 "Suggested for you" = "Suggested for you";
@@ -80,7 +80,7 @@
 "Refine…" = "Refine…";
 "Refine your search" = "Refine your search";
 "e.g. only in Hanoi, into film cameras" = "e.g. only in Hanoi, into film cameras";
-"Say what to change — your search stays as it is." = "Say what to change — your search stays as it is.";
+"Say what to change. Your search stays as it is." = "Say what to change. Your search stays as it is.";
 "Not a fit" = "Not a fit";
 "Couldn't refine the search. Please try again." = "Couldn't refine the search. Please try again.";
 "Choose up to 4 photos" = "Choose up to 4 photos";
@@ -204,7 +204,7 @@
 "New post" = "New post";
 "Newest first" = "Newest first";
 "No comments yet" = "No comments yet";
-"No connections yet — try searching and sending a request" = "No connections yet — try searching and sending a request";
+"No connections yet, try searching and sending a request" = "No connections yet, try searching and sending a request";
 "No chats yet 👋" = "No chats yet 👋";
 "No conversations yet" = "No conversations yet";
 "No distance limit when searching with location." = "No distance limit when searching with location.";
@@ -350,7 +350,7 @@
 "You haven't joined any communities" = "You haven't joined any communities";
 "You two will no longer see each other's posts, all connections will be removed, and you won't be able to message each other." = "You two will no longer see each other's posts, all connections will be removed, and you won't be able to message each other.";
 "You've blocked this user" = "You've blocked this user";
-"You're connected — say hello 👋" = "You're connected — say hello 👋";
+"You're connected, say hello 👋" = "You're connected, say hello 👋";
 "You're connected. Say hello." = "You're connected. Say hello.";
 "You're not connected with this user" = "You're not connected with this user";
 "Your interests" = "Your interests";
@@ -387,7 +387,7 @@
 "Disconnect" = "Disconnect";
 
 /* Register / login with username + password */
-"Pick a username and password — you'll set up your profile next" = "Pick a username and password — you'll set up your profile next";
+"Pick a username and password, you'll set up your profile next" = "Pick a username and password, you'll set up your profile next";
 "Password (at least 8 characters)" = "Password (at least 8 characters)";
 "Confirm password" = "Confirm password";
 "Username must be at least 3 characters" = "Username must be at least 3 characters";
@@ -400,7 +400,7 @@
 "Couldn't sign in, please try again" = "Couldn't sign in, please try again";
 "Cannot reach the server, please check your connection" = "Cannot reach the server, please check your connection";
 
-/* AI search — mini CV (match reasons) */
+/* AI search, mini CV (match reasons) */
 "This user hasn't shared anything about themselves yet" = "This user hasn't shared anything about themselves yet";
 "Posted about %@ (%@)" = "Posted about %@ (%@)";
 "Has posts about %@" = "Has posts about %@";
@@ -452,7 +452,7 @@
 /* Group-B password management */
 "Change password" = "Change password";
 "Set password" = "Set password";
-"Set a password to also sign in without Google." = "Set a password to also sign in without Google.";
+"Set a password so you can also sign in with your username and password, not only with Google." = "Set a password so you can also sign in with your username and password, not only with Google.";
 "Current password" = "Current password";
 "New password" = "New password";
 "New password (at least 8 characters)" = "New password (at least 8 characters)";
@@ -493,7 +493,7 @@
 "Can't go" = "Can't go";
 "%d going" = "%d going";
 
-/* Meeting proposal card (Phase 4) — reminder indicator shown instead of RSVP
+/* Meeting proposal card (Phase 4). Reminder indicator shown instead of RSVP
    buttons for a 1:1 proposal */
 "Reminder: %@" = "Reminder: %@";
 
@@ -557,7 +557,7 @@
 "You're no longer in this group" = "You're no longer in this group";
 "Blocked members in this group" = "Blocked members in this group";
 
-/* Onboarding — persona setup */
+/* Onboarding, persona setup */
 "Set up your Hobby profile" = "Set up your Hobby profile";
 "Set up your Work profile" = "Set up your Work profile";
 "Start" = "Start";
@@ -573,23 +573,23 @@
 "Go to settings" = "Go to settings";
 "Take me there" = "Take me there";
 "Yes, log out" = "Yes, log out";
-"Done — theme switched to %@." = "Done — theme switched to %@.";
-"Done — language switched to %@." = "Done — language switched to %@.";
+"Done. Theme switched to %@." = "Done, theme switched to %@.";
+"Done. Language switched to %@." = "Done, language switched to %@.";
 "You're already in %@." = "You're already in %@.";
-"Done — switched to %@." = "Done — switched to %@.";
-"You haven't set up your %@ yet — open Settings and tap that mode to create it first." = "You haven't set up your %@ yet — open Settings and tap that mode to create it first.";
+"Done. Switched to %@." = "Done, switched to %@.";
+"You haven't set up your %@ yet. Open Settings and tap that mode to create it first." = "You haven't set up your %@ yet. Open Settings and tap that mode to create it first.";
 "Taking you to %@." = "Taking you to %@.";
 "Taking you to Settings." = "Taking you to Settings.";
 "Are you sure you want to log out?" = "Are you sure you want to log out?";
 "You've been logged out." = "You've been logged out.";
 "Okay, staying logged in." = "Okay, staying logged in.";
-"I didn't quite catch that. Try asking about theme, language, mode, or where to find something — for example: %@." = "I didn't quite catch that. Try asking about theme, language, mode, or where to find something — for example: %@.";
+"I didn't quite catch that. Try asking about theme, language, mode, or where to find something, for example: %@." = "I didn't quite catch that. Try asking about theme, language, mode, or where to find something, for example: %@.";
 "You can change your password from Settings → Privacy & Security → Change password." = "You can change your password from Settings → Privacy & Security → Change password.";
 "To block someone, open their profile and choose Block from the menu. You can manage or unblock people anytime from Settings → Privacy & Security → Blocked users." = "To block someone, open their profile and choose Block from the menu. You can manage or unblock people anytime from Settings → Privacy & Security → Blocked users.";
 "You can delete your Hobby profile, your Work profile or your whole account from Settings → Account → Manage account. It needs a code sent to your verified email, and it can't be undone." = "You can delete your Hobby profile, your Work profile or your whole account from Settings → Account → Manage account. It needs a code sent to your verified email, and it can't be undone.";
 "Open a conversation from Home → Messages, tap the chat name at the top, then turn on Mute notifications." = "Open a conversation from Home → Messages, tap the chat name at the top, then turn on Mute notifications.";
 "Open the group chat from Home → Messages, tap the group name at the top, then choose Rename group." = "Open the group chat from Home → Messages, tap the group name at the top, then choose Rename group.";
-"You can edit your profile from the Profile tab — tap Edit profile — or from Settings → Edit profile." = "You can edit your profile from the Profile tab — tap Edit profile — or from Settings → Edit profile.";
+"You can edit your profile from the Profile tab, tap Edit profile, or from Settings → Edit profile." = "You can edit your profile from the Profile tab, tap Edit profile, or from Settings → Edit profile.";
 "Manage notification sounds from Settings → Notifications → Message sounds." = "Manage notification sounds from Settings → Notifications → Message sounds.";
 "Manage privacy and security options from Settings → Privacy & Security." = "Manage privacy and security options from Settings → Privacy & Security.";
 
@@ -733,7 +733,7 @@
 // MARK: - Onboarding / persona / chat gaps (already wrapped in code, key was missing)
 "Checking availability..." = "Checking availability...";
 "Username available" = "Username available";
-"This mode has its own separate identity — name, avatar and bio won't be shared with the other mode" = "This mode has its own separate identity — name, avatar and bio won't be shared with the other mode";
+"This mode has its own separate identity. Name, avatar and bio won't be shared with the other mode" = "This mode has its own separate identity. Name, avatar and bio won't be shared with the other mode";
 "No connections available to add" = "No connections available to add";
 "No other conversations to forward to" = "No other conversations to forward to";
 "Someone you've blocked (or who has blocked you) is in this group." = "Someone you've blocked (or who has blocked you) is in this group.";
@@ -837,6 +837,8 @@
 
 // MARK: - Post media upload errors
 "Couldn't post" = "Couldn't post";
+"Photos can't be added to a post with a link. Remove the link to attach photos." = "Photos can't be added to a post with a link. Remove the link to attach photos.";
+"Remove hashtag" = "Remove hashtag";
 "This video is too large to upload (max 50 MB)." = "This video is too large to upload (max 50 MB).";
 "Couldn't upload one of your photos or videos. Please try again." = "Couldn't upload one of your photos or videos. Please try again.";
 
@@ -882,8 +884,8 @@
 "At least 8 characters. Add symbols like !@#$%^&*_ for extra security." = "At least 8 characters. Add symbols like !@#$%^&*_ for extra security.";
 "Back" = "Back";
 "Checking…" = "Checking…";
-"Couldn't check the username — try again" = "Couldn't check the username — try again";
-"Couldn't save — please try again" = "Couldn't save — please try again";
+"Couldn't check the username. Try again" = "Couldn't check the username. Try again";
+"Couldn't save, please try again" = "Couldn't save, please try again";
 "Developer" = "Developer";
 "Enter your display name" = "Enter your display name";
 "Letters, numbers, and underscore (_) only, at least 3 characters" = "Letters, numbers, and underscore (_) only, at least 3 characters";
@@ -944,7 +946,7 @@
 "Waiting for %@ to accept your messages" = "Waiting for %@ to accept your messages";
 "Waiting, %lld" = "Waiting, %lld";
 "When someone who isn't your friend messages you, it waits here until you accept." = "When someone who isn't your friend messages you, it waits here until you accept.";
-"With %@ — add at least 1 more person. A group needs 3 people or more." = "With %@ — add at least 1 more person. A group needs 3 people or more.";
+"With %@, add at least 1 more person. A group needs 3 people or more." = "With %@, add at least 1 more person. A group needs 3 people or more.";
 "You can send %lld more messages until %@ accepts" = "You can send %lld more messages until %@ accepts";
 "e.g. Greenwich Uni" = "e.g. Greenwich Uni";
 "“%@” is removed. Your chats with its people stay." = "“%@” is removed. Your chats with its people stay.";
@@ -967,8 +969,8 @@
 "Mute" = "Mute";
 "Unmute" = "Unmute";
 "You can only add friends or people who've accepted your messages" = "You can only add friends or people who've accepted your messages";
-"New: keep chats in Spaces — folders for the people you talk to." = "New: keep chats in Spaces — folders for the people you talk to.";
-"No messages yet — say hi" = "No messages yet — say hi";
+"New: keep chats in Spaces. Folders for the people you talk to." = "New: keep chats in Spaces. Folders for the people you talk to.";
+"No messages yet, say hi" = "No messages yet, say hi";
 "Remove from space" = "Remove from space";
 "Rose" = "Rose";
 "Coral" = "Coral";
@@ -1123,7 +1125,7 @@
 "Add a chat" = "Add a chat";
 "Add to floating chat" = "Add to floating chat";
 "Search chats" = "Search chats";
-"Up to 4 chats float at once — adding one closes the chat you used longest ago." = "Up to 4 chats float at once — adding one closes the chat you used longest ago.";
+"Up to 4 chats float at once. Adding one closes the chat you used longest ago." = "Up to 4 chats float at once. Adding one closes the chat you used longest ago.";
 "New poll" = "New poll";
 "Ask a question" = "Ask a question";
 "%lld votes" = "%lld votes";
@@ -1206,7 +1208,7 @@
 "Remove this role" = "Remove this role";
 "Remove this role?" = "Remove this role?";
 "Since %@" = "Since %@";
-"Add skills in Edit profile — your Work connections can then endorse them." = "Add skills in Edit profile — your Work connections can then endorse them.";
+"Add skills in Edit profile. Your Work connections can then endorse them." = "Add skills in Edit profile. Your Work connections can then endorse them.";
 "%lld endorsement" = "%lld endorsement";
 "%lld endorsements" = "%lld endorsements";
 "Endorse" = "Endorse";
@@ -1254,7 +1256,7 @@
 "The pay range needs numbers, the first no higher than the second." = "The pay range needs numbers, the first no higher than the second.";
 "View job" = "View job";
 "Your profile" = "Your profile";
-"Your Work profile — experience and skills — is shared with the job's poster." = "Your Work profile — experience and skills — is shared with the job's poster.";
+"Your Work profile, experience and skills, is shared with the job's poster." = "Your Work profile, experience and skills, is shared with the job's poster.";
 "Why you're a good fit (optional)" = "Why you're a good fit (optional)";
 "Note" = "Note";
 "Keep it under %lld characters." = "Keep it under %lld characters.";
@@ -1331,7 +1333,7 @@
 "Both profiles and everything in them." = "Both profiles and everything in them.";
 "You have one profile, so deleting it means deleting your account." = "You have one profile, so deleting it means deleting your account.";
 "Manage account" = "Manage account";
-"Your chats in this mode — messages you sent stay, shown as “Deleted User”" = "Your chats in this mode — messages you sent stay, shown as “Deleted User”";
+"Your chats in this mode. Messages you sent stay, shown as “Deleted User”" = "Your chats in this mode. Messages you sent stay, shown as “Deleted User”";
 "Your Hobby profile: name, photo, cover and bio" = "Your Hobby profile: name, photo, cover and bio";
 "Your Hobby posts, comments, likes and stories" = "Your Hobby posts, comments, likes and stories";
 "Your Hobby friends, followers and following" = "Your Hobby friends, followers and following";
@@ -1343,10 +1345,10 @@
 "Company pages only you manage" = "Company pages only you manage";
 "Both your Hobby and Work profiles" = "Both your Hobby and Work profiles";
 "All your posts, comments, likes and stories" = "All your posts, comments, likes and stories";
-"All your connections, followers and chats — messages you sent stay, shown as “Deleted User”" = "All your connections, followers and chats — messages you sent stay, shown as “Deleted User”";
+"All your connections, followers and chats. Messages you sent stay, shown as “Deleted User”" = "All your connections, followers and chats. Messages you sent stay, shown as “Deleted User”";
 "Your experience, skills, job applications and company pages only you manage" = "Your experience, skills, job applications and company pages only you manage";
 "Your email, removed from the account" = "Your email, removed from the account";
-"Your username @%@ stays reserved — nobody can sign up with it" = "Your username @%@ stays reserved — nobody can sign up with it";
+"Your username @%@ stays reserved. Nobody can sign up with it" = "Your username @%@ stays reserved. Nobody can sign up with it";
 "Your account and your Work profile, with everything in it" = "Your account and your Work profile, with everything in it";
 "You can make a new Hobby profile later" = "You can make a new Hobby profile later";
 "Your account and your Hobby profile, with everything in it" = "Your account and your Hobby profile, with everything in it";
@@ -1414,8 +1416,8 @@
 "Only your friends can see your posts and profile details. Others see your name, photo and cover." = "Only your friends can see your posts and profile details. Others see your name, photo and cover.";
 "Lock your profile?" = "Lock your profile?";
 "Lock" = "Lock";
-"People who aren't your Work connections will only see your name, photo, cover and username — not your posts, experience, skills or lists." = "People who aren't your Work connections will only see your name, photo, cover and username — not your posts, experience, skills or lists.";
-"People who aren't your friends will only see your name, photo, cover and username — not your posts, highlights, details or lists." = "People who aren't your friends will only see your name, photo, cover and username — not your posts, highlights, details or lists.";
+"People who aren't your Work connections will only see your name, photo, cover and username, not your posts, experience, skills or lists." = "People who aren't your Work connections will only see your name, photo, cover and username, not your posts, experience, skills or lists.";
+"People who aren't your friends will only see your name, photo, cover and username, not your posts, highlights, details or lists." = "People who aren't your friends will only see your name, photo, cover and username, not your posts, highlights, details or lists.";
 "Reactions" = "Reactions";
 "Comments you write show here." = "Comments you write show here.";
 "Posts and comments you like show here." = "Posts and comments you like show here.";
@@ -1433,14 +1435,14 @@
 "Change email" = "Change email";
 "You sign in with this email, and security codes are sent to it." = "You sign in with this email, and security codes are sent to it.";
 "Step 1 of 2 · Confirm it's you" = "Step 1 of 2 · Confirm it's you";
-"To change your email, first enter the code we send to %@ — so nobody else can take over your account." = "To change your email, first enter the code we send to %@ — so nobody else can take over your account.";
+"To change your email, first enter the code we send to %@, so nobody else can take over your account." = "To change your email, first enter the code we send to %@, so nobody else can take over your account.";
 "Step 2 of 2 · Your new email" = "Step 2 of 2 · Your new email";
 "That email is used by another account" = "That email is used by another account";
 "Enter a valid email address" = "Enter a valid email address";
 "Check your email" = "Check your email";
 "Two-factor sign-in is on. Enter the 6-digit code we sent to %@." = "Two-factor sign-in is on. Enter the 6-digit code we sent to %@.";
 "Two-factor authentication" = "Two-factor authentication";
-"Every time you sign in — with your password or Google — we'll email a 6-digit code you need to enter. Someone who knows your password still can't get in." = "Every time you sign in — with your password or Google — we'll email a 6-digit code you need to enter. Someone who knows your password still can't get in.";
+"Every time you sign in, with your password or Google, we'll email a 6-digit code you need to enter. Someone who knows your password still can't get in." = "Every time you sign in, with your password or Google, we'll email a 6-digit code you need to enter. Someone who knows your password still can't get in.";
 "You'll sign in without a code again. You'll still get an email each time your account is signed in to." = "You'll sign in without a code again. You'll still get an email each time your account is signed in to.";
 "Turn on" = "Turn on";
 "Turn off" = "Turn off";
@@ -1451,7 +1453,7 @@
 "Username or email" = "Username or email";
 "Invalid username, email or password" = "Invalid username, email or password";
 "Email (optional)" = "Email (optional)";
-"Optional. Add one to reset your password and use two-factor sign-in — we'll send it a code." = "Optional. Add one to reset your password and use two-factor sign-in — we'll send it a code.";
+"Optional. Add one to reset your password and use two-factor sign-in, we'll send it a code." = "Optional. Add one to reset your password and use two-factor sign-in, we'll send it a code.";
 "Checking the code…" = "Checking the code…";
 "Create a password (optional)" = "Create a password (optional)";
 "So you can also sign in with your @username or email, without Google. You can skip this." = "So you can also sign in with your @username or email, without Google. You can skip this.";
@@ -1598,13 +1600,13 @@
 "Listings are created from the Marketplace" = "Listings are created from the Marketplace";
 "Location (optional)" = "Location (optional)";
 "New listing" = "New listing";
-"Price (₫) — 0 = free" = "Price (₫) — 0 = free";
+"Price (₫), 0 = free" = "Price (₫), 0 = free";
 "Publish" = "Publish";
 "Up to 10. The first one is the cover." = "Up to 10. The first one is the cover.";
 "Waits for admin approval" = "Waits for admin approval";
 "You haven't joined any communities in this mode." = "You haven't joined any communities in this mode.";
 
-/* Marketplace — map location */
+/* Marketplace, map location */
 "Choose location" = "Choose location";
 "Use my current location" = "Use my current location";
 "Search places" = "Search places";
@@ -1614,7 +1616,7 @@
 "Couldn't get your location" = "Couldn't get your location";
 "Location access is off. Turn it on in Settings to use your current location." = "Location access is off. Turn it on in Settings to use your current location.";
 
-/* Forms — Cancel always asks; Marketplace — sold */
+/* Forms, Cancel always asks; Marketplace, sold */
 "Discard changes?" = "Discard changes?";
 "Mark this item as sold?" = "Mark this item as sold?";
 "Mark this item as available?" = "Mark this item as available?";
@@ -1622,28 +1624,28 @@
 "Buyers won't be able to message you about it anymore." = "Buyers won't be able to message you about it anymore.";
 "This item has been sold" = "This item has been sold";
 
-/* Marketplace — save & share */
+/* Marketplace, save & share */
 "No saved items" = "No saved items";
 "Unsave" = "Unsave";
 "Send in a message" = "Send in a message";
 "Say something about this item..." = "Say something about this item...";
 "Listings can only be shared in a message" = "Listings can only be shared in a message";
 
-/* Sharing — pick, then Send; Marketplace seller */
+/* Sharing, pick, then Send; Marketplace seller */
 "Send to %lld" = "Send to %lld";
 "Couldn't send to some chats" = "Couldn't send to some chats";
 "items listed" = "items listed";
 "No other items" = "No other items";
 
-/* Communities — who can see a post */
+/* Communities, who can see a post */
 "Community only" = "Community only";
 "Who can see this post" = "Who can see this post";
 "Only members of a private community can see its posts" = "Only members of a private community can see its posts";
 
-/* Communities — description */
+/* Communities, description */
 "%lld/%lld words" = "%lld/%lld words";
 
-/* Feed — teach the For you feed */
+/* Feed, teach the For you feed */
 "Show more like this" = "Show more like this";
 "Not interested" = "Not interested";
 "You'll see more posts like this" = "You'll see more posts like this";
@@ -1663,7 +1665,73 @@
 "You can change your birthday %lld more times." = "You can change your birthday %lld more times.";
 "Change your birthday?" = "Change your birthday?";
 "Change it" = "Change it";
-"This is your last change — after it, only support (%@) can change your birthday." = "This is your last change — after it, only support (%@) can change your birthday.";
+"This is your last change. After it, only support (%@) can change your birthday." = "This is your last change. After it, only support (%@) can change your birthday.";
 "After this you'll have 1 change left." = "After this you'll have 1 change left.";
 "Your age decides what you can use in ConnectSphere, like Dating, so a birthday can only be changed twice." = "Your age decides what you can use in ConnectSphere, like Dating, so a birthday can only be changed twice.";
 "Your birthday sets the age shown on your account, so it can only be changed twice." = "Your birthday sets the age shown on your account, so it can only be changed twice.";
+
+/* Marketplace: re-up, photos, price chips */
+"Re-up" = "Re-up";
+"Post this item again as new?" = "Post this item again as new?";
+"It appears as a new post in the communities it was listed in, and the earlier post is hidden. Likes and comments don't carry over." = "It appears as a new post in the communities it was listed in, and the earlier post is hidden. Likes and comments don't carry over.";
+"%@ re-up" = "%@ re-up";
+"You aren't selling anything yet" = "You aren't selling anything yet";
+"Add at least one photo." = "Add at least one photo.";
+"Price" = "Price";
+"Price (0 = free)" = "Price (0 = free)";
+"Yours" = "Yours";
+"All items" = "All items";
+"Available" = "Available";
+
+/* Marketplace: auto re-up */
+"Auto re-up" = "Auto re-up";
+"Every" = "Every";
+"At" = "At";
+"1 day" = "1 day";
+"%lld days" = "%lld days";
+"Posts it again as new on this schedule, in Vietnam time. You can cancel any time." = "Posts it again as new on this schedule, in Vietnam time. You can cancel any time.";
+"Auto re-up every day at %@" = "Auto re-up every day at %@";
+"Auto re-up every %lld days at %@" = "Auto re-up every %lld days at %@";
+"Next: %@" = "Next: %@";
+"Stop auto re-up?" = "Stop auto re-up?";
+"Stop auto re-up" = "Stop auto re-up";
+"The item stays listed; you can turn it on again from Edit listing." = "The item stays listed; you can turn it on again from Edit listing.";
+"Buyers won't be able to message you about it anymore. Auto re-up will be turned off." = "Buyers won't be able to message you about it anymore. Auto re-up will be turned off.";
+
+"Open app" = "Open app";
+"No app found" = "No app found";
+"No installed app can open this link. You can keep reading it here." = "No installed app can open this link. You can keep reading it here.";
+
+"Got it" = "Got it";
+"Hidden all from %@" = "Hidden all from %@";
+"You blocked %@" = "You blocked %@";
+"Hiding posts helps us personalise your feed." = "Hiding posts helps us personalise your feed.";
+"You'll see fewer posts like this." = "You'll see fewer posts like this.";
+"You won't see their posts in your feed." = "You won't see their posts in your feed.";
+"You won't be able to see or contact each other." = "You won't be able to see or contact each other.";
+"Thanks for letting us know" = "Thanks for letting us know";
+"We use your feedback to help our systems learn when something's not right." = "We use your feedback to help our systems learn when something's not right.";
+"Other steps you can take" = "Other steps you can take";
+"Block %@'s profile" = "Block %@'s profile";
+"Hide all from %@" = "Hide all from %@";
+"Stop seeing posts from this person." = "Stop seeing posts from this person.";
+
+"New sign-in to your account with Google on %@. Not you? Secure your Google account." = "New sign-in to your account with Google on %@. Not you? Secure your Google account.";
+"Signed in with Google" = "Signed in with Google";
+"Secure Google account" = "Secure Google account";
+"Change ConnectSphere password" = "Change ConnectSphere password";
+"Google manages the password for this sign-in. If it wasn't you, secure your Google account." = "Google manages the password for this sign-in. If it wasn't you, secure your Google account.";
+
+/* Community search page */
+"Search in %@" = "Search in %@";
+"Recent searches" = "Recent searches";
+"Clear all" = "Clear all";
+"Popular in this community" = "Popular in this community";
+"No recent searches" = "No recent searches";
+"Bold" = "Bold";
+"Italic" = "Italic";
+"Strikethrough" = "Strikethrough";
+"Code" = "Code";
+"List" = "List";
+"Quote" = "Quote";
+"Link" = "Link";

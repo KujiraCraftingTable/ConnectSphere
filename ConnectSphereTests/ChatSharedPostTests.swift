@@ -20,7 +20,7 @@ struct ChatSharedPostTests {
         #expect(m.sharedPostId == "p1")
     }
 
-    /// Pinned, it previews as the note — or says it's a shared post.
+    /// Pinned, it previews as the note, or says it's a shared post.
     @Test func pinnedPreviewUsesTheNoteOrSaysItsAPost() throws {
         func pinned(_ content: String?) throws -> PinnedMessage {
             let json = """

@@ -3,7 +3,7 @@ import SwiftData
 
 /// Owns the SwiftData `ModelContainer` for the offline cache. Stores raw
 /// response bodies keyed by a stable string and re-decodes them with the app's
-/// normal ISO-8601 decoder on read — so a cached page decodes exactly like a
+/// normal ISO-8601 decoder on read, so a cached page decodes exactly like a
 /// fresh one and DTO changes need no cache migration.
 ///
 /// Every method is best-effort: a missing container, a decode failure, or a
@@ -62,7 +62,7 @@ final class CacheStore {
         try? ctx.save()
     }
 
-    /// Clear everything — called on logout so the next account never sees the
+    /// Clear everything, called on logout so the next account never sees the
     /// previous one's cached feed / chats / notifications.
     func wipe() {
         guard let ctx else { return }

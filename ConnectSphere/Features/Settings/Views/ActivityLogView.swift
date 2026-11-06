@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Your comments and reactions, in both modes, newest first — tap one to
+/// Your comments and reactions, in both modes, newest first. Tap one to
 /// open the post.
 struct ActivityLogView: View {
     @Environment(AppState.self) private var appState

@@ -3,7 +3,7 @@ import Observation
 
 /// Meeting proposal composer used by `ChatView` for both "new proposal" and
 /// "reschedule" (`ChatView.meetingComposerSheet`). Forked from Communities'
-/// shared `CreateEventSheet` rather than extended — Chat's proposal needs
+/// shared `CreateEventSheet` rather than extended, Chat's proposal needs
 /// fields event-posts don't (a hard-capped title, MapKit location
 /// autocomplete, a mandatory reminder picker) and forking keeps the two
 /// unrelated features decoupled. `CreateEventSheet` itself is untouched.
@@ -25,7 +25,7 @@ struct MeetingProposalComposerView: View {
         VStack(alignment: .leading, spacing: 12) {
             sectionLabel("Meeting Details")
 
-            // Title — hard-capped at 40 characters, actively trimmed rather
+            // Title, hard-capped at 40 characters, actively trimmed rather
             // than just blocking further input.
             fieldRow(label: "Title") {
                 TextField(bundle.loc("Meeting title"), text: $title)
@@ -42,7 +42,7 @@ struct MeetingProposalComposerView: View {
                 .foregroundColor(AppColors.textTertiary(colorScheme))
                 .padding(.top, -6)
                 // `.onChange` above only catches edits made WHILE this view is
-                // visible — a reschedule pre-fills `title` from the existing
+                // visible, a reschedule pre-fills `title` from the existing
                 // proposal before this view appears, which never fires
                 // `.onChange`. Normalize once on appear so a pre-existing
                 // title over the limit (e.g. from a legacy client) is also
@@ -53,7 +53,7 @@ struct MeetingProposalComposerView: View {
                     }
                 }
 
-            // Location — MapKit suggestions under the field; tapping one fills it.
+            // Location, MapKit suggestions under the field; tapping one fills it.
             VStack(alignment: .leading, spacing: 4) {
                 Text(bundle.loc("Location"))
                     .font(.system(size: 12, weight: .medium))
@@ -103,7 +103,7 @@ struct MeetingProposalComposerView: View {
 
             Divider()
 
-            // Reminder — mandatory, defaults to "1 day before" (no "None" option).
+            // Reminder, mandatory, defaults to "1 day before" (no "None" option).
             // Menu style rather than segmented: the 4 labels ("2 days before",
             // "1 week before", …) are too long to fit legibly side-by-side in
             // a composer this narrow.

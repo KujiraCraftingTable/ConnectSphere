@@ -4,7 +4,7 @@ import SwiftUI
 import UserNotifications
 
 /// Media in the composer: freshly picked (image uploaded as jpeg, video as an
-/// mp4/mov file) or already uploaded — a draft's media, kept as its URL.
+/// mp4/mov file) or already uploaded. A draft's media, kept as its URL.
 struct PickedPostMedia: Identifiable {
     let id = UUID()
     let image: UIImage?     // original image (nil if this is a video)
@@ -18,7 +18,7 @@ struct PickedPostMedia: Identifiable {
     /// The picker item it came from, so picking more photos keeps this one
     /// (and its alt text) instead of rebuilding it.
     var pickerItem: PhotosPickerItem? = nil
-    /// What the photo or video shows — shown in its place while it loads and
+    /// What the photo or video shows. Shown in its place while it loads and
     /// read by VoiceOver. Optional.
     var altText = ""
 
@@ -60,10 +60,10 @@ class CreatePostViewModel {
     var isPosting = false
     var isFetchingLink = false
     var isUploadingMedia = false
-    /// Picked photos/videos not loaded yet — the composer shows a blinking
+    /// Picked photos/videos not loaded yet. The composer shows a blinking
     /// tile for each, so a slow video doesn't look like nothing was picked.
     var pendingMediaCount = 0
-    /// Shown by `CreatePostView` when media upload or the post itself fails —
+    /// Shown by `CreatePostView` when media upload or the post itself fails,
     /// previously both failed silently (the post went out without its video,
     /// or the composer just sat there).
     var errorMessage: String?
@@ -75,22 +75,28 @@ class CreatePostViewModel {
 
     // MARK: - Link preview (debounced)
 
-    func detectAndFetchLink(_ text: String) {
+    /// Once the card is up the link lives in the card, so `onLinkShown` lets the
+    /// composer take the URL out of the text. The card is therefore not cleared
+    /// when the text has no URL. Only its X button (or a new link) replaces it.
+    func detectAndFetchLink(_ text: String, onLinkShown: @escaping @MainActor () -> Void) {
         let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
         let matches  = detector?.matches(in: text, range: NSRange(text.startIndex..., in: text))
         guard let urlString = matches?.first?.url?.absoluteString else {
-            if linkPreview != nil { linkPreview = nil }
+            linkPreviewTask?.cancel()
             return
         }
-        if linkPreview?.url == urlString { return }
+        if linkPreview?.url == urlString { onLinkShown(); return }
 
         linkPreviewTask?.cancel()
         linkPreviewTask = Task {
             try? await Task.sleep(nanoseconds: 800_000_000)
             guard !Task.isCancelled else { return }
             isFetchingLink = true
-            linkPreview = try? await repository.fetchLinkPreview(url: urlString)
+            let fetched = try? await repository.fetchLinkPreview(url: urlString)
             isFetchingLink = false
+            guard !Task.isCancelled, let fetched else { return }
+            linkPreview = fetched
+            onLinkShown()
         }
     }
 
@@ -136,7 +142,7 @@ class CreatePostViewModel {
     static let maxUploadBytes = 50 * 1024 * 1024
 
     /// Uploads all selected media in order. Throws if any item fails rather
-    /// than skipping it — a skipped video meant the post published without it,
+    /// than skipping it. A skipped video meant the post published without it,
     /// silently. A video over the server's cap is refused before uploading.
     func uploadMedia(_ media: [PickedPostMedia]) async throws -> [String] {
         isUploadingMedia = true
@@ -168,6 +174,7 @@ class CreatePostViewModel {
         selectedMedia: [PickedPostMedia],
         existingImageUrls: [String],
         communityAudience: CommunityAudience? = nil,
+        hashtags: [String],
         onSuccess: @escaping (Post) -> Void
     ) {
         let capturedPreview = linkPreview
@@ -185,6 +192,10 @@ class CreatePostViewModel {
                     errorMessage = error.localizedDescription
                     return
                 }
+            } else if capturedPreview != nil {
+                // A link post's only picture is the link's thumbnail (sent below),
+                // so a changed link must not keep the old link's picture.
+                imageUrls = []
             } else {
                 imageUrls = existingImageUrls
             }
@@ -201,7 +212,8 @@ class CreatePostViewModel {
                 imageAlts: selectedMedia.isEmpty ? nil : selectedMedia.map(\.altText),
                 linkUrl: capturedPreview?.url,
                 articleTitle: capturedPreview?.title,
-                communityAudience: communityAudience
+                communityAudience: communityAudience,
+                hashtags: hashtags
             )
             if let post = updatedPost {
                 onSuccess(post)
@@ -211,7 +223,7 @@ class CreatePostViewModel {
 
     /// Posts immediately, without waiting on AI. Passes the newly created post (in full)
     /// to the caller via `onSuccess` so it can be inserted straight at the top of the
-    /// feed — no need to wait for a separate reload to see your own post. After posting,
+    /// feed, no need to wait for a separate reload to see your own post. After posting,
     /// a background task waits 10 seconds then checks whether the backend created a mode
     /// mismatch notification. (AI-generated tags are never surfaced on the client, so
     /// there is nothing to refetch once the post is created.)
@@ -318,7 +330,7 @@ class CreatePostViewModel {
     }
 }
 
-/// Why a post's media couldn't be uploaded — localized for the composer's alert.
+/// Why a post's media couldn't be uploaded. Localized for the composer's alert.
 enum MediaUploadError: LocalizedError {
     case tooLarge, failed
 

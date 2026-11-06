@@ -13,7 +13,7 @@ struct LinkPreviewDTO: Decodable {
 // init(from:) in an extension so the memberwise initializer is still synthesized
 // (tests/previews construct LinkPreviewDTO directly).
 extension LinkPreviewDTO {
-    // A page with no <title>/og:title returns title: null — decode leniently so
+    // A page with no <title>/og:title returns title: null. Decode leniently so
     // the link card just shows the host instead of the whole decode failing.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)

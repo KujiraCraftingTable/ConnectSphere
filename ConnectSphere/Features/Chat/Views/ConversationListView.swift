@@ -21,7 +21,7 @@ struct ConversationListView: View {
     // Search (name + message content, across all conversations)
     @State private var searchQuery = ""
 
-    /// Spaces view on/off — a per-device preference, not account data.
+    /// Spaces view on/off. A per-device preference, not account data.
     @AppStorage("chatSpacesView") private var spacesOn = false
     /// Set once Spaces has been switched on; until then a one-line hint under
     /// the switch says what it is.
@@ -46,7 +46,7 @@ struct ConversationListView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Active friends row — tap to jump straight into the conversation.
+            // Active friends row. Tap to jump straight into the conversation.
             // Hidden while searching so the results list has full room.
             if !viewModel.activeConnections.isEmpty && !isSearchActive {
                 activeConnectionsBar
@@ -90,7 +90,7 @@ struct ConversationListView: View {
             }
         }
         .background(AppColors.base(colorScheme))
-        // The AI assistant lives here and nowhere else — it is a
+        // The AI assistant lives here and nowhere else. It is a
         // messaging-adjacent helper, not an app-wide overlay. No bottom-bar
         // padding is needed because this screen hides the tab bar below.
         .overlay(alignment: .bottomTrailing) {
@@ -315,12 +315,12 @@ struct ConversationListView: View {
                 spacesToggle
             }
             if !spacesOn && !spacesIntroSeen && spacesViewModel.hasLoaded && spacesViewModel.spaces.isEmpty {
-                Text("New: keep chats in Spaces — folders for the people you talk to.", bundle: bundle)
+                Text("New: keep chats in Spaces. Folders for the people you talk to.", bundle: bundle)
                     .font(.system(size: 12))
                     .foregroundColor(AppColors.textTertiary(colorScheme))
             }
         }
-        // Feed's scope row sits 12 pt inside an 8 pt-inset stack — same here,
+        // Feed's scope row sits 12 pt inside an 8 pt-inset stack. Same here,
         // so the controls line up with the cards' content instead of their edges.
         .padding(.horizontal, AppSpacing.sm + 12)
         .padding(.top, AppSpacing.sm)
@@ -426,7 +426,7 @@ struct ConversationListView: View {
         .inFolder(folder, surface: AppColors.surface(colorScheme))
         .alignmentGuide(.listRowSeparatorLeading) { _ in ConversationRow.textInset }
         // Order matters: the first button sits at the edge and is the one a
-        // full (strong) swipe triggers — floating the chat.
+        // full (strong) swipe triggers. Floating the chat.
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button { float(conversation) } label: {
                 Label(bundle.loc("Bubble"), systemImage: "bubble.left.and.bubble.right.fill")
@@ -558,7 +558,7 @@ struct ConversationListView: View {
 
     /// One space drawn as a coloured folder: its header and a white card of
     /// rows sit on a soft wash of the space's colour, which shows as a margin
-    /// all round the card — the colour is the layer the chats rest on.
+    /// all round the card. The colour is the layer the chats rest on.
     @ViewBuilder
     private func spaceFolder(_ section: SpaceSection, space: ChatSpace) -> some View {
         let tint = space.color.color.opacity(colorScheme == .dark ? 0.22 : 0.14)
@@ -596,7 +596,7 @@ struct ConversationListView: View {
                         .font(.system(size: 15))
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                         .lineLimit(1)
-                    Text("No messages yet — say hi", bundle: bundle)
+                    Text("No messages yet, say hi", bundle: bundle)
                         .font(.system(size: 13))
                         .foregroundColor(AppColors.textTertiary(colorScheme))
                         .lineLimit(1)
@@ -740,7 +740,7 @@ struct ConversationListView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    /// Bolds + tints every case-insensitive occurrence of `term` in `text` —
+    /// Bolds + tints every case-insensitive occurrence of `term` in `text`,
     /// same pattern as `ChatMessageSearchView.highlighted(_:term:)`.
     private func highlighted(_ text: String, term: String) -> AttributedString {
         var attr = AttributedString(text)
@@ -872,7 +872,7 @@ struct ConversationRow: View {
         .contentShape(Rectangle())   // the card behind supplies the surface colour
     }
 
-    /// Where the name/preview column starts (padding + avatar + spacing) —
+    /// Where the name/preview column starts (padding + avatar + spacing),
     /// dividers between rows start here.
     static let textInset: CGFloat = 16 + 52 + 12
 
@@ -921,7 +921,7 @@ struct ChatRoute: Identifiable, Hashable {
     let conversationId: String
     let peer: ChatPeer
     let location: String?
-    /// Set when navigating from a search hit — `ChatView` scrolls to and
+    /// Set when navigating from a search hit, `ChatView` scrolls to and
     /// highlights this message once it opens.
     var jumpToMessageId: String? = nil
 

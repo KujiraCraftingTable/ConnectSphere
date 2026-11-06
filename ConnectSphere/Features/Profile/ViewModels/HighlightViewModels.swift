@@ -135,7 +135,13 @@ final class HighlightEditorViewModel {
         self.editing = editing
         title = editing?.title ?? ""
         if let preselectedStory { storyIds = [preselectedStory] }
+        openedSignature = signature
     }
+
+    /// The form as it opened, to tell whether Cancel would lose anything.
+    private var openedSignature: [String] = []
+    private var signature: [String] { [title, "\(photos.count)", storyIds.sorted().joined(separator: ",")] }
+    var hasChanges: Bool { signature != openedSignature }
 
     private var trimmedTitle: String { title.trimmingCharacters(in: .whitespacesAndNewlines) }
     var titleTooLong: Bool { trimmedTitle.count > Highlight.titleLimit }

@@ -19,9 +19,9 @@ struct CommunityAnalytics: Decodable {
     }
 }
 
-/// One day's analytics snapshot — used as chart data points
+/// One day's analytics snapshot. Used as chart data points
 struct DailySnapshot: Decodable {
-    let snapshotDate:  String  // "YYYY-MM-DD" — kept as String for x-axis labels
+    let snapshotDate:  String  // "YYYY-MM-DD", kept as String for x-axis labels
     let memberCount:   Int
     let postCount:     Int
     let newMembers:    Int
@@ -37,7 +37,7 @@ struct DailySnapshot: Decodable {
         case activeMembers = "active_members"
     }
 
-    /// Display-friendly short label ("Jun 5", or "5 thg 6" in Vietnamese) —
+    /// Display-friendly short label ("Jun 5", or "5 thg 6" in Vietnamese),
     /// locale-aware rather than a fixed English month table, so the x-axis
     /// follows the in-app language. Same "read the saved language, fall back
     /// to the device locale" convention as `Bundle.app` and `AppState.init()`.

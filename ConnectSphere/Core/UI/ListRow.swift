@@ -59,7 +59,7 @@ extension ListRow where Trailing == EmptyView {
     }
 }
 
-/// The iOS-Settings colored icon tile — kept as a deliberate style, but
+/// The iOS-Settings colored icon tile. Kept as a deliberate style, but
 /// tokenised so callers stop passing raw hex.
 struct SettingsIconTile: View {
     let systemName: String

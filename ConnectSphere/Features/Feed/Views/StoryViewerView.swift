@@ -1,7 +1,7 @@
 import SwiftUI
 import Combine
 
-/// Views one person's stories — full screen, a progress bar per story,
+/// Views one person's stories. Full screen, a progress bar per story,
 /// auto-advances after 5 seconds, tap left/right to go back/forward.
 /// Your own story additionally has a delete button + list of viewers.
 struct StoryViewerView: View {

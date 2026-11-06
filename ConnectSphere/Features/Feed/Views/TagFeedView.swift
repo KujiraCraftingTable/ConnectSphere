@@ -1,12 +1,12 @@
 import SwiftUI
 
-/// Browse posts by hashtag — opened by tapping a tag chip on PostCard.
+/// Browse posts by hashtag. Opened by tapping a tag chip on PostCard.
 struct TagFeedView: View {
     @Environment(\.appBundle) var bundle
     @Environment(\.colorScheme) var colorScheme
 
     let tag: String
-    /// Scopes tag browsing to the mode the tag chip was tapped from — matches
+    /// Scopes tag browsing to the mode the tag chip was tapped from. Matches
     /// every other post-list surface (main Feed, connections scope) being
     /// mode-scoped, instead of mixing hobby and work posts together.
     let mode: AppMode
@@ -79,7 +79,7 @@ struct TagFeedView: View {
         .background(AppColors.base(colorScheme))
         .navigationTitle("#\(tag)")
         .navigationBarTitleDisplayMode(.inline)
-        // `isPresented:` (not `item:`) — TagFeedView shares its host's
+        // `isPresented:` (not `item:`), TagFeedView shares its host's
         // NavigationStack, which may already carry a PostRoute `item:`
         // destination (from FeedView); type-keyed `item:` destinations collide,
         // boolean ones don't.

@@ -1,7 +1,7 @@
 import SwiftUI
 
 extension View {
-    /// Attaches the floating chat window from `presenter` — put this on a
+    /// Attaches the floating chat window from `presenter`. Put this on a
     /// screen-level view (see `MainTabView`), the same way
     /// `.undoToastOverlay(_:)` is.
     func floatingChatOverlay(_ presenter: FloatingChatPresenter) -> some View {
@@ -23,7 +23,7 @@ private struct FloatingChatLayer: View {
     var body: some View {
         ZStack {
             GeometryReader { geo in
-                // Tap-outside-to-dismiss-keyboard catcher — only present (and
+                // Tap-outside-to-dismiss-keyboard catcher, only present (and
                 // only hit-testable) while a chat is composing; sits behind the
                 // window so tapping it is unaffected, and behind the composer bar
                 // (a later sibling of this layer) so tapping the field doesn't
@@ -41,7 +41,7 @@ private struct FloatingChatLayer: View {
             // Keyboard-independent coordinate space for the window: without
             // this `geo.size.height` shrinks when the keyboard appears, so both
             // `defaultSpawn` and the `snapped` clamp would compute against the
-            // wrong height — and an absolutely-positioned window would not move
+            // wrong height, and an absolutely-positioned window would not move
             // anyway. It rises instead via the measured `lift`.
             .ignoresSafeArea(.keyboard)
 
@@ -143,7 +143,7 @@ private struct FloatingChatLayer: View {
     }
 }
 
-/// Sizing/placement maths for the floating window — kept in one place so the
+/// Sizing/placement maths for the floating window. Kept in one place so the
 /// spawn, snap, stash and keyboard-lift rules stay consistent as sizes change.
 enum FloatingChatLayout {
     static func defaultSpawn(size: CGSize, in container: CGSize) -> CGPoint {
@@ -153,7 +153,7 @@ enum FloatingChatLayout {
     }
 
     /// How far to raise the composing window so its bottom edge clears the
-    /// docked composer bar, whose top edge is `composerTopY` (global coords —
+    /// docked composer bar, whose top edge is `composerTopY` (global coords,
     /// the bar reports it itself, so this needs no keyboard-height guess).
     ///
     /// Clamped so the lift can never push the window's top above `minTop`: on

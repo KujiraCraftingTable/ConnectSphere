@@ -2,7 +2,7 @@
 //  AssistantMatcherTests.swift
 //  ConnectSphereTests
 //
-//  Covers `AssistantMatcher` — the assistant's entire decision layer. It is
+//  Covers `AssistantMatcher`, the assistant's entire decision layer. It is
 //  pure, synchronous and dependency-free (no AppState, no network), so it
 //  needs no mocking or host app.
 //
@@ -20,7 +20,7 @@ import Testing
 struct AssistantMatcherPrecisionTests {
 
     /// The phrase "work profile" really is a token run in this sentence, so
-    /// word boundaries alone don't save us — the coverage check has to. The
+    /// word boundaries alone don't save us. The coverage check has to. The
     /// user is complaining about a picture, not asking to switch app modes.
     @Test func incidentalPhraseAsksBeforeSwitchingMode() {
         let match = AssistantMatcher.match("my work profile picture is wrong")
@@ -31,7 +31,7 @@ struct AssistantMatcherPrecisionTests {
 
     /// "reset it" is a registry phrase for the change-password topic. Word
     /// boundaries stop it hijacking a longer, unrelated sentence into
-    /// executing anything — but a guidance reply is text-only (no state
+    /// executing anything, but a guidance reply is text-only (no state
     /// change), so it's fine for that one to still surface as a hint, and it
     /// is deliberately always marked confident since a weak guidance match
     /// costs nothing worse than an unhelpful answer.
@@ -48,7 +48,7 @@ struct AssistantMatcherPrecisionTests {
     }
 
     /// An arbitrary single word that isn't itself a curated registry phrase
-    /// must not match anything — unlike "logout", which the registry commits
+    /// must not match anything. Unlike "logout", which the registry commits
     /// to as a deliberate one-word command (covered in
     /// AssistantRegistryTests.everyPhraseResolvesToItsOwnIntent).
     @Test func arbitrarySingleWordDoesNotMatch() {
@@ -135,7 +135,7 @@ struct AssistantMatcherVietnameseTests {
         #expect(AssistantMatcher.match("đi đến cài đặt").intent == .openSettings)
     }
 
-    /// Bilingual matching is intentional — input in either language resolves
+    /// Bilingual matching is intentional. Input in either language resolves
     /// regardless of the app's current language.
     @Test func englishInputStillMatchesWhileVietnameseIsSelected() {
         #expect(AssistantMatcher.match("switch to dark mode").intent == .setTheme(.dark))
@@ -159,7 +159,7 @@ struct AssistantChipTests {
 
     private func bundle(_ language: String) throws -> Bundle {
         // Anchor on a type compiled into the ConnectSphere app module, not the
-        // test bundle — Bundle(for:) with the test's own class would look
+        // test bundle, Bundle(for:) with the test's own class would look
         // inside ConnectSphereTests.xctest, which has no .lproj folders at all.
         let path = try #require(
             Bundle(for: AppState.self).path(forResource: language, ofType: "lproj"),
@@ -227,7 +227,7 @@ struct AssistantRegistryTests {
 
     /// Guidance copy is duplicated between `AssistantIntent.swift` and both
     /// .strings files. `Bundle.loc` falls back to the key, so a drift would be
-    /// invisible at runtime — this makes it fail loudly instead.
+    /// invisible at runtime. This makes it fail loudly instead.
     @Test func everyGuidanceTopicHasATranslationInBothBundles() throws {
         for language in ["en", "vi"] {
             let path = try #require(
@@ -239,7 +239,7 @@ struct AssistantRegistryTests {
             for topic in AssistantGuidanceTopic.allCases {
                 let key = topic.messageKey
                 let value = bundle.localizedString(forKey: key, value: "__MISSING__", table: nil)
-                #expect(value != "__MISSING__", "\(language): no entry for \(topic) — \"\(key)\"")
+                #expect(value != "__MISSING__", "\(language): no entry for \(topic), \"\(key)\"")
             }
         }
     }

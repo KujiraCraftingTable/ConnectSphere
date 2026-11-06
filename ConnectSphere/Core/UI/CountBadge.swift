@@ -3,7 +3,7 @@ import SwiftUI
 /// The one unread/count indicator. Palette-filled capsule, white text, clamps
 /// at "99+". Replaces the red-capsule / blue-capsule / palette-dot variants
 /// scattered across Feed, the message list and notifications. (The tab bar
-/// keeps the system `.badge()` — same value, native affordance.)
+/// keeps the system `.badge()`. Same value, native affordance.)
 struct CountBadge: View {
     let count: Int
 
@@ -24,7 +24,7 @@ struct CountBadge: View {
 
 /// The unread badge on an icon (iOS 18's stand-in for a toolbar item's
 /// system badge): red with white numbers and a thin ring in the background
-/// colour that keeps it apart from the icon — like Messenger's.
+/// colour that keeps it apart from the icon. Like Messenger's.
 struct UnreadBadge: View {
     let count: Int
 

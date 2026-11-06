@@ -13,6 +13,8 @@ struct SkillsSection: View {
     let isMe: Bool
     /// Off on a view-only Work profile opened from Hobby mode.
     var allowsEndorsing = true
+    /// Changes when the person's skills were edited, so the list reloads.
+    var refreshKey: [String] = []
 
     @State private var viewModel = SkillsViewModel()
     @State private var showAll = false
@@ -31,7 +33,7 @@ struct SkillsSection: View {
                     if !viewModel.loaded {
                         ProgressView().frame(maxWidth: .infinity)
                     } else if viewModel.skills.isEmpty {
-                        Text("Add skills in Edit profile — your Work connections can then endorse them.", bundle: bundle)
+                        Text("Add skills in Edit profile. Your Work connections can then endorse them.", bundle: bundle)
                             .font(.system(size: 14))
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     } else {
@@ -58,7 +60,9 @@ struct SkillsSection: View {
                 .padding(.horizontal, AppSpacing.sm)
             }
         }
-        .task(id: userId) { await viewModel.load(userId: userId, token: token) }
+        .task(id: "\(userId)|\(refreshKey.joined(separator: ","))") {
+            await viewModel.load(userId: userId, token: token)
+        }
     }
 
     private func row(_ skill: ProfileSkill) -> some View {

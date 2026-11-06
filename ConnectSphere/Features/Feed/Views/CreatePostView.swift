@@ -11,14 +11,16 @@ struct CreatePostView: View {
     /// The picked photo/video whose alt text is being written.
     @State private var altTarget: PickedPostMedia?
     @State private var content = ""
+    @State private var contentSelection: TextSelection?
+    @FocusState private var contentFocused: Bool
     @State private var privacy: PostPrivacy = .publicAll
     @State private var showPrivacyPicker = false
 
-    // Post type (Phase 2: Feed can now post polls/events, not just text) —
+    // Post type (Phase 2: Feed can now post polls/events, not just text),
     // hidden entirely in edit mode, which only supports editing text posts.
     @State private var postType: PostType = .text
     @State private var composerViewModel = PostComposerViewModel()
-    /// Skips the next single detectAndFetchLink call — used when loading existing content
+    /// Skips the next single detectAndFetchLink call. Used when loading existing content
     /// on entering Edit mode, since the content had its URL stripped already, so detecting
     /// again would wrongly clear linkPreview.
     @State private var suppressNextLinkDetect = false
@@ -27,9 +29,14 @@ struct CreatePostView: View {
     @State private var selectedItems: [PhotosPickerItem] = []
     @State private var selectedMedia: [PickedPostMedia] = []
 
-    // Hashtags — create mode only (PATCH /posts/:id doesn't accept them yet).
-    @State private var hashtags: [String] = []
-    @State private var hashtagController = HashtagInputController()
+    // Hashtags, create mode only (PATCH /posts/:id doesn't accept them yet).
+    /// Finished `#tags` leave the text and sit here as chips, as a link leaves it
+    /// for its card; a tag still being typed is read from the text.
+    @State private var typedTags: [String] = []
+    private var hashtags: [String] {
+        var seen = Set<String>()
+        return (typedTags + PostText.tags(in: content)).filter { seen.insert($0.lowercased()).inserted }
+    }
 
     @State private var viewModel = CreatePostViewModel()
     @State private var drafts = DraftsViewModel()
@@ -76,20 +83,35 @@ struct CreatePostView: View {
     private var isPosting: Bool { viewModel.isPosting || composerViewModel.isPosting }
 
     private var takesMedia: Bool { postType == .text }
+    /// A post shows its link card or its photos, not both, so a link turns photos off.
+    private var photosBlockedByLink: Bool { viewModel.linkPreview != nil }
 
-    /// Anything typed or attached — closing would lose it, so ask first.
-    private var hasUnsavedWork: Bool {
-        !isEditMode && (!content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        || !selectedMedia.isEmpty || viewModel.linkPreview != nil)
+    /// Everything the person can change on this screen, compared with how it
+    /// looked when it opened, to know whether Cancel would lose anything.
+    private var editSignature: [String] {
+        [content.trimmingCharacters(in: .whitespacesAndNewlines),
+         hashtags.map { $0.lowercased() }.sorted().joined(separator: ","),
+         privacy.rawValue,
+         viewModel.linkPreview?.url ?? "",
+         String(selectedMedia.count),
+         postType.rawValue,
+         communityAudience.rawValue,
+         scheduleAt.map { String($0.timeIntervalSince1970) } ?? "",
+         composerViewModel.pollOptions.joined(separator: "|"),
+         composerViewModel.eventTitle, composerViewModel.eventLocation,
+         composerViewModel.jobTitle, composerViewModel.jobCompany]
     }
+    @State private var openedSignature: [String]?
+    /// Cancel only asks when something changed since the screen opened.
+    private var hasChanges: Bool { openedSignature.map { $0 != editSignature } ?? false }
 
-    /// The other drafts for the same place — the feed, or this community
+    /// The other drafts for the same place. The feed, or this community
     /// (not the one already open).
     private var feedDrafts: [Post] { drafts.drafts(inCommunity: community?.id).filter { $0.id != draftId } }
 
     /// Edit mode only: does the post being edited ALREADY have media or a link that
     /// hasn't been changed? `selectedMedia`/`linkPreview` only ever reflect NEWLY
-    /// picked media/a newly-detected link in this view — edit mode never seeds them
+    /// picked media/a newly-detected link in this view. Edit mode never seeds them
     /// from the existing post (images stay server-side, referenced by URL, until the
     /// user picks new ones), so without this a caption-less media/link post being
     /// edited would look content-less and Save would be wrongly disabled forever.
@@ -100,14 +122,14 @@ struct CreatePostView: View {
 
     private var isPostDisabled: Bool {
         // Poll/event validity (min 2 options, event title + future start time)
-        // is delegated to composerViewModel.isValid — same rule the Community
+        // is delegated to composerViewModel.isValid. Same rule the Community
         // composer already enforces for identical post types.
         guard postType == .text else {
             // Photos are picked through this screen's model, so wait for them too.
             return !composerViewModel.isValid || composerViewModel.isPosting || viewModel.pendingMediaCount > 0
         }
         // Allow posting when there's text OR media/link (an image/video/link-only post
-        // doesn't need a caption) — in edit mode, media/link the post already has also
+        // doesn't need a caption). In edit mode, media/link the post already has also
         // counts, not just newly picked media or a newly detected link.
         let hasContent = !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             || !selectedMedia.isEmpty
@@ -159,7 +181,7 @@ struct CreatePostView: View {
 
                             Spacer()
 
-                            // Mode badge (icon only) — hobby vs work,
+                            // Mode badge (icon only). Hobby vs work,
                             // kept fully separate from the privacy icon to avoid confusion.
                             Image(systemName: effectiveMode.glyph)
                                 .font(.system(size: 15, weight: .semibold))
@@ -170,14 +192,14 @@ struct CreatePostView: View {
                         .padding(.horizontal, 16)
                         .padding(.top, 16)
 
-                        // ── Post type picker (create mode only — editing an
+                        // ── Post type picker (create mode only. Editing an
                         // existing post never changes its type) ────────────────
                         if !isEditMode {
                             Picker("Post type", selection: $postType) {
                                 Text("Text", bundle: bundle).tag(PostType.text)
                                 Text("Poll", bundle: bundle).tag(PostType.poll)
                                 Text("Event", bundle: bundle).tag(PostType.event)
-                                // Job posts are a Work-mode-only concept — hidden
+                                // Job posts are a Work-mode-only concept. Hidden
                                 // from the picker in Hobby mode (also enforced
                                 // server-side, see PostService.createJobPost).
                                 if effectiveMode == .work {
@@ -210,7 +232,8 @@ struct CreatePostView: View {
                                     .padding(.top, 12)
                                     .padding(.leading, 14)
                             }
-                            TextEditor(text: $content)
+                            TextEditor(text: $content, selection: $contentSelection)
+                                .focused($contentFocused)
                                 .font(.system(size: 16))
                                 .foregroundColor(AppColors.textPrimary(colorScheme))
                                 .frame(minHeight: 150)
@@ -237,7 +260,7 @@ struct CreatePostView: View {
                         }
                         .padding(.horizontal, 16)
 
-                        // ── Poll/Event/Job inline sections — @Binding-only
+                        // ── Poll/Event/Job inline sections, @Binding-only
                         // components, already post-type-agnostic. ────────────
                         if postType == .poll {
                             CreatePollSheet(
@@ -294,14 +317,31 @@ struct CreatePostView: View {
                             }
                         }
 
-                        // ── Hashtags (create mode only — the update-post endpoint
-                        // doesn't accept them). Applies to all post types. ───────
-                        if !isEditMode {
-                            HashtagInputView(hashtags: $hashtags, controller: hashtagController)
-                                .padding(.horizontal, 16)
+                        // ── Hashtags found in the text ───────────────────────────
+                        if !hashtags.isEmpty {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: AppSpacing.sm) {
+                                    ForEach(hashtags, id: \.self) { tag in
+                                        HStack(spacing: 6) {
+                                            Text("#\(tag)")
+                                            if typedTags.contains(tag) {
+                                                Button { typedTags.removeAll { $0 == tag } } label: {
+                                                    Image(systemName: "xmark").font(.system(size: 10, weight: .bold))
+                                                }
+                                                .accessibilityLabel(bundle.loc("Remove hashtag"))
+                                            }
+                                        }
+                                        .font(.system(size: 14))
+                                        .foregroundColor(AppColors.textSecondary(colorScheme))
+                                        .padding(.horizontal, 12).padding(.vertical, 6)
+                                        .background(Capsule().fill(AppColors.surface(colorScheme)))
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 16)
                         }
 
-                        // ── Photo/Video button (text posts — the only type the
+                        // ── Photo/Video button (text posts. The only type the
                         // backend takes image_urls on here) ───────────────────
                         if takesMedia {
                             PhotosPicker(
@@ -335,8 +375,19 @@ struct CreatePostView: View {
                                     }
                                 }
                             }
+                            .disabled(photosBlockedByLink)
+                            .opacity(photosBlockedByLink ? 0.45 : 1)
                             .padding(.horizontal, 16)
-                            .padding(.bottom, 8)
+                            .padding(.bottom, photosBlockedByLink ? 0 : 8)
+
+                            if photosBlockedByLink {
+                                Text("Photos can't be added to a post with a link. Remove the link to attach photos.", bundle: bundle)
+                                    .font(.system(size: 13))
+                                    .foregroundColor(AppColors.textSecondary(colorScheme))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 20)
+                                    .padding(.bottom, 8)
+                            }
                         }
                     }
                 }
@@ -394,16 +445,22 @@ struct CreatePostView: View {
             .background(AppColors.base(colorScheme))
             .navigationTitle(isEditMode ? bundle.loc("Edit post") : bundle.loc("New post"))
             .navigationBarTitleDisplayMode(.inline)
-            .interactiveDismissDisabled()
+            .interactiveDismissDisabled(hasChanges)
             .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    if contentFocused { MarkdownToolbar(text: $content, selection: $contentSelection) }
+                }
                 ToolbarItem(placement: .navigationBarLeading) {
-                    // Always asks, even with nothing typed yet.
-                    Button(bundle.loc("Cancel")) { showLeaveDialog = true }
+                    // Nothing changed → nothing to lose, so no question.
+                    Button(bundle.loc("Cancel")) {
+                        if hasChanges { showLeaveDialog = true } else { dismiss() }
+                    }
                     .foregroundColor(AppColors.textSecondary(colorScheme))
-                    .confirmationDialog(bundle.loc(!hasUnsavedWork ? "Discard changes?"
+                    .confirmationDialog(bundle.loc(isEditMode ? "Discard changes?"
                                                    : draftId == nil ? "Save this post as a draft?" : "Save your changes to this draft?"),
                                         isPresented: $showLeaveDialog, titleVisibility: .visible) {
-                        if !isPostDisabled {
+                        // A draft is a new post's safety net; editing a posted one has none.
+                        if !isEditMode && !isPostDisabled {
                             Button(bundle.loc("Save draft")) { savePost(as: .draft) }
                         }
                         Button(bundle.loc(draftId == nil ? "Discard" : "Discard changes"), role: .destructive) { dismiss() }
@@ -443,6 +500,7 @@ struct CreatePostView: View {
                 if let draft, draftId == nil { loadDraft(draft) }
                 if let post = editingPost {
                     content = post.content
+                    typedTags = post.tags
                     privacy = post.privacy
                     communityAudience = post.community?.audience ?? .members
                     if let linkUrl = post.linkUrl {
@@ -456,24 +514,34 @@ struct CreatePostView: View {
                         )
                     }
                 }
+                openedSignature = editSignature
             }
             .onChange(of: content) { _, newContent in
                 // Keep composerViewModel.content mirrored regardless of
-                // postType — it's the single field composerViewModel.isValid
+                // postType, it's the single field composerViewModel.isValid
                 // (poll/event validation) and submitPoll/submitEvent both read.
                 composerViewModel.content = newContent
                 if suppressNextLinkDetect {
                     suppressNextLinkDetect = false
                     return
                 }
+                let split = PostText.extractingFinishedTags(from: newContent)
+                if !split.tags.isEmpty {
+                    for t in split.tags where !typedTags.contains(where: { $0.lowercased() == t.lowercased() }) { typedTags.append(t) }
+                    content = split.text
+                    return
+                }
                 if postType == .text {
-                    viewModel.detectAndFetchLink(newContent)
+                    viewModel.detectAndFetchLink(newContent) {
+                        // The card now carries the link; keep it out of the text.
+                        content = PostText.removingLinks(from: content)
+                    }
                 }
             }
             .sheet(isPresented: $showPrivacyPicker) {
                 PrivacyPickerSheet(selected: $privacy, mode: appState.currentMode)
             }
-            // Upload or post failure — the composer stays open with everything
+            // Upload or post failure. The composer stays open with everything
             // intact so the user can retry or remove the media. Either view
             // model can fail: feed text posts use one, everything else the other.
             .alert(
@@ -503,13 +571,10 @@ struct CreatePostView: View {
     /// Posts now, or saves a draft. Opened from a draft, either one replaces
     /// it on the server (`replaces_draft`).
     private func savePost(as publish: PublishChoice) {
-        // Flush whatever's still typed-but-uncommitted in the hashtag field
-        // before reading `hashtags` — otherwise a hashtag typed right before
-        // tapping Post (no space/return/suggestion tap) is silently dropped.
-        hashtagController.commitPending(into: &hashtags)
+        moveTagsOutOfText()
         let finish: (Post) -> Void = { post in
             if publish.isLive {
-                // Broadcast beyond just this composer's own caller — e.g.
+                // Broadcast beyond just this composer's own caller. E.g.
                 // `AppState.currentUser.postCount` and a `ProfileViewModel`
                 // that's still alive in memory (Profile tab visited earlier,
                 // not recreated) have no other way to learn a new post exists
@@ -601,14 +666,26 @@ struct CreatePostView: View {
         }
     }
 
+    /// The text is final: a tag still sitting in it (typed last, no space after)
+    /// becomes a chip too, so no `#word` is left inside the saved text.
+    private func moveTagsOutOfText() {
+        let tags = hashtags
+        let cleaned = PostText.extractingFinishedTags(from: content, includingTrailing: true).text
+        typedTags = tags
+        if cleaned != content {
+            content = cleaned
+            composerViewModel.content = cleaned
+        }
+    }
+
     /// Fills the composer from a saved draft.
     private func loadDraft(_ d: Post) {
         draftId = d.id
         suppressNextLinkDetect = d.linkUrl != nil
         content = d.content
+        typedTags = d.tags
         privacy = d.privacy
         postType = d.postType
-        hashtags = d.tags
         selectedItems = []
         selectedMedia = PickedPostMedia.remote(d.imageUrls, alts: d.imageAlts)
         viewModel.linkPreview = d.linkUrl.map {
@@ -616,12 +693,13 @@ struct CreatePostView: View {
         }
         composerViewModel.load(d)
         scheduleAt = d.publishStatus == "scheduled" ? d.publishAt : nil
+        openedSignature = editSignature
     }
 
     /// Adapts a `CommunityPost` (what PostComposerViewModel's shared submit
     /// path returns) into a Feed `Post` for this screen's Post-typed
     /// callbacks. mode/privacy come from local composer state (already known
-    /// — this IS what was just submitted), not decoded from the response.
+    ///, this IS what was just submitted), not decoded from the response.
     private func feedPost(from communityPost: CommunityPost) -> Post {
         Post(
             id:            communityPost.id,
@@ -649,7 +727,7 @@ struct CreatePostView: View {
         )
     }
 
-    /// Where it goes, then who can see it — "Community only ▾" / "Public ▾".
+    /// Where it goes, then who can see it, "Community only ▾" / "Public ▾".
     /// A private community's posts are members-only, so there's no choice.
     private func communityChip(_ target: (name: String, icon: String, isPrivate: Bool)) -> some View {
         let audience: CommunityAudience = target.isPrivate ? .members : communityAudience
@@ -701,13 +779,15 @@ struct CreatePostView: View {
 
     private func saveEdit() {
         guard let post = editingPost else { return }
+        moveTagsOutOfText()
         viewModel.updatePost(
             postId: post.id,
             content: content,
             privacy: privacy,
             selectedMedia: selectedMedia,
             existingImageUrls: post.displayImageUrls,
-            communityAudience: post.community == nil ? nil : communityAudience
+            communityAudience: post.community == nil ? nil : communityAudience,
+            hashtags: hashtags
         ) { updatedPost in
             NotificationCenter.default.post(name: .postUpdated, object: nil, userInfo: ["post": updatedPost])
             onPostUpdated?(updatedPost)

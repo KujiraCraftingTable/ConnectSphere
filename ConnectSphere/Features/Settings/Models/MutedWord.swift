@@ -42,7 +42,7 @@ enum MuteDuration: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    /// Localization key — callers wrap it in `bundle.loc(...)`.
+    /// Localization key, callers wrap it in `bundle.loc(...)`.
     var label: String {
         switch self {
         case .day: return "24 hours"

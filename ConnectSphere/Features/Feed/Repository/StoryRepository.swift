@@ -15,7 +15,7 @@ struct StoryRepository {
     }
 
     /// The current user's own stories + connections', not yet expired, for
-    /// one mode ("hobby"/"work") — stories are mode-scoped like posts.
+    /// one mode ("hobby"/"work"), stories are mode-scoped like posts.
     func fetchStories(mode: String) async throws -> [StoryDTO] {
         let response = try await client.fetch(
             ListResponse.self,
@@ -58,7 +58,7 @@ struct StoryRepository {
         )
     }
 
-    /// List of people who have viewed the story — can only be called for the current user's own story
+    /// List of people who have viewed the story. Can only be called for the current user's own story
     func fetchViewers(storyId: String) async throws -> [StoryViewerDTO] {
         struct ViewersResponse: Decodable { let data: [StoryViewerDTO] }
         return try await client.fetch(

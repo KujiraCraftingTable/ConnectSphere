@@ -15,7 +15,7 @@ extension Date {
 
         // Absolute date: formatted according to the currently selected language.
         // Falls back to the device locale (not a hardcoded "vi") before the
-        // setting is first persisted — same convention as AppState.init() and
+        // setting is first persisted. Same convention as AppState.init() and
         // Bundle.app, which both derive from Locale.current rather than
         // assuming Vietnamese.
         let savedLanguage = UserDefaults.standard.string(forKey: "appLanguage")

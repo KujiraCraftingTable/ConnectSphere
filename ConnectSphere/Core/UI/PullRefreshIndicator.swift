@@ -2,7 +2,7 @@ import SwiftUI
 
 /// A pull-to-refresh indicator for scroll views that run up under the status
 /// bar (the profile's cover). The system spinner sits at the very top, centred,
-/// which is where the Dynamic Island is — so there it never shows. This one
+/// which is where the Dynamic Island is, so there it never shows. This one
 /// hangs below the navigation bar instead and looks like the system one: its
 /// spokes appear as you pull, then it spins while the refresh runs. Pair it
 /// with `.refreshable` (which still does the work) and `trackPull` on the

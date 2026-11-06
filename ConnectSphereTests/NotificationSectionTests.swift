@@ -36,4 +36,12 @@ struct NotificationSectionTests {
     @Test func bucketsAreOrderedNewestFirst() {
         #expect(NotificationDateBucket.allCases == [.today, .yesterday, .thisWeek, .earlier])
     }
+
+    @Test func signInAlertRoutesByHowTheyLoggedIn() {
+        #expect(SignInAlertAction.action(method: "password", hasPassword: true) == .changePassword)
+        #expect(SignInAlertAction.action(method: nil, hasPassword: true) == .changePassword)
+        // A Google sign-in goes to Google; our own password is offered only when the account has one.
+        #expect(SignInAlertAction.action(method: "google", hasPassword: false) == .secureGoogle(canChangePassword: false))
+        #expect(SignInAlertAction.action(method: "google", hasPassword: true) == .secureGoogle(canChangePassword: true))
+    }
 }

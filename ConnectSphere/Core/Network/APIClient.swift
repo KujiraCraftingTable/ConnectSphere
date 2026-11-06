@@ -1,6 +1,6 @@
 import Foundation
 
-/// Legacy unauthenticated client — delegates to NetworkClient.
+/// Legacy unauthenticated client. Delegates to NetworkClient.
 /// Kept for any callers not yet migrated to repositories.
 final class APIClient {
     static let shared = APIClient()

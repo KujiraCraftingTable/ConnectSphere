@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Multi-select picker over the current user's accepted connections — used
+/// Multi-select picker over the current user's accepted connections. Used
 /// both for picking a brand-new group's initial members (`excludedUserIds`
 /// empty) and for adding members to an existing group (`excludedUserIds` =
 /// current roster). No reusable multi-select picker existed in the app
@@ -22,7 +22,7 @@ struct GroupMemberPickerView: View {
     let confirmTitle: String
     /// Confirm stays disabled until at least this many are picked.
     var minimumSelection = 1
-    /// A line above the list (e.g. "With Minh — add at least 1 more person").
+    /// A line above the list (e.g. "With Minh, add at least 1 more person").
     var note: String? = nil
     /// Called with the chosen user ids once the user taps confirm; the sheet
     /// dismisses itself right after.

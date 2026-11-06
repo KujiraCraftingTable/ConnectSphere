@@ -3,7 +3,7 @@ import UIKit
 @testable import ConnectSphere
 
 /// Whether a display name fits its comment header on a 6.1" iPhone (390 pt
-/// wide) — the screen the 30-character limit was chosen for. The header
+/// wide), the screen the 30-character limit was chosen for. The header
 /// tries `CommentRow.nameScales` in order and keeps the first size at which
 /// the line fits; this works out which one that is, from the real fonts and
 /// the row's own layout constants, so a layout change that breaks the fit
@@ -41,7 +41,7 @@ struct DisplayNameFitTests {
         CommentRow.nameScales.first { width(name, CommentRow.nameFontSize(level: level) * $0, .semibold) <= room }
     }
 
-    /// A full-length real name in capitals shrinks a few percent at most —
+    /// A full-length real name in capitals shrinks a few percent at most,
     /// not something anyone notices.
     @Test func realCapitalNamesBarelyShrinkOnATopLevelComment() {
         let name = "NGUYỄN THỊ MINH KHAI HOÀNG ANH"

@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 extension Notification.Name {
-    /// The viewer's own communities changed (joined, left, pinned, edited) —
+    /// The viewer's own communities changed (joined, left, pinned, edited),
     /// My communities reloads.
     static let communitiesChanged = Notification.Name("communitiesChanged")
 }
@@ -19,13 +19,6 @@ class CommunityDetailViewModel {
     var joinStatus: JoinStatus = .notMember
     private(set) var isRefreshing = false
 
-    /// Results for this community's own search box — a real server-side
-    /// search scoped to this community (`GET /communities/:id/posts?search=`),
-    /// not a client-side filter of the already-paged-in `posts`.
-    var searchResults: [Post] = []
-    var isSearchingPosts = false
-    private var searchGeneration = 0
-
     private let communityId: String
     private let token: String
     private let currentUserId: String
@@ -34,17 +27,20 @@ class CommunityDetailViewModel {
     private let pageSize = 20
     private var postOffset = 0
     /// Token for the `.webSocketDidReconnect` observer registered in `joinCommunityRoom()`;
-    /// removed symmetrically in `leaveCommunityRoom()` — mirrors `ChatViewModel`'s
+    /// removed symmetrically in `leaveCommunityRoom()`. Mirrors `ChatViewModel`'s
     /// reconnect-handling exactly (see that file for why: server-side room
     /// membership doesn't survive a disconnect, but registered listeners do).
     private var reconnectObserver: NSObjectProtocol?
     /// Token for the `.postUpdated` observer registered in `joinCommunityRoom()`;
     /// removed symmetrically in `leaveCommunityRoom()`. Feed's `CreatePostViewModel`
     /// posts this same notification (reused, not community-specific) once its
-    /// delayed AI-tag refetch confirms tags are ready — this view model isn't one
+    /// delayed AI-tag refetch confirms tags are ready. This view model isn't one
     /// of `.postUpdated`'s original observers (`FeedViewModel`/`ProfileViewModel`),
     /// so it needs its own to patch `posts` the same way `pinPost`/`unpinPost` do.
     private var postUpdatedObserver: NSObjectProtocol?
+    /// A seller re-upped an item from its card here: the new post replaces the
+    /// old one and goes to the top, as the server now sorts it.
+    private var listingReuppedObserver: NSObjectProtocol?
 
     init(communityId: String, token: String, currentUserId: String) {
         self.communityId  = communityId
@@ -92,7 +88,7 @@ class CommunityDetailViewModel {
 
     func fetchPosts(reset: Bool = false) async {
         if reset { postOffset = 0; canLoadMorePosts = true; posts = [] }
-        // One in-flight page at a time — several CommunityPostCard `.task`
+        // One in-flight page at a time. Several CommunityPostCard `.task`
         // callbacks fire loadMorePostsIfNeeded concurrently, and without this
         // they all read the same postOffset and duplicate / skip a page.
         guard !isLoadingPosts else { return }
@@ -116,23 +112,6 @@ class CommunityDetailViewModel {
         await fetchPosts()
     }
 
-    func searchPosts(query: String) async {
-        searchGeneration += 1
-        let generation = searchGeneration
-        isSearchingPosts = true
-        do {
-            let results = try await repository.fetchPosts(
-                communityId: communityId, search: query, limit: pageSize, offset: 0, token: token
-            )
-            guard generation == searchGeneration else { return }
-            searchResults = results
-        } catch {
-            guard generation == searchGeneration else { return }
-            errorMessage = friendlyError(error)
-        }
-        if generation == searchGeneration { isSearchingPosts = false }
-    }
-
     func fetchMembers() async {
         isLoadingMembers = true
         do {
@@ -146,14 +125,14 @@ class CommunityDetailViewModel {
     // MARK: - WebSocket / Realtime
 
     /// Join this community's realtime room (`community:<id>`) and register
-    /// live listeners — call from the detail view's `.onAppear`. Mirrors
+    /// live listeners, call from the detail view's `.onAppear`. Mirrors
     /// `ChatViewModel.joinConversation()`'s exact structure, adapted to
     /// `join_community`/`leave_community` (which additionally ack, unlike
     /// `join_conversation`).
     func joinCommunityRoom() {
         emitJoinCommunity()
 
-        // Re-emit `join_community` after a socket reconnect — server-side room
+        // Re-emit `join_community` after a socket reconnect, server-side room
         // membership is lost on disconnect, but the listeners below stay live.
         reconnectObserver = NotificationCenter.default.addObserver(
             forName: .webSocketDidReconnect, object: nil, queue: .main
@@ -161,7 +140,7 @@ class CommunityDetailViewModel {
             self?.emitJoinCommunity()
         }
 
-        // A post's tags changed (e.g. edited) — patch the refreshed post's
+        // A post's tags changed (e.g. edited), patch the refreshed post's
         // `tags` into `posts` in place, same shape as
         // `pinPost`/`unpinPost` below. Feed's `Post` model is what the
         // notification carries (shared across Feed/Community since both post
@@ -173,6 +152,18 @@ class CommunityDetailViewModel {
                   let post = notification.userInfo?["post"] as? Post,
                   let idx = self.posts.firstIndex(where: { $0.id == post.id }) else { return }
             self.posts[idx].tags = post.tags
+        }
+
+        listingReuppedObserver = NotificationCenter.default.addObserver(
+            forName: .listingReupped, object: nil, queue: .main
+        ) { [weak self] notification in
+            guard let self,
+                  let oldId = notification.userInfo?["oldId"] as? String,
+                  let post = notification.userInfo?["post"] as? Post,
+                  let idx = self.posts.firstIndex(where: { $0.id == oldId }) else { return }
+            // Not `prependPost`: a re-up isn't a new post, so the count stays.
+            self.posts.remove(at: idx)
+            self.posts.insert(post, at: 0)
         }
 
         // A new post (text/poll/event) was created in this community.
@@ -187,7 +178,7 @@ class CommunityDetailViewModel {
         }
 
         // A post's like count changed. `isLiked` in the payload reflects the
-        // ACTING user's like state — only apply it here when that user is me;
+        // ACTING user's like state. Only apply it here when that user is me;
         // every other viewer's client should only see the count move, not have
         // its own `isLiked` flipped underneath it. `CommunityPostCard` mirrors
         // `posts[i]` via `onChange`, so this write is enough to update the UI.
@@ -204,7 +195,7 @@ class CommunityDetailViewModel {
             }
         }
 
-        // A comment was added to a post — patch the count only; the comment
+        // A comment was added to a post. Patch the count only; the comment
         // list itself is fetched fresh by `CommentSheet` when it's opened.
         ws.on("community_post_commented", tag: "community") { [weak self] payload in
             guard let self,
@@ -216,7 +207,7 @@ class CommunityDetailViewModel {
         }
     }
 
-    /// Leave this community's realtime room and deregister listeners — call
+    /// Leave this community's realtime room and deregister listeners. Call
     /// from the detail view's `.onDisappear`.
     func leaveCommunityRoom() {
         if let reconnectObserver {
@@ -227,16 +218,20 @@ class CommunityDetailViewModel {
             NotificationCenter.default.removeObserver(postUpdatedObserver)
             self.postUpdatedObserver = nil
         }
+        if let listingReuppedObserver {
+            NotificationCenter.default.removeObserver(listingReuppedObserver)
+            self.listingReuppedObserver = nil
+        }
         ws.emit("leave_community", communityId)
         ws.off("community_post_created", tag: "community")
         ws.off("community_post_liked", tag: "community")
         ws.off("community_post_commented", tag: "community")
     }
 
-    /// Emits `join_community` for this community's room — factored out of
+    /// Emits `join_community` for this community's room. Factored out of
     /// `joinCommunityRoom()` so it can also be called after a socket reconnect
     /// without re-registering the listeners above (which are still live).
-    /// Unlike `join_conversation`, this acks — a rejection (e.g. somehow not a
+    /// Unlike `join_conversation`, this acks. A rejection (e.g. somehow not a
     /// member anymore) is logged rather than silently dropped, but doesn't
     /// interrupt the read-only feed the member already sees via REST.
     private func emitJoinCommunity() {
@@ -250,9 +245,9 @@ class CommunityDetailViewModel {
     }
 
     /// Decodes a `community_post_created` socket payload the same way the
-    /// REST post list does — the payload is the full post row (same columns
+    /// REST post list does. The payload is the full post row (same columns
     /// `buildPostSelect` projects, which now includes `community` itself
-    /// whenever `community_id` is set — see PostStore.buildPostSelect), so
+    /// whenever `community_id` is set. See PostStore.buildPostSelect), so
     /// `PostDTO` decodes it directly. `community` is filled in from the
     /// community already loaded here only as a defensive fallback, in case a
     /// server payload predates that projection.
@@ -272,7 +267,7 @@ class CommunityDetailViewModel {
     // MARK: - Feed helpers
 
     // Read `postCount` into a local BEFORE assigning, same as `AppState`'s
-    // `.postDeleted` observer — reading and writing `community?.postCount` in
+    // `.postDeleted` observer, reading and writing `community?.postCount` in
     // the same statement triggers a Swift exclusivity-access crash
     // (overlapping getter/setter access on the @Observable `community`
     // property).
@@ -365,7 +360,7 @@ class CommunityDetailViewModel {
         await toggleMute()
     }
 
-    /// True once left — the page closes.
+    /// True once left. The page closes.
     func leave() async -> Bool {
         do {
             try await repository.leave(communityId: communityId, token: token)

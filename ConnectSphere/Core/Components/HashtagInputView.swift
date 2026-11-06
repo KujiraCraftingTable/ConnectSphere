@@ -1,10 +1,10 @@
 import SwiftUI
 
 /// Chip/token hashtag input, shared between Feed's `CreatePostView` and
-/// Communities' post composer — bind `hashtags` to whatever `[String]` state the
+/// Communities' post composer. Bind `hashtags` to whatever `[String]` state the
 /// caller submits alongside its create-post request, and own a `HashtagInputController`
 /// instance to pass in (call `controller.commitPending(into: &hashtags)` right before
-/// reading `hashtags` at submit time — see that method's doc comment).
+/// reading `hashtags` at submit time. See that method's doc comment).
 ///
 /// User types "#word" then Space/Return to commit it as a chip; a leading "#" is
 /// stripped before storage/API calls (chips re-add "#" for display only). While the
@@ -46,7 +46,7 @@ struct HashtagInputView: View {
                         .padding(.horizontal, 12)
                         .padding(.vertical, 9)
                         // fill+stroke in one background (not .background + .overlay +
-                        // .clipShape) — clipping after an overlay stroke cuts off the
+                        // .clipShape), clipping after an overlay stroke cuts off the
                         // outer half of the 1pt line, since it's centered on the path,
                         // which made this border nearly invisible. Same pattern as the
                         // post-content textbox in CreatePostView.

@@ -27,7 +27,7 @@ struct FeedView: View {
                     createPostBar
                         .cardStyle()
 
-                    // Stories are mode-scoped (like posts) — shown in both
+                    // Stories are mode-scoped (like posts). Shown in both
                     // Hobby and Work, each mode only ever seeing its own.
                     StoriesRow()
                         .cardStyle()
@@ -139,7 +139,7 @@ struct FeedView: View {
                 Task { await people.refresh(appState.currentMode) }
                 Task { await viewModel.loadPosts(for: appState.currentMode) }
             }
-            // Inside `ScrollViewReader`'s scope so `proxy` is reachable —
+            // Inside `ScrollViewReader`'s scope so `proxy` is reachable,
             // posting used to only trigger a silent background reload, which
             // left the new post above the fold (or racing a reload the user
             // never saw finish) and was the whole reason this felt broken:
@@ -150,7 +150,7 @@ struct FeedView: View {
                 CreatePostView(onPostCreated: { post in
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                         // Use the post's OWN mode (as the server actually recorded it),
-                        // not appState.currentMode re-read at completion time — the two
+                        // not appState.currentMode re-read at completion time. The two
                         // could in principle diverge if the mode changed while the
                         // composer sheet was open.
                         viewModel.prependPost(post, for: post.mode)
@@ -169,7 +169,7 @@ struct FeedView: View {
                         modeSwitchPill
                     }
                 }
-                // Search lives only in the Search tab — no second entry here.
+                // Search lives only in the Search tab. No second entry here.
                 FeedChatToolbarItem(button: chatIconButton, unread: appState.chatUnreadCount)
             }
             .navigationDestination(isPresented: $showMessages) {
@@ -177,7 +177,7 @@ struct FeedView: View {
             }
             // `isPresented:` (not `item:`) so it doesn't collide with the
             // identical PostRoute destination TagFeedView also puts on this
-            // same stack — SwiftUI keeps only the root-most `item:` of a type.
+            // same stack, SwiftUI keeps only the root-most `item:` of a type.
             .navigationDestination(isPresented: Binding(
                 get: { detailRoute != nil },
                 set: { if !$0 { detailRoute = nil } }
@@ -315,7 +315,7 @@ struct FeedView: View {
         .cardStyle()
         .tracksImpression(post.id, in: impressions)
         // Makes a just-created post visibly slide/fade in at the top instead
-        // of silently popping into place — the "yes, this actually posted"
+        // of silently popping into place. The "yes, this actually posted"
         // confirmation.
         .transition(.move(edge: .top).combined(with: .opacity))
         .onAppear {

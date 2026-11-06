@@ -28,7 +28,7 @@ final class SpacesViewModel {
         spaces.filter { $0.contains(userId) }
     }
 
-    /// Spaces this chat sits in — by its group, or by the other person.
+    /// Spaces this chat sits in. By its group, or by the other person.
     func spaces(for conversation: Conversation) -> [ChatSpace] {
         spaces.filter { $0.contains(conversation) }
     }

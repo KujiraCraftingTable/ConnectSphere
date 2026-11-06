@@ -24,7 +24,7 @@ enum VideoFrame {
 }
 
 /// A video tile's face: its first frame with a play button and a length badge.
-/// Replaces a plain black box — in a post card that read as a broken image.
+/// Replaces a plain black box. In a post card that read as a broken image.
 /// The frame comes over HTTP byte ranges, so only a small part of the file loads.
 struct VideoPosterView: View {
     let url: URL?

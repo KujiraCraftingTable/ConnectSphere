@@ -14,7 +14,7 @@ enum FloatingChatSize: String {
 
 /// The floating chat window: up to four chats, swiped left and right. The
 /// label on top names the chat on screen, says where it is in the stack
-/// ("2/4") and counts unread messages in the chats to either side — those
+/// ("2/4") and counts unread messages in the chats to either side. Those
 /// counts jump there. Dragging the label moves the window (the body's
 /// horizontal swipes switch chats); flinging it off a side edge stashes it.
 /// Single-tap a chat to mark it seen and reply; double-tap opens the full
@@ -211,7 +211,7 @@ private struct FloatingChatPage: View {
             }
         }
         .overlay(alignment: .bottom) {
-            // New since the last tap — tapping the chat marks them seen.
+            // New since the last tap. Tapping the chat marks them seen.
             if bubble.unreadCount > 0 {
                 Text(String(format: bundle.loc("%lld new"), bubble.unreadCount))
                     .font(.system(size: 11, weight: .semibold))
@@ -268,7 +268,7 @@ struct FloatingChatStashTab: View {
     }
 }
 
-/// Liquid Glass on iOS 26+, a material before — rounded on the screen side
+/// Liquid Glass on iOS 26+, a material before. Rounded on the screen side
 /// only, so the tab looks tucked under the edge.
 private struct StashTabGlass: ViewModifier {
     let edge: FloatingChatStashEdge

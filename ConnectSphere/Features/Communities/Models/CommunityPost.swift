@@ -7,7 +7,7 @@ enum PostType: String, Codable {
     case poll  = "poll"
     case event = "event"
     case job   = "job"
-    /// A marketplace listing — community posts only.
+    /// A marketplace listing. Community posts only.
     case listing = "listing"
 }
 
@@ -66,7 +66,7 @@ enum RsvpStatus: String, Codable {
     case maybe    = "maybe"
     case notGoing = "not_going"
 
-    /// Localization key — callers must wrap this in `bundle.loc(...)`.
+    /// Localization key, callers must wrap this in `bundle.loc(...)`.
     var label: String {
         switch self {
         case .going:    return "Going"
@@ -124,6 +124,8 @@ struct ListingData: Equatable {
     var condition: ListingCondition
     var location: String?
     var isSold: Bool
+    /// How many times the seller re-upped it (0 = never).
+    var reupCount: Int = 0
     var hideFromFriends: Bool
     var hasAutoReply: Bool
     /// Only filled in for the seller.
@@ -133,11 +135,68 @@ struct ListingData: Equatable {
     /// Where it is, picked on a map (both or neither).
     var latitude: Double? = nil
     var longitude: Double? = nil
+    /// The seller's auto re-up schedule and its next run; only they get these.
+    var autoReup: AutoReup? = nil
+    var nextAutoReupAt: Date? = nil
+
+    /// Posts the item again as new every `days` days at `hour`:00 Vietnam time.
+    struct AutoReup: Equatable {
+        var days: Int
+        /// 9, 12, 15, 18, 21 or 24 (midnight).
+        var hour: Int
+    }
+
+    static let autoReupDays = [1, 3, 7]
+    static let autoReupHours = [9, 12, 15, 18, 21, 24]
+
+    /// "18:00"; 24 reads as "00:00".
+    static func hourLabel(_ hour: Int) -> String { String(format: "%02d:00", hour % 24) }
+
+    static func dayLabel(_ days: Int, bundle: Bundle) -> String {
+        days == 1 ? bundle.loc("1 day") : String(format: bundle.loc("%lld days"), days)
+    }
+
+    /// "Auto re-up every 3 days at 18:00".
+    func autoReupText(bundle: Bundle) -> String? {
+        guard let a = autoReup else { return nil }
+        return a.days == 1
+            ? String(format: bundle.loc("Auto re-up every day at %@"), Self.hourLabel(a.hour))
+            : String(format: bundle.loc("Auto re-up every %lld days at %@"), a.days, Self.hourLabel(a.hour))
+    }
+
+    /// "Next: Thu, 9 Nov, 18:00", in Vietnam time, like the schedule itself.
+    func nextAutoReupText(bundle: Bundle) -> String? {
+        guard let next = nextAutoReupAt else { return nil }
+        let style = Date.FormatStyle(locale: Locale(identifier: bundle.bundlePath.hasSuffix("vi.lproj") ? "vi" : "en"),
+                                     timeZone: TimeZone(identifier: "Asia/Ho_Chi_Minh") ?? .current)
+            .weekday(.abbreviated).day().month(.abbreviated).hour().minute()
+        return String(format: bundle.loc("Next: %@"), next.formatted(style))
+    }
 
     struct ListedIn: Equatable, Identifiable {
         let id: String
         let name: String
         let iconEmoji: String
+    }
+
+    /// "1st re-up", "2nd re-up"… / "Đăng lại lần 1"…; nil for an item never re-upped.
+    func reupText(bundle: Bundle) -> String? {
+        guard reupCount > 0 else { return nil }
+        let vietnamese = bundle.bundlePath.hasSuffix("vi.lproj")
+        return String(format: bundle.loc("%@ re-up"), vietnamese ? String(reupCount) : Self.englishOrdinal(reupCount))
+    }
+
+    /// 1st, 2nd, 3rd, 4th … 11th, 12th, 13th … 21st.
+    static func englishOrdinal(_ n: Int) -> String {
+        let suffix: String
+        switch (n % 100, n % 10) {
+        case (11...13, _): suffix = "th"
+        case (_, 1): suffix = "st"
+        case (_, 2): suffix = "nd"
+        case (_, 3): suffix = "rd"
+        default: suffix = "th"
+        }
+        return "\(n)\(suffix)"
     }
 
     /// "1.200.000 ₫", or "Free".
@@ -163,7 +222,7 @@ enum ListingCondition: String, CaseIterable {
     case good
     case fair
 
-    /// Localization key — callers must wrap this in `bundle.loc(...)`.
+    /// Localization key, callers must wrap this in `bundle.loc(...)`.
     var label: String {
         switch self {
         case .new:     return "New"
@@ -181,7 +240,7 @@ enum EmploymentType: String, Codable, CaseIterable {
     case internship = "internship"
     case remote     = "remote"
 
-    /// Localization key — callers must wrap this in `bundle.loc(...)`.
+    /// Localization key, callers must wrap this in `bundle.loc(...)`.
     var label: String {
         switch self {
         case .fullTime:   return "Full-time"
@@ -212,7 +271,7 @@ struct CommunityPost: Identifiable {
     var pollData: PollData?
     var eventData: EventData?
     var jobData: JobData?
-    /// Parity fields with Feed's `Post` — populated once `getPostsByCommunity`
+    /// Parity fields with Feed's `Post`. Populated once `getPostsByCommunity`
     /// (backend) started reusing the shared `buildPostSelect` fragment.
     var linkUrl: String? = nil
     var imageUrl: String? = nil
@@ -223,13 +282,14 @@ struct CommunityPost: Identifiable {
     /// the other of en/vi, made on the server when it was published.
     var contentLang: String? = nil
     var translatedContent: String? = nil
+    var contentFormat: String? = nil
     var articleTitle: String? = nil
     var tags: [String] = []
     /// "pending" while the community's admins review it.
     var publishStatus: String? = nil
     var listingData: ListingData? = nil
 
-    /// Images to render in the grid — same rule as `Post.displayImageUrls`: prefer
+    /// Images to render in the grid. Same rule as `Post.displayImageUrls`: prefer
     /// the new array; posts with a link preview don't count (that image belongs to the link card).
     /// Alt text lined up with `displayImageUrls` (the legacy single image has none).
     var displayImageAlts: [String] { imageUrls.isEmpty ? [] : imageAlts }
@@ -283,7 +343,7 @@ enum CommunityAudience: String {
 extension CommunityPost {
     /// Adapts a just-created `CommunityPost` (what `PostComposerViewModel`'s
     /// shared submit path returns for every post type) into the Feed `Post`
-    /// shape `PostCard` renders — mirrors `CreatePostView.feedPost(from:)`
+    /// shape `PostCard` renders. Mirrors `CreatePostView.feedPost(from:)`
     /// (same adapter need, kept separate rather than shared to avoid coupling
     /// Feed's own composer to Communities). mode/privacy come from what was
     /// just submitted (already known), not decoded from the response.
@@ -301,6 +361,7 @@ extension CommunityPost {
             imageAlts:     imageAlts,
             contentLang:     contentLang,
             translatedContent: translatedContent,
+            contentFormat: contentFormat,
             likeCount:     likeCount,
             commentCount:  commentCount,
             shareCount:    0,

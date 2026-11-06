@@ -38,7 +38,7 @@ class JobViewModel {
         isUpdating = false
     }
 
-    /// The conversation with the job's poster, or nil (fails silently — the
+    /// The conversation with the job's poster, or nil (fails silently. The
     /// user can tap Message again).
     func openConversation(with posterId: String, mode: AppMode) async -> String? {
         isOpeningChat = true

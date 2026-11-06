@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The pending "open this post" navigation on a Feed surface — held in a
+/// The pending "open this post" navigation on a Feed surface. Held in a
 /// `@State PostRoute?` that drives a `.navigationDestination`. `focusComposer`
 /// opens the screen with the comment field already focused (what the comment
 /// button does, vs. a plain body tap).
@@ -25,13 +25,16 @@ struct PostDetailView: View {
     let postId: String
     /// When opened from a comment notification, scroll to this comment on load.
     var scrollToCommentId: String? = nil
+    /// Set while the jumped-to comment is flashing.
+    @State private var highlightedCommentId: String?
     /// When opened from a comment button, focus the composer on appear.
     var focusComposer: Bool = false
 
     @State private var viewModel: PostDetailViewModel
     @State private var commentVM = CommentViewModel()
     @State private var draft = ""
-    /// The screen's width — the top bar's author block fills what the back
+    @State private var draftSelection: TextSelection?
+    /// The screen's width. The top bar's author block fills what the back
     /// and ⋯ buttons leave, so it sits left beside the back button.
     @State private var screenWidth: CGFloat = 0
     @FocusState private var composerFocused: Bool
@@ -45,28 +48,21 @@ struct PostDetailView: View {
 
     private var post: Post? { viewModel.post }
 
+    // A Marketplace item opens here like any post. Likes and comments
+    // included. The seller's tools (sold, re-up, edit) are on its item page,
+    // reached from the Marketplace grid and "Your items".
     var body: some View {
-        // A Marketplace item opens as its item page wherever it's tapped
-        // from (a chat card, a notification, Saved…) — no likes or comments.
-        if let post, post.postType == .listing {
-            ListingDetailView(post: post)
-        } else {
-            postPage
-        }
-    }
-
-    private var postPage: some View {
         // ScrollViewReader wraps the whole screen body (not just the
         // ScrollView below) so the composer's Send button can also reach
-        // `proxy` — it needs to scroll to a just-sent comment directly,
+        // `proxy`, it needs to scroll to a just-sent comment directly,
         // deterministically, rather than inferring "a comment was added"
         // from a comments-count change (that approach raced against
         // @Observable's deferred change notification and auto-scrolled
         // on the initial load too; see PostCard/CommentSheet history).
         ScrollViewReader { proxy in
             VStack(spacing: 0) {
-                // The post and its comments scroll as one page — two cards like
-                // the feed's — while the author and the ⋯ menu sit in the top
+                // The post and its comments scroll as one page. Two cards like
+                // the feed's, while the author and the ⋯ menu sit in the top
                 // bar, so a long post or thread gets the whole screen.
                 ScrollView {
                     VStack(spacing: AppSpacing.sm) {
@@ -75,6 +71,7 @@ struct PostDetailView: View {
                                 post: post,
                                 onPostDeleted: { dismiss() },
                                 onPostUpdated: { viewModel.post = $0 },
+                                onCommentTap: { composerFocused = true },
                                 showsHeader: false
                             )
                             .cardStyle()
@@ -102,12 +99,17 @@ struct PostDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .toolbar { topBar }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                if composerFocused { MarkdownToolbar(text: $draft, selection: $draftSelection) }
+            }
+        }
     }
 
     // MARK: - Top bar
 
     /// The back button (system), the author beside it, and the post's ⋯ menu
-    /// — Facebook-style, one row instead of a title bar above the post's own
+    ///, Facebook-style, one row instead of a title bar above the post's own
     /// header.
     @ToolbarContentBuilder
     private var topBar: some ToolbarContent {
@@ -134,11 +136,17 @@ struct PostDetailView: View {
     private func loadAll(proxy: ScrollViewProxy) async {
         let firstLoad = viewModel.post == nil
         guard await viewModel.loadPost() else { return }
-        if firstLoad && viewModel.post?.postType != .listing { await commentVM.load(postId: postId) }
+        if firstLoad { await commentVM.load(postId: postId) }
 
-        if let target = scrollToCommentId {
+        // Ids arrive lowercase from some places (the activity log) and uppercase
+        // from the comments list; match them as the same id.
+        if let wanted = scrollToCommentId,
+           let target = commentVM.comments.first(where: { $0.id.caseInsensitiveCompare(wanted) == .orderedSame })?.id {
             try? await Task.sleep(for: .milliseconds(300))
-            withAnimation { proxy.scrollTo(target, anchor: .top) }
+            withAnimation { proxy.scrollTo(target, anchor: .center) }
+            highlightedCommentId = target
+            try? await Task.sleep(for: .milliseconds(1600))
+            if highlightedCommentId == target { highlightedCommentId = nil }
         }
         if focusComposer {
             try? await Task.sleep(for: .milliseconds(350))
@@ -164,6 +172,7 @@ struct PostDetailView: View {
                 // Next run-loop turn: the page's dismiss-on-tap fires
                 // for this same tap and would otherwise win.
                 onReplyRequested: { Task { @MainActor in composerFocused = true } },
+                highlightedCommentId: highlightedCommentId,
                 onCommentCountChange: { delta in adjustCommentCount(by: delta) }
             )
         }
@@ -184,7 +193,7 @@ struct PostDetailView: View {
 
     // MARK: - Composer
 
-    /// Floating on the grey background — a rounded "Replying to" chip (when
+    /// Floating on the grey background. A rounded "Replying to" chip (when
     /// replying) above an avatar + pill field + send row, instead of a
     /// full-width slab with a divider.
     private func composerBar(proxy: ScrollViewProxy) -> some View {
@@ -220,7 +229,7 @@ struct PostDetailView: View {
                     AvatarView(user: me, size: 36)
                 }
 
-                TextField(bundle.loc("Write a comment..."), text: $draft, axis: .vertical)
+                TextField(bundle.loc("Write a comment..."), text: $draft, selection: $draftSelection, axis: .vertical)
                     .font(.system(size: 15))
                     .lineLimit(4)
                     .focused($composerFocused)
@@ -237,7 +246,7 @@ struct PostDetailView: View {
                         draft = ""
                         let ok = await commentVM.addComment(postId: postId, content: text)
                         if ok { adjustCommentCount(by: 1) }
-                        // Reveal the comment/reply just sent — triggered directly
+                        // Reveal the comment/reply just sent. Triggered directly
                         // here (not inferred from a comments-count change) so it
                         // can't misfire on the initial load.
                         if ok, let last = commentVM.comments.last {
@@ -279,7 +288,7 @@ struct PostDetailView: View {
 /// The author item: the middle slot, sized to span the bar between the back
 /// button and the ⋯ menu and left-aligned (a leading item is given too little
 /// width and truncates the name), without the Liquid Glass capsule
-/// iOS 26 puts behind toolbar items — it reads as the post's header.
+/// iOS 26 puts behind toolbar items. It reads as the post's header.
 private struct PostDetailAuthorItem: ToolbarContent {
     let post: Post
     let width: CGFloat
@@ -299,7 +308,7 @@ private struct PostDetailAuthorItem: ToolbarContent {
 }
 
 /// The compact form of `PostCard`'s header, for the top bar beside the back
-/// button: avatar, name and "time · privacy" — or, for a community post, the
+/// button: avatar, name and "time · privacy", or, for a community post, the
 /// community with "Posted by …". Opens the profile or the community.
 private struct PostDetailHeader: View {
     @Environment(AppState.self) private var appState

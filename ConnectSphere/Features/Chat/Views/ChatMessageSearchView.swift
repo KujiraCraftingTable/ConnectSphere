@@ -8,7 +8,7 @@ struct ChatMessageSearchView: View {
     @Environment(\.appBundle) var bundle
 
     let viewModel: ChatSettingsViewModel
-    /// Tapping a result — the parent closes the sheet and jumps to this message
+    /// Tapping a result. The parent closes the sheet and jumps to this message
     var onSelect: ((Message) -> Void)? = nil
     @State private var query = ""
 

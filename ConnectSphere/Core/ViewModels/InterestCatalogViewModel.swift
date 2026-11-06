@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 /// The interest picker's catalogue: curated entries by category, the most
-/// picked first and the lifestyle section (smoking, drinking…) last — like
+/// picked first and the lifestyle section (smoking, drinking…) last. Like
 /// Bumble's badges or Tinder's passions, nothing is added freely. A missing
 /// entry can be suggested for review.
 @MainActor
@@ -14,7 +14,7 @@ final class InterestCatalogViewModel {
     private(set) var isChecking = false
     /// Under the "Category · specific" field when the item can't be found.
     var specificError: String?
-    /// One line after a suggestion ("Thanks — we'll review it").
+    /// One line after a suggestion ("Thanks, we'll review it").
     var suggestNotice: String?
     var query = ""
 
@@ -80,9 +80,9 @@ final class InterestCatalogViewModel {
         guard !t.isEmpty else { return }
         do {
             if let existing = try await repository.suggest(t) {
-                suggestNotice = String(format: Bundle.app.loc("It's already here as \"%@\" — search for it above."), existing)
+                suggestNotice = String(format: Bundle.app.loc("It's already here as \"%@\". Search for it above."), existing)
             } else {
-                suggestNotice = Bundle.app.loc("Thanks — we'll review your suggestion.")
+                suggestNotice = Bundle.app.loc("Thanks, we'll review your suggestion.")
             }
         } catch {
             suggestNotice = friendlyError(error)

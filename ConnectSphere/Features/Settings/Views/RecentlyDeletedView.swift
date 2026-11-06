@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// "Recently Deleted" — the user's own soft-deleted posts and comments
+/// "Recently Deleted", the user's own soft-deleted posts and comments
 /// (30-day retention, auto-purged server-side), each restorable in place.
 /// Reached from Settings → Account, alongside Notifications/Privacy & Security.
 struct RecentlyDeletedView: View {
@@ -9,7 +9,7 @@ struct RecentlyDeletedView: View {
     @Environment(\.colorScheme) var colorScheme
 
     @State private var viewModel = RecentlyDeletedViewModel()
-    /// Post/comment awaiting restore confirmation — this screen's "Restore"
+    /// Post/comment awaiting restore confirmation. This screen's "Restore"
     /// button used to restore on a single tap; per your decision, confirming
     /// applies here (browsed anytime, well after the fact) but NOT the quick
     /// Undo toast right after deleting, which stays a single instant tap.

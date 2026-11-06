@@ -12,7 +12,7 @@ struct Avatar: View {
 
     /// `.circle` everywhere by default (every "photo-or-initials" person
     /// spot); `.roundedSquare` is for the few non-person spots that want to
-    /// visually read as distinct from a user avatar at a glance — e.g. a
+    /// visually read as distinct from a user avatar at a glance. E.g. a
     /// community's avatar in a post header, so a post from a community
     /// doesn't look identical in shape to a post from a person even before
     /// reading the text (see `PostCard.communityPostHeader`).
@@ -79,7 +79,7 @@ struct Avatar: View {
 
     private var initials: some View {
         ZStack {
-            // A plain full-bleed color fill (not shaped) — the outer
+            // A plain full-bleed color fill (not shaped). The outer
             // .clipShape already crops to the right shape, and a Circle
             // fill here would leave the corners of a .roundedSquare frame
             // unfilled.
@@ -96,7 +96,7 @@ struct Avatar: View {
 }
 
 /// Process-wide in-memory cache of decoded avatar images. A `bare` `AsyncImage`
-/// re-runs its async load — and shows its placeholder for a frame — every time
+/// re-runs its async load, and shows its placeholder for a frame, every time
 /// the view is re-created (a sibling reflow, a list diff, a tab switch). Keeping
 /// the decoded `UIImage` around lets an already-seen avatar paint synchronously
 /// on the next render, so it never flashes back to initials.

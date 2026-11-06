@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// A screen's data-loading lifecycle. Keeps "still loading" distinct from
-/// "loaded and genuinely empty" distinct from "failed" — so a network failure
+/// "loaded and genuinely empty" distinct from "failed", so a network failure
 /// no longer looks like an empty screen.
 enum LoadState: Equatable {
     case idle

@@ -12,10 +12,10 @@ import GoogleSignIn
 struct ConnectSphereApp: App {
     @State private var appState     = AppState()
     @State private var themeManager = ThemeManager()
-    /// Shared "Undo" toast presenter for the delete-recovery flow — see
+    /// Shared "Undo" toast presenter for the delete-recovery flow. See
     /// `UndoToastView.swift`. Rendered by `MainTabView`'s overlay.
     @State private var toastPresenter = UndoToastPresenter()
-    /// Shared floating "chat head" presenter — see `FloatingChatPresenter.swift`.
+    /// Shared floating "chat head" presenter, see `FloatingChatPresenter.swift`.
     /// Rendered by `MainTabView`'s overlay, same shape as `toastPresenter`.
     @State private var floatingChatPresenter = FloatingChatPresenter()
 
@@ -33,7 +33,7 @@ struct ConnectSphereApp: App {
                 .environment(\.appBundle, appState.bundle)
                 .preferredColorScheme(appState.appearanceMode.colorScheme)
                 .onOpenURL { url in
-                    // connectsphere://community/<id> — community share link (Phase 5).
+                    // connectsphere://community/<id>, community share link (Phase 5).
                     // Google Sign-In uses its own reversed-client-id scheme, so branching
                     // on scheme keeps the two flows from ever colliding.
                     if url.scheme == "connectsphere", url.host == "community" {
@@ -41,7 +41,7 @@ struct ConnectSphereApp: App {
                             appState.pendingDeepLink = .community(id: communityId)
                         } else {
                             // Matched our own scheme but the id is missing/malformed
-                            // (a hand-crafted or corrupted link) — a connectsphere://
+                            // (a hand-crafted or corrupted link). A connectsphere://
                             // URL is never a Sign-In callback, so falling through to
                             // GIDSignIn would silently do nothing. Land on the
                             // Communities tab instead of dropping the tap entirely.

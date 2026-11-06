@@ -18,6 +18,7 @@ struct UserNotificationRepository {
         limit: Int = 30,
         cursor: String? = nil,
         filter: NotificationFilter = .all,
+        mode: AppMode? = nil,
         token: String
     ) async throws -> UserNotificationListResponseDTO {
         var queryItems = [
@@ -25,8 +26,11 @@ struct UserNotificationRepository {
             URLQueryItem(name: "filter", value: filter.rawValue),
         ]
         if let cursor { queryItems.append(URLQueryItem(name: "cursor", value: cursor)) }
+        // Hobby and Work notifications are separate; each mode caches its own first page.
+        if let mode { queryItems.append(URLQueryItem(name: "mode", value: mode.rawValue)) }
+        let cacheKey = CacheStore.Key.notifications + (mode.map { "_\($0.rawValue)" } ?? "")
 
-        // Cache only the first page of the default (All) filter — the offline
+        // Cache only the first page of the default (All) filter. The offline
         // landing surface. Cursored / Unread-filtered fetches bypass it.
         let cacheable = cursor == nil && filter == .all
         do {
@@ -36,10 +40,10 @@ struct UserNotificationRepository {
                 token: token,
                 queryItems: queryItems
             )
-            if cacheable { await CacheStore.shared.put(CacheStore.Key.notifications, body: body) }
+            if cacheable { await CacheStore.shared.put(cacheKey, body: body) }
             return response
         } catch {
-            if cacheable, let cached = await CacheStore.shared.get(UserNotificationListResponseDTO.self, CacheStore.Key.notifications) {
+            if cacheable, let cached = await CacheStore.shared.get(UserNotificationListResponseDTO.self, cacheKey) {
                 return cached
             }
             throw error
@@ -50,12 +54,13 @@ struct UserNotificationRepository {
         try await fetch(token: token)
     }
 
-    /// Unread total without pulling the whole list — used for the tab badge.
-    func unreadCount(token: String) async throws -> Int {
+    /// Unread total without pulling the whole list. Used for the tab badge.
+    func unreadCount(mode: AppMode? = nil, token: String) async throws -> Int {
         let response = try await client.fetch(
             DataResponse<UnreadCountPayloadDTO>.self,
             path: "/user-notifications/unread-count",
-            token: token
+            token: token,
+            queryItems: mode.map { [URLQueryItem(name: "mode", value: $0.rawValue)] } ?? []
         )
         return response.data.count
     }
@@ -100,13 +105,14 @@ struct UserNotificationRepository {
         )
     }
 
-    func markAllRead(token: String) async throws {
+    func markAllRead(mode: AppMode? = nil, token: String) async throws {
         struct Empty: Decodable {}
         _ = try await client.fetch(
             Empty.self,
             path: "/user-notifications/read-all",
             method: "POST",
-            token: token
+            token: token,
+            queryItems: mode.map { [URLQueryItem(name: "mode", value: $0.rawValue)] } ?? []
         )
     }
 

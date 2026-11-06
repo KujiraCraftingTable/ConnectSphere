@@ -2,7 +2,7 @@ import CoreGraphics
 import Testing
 @testable import ConnectSphere
 
-/// A 300 × 200 frame — the 3 : 2 cover shape.
+/// A 300 × 200 frame. The 3 : 2 cover shape.
 private let frame = CGSize(width: 300, height: 200)
 
 struct CoverCropTests {

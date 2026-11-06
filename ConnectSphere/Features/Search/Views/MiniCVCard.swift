@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// "Mini CV" for AI search results — replaces the regular user card when searching with Kujira.
+/// "Mini CV" for AI search results. Replaces the regular user card when searching with Kujira.
 /// Part 1: round avatar + name + bio (fallback when empty) + match % badge on the right.
-/// Part 2: up to 5 "why it matched" bullets — formatted from the match_evidence the backend
+/// Part 2: up to 5 "why it matched" bullets, formatted from the match_evidence the backend
 /// already returns, no extra LLM call on the client.
 struct MiniCVCard: View {
     @Environment(AppState.self) var appState
@@ -11,7 +11,7 @@ struct MiniCVCard: View {
     @Environment(\.colorScheme) var colorScheme
     let user: UserProfile
     let evidence: [MatchEvidenceDTO]
-    /// "Why they fit you" — arrives a moment after the results.
+    /// "Why they fit you", arrives a moment after the results.
     var fitReason: String? = nil
     var onOpen: () -> Void = {}
 
@@ -118,7 +118,7 @@ struct MiniCVCard: View {
     }
 
     /// Format one evidence item into a localized reason sentence (pure template, no LLM).
-    /// The % is no longer part of the sentence — it's been moved to the badge on the card's right side.
+    /// The % is no longer part of the sentence, it's been moved to the badge on the card's right side.
     private func reasonText(for item: MatchEvidenceDTO) -> String {
         let terms = item.matchedTerms.prefix(2).joined(separator: ", ")
 
@@ -127,7 +127,7 @@ struct MiniCVCard: View {
             let count = item.postCount ?? 1
             if count > 1 { return multiPostText(for: item, count: count, terms: terms) }
 
-            // Single post — single-item format with "how long ago"
+            // Single post, single-item format with "how long ago"
             let when = item.latestPostAt?.timeAgoString
             if let topic = item.topic, !topic.isEmpty {
                 if let when {
@@ -151,7 +151,7 @@ struct MiniCVCard: View {
         }
     }
 
-    /// Reacted to posts matching the search. Names only public actions —
+    /// Reacted to posts matching the search. Names only public actions,
     /// comments, then shares. Likes are private in the app, so a like-only
     /// match reads "Engages with…" and never says what they liked.
     private func engagementText(for item: MatchEvidenceDTO, terms: String) -> String {
@@ -196,7 +196,7 @@ struct MiniCVCard: View {
     }
 }
 
-/// How closely someone's profile matches yours (vector similarity × 100) —
+/// How closely someone's profile matches yours (vector similarity × 100),
 /// the same number on AI search results and People you may know.
 struct MatchPercentBadge: View {
     @Environment(ThemeManager.self) private var themeManager

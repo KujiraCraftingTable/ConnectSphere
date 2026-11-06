@@ -4,11 +4,11 @@ import Observation
 /// Backs `AssistantChatView`: runs `AssistantMatcher` on each user message,
 /// then either executes the resolved intent directly against `AppState`
 /// (theme/language/mode/navigation/settings) or appends a guidance reply.
-/// Logging out is the one exception to "just do it" — it appends a message
+/// Logging out is the one exception to "just do it", it appends a message
 /// with inline Yes/No buttons instead of auto-executing (see `confirmLogout`).
 ///
-/// Takes `AppState` as an init dependency (mirrors how other feature views —
-/// e.g. `CommunityDetailViewModel` — take their concrete dependencies via
+/// Takes `AppState` as an init dependency (mirrors how other feature views,
+/// e.g. `CommunityDetailViewModel`, take their concrete dependencies via
 /// init rather than the ViewModel reading `@Environment` itself, since plain
 /// `@Observable` classes aren't SwiftUI views and can't use `@Environment`).
 /// `AssistantChatView` reads `AppState`/`ThemeManager` via `@Environment` and
@@ -24,7 +24,7 @@ final class AssistantViewModel {
         self.appState = appState
     }
 
-    /// Localized bundle for the app's *current* language — read fresh each
+    /// Localized bundle for the app's *current* language. Read fresh each
     /// time so a language switch mid-conversation is reflected immediately.
     private var bundle: Foundation.Bundle { appState.bundle }
 
@@ -41,7 +41,7 @@ final class AssistantViewModel {
         let match = AssistantMatcher.match(trimmed)
 
         // The phrase matched, but it reads as incidental to a longer sentence.
-        // Ask rather than silently act — the cost of guessing wrong here is
+        // Ask rather than silently act. The cost of guessing wrong here is
         // changing a setting the user never asked to change.
         guard match.isConfident else {
             askToConfirm(match.intent)
@@ -66,7 +66,7 @@ final class AssistantViewModel {
         }
     }
 
-    /// Clears the conversation. Reachable from the sheet's Clear button —
+    /// Clears the conversation. Reachable from the sheet's Clear button,
     /// needed now that history survives dismissal.
     func clearConversation() {
         messages.removeAll()
@@ -74,7 +74,7 @@ final class AssistantViewModel {
 
     // MARK: - Logout confirmation (view calls these from the Yes/No buttons)
 
-    /// User tapped "Yes" on a logout-confirm bubble — only now does the
+    /// User tapped "Yes" on a logout-confirm bubble. Only now does the
     /// actual logout happen.
     func confirmLogout(messageId: String) {
         clearAction(for: messageId)
@@ -90,7 +90,7 @@ final class AssistantViewModel {
 
     // MARK: - Low-confidence confirmation
 
-    /// User confirmed a match the matcher wasn't sure about — run it now.
+    /// User confirmed a match the matcher wasn't sure about. Run it now.
     func confirmIntent(_ intent: AssistantIntent, messageId: String) {
         clearAction(for: messageId)
         execute(intent)
@@ -144,18 +144,18 @@ final class AssistantViewModel {
     private func handleSetTheme(_ mode: AppearanceMode) {
         appState.appearanceMode = mode
         let name = bundle.loc(mode.label)
-        appendAssistantMessage(String(format: bundle.loc("Done — theme switched to %@."), name))
+        appendAssistantMessage(String(format: bundle.loc("Done. Theme switched to %@."), name))
     }
 
     private func handleSetLanguage(_ language: AppLanguage) {
         appState.appLanguage = language
-        // Read the reply in the *new* language — bundle is computed live from appState.appLanguage.
-        appendAssistantMessage(String(format: bundle.loc("Done — language switched to %@."), language.displayName))
+        // Read the reply in the *new* language. Bundle is computed live from appState.appLanguage.
+        appendAssistantMessage(String(format: bundle.loc("Done. Language switched to %@."), language.displayName))
     }
 
     /// Mode switching has a wrinkle: `AppState.requestModeSwitch(to:)` pops a
     /// persona-setup sheet instead of switching when the target persona
-    /// isn't set up yet — and this view is itself presented as a sheet, so
+    /// isn't set up yet, and this view is itself presented as a sheet, so
     /// triggering a second sheet on top of it here would conflict. Instead,
     /// when the persona isn't set up, this stays a graceful guidance-style
     /// reply pointing at Settings (where tapping the mode pill properly
@@ -167,9 +167,9 @@ final class AssistantViewModel {
         }
         if appState.isPersonaSetup(mode) {
             appState.requestModeSwitch(to: mode)
-            appendAssistantMessage(String(format: bundle.loc("Done — switched to %@."), modeLabel(mode)))
+            appendAssistantMessage(String(format: bundle.loc("Done. Switched to %@."), modeLabel(mode)))
         } else {
-            let text = String(format: bundle.loc("You haven't set up your %@ yet — open Settings and tap that mode to create it first."), modeLabel(mode))
+            let text = String(format: bundle.loc("You haven't set up your %@ yet. Open Settings and tap that mode to create it first."), modeLabel(mode))
             appendAssistantMessage(text, action: .navigate(.settings))
         }
     }
@@ -206,7 +206,7 @@ final class AssistantViewModel {
             "\"\(bundle.loc("How do I change my password?"))\""
         ].joined(separator: ", ")
         let text = String(
-            format: bundle.loc("I didn't quite catch that. Try asking about theme, language, mode, or where to find something — for example: %@."),
+            format: bundle.loc("I didn't quite catch that. Try asking about theme, language, mode, or where to find something, for example: %@."),
             examples
         )
         appendAssistantMessage(text)

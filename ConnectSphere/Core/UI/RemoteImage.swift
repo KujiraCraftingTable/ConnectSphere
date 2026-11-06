@@ -2,7 +2,7 @@ import SwiftUI
 import ImageIO
 
 /// A remote photo loaded through the shared, disk-backed URL cache and decoded
-/// at no more than `maxPixelSize` — a 2048 px photo in a feed card costs a
+/// at no more than `maxPixelSize`. A 2048 px photo in a feed card costs a
 /// screen's worth of memory, not 2048². Uploads are served as immutable, so a
 /// photo scrolled past once comes back from disk. Drop-in for
 /// `AsyncImage(url:) { phase in … }`.

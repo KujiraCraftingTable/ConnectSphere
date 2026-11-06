@@ -29,7 +29,7 @@ final class MediaSaveViewModel {
             return count == 1 ? Bundle.app.loc("Saved to Photos")
                               : String(format: Bundle.app.loc("Saved %lld items to Photos"), count)
         case .denied: return Bundle.app.loc("Allow ConnectSphere to add photos in Settings to save")
-        case .failed: return Bundle.app.loc("Couldn't save — please try again")
+        case .failed: return Bundle.app.loc("Couldn't save, please try again")
         }
     }
 

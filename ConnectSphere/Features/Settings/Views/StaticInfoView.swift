@@ -55,20 +55,20 @@ extension StaticInfoView {
         StaticInfoSection(
             headingEN: "Two modes",
             headingVI: "Hai chế độ",
-            bodyEN: "ConnectSphere has two separate spaces: Hobby mode for friends who share your interests, and Work mode for professional networking. Switch between them any time from the pill at the top of the feed or in Settings — each mode has its own feed, profile details and conversations.",
-            bodyVI: "ConnectSphere có hai không gian riêng: chế độ Sở thích để kết bạn cùng đam mê và chế độ Công việc để mở rộng quan hệ nghề nghiệp. Bạn có thể chuyển chế độ bất kỳ lúc nào bằng nút ở đầu bảng tin hoặc trong Cài đặt — mỗi chế độ có bảng tin, hồ sơ và hội thoại riêng."
+            bodyEN: "ConnectSphere has two separate spaces: Hobby mode for friends who share your interests, and Work mode for professional networking. Switch between them any time from the pill at the top of the feed or in Settings. Each mode has its own feed, profile details and conversations.",
+            bodyVI: "ConnectSphere có hai không gian riêng: chế độ Sở thích để kết bạn cùng đam mê và chế độ Công việc để mở rộng quan hệ nghề nghiệp. Bạn có thể chuyển chế độ bất kỳ lúc nào bằng nút ở đầu bảng tin hoặc trong Cài đặt. Mỗi chế độ có bảng tin, hồ sơ và hội thoại riêng."
         ),
         StaticInfoSection(
             headingEN: "Finding people",
             headingVI: "Tìm người phù hợp",
-            bodyEN: "Use the Search tab and describe who you want to meet in your own words — the AI reads your description and suggests the best matches with reasons for each. Set a search radius in Settings to only see people nearby.",
-            bodyVI: "Vào tab Tìm kiếm và mô tả người bạn muốn gặp bằng lời của bạn — AI sẽ đọc mô tả và gợi ý những người phù hợp nhất kèm lý do. Đặt bán kính tìm kiếm trong Cài đặt nếu chỉ muốn gặp người ở gần."
+            bodyEN: "Use the Search tab and describe who you want to meet in your own words. The AI reads your description and suggests the best matches with reasons for each. Set a search radius in Settings to only see people nearby.",
+            bodyVI: "Vào tab Tìm kiếm và mô tả người bạn muốn gặp bằng lời của bạn, AI sẽ đọc mô tả và gợi ý những người phù hợp nhất kèm lý do. Đặt bán kính tìm kiếm trong Cài đặt nếu chỉ muốn gặp người ở gần."
         ),
         StaticInfoSection(
             headingEN: "Communities & chat",
             headingVI: "Cộng đồng & nhắn tin",
-            bodyEN: "Join communities to post, run polls and host events with people who share your interests. Once connected with someone, you can message them directly — long-press a message to unsend it, and tap the chat header for per-conversation settings.",
-            bodyVI: "Tham gia cộng đồng để đăng bài, tạo bình chọn và sự kiện với những người cùng sở thích. Khi đã kết nối với ai đó, bạn có thể nhắn tin trực tiếp — nhấn giữ tin nhắn để thu hồi, chạm vào tên ở đầu đoạn chat để mở cài đặt riêng."
+            bodyEN: "Join communities to post, run polls and host events with people who share your interests. Once connected with someone, you can message them directly, long-press a message to unsend it, and tap the chat header for per-conversation settings.",
+            bodyVI: "Tham gia cộng đồng để đăng bài, tạo bình chọn và sự kiện với những người cùng sở thích. Khi đã kết nối với ai đó, bạn có thể nhắn tin trực tiếp. Nhấn giữ tin nhắn để thu hồi, chạm vào tên ở đầu đoạn chat để mở cài đặt riêng."
         ),
         StaticInfoSection(
             headingEN: "Need help?",
@@ -100,8 +100,8 @@ extension StaticInfoView {
         StaticInfoSection(
             headingEN: "Account",
             headingVI: "Tài khoản",
-            bodyEN: "Keep your password safe — you're responsible for activity on your account. To request account removal, contact the address in Help & Support.",
-            bodyVI: "Hãy giữ mật khẩu an toàn — bạn chịu trách nhiệm với hoạt động trên tài khoản của mình. Để yêu cầu xoá tài khoản, liên hệ địa chỉ trong mục Trợ giúp & Hỗ trợ."
+            bodyEN: "Keep your password safe, you're responsible for activity on your account. To request account removal, contact the address in Help & Support.",
+            bodyVI: "Hãy giữ mật khẩu an toàn. Bạn chịu trách nhiệm với hoạt động trên tài khoản của mình. Để yêu cầu xoá tài khoản, liên hệ địa chỉ trong mục Trợ giúp & Hỗ trợ."
         ),
     ]
 

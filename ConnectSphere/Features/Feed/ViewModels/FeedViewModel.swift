@@ -26,7 +26,7 @@ class FeedViewModel {
     var isLoading = false
     var isLoadingMore = false
     var error: String?
-    /// The current feed source — change this value then call loadPosts(for:) to switch data sources
+    /// The current feed source. Change this value then call loadPosts(for:) to switch data sources
     var feedScope: FeedScope = .forYou
 
     private let repository = PostRepository()
@@ -87,9 +87,11 @@ class FeedViewModel {
     private var loadGeneration = 0
     private var loadTask: Task<Void, Never>?
 
-    /// Loads the first page (resets pagination) — the data source depends on the current feedScope.
+    /// Loads the first page (resets pagination). The data source depends on the current feedScope.
     /// Cancels a load still in flight.
     func loadPosts(for mode: AppMode) async {
+        // A refresh drops the "Hidden, Undo" cards: the server no longer sends those posts.
+        HiddenPostsRegistry.shared.clear()
         loadTask?.cancel()
         loadGeneration += 1
         let generation = loadGeneration
@@ -174,7 +176,7 @@ class FeedViewModel {
                 appendPosts(fetched.filter { !existingIds.contains($0.id) }, for: mode)
             }
         } catch {
-            // Scrolling further will retry — don't show an error that blocks the feed
+            // Scrolling further will retry, don't show an error that blocks the feed
         }
     }
 
@@ -193,7 +195,7 @@ class FeedViewModel {
 
     /// Insert a freshly-created post at the top of its mode's list right
     /// after posting, so the user sees confirmation immediately instead of
-    /// waiting on (or having to notice) a background reload — de-dupes
+    /// waiting on (or having to notice) a background reload, de-dupes
     /// defensively in case a reload already picked it up first.
     func prependPost(_ post: Post, for mode: AppMode) {
         let list = mode == .hobby ? friendPosts : colleaguePosts
@@ -219,7 +221,7 @@ class FeedViewModel {
     }
 
     /// Re-inserts a post restored via the Undo toast or the Recently Deleted
-    /// screen — unlike `updatePost`, it inserts at the top when the post
+    /// screen, unlike `updatePost`, it inserts at the top when the post
     /// isn't currently in the list (it was just removed by `.postDeleted`),
     /// and patches it in place if a reload already picked it back up first.
     func restorePost(_ post: Post) {

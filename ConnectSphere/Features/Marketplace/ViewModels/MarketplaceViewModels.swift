@@ -7,13 +7,16 @@ import Observation
 @Observable
 final class MarketplaceViewModel {
     private(set) var listings: [Post] = []
-    /// Your communities in this mode — the filter chips and where "Sell" posts.
+    /// Your communities in this mode. The filter chips and where "Sell" posts.
     private(set) var communities: [Community] = []
     private(set) var isLoading = false
     private(set) var canLoadMore = true
     private(set) var errorMessage: String?
     var query = ""
     var communityId: String?
+    /// "Yours": only the signed-in user's items (sold ones too) instead of everyone's.
+    private(set) var mineOnly = false
+    private var sellerId: String?
 
     private let repository = MarketplaceRepository()
     private let communityRepository = CommunityRepository()
@@ -34,6 +37,17 @@ final class MarketplaceViewModel {
             guard let id = note.userInfo?["id"] as? String else { return }
             MainActor.assumeIsolated { self?.listings.removeAll { $0.id == id } }
         })
+        // A re-up swaps the item's post for a new one, which sorts first.
+        observers.append(NotificationCenter.default.addObserver(
+            forName: .listingReupped, object: nil, queue: .main
+        ) { [weak self] note in
+            guard let oldId = note.userInfo?["oldId"] as? String, let post = note.userInfo?["post"] as? Post else { return }
+            MainActor.assumeIsolated {
+                guard let self, self.listings.contains(where: { $0.id == oldId }) else { return }
+                self.listings.removeAll { $0.id == oldId }
+                self.listings.insert(post, at: 0)
+            }
+        })
     }
 
     deinit {
@@ -45,7 +59,7 @@ final class MarketplaceViewModel {
         defer { isLoading = false }
         do {
             async let mine = communityRepository.fetchMyCommunities(token: token)
-            async let page = repository.listings(mode: mode, query: query, communityId: communityId, offset: 0, token: token)
+            async let page = repository.listings(mode: mode, query: query, communityId: communityId, sellerId: sellerId, offset: 0, token: token)
             let wantedType: CommunityType = mode == .work ? .work : .fandom
             communities = try await mine.filter { $0.type == wantedType }
             listings = try await page
@@ -60,7 +74,7 @@ final class MarketplaceViewModel {
         guard canLoadMore, !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
-        guard let page = try? await repository.listings(mode: mode, query: query, communityId: communityId,
+        guard let page = try? await repository.listings(mode: mode, query: query, communityId: communityId, sellerId: sellerId,
                                                          offset: listings.count, token: token) else { return }
         listings += page.filter { new in !listings.contains { $0.id == new.id } }
         canLoadMore = page.count == 30
@@ -74,6 +88,14 @@ final class MarketplaceViewModel {
             guard !Task.isCancelled else { return }
             await load(mode: mode, token: token)
         }
+    }
+
+    /// Switches between everyone's items and just the user's own.
+    func setMine(_ on: Bool, mode: AppMode, userId: String?, token: String) async {
+        guard on != mineOnly, !on || userId != nil else { return }
+        mineOnly = on
+        sellerId = on ? userId : nil
+        await load(mode: mode, token: token)
     }
 
     func pickCommunity(_ id: String?, mode: AppMode, token: String) async {
@@ -90,8 +112,8 @@ final class MarketplaceViewModel {
 
     private func apply(_ post: Post) {
         guard let i = listings.firstIndex(where: { $0.id == post.id }) else { return }
-        // Sold listings leave the tab; they stay on their community's page.
-        if post.listingData?.isSold == true { listings.remove(at: i) } else { listings[i] = post }
+        // Sold listings leave the tab (unless it's "Yours"); they stay on their community's page.
+        if post.listingData?.isSold == true && !mineOnly { listings.remove(at: i) } else { listings[i] = post }
     }
 }
 
@@ -109,9 +131,9 @@ final class MarketplaceSellerViewModel {
     var errorMessage: String?
 
     private let mode: AppMode
-    /// The item the page was opened from — not repeated in "other items".
+    /// The item the page was opened from, not repeated in "other items".
     private let excludedId: String
-    /// How many the server has returned, the excluded item included — the next page's offset.
+    /// How many the server has returned, the excluded item included. The next page's offset.
     private var fetched = 0
     private let repository = MarketplaceRepository()
 
@@ -203,6 +225,29 @@ final class ListingViewModel {
         await save(["status": sold ? "sold" : "available"], token: token)
     }
 
+    /// Posts the item again as new, in the communities it was listed in. True when done.
+    @discardableResult
+    func reup(token: String) async -> Bool {
+        guard let id = listing?.id else { return false }
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            let oldId = post.id
+            post = try await repository.reup(id: id, token: token)
+            NotificationCenter.default.post(name: .listingReupped, object: nil,
+                                            userInfo: ["oldId": oldId, "post": post])
+            return true
+        } catch {
+            errorMessage = friendlyError(error)
+            return false
+        }
+    }
+
+    /// Stops the item's auto re-up (it can be set again from Edit listing).
+    func cancelAutoReup(token: String) async {
+        await save(["clear_auto_reup": true], token: token)
+    }
+
     /// The seller's edits from the edit sheet. True when saved.
     @discardableResult
     func save(_ fields: [String: Any], token: String) async -> Bool {
@@ -232,5 +277,79 @@ final class ListingViewModel {
             errorMessage = Bundle.app.loc("Couldn't delete post, please try again")
             return false
         }
+    }
+}
+
+/// "Your items": everything you have for sale in this mode, sold ones last.
+@MainActor
+@Observable
+final class MarketplaceMyItemsViewModel {
+    enum Filter { case all, available }
+
+    private(set) var items: [Post] = []
+    private(set) var isLoading = false
+    private(set) var canLoadMore = true
+    var errorMessage: String?
+    var filter: Filter = .all
+
+    /// What the screen shows: every item, or only those still for sale.
+    var visibleItems: [Post] {
+        filter == .all ? items : items.filter { $0.listingData?.isSold != true }
+    }
+
+    private let mode: AppMode
+    private let sellerId: String
+    private let repository = MarketplaceRepository()
+    nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
+
+    init(mode: AppMode, sellerId: String) {
+        self.mode = mode
+        self.sellerId = sellerId
+        let center = NotificationCenter.default
+        observers.append(center.addObserver(forName: .postUpdated, object: nil, queue: .main) { [weak self] note in
+            guard let post = note.userInfo?["post"] as? Post else { return }
+            MainActor.assumeIsolated {
+                guard let self, let i = self.items.firstIndex(where: { $0.id == post.id }) else { return }
+                self.items[i] = post
+            }
+        })
+        observers.append(center.addObserver(forName: .postDeleted, object: nil, queue: .main) { [weak self] note in
+            guard let id = note.userInfo?["id"] as? String else { return }
+            MainActor.assumeIsolated { self?.items.removeAll { $0.id == id } }
+        })
+        observers.append(center.addObserver(forName: .listingReupped, object: nil, queue: .main) { [weak self] note in
+            guard let oldId = note.userInfo?["oldId"] as? String, let post = note.userInfo?["post"] as? Post else { return }
+            MainActor.assumeIsolated {
+                guard let self, let i = self.items.firstIndex(where: { $0.id == oldId }) else { return }
+                self.items[i] = post
+            }
+        })
+    }
+
+    deinit {
+        observers.forEach { NotificationCenter.default.removeObserver($0) }
+    }
+
+    func load(token: String) async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            items = try await repository.listings(mode: mode, query: "", communityId: nil, sellerId: sellerId,
+                                                  offset: 0, token: token)
+            canLoadMore = items.count == 30
+            errorMessage = nil
+        } catch {
+            errorMessage = friendlyError(error)
+        }
+    }
+
+    func loadMore(token: String) async {
+        guard canLoadMore, !isLoading else { return }
+        isLoading = true
+        defer { isLoading = false }
+        guard let page = try? await repository.listings(mode: mode, query: "", communityId: nil, sellerId: sellerId,
+                                                         offset: items.count, token: token) else { return }
+        items += page.filter { new in !items.contains { $0.id == new.id } }
+        canLoadMore = page.count == 30
     }
 }

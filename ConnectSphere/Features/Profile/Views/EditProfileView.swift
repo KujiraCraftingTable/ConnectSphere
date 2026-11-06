@@ -1,7 +1,7 @@
 import SwiftUI
 import PhotosUI
 
-/// Profile-editing sheet — name, bio, job, location, and profile picture.
+/// Profile-editing sheet, name, bio, job, location, and profile picture.
 /// Saves via PATCH /api/users/me, then updates appState.currentUser.
 struct EditProfileView: View {
     @Environment(AppState.self) var appState
@@ -14,6 +14,8 @@ struct EditProfileView: View {
 
     @State private var viewModel = EditProfileViewModel()
     @State private var confirmDobChange = false
+    @State private var bioSelection: TextSelection?
+    @FocusState private var bioFocused: Bool
 
     @State private var pickingLanguages = false
 
@@ -88,8 +90,9 @@ struct EditProfileView: View {
                         TextField(bundle.loc("Display name"), text: $viewModel.displayName)
                         CharacterCounter(count: viewModel.displayName.count, limit: DisplayNameRules.maxLength)
                     }
-                    TextField(bundle.loc("About yourself"), text: $viewModel.bio, axis: .vertical)
+                    TextField(bundle.loc("About yourself"), text: $viewModel.bio, selection: $bioSelection, axis: .vertical)
                         .lineLimit(3...5)
+                        .focused($bioFocused)
                     LocationSearchField(bundle.loc("Location"), text: $viewModel.location)
                     DatePicker(bundle.loc("Date of birth"), selection: $viewModel.dobDate,
                                displayedComponents: .date)
@@ -104,7 +107,7 @@ struct EditProfileView: View {
                     .padding(.vertical, 4)
                 }
 
-                // ── Interests / Skills — based on the current mode, same as onboarding ─
+                // ── Interests / Skills. Based on the current mode, same as onboarding ─
                 if appState.currentMode == .hobby {
                     Section(bundle.loc("Interests")) {
                         InterestPickerView(selectedInterests: $viewModel.selectedInterests, colorScheme: colorScheme)
@@ -152,7 +155,7 @@ struct EditProfileView: View {
                     }
                 }
 
-                // Work only — Hobby never talks about work.
+                // Work only, Hobby never talks about work.
                 if appState.currentMode == .work {
                     Section(bundle.loc("Work")) {
                         TextField(bundle.loc("Job title"), text: $viewModel.jobTitle)
@@ -179,12 +182,17 @@ struct EditProfileView: View {
                     await schools.load(userId: id, token: appState.authToken ?? "")
                 }
             }
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    if bioFocused { MarkdownToolbar(text: $viewModel.bio, selection: $bioSelection) }
+                }
+            }
             .navigationTitle(bundle.loc("Edit profile"))
             .navigationBarTitleDisplayMode(.inline)
-            .interactiveDismissDisabled()
+            .interactiveDismissDisabled(viewModel.hasChanges)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    ConfirmCancelButton { dismiss() }
+                    ConfirmCancelButton(hasChanges: viewModel.hasChanges) { dismiss() }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
@@ -253,7 +261,7 @@ struct EditProfileView: View {
     private var dobChangeWarning: String {
         let left = max(0, (viewModel.dobChangesLeft ?? 2) - 1)
         let after = left == 0
-            ? String(format: bundle.loc("This is your last change — after it, only support (%@) can change your birthday."),
+            ? String(format: bundle.loc("This is your last change. After it, only support (%@) can change your birthday."),
                      EditProfileViewModel.supportEmail)
             : bundle.loc("After this you'll have 1 change left.")
         return bundle.loc("Your birthday sets the age shown on your account, so it can only be changed twice.") + " " + after

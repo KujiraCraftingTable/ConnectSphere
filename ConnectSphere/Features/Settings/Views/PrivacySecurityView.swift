@@ -46,13 +46,13 @@ struct PrivacySecurityView: View {
                 }
             } footer: {
                 if !hasPassword {
-                    Text("Set a password to also sign in without Google.", bundle: bundle)
+                    Text("Set a password so you can also sign in with your username and password, not only with Google.", bundle: bundle)
                 }
             }
 
             // Who can send friend requests
             Section {
-                Toggle(isOn: Binding(
+                SettingToggleRow(isOn: Binding(
                     get: { appState.currentUser?.allowFriendRequests ?? true },
                     set: { allow in Task { await friendRequests.set(allow, appState: appState) } }
                 )) {
@@ -70,7 +70,6 @@ struct PrivacySecurityView: View {
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                     }
                 }
-                .tint(themeManager.theme.primary)
                 .disabled(friendRequests.isSaving)
             } footer: {
                 Text("When off, people who aren't your friends can only follow you. You can still send friend requests yourself.", bundle: bundle)
@@ -78,7 +77,7 @@ struct PrivacySecurityView: View {
 
             // Whether I'm suggested to others
             Section {
-                Toggle(isOn: Binding(
+                SettingToggleRow(isOn: Binding(
                     get: { appState.currentUser?.showInSuggestions ?? true },
                     set: { show in Task { await suggestionVisibility.set(show, appState: appState) } }
                 )) {
@@ -96,7 +95,6 @@ struct PrivacySecurityView: View {
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                     }
                 }
-                .tint(themeManager.theme.primary)
                 .disabled(suggestionVisibility.isSaving)
             } footer: {
                 Text("When off, you're never suggested to anyone. You still see suggestions yourself.", bundle: bundle)
@@ -104,7 +102,7 @@ struct PrivacySecurityView: View {
 
             // Two-factor sign-in: a code by email every time
             Section {
-                Toggle(isOn: Binding(
+                SettingToggleRow(isOn: Binding(
                     get: { appState.currentUser?.twoFactorEnabled ?? false },
                     set: { twoFactorChange = $0 }
                 )) {
@@ -122,7 +120,6 @@ struct PrivacySecurityView: View {
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                     }
                 }
-                .tint(themeManager.theme.primary)
                 .disabled(!(appState.currentUser?.emailVerified ?? false))
             } footer: {
                 Text(bundle.loc((appState.currentUser?.emailVerified ?? false)
@@ -132,7 +129,7 @@ struct PrivacySecurityView: View {
 
             // Lock this mode's profile (Facebook-style)
             Section {
-                Toggle(isOn: Binding(
+                SettingToggleRow(isOn: Binding(
                     get: { appState.currentUser?.isLocked ?? false },
                     set: { lock in
                         if lock { confirmLock = true }
@@ -153,7 +150,6 @@ struct PrivacySecurityView: View {
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                     }
                 }
-                .tint(themeManager.theme.primary)
                 .disabled(profileLock.isSaving)
             } footer: {
                 Text(bundle.loc(appState.currentMode == .work
@@ -163,7 +159,7 @@ struct PrivacySecurityView: View {
 
             // This mode's profile → my other persona (each mode has its own switch)
             Section {
-                Toggle(isOn: Binding(
+                SettingToggleRow(isOn: Binding(
                     get: { appState.currentUser?.linksOtherMode ?? true },
                     set: { link in Task { await personaLink.set(link, appState: appState) } }
                 )) {
@@ -181,7 +177,6 @@ struct PrivacySecurityView: View {
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                     }
                 }
-                .tint(themeManager.theme.primary)
                 .disabled(personaLink.isSaving)
             } footer: {
                 Text(bundle.loc(otherMode == .work
@@ -233,8 +228,8 @@ struct PrivacySecurityView: View {
             Button(bundle.loc("Cancel"), role: .cancel) {}
         } message: {
             Text(bundle.loc(appState.currentMode == .work
-                ? "People who aren't your Work connections will only see your name, photo, cover and username — not your posts, experience, skills or lists."
-                : "People who aren't your friends will only see your name, photo, cover and username — not your posts, highlights, details or lists."))
+                ? "People who aren't your Work connections will only see your name, photo, cover and username, not your posts, experience, skills or lists."
+                : "People who aren't your friends will only see your name, photo, cover and username, not your posts, highlights, details or lists."))
         }
         .alert(profileLock.errorMessage ?? "", isPresented: Binding(
             get: { profileLock.errorMessage != nil },
@@ -264,7 +259,7 @@ struct PrivacySecurityView: View {
     }
 
     /// Opens Change Password / Manage account when the AI assistant's
-    /// guidance action landed here — mirrors the consume-then-clear pattern
+    /// guidance action landed here. Mirrors the consume-then-clear pattern
     /// `pendingDeepLink`/`pendingAssistantNavigation` use elsewhere.
     private func consumePendingAssistantSheet() {
         switch appState.pendingAssistantSheet {

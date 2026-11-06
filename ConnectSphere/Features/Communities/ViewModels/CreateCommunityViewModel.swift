@@ -35,6 +35,11 @@ final class CreateCommunityViewModel {
 
     var canCreate: Bool { trimmedName.count >= 3 }
 
+    /// Anything entered or picked. Closing would lose it, so Cancel asks.
+    var hasChanges: Bool {
+        !trimmedName.isEmpty || !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || pickedImage != nil
+    }
+
     /// Same name and type as a community the user can already see.
     func isDuplicateName(among existing: [Community]) -> Bool {
         let lowered = trimmedName.lowercased()
@@ -42,10 +47,20 @@ final class CreateCommunityViewModel {
         return existing.contains { $0.name.lowercased() == lowered && $0.type == type }
     }
 
-    func loadPhoto(from item: PhotosPickerItem) async {
-        guard let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else { return }
-        pickedImage = image
+    /// The photo as picked, kept so it can be re-framed; `pickedImage` is the framed result.
+    private(set) var coverOriginal: UIImage?
+
+    /// Returns true when a photo was loaded and is ready to be framed.
+    func loadPhoto(from item: PhotosPickerItem) async -> Bool {
+        guard let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else { return false }
+        coverOriginal = image
+        return true
     }
+
+    /// The framed cover from `CoverCropView`. Exactly what gets uploaded.
+    func setFramedCover(_ image: UIImage) { pickedImage = image }
+
+    func removePhoto() { pickedImage = nil; coverOriginal = nil }
 
     /// The photo is uploaded only now, once Create is confirmed. Returns the
     /// new community, or nil with `errorMessage` set.

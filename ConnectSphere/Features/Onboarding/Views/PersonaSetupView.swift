@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Form for creating a persona for the second mode — shown when the user first
+/// Form for creating a persona for the second mode. Shown when the user first
 /// switches into a mode that isn't set up yet (appState.pendingPersonaMode).
 /// Same account but an independent display identity: work needs display name +
 /// job title/company/skills; hobby needs display name + interests. Cancel = stay in the old mode.
@@ -88,10 +88,10 @@ struct PersonaSetupView: View {
             }
             .background(AppColors.base(colorScheme))
             .navigationBarTitleDisplayMode(.inline)
-            .interactiveDismissDisabled()
+            .interactiveDismissDisabled(viewModel.hasChanges)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    ConfirmCancelButton {
+                    ConfirmCancelButton(hasChanges: viewModel.hasChanges) {
                         appState.pendingPersonaMode = nil
                         dismiss()
                     }
@@ -101,7 +101,7 @@ struct PersonaSetupView: View {
         .interactiveDismissDisabled(viewModel.isSaving)
     }
 
-    // MARK: Header — explains why this form is needed
+    // MARK: Header, explains why this form is needed
 
     private var header: some View {
         VStack(spacing: 12) {
@@ -120,7 +120,7 @@ struct PersonaSetupView: View {
                     .font(.system(size: 19, weight: .bold))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .multilineTextAlignment(.center)
-                Text("This mode has its own separate identity — name, avatar and bio won't be shared with the other mode", bundle: bundle)
+                Text("This mode has its own separate identity. Name, avatar and bio won't be shared with the other mode", bundle: bundle)
                     .font(.system(size: 13))
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .multilineTextAlignment(.center)

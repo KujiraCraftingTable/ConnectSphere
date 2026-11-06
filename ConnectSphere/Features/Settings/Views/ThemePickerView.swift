@@ -1,4 +1,4 @@
-// ThemePickerView — lets the user select a palette per app mode.
+// ThemePickerView, lets the user select a palette per app mode.
 // Shows two sections (Friend / Colleague), a horizontal chip scroll,
 // and a live preview card that updates instantly on selection.
 
@@ -91,7 +91,7 @@ struct ThemePickerView: View {
             HStack(spacing: 14) {
                 // Avatar ring
                 ZStack {
-                    // Flat, like everywhere the theme colour is used in the app —
+                    // Flat, like everywhere the theme colour is used in the app,
                     // the preview shouldn't promise a gradient or glow it won't show.
                     Circle()
                         .fill(themeManager.theme.primary)

@@ -16,19 +16,19 @@ struct ChatView: View {
     let peer: ChatPeer
     let otherUserLocation: String?
     private let token: String
-    /// Set when opened from a cross-conversation search hit — scrolls to and
+    /// Set when opened from a cross-conversation search hit. Scrolls to and
     /// highlights this message once the initial page has loaded.
     let initialJumpMessageId: String?
 
     @State private var viewModel: ChatViewModel
     /// True when `viewModel` was handed in already-loaded (restoring from a
-    /// floating bubble) — `.task` skips the initial `loadMessages()` fetch
+    /// floating bubble), `.task` skips the initial `loadMessages()` fetch
     /// since the message list is already live/current, avoiding both a
     /// wasted request and a re-fetch flash that could momentarily replace
     /// messages received while the bubble was floating.
     private let isRestoredFromBubble: Bool
     /// Set right before calling `dismiss()` from the "shrink to bubble"
-    /// button — tells `.onDisappear` to skip `leaveConversation()`, since the
+    /// button, tells `.onDisappear` to skip `leaveConversation()`, since the
     /// conversation is transferring to a `FloatingChatPresenter` bubble, not
     /// actually closing.
     @State private var isMinimizing = false
@@ -41,19 +41,19 @@ struct ChatView: View {
     @State private var showChatSettings = false
     @State private var mediaViewer: MediaViewerSelection?
     @State private var mediaSaver = MediaSaveViewModel()
-    // Whether either side has blocked the other — disables the input bar and
+    // Whether either side has blocked the other. Disables the input bar and
     // shows an inline notice; set from Chat Settings' block toggle or fetched
-    // on load. 1:1 only — groups use `viewModel.blockAlertState` instead
+    // on load. 1:1 only, groups use `viewModel.blockAlertState` instead
     // (alert-only, input bar stays enabled).
     /// Token for the `.userBlockStatusChanged` observer registered in `.task`;
     /// removed symmetrically in `.onDisappear`.
     @State private var blockStatusObserver: NSObjectProtocol?
-    /// Token for the `.userLeftGroupConversation` observer (group only) —
+    /// Token for the `.userLeftGroupConversation` observer (group only),
     /// catches "I left via `GroupParticipantsView`" deterministically on this
     /// same device, independent of the `member_removed` socket broadcast's
     /// exact targeting. Removed symmetrically in `.onDisappear`.
     @State private var leftGroupObserver: NSObjectProtocol?
-    // Meeting proposal composer (new proposal or reschedule) — forked
+    // Meeting proposal composer (new proposal or reschedule). Forked
     // `MeetingProposalComposerView`, see its doc comment for why.
     @State private var showMeetingComposer = false
     @State private var showPollComposer = false
@@ -65,13 +65,13 @@ struct ChatView: View {
     @State private var meetingEndsAt: Date? = nil
     @State private var meetingShowEndDate = false
     @State private var meetingReminderOffset: MeetingReminderOffset = .oneDayBefore
-    /// Non-nil while rescheduling an existing proposal — the id of the message being edited.
+    /// Non-nil while rescheduling an existing proposal. The id of the message being edited.
     @State private var editingMeetingMessageId: String?
     // Jump-to-message from search results (and from tapping a reply's quoted preview)
     @State private var pendingScrollTarget: String?
     @State private var highlightedMessageId: String?
     @State private var isJumping = false
-    // The message currently being quoted for a reply — shows a preview bar above the input bar
+    // The message currently being quoted for a reply. Shows a preview bar above the input bar
     @State private var replyingTo: Message?
     /// Raised when a reply starts (swipe or long-press), so the keyboard comes
     /// up ready to type the way Messenger does.
@@ -80,7 +80,7 @@ struct ChatView: View {
     /// a ">" while typing so the field gets the row; ">" shows them again.
     @State private var showsComposerTools = true
     @State private var messageToRecall: Message?
-    // "Forward" — pick a target conversation, re-send this message's content there.
+    // "Forward", pick a target conversation, re-send this message's content there.
     @State private var forwardingMessage: Message?
     @State private var connectVM = ConnectViewModel()
     @AppStorage("messageSoundEnabled") private var messageSoundEnabled = true
@@ -94,7 +94,7 @@ struct ChatView: View {
     @State private var pinCustomDate = Date()
     @AppStorage private var pinAutoDeleteRaw: String
     @AppStorage private var pinAutoDeleteCustomDateRaw: Double
-    /// The emoji the send button becomes while the composer is empty — shared
+    /// The emoji the send button becomes while the composer is empty. Shared
     /// with the floating chat's composer bar, set in Chat settings.
     @AppStorage private var quickEmoji: String
     // Pinned-messages list, opened from the pinned-banner when there's more
@@ -112,7 +112,7 @@ struct ChatView: View {
         self.initialJumpMessageId = initialJumpMessageId
         self.isRestoredFromBubble = existingViewModel != nil
         // Restoring from a floating bubble hands in its already-loaded,
-        // already-joined view model — reused as-is (no re-fetch, no second
+        // already-joined view model. Reused as-is (no re-fetch, no second
         // socket join; see `ChatViewModel.hasJoinedConversation`'s guard and
         // `FloatingChatPresenter.restore(_:)`).
         _viewModel = State(initialValue: existingViewModel ?? ChatViewModel(
@@ -142,7 +142,7 @@ struct ChatView: View {
         ThemePalette.byId(viewModel.chatThemeId) ?? themeManager.theme
     }
 
-    /// Name to show in the header: shared nickname (1:1) or group name — live
+    /// Name to show in the header: shared nickname (1:1) or group name. Live
     /// value from settings once loaded, falling back to what the caller passed in.
     private var headerName: String {
         if viewModel.isGroup {
@@ -151,7 +151,7 @@ struct ChatView: View {
         return viewModel.otherNickname ?? peer.name
     }
 
-    /// "N members" subtitle under the group's name — nil for 1:1.
+    /// "N members" subtitle under the group's name. Nil for 1:1.
     private var groupMemberCountText: String? {
         guard viewModel.isGroup else { return nil }
         let count = viewModel.groupMembers.isEmpty ? (peer.memberCount ?? 0) : viewModel.groupMembers.count
@@ -159,12 +159,12 @@ struct ChatView: View {
         return String(format: bundle.loc("%d members"), count)
     }
 
-    /// Every other participant in this conversation (current user excluded) —
+    /// Every other participant in this conversation (current user excluded),
     /// fed to `MessageBubble.otherParticipantIds` to derive delivered/read
     /// status. A 1:1 chat yields exactly `[peer.otherUserId]`; a group yields
     /// the live roster from `viewModel.groupMembers` (falls back to `[]`
     /// before settings finish loading, which just renders the sent-only glyph
-    /// briefly — matches how `groupMemberCountText` already tolerates the
+    /// briefly, matches how `groupMemberCountText` already tolerates the
     /// same not-yet-loaded window).
     private var otherParticipantIds: [String] {
         if viewModel.isGroup {
@@ -199,7 +199,7 @@ struct ChatView: View {
             }
         }
         // ignoresSafeArea (which covers .keyboard by default) so the background extends behind
-        // iOS 26's floating keyboard — otherwise there's a system black bar between the input bar and the keyboard
+        // iOS 26's floating keyboard, otherwise there's a system black bar between the input bar and the keyboard
         .background(AppColors.base(colorScheme).ignoresSafeArea())
         .navigationBarBackButtonHidden(true)
         .navigationBarTitleDisplayMode(.inline)
@@ -246,7 +246,7 @@ struct ChatView: View {
                 .buttonStyle(.plain)
             }
 
-            // Shrink to a floating "chat head" — keeps this conversation
+            // Shrink to a floating "chat head", keeps this conversation
             // live (still receiving/sendable) while browsing any other tab.
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
@@ -290,7 +290,7 @@ struct ChatView: View {
             .environment(appState)
         }
         .task {
-            // Must run before `joinConversation()` — see `fullChatDidAppear`.
+            // Must run before `joinConversation()`. See `fullChatDidAppear`.
             floatingChatPresenter.fullChatDidAppear(conversationId: conversationId)
             viewModel.joinConversation()
             if !isRestoredFromBubble {
@@ -306,7 +306,7 @@ struct ChatView: View {
             await viewModel.loadSettings()
             await viewModel.loadPins()
             if viewModel.isGroup {
-                // Groups are alert-only (Leave/Stay) — never disable the input bar.
+                // Groups are alert-only (Leave/Stay). Never disable the input bar.
                 await viewModel.checkBlockAlert()
                 leftGroupObserver = NotificationCenter.default.addObserver(
                     forName: .userLeftGroupConversation, object: nil, queue: .main
@@ -317,7 +317,7 @@ struct ChatView: View {
                 }
             } else if let otherId = peer.otherUserId {
                 // A user may already be blocked via their profile before ever opening
-                // Chat Settings — fetch the current state so the input bar reflects it.
+                // Chat Settings, fetch the current state so the input bar reflects it.
                 // Uses the bidirectional value: the input bar must stay disabled even
                 // when *they* blocked *me*, not just when I blocked them.
                 await viewModel.refreshBlockedState()
@@ -343,7 +343,7 @@ struct ChatView: View {
         .onDisappear {
             // Shrinking to a bubble transfers ownership of the live socket
             // listeners to FloatingChatPresenter instead of tearing them
-            // down — see `isMinimizing`'s doc comment.
+            // down, see `isMinimizing`'s doc comment.
             if !isMinimizing {
                 viewModel.leaveConversation()
             }
@@ -409,7 +409,7 @@ struct ChatView: View {
         }
         .mediaSaveStatus(mediaSaver)
         // Surfaces both socket-ack rejections (send/react/reply/meeting actions)
-        // and REST-fallback failures — previously `viewModel.error` was set but
+        // and REST-fallback failures. Previously `viewModel.error` was set but
         // never read anywhere, so every one of those failures was silent.
         .alert(bundle.loc("Error"), isPresented: .constant(viewModel.error != nil)) {
             Button(bundle.loc("OK")) { viewModel.error = nil }
@@ -428,7 +428,7 @@ struct ChatView: View {
             Text(bundle.loc("This removes it for everyone in the conversation."))
         }
         // Group-only: someone I've blocked (or who's blocked me) is in this
-        // group. Alert-only per product decision — the input bar stays fully
+        // group. Alert-only per product decision. The input bar stays fully
         // enabled either way; only Leave actually removes me from the group.
         .alert(bundle.loc("Blocked members in this group"), isPresented: Binding(
             get: { viewModel.blockAlertState != nil },
@@ -443,7 +443,7 @@ struct ChatView: View {
         } message: {
             Text("Someone you've blocked (or who has blocked you) is in this group.", bundle: bundle)
         }
-        // I left (or was removed from) this group — it's no longer accessible.
+        // I left (or was removed from) this group, it's no longer accessible.
         .alert(bundle.loc("You're no longer in this group"), isPresented: Binding(
             get: { viewModel.wasRemovedFromGroup },
             set: { _ in }
@@ -534,7 +534,7 @@ struct ChatView: View {
     // MARK: - Meeting proposal composer
 
     /// Hosts `MeetingProposalComposerView`'s fields for both "new proposal"
-    /// and "reschedule" — `editingMeetingMessageId` tracks which mode is active.
+    /// and "reschedule", `editingMeetingMessageId` tracks which mode is active.
     private var meetingComposerSheet: some View {
         NavigationStack {
             ScrollView {
@@ -549,10 +549,10 @@ struct ChatView: View {
             }
             .background(AppColors.base(colorScheme).ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
-            .interactiveDismissDisabled()
+            .interactiveDismissDisabled(meetingComposerHasChanges)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    ConfirmCancelButton {
+                    ConfirmCancelButton(hasChanges: meetingComposerHasChanges) {
                         showMeetingComposer = false
                         resetMeetingComposer()
                     }
@@ -580,6 +580,20 @@ struct ChatView: View {
                 }
             }
         }
+    }
+
+    /// Has the meeting form been changed from how it opened. Empty for a new
+    /// meeting, the existing proposal when rescheduling?
+    private var meetingComposerHasChanges: Bool {
+        let trimmedLocation = meetingLocation.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let id = editingMeetingMessageId,
+           let p = viewModel.messages.first(where: { $0.id == id })?.meetingProposal {
+            return meetingTitle != p.title || trimmedLocation != (p.location ?? "")
+                || meetingStartsAt != p.startsAt || (meetingShowEndDate ? meetingEndsAt : nil) != p.endsAt
+                || meetingReminderOffset != (p.reminderOffsetValue ?? .oneDayBefore)
+        }
+        return !meetingTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !trimmedLocation.isEmpty
+            || meetingShowEndDate || meetingReminderOffset != .oneDayBefore
     }
 
     /// Resets the composer's fields back to defaults (new-proposal mode).
@@ -687,7 +701,7 @@ struct ChatView: View {
     }
 
     /// Opens the pin-expiry confirmation sheet for `message`, prefilled from
-    /// the per-conversation default auto-delete preference — always shown
+    /// the per-conversation default auto-delete preference. Always shown
     /// rather than silently applying a hidden default, so the user can see/
     /// adjust the expiry before confirming.
     private func beginPinning(_ message: Message) {
@@ -820,7 +834,7 @@ struct ChatView: View {
                                     ))
                                     .contextMenu {
                                         // The quick-react row must be a true top-level, unconditional
-                                        // first item — a ControlGroup wrapped inside an `if` (as this
+                                        // first item, a ControlGroup wrapped inside an `if` (as this
                                         // was previously) can lose iOS's "first ControlGroup renders as
                                         // its own horizontal strip, separate from the vertical action
                                         // list below" behavior, since the menu content is then a
@@ -853,7 +867,7 @@ struct ChatView: View {
                                             }
 
                                             // Meeting proposals carry RSVP/reminder state tied to this
-                                            // specific conversation — forwarding one as-is wouldn't
+                                            // specific conversation, forwarding one as-is wouldn't
                                             // make sense, so it's excluded here.
                                             if message.messageType != .meeting {
                                                 Button {
@@ -980,7 +994,7 @@ struct ChatView: View {
             // Connection status
             Text(isConnected
                  ? bundle.loc(appState.currentMode == .hobby
-                              ? "You're connected — say hello 👋"
+                              ? "You're connected, say hello 👋"
                               : "You're connected. Say hello.")
                  : bundle.loc("You're not connected with this user"))
                 .font(.system(size: 13))
@@ -1026,7 +1040,7 @@ struct ChatView: View {
         .padding(.bottom, 20)
     }
 
-    /// Starts replying to `message` — shared by swipe-to-reply and the
+    /// Starts replying to `message`. Shared by swipe-to-reply and the
     /// long-press "Reply" item so both show the "Replying to" bar and raise
     /// the keyboard identically.
     private func beginReply(to message: Message) {
@@ -1035,7 +1049,7 @@ struct ChatView: View {
     }
 
     /// Centered time label between messages after 30+ minutes of silence (or a
-    /// new day) — Messenger's convention. With it, each bubble no longer needs
+    /// new day), Messenger's convention. With it, each bubble no longer needs
     /// its own timestamp; see `ChatTimeline`.
     private func timeSeparator(for date: Date) -> some View {
         Text(ChatTimeline.separatorLabel(for: date, yesterday: bundle.loc("Yesterday")))
@@ -1099,7 +1113,7 @@ struct ChatView: View {
     }
 
     private var inputBar: some View {
-        // Groups are alert-only (Leave/Stay) — the input bar always stays
+        // Groups are alert-only (Leave/Stay). The input bar always stays
         // enabled there. The existing hard-block disabling/notice is 1:1 only.
         let blocking = viewModel.isBlocked && !viewModel.isGroup
         return VStack(spacing: 8) {
@@ -1107,7 +1121,7 @@ struct ChatView: View {
                 blockedNotice
             }
 
-            // "Replying to X" preview — clearable with an X button
+            // "Replying to X" preview, clearable with an X button
             if let replyingTo {
                 replyingToBar(replyingTo)
             }
@@ -1139,7 +1153,7 @@ struct ChatView: View {
                                 .padding(.bottom, 6)
                         }
 
-                        // Polls are for groups — between two people it's just a question.
+                        // Polls are for groups. Between two people it's just a question.
                         if viewModel.isGroup {
                             Button { showPollComposer = true } label: {
                                 Image(systemName: "chart.bar.doc.horizontal")
@@ -1189,7 +1203,7 @@ struct ChatView: View {
                             }
                         }
                 } else {
-                    // Recording or reviewing — the voice pill takes the whole
+                    // Recording or reviewing. The voice pill takes the whole
                     // row up to the send button, which sends the recording.
                     VoiceComposerBar(session: voiceSession, tint: chatPalette.primary)
                 }
@@ -1307,7 +1321,7 @@ struct ChatView: View {
     }
 
     /// Resolves who to show in "Replying to X": for a group, the actual
-    /// sender of `message` (any member, not just "the other person") —
+    /// sender of `message` (any member, not just "the other person"),
     /// looked up via the loaded roster since `Message` only carries a
     /// `senderId`, not a name. For 1:1, the only two possible senders are me
     /// or the other person, so `peer.name` (or its live nickname) still applies.
@@ -1398,7 +1412,7 @@ struct ChatView: View {
         }
     }
 
-    /// Sends the configured quick emoji as an ordinary text message — there is
+    /// Sends the configured quick emoji as an ordinary text message. There is
     /// no sticker message type (`MessageType` is text/image/video/meeting/voice),
     /// so Messenger-style one-tap send is simply a very short text.
     /// The quick emoji answers the message being replied to, like text does.
@@ -1426,7 +1440,7 @@ struct ChatView: View {
         pendingScrollTarget = messageId
     }
 
-    /// What "Save to Photos" saves for a bubble — nothing for text, voice or meetings.
+    /// What "Save to Photos" saves for a bubble. Nothing for text, voice or meetings.
     private func saveItems(for message: Message) -> [MediaSaveViewModel.Item] {
         if message.messageType == .album {
             return message.albumURLs().map { .init(url: $0, isVideo: false) }

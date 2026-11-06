@@ -1,7 +1,7 @@
 import MapKit
 import Observation
 
-/// Thin `MKLocalSearchCompleter` wrapper for place autocomplete — the meeting
+/// Thin `MKLocalSearchCompleter` wrapper for place autocomplete. The meeting
 /// proposal's location field and the Marketplace location picker. Text-based
 /// place/address search only, which needs no location permission.
 @Observable
@@ -19,7 +19,7 @@ final class LocationSearchCompleter: NSObject, MKLocalSearchCompleterDelegate {
         completer.delegate = self
     }
 
-    /// Updates the search query — matching results arrive asynchronously via
+    /// Updates the search query. Matching results arrive asynchronously via
     /// `completerDidUpdateResults`. Clears immediately for an empty/whitespace
     /// fragment rather than waiting on the completer.
     func search(_ fragment: String) {

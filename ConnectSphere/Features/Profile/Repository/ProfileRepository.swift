@@ -12,7 +12,7 @@ struct ProfileRepository {
         return response.data.toUserProfile()
     }
 
-    /// mode = server-side filter ("hobby"/"work") — `ProfileViewModel` passes
+    /// mode = server-side filter ("hobby"/"work"), `ProfileViewModel` passes
     /// the active mode so pagination offsets stay correct against one mode's
     /// post count, reloading on mode switch rather than re-filtering client-side.
     func fetchPosts(authorId: String, mode: String? = nil, limit: Int = 20, offset: Int = 0) async throws -> [Post] {
@@ -23,7 +23,7 @@ struct ProfileRepository {
         return response.data.map { $0.toPost() }
     }
 
-    /// Partial update — a nil field is not sent (JSONEncoder skips nils),
+    /// Partial update, a nil field is not sent (JSONEncoder skips nils),
     /// so the backend only writes the fields present in the body.
     /// mode = the persona being edited (display_name/bio/avatar/cover are written to that persona);
     /// if omitted, the backend falls back to the user's default_mode.
@@ -31,6 +31,8 @@ struct ProfileRepository {
         var mode: String?         = nil
         var display_name: String? = nil
         var bio: String?          = nil
+        /// How `bio` is written ("markdown" or "plain"); always sent with `bio`.
+        var bio_format: String?   = nil
         var location: String?     = nil
         var dob: String?          = nil
         var dob_visibility: String? = nil
@@ -126,7 +128,7 @@ struct ProfileRepository {
     }
 
     /// Persists which mode the app should open in after login. Fire-and-forget
-    /// from `AppState.requestModeSwitch` — the switch is already reflected
+    /// from `AppState.requestModeSwitch`, the switch is already reflected
     /// locally, so this is a background sync rather than something the UI
     /// waits on. Separate from `updateProfile`, whose own `mode` field means
     /// "which persona to edit," not "change my default."

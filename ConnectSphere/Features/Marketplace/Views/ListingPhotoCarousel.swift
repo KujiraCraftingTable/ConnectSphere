@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A listing's photos and videos, one at a time — swipe through them (on past
+/// A listing's photos and videos, one at a time. Swipe through them (on past
 /// the last back to the first), with a "2/6" count; tap one
 /// to see it full screen (the app's shared media viewer). Used by the
 /// Marketplace grid card (where a tap opens the item instead), the listing's

@@ -2,7 +2,7 @@ import PhotosUI
 import SwiftUI
 
 /// The camera button beside a comment composer's Send: opens the photo
-/// library — photos only, no videos and no camera — for one photo per comment.
+/// library, photos only, no videos and no camera, for one photo per comment.
 struct CommentPhotoButton: View {
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.appBundle) private var bundle

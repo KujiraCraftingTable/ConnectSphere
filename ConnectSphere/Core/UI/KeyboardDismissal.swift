@@ -1,7 +1,7 @@
 import UIKit
 
 /// App-wide: a tap anywhere outside the field being typed in hides the
-/// keyboard — every screen, sheet and cover, without each one opting in.
+/// keyboard, every screen, sheet and cover, without each one opting in.
 /// One tap recognizer per window; it never cancels the tap, so the button or
 /// row underneath still gets it.
 enum KeyboardDismissal {
@@ -34,7 +34,7 @@ enum KeyboardDismissal {
                 v = cur.superview
             }
             // Nor a tap in the field's own bar: a chat composer's Send, a
-            // password's eye button — the keyboard should stay for those.
+            // password's eye button. The keyboard should stay for those.
             return !inputBar(of: responder, in: window).contains(touch.location(in: window))
         }
 

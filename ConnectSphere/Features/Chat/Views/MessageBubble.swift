@@ -8,12 +8,12 @@ struct MessageBubble: View {
     /// (same convention as `Message.myReaction(userId:)`).
     var currentUserId: String = ""
     /// Every other participant in this conversation (excludes the current
-    /// user) — a 1:1 chat has exactly one id here, a group has N. Drives
+    /// user), a 1:1 chat has exactly one id here, a group has N. Drives
     /// `statusIcon`'s delivered/read rendering; threaded in the same way
     /// `currentUserId` is (parent computes it once from `ChatViewModel`).
     var otherParticipantIds: [String] = []
     /// The conversation's canonical group/1:1 flag (`ChatViewModel.isGroup`,
-    /// mirrors the server's `conversations.is_group`) — NOT derived from
+    /// mirrors the server's `conversations.is_group`), NOT derived from
     /// `otherParticipantIds.count`, since a group can have as few as 1 other
     /// member (nothing enforces a minimum), which would make that heuristic
     /// disagree with the server. Drives meeting-proposal RSVP-vs-reminder
@@ -21,7 +21,7 @@ struct MessageBubble: View {
     /// could never be RSVP'd to (and its reminder could never fire) since the
     /// UI rendered the 1:1 reminder-only row while the server still expected
     /// RSVPs. The read-receipts glyph below still keys off participant count
-    /// on purpose — that's cosmetic (which glyph), not a lost feature.
+    /// on purpose, that's cosmetic (which glyph), not a lost feature.
     var isGroup: Bool = false
     /// Hobby mode = rounder bubble + bigger reaction pills; Work mode = crisper
     /// bubble + today's tighter reaction-pill sizing. Threaded in from ChatView
@@ -32,13 +32,13 @@ struct MessageBubble: View {
     /// (`ChatTimeline.endsRun`), so a burst of messages carries one time
     /// instead of a stamp on every line.
     var showsMeta: Bool = true
-    /// Tapping the image/video in the bubble — the parent opens the fullscreen viewer
+    /// Tapping the image/video in the bubble. The parent opens the fullscreen viewer
     var onMediaTap: ((Message) -> Void)? = nil
-    /// Tapping the quoted preview — the parent jumps to the original message (jump-to-message)
+    /// Tapping the quoted preview. The parent jumps to the original message (jump-to-message)
     var onReplyPreviewTap: ((String) -> Void)? = nil
     /// RSVP tapped on a meeting proposal card
     var onMeetingRespond: ((Message, MeetingRsvpStatus) -> Void)? = nil
-    /// "Reschedule" chosen from the proposer's menu — parent opens the composer pre-filled
+    /// "Reschedule" chosen from the proposer's menu. Parent opens the composer pre-filled
     var onMeetingEdit: ((Message) -> Void)? = nil
     /// "Cancel meeting" confirmed from the proposer's menu
     var onMeetingCancel: ((Message) -> Void)? = nil
@@ -93,7 +93,7 @@ struct MessageBubble: View {
 
     // MARK: - Quoted reply preview
 
-    /// Compact quoted block above the bubble content — tap jumps to the original message.
+    /// Compact quoted block above the bubble content. Tap jumps to the original message.
     ///
     /// It sits on the chat background, not inside the colored bubble, so it
     /// is a fixed light-grey chip with dark text in both light and dark mode.
@@ -351,8 +351,8 @@ struct MessageBubble: View {
 
     /// Derived from `deliveredTo`/`readBy` against `otherParticipantIds` rather
     /// than a single enum. For the 1:1 case (exactly one other participant)
-    /// this reproduces the old `sent`/`delivered`/`read` visuals exactly —
-    /// single checkmark / hollow double-check / filled colored double-check —
+    /// this reproduces the old `sent`/`delivered`/`read` visuals exactly,
+    /// single checkmark / hollow double-check / filled colored double-check,
     /// since "the other person" is the entire `otherParticipantIds` set.
     /// Groups (N > 1) instead show a compact "Read n/total" label once at
     /// least one other member has read it, falling back to the same
@@ -383,7 +383,7 @@ struct MessageBubble: View {
     /// Group (N > 1 other participants) status: filled colored check once
     /// everyone has read it, a compact "Read n/total" label while some (but
     /// not all) have, otherwise the same sent/delivered glyph the 1:1 case
-    /// uses — kept unobtrusive so it doesn't widen the bubble's meta row.
+    /// uses, kept unobtrusive so it doesn't widen the bubble's meta row.
     @ViewBuilder
     private func groupStatusView(readCount: Int, total: Int) -> some View {
         if readCount >= total {

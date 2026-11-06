@@ -20,7 +20,7 @@ class ChatSettingsViewModel {
     var searchResults: [Message] = []
     var isSearching = false
 
-    // Pinned messages (settings-sheet-scoped list — `ChatViewModel` keeps its
+    // Pinned messages (settings-sheet-scoped list, `ChatViewModel` keeps its
     // own live-updated copy for the in-thread banner/context menu)
     var pinnedMessages: [PinnedMessage] = []
     var isLoadingPins = false
@@ -41,7 +41,7 @@ class ChatSettingsViewModel {
     var isGroup: Bool { settings?.isGroup ?? false }
 
     /// True when the current user currently holds this group's owner role
-    /// (ownership can transfer via promote, so this checks live role — not
+    /// (ownership can transfer via promote, so this checks live role, not
     /// `groupCreatedBy`, which stays fixed to whoever created the group).
     /// Always false for 1:1 or before settings finish loading.
     func isOwner(currentUserId: String) -> Bool {
@@ -93,7 +93,7 @@ class ChatSettingsViewModel {
 
     /// Update the group's photo color swatch (owner-only server-side). The app
     /// doesn't have a photo-upload flow for chat groups yet, so this exposes
-    /// only the color half of `PATCH .../group` — matches the "avatar_color"
+    /// only the color half of `PATCH .../group`. Matches the "avatar_color"
     /// fallback every `ConversationPeer`/`ChatPeer` already renders when a
     /// group has no `avatar_url` photo.
     func updateGroupColor(_ color: String) async {
@@ -136,7 +136,7 @@ class ChatSettingsViewModel {
 
     /// Resolves a user id to a display name using the loaded settings
     /// snapshot (group roster, or the 1:1 other person). Returns nil if
-    /// unresolvable — e.g. settings haven't loaded, or it's the current user
+    /// unresolvable, e.g. settings haven't loaded, or it's the current user
     /// (callers wanting "You" should check that against their own id first).
     func displayName(forUserId userId: String) -> String? {
         guard let settings else { return nil }

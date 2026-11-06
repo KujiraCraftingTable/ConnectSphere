@@ -177,6 +177,11 @@ struct ChatPollComposer: View {
     @State private var endsAt: Date?
     @State private var showEndDate = false
     @State private var isSending = false
+    /// A question, an option, or an end date entered. Closing would lose it.
+    private var hasInput: Bool {
+        !question.trimmingCharacters(in: .whitespaces).isEmpty
+            || options.contains { !$0.trimmingCharacters(in: .whitespaces).isEmpty } || endsAt != nil
+    }
 
     private var cleanedOptions: [String] {
         options.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
@@ -210,10 +215,10 @@ struct ChatPollComposer: View {
             .background(AppColors.base(colorScheme))
             .navigationTitle(bundle.loc("New poll"))
             .navigationBarTitleDisplayMode(.inline)
-            .interactiveDismissDisabled()
+            .interactiveDismissDisabled(hasInput)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    ConfirmCancelButton { dismiss() }
+                    ConfirmCancelButton(hasChanges: hasInput) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(bundle.loc("Send")) { send() }

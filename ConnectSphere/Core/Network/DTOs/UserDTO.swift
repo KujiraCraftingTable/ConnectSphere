@@ -5,6 +5,7 @@ struct UserDTO: Decodable {
     let username: String
     let displayName: String
     let bio: String?
+    let bioFormat: String?
     let avatarColor: String
     let avatarUrl: String?
     let coverUrl: String?
@@ -12,7 +13,7 @@ struct UserDTO: Decodable {
     let gender: String?
     let email: String?        // only present in the owner's own response (PATCH /users/me)
     let hasPassword: Bool?    // same as above
-    let age: Int?              // displayed age — the server returns null when dob_visibility = private
+    let age: Int?              // displayed age, the server returns null when dob_visibility = private
     /// The owner's own response only (PATCH /users/me). Without it, a saved
     /// profile lost its date of birth and Edit profile showed "20 years ago".
     let dob: String?
@@ -36,14 +37,15 @@ struct UserDTO: Decodable {
     let followerCount: Int
     let followingCount: Int
     let postCount: Int
-    let connectionCount: Int?   // number of accepted connections for the mode — only present when fetching a profile
-    let mutualCount: Int?       // number of mutual friends/connections with the viewer — present in search/list
+    let connectionCount: Int?   // number of accepted connections for the mode. Only present when fetching a profile
+    let mutualCount: Int?       // number of mutual friends/connections with the viewer. Present in search/list
     let interests: [String]
     let skills: [String]
     let score: Double?
     let matchEvidence: [MatchEvidenceDTO]?   // only present in the AI search response (mini CV)
 
     enum CodingKeys: String, CodingKey {
+        case bioFormat = "bio_format"
         case id, username, bio, location, gender, email, company, interests, skills, score, age, dob
         case dobVisibility   = "dob_visibility"
         case dobChangesLeft  = "dob_changes_left"
@@ -80,6 +82,7 @@ struct UserDTO: Decodable {
             avatarUrl:      avatarUrl,
             coverUrl:       coverUrl,
             bio:            bio ?? "",
+            bioFormat:      bioFormat,
             jobTitle:       jobTitle,
             company:        company,
             skills:         skills,

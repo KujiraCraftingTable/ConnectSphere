@@ -64,8 +64,17 @@ final class CompanyEditorViewModel {
     private let repository = CompanyRepository()
     private let uploads = PostRepository()
 
+    /// The form as it opened, to tell whether Cancel would lose anything.
+    private var openedSignature: [String] = []
+    private var signature: [String] {
+        [name, industry, size, website, headquarters, foundedYear, about,
+         newLogo == nil ? "" : "logo", newCover == nil ? "" : "cover"]
+    }
+    var hasChanges: Bool { signature != openedSignature }
+
     init(editing: Company? = nil) {
         self.editing = editing
+        defer { openedSignature = signature }
         guard let c = editing else { return }
         name = c.name
         industry = c.industry ?? ""

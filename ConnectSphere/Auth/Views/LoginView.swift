@@ -276,7 +276,7 @@ struct LoginView: View {
 
     // MARK: Google presenter
 
-    /// The window's root controller — Google's sign-in sheet is presented from it.
+    /// The window's root controller, Google's sign-in sheet is presented from it.
     private func presentingViewController() -> UIViewController? {
         let scene = UIApplication.shared.connectedScenes
             .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene

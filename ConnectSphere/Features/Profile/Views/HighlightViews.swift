@@ -287,9 +287,9 @@ struct HighlightEditorView: View {
             }
             .navigationTitle(bundle.loc(viewModel.editing == nil ? "New highlight" : "Edit highlight"))
             .navigationBarTitleDisplayMode(.inline)
-            .interactiveDismissDisabled()
+            .interactiveDismissDisabled(viewModel.hasChanges)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { ConfirmCancelButton { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { ConfirmCancelButton(hasChanges: viewModel.hasChanges) { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     if viewModel.isSaving {
                         ProgressView()

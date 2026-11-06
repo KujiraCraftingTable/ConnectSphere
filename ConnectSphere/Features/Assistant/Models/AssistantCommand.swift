@@ -7,12 +7,12 @@ struct AssistantCommand {
     let phrases: [String]
 }
 
-/// The trigger-phrase registry — the actual "brain" of the assistant.
+/// The trigger-phrase registry. The actual "brain" of the assistant.
 ///
 /// Every executable action and guidance topic pairs with a realistic set of
 /// English + Vietnamese phrasings, matched case-insensitively by
 /// `AssistantMatcher` regardless of the user's current `appLanguage` (the
-/// most forgiving behavior — bilingual app, bilingual input either way).
+/// most forgiving behavior. Bilingual app, bilingual input either way).
 /// All phrases are lowercase; `AssistantMatcher` lowercases input before
 /// comparing.
 enum AssistantCommandRegistry {

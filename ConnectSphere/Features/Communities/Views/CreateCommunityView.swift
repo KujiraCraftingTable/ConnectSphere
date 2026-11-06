@@ -6,7 +6,7 @@ private let fandomEmojis = ["🎵","🎮","📚","🍕","✈️","🎨","🏆","
 private let workEmojis   = ["💼","💻","🔬","🌎","📊","📈","🏢","🤝","📋","✉️",
                              "🔧","⚙️","📱","💡","🎓","🏅","📌","🗂️","🖥️","📝"]
 
-// Localization keys — resolved through `bundle.loc(...)` at the call site
+// Localization keys, resolved through `bundle.loc(...)` at the call site
 // (`duplicateWarning`), never rendered directly. These used to be Vietnamese
 // literals with no English counterpart at all, so an English-language user
 // saw Vietnamese text with no way to fall back.
@@ -42,11 +42,16 @@ struct CreateCommunityView: View {
 
     // Real uploaded photo, same pick-now/upload-at-save pattern as EditProfileView.
     @State private var pickerItem: PhotosPickerItem?
+    @State private var showPhotoPicker = false
+    @State private var showCoverCrop = false
+    @State private var showCoverOptions = false
 
     @State private var customEmoji: String?  = nil
     @State private var showCustomEmojiInput  = false
     @State private var customEmojiDraft      = ""
     @FocusState private var emojiInputFocused: Bool
+    @State private var descriptionSelection: TextSelection?
+    @FocusState private var descriptionFocused: Bool
 
     @State private var warningIndex      = 0
     @State private var wasWarning        = false
@@ -73,6 +78,28 @@ struct CreateCommunityView: View {
 
     var canCreate: Bool { viewModel.canCreate }
 
+    private var hasPhoto: Bool { viewModel.pickedImage != nil }
+
+    /// Name problems and the duplicate-name joke, under the card.
+    @ViewBuilder
+    private var nameMessages: some View {
+        Group {
+            if let err = nameError {
+                Text(err)
+                    .font(.system(size: 12))
+                    .foregroundColor(.red)
+            } else if isDuplicateName {
+                Text(duplicateWarning)
+                    .font(.system(size: 13))
+                    .foregroundColor(viewModel.type == .fandom ? themeManager.theme.primary : Color.red)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 4)
+        .animation(.easeInOut(duration: 0.2), value: nameError != nil)
+        .animation(.easeInOut(duration: 0.2), value: isDuplicateName)
+    }
+
     private var currentEmojiSet: [String] { viewModel.type == .work ? workEmojis : fandomEmojis }
 
     var body: some View {
@@ -81,7 +108,10 @@ struct CreateCommunityView: View {
                 VStack(spacing: 20) {
                     // Preview chip
                     HStack(spacing: 10) {
-                        PhotosPicker(selection: $pickerItem, matching: .images) {
+                        Button {
+                            // A photo picked this session can be re-framed; otherwise choose one.
+                            if viewModel.coverOriginal != nil { showCoverOptions = true } else { showPhotoPicker = true }
+                        } label: {
                             ZStack(alignment: .bottomTrailing) {
                                 if let pickedImage = viewModel.pickedImage {
                                     Image(uiImage: pickedImage)
@@ -107,60 +137,51 @@ struct CreateCommunityView: View {
                             }
                         }
                         .buttonStyle(.plain)
+                        .confirmationDialog(bundle.loc("Cover photo"), isPresented: $showCoverOptions) {
+                            Button(bundle.loc("Adjust position")) { showCoverCrop = true }
+                            Button(bundle.loc("Choose new photo")) { showPhotoPicker = true }
+                            Button(bundle.loc("Cancel"), role: .cancel) {}
+                        }
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(viewModel.name.isEmpty ? bundle.loc("Community name") : viewModel.name)
+                            // Edited right on the card: what you type is the name.
+                            TextField(bundle.loc("Community name"), text: $viewModel.name)
                                 .font(.system(size: 15, weight: .semibold))
-                                .foregroundColor(viewModel.name.isEmpty
-                                    ? AppColors.textTertiary(colorScheme)
-                                    : AppColors.textPrimary(colorScheme))
+                                .foregroundColor(AppColors.textPrimary(colorScheme))
+                                .submitLabel(.done)
+                                .onChange(of: viewModel.name) { _, _ in
+                                    if showValidation && canCreate { showValidation = false }
+                                    refreshWarning()
+                                }
+                                .onChange(of: viewModel.type) { _, _ in refreshWarning() }
                             Text(bundle.loc(viewModel.type.label))
                                 .font(.system(size: 12))
                                 .foregroundColor(Color(hex: viewModel.selectedColor))
                         }
                         Spacer()
+                        if viewModel.pickedImage != nil {
+                            Button { viewModel.removePhoto() } label: {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 15))
+                                    .foregroundColor(AppColors.textSecondary(colorScheme))
+                                    .frame(width: 36, height: 36)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(Text("Remove cover photo", bundle: bundle))
+                        }
                     }
                     .padding(14)
                     .surfaceBackground()
                     .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(nameError != nil ? Color.red.opacity(0.6) : Color.clear, lineWidth: 1)
+                    )
 
-                    formSection(title: bundle.loc("Name")) {
-                        TextField(bundle.loc("3–100 characters"), text: $viewModel.name)
-                            .font(.system(size: 15))
-                            .padding(12)
-                            .background(AppColors.surface(colorScheme))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(nameError != nil ? Color.red.opacity(0.6) : Color.clear, lineWidth: 1)
-                            )
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                            .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
-                            .onChange(of: viewModel.name) { _, _ in
-                                if showValidation && canCreate { showValidation = false }
-                                refreshWarning()
-                            }
-                            .onChange(of: viewModel.type) { _, _ in refreshWarning() }
-
-                        if let err = nameError {
-                            Text(err)
-                                .font(.system(size: 12))
-                                .foregroundColor(.red)
-                                .padding(.horizontal, 4)
-                                .transition(.opacity.combined(with: .move(edge: .top)))
-                        } else if isDuplicateName {
-                            Text(duplicateWarning)
-                                .font(.system(size: 13))
-                                .foregroundColor(viewModel.type == .fandom
-                                    ? themeManager.theme.primary
-                                    : Color.red)
-                                .padding(.horizontal, 4)
-                                .transition(.opacity.combined(with: .move(edge: .top)))
-                        }
-                    }
-                    .animation(.easeInOut(duration: 0.2), value: nameError != nil)
-                    .animation(.easeInOut(duration: 0.2), value: isDuplicateName)
+                    nameMessages
 
                     formSection(title: bundle.loc("Description (optional)")) {
-                        TextEditor(text: $viewModel.description)
+                        TextEditor(text: $viewModel.description, selection: $descriptionSelection)
+                            .focused($descriptionFocused)
                             .font(.system(size: 15))
                             .scrollContentBackground(.hidden)
                             .padding(8)
@@ -187,7 +208,7 @@ struct CreateCommunityView: View {
                         .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
                     }
 
-                    // Emoji picker
+                    // Emoji picker (the cover photo replaces icon and colour)
                     formSection(title: bundle.loc("Icon")) {
                         LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 10), spacing: 8) {
                             ForEach(currentEmojiSet, id: \.self) { emoji in
@@ -199,7 +220,7 @@ struct CreateCommunityView: View {
                             }
                         }
 
-                        // "+" row — left-aligned, mirrors "Custom color" below
+                        // "+" row, left-aligned, mirrors "Custom color" below
                         if showCustomEmojiInput {
                             HStack(spacing: 10) {
                                 TextField(bundle.loc("Type or paste an emoji…"), text: $customEmojiDraft)
@@ -246,6 +267,8 @@ struct CreateCommunityView: View {
                             .padding(.top, 4)
                         }
                     }
+                    .disabled(hasPhoto)
+                    .opacity(hasPhoto ? 0.4 : 1)
 
                     // Color picker
                     formSection(title: bundle.loc("Cover color")) {
@@ -275,6 +298,8 @@ struct CreateCommunityView: View {
                         }
                         .padding(.top, 4)
                     }
+                    .disabled(hasPhoto)
+                    .opacity(hasPhoto ? 0.4 : 1)
 
                     if let err = viewModel.errorMessage {
                         Text(err)
@@ -288,10 +313,13 @@ struct CreateCommunityView: View {
             .appBackground()
             .navigationTitle(bundle.loc("Create community"))
             .navigationBarTitleDisplayMode(.inline)
-            .interactiveDismissDisabled()
+            .interactiveDismissDisabled(viewModel.hasChanges)
             .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    if descriptionFocused { MarkdownToolbar(text: $viewModel.description, selection: $descriptionSelection) }
+                }
                 ToolbarItem(placement: .cancellationAction) {
-                    ConfirmCancelButton { dismiss() }
+                    ConfirmCancelButton(hasChanges: viewModel.hasChanges) { dismiss() }
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 ToolbarItem(placement: .confirmationAction) {
@@ -310,9 +338,20 @@ struct CreateCommunityView: View {
                     }
                 }
             }
+            .photosPicker(isPresented: $showPhotoPicker, selection: $pickerItem, matching: .images)
             .onChange(of: pickerItem) { _, item in
                 guard let item else { return }
-                Task { await viewModel.loadPhoto(from: item) }
+                Task {
+                    if await viewModel.loadPhoto(from: item) { showCoverCrop = true }
+                    // Cleared so picking the same photo again still fires.
+                    pickerItem = nil
+                }
+            }
+            .fullScreenCover(isPresented: $showCoverCrop) {
+                if let original = viewModel.coverOriginal {
+                    CoverCropView(image: original) { viewModel.setFramedCover($0) }
+                        .environment(themeManager)
+                }
             }
             .onAppear {
                 viewModel.type = appState.currentMode == .hobby ? .fandom : .work

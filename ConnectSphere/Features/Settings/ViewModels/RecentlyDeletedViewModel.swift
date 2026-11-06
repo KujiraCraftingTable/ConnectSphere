@@ -28,7 +28,7 @@ final class RecentlyDeletedViewModel {
 
     /// Restores a post and removes it from this list; also notifies
     /// Feed/Profile (via `.postRestored`) so it reappears there without a
-    /// manual refresh — the same convention the Undo toast uses.
+    /// manual refresh, the same convention the Undo toast uses.
     func restorePost(_ post: Post) async {
         restoringPostIds.insert(post.id)
         defer { restoringPostIds.remove(post.id) }

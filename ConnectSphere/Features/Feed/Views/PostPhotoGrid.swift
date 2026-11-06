@@ -91,7 +91,7 @@ struct PostPhotoGrid: View {
         index < alts.count ? alts[index] : ""
     }
 
-    /// Stands in for a photo until it arrives — or if it never does — so the
+    /// Stands in for a photo until it arrives, or if it never does, so the
     /// reader knows something belongs here, and what, when there's alt text.
     private func placeholder(_ index: Int, failed: Bool) -> some View {
         let alt = alt(index)

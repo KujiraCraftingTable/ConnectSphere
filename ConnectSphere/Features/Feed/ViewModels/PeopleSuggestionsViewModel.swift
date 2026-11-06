@@ -7,12 +7,12 @@ import Observation
 @Observable
 final class PeopleSuggestionsViewModel {
     private(set) var suggestions: [AppMode: [PeopleSuggestion]] = [:]
-    /// Requests sent from a card this session — the card shows "Requested".
+    /// Requests sent from a card this session. The card shows "Requested".
     private(set) var requested: Set<String> = []
     private(set) var sending: Set<String> = []
     var error: String?
 
-    /// Whether this load opened with suggestions you hadn't seen — decided at
+    /// Whether this load opened with suggestions you hadn't seen. Decided at
     /// load time, so marking them seen doesn't move the module mid-scroll.
     private var openedFresh: [AppMode: Bool] = [:]
     private var seeds: [AppMode: UInt64] = [:]
@@ -35,7 +35,7 @@ final class PeopleSuggestionsViewModel {
             openedFresh[mode] = list.contains { !seen.contains($0.id.lowercased()) }
             seeds[mode] = UInt64.random(in: 0...UInt64.max)
         } catch {
-            // The feed works without the module — no alert for a failed extra.
+            // The feed works without the module. No alert for a failed extra.
             if suggestions[mode] == nil { suggestions[mode] = [] }
         }
     }

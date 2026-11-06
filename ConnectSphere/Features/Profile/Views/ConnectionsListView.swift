@@ -48,7 +48,7 @@ struct ConnectionsListView: View {
             // ── Connected ───────────────────────────────────────────────────
             Section(bundle.loc("Friends")) {
                 if viewModel.friends.isEmpty && !viewModel.isLoading {
-                    Text("No connections yet — try searching and sending a request", bundle: bundle)
+                    Text("No connections yet, try searching and sending a request", bundle: bundle)
                         .font(.system(size: 14))
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 } else {

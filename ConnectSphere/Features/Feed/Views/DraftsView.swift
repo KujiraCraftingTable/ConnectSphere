@@ -91,7 +91,7 @@ struct DraftPickerSheet: View {
 }
 
 /// Settings → Drafts: every draft and scheduled post, in both modes and every
-/// community. Tap to keep writing; swipe to delete — or, for a scheduled
+/// community. Tap to keep writing; swipe to delete, or, for a scheduled
 /// post, to publish it now or move it back to drafts.
 struct DraftsView: View {
     @Environment(AppState.self) private var appState

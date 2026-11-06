@@ -1,7 +1,7 @@
 import Foundation
 
 /// The username format the server enforces (`^[a-z0-9_]{3,30}$`), checked as
-/// the user types — shared by sign-up and a Google account's onboarding.
+/// the user types. Shared by sign-up and a Google account's onboarding.
 enum UsernameRules {
     static let minLength = 3
     static let maxLength = 30

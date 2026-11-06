@@ -3,7 +3,7 @@ import SwiftUI
 /// The comment list + inline reply/edit/delete, extracted from the old
 /// `CommentSheet` so it can render inline on the pushed `PostDetailView`
 /// (comments below the post) as well as inside `CommentSheet` (still used by
-/// `CommunityPostCard`). It renders *only* the list — the composer / reply
+/// `CommunityPostCard`). It renders *only* the list. The composer / reply
 /// banner live with whoever hosts it, so the host can pin them outside the
 /// scroll view and own the keyboard focus.
 ///
@@ -20,19 +20,22 @@ struct CommentsSection: View {
     let postId: String
     /// Set for a community post: names open the person's community profile.
     var communityId: String? = nil
-    /// The post's own author — compared against each comment's author to show
+    /// The post's own author. Compared against each comment's author to show
     /// the "Author" badge on their comments/replies.
     let postAuthorId: String
     let viewModel: CommentViewModel
     let toastPresenter: UndoToastPresenter
     /// Called after `viewModel.replyingTo` is set, so the host can focus its composer.
     var onReplyRequested: () -> Void = {}
+    /// The comment a notification or the activity log jumped to: its row is
+    /// tinted for a moment so the eye finds it.
+    var highlightedCommentId: String? = nil
     /// Called with the change in total comment count whenever this section's
-    /// own actions move it — `+1` after sending a comment/reply, `-N` after
+    /// own actions move it, `+1` after sending a comment/reply, `-N` after
     /// a delete (N = however many were actually removed, including any
     /// replies cascaded with a root), `+1` after undoing a delete. Lets the
     /// host (which owns the visible comment count) update immediately
-    /// instead of waiting on a full refetch — the server's own count is
+    /// instead of waiting on a full refetch. The server's own count is
     /// already updated durably and remains the eventual source of truth.
     var onCommentCountChange: (Int) -> Void = { _ in }
 
@@ -136,7 +139,7 @@ struct CommentsSection: View {
         toastPresenter.show(message: bundle.loc("Comment deleted")) {
             Task {
                 // Restore only ever brings back the single deleted comment,
-                // never its cascade-deleted replies — so the delta is always
+                // never its cascade-deleted replies, so the delta is always
                 // exactly +1, however much `removed` subtracted above.
                 if await viewModel.restoreComment(postId: postId, commentId: commentId) { onCommentCountChange(1) }
             }
@@ -171,7 +174,7 @@ struct CommentsSection: View {
     }
 
     /// One row at `level` (0–2), indented to match the thread lines.
-    /// `answering` is the comment it sits under — the fallback for "replied
+    /// `answering` is the comment it sits under. The fallback for "replied
     /// to" when the server didn't say (replies written before it recorded it).
     private func row(_ comment: CommentDTO, level: Int, answering parent: CommentDTO?) -> some View {
         Group {
@@ -181,6 +184,11 @@ struct CommentsSection: View {
                 commentRow(comment, level: level, answering: parent)
             }
         }
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(themeManager.theme.primary.opacity(comment.id == highlightedCommentId ? 0.16 : 0))
+                .animation(.easeOut(duration: 0.4), value: highlightedCommentId)
+        )
         .id(comment.id)
         .padding(.leading, CGFloat(level) * ThreadLinesShape.indentStep)
     }
@@ -247,7 +255,7 @@ struct CommentsSection: View {
 // MARK: - Comment Row
 
 /// The person a reply is answering, spelled out as "replied to [name]" under
-/// the replier's name — the indent alone can't say which of several siblings a reply
+/// the replier's name. The indent alone can't say which of several siblings a reply
 /// addresses. Paired name+id (not a bare `String?`) so the attribution text
 /// and its `NavigationLink` destination can never drift apart.
 struct CommentReplyTarget {
@@ -263,7 +271,7 @@ struct CommentRow: View {
 
     /// Name and "replied to" size per thread level (0–2): smaller the deeper
     /// the reply, so a long name still fits on one line in the narrower
-    /// bubble. The comment text itself keeps one size — it's what people read.
+    /// bubble. The comment text itself keeps one size, it's what people read.
     static func nameFontSize(level: Int) -> CGFloat { 13 - CGFloat(min(max(level, 0), 2)) }
     static func badgeFontSize(level: Int) -> CGFloat { 10 - 0.5 * CGFloat(min(max(level, 0), 2)) }
     /// The sizes a name may take, as a share of its level's size, tried in
@@ -280,6 +288,8 @@ struct CommentRow: View {
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.openURL) private var openURL
+    @State private var inAppBrowserURL: URL?
 
     let comment: CommentDTO
     /// Set under a community post: names open the person's community profile.
@@ -287,16 +297,16 @@ struct CommentRow: View {
     /// 0 for a comment, 1 for a reply, 2 for a reply to a reply.
     var level: Int = 0
     var isOwn: Bool = false
-    /// True when this comment/reply was written by the post's own author —
+    /// True when this comment/reply was written by the post's own author,
     /// shows a small "Author" badge right after the name, so other readers
     /// can quickly spot the poster's own comments.
     var isPostAuthor: Bool = false
     /// True while this specific row is the one being edited inline.
     var isEditing: Bool = false
-    /// Shared editing-text binding, owned by the host — only meaningful while
+    /// Shared editing-text binding, owned by the host. Only meaningful while
     /// `isEditing` is true.
     var editingText: Binding<String> = .constant("")
-    /// Set on every reply — renders "replied to [name]" on its own line under
+    /// Set on every reply. Renders "replied to [name]" on its own line under
     /// this row's name, each tappable to its own profile.
     var replyTarget: CommentReplyTarget? = nil
     var onLike:   (() -> Void)? = nil
@@ -305,6 +315,16 @@ struct CommentRow: View {
     var onEdit:   (() -> Void)? = nil
     var onSaveEdit:   (() -> Void)? = nil
     var onCancelEdit: (() -> Void)? = nil
+
+    /// http(s) links open in the in-app browser, like links in posts; mail and
+    /// phone links go to the system.
+    private func openCommentLink(_ url: URL) {
+        if let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
+            inAppBrowserURL = url
+        } else {
+            openURL(url)
+        }
+    }
 
     private var canTranslate: Bool {
         ContentTranslation.isAvailable(lang: comment.lang, translated: comment.translatedText, appLanguage: appState.appLanguage)
@@ -325,6 +345,7 @@ struct CommentRow: View {
                     editRow
                 } else {
                     bubble
+                        .inAppBrowser(url: $inAppBrowserURL)
                         .contextMenu {
                             if isOwn, let onEdit {
                                 Button(action: onEdit) {
@@ -386,10 +407,15 @@ struct CommentRow: View {
 
             // A photo-only comment has no text line.
             if !comment.content.isEmpty {
-                Text(showsTranslation ? (comment.translatedText ?? comment.content) : comment.content)
+                let shown = showsTranslation ? (comment.translatedText ?? comment.content) : comment.content
+                Text(comment.isMarkdown
+                     ? MarkdownFormatter.attributed(shown, linkColor: themeManager.theme.primary,
+                                                    quoteColor: AppColors.textSecondary(colorScheme))
+                     : AttributedString(shown))
                     .font(.system(size: 14))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .fixedSize(horizontal: false, vertical: true)
+                    .environment(\.openURL, OpenURLAction { url in openCommentLink(url); return .handled })
             }
             if let photo = comment.imageUrl {
                 CommentPhoto(path: photo)
@@ -457,7 +483,7 @@ struct CommentRow: View {
         .padding(.leading, 12)
     }
 
-    /// Compact inline edit UI — replaces the static content `Text` while
+    /// Compact inline edit UI. Replaces the static content `Text` while
     /// `isEditing` is true. Single-line-ish; not a full-screen composer.
     private var editRow: some View {
         HStack(spacing: 8) {

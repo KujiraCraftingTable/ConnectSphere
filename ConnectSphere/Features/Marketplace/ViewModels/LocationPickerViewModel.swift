@@ -11,7 +11,7 @@ nonisolated struct PickedPlace: Equatable {
     var coordinate: CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: latitude, longitude: longitude) }
 }
 
-/// Where a listing's item is — a searched place, or the phone's current
+/// Where a listing's item is. A searched place, or the phone's current
 /// location (which asks for permission the first time).
 @MainActor
 @Observable

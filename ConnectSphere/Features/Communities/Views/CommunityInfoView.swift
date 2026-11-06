@@ -5,11 +5,14 @@ struct CommunityInfoView<Members: View>: View {
     @Environment(AppState.self) private var appState
     @Environment(\.appBundle) private var bundle
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(ThemeManager.self) private var themeManager
+    @Environment(\.openURL) private var openURL
+    @State private var inAppBrowserURL: URL?
 
     let community: Community
     /// The members the community page has loaded, for the latest-joined row.
     let roster: [CommunityMember]
-    /// What "See all" opens — the only way to the full list.
+    /// What "See all" opens, the only way to the full list.
     @ViewBuilder let members: () -> Members
     @State private var viewModel: CommunityInfoViewModel
 
@@ -36,12 +39,25 @@ struct CommunityInfoView<Members: View>: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await viewModel.load(token: appState.authToken ?? "") }
         .refreshable { await viewModel.load(token: appState.authToken ?? "") }
+        .inAppBrowser(url: $inAppBrowserURL)
     }
 
     private func aboutSection(_ info: CommunityInfo) -> some View {
         Section {
             if let about = info.about, !about.isEmpty {
-                Text(about).font(.system(size: 15))
+                Text(info.aboutFormat == "markdown"
+                     ? MarkdownFormatter.attributed(about, linkColor: themeManager.theme.primary,
+                                                    quoteColor: AppColors.textSecondary(colorScheme))
+                     : AttributedString(about))
+                    .font(.system(size: 15))
+                    .environment(\.openURL, OpenURLAction { url in
+                        if let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
+                            inAppBrowserURL = url
+                        } else {
+                            openURL(url)
+                        }
+                        return .handled
+                    })
             }
             if info.privacy == "private" {
                 fact("lock.fill", bundle.loc("Private"), bundle.loc("Only members can see who's in the community and what they post."))

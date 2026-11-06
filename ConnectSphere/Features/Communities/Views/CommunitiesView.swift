@@ -25,13 +25,13 @@ struct CommunitiesView: View {
     /// The top-right "Sell" on the Marketplace tab; MarketplaceView reacts to each bump.
     @State private var sellRequest = 0
 
-    /// Binding from MainTabView — resets to root whenever the tab is re-selected
+    /// Binding from MainTabView. Resets to root whenever the tab is re-selected
     @Binding var navPath: NavigationPath
 
     var body: some View {
         NavigationStack(path: $navPath) {
             VStack(spacing: 0) {
-                // Tab picker — pinned below navigation bar
+                // Tab picker, pinned below navigation bar
                 Picker("", selection: $selectedTab) {
                     ForEach(CommunityTab.allCases, id: \.self) { tab in
                         Text(bundle.loc(tab.label)).tag(tab)
@@ -74,7 +74,7 @@ struct CommunitiesView: View {
                         }
                     } else {
                         Button { showCreate = true } label: {
-                            // Plain glyph — a filled disc read as a button inside the glass.
+                            // Plain glyph, a filled disc read as a button inside the glass.
                             Image(systemName: "plus")
                                 .font(.system(size: 17, weight: .semibold))
                                 .foregroundColor(themeManager.theme.primary)
@@ -118,8 +118,8 @@ struct CommunitiesView: View {
 
     private var myCommunitiesContent: some View {
         ScrollView {
-            // Same spacing token used for every gap — between cards AND
-            // before the first one — so the list reads evenly throughout.
+            // Same spacing token used for every gap. Between cards AND
+            // before the first one, so the list reads evenly throughout.
             LazyVStack(alignment: .leading, spacing: AppSpacing.sm) {
                 if viewModel.isLoadingMine && viewModel.myCommunities.isEmpty {
                     ProgressView()

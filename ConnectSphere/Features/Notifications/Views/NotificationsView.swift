@@ -43,7 +43,10 @@ enum NotificationDestination: Identifiable, Hashable {
         case "conversation":
             guard let conversationId = dest.conversationId,
                   let peer = chatPeer(from: notif.payload) else { return nil }
-            return .conversation(ChatRoute(conversationId: conversationId, peer: peer, location: nil))
+            // A meeting's notification opens the chat at that meeting's message.
+            let jump = notif.type.hasPrefix("meeting_") ? notif.payload.messageId : nil
+            return .conversation(ChatRoute(conversationId: conversationId, peer: peer, location: nil,
+                                           jumpToMessageId: jump))
 
         case "conversations":
             return .conversationList
@@ -71,7 +74,7 @@ enum NotificationDestination: Identifiable, Hashable {
         }
     }
 
-    /// Build the chat peer straight from the notification payload — the
+    /// Build the chat peer straight from the notification payload. The
     /// conversation card the backend embeds means no extra lookup is needed.
     private static func chatPeer(from payload: UserNotificationPayloadDTO) -> ChatPeer? {
         if payload.isGroup == true {
@@ -92,6 +95,18 @@ enum NotificationDestination: Identifiable, Hashable {
     }
 }
 
+/// What tapping a "New sign-in" alert offers. A password account fixes it by
+/// changing its password; a Google account's password is Google's, so it's
+/// sent there (plus ours, when the account also has one).
+enum SignInAlertAction: Equatable {
+    case changePassword
+    case secureGoogle(canChangePassword: Bool)
+
+    static func action(method: String?, hasPassword: Bool) -> SignInAlertAction {
+        method == "google" ? .secureGoogle(canChangePassword: hasPassword) : .changePassword
+    }
+}
+
 // MARK: - NotificationsView
 
 struct NotificationsView: View {
@@ -102,6 +117,10 @@ struct NotificationsView: View {
 
     @State private var viewModel = NotificationsViewModel()
     @State private var destination: NotificationDestination?
+    // A sign-in alert opens a sheet / alert rather than pushing a screen.
+    @State private var showChangePassword = false
+    @State private var googleAlertCanChangePassword: Bool?
+    @State private var browserURL: URL?
 
     private var token: String { appState.authToken ?? "" }
 
@@ -197,9 +216,33 @@ struct NotificationsView: View {
             .navigationDestination(item: $destination) { destination in
                 view(for: destination)
             }
+            .sheet(isPresented: $showChangePassword) {
+                ChangePasswordView(hasPassword: true)
+                    .environment(appState)
+                    .environment(themeManager)
+            }
+            .alert(bundle.loc("Signed in with Google"), isPresented: Binding(
+                get: { googleAlertCanChangePassword != nil },
+                set: { if !$0 { googleAlertCanChangePassword = nil } }
+            )) {
+                Button(bundle.loc("Secure Google account")) {
+                    browserURL = URL(string: "https://myaccount.google.com/security")
+                }
+                if googleAlertCanChangePassword == true {
+                    Button(bundle.loc("Change ConnectSphere password")) { showChangePassword = true }
+                }
+                Button(bundle.loc("Close"), role: .cancel) {}
+            } message: {
+                Text("Google manages the password for this sign-in. If it wasn't you, secure your Google account.", bundle: bundle)
+            }
+            .inAppBrowser(url: $browserURL)
             .task {
                 await viewModel.load(token: token, appState: appState)
                 viewModel.startListening(token: token, appState: appState)
+            }
+            // The other mode has its own notifications.
+            .onChange(of: appState.currentMode) {
+                Task { await viewModel.load(token: token, appState: appState) }
             }
             .onDisappear { viewModel.stopListening() }
         }
@@ -278,7 +321,8 @@ struct NotificationsView: View {
                 peer: route.peer,
                 otherUserLocation: route.location,
                 currentUserId: appState.currentUser?.id ?? "",
-                token: token
+                token: token,
+                initialJumpMessageId: route.jumpToMessageId
             )
         case .conversationList:
             ConversationListView()
@@ -298,6 +342,14 @@ struct NotificationsView: View {
     /// Marks the whole group read, then navigates once.
     private func open(_ group: NotificationGroup) {
         Task { await viewModel.markRead(group: group, token: token, appState: appState) }
+        if group.representative.type == "new_login" {
+            switch SignInAlertAction.action(method: group.representative.payload.method,
+                                            hasPassword: appState.currentUser?.hasPassword ?? false) {
+            case .changePassword:                         showChangePassword = true
+            case .secureGoogle(let canChangePassword):    googleAlertCanChangePassword = canChangePassword
+            }
+            return
+        }
         if let target = NotificationDestination.resolve(group.representative) {
             destination = target
         }
@@ -347,7 +399,7 @@ struct ActorNotifRow: View {
             return String(format: bundle.loc("%@ applied to %@"), senderName, notif.payload.jobTitle ?? "")
         case "new_login":
             return String(format: bundle.loc(notif.payload.method == "google"
-                    ? "New sign-in to your account with Google on %@. Not you? Change your password."
+                    ? "New sign-in to your account with Google on %@. Not you? Secure your Google account."
                     : "New sign-in to your account with your password on %@. Not you? Change your password."),
                           notif.payload.device ?? "")
         case "application_status":
@@ -434,7 +486,7 @@ struct ActorNotifRow: View {
             return String(format: bundle.loc("Your post in %@ was removed by a moderator"), communityLabel)
 
         default:
-            // Unknown type — show something rather than nothing.
+            // Unknown type, show something rather than nothing.
             return senderName
         }
     }
@@ -458,7 +510,7 @@ struct ActorNotifRow: View {
         return notif.payload.peerDisplayName ?? senderName
     }
 
-    /// "Linh posted in Pokémon TCG VN" — each post is its own notification.
+    /// "Linh posted in Pokémon TCG VN", each post is its own notification.
     private var newPostText: String {
         String(format: bundle.loc("%@ posted in %@"), senderName, communityLabel)
     }

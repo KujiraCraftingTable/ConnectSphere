@@ -2,7 +2,7 @@ import AVFoundation
 import SwiftUI
 
 /// One message in the floating chat window. Text sits in a small bubble;
-/// photos and videos show as themselves — an album as each of its photos on
+/// photos and videos show as themselves. An album as each of its photos on
 /// its own, a video playing (with sound) while it's the one in view; a voice
 /// message plays on tap; a meeting shows its card, with RSVP in groups
 /// (rescheduling and cancelling stay in the full chat). One sound plays at a
@@ -125,7 +125,7 @@ struct FloatingChatMessageRow: View {
         let isVideo: Bool
     }
 
-    /// The message's photos and videos in order — one for a photo or video
+    /// The message's photos and videos in order. One for a photo or video
     /// message, each of an album's items for an album.
     private var media: [MediaItem] {
         if message.messageType == .album {
@@ -181,7 +181,7 @@ struct FloatingChatMessageRow: View {
 }
 
 /// A video in the floating window: plays, with sound, while it's the one in
-/// view in the chat on screen — and only one plays at a time
+/// view in the chat on screen, and only one plays at a time
 /// (`FloatingChatPresenter.playingMediaID`). Scrolling it away, switching
 /// chat or stashing the window pauses it. Tap to pause or play again.
 struct FloatingChatVideo: View {
@@ -251,7 +251,7 @@ struct FloatingChatVideo: View {
     }
 }
 
-/// An `AVPlayerLayer` without controls — the floating window is too small
+/// An `AVPlayerLayer` without controls. The floating window is too small
 /// for a scrubber; tapping pauses and plays.
 private struct FloatingPlayerLayer: UIViewRepresentable {
     let player: AVPlayer

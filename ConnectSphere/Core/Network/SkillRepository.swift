@@ -37,7 +37,7 @@ struct SkillCatalog: Decodable {
     }
 }
 
-/// `/api/skills` — HTTP + decoding only.
+/// `/api/skills`, HTTP + decoding only.
 struct SkillRepository {
     private let client = NetworkClient.shared
 

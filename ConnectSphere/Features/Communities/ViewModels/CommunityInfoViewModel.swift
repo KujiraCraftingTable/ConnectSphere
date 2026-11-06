@@ -26,7 +26,7 @@ final class CommunityInfoViewModel {
     }
 
     /// Who to show after the admins and moderators: your connections who
-    /// joined, or — with none — the five latest to join. `roster` is the
+    /// joined, or, with none, the five latest to join. `roster` is the
     /// members the community page has loaded; `viewerId` is left out.
     func otherMembers(roster: [CommunityMember], viewerId: String) -> (people: [CommunityInfo.Person], line: String)? {
         guard let info else { return nil }

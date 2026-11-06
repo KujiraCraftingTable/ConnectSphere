@@ -10,7 +10,7 @@ struct DiscoverView: View {
     @State private var searchText = ""
     @State private var searchTask: Task<Void, Never>?
 
-    /// Called when user taps a community card — navigates to detail
+    /// Called when user taps a community card. Navigates to detail
     let onSelectCommunity: (String) -> Void
 
     init(token: String, onSelectCommunity: @escaping (String) -> Void) {

@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Work mode's "Experience" on a profile: roles grouped by company with the
-/// logo and the total time there, and — for several roles at one company —
+/// logo and the total time there, and, for several roles at one company,
 /// a timeline of them. Your own profile can add and edit.
 struct ExperienceSection: View {
     @Environment(AppState.self) private var appState
@@ -126,7 +126,7 @@ struct ExperienceSection: View {
         }
     }
 
-    /// The company — a link to its page when there is one — and a note.
+    /// The company, a link to its page when there is one, and a note.
     @ViewBuilder
     private func companyLine(_ group: WorkExperience.Group, extra: String, bold: Bool = false) -> some View {
         let label = HStack(spacing: 4) {
@@ -263,9 +263,9 @@ struct ExperienceEditorView: View {
             .onChange(of: focus) { left, _ in if let left { viewModel.touched.insert(left) } }
             .navigationTitle(bundle.loc(viewModel.editing == nil ? "Add a role" : "Edit role"))
             .navigationBarTitleDisplayMode(.inline)
-            .interactiveDismissDisabled()
+            .interactiveDismissDisabled(viewModel.hasChanges)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { ConfirmCancelButton { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { ConfirmCancelButton(hasChanges: viewModel.hasChanges) { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     if viewModel.isSaving {
                         ProgressView()
@@ -302,7 +302,7 @@ extension ExperienceEditorView {
         let shown = messages.compactMap { $0 }
         if !shown.isEmpty {
             VStack(alignment: .leading, spacing: 2) {
-                // Not a Label — Form rows drop a Label's text.
+                // Not a Label, Form rows drop a Label's text.
                 ForEach(shown, id: \.self) { message in
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Image(systemName: "exclamationmark.circle.fill")

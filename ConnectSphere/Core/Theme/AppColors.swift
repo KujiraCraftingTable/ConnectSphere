@@ -1,4 +1,4 @@
-// AppColors — adaptive color token system for Light (Warm White) and Dark (Soft Dark) modes.
+// AppColors, adaptive color token system for Light (Warm White) and Dark (Soft Dark) modes.
 // Replaces AppTheme static colors in all Feature views.
 // Auth views always use .light tokens directly (force light mode).
 

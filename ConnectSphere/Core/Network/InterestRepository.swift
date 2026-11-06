@@ -39,7 +39,7 @@ struct InterestCatalog: Decodable {
     enum CodingKeys: String, CodingKey { case categories, maxPicks = "max_picks" }
 }
 
-/// `/api/interests` — HTTP + decoding only.
+/// `/api/interests`, HTTP + decoding only.
 struct InterestRepository {
     private let client = NetworkClient.shared
 

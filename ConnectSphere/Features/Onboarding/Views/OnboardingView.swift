@@ -9,7 +9,7 @@ struct OnboardingView: View {
     @State private var showProvincePicker = false
     @State private var showDobPicker = false
     @State private var dobDraft = Date()
-    /// Bumped on a blocked forward swipe/tap — drives the shake + haptic.
+    /// Bumped on a blocked forward swipe/tap. Drives the shake + haptic.
     @State private var blockedAttempts = 0
     /// The carousel's settled page; kept in step with `viewModel.step`.
     @State private var page: Int? = 0
@@ -139,7 +139,7 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: Step 0 — Mode selection
+    // MARK: Step 0, Mode selection
 
     private var step0: some View {
         OnboardingCard(title: bundle.loc("What do you want to use ConnectSphere for?"),
@@ -187,7 +187,7 @@ struct OnboardingView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: Step 1 — Basic info
+    // MARK: Step 1, Basic info
 
     /// Google sign-ups only: an optional password for signing in without Google.
     private var passwordBlock: some View {
@@ -288,7 +288,7 @@ struct OnboardingView: View {
                         .preferredColorScheme(.light)
                 }
 
-                // Who can see the age — defaults to Private, doesn't affect age-based search
+                // Who can see the age. Defaults to Private, doesn't affect age-based search
                 DobVisibilityToggle(visibility: $viewModel.form.dob_visibility, accentColor: themeManager.theme.primary)
             }
 
@@ -326,7 +326,7 @@ struct OnboardingView: View {
             case .taken:
                 Text("That username is taken", bundle: bundle).foregroundColor(AppColors.danger(.light))
             case .failed:
-                Text("Couldn't check the username — try again", bundle: bundle).foregroundColor(AppColors.danger(.light))
+                Text("Couldn't check the username. Try again", bundle: bundle).foregroundColor(AppColors.danger(.light))
             case .idle:
                 Text(UsernameRules.hint).foregroundColor(AppColors.textTertiary(.light))
             }
@@ -338,7 +338,7 @@ struct OnboardingView: View {
         return VietnamProvinces.all.first(where: { $0.id == viewModel.form.location })?.displayName ?? viewModel.form.location
     }
 
-    // MARK: Step 2 — Interests / Skills
+    // MARK: Step 2, Interests / Skills
 
     private var step2: some View {
         OnboardingCard(
@@ -364,7 +364,7 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: Step 3 — Bio + finish
+    // MARK: Step 3, Bio + finish
 
     private var step3: some View {
         OnboardingCard(title: bundle.loc("About yourself"), subtitle: bundle.loc("Write a few lines so people know who you are")) {
@@ -399,7 +399,7 @@ struct OnboardingView: View {
                 Task { await viewModel.finish(appState: appState) }
             }
 
-            // Bio is optional — finish() never validates it — but nothing
+            // Bio is optional, finish() never validates it, but nothing
             // on screen said so, so people got stuck typing something
             // just to get past this step. Same action as Complete, just
             // a second, lower-emphasis entry point that makes "leave this

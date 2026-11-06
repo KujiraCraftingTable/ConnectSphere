@@ -3,7 +3,7 @@ import AVFoundation
 
 /// A voice message's player: play/pause, a waveform that fills as it plays,
 /// and the duration. The waveform's bar heights come straight from
-/// `message.voiceWaveform` — the samples were captured once at record time
+/// `message.voiceWaveform`, the samples were captured once at record time
 /// and sent with the message, so every viewer sees the same shape and no
 /// audio is re-analysed here; only the played/unplayed colour split follows
 /// local playback.

@@ -27,7 +27,7 @@ struct UserNotificationPayloadDTO: Decodable {
     /// The skill someone endorsed (`skill_endorsed`).
     let skill: String?
 
-    /// Easy Apply (`job_application`, `application_status` — the new
+    /// Easy Apply (`job_application`, `application_status`. The new
     /// status rides in `status`).
     let jobId: String?
     let jobTitle: String?
@@ -46,7 +46,7 @@ struct UserNotificationPayloadDTO: Decodable {
     let postExcerpt: String?
     let postType: String?
 
-    // Conversation card — everything ChatView needs to build a ChatPeer
+    // Conversation card, everything ChatView needs to build a ChatPeer
     let conversationId: String?
     let isGroup: Bool?
     let groupName: String?
@@ -100,7 +100,7 @@ struct UserNotificationDTO: Decodable, Identifiable {
     let resolvedAt: Date?
     let createdAt: Date
 
-    // Added by migration 026 — all optional so a response from an older
+    // Added by migration 026. All optional so a response from an older
     // backend still decodes.
     let actorId: String?
     let communityId: String?
@@ -135,7 +135,7 @@ struct UserNotificationDTO: Decodable, Identifiable {
     /// without a key can never collapse into an unrelated group.
     var groupingKey: String { groupKey ?? "\(type):\(id)" }
 
-    /// How many events this row represents — only chat rows ever exceed 1.
+    /// How many events this row represents. Only chat rows ever exceed 1.
     var eventCount: Int { collapseCount ?? 1 }
 
     /// Newest-activity timestamp; a collapsed chat row is bumped on each message.

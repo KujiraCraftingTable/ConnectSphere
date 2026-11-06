@@ -1,4 +1,4 @@
-/* Localizable.strings (Vietnamese) — English key -> Vietnamese. Auto-generated. */
+/* Localizable.strings (Vietnamese), English key -> Vietnamese. Auto-generated. */
 
 "🎂 It's %@'s birthday today!" = "🎂 Hôm nay là sinh nhật của %@!";
 "%@ accepted your connection request" = "%@ đã chấp nhận lời mời kết nối của bạn";
@@ -56,9 +56,9 @@
 "What is \"%@\"?" = "\"%@\" là ở đâu vậy?";
 "e.g. Landmark 81" = "ví dụ: Landmark 81";
 "Search again" = "Tìm lại";
-"Thanks — we couldn't confirm that one either, so it's been flagged for review." = "Cảm ơn bạn — tụi mình vẫn chưa xác định được chỗ đó, đã ghi nhận để kiểm tra lại nhé!";
+"Thanks, we couldn't confirm that one either, so it's been flagged for review." = "Cảm ơn bạn, tụi mình vẫn chưa xác định được chỗ đó, đã ghi nhận để kiểm tra lại nhé!";
 "Couldn't load results" = "Không tải được kết quả";
-"Couldn't tell which city \"%@\" is in — add a province to narrow it down." = "Không xác định được \"%@\" ở thành phố nào — thêm tên tỉnh/thành để tìm chuẩn hơn nhé!";
+"Couldn't tell which city \"%@\" is in. Add a province to narrow it down." = "Không xác định được \"%@\" ở thành phố nào. Thêm tên tỉnh/thành để tìm chuẩn hơn nhé!";
 "Tell us what they're into, e.g. \"bạn nữ thích chụp ảnh film ở Hà Nội\"." = "Hãy nói người ấy thích gì, ví dụ \"bạn nữ thích chụp ảnh film ở Hà Nội\".";
 "No one here is into \"%@\" yet. Try a related interest or check the spelling." = "Chưa có ai ở đây thích \"%@\". Thử một sở thích gần giống hoặc kiểm tra chính tả nhé.";
 "No one is into all of these together: %@. Try fewer of them." = "Chưa có ai thích tất cả những điều này cùng lúc: %@. Thử bớt vài điều nhé.";
@@ -68,8 +68,8 @@
 "Suggest an interest" = "Đề xuất sở thích";
 "e.g. Pickleball" = "ví dụ Pickleball";
 "We review suggestions before adding them to the list." = "Đề xuất sẽ được xem xét trước khi thêm vào danh sách.";
-"It's already here as \"%@\" — search for it above." = "Đã có sẵn với tên \"%@\" — hãy tìm ở ô phía trên.";
-"Thanks — we'll review your suggestion." = "Cảm ơn bạn — đề xuất sẽ được xem xét.";
+"It's already here as \"%@\". Search for it above." = "Đã có sẵn với tên \"%@\". Hãy tìm ở ô phía trên.";
+"Thanks, we'll review your suggestion." = "Cảm ơn bạn, đề xuất sẽ được xem xét.";
 "Quick matches" = "Khớp nhanh theo tên";
 "Search skills" = "Tìm kỹ năng";
 "Suggested for you" = "Gợi ý cho bạn";
@@ -80,7 +80,7 @@
 "Refine…" = "Tinh chỉnh…";
 "Refine your search" = "Tinh chỉnh tìm kiếm";
 "e.g. only in Hanoi, into film cameras" = "VD: chỉ ở Hà Nội, thích máy ảnh film";
-"Say what to change — your search stays as it is." = "Nói điều muốn đổi — phần tìm kiếm cũ vẫn giữ nguyên.";
+"Say what to change. Your search stays as it is." = "Nói điều muốn đổi. Phần tìm kiếm cũ vẫn giữ nguyên.";
 "Not a fit" = "Không hợp";
 "Couldn't refine the search. Please try again." = "Không tinh chỉnh được. Bạn thử lại nhé.";
 "Choose up to 4 photos" = "Chọn tối đa 4 ảnh";
@@ -204,7 +204,7 @@
 "New post" = "Tạo bài viết";
 "Newest first" = "Mới nhất trước";
 "No comments yet" = "Chưa có bình luận nào";
-"No connections yet — try searching and sending a request" = "Chưa có kết nối nào — thử tìm kiếm và gửi lời mời nhé";
+"No connections yet, try searching and sending a request" = "Chưa có kết nối nào. Thử tìm kiếm và gửi lời mời nhé";
 "No chats yet 👋" = "Chưa có tin nhắn nào 👋";
 "No conversations yet" = "Chưa có cuộc trò chuyện nào";
 "No distance limit when searching with location." = "Không giới hạn khoảng cách khi tìm kiếm có địa điểm.";
@@ -350,7 +350,7 @@
 "You haven't joined any communities" = "Chưa tham gia cộng đồng nào";
 "You two will no longer see each other's posts, all connections will be removed, and you won't be able to message each other." = "Hai bạn sẽ không còn thấy bài viết của nhau, mọi kết nối sẽ bị gỡ và không thể nhắn tin cho nhau.";
 "You've blocked this user" = "Bạn đã chặn người dùng này";
-"You're connected — say hello 👋" = "Bạn đã kết nối với tài khoản này, hãy gửi lời chào 👋";
+"You're connected, say hello 👋" = "Bạn đã kết nối với tài khoản này, hãy gửi lời chào 👋";
 "You're connected. Say hello." = "Hai bạn đã kết nối. Hãy chào hỏi.";
 "You're not connected with this user" = "Bạn chưa kết nối với tài khoản này";
 "Your interests" = "Sở thích của bạn";
@@ -387,7 +387,7 @@
 "Disconnect" = "Hủy kết nối";
 
 /* Đăng ký / đăng nhập username + password */
-"Pick a username and password — you'll set up your profile next" = "Chọn username và mật khẩu — hồ sơ của bạn sẽ thiết lập ngay sau đó";
+"Pick a username and password, you'll set up your profile next" = "Chọn username và mật khẩu. Hồ sơ của bạn sẽ thiết lập ngay sau đó";
 "Password (at least 8 characters)" = "Mật khẩu (ít nhất 8 ký tự)";
 "Confirm password" = "Xác nhận mật khẩu";
 "Username must be at least 3 characters" = "Username phải có ít nhất 3 ký tự";
@@ -400,7 +400,7 @@
 "Couldn't sign in, please try again" = "Không đăng nhập được, vui lòng thử lại";
 "Cannot reach the server, please check your connection" = "Không kết nối được máy chủ, vui lòng kiểm tra mạng";
 
-/* AI search — mini CV (lý do khớp) */
+/* AI search, mini CV (lý do khớp) */
 "This user hasn't shared anything about themselves yet" = "Người dùng này hiện chưa chia sẻ về cá nhân họ";
 "Posted about %@ (%@)" = "Có bài viết về %@ (%@)";
 "Has posts about %@" = "Có bài viết về %@";
@@ -452,7 +452,7 @@
 /* Group-B password management */
 "Change password" = "Đổi mật khẩu";
 "Set password" = "Đặt mật khẩu";
-"Set a password to also sign in without Google." = "Đặt mật khẩu để có thể đăng nhập không cần Google.";
+"Set a password so you can also sign in with your username and password, not only with Google." = "Đặt mật khẩu để bạn cũng có thể đăng nhập bằng tên người dùng và mật khẩu, không chỉ bằng Google.";
 "Current password" = "Mật khẩu hiện tại";
 "New password" = "Mật khẩu mới";
 "New password (at least 8 characters)" = "Mật khẩu mới (từ 8 ký tự)";
@@ -493,7 +493,7 @@
 "Can't go" = "Không thể";
 "%d going" = "%d người tham gia";
 
-/* Meeting proposal card (Phase 4) — reminder indicator shown instead of RSVP
+/* Meeting proposal card (Phase 4). Reminder indicator shown instead of RSVP
    buttons for a 1:1 proposal */
 "Reminder: %@" = "Nhắc nhở: %@";
 
@@ -557,7 +557,7 @@
 "You're no longer in this group" = "Bạn không còn ở trong nhóm này";
 "Blocked members in this group" = "Có thành viên bạn đã chặn trong nhóm này";
 
-/* Onboarding — persona setup */
+/* Onboarding, persona setup */
 "Set up your Hobby profile" = "Thiết lập hồ sơ Sở thích";
 "Set up your Work profile" = "Thiết lập hồ sơ Công việc";
 "Start" = "Bắt đầu";
@@ -573,23 +573,23 @@
 "Go to settings" = "Đi đến cài đặt";
 "Take me there" = "Đưa tôi đến đó";
 "Yes, log out" = "Đồng ý, đăng xuất";
-"Done — theme switched to %@." = "Xong — đã chuyển giao diện sang %@.";
-"Done — language switched to %@." = "Xong — đã chuyển ngôn ngữ sang %@.";
+"Done. Theme switched to %@." = "Xong, đã chuyển giao diện sang %@.";
+"Done. Language switched to %@." = "Xong, đã chuyển ngôn ngữ sang %@.";
 "You're already in %@." = "Bạn đang ở %@ rồi.";
-"Done — switched to %@." = "Xong — đã chuyển sang %@.";
-"You haven't set up your %@ yet — open Settings and tap that mode to create it first." = "Bạn chưa thiết lập %@ — hãy mở Cài đặt và chạm vào chế độ đó để tạo trước.";
+"Done. Switched to %@." = "Xong, đã chuyển sang %@.";
+"You haven't set up your %@ yet. Open Settings and tap that mode to create it first." = "Bạn chưa thiết lập %@. Hãy mở Cài đặt và chạm vào chế độ đó để tạo trước.";
 "Taking you to %@." = "Đang đưa bạn đến %@.";
 "Taking you to Settings." = "Đang đưa bạn đến Cài đặt.";
 "Are you sure you want to log out?" = "Bạn có chắc muốn đăng xuất không?";
 "You've been logged out." = "Bạn đã đăng xuất.";
 "Okay, staying logged in." = "Được rồi, vẫn giữ đăng nhập.";
-"I didn't quite catch that. Try asking about theme, language, mode, or where to find something — for example: %@." = "Tôi chưa hiểu rõ ý bạn. Hãy thử hỏi về giao diện, ngôn ngữ, chế độ, hoặc cách tìm một tính năng nào đó — ví dụ: %@.";
+"I didn't quite catch that. Try asking about theme, language, mode, or where to find something, for example: %@." = "Tôi chưa hiểu rõ ý bạn. Hãy thử hỏi về giao diện, ngôn ngữ, chế độ, hoặc cách tìm một tính năng nào đó. Ví dụ: %@.";
 "You can change your password from Settings → Privacy & Security → Change password." = "Bạn có thể đổi mật khẩu từ Cài đặt → Quyền riêng tư & Bảo mật → Đổi mật khẩu.";
 "To block someone, open their profile and choose Block from the menu. You can manage or unblock people anytime from Settings → Privacy & Security → Blocked users." = "Để chặn ai đó, mở hồ sơ của họ và chọn Chặn từ menu. Bạn có thể quản lý hoặc bỏ chặn bất cứ lúc nào từ Cài đặt → Quyền riêng tư & Bảo mật → Người dùng đã chặn.";
 "You can delete your Hobby profile, your Work profile or your whole account from Settings → Account → Manage account. It needs a code sent to your verified email, and it can't be undone." = "Bạn có thể xoá hồ sơ Sở thích, hồ sơ Công việc hoặc cả tài khoản ở Cài đặt → Tài khoản → Quản lý tài khoản. Cần mã gửi tới email đã xác minh, và không thể hoàn tác.";
 "Open a conversation from Home → Messages, tap the chat name at the top, then turn on Mute notifications." = "Mở một cuộc trò chuyện từ Trang chủ → Tin nhắn, chạm vào tên đoạn chat ở trên cùng, rồi bật Tắt thông báo.";
 "Open the group chat from Home → Messages, tap the group name at the top, then choose Rename group." = "Mở nhóm chat từ Trang chủ → Tin nhắn, chạm vào tên nhóm ở trên cùng, rồi chọn Đổi tên nhóm.";
-"You can edit your profile from the Profile tab — tap Edit profile — or from Settings → Edit profile." = "Bạn có thể chỉnh sửa hồ sơ từ tab Hồ sơ — chạm vào Chỉnh sửa hồ sơ — hoặc từ Cài đặt → Chỉnh sửa hồ sơ.";
+"You can edit your profile from the Profile tab, tap Edit profile, or from Settings → Edit profile." = "Bạn có thể chỉnh sửa hồ sơ từ tab Hồ sơ, chạm vào Chỉnh sửa hồ sơ, hoặc từ Cài đặt → Chỉnh sửa hồ sơ.";
 "Manage notification sounds from Settings → Notifications → Message sounds." = "Quản lý âm thanh thông báo từ Cài đặt → Thông báo → Âm thanh tin nhắn.";
 "Manage privacy and security options from Settings → Privacy & Security." = "Quản lý các tuỳ chọn quyền riêng tư và bảo mật từ Cài đặt → Quyền riêng tư & Bảo mật.";
 
@@ -733,7 +733,7 @@
 // MARK: - Onboarding / persona / chat gaps (already wrapped in code, key was missing)
 "Checking availability..." = "Đang kiểm tra...";
 "Username available" = "Tên người dùng khả dụng";
-"This mode has its own separate identity — name, avatar and bio won't be shared with the other mode" = "Chế độ này có danh tính riêng biệt — tên, ảnh đại diện và tiểu sử sẽ không dùng chung với chế độ còn lại";
+"This mode has its own separate identity. Name, avatar and bio won't be shared with the other mode" = "Chế độ này có danh tính riêng biệt. Tên, ảnh đại diện và tiểu sử sẽ không dùng chung với chế độ còn lại";
 "No connections available to add" = "Không có kết nối nào để thêm";
 "No other conversations to forward to" = "Không có cuộc trò chuyện nào khác để chuyển tiếp";
 "Someone you've blocked (or who has blocked you) is in this group." = "Có người bạn đã chặn (hoặc đã chặn bạn) trong nhóm này.";
@@ -837,6 +837,8 @@
 
 // MARK: - Post media upload errors
 "Couldn't post" = "Không thể đăng bài";
+"Photos can't be added to a post with a link. Remove the link to attach photos." = "Không thể thêm ảnh vào bài viết có liên kết. Hãy xóa liên kết để đính kèm ảnh.";
+"Remove hashtag" = "Xóa hashtag";
 "This video is too large to upload (max 50 MB)." = "Video quá lớn để tải lên (tối đa 50 MB).";
 "Couldn't upload one of your photos or videos. Please try again." = "Không thể tải lên một ảnh hoặc video. Vui lòng thử lại.";
 
@@ -882,8 +884,8 @@
 "At least 8 characters. Add symbols like !@#$%^&*_ for extra security." = "Ít nhất 8 ký tự. Thêm ký hiệu như !@#$%^&*_ để an toàn hơn.";
 "Back" = "Quay lại";
 "Checking…" = "Đang kiểm tra…";
-"Couldn't check the username — try again" = "Không kiểm tra được tên người dùng — hãy thử lại";
-"Couldn't save — please try again" = "Không lưu được — vui lòng thử lại";
+"Couldn't check the username. Try again" = "Không kiểm tra được tên người dùng. Hãy thử lại";
+"Couldn't save, please try again" = "Không lưu được, vui lòng thử lại";
 "Developer" = "Nhà phát triển";
 "Enter your display name" = "Nhập tên hiển thị của bạn";
 "Letters, numbers, and underscore (_) only, at least 3 characters" = "Chỉ chữ cái, số và dấu gạch dưới (_), ít nhất 3 ký tự";
@@ -944,7 +946,7 @@
 "Waiting for %@ to accept your messages" = "Đang chờ %@ chấp nhận tin nhắn của bạn";
 "Waiting, %lld" = "Đang chờ, %lld";
 "When someone who isn't your friend messages you, it waits here until you accept." = "Khi người chưa là bạn bè nhắn cho bạn, tin nhắn sẽ chờ ở đây cho đến khi bạn chấp nhận.";
-"With %@ — add at least 1 more person. A group needs 3 people or more." = "Với %@ — thêm ít nhất 1 người nữa. Nhóm cần từ 3 người trở lên.";
+"With %@, add at least 1 more person. A group needs 3 people or more." = "Với %@, thêm ít nhất 1 người nữa. Nhóm cần từ 3 người trở lên.";
 "You can send %lld more messages until %@ accepts" = "Bạn còn gửi được %lld tin nhắn cho đến khi %@ chấp nhận";
 "e.g. Greenwich Uni" = "VD: Greenwich Uni";
 "“%@” is removed. Your chats with its people stay." = "“%@” sẽ bị xoá. Các đoạn chat với những người trong đó vẫn giữ nguyên.";
@@ -967,8 +969,8 @@
 "Mute" = "Tắt thông báo";
 "Unmute" = "Bật thông báo";
 "You can only add friends or people who've accepted your messages" = "Bạn chỉ có thể thêm bạn bè hoặc người đã chấp nhận tin nhắn của bạn";
-"New: keep chats in Spaces — folders for the people you talk to." = "Mới: giữ đoạn chat trong Không gian — thư mục cho những người bạn trò chuyện.";
-"No messages yet — say hi" = "Chưa có tin nhắn — gửi lời chào nhé";
+"New: keep chats in Spaces. Folders for the people you talk to." = "Mới: giữ đoạn chat trong Không gian. Thư mục cho những người bạn trò chuyện.";
+"No messages yet, say hi" = "Chưa có tin nhắn. Gửi lời chào nhé";
 "Remove from space" = "Xoá khỏi không gian";
 "Rose" = "Hồng sen";
 "Coral" = "San hô";
@@ -1123,7 +1125,7 @@
 "Add a chat" = "Thêm đoạn chat";
 "Add to floating chat" = "Thêm vào chat nổi";
 "Search chats" = "Tìm đoạn chat";
-"Up to 4 chats float at once — adding one closes the chat you used longest ago." = "Tối đa 4 đoạn chat nổi cùng lúc — thêm một đoạn sẽ đóng đoạn bạn dùng lâu nhất.";
+"Up to 4 chats float at once. Adding one closes the chat you used longest ago." = "Tối đa 4 đoạn chat nổi cùng lúc. Thêm một đoạn sẽ đóng đoạn bạn dùng lâu nhất.";
 "New poll" = "Bình chọn mới";
 "Ask a question" = "Đặt câu hỏi";
 "%lld votes" = "%lld lượt chọn";
@@ -1206,7 +1208,7 @@
 "Remove this role" = "Xoá vị trí này";
 "Remove this role?" = "Xoá vị trí này?";
 "Since %@" = "Từ %@";
-"Add skills in Edit profile — your Work connections can then endorse them." = "Thêm kỹ năng trong Sửa hồ sơ — kết nối công việc của bạn có thể xác nhận chúng.";
+"Add skills in Edit profile. Your Work connections can then endorse them." = "Thêm kỹ năng trong Sửa hồ sơ. Kết nối công việc của bạn có thể xác nhận chúng.";
 "%lld endorsement" = "%lld lượt xác nhận";
 "%lld endorsements" = "%lld lượt xác nhận";
 "Endorse" = "Xác nhận";
@@ -1254,7 +1256,7 @@
 "The pay range needs numbers, the first no higher than the second." = "Mức lương cần là số, số đầu không lớn hơn số sau.";
 "View job" = "Xem việc làm";
 "Your profile" = "Hồ sơ của bạn";
-"Your Work profile — experience and skills — is shared with the job's poster." = "Hồ sơ Công việc của bạn — kinh nghiệm và kỹ năng — sẽ được gửi cho người đăng tin.";
+"Your Work profile, experience and skills, is shared with the job's poster." = "Hồ sơ Công việc của bạn, kinh nghiệm và kỹ năng, sẽ được gửi cho người đăng tin.";
 "Why you're a good fit (optional)" = "Vì sao bạn phù hợp (không bắt buộc)";
 "Note" = "Ghi chú";
 "Keep it under %lld characters." = "Tối đa %lld ký tự.";
@@ -1323,7 +1325,7 @@
 "Verified" = "Đã xác minh";
 "Add email" = "Thêm email";
 "Add and verify an email" = "Thêm và xác minh email";
-"Deleting needs a code sent to your verified email, so a stolen password alone can't do it." = "Muốn xoá cần mã gửi tới email đã xác minh — chỉ có mật khẩu thì không xoá được.";
+"Deleting needs a code sent to your verified email, so a stolen password alone can't do it." = "Muốn xoá cần mã gửi tới email đã xác minh. Chỉ có mật khẩu thì không xoá được.";
 "Delete Hobby profile" = "Xoá hồ sơ Sở thích";
 "Keep your account and your Work profile." = "Giữ tài khoản và hồ sơ Công việc.";
 "Delete Work profile" = "Xoá hồ sơ Công việc";
@@ -1331,7 +1333,7 @@
 "Both profiles and everything in them." = "Cả hai hồ sơ và mọi thứ trong đó.";
 "You have one profile, so deleting it means deleting your account." = "Bạn chỉ có một hồ sơ, nên xoá nó nghĩa là xoá tài khoản.";
 "Manage account" = "Quản lý tài khoản";
-"Your chats in this mode — messages you sent stay, shown as “Deleted User”" = "Các cuộc trò chuyện ở chế độ này — tin nhắn bạn đã gửi vẫn còn, hiển thị là “Deleted User”";
+"Your chats in this mode. Messages you sent stay, shown as “Deleted User”" = "Các cuộc trò chuyện ở chế độ này. Tin nhắn bạn đã gửi vẫn còn, hiển thị là “Deleted User”";
 "Your Hobby profile: name, photo, cover and bio" = "Hồ sơ Sở thích: tên, ảnh, ảnh bìa và tiểu sử";
 "Your Hobby posts, comments, likes and stories" = "Bài viết, bình luận, lượt thích và tin ở chế độ Sở thích";
 "Your Hobby friends, followers and following" = "Bạn bè, người theo dõi và đang theo dõi ở chế độ Sở thích";
@@ -1343,10 +1345,10 @@
 "Company pages only you manage" = "Trang công ty chỉ mình bạn quản lý";
 "Both your Hobby and Work profiles" = "Cả hồ sơ Sở thích và Công việc";
 "All your posts, comments, likes and stories" = "Mọi bài viết, bình luận, lượt thích và tin";
-"All your connections, followers and chats — messages you sent stay, shown as “Deleted User”" = "Mọi kết nối, người theo dõi và cuộc trò chuyện — tin nhắn bạn đã gửi vẫn còn, hiển thị là “Deleted User”";
+"All your connections, followers and chats. Messages you sent stay, shown as “Deleted User”" = "Mọi kết nối, người theo dõi và cuộc trò chuyện. Tin nhắn bạn đã gửi vẫn còn, hiển thị là “Deleted User”";
 "Your experience, skills, job applications and company pages only you manage" = "Kinh nghiệm, kỹ năng, hồ sơ ứng tuyển và trang công ty chỉ mình bạn quản lý";
 "Your email, removed from the account" = "Email của bạn sẽ bị gỡ khỏi tài khoản";
-"Your username @%@ stays reserved — nobody can sign up with it" = "Tên người dùng @%@ được giữ lại — không ai đăng ký được bằng tên này";
+"Your username @%@ stays reserved. Nobody can sign up with it" = "Tên người dùng @%@ được giữ lại, không ai đăng ký được bằng tên này";
 "Your account and your Work profile, with everything in it" = "Tài khoản và hồ sơ Công việc, cùng mọi thứ trong đó";
 "You can make a new Hobby profile later" = "Bạn có thể tạo hồ sơ Sở thích mới sau";
 "Your account and your Hobby profile, with everything in it" = "Tài khoản và hồ sơ Sở thích, cùng mọi thứ trong đó";
@@ -1414,8 +1416,8 @@
 "Only your friends can see your posts and profile details. Others see your name, photo and cover." = "Chỉ bạn bè mới xem được bài viết và thông tin hồ sơ. Người khác chỉ thấy tên, ảnh đại diện và ảnh bìa.";
 "Lock your profile?" = "Khoá hồ sơ?";
 "Lock" = "Khoá";
-"People who aren't your Work connections will only see your name, photo, cover and username — not your posts, experience, skills or lists." = "Người không phải kết nối Công việc chỉ thấy tên, ảnh đại diện, ảnh bìa và tên người dùng — không thấy bài viết, kinh nghiệm, kỹ năng hay danh sách.";
-"People who aren't your friends will only see your name, photo, cover and username — not your posts, highlights, details or lists." = "Người không phải bạn bè chỉ thấy tên, ảnh đại diện, ảnh bìa và tên người dùng — không thấy bài viết, tin nổi bật, thông tin hay danh sách.";
+"People who aren't your Work connections will only see your name, photo, cover and username, not your posts, experience, skills or lists." = "Người không phải kết nối Công việc chỉ thấy tên, ảnh đại diện, ảnh bìa và tên người dùng, không thấy bài viết, kinh nghiệm, kỹ năng hay danh sách.";
+"People who aren't your friends will only see your name, photo, cover and username, not your posts, highlights, details or lists." = "Người không phải bạn bè chỉ thấy tên, ảnh đại diện, ảnh bìa và tên người dùng, không thấy bài viết, tin nổi bật, thông tin hay danh sách.";
 "Reactions" = "Cảm xúc";
 "Comments you write show here." = "Bình luận bạn viết sẽ hiện ở đây.";
 "Posts and comments you like show here." = "Bài viết và bình luận bạn thích sẽ hiện ở đây.";
@@ -1433,14 +1435,14 @@
 "Change email" = "Đổi email";
 "You sign in with this email, and security codes are sent to it." = "Bạn đăng nhập bằng email này, và mã bảo mật sẽ được gửi tới đây.";
 "Step 1 of 2 · Confirm it's you" = "Bước 1/2 · Xác nhận là bạn";
-"To change your email, first enter the code we send to %@ — so nobody else can take over your account." = "Để đổi email, trước tiên hãy nhập mã chúng tôi gửi tới %@ — để không ai khác chiếm được tài khoản của bạn.";
+"To change your email, first enter the code we send to %@, so nobody else can take over your account." = "Để đổi email, trước tiên hãy nhập mã chúng tôi gửi tới %@, để không ai khác chiếm được tài khoản của bạn.";
 "Step 2 of 2 · Your new email" = "Bước 2/2 · Email mới của bạn";
 "That email is used by another account" = "Email này đã được tài khoản khác dùng";
 "Enter a valid email address" = "Hãy nhập một địa chỉ email hợp lệ";
 "Check your email" = "Kiểm tra email";
 "Two-factor sign-in is on. Enter the 6-digit code we sent to %@." = "Đăng nhập hai lớp đang bật. Nhập mã 6 chữ số chúng tôi gửi tới %@.";
 "Two-factor authentication" = "Xác thực hai lớp";
-"Every time you sign in — with your password or Google — we'll email a 6-digit code you need to enter. Someone who knows your password still can't get in." = "Mỗi lần bạn đăng nhập — bằng mật khẩu hay Google — chúng tôi sẽ gửi mã 6 chữ số tới email để bạn nhập. Người biết mật khẩu của bạn vẫn không vào được.";
+"Every time you sign in, with your password or Google, we'll email a 6-digit code you need to enter. Someone who knows your password still can't get in." = "Mỗi lần bạn đăng nhập, bằng mật khẩu hay Google, chúng tôi sẽ gửi mã 6 chữ số tới email để bạn nhập. Người biết mật khẩu của bạn vẫn không vào được.";
 "You'll sign in without a code again. You'll still get an email each time your account is signed in to." = "Bạn sẽ đăng nhập mà không cần mã nữa. Bạn vẫn nhận email mỗi khi tài khoản được đăng nhập.";
 "Turn on" = "Bật";
 "Turn off" = "Tắt";
@@ -1451,7 +1453,7 @@
 "Username or email" = "Tên người dùng hoặc email";
 "Invalid username, email or password" = "Tên người dùng, email hoặc mật khẩu không đúng";
 "Email (optional)" = "Email (không bắt buộc)";
-"Optional. Add one to reset your password and use two-factor sign-in — we'll send it a code." = "Không bắt buộc. Thêm email để có thể đặt lại mật khẩu và dùng xác thực hai lớp — chúng tôi sẽ gửi mã tới email đó.";
+"Optional. Add one to reset your password and use two-factor sign-in, we'll send it a code." = "Không bắt buộc. Thêm email để có thể đặt lại mật khẩu và dùng xác thực hai lớp. Chúng tôi sẽ gửi mã tới email đó.";
 "Checking the code…" = "Đang kiểm tra mã…";
 "Create a password (optional)" = "Tạo mật khẩu (không bắt buộc)";
 "So you can also sign in with your @username or email, without Google. You can skip this." = "Để bạn cũng có thể đăng nhập bằng @tên người dùng hoặc email mà không cần Google. Có thể bỏ qua.";
@@ -1598,13 +1600,13 @@
 "Listings are created from the Marketplace" = "Tin đăng bán được tạo từ Chợ";
 "Location (optional)" = "Vị trí (không bắt buộc)";
 "New listing" = "Tin đăng bán mới";
-"Price (₫) — 0 = free" = "Giá (₫) — 0 = miễn phí";
+"Price (₫), 0 = free" = "Giá (₫), 0 = miễn phí";
 "Publish" = "Đăng";
 "Up to 10. The first one is the cover." = "Tối đa 10. Ảnh đầu tiên là ảnh bìa.";
 "Waits for admin approval" = "Chờ quản trị viên duyệt";
 "You haven't joined any communities in this mode." = "Bạn chưa tham gia cộng đồng nào ở chế độ này.";
 
-/* Marketplace — map location */
+/* Marketplace, map location */
 "Choose location" = "Chọn vị trí";
 "Use my current location" = "Dùng vị trí hiện tại của tôi";
 "Search places" = "Tìm địa điểm";
@@ -1614,7 +1616,7 @@
 "Couldn't get your location" = "Không lấy được vị trí của bạn";
 "Location access is off. Turn it on in Settings to use your current location." = "Quyền truy cập vị trí đang tắt. Hãy bật trong Cài đặt để dùng vị trí hiện tại.";
 
-/* Forms — Cancel always asks; Marketplace — sold */
+/* Forms, Cancel always asks; Marketplace, sold */
 "Discard changes?" = "Bỏ các thay đổi?";
 "Mark this item as sold?" = "Đánh dấu món đồ này là đã bán?";
 "Mark this item as available?" = "Đánh dấu món đồ này là còn hàng?";
@@ -1622,28 +1624,28 @@
 "Buyers won't be able to message you about it anymore." = "Người mua sẽ không thể nhắn tin cho bạn về món đồ này nữa.";
 "This item has been sold" = "Món đồ này đã được bán";
 
-/* Marketplace — save & share */
+/* Marketplace, save & share */
 "No saved items" = "Chưa lưu món đồ nào";
 "Unsave" = "Bỏ lưu";
 "Send in a message" = "Gửi qua tin nhắn";
 "Say something about this item..." = "Nói gì đó về món đồ này...";
 "Listings can only be shared in a message" = "Món đồ chỉ có thể chia sẻ qua tin nhắn";
 
-/* Sharing — pick, then Send; Marketplace seller */
+/* Sharing, pick, then Send; Marketplace seller */
 "Send to %lld" = "Gửi đến %lld";
 "Couldn't send to some chats" = "Không gửi được đến một số cuộc trò chuyện";
 "items listed" = "món đã đăng";
 "No other items" = "Không có món đồ nào khác";
 
-/* Communities — who can see a post */
+/* Communities, who can see a post */
 "Community only" = "Chỉ cộng đồng";
 "Who can see this post" = "Ai có thể xem bài viết này";
 "Only members of a private community can see its posts" = "Chỉ thành viên của cộng đồng riêng tư mới xem được bài viết";
 
-/* Communities — description */
+/* Communities, description */
 "%lld/%lld words" = "%lld/%lld từ";
 
-/* Feed — teach the For you feed */
+/* Feed, teach the For you feed */
 "Show more like this" = "Hiện thêm nội dung như thế này";
 "Not interested" = "Không quan tâm";
 "You'll see more posts like this" = "Bạn sẽ thấy nhiều bài như thế này hơn";
@@ -1663,7 +1665,73 @@
 "You can change your birthday %lld more times." = "Bạn còn %lld lần đổi ngày sinh.";
 "Change your birthday?" = "Đổi ngày sinh?";
 "Change it" = "Đổi";
-"This is your last change — after it, only support (%@) can change your birthday." = "Đây là lần đổi cuối cùng — sau đó chỉ bộ phận hỗ trợ (%@) mới đổi được ngày sinh của bạn.";
+"This is your last change. After it, only support (%@) can change your birthday." = "Đây là lần đổi cuối cùng. Sau đó chỉ bộ phận hỗ trợ (%@) mới đổi được ngày sinh của bạn.";
 "After this you'll have 1 change left." = "Sau lần này bạn còn 1 lần đổi.";
 "Your age decides what you can use in ConnectSphere, like Dating, so a birthday can only be changed twice." = "Tuổi của bạn quyết định những gì bạn được dùng trong ConnectSphere, như Hẹn hò, nên ngày sinh chỉ được đổi 2 lần.";
 "Your birthday sets the age shown on your account, so it can only be changed twice." = "Ngày sinh quyết định độ tuổi hiển thị trên tài khoản của bạn, nên chỉ được đổi 2 lần.";
+
+/* Marketplace: re-up, photos, price chips */
+"Re-up" = "Đăng lại";
+"Post this item again as new?" = "Đăng lại món này như một bài mới?";
+"It appears as a new post in the communities it was listed in, and the earlier post is hidden. Likes and comments don't carry over." = "Món sẽ xuất hiện như một bài mới trong các cộng đồng đã đăng, bài cũ sẽ bị ẩn. Lượt thích và bình luận không được giữ lại.";
+"%@ re-up" = "Đăng lại lần %@";
+"You aren't selling anything yet" = "Bạn chưa bán món nào";
+"Add at least one photo." = "Hãy thêm ít nhất một ảnh.";
+"Price" = "Giá";
+"Price (0 = free)" = "Giá (0 = miễn phí)";
+"Yours" = "Của bạn";
+"All items" = "Tất cả món";
+"Available" = "Còn hàng";
+
+/* Marketplace: auto re-up */
+"Auto re-up" = "Tự động đăng lại";
+"Every" = "Mỗi";
+"At" = "Lúc";
+"1 day" = "1 ngày";
+"%lld days" = "%lld ngày";
+"Posts it again as new on this schedule, in Vietnam time. You can cancel any time." = "Tự động đăng lại như một bài mới theo lịch này, theo giờ Việt Nam. Bạn có thể huỷ bất cứ lúc nào.";
+"Auto re-up every day at %@" = "Tự động đăng lại mỗi ngày lúc %@";
+"Auto re-up every %lld days at %@" = "Tự động đăng lại mỗi %lld ngày lúc %@";
+"Next: %@" = "Lần tới: %@";
+"Stop auto re-up?" = "Dừng tự động đăng lại?";
+"Stop auto re-up" = "Dừng tự động đăng lại";
+"The item stays listed; you can turn it on again from Edit listing." = "Món vẫn được đăng bán; bạn có thể bật lại trong Chỉnh sửa tin.";
+"Buyers won't be able to message you about it anymore. Auto re-up will be turned off." = "Người mua sẽ không nhắn tin về món này nữa. Tự động đăng lại sẽ tắt.";
+
+"Open app" = "Mở ứng dụng";
+"No app found" = "Không tìm thấy ứng dụng";
+"No installed app can open this link. You can keep reading it here." = "Không có ứng dụng nào đã cài để mở liên kết này. Bạn vẫn có thể xem tại đây.";
+
+"Got it" = "Đã hiểu";
+"Hidden all from %@" = "Đã ẩn mọi thứ từ %@";
+"You blocked %@" = "Bạn đã chặn %@";
+"Hiding posts helps us personalise your feed." = "Việc ẩn bài giúp chúng tôi cá nhân hóa bảng tin của bạn.";
+"You'll see fewer posts like this." = "Bạn sẽ thấy ít bài như thế này hơn.";
+"You won't see their posts in your feed." = "Bạn sẽ không thấy bài của họ trên bảng tin.";
+"You won't be able to see or contact each other." = "Hai bên sẽ không thể thấy hoặc liên hệ với nhau.";
+"Thanks for letting us know" = "Cảm ơn bạn đã cho chúng tôi biết";
+"We use your feedback to help our systems learn when something's not right." = "Chúng tôi dùng phản hồi của bạn để giúp hệ thống học khi có điều gì đó không ổn.";
+"Other steps you can take" = "Các bước khác bạn có thể làm";
+"Block %@'s profile" = "Chặn trang cá nhân của %@";
+"Hide all from %@" = "Ẩn mọi thứ từ %@";
+"Stop seeing posts from this person." = "Ngừng thấy bài viết từ người này.";
+
+"New sign-in to your account with Google on %@. Not you? Secure your Google account." = "Tài khoản của bạn vừa được đăng nhập bằng Google trên %@. Không phải bạn? Hãy bảo vệ tài khoản Google của bạn.";
+"Signed in with Google" = "Đã đăng nhập bằng Google";
+"Secure Google account" = "Bảo vệ tài khoản Google";
+"Change ConnectSphere password" = "Đổi mật khẩu ConnectSphere";
+"Google manages the password for this sign-in. If it wasn't you, secure your Google account." = "Mật khẩu của lần đăng nhập này do Google quản lý. Nếu không phải bạn, hãy bảo vệ tài khoản Google của bạn.";
+
+/* Community search page */
+"Search in %@" = "Tìm trong %@";
+"Recent searches" = "Tìm kiếm gần đây";
+"Clear all" = "Xóa tất cả";
+"Popular in this community" = "Phổ biến trong cộng đồng";
+"No recent searches" = "Chưa có tìm kiếm gần đây";
+"Bold" = "In đậm";
+"Italic" = "In nghiêng";
+"Strikethrough" = "Gạch ngang";
+"Code" = "Mã";
+"List" = "Danh sách";
+"Quote" = "Trích dẫn";
+"Link" = "Liên kết";

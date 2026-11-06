@@ -1,6 +1,6 @@
 import Foundation
 
-/// `/api/spaces` — HTTP + decoding only.
+/// `/api/spaces`, HTTP + decoding only.
 struct SpaceRepository {
     private let client = NetworkClient.shared
 

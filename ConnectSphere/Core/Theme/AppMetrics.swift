@@ -1,4 +1,4 @@
-// AppMetrics — the non-color half of the design system: type scale, spacing,
+// AppMetrics, the non-color half of the design system: type scale, spacing,
 // radius, elevation, icon sizes. Pairs with AppColors (color) and ThemeManager
 // (per-mode palette). See plan: content-first, Apple-native, Dynamic Type
 // supported but capped at the view roots.
@@ -11,7 +11,7 @@ import SwiftUI
 /// Dynamic Type relative to a system text style (via `@ScaledMetric` inside
 /// `AppFontModifier`), so a size change is live, not launch-time.
 ///
-/// Use `.appFont(_:)` on a view — `Text("Hi").appFont(.headline)` — the same
+/// Use `.appFont(_:)` on a view, `Text("Hi").appFont(.headline)`, the same
 /// shape as the `.font(...)` it replaces. Glyph sizing stays on `AppIcon`.
 enum AppFont {
     case largeTitle, title, title2, title3
@@ -59,7 +59,7 @@ extension View {
     func cappedDynamicType() -> some View { dynamicTypeSize(...DynamicTypeSize.xLarge) }
 }
 
-// MARK: - Icon glyph sizes (not Dynamic Type — deliberate)
+// MARK: - Icon glyph sizes (not Dynamic Type. Deliberate)
 
 enum AppIcon {
     static let xs: Font = .system(size: 11)
@@ -90,7 +90,7 @@ enum AppRadius {
     static let pill: CGFloat = 999
 }
 
-// MARK: - Elevation (two levels only — chrome recedes; hairlines elsewhere)
+// MARK: - Elevation (two levels only. Chrome recedes; hairlines elsewhere)
 
 enum AppElevation {
     /// Resting card / row surface lift.

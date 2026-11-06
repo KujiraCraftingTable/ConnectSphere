@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Registers an account with @username + password and an optional email
-/// (verified with a code before the account is made — POST /auth/register).
-/// This only creates the bare-minimum account — the profile (display name, mode,
+/// (verified with a code before the account is made, POST /auth/register).
+/// This only creates the bare-minimum account. The profile (display name, mode,
 /// interests, bio…) is handled by OnboardingView right after, just like a new Google user.
 struct RegisterView: View {
     @Environment(AppState.self) var appState
@@ -155,7 +155,7 @@ struct RegisterView: View {
                     .font(.system(size: 30))
                     .foregroundColor(.white)
             }
-            Text("Pick a username and password — you'll set up your profile next", bundle: bundle)
+            Text("Pick a username and password, you'll set up your profile next", bundle: bundle)
                 .font(.system(size: 14))
                 .foregroundColor(AppColors.textSecondary(.light))
                 .multilineTextAlignment(.center)

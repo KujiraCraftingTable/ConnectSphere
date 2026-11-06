@@ -20,6 +20,8 @@ struct JobListing: Identifiable, Decodable, Hashable {
     let applicationDeadline: String?
     let createdAt: Date
     let description: String?
+    /// 'markdown' when the description was written with Markdown; older text is plain.
+    let descriptionFormat: String?
     let skills: [String]
     var saved: Bool
     var interestedCount: Int
@@ -28,7 +30,7 @@ struct JobListing: Identifiable, Decodable, Hashable {
     let match: Match
     /// Your application's status, once you've applied.
     var applicationStatus: String?
-    /// How many applied — for the job's poster or company admins only.
+    /// How many applied, for the job's poster or company admins only.
     let applicantCount: Int?
 
     struct Poster: Decodable, Hashable {
@@ -62,6 +64,7 @@ struct JobListing: Identifiable, Decodable, Hashable {
 
     enum CodingKeys: String, CodingKey {
         case id, title, location, level, description, skills, saved, poster, match
+        case descriptionFormat = "description_format"
         case postId = "post_id"
         case companyName = "company_name"
         case companyId = "company_id"

@@ -22,7 +22,7 @@ class PollViewModel {
     var hasEnded: Bool { endsAt.map { $0 <= Date() } ?? false }
 
     /// A tap on an option, as in chat polls: votes for it, moves your vote
-    /// to it, or — on the option you already picked — takes the vote back.
+    /// to it, or, on the option you already picked, takes the vote back.
     /// Shown at once, undone if the server refuses. Nothing changes once the
     /// poll has ended.
     func tap(optionId: String) async {

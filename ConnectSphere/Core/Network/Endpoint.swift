@@ -13,7 +13,7 @@ enum Endpoint {
     /// Refines an earlier AI people search (same POST /search/ai): free text,
     /// people more like one result, or closer to the user's own city.
     case aiRefine(sessionId: String, mode: String, refine: String?, moreLike: String?, closer: Bool)
-    /// AI search over posts — same body as `aiSearch` minus the radius
+    /// AI search over posts. Same body as `aiSearch` minus the radius
     /// (posts carry no location). POST /search/ai/posts.
     case aiPostSearch(query: String, mode: String? = nil)
     case listProvinces
@@ -23,18 +23,18 @@ enum Endpoint {
     /// One page of a post's comments, oldest first (the server caps a page at 100).
     case listComments(postId: String, limit: Int = 100, offset: Int = 0)
     case searchSuggestions(mode: String?)
-    /// Prefix-match hashtag suggestions while typing in `HashtagInputView` — GET /tags/suggest.
+    /// Prefix-match hashtag suggestions while typing in `HashtagInputView`, GET /tags/suggest.
     case suggestTags(prefix: String, limit: Int = 8)
-    /// The curated interest catalogue — GET /interests/catalog. Open, so an
+    /// The curated interest catalogue, GET /interests/catalog. Open, so an
     /// email sign-up can pick interests before its account exists.
     case interestCatalog
-    /// Checks a "Category · specific" pick ("Gaming" + "roblox") — POST /interests/specific.
+    /// Checks a "Category · specific" pick ("Gaming" + "roblox"), POST /interests/specific.
     case interestSpecific(base: String, text: String)
-    /// The curated Work skill catalogue — GET /skills/catalog; a job title
+    /// The curated Work skill catalogue, GET /skills/catalog; a job title
     /// adds the skills people with a similar title hold.
     case skillCatalog(jobTitle: String?)
 
-    // Computed, not cached — APIConfig.baseURL can change at runtime
+    // Computed, not cached, APIConfig.baseURL can change at runtime
     // (devServerOverride); a `let` here would freeze the old value.
     private static var baseURL: String { APIConfig.baseURL }
 

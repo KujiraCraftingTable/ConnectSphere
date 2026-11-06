@@ -44,7 +44,7 @@ final class OnboardingViewModel {
     var newPassword = ""
     var confirmNewPassword = ""
 
-    /// Set once a forward move was refused — from then on the step lists
+    /// Set once a forward move was refused. From then on the step lists
     /// what's still missing.
     private(set) var showsMissing = false
 
@@ -93,7 +93,7 @@ final class OnboardingViewModel {
         }
     }
 
-    /// What step 2 still needs, by name — shown after a refused Continue
+    /// What step 2 still needs, by name. Shown after a refused Continue
     /// or swipe, so it's never a mystery why it won't go on.
     var missingBasics: [String] {
         var missing: [String] = []

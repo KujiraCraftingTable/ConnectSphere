@@ -36,6 +36,12 @@ final class EditCommunityViewModel {
 
     private var trimmedName: String { name.trimmingCharacters(in: .whitespaces) }
 
+    /// Has anything been changed from the community as it is now? Cancel only asks then.
+    var hasChanges: Bool {
+        trimmedName != original.name || about != (original.description ?? "") || privacy != original.privacy
+            || requirePostApproval != original.requirePostApproval || pickedCover != nil || removeCover
+    }
+
     var nameProblem: String? {
         (3...100).contains(trimmedName.count) ? nil : Bundle.app.loc("Community name must be 3-100 characters")
     }

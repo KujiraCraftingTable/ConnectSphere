@@ -20,7 +20,7 @@ struct TwoFactorSheet: View {
                 Section {
                     Label {
                         Text(bundle.loc(viewModel.enabling
-                            ? "Every time you sign in — with your password or Google — we'll email a 6-digit code you need to enter. Someone who knows your password still can't get in."
+                            ? "Every time you sign in, with your password or Google, we'll email a 6-digit code you need to enter. Someone who knows your password still can't get in."
                             : "You'll sign in without a code again. You'll still get an email each time your account is signed in to."))
                     } icon: {
                         Image(systemName: viewModel.enabling ? "lock.shield.fill" : "lock.open.fill")
@@ -53,9 +53,9 @@ struct TwoFactorSheet: View {
             }
             .navigationTitle(bundle.loc("Two-factor authentication"))
             .navigationBarTitleDisplayMode(.inline)
-            .interactiveDismissDisabled()
+            .interactiveDismissDisabled(!viewModel.code.isEmpty)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { ConfirmCancelButton { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { ConfirmCancelButton(hasChanges: !viewModel.code.isEmpty) { dismiss() } }
             }
         }
     }

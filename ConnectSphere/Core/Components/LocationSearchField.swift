@@ -3,7 +3,7 @@ import SwiftUI
 
 /// A text field for a place, with MapKit suggestions listed under it while
 /// it has focus; tapping one fills the field ("Title, subtitle"). Every typed
-/// location in the app uses it — first built for the chat meeting composer.
+/// location in the app uses it. First built for the chat meeting composer.
 struct LocationSearchField<Styled: View>: View {
     @Environment(\.colorScheme) private var colorScheme
 

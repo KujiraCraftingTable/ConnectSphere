@@ -1,6 +1,6 @@
 import Foundation
 
-/// Legacy authenticated client — delegates to NetworkClient.
+/// Legacy authenticated client. Delegates to NetworkClient.
 /// Kept for any callers not yet migrated to repositories.
 final class CommunityAPIClient {
     static let shared = CommunityAPIClient()

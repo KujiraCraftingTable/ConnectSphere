@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Pinned messages for a conversation (server caps at 10) — follows
+/// Pinned messages for a conversation (server caps at 10). Follows
 /// `ChatMessageSearchView`'s exact shape: settings viewmodel + `onSelect`
 /// callback the caller uses to jump to the tapped message. Reused both as a
 /// pushed screen from `ChatSettingsView`'s "Pinned messages" row and as a
@@ -12,10 +12,10 @@ struct ChatPinnedMessagesView: View {
     @Environment(\.appBundle) var bundle
 
     let viewModel: ChatSettingsViewModel
-    /// Tapping a pin — the parent closes the sheet/settings then jumps to this message
+    /// Tapping a pin. The parent closes the sheet/settings then jumps to this message
     var onSelect: ((PinnedMessage) -> Void)? = nil
 
-    /// The pin awaiting unpin confirmation — set by both the swipe action and the pin.slash
+    /// The pin awaiting unpin confirmation. Set by both the swipe action and the pin.slash
     /// button; nil means the dialog is closed. Tracked by the specific pin (not a single Bool)
     /// because this is a list, not a single toggle.
     @State private var pendingUnpin: PinnedMessage? = nil
@@ -101,7 +101,7 @@ struct ChatPinnedMessagesView: View {
     }
 
     /// Resolves who pinned this message: "You", the group roster, or the 1:1
-    /// other person — mirrors `ChatView.senderDisplayName(for:)`'s fallback style.
+    /// other person, mirrors `ChatView.senderDisplayName(for:)`'s fallback style.
     private func pinnedByName(_ pin: PinnedMessage) -> String {
         if pin.pinnedBy == appState.currentUser?.id { return bundle.loc("You") }
         return viewModel.displayName(forUserId: pin.pinnedBy) ?? bundle.loc("Someone")

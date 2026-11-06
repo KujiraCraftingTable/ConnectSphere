@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// The user's drafts (and scheduled posts) — for Settings → Drafts and the
+/// The user's drafts (and scheduled posts), for Settings → Drafts and the
 /// composer's Drafts button. Refreshes itself when a draft changes elsewhere.
 @MainActor
 @Observable
@@ -17,7 +17,7 @@ final class DraftsViewModel {
     var drafts: [Post] { posts.filter { $0.publishStatus == "draft" } }
     var scheduled: [Post] { posts.filter { $0.publishStatus == "scheduled" } }
 
-    /// Feed drafts (`communityId` nil) or one community's — what a composer offers.
+    /// Feed drafts (`communityId` nil) or one community's. What a composer offers.
     func drafts(inCommunity communityId: String?) -> [Post] {
         drafts.filter { $0.community?.id.lowercased() == communityId?.lowercased() }
     }

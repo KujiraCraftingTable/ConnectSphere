@@ -3,9 +3,12 @@ import Foundation
 extension Notification.Name {
     static let postDeleted = Notification.Name("postDeleted")
     static let postUpdated = Notification.Name("postUpdated")
+    /// A seller re-upped a listing: userInfo["oldId"] is the retired post's id,
+    /// userInfo["post"] the new `Post` that replaces it.
+    static let listingReupped = Notification.Name("listingReupped")
     /// A soft-deleted post was restored (Undo toast or Recently Deleted screen).
     /// userInfo["post"] carries the restored `Post`. Deliberately separate from
-    /// `.postUpdated` — that notification's observers only patch an EXISTING
+    /// `.postUpdated`, that notification's observers only patch an EXISTING
     /// list entry (`FeedViewModel.updatePost`/`ProfileViewModel.updatePost`
     /// both use `firstIndex(where:)` with no insert fallback), but a restored
     /// post was just removed from those lists and needs to be re-inserted.
@@ -17,7 +20,7 @@ extension Notification.Name {
     /// needed), but `AppState.currentUser.postCount` and a `ProfileViewModel`
     /// that ISN'T the one that created the post (e.g. still alive in memory
     /// after switching tabs from Home, where post creation happens) have no
-    /// other way to learn the count went up — this closes that gap.
+    /// other way to learn the count went up. This closes that gap.
     static let postCreated = Notification.Name("postCreated")
 }
 
@@ -83,6 +86,9 @@ struct SharedPostPreview {
     /// the other of en/vi, made on the server when it was published.
     var contentLang: String? = nil
     var translatedContent: String? = nil
+    /// 'markdown' when the text was written with Markdown; older posts are plain.
+    var contentFormat: String? = nil
+    var isMarkdown: Bool { contentFormat == "markdown" }
     let linkUrl: String?
     let articleTitle: String?
     let timestamp: Date
@@ -106,7 +112,7 @@ struct Post: Identifiable {
     let mode: AppMode
     var privacy: PostPrivacy = .publicAll
     var linkUrl: String?         // original URL for the link preview
-    var imageUrl: String?        // thumbnail URL (from link preview or upload) — legacy, = first image
+    var imageUrl: String?        // thumbnail URL (from link preview or upload). Legacy, = first image
     var imageUrls: [String] = [] // uploaded image array, ordered
     /// Alt text per `imageUrls` entry ('' = none).
     var imageAlts: [String] = []
@@ -114,6 +120,9 @@ struct Post: Identifiable {
     /// the other of en/vi, made on the server when it was published.
     var contentLang: String? = nil
     var translatedContent: String? = nil
+    /// 'markdown' when the text was written with Markdown; older posts are plain.
+    var contentFormat: String? = nil
+    var isMarkdown: Bool { contentFormat == "markdown" }
     var likeCount: Int
     var commentCount: Int
     var shareCount: Int
@@ -128,7 +137,7 @@ struct Post: Identifiable {
     var sharedCommunity: SharedCommunityRef? = nil
     /// Poll/event posts on the Feed reuse the same community-agnostic
     /// PostType/PollData/EventData types from Communities (see
-    /// CommunityPost.swift) — a Feed post and a community post render polls
+    /// CommunityPost.swift), a Feed post and a community post render polls
     /// and events identically, just via a different card entry point.
     var postType: PostType = .text
     var pollData: PollData? = nil
@@ -136,7 +145,7 @@ struct Post: Identifiable {
     var jobData: JobData? = nil
     /// A marketplace listing's details (post type `.listing`).
     var listingData: ListingData? = nil
-    /// Set only for a post from a community the viewer's feed surfaces —
+    /// Set only for a post from a community the viewer's feed surfaces,
     /// drives PostCard's combined "community avatar/name + actual poster"
     /// header instead of the normal single-author one.
     var isPinned: Bool = false

@@ -25,6 +25,8 @@ struct MarketplaceRepository {
 
     /// A new listing in the Marketplace, also listed in `community_ids` (up to 5).
     func create(fields: [String: Any], token: String) async throws -> Post {
+        var fields = fields
+        fields["content_format"] = PostRepository.contentFormat
         let body = try JSONSerialization.data(withJSONObject: fields)
         return try await client.fetch(DataResponse<PostDTO>.self, path: "/listings", method: "POST",
                                       token: token, bodyData: body).data.toPost()
@@ -40,5 +42,10 @@ struct MarketplaceRepository {
         let body = try JSONSerialization.data(withJSONObject: fields)
         return try await client.fetch(DataResponse<PostDTO>.self, path: "/listings/\(id)", method: "PATCH",
                                       token: token, bodyData: body).data.toPost()
+    }
+
+    /// Posts the item again as new; the new post (the old one is retired).
+    func reup(id: String, token: String) async throws -> Post {
+        try await client.fetch(DataResponse<PostDTO>.self, path: "/listings/\(id)/reup", method: "POST", token: token).data.toPost()
     }
 }

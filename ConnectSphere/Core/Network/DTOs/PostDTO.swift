@@ -72,6 +72,7 @@ struct SharedPostDTO: Decodable {
     let imageAlts: [String]?
     let lang: String?
     let translatedText: String?
+    let contentFormat: String?
     let linkUrl: String?
     let articleTitle: String?
     let createdAt: Date
@@ -84,6 +85,7 @@ struct SharedPostDTO: Decodable {
         case imageAlts    = "image_alts"
         case lang
         case translatedText    = "translated_text"
+        case contentFormat     = "content_format"
         case linkUrl      = "link_url"
         case articleTitle = "article_title"
         case createdAt    = "created_at"
@@ -98,6 +100,7 @@ struct SharedPostDTO: Decodable {
         imageAlts    = try c.decodeIfPresent([String].self, forKey: .imageAlts)
         lang    = try c.decodeIfPresent(String.self, forKey: .lang)
         translatedText = try c.decodeIfPresent(String.self, forKey: .translatedText)
+        contentFormat = try c.decodeIfPresent(String.self, forKey: .contentFormat)
         linkUrl      = try c.decodeIfPresent(String.self, forKey: .linkUrl)
         articleTitle = try c.decodeIfPresent(String.self, forKey: .articleTitle)
         createdAt    = (try? c.decode(Date.self, forKey: .createdAt)) ?? Date()
@@ -114,6 +117,7 @@ struct SharedPostDTO: Decodable {
             imageAlts:    imageAlts ?? [],
             contentLang:    lang,
             translatedContent: translatedText,
+            contentFormat: contentFormat,
             linkUrl:      linkUrl,
             articleTitle: articleTitle,
             timestamp:    createdAt
@@ -131,6 +135,7 @@ struct PostDTO: Decodable {
     let imageAlts: [String]?
     let lang: String?
     let translatedText: String?
+    let contentFormat: String?
     let articleTitle: String?
     let linkUrl: String?
     let isLiked: Bool
@@ -163,6 +168,7 @@ struct PostDTO: Decodable {
         case imageAlts     = "image_alts"
         case lang
         case translatedText     = "translated_text"
+        case contentFormat      = "content_format"
         case articleTitle  = "article_title"
         case linkUrl       = "link_url"
         case isLiked       = "is_liked"
@@ -187,7 +193,7 @@ struct PostDTO: Decodable {
     }
 
     // Custom init (instead of synthesized) so isSaved/postType/pollData/
-    // eventData all get backward-compat defaults via decodeIfPresent —
+    // eventData all get backward-compat defaults via decodeIfPresent,
     // mirrors CommunityPostDTO's existing pattern, so responses from before
     // the backend added these fields still decode.
     init(from decoder: Decoder) throws {
@@ -201,6 +207,7 @@ struct PostDTO: Decodable {
         imageAlts     = try c.decodeIfPresent([String].self, forKey: .imageAlts)
         lang     = try c.decodeIfPresent(String.self, forKey: .lang)
         translatedText = try c.decodeIfPresent(String.self, forKey: .translatedText)
+        contentFormat = try c.decodeIfPresent(String.self, forKey: .contentFormat)
         articleTitle  = try c.decodeIfPresent(String.self, forKey: .articleTitle)
         linkUrl       = try c.decodeIfPresent(String.self, forKey: .linkUrl)
         isLiked       = try c.decodeIfPresent(Bool.self, forKey: .isLiked) ?? false
@@ -208,7 +215,7 @@ struct PostDTO: Decodable {
         likeCount     = try c.decodeIfPresent(Int.self, forKey: .likeCount) ?? 0
         commentCount  = try c.decodeIfPresent(Int.self, forKey: .commentCount) ?? 0
         shareCount    = try c.decodeIfPresent(Int.self, forKey: .shareCount) ?? 0
-        // A malformed / missing `created_at` must not fail the whole list page —
+        // A malformed / missing `created_at` must not fail the whole list page,
         // fall back to .distantPast so the row sorts to the bottom instead.
         createdAt     = (try? c.decode(Date.self, forKey: .createdAt)) ?? .distantPast
         tags          = try c.decodeIfPresent([String].self, forKey: .tags) ?? []
@@ -243,6 +250,7 @@ struct PostDTO: Decodable {
             imageAlts:              imageAlts ?? [],
             contentLang:              lang,
             translatedContent: translatedText,
+            contentFormat: contentFormat,
             likeCount:              likeCount,
             commentCount:           commentCount,
             shareCount:             shareCount,

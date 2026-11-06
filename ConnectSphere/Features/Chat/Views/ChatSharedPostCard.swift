@@ -2,8 +2,8 @@ import SwiftUI
 
 /// A post shared into a chat: the author, a few lines of the text and the
 /// first photo, tappable to open the post. It's loaded as the viewer (see
-/// `ChatViewModel.loadSharedPost`), so a post they're not allowed to see —
-/// friends only, from someone they're not friends with — or one since
+/// `ChatViewModel.loadSharedPost`), so a post they're not allowed to see,
+/// friends only, from someone they're not friends with, or one since
 /// deleted shows as unavailable instead.
 ///
 /// Shared by the full chat (`MessageBubble`) and the floating window

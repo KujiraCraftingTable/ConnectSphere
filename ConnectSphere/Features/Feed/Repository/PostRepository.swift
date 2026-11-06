@@ -5,6 +5,10 @@ import Foundation
 struct PostRepository {
     private let client = NetworkClient.shared
 
+    /// What the app writes into `content_format`: its composers offer Markdown,
+    /// so every new or edited text is saved as such. Text saved before that stays plain.
+    static let contentFormat = "markdown"
+
     /// `filter`: nil = everything, "connections" = friends, "following" =
     /// people you follow who aren't friends.
     func fetchPosts(mode: AppMode, filter: String? = nil, limit: Int = 20, offset: Int = 0) async throws -> [Post] {
@@ -14,7 +18,7 @@ struct PostRepository {
             limit: limit,
             offset: offset
         )
-        // Only the first page of the unfiltered main feed is cached — that is
+        // Only the first page of the unfiltered main feed is cached, that is
         // the airplane-mode landing surface. Filtered / paged requests skip it.
         let cacheable = filter == nil && offset == 0
         let key = CacheStore.Key.feed(mode.rawValue)
@@ -30,7 +34,7 @@ struct PostRepository {
         }
     }
 
-    /// Personalized newsfeed (recommendations) — paginated with a keyset cursor.
+    /// Personalized newsfeed (recommendations). Paginated with a keyset cursor.
     /// Returns (posts, nextCursor); nextCursor = nil means there's no more page.
     func fetchRecommendedFeed(mode: AppMode, cursor: String?, limit: Int = 20) async throws -> (posts: [Post], nextCursor: String?) {
         let endpoint = Endpoint.recommendedFeed(mode: mode.rawValue, cursor: cursor, limit: limit)
@@ -48,7 +52,7 @@ struct PostRepository {
         }
     }
 
-    /// The last first page of the recommended feed, from the offline cache —
+    /// The last first page of the recommended feed, from the offline cache,
     /// shown while the fresh one loads. Nil when nothing is cached.
     func cachedRecommendedFeed(mode: AppMode) -> [Post]? {
         CacheStore.shared.get(CursorResponse<PostDTO>.self, CacheStore.Key.recommendedFeed(mode.rawValue))?
@@ -64,7 +68,7 @@ struct PostRepository {
         return response.data.toPost()
     }
 
-    /// Posts by hashtag (browse tag) — mode-scoped like every other post-list
+    /// Posts by hashtag (browse tag), mode-scoped like every other post-list
     /// surface (main Feed, connections scope), so a tag chip tapped in Hobby mode
     /// doesn't pull in Work-mode posts sharing the same tag, and vice versa. The
     /// backend's `mode` filter on `GET /api/posts` already supports combining with
@@ -78,7 +82,7 @@ struct PostRepository {
     }
 
     /// Free-text search over post content, mode-scoped like every other
-    /// post-list surface — mirrors `fetchPostsByTag`'s shape.
+    /// post-list surface, mirrors `fetchPostsByTag`'s shape.
     func searchPosts(_ query: String, mode: AppMode, limit: Int = 20, offset: Int = 0) async throws -> [Post] {
         let response = try await client.fetch(
             PaginatedResponse<PostDTO>.self,
@@ -131,7 +135,7 @@ struct PostRepository {
     }
 
     /// Prefix-match hashtag suggestions for `HashtagInputView`'s debounced dropdown.
-    /// `prefix` must be non-empty — the backend returns 400 if it's empty, so the caller
+    /// `prefix` must be non-empty. The backend returns 400 if it's empty, so the caller
     /// (HashtagInputView) blocks the call itself when the text field is empty.
     func suggestTags(prefix: String, limit: Int = 8) async throws -> [TagSuggestionDTO] {
         let response = try await client.fetch(
@@ -164,6 +168,7 @@ struct PostRepository {
 
         var body: [String: Any] = [
             "content":      content,
+            "content_format": Self.contentFormat,
             "mode":         mode.rawValue,
             "privacy":      privacy.rawValue,
         ]
@@ -178,7 +183,7 @@ struct PostRepository {
         let bodyData = try? JSONSerialization.data(withJSONObject: body)
 
         // Decode the FULL post (same `PostDTO` shape `fetchPost(id:)` uses),
-        // not just its id — the create response already carries everything
+        // not just its id. The create response already carries everything
         // needed to render the post immediately, so the caller can insert it
         // straight into the feed instead of waiting on a separate reload.
         let response = try await client.fetch(
@@ -191,7 +196,7 @@ struct PostRepository {
         return response.data.toPost()
     }
 
-    /// Soft-deletes a post — backend sets state = 'deleted', hiding the post from the feed
+    /// Soft-deletes a post. Backend sets state = 'deleted', hiding the post from the feed
     func deletePost(postId: String) async throws {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")
@@ -205,7 +210,7 @@ struct PostRepository {
         )
     }
 
-    /// Restore a soft-deleted post of your own — backend flips status back to
+    /// Restore a soft-deleted post of your own. Backend flips status back to
     /// 'posted' and clears deleted_at; 403 if you're not the author, 404 if it
     /// doesn't exist or isn't currently deleted. Used by the Undo toast and by
     /// "Recently Deleted"'s Restore button.
@@ -223,7 +228,7 @@ struct PostRepository {
         return response.data.toPost()
     }
 
-    /// Your own soft-deleted posts, newest deleted_at first — feeds the Posts
+    /// Your own soft-deleted posts, newest deleted_at first. Feeds the Posts
     /// section of "Recently Deleted". Response shape has no `total` field
     /// (unlike `PaginatedResponse`), hence the dedicated inline decoder.
     func fetchDeletedPosts(limit: Int = 30, offset: Int = 0) async throws -> [Post] {
@@ -245,7 +250,7 @@ struct PostRepository {
     }
 
     /// Restore a soft-deleted comment. Note: authorization here is the
-    /// COMMENT's own author, not the post's author — different from
+    /// COMMENT's own author, not the post's author. Different from
     /// `restorePost` above, per the backend's restore-comment endpoint.
     func restoreComment(postId: String, commentId: String) async throws {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
@@ -268,8 +273,8 @@ struct PostRepository {
     }
 
     /// Edit the content of your own comment. Note: authorization here is the
-    /// COMMENT's own author only — NOT the post's author (unlike delete,
-    /// which also allows the post owner to moderate) — per the backend's
+    /// COMMENT's own author only, NOT the post's author (unlike delete,
+    /// which also allows the post owner to moderate). Per the backend's
     /// edit-comment endpoint. 403 if you're not the comment's author, 404 if
     /// it doesn't exist or is soft-deleted.
     func updateComment(postId: String, commentId: String, content: String) async throws -> CommentDTO {
@@ -277,7 +282,7 @@ struct PostRepository {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")
         }
         struct UpdateCommentResponse: Decodable { let data: CommentDTO }
-        let bodyData = try? JSONSerialization.data(withJSONObject: ["content": content])
+        let bodyData = try? JSONSerialization.data(withJSONObject: ["content": content, "content_format": Self.contentFormat])
         let response = try await client.fetch(
             UpdateCommentResponse.self,
             path: "/posts/\(postId)/comments/\(commentId)",
@@ -288,7 +293,7 @@ struct PostRepository {
         return response.data
     }
 
-    /// Posts a comment — or a reply when `parentCommentId` is set — and returns
+    /// Posts a comment, or a reply when `parentCommentId` is set, and returns
     /// the created comment. `POST /posts/:id/comments` → 201 `{ data: CommentDTO }`.
     func addComment(postId: String, content: String, parentCommentId: String? = nil,
                     imageUrl: String? = nil) async throws -> CommentDTO {
@@ -296,7 +301,7 @@ struct PostRepository {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")
         }
         struct AddCommentResponse: Decodable { let data: CommentDTO }
-        var body: [String: Any] = ["content": content]
+        var body: [String: Any] = ["content": content, "content_format": Self.contentFormat]
         if let parentCommentId { body["parent_comment_id"] = parentCommentId }
         if let imageUrl { body["image_url"] = imageUrl }
         let response = try await client.fetch(
@@ -310,7 +315,7 @@ struct PostRepository {
     }
 
     /// Your own soft-deleted comments across all posts, newest deleted_at
-    /// first — feeds the Comments section of "Recently Deleted".
+    /// first, feeds the Comments section of "Recently Deleted".
     func fetchDeletedComments(limit: Int = 30, offset: Int = 0) async throws -> [DeletedComment] {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")
@@ -363,7 +368,7 @@ struct PostRepository {
         _ = try await client.fetch(FeedbackResponse.self, path: "/posts/\(postId)/feedback", method: "DELETE", token: token)
     }
 
-    /// Un-hides a post previously hidden with `hidePost` — backs the "Undo" on
+    /// Un-hides a post previously hidden with `hidePost`. Backs the "Undo" on
     /// the hide toast (`DELETE /posts/:id/hide`, mirrors `hidePost`).
     func unhidePost(postId: String) async throws {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
@@ -422,7 +427,7 @@ struct PostRepository {
 
     /// This user's saved posts, most recently saved first. Response shape
     /// mirrors fetchDeletedPosts's own dedicated inline decoder (no `total`
-    /// field, unlike `PaginatedResponse`). No pagination UI for v1 — a single
+    /// field, unlike `PaginatedResponse`). No pagination UI for v1. A single
     /// fetch covers the whole list.
     /// `listings` picks saved Marketplace items instead of saved posts.
     func fetchSavedPosts(listings: Bool = false, limit: Int = 30, offset: Int = 0) async throws -> [Post] {
@@ -448,7 +453,7 @@ struct PostRepository {
     /// The backend endpoint /posts/:id/report is shared between community posts and
     /// regular Feed posts; the service matches the post's `community_id` against the
     /// `communityId` sent up using strict equality, so `communityId: null` must be sent
-    /// explicitly (not omitted) to match Feed posts — which always have community_id =
+    /// explicitly (not omitted) to match Feed posts, which always have community_id =
     /// NULL in the DB.
     func reportPost(postId: String, reason: ReportReason, detail: String? = nil) async throws {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
@@ -480,7 +485,9 @@ struct PostRepository {
         imageAlts: [String]? = nil,
         linkUrl: String? = nil,
         articleTitle: String? = nil,
-        communityAudience: CommunityAudience? = nil
+        communityAudience: CommunityAudience? = nil,
+        /// nil = leave the tags as they are.
+        hashtags: [String]? = nil
     ) async throws -> Post {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")
@@ -488,6 +495,7 @@ struct PostRepository {
 
         var body: [String: Any] = [
             "content": content,
+            "content_format": Self.contentFormat,
             "privacy": privacy.rawValue,
         ]
         if let img = imageUrl     { body["image_url"]     = img }
@@ -496,6 +504,7 @@ struct PostRepository {
         if let lnk = linkUrl      { body["link_url"]      = lnk }
         if let ttl = articleTitle { body["article_title"] = ttl }
         if let communityAudience  { body["community_audience"] = communityAudience.rawValue }
+        if let hashtags           { body["hashtags"]      = hashtags }
 
         let bodyData = try? JSONSerialization.data(withJSONObject: body)
 
@@ -538,7 +547,7 @@ struct PostRepository {
         request.httpBody = body
 
         // The response also has a numeric field (size), so it must be decoded with a
-        // struct, not [String: String] — previously a decode failure dropped the image.
+        // struct, not [String: String]. Previously a decode failure dropped the image.
         struct UploadResponse: Decodable { let url: String }
 
         guard let (responseData, response) = try? await URLSession.shared.data(for: request),

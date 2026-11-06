@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Single-select picker over the user's conversations — used by "Forward" in
+/// Single-select picker over the user's conversations. Used by "Forward" in
 /// the message long-press menu. Row style follows `ConversationListView`'s
 /// `ConversationRow` (avatar + name, no preview line); selection/confirm
 /// chrome follows `GroupMemberPickerView`'s pattern, simplified to a single
@@ -12,7 +12,7 @@ struct ForwardMessagePickerView: View {
     @Environment(\.appBundle) var bundle
     @Environment(\.dismiss) private var dismiss
 
-    /// The conversation the message is being forwarded FROM — excluded from
+    /// The conversation the message is being forwarded FROM. Excluded from
     /// the picker (forwarding to the same chat doesn't make sense).
     let excludeConversationId: String
     /// Called with the chosen conversation's id; the sheet dismisses itself right after.

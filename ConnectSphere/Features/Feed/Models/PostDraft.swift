@@ -29,7 +29,7 @@ enum PublishChoice: Equatable {
     }
 }
 
-/// The times a post can be scheduled for — the server's window, with a
+/// The times a post can be scheduled for. The server's window, with a
 /// minute's slack so a time picked right at the edge isn't refused.
 enum ScheduleWindow {
     static func range(from now: Date = Date()) -> ClosedRange<Date> {

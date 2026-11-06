@@ -3,7 +3,9 @@ import SwiftUI
 // MARK: - In a community's feed
 
 /// A listing inside its post (PostCard shows the photos and description
-/// above): price, title, condition, where, and "Message seller".
+/// above): price, title, condition, where, then "Message seller" for buyers,
+/// or the seller's own tools (sold, re-up, …) for the owner. A tap anywhere
+/// else opens it as a normal post.
 struct ListingPostCard: View {
     @Environment(AppState.self) private var appState
     @Environment(ThemeManager.self) private var themeManager
@@ -12,20 +14,17 @@ struct ListingPostCard: View {
 
     @State private var viewModel: ListingViewModel
     @State private var chatId: String?
-    @State private var showDetail = false
 
     init(post: Post) { _viewModel = State(initialValue: ListingViewModel(post: post)) }
 
     var body: some View {
         if let listing = viewModel.listing {
             VStack(alignment: .leading, spacing: 8) {
-                // The item's Marketplace page, as a pop-up over the feed.
-                Button { showDetail = true } label: {
-                    ListingSummary(listing: listing)
-                }
-                .buttonStyle(.plain)
+                ListingSummary(listing: listing)
 
-                if !viewModel.isSeller(appState.currentUser?.id) && !listing.isSold {
+                if viewModel.isSeller(appState.currentUser?.id) {
+                    ListingSellerBar(viewModel: viewModel, showsShare: false)
+                } else if !listing.isSold {
                     Button {
                         Task<Void, Never>(name: nil) { chatId = await viewModel.messageSeller(token: appState.authToken ?? "") }
                     } label: {
@@ -46,26 +45,11 @@ struct ListingPostCard: View {
             .padding(.horizontal, 14)
             .padding(.bottom, 12)
             .listingChat(conversationId: $chatId, seller: viewModel.post.author)
-            .sheet(isPresented: $showDetail) {
-                NavigationStack {
-                    ListingDetailView(post: viewModel.post)
-                        .toolbar {
-                            ToolbarItem(placement: .cancellationAction) {
-                                Button { showDetail = false } label: { Image(systemName: "xmark") }
-                                    .accessibilityLabel(Text("Close", bundle: bundle))
-                            }
-                        }
-                }
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-                .environment(appState)
-                .environment(themeManager)
-            }
         }
     }
 }
 
-/// Price, title, condition and place — shared by the feed card and the page.
+/// Price, title, condition and place. Shared by the feed card and the page.
 struct ListingSummary: View {
     @Environment(\.appBundle) private var bundle
     @Environment(\.colorScheme) private var colorScheme
@@ -79,6 +63,7 @@ struct ListingSummary: View {
                     .font(.system(size: large ? 24 : 18, weight: .bold))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 if listing.isSold { SoldBadge() }
+                if let text = listing.reupText(bundle: bundle) { ReupBadge(text: text) }
             }
             Text(listing.title)
                 .font(.system(size: large ? 18 : 15, weight: .semibold))
@@ -107,6 +92,20 @@ struct SoldBadge: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
             .background(Color.gray, in: Capsule())
+    }
+}
+
+/// "1st re-up", "2nd re-up"… on an item the seller posted again.
+struct ReupBadge: View {
+    @Environment(ThemeManager.self) private var themeManager
+    let text: String
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11, weight: .bold))
+            .foregroundColor(themeManager.theme.primary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(themeManager.theme.primary.opacity(0.14), in: Capsule())
     }
 }
 
@@ -139,6 +138,19 @@ struct ListingCard: View {
                 Text(listing.priceText(loc: bundle.loc))
                     .font(.system(size: 15, weight: .bold))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
+                if listing.isSold || listing.reupCount > 0 || listing.autoReup != nil {
+                    HStack(spacing: 6) {
+                        if listing.isSold { SoldBadge() }
+                        if let text = listing.reupText(bundle: bundle) { ReupBadge(text: text) }
+                        // Only the seller's own items carry a schedule.
+                        if listing.autoReup != nil {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(AppColors.textSecondary(colorScheme))
+                                .accessibilityLabel(Text("Auto re-up", bundle: bundle))
+                        }
+                    }
+                }
                 // One line, "…" when longer, so every card is the same height.
                 Text(listing.title)
                     .font(.system(size: 14))
@@ -158,6 +170,8 @@ struct ListingCard: View {
 // MARK: - A listing's page
 
 struct ListingDetailView: View {
+    @Environment(\.openURL) private var openURL
+    @State private var inAppBrowserURL: URL?
     @Environment(AppState.self) private var appState
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.appBundle) private var bundle
@@ -166,12 +180,9 @@ struct ListingDetailView: View {
 
     @State private var viewModel: ListingViewModel
     @State private var chatId: String?
-    @State private var showEdit = false
-    @State private var showActions = false
-    @State private var confirmDelete = false
-    @State private var confirmSoldChange = false
     @State private var showShare = false
     @State private var showSeller = false
+    @State private var confirmCancelAuto = false
 
     init(post: Post) { _viewModel = State(initialValue: ListingViewModel(post: post)) }
 
@@ -206,11 +217,25 @@ struct ListingDetailView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Description", bundle: bundle)
                             .font(.system(size: 15, weight: .semibold))
-                        Text(viewModel.post.content)
+                        Text(viewModel.post.isMarkdown
+                             ? MarkdownFormatter.attributed(viewModel.post.content, linkColor: themeManager.theme.primary,
+                                                            quoteColor: AppColors.textSecondary(colorScheme))
+                             : AttributedString(viewModel.post.content))
                             .font(.system(size: 15))
                             .foregroundColor(AppColors.textPrimary(colorScheme))
+                            .environment(\.openURL, OpenURLAction { url in
+                                if let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
+                                    inAppBrowserURL = url
+                                } else {
+                                    openURL(url)
+                                }
+                                return .handled
+                            })
                     }
                     .padding(.horizontal, AppSpacing.lg)
+                }
+                if isSeller, let listing = viewModel.listing, !listing.isSold, listing.autoReup != nil {
+                    autoReupRow(listing).padding(.horizontal, AppSpacing.lg)
                 }
                 sellerRow
                     .padding(.horizontal, AppSpacing.lg)
@@ -223,15 +248,41 @@ struct ListingDetailView: View {
         }
         .appBackground()
         .navigationBarTitleDisplayMode(.inline)
+        // The item page has its own action bar; the tab bar would sit under it.
+        .toolbar(.hidden, for: .tabBar)
+        .inAppBrowser(url: $inAppBrowserURL)
         .safeAreaInset(edge: .bottom) { actionBar }
         .listingChat(conversationId: $chatId, seller: viewModel.post.author)
-        .sheet(isPresented: $showEdit) {
-            if let listing = viewModel.listing {
-                EditListingSheet(listing: listing) { fields in
-                    await viewModel.save(fields, token: appState.authToken ?? "")
+    }
+
+    /// The seller's auto re-up schedule, with the next run and a way to stop it.
+    private func autoReupRow(_ listing: ListingData) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .foregroundColor(themeManager.theme.primary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(listing.autoReupText(bundle: bundle) ?? "")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(AppColors.textPrimary(colorScheme))
+                if let next = listing.nextAutoReupText(bundle: bundle) {
+                    Text(next).font(.system(size: 12)).foregroundColor(AppColors.textSecondary(colorScheme))
                 }
             }
+            Spacer()
+            Button(bundle.loc("Cancel")) { confirmCancelAuto = true }
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(AppColors.danger(colorScheme))
+                .buttonStyle(.plain)
+                .confirmationDialog(bundle.loc("Stop auto re-up?"), isPresented: $confirmCancelAuto, titleVisibility: .visible) {
+                    Button(bundle.loc("Stop auto re-up"), role: .destructive) {
+                        Task<Void, Never>(name: nil) { await viewModel.cancelAutoReup(token: appState.authToken ?? "") }
+                    }
+                } message: {
+                    Text(bundle.loc("The item stays listed; you can turn it on again from Edit listing."))
+                }
         }
+        .padding(12)
+        .background(AppColors.surface(colorScheme), in: RoundedRectangle(cornerRadius: 14))
     }
 
     /// Tapping the seller opens their Marketplace profile (their other items)
@@ -270,34 +321,7 @@ struct ListingDetailView: View {
         if let listing = viewModel.listing {
             HStack(spacing: 10) {
                 if isSeller {
-                    Button { confirmSoldChange = true } label: {
-                        Text(bundle.loc(listing.isSold ? "Mark as available" : "Mark as sold"))
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(ListingButtonStyle(fill: themeManager.theme.primary))
-                    .confirmationDialog(bundle.loc(listing.isSold ? "Mark this item as available?" : "Mark this item as sold?"),
-                                        isPresented: $confirmSoldChange, titleVisibility: .visible) {
-                        Button(bundle.loc(listing.isSold ? "Mark as available" : "Mark as sold")) {
-                            Task<Void, Never>(name: nil) { await viewModel.setSold(!listing.isSold, token: appState.authToken ?? "") }
-                        }
-                    } message: {
-                        Text(bundle.loc(listing.isSold ? "Buyers will be able to message you about it again."
-                                                       : "Buyers won't be able to message you about it anymore."))
-                    }
-                    // A plain button + action sheet: on iOS 26 a Menu in this bar
-                    // didn't present the edit sheet from its action.
-                    squareButton("ellipsis", label: "More") { showActions = true }
-                    // On the button itself so the pop-up points at it, not the page.
-                    .confirmationDialog("", isPresented: $showActions) {
-                        Button(bundle.loc("Edit listing")) { showEdit = true }
-                        Button(bundle.loc("Share")) { showShare = true }
-                        Button(bundle.loc("Delete"), role: .destructive) { confirmDelete = true }
-                    }
-                    .confirmationDialog(bundle.loc("Delete this listing?"), isPresented: $confirmDelete, titleVisibility: .visible) {
-                        Button(bundle.loc("Delete"), role: .destructive) {
-                            Task<Void, Never>(name: nil) { if await viewModel.delete() { dismiss() } }
-                        }
-                    }
+                    ListingSellerBar(viewModel: viewModel) { dismiss() }
                 } else {
                     if listing.isSold {
                         Label(bundle.loc("This item has been sold"), systemImage: "checkmark.seal")
@@ -335,9 +359,22 @@ struct ListingDetailView: View {
         }
     }
 
-    /// A small square icon button beside the bar's main button.
     private func squareButton(_ systemImage: String, label: String, tint: Color? = nil,
                               action: @escaping () -> Void) -> some View {
+        ListingSquareButton(systemImage: systemImage, label: label, tint: tint, action: action)
+    }
+}
+
+/// A small square icon button beside a listing bar's main button.
+private struct ListingSquareButton: View {
+    @Environment(\.appBundle) private var bundle
+    @Environment(\.colorScheme) private var colorScheme
+    let systemImage: String
+    let label: String
+    var tint: Color? = nil
+    let action: () -> Void
+
+    var body: some View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.system(size: 17, weight: .semibold))
@@ -347,6 +384,97 @@ struct ListingDetailView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(bundle.loc(label)))
+    }
+}
+
+/// The seller's tools for one of their items, Mark as sold, Re-up, and "…"
+/// (edit, share, delete). Shared by the item page and the post card.
+struct ListingSellerBar: View {
+    @Environment(AppState.self) private var appState
+    @Environment(ThemeManager.self) private var themeManager
+    @Environment(\.appBundle) private var bundle
+    @Environment(\.colorScheme) private var colorScheme
+
+    let viewModel: ListingViewModel
+    /// The post card has its own share button, so it leaves Share out of "…";
+    /// the item page has none, so it keeps it (until the item is sold).
+    var showsShare = true
+    /// Called after the seller deletes the item (the item page closes itself).
+    var onDeleted: () -> Void = {}
+
+    @State private var showEdit = false
+    @State private var showActions = false
+    @State private var confirmDelete = false
+    @State private var confirmSoldChange = false
+    @State private var confirmReup = false
+    @State private var showShare = false
+
+    var body: some View {
+        if let listing = viewModel.listing {
+            HStack(spacing: 10) {
+                Button { confirmSoldChange = true } label: {
+                    Text(bundle.loc(listing.isSold ? "Mark as available" : "Mark as sold"))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(ListingButtonStyle(fill: themeManager.theme.primary))
+                .confirmationDialog(bundle.loc(listing.isSold ? "Mark this item as available?" : "Mark this item as sold?"),
+                                    isPresented: $confirmSoldChange, titleVisibility: .visible) {
+                    Button(bundle.loc(listing.isSold ? "Mark as available" : "Mark as sold")) {
+                        Task<Void, Never>(name: nil) { await viewModel.setSold(!listing.isSold, token: appState.authToken ?? "") }
+                    }
+                } message: {
+                    Text(bundle.loc(listing.isSold ? "Buyers will be able to message you about it again."
+                                    : listing.autoReup != nil
+                                    ? "Buyers won't be able to message you about it anymore. Auto re-up will be turned off."
+                                    : "Buyers won't be able to message you about it anymore."))
+                }
+                if !listing.isSold {
+                    Button { confirmReup = true } label: {
+                        Text(bundle.loc("Re-up"))
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(AppColors.textPrimary(colorScheme))
+                            .padding(.horizontal, 14)
+                            .frame(height: 44)
+                            .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 12))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(viewModel.isWorking)
+                    .confirmationDialog(bundle.loc("Post this item again as new?"),
+                                        isPresented: $confirmReup, titleVisibility: .visible) {
+                        Button(bundle.loc("Re-up")) {
+                            Task<Void, Never>(name: nil) { await viewModel.reup(token: appState.authToken ?? "") }
+                        }
+                    } message: {
+                        Text(bundle.loc("It appears as a new post in the communities it was listed in, and the earlier post is hidden. Likes and comments don't carry over."))
+                    }
+                }
+                // A plain button + action sheet: on iOS 26 a Menu in this bar
+                // didn't present the edit sheet from its action.
+                ListingSquareButton(systemImage: "ellipsis", label: "More") { showActions = true }
+                    // On the button itself so the pop-up points at it, not the page.
+                    .confirmationDialog("", isPresented: $showActions) {
+                        Button(bundle.loc("Edit listing")) { showEdit = true }
+                        if showsShare && !listing.isSold { Button(bundle.loc("Share")) { showShare = true } }
+                        Button(bundle.loc("Delete"), role: .destructive) { confirmDelete = true }
+                    }
+                    .confirmationDialog(bundle.loc("Delete this listing?"), isPresented: $confirmDelete, titleVisibility: .visible) {
+                        Button(bundle.loc("Delete"), role: .destructive) {
+                            Task<Void, Never>(name: nil) { if await viewModel.delete() { onDeleted() } }
+                        }
+                    }
+            }
+            .disabled(viewModel.isWorking)
+            .sheet(isPresented: $showEdit) {
+                EditListingSheet(post: viewModel.post, listing: listing) { fields in
+                    await viewModel.save(fields, token: appState.authToken ?? "")
+                }
+            }
+            .sheet(isPresented: $showShare) {
+                SharePostSheet(post: viewModel.post)
+                    .environment(appState)
+                    .environment(themeManager)
+            }
+        }
     }
 }
 
@@ -398,96 +526,61 @@ private extension View {
 struct EditListingSheet: View {
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.appBundle) private var bundle
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
 
-    let listing: ListingData
+    @State private var viewModel: EditListingViewModel
     let onSave: ([String: Any]) async -> Bool
 
-    @State private var title: String
-    @State private var price: String
-    @State private var condition: ListingCondition
-    @State private var place: PickedPlace?
-    @State private var autoReplyOn: Bool
-    @State private var autoReply: String
-    @State private var hideFromFriends: Bool
-    @State private var isSaving = false
-
-    init(listing: ListingData, onSave: @escaping ([String: Any]) async -> Bool) {
-        self.listing = listing
+    init(post: Post, listing: ListingData, onSave: @escaping ([String: Any]) async -> Bool) {
+        _viewModel = State(initialValue: EditListingViewModel(post: post, listing: listing))
         self.onSave = onSave
-        _title = State(initialValue: listing.title)
-        _price = State(initialValue: listing.price > 0 ? String(listing.price) : "")
-        _condition = State(initialValue: listing.condition)
-        _place = State(initialValue: listing.latitude.flatMap { lat in
-            listing.longitude.map { PickedPlace(name: listing.location ?? listing.title, latitude: lat, longitude: $0) }
-        })
-        _autoReplyOn = State(initialValue: listing.hasAutoReply)
-        _autoReply = State(initialValue: listing.autoReply ?? Bundle.app.loc("Hi! Yes, it's still available."))
-        _hideFromFriends = State(initialValue: listing.hideFromFriends)
-    }
-
-    private var priceValue: Int64? {
-        let digits = price.filter(\.isNumber)
-        return digits.isEmpty ? 0 : Int64(digits)
-    }
-
-    private var isValid: Bool {
-        let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !t.isEmpty && t.count <= 100 && priceValue != nil && autoReply.count <= 500
     }
 
     var body: some View {
         NavigationStack {
             Form {
+                ListingPhotosSection(photos: viewModel.photos)
                 Section {
-                    TextField(bundle.loc("Title"), text: $title)
-                    TextField(bundle.loc("Price (₫)"), text: $price).keyboardType(.numberPad)
-                    Picker(bundle.loc("Condition"), selection: $condition) {
+                    TextField(bundle.loc("Title"), text: $viewModel.title)
+                    ListingPriceField(placeholder: bundle.loc("Price"), text: $viewModel.price)
+                    Picker(bundle.loc("Condition"), selection: $viewModel.condition) {
                         ForEach(ListingCondition.allCases, id: \.self) { Text(bundle.loc($0.label)).tag($0) }
                     }
-                    ListingLocationRow(place: $place)
+                    ListingLocationRow(place: $viewModel.place)
                 }
                 Section {
-                    Toggle(bundle.loc("Auto-reply"), isOn: $autoReplyOn)
-                    if autoReplyOn {
-                        TextField(bundle.loc("Your reply"), text: $autoReply, axis: .vertical).lineLimit(2...4)
+                    Toggle(bundle.loc("Auto-reply"), isOn: $viewModel.autoReplyOn)
+                    if viewModel.autoReplyOn {
+                        TextField(bundle.loc("Your reply"), text: $viewModel.autoReply, axis: .vertical).lineLimit(2...4)
                     }
                 } footer: {
                     Text("Sent once to each buyer who messages you about this listing.", bundle: bundle)
                 }
                 Section {
-                    Toggle(bundle.loc("Hide from friends"), isOn: $hideFromFriends)
+                    Toggle(bundle.loc("Hide from friends"), isOn: $viewModel.hideFromFriends)
                 } footer: {
                     Text("Your connections won't see this listing.", bundle: bundle)
+                }
+                AutoReupSection(isOn: $viewModel.autoReupOn, days: $viewModel.autoReupDays, hour: $viewModel.autoReupHour)
+                if let error = viewModel.errorMessage {
+                    Text(error).foregroundColor(AppColors.danger(colorScheme))
                 }
             }
             .tint(themeManager.theme.primary)
             .navigationTitle(Text("Edit listing", bundle: bundle))
             .navigationBarTitleDisplayMode(.inline)
-            .interactiveDismissDisabled()
+            .interactiveDismissDisabled(viewModel.hasChanges)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { ConfirmCancelButton { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { ConfirmCancelButton(hasChanges: viewModel.hasChanges) { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(bundle.loc("Save")) {
-                        isSaving = true
-                        var fields: [String: Any] = [
-                            "title": title, "price": priceValue ?? 0, "condition": condition.rawValue,
-                            "location": place.map { String($0.name.prefix(150)) } ?? "",
-                            "auto_reply": autoReplyOn ? autoReply : "",
-                            "hide_from_friends": hideFromFriends,
-                        ]
-                        if let place {
-                            fields["latitude"] = place.latitude
-                            fields["longitude"] = place.longitude
-                        } else {
-                            fields["clear_coordinates"] = true
-                        }
                         Task<Void, Never>(name: nil) {
+                            guard let fields = await viewModel.fields() else { return }
                             if await onSave(fields) { dismiss() }
-                            isSaving = false
                         }
                     }
-                    .disabled(!isValid || isSaving)
+                    .disabled(!viewModel.isValid || viewModel.isSaving)
                 }
             }
         }

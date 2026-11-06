@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// The app's single search (the Search tab): people and posts, with an AI
-/// toggle. Off — keyword search as you type, ranked by relevance on the
-/// server. On — the prompt is broken down by the local LLM and results come
+/// toggle. Off, keyword search as you type, ranked by relevance on the
+/// server. On, the prompt is broken down by the local LLM and results come
 /// back with a match %, run on submit since each search is an LLM call.
 struct SearchView: View {
     @Environment(AppState.self) var appState
@@ -21,7 +21,7 @@ struct SearchView: View {
     @AppStorage("aiSearchEnabled") private var aiEnabled = false
     @AppStorage("searchRadiusKm") private var searchRadiusKm: Int = 0
 
-    /// Binding from MainTabView — resets to root whenever the tab is re-selected
+    /// Binding from MainTabView. Resets to root whenever the tab is re-selected
     @Binding var navPath: NavigationPath
 
     private var trimmedText: String { searchText.trimmingCharacters(in: .whitespaces) }
@@ -36,17 +36,17 @@ struct SearchView: View {
                     }
 
                     // Warning: parts of the prompt the AI didn't understand / couldn't apply.
-                    // Only shown when there's an actual specific error — not a generic suggestion.
+                    // Only shown when there's an actual specific error, not a generic suggestion.
                     if !viewModel.searchWarnings.isEmpty {
                         searchWarningsBox(viewModel.searchWarnings)
                     }
 
-                    // AI keywords box — visible after AI search, scrolls with content
+                    // AI keywords box. Visible after AI search, scrolls with content
                     if let criteria = viewModel.aiCriteria {
                         aiKeywordsBadge(criteria)
                     }
 
-                    // Gray alias suggestion area — "did you mean …?" for the user to confirm
+                    // Gray alias suggestion area, "did you mean …?" for the user to confirm
                     if !viewModel.entitySuggestions.isEmpty {
                         entitySuggestionsBox
                     }
@@ -106,10 +106,16 @@ struct SearchView: View {
                 guard newValue else { return }
                 resetToBrowse()
                 appState.shouldResetSearch = false
+                focusFieldSoon()
+            }
+            .onAppear {
+                // Opening the tab with nothing typed goes straight to typing;
+                // coming back from a pushed profile keeps the results as they were.
+                if searchText.isEmpty { focusFieldSoon() }
             }
             .onChange(of: searchText) { _, query in
                 if isResettingSearch { isResettingSearch = false; return }
-                // AI runs on submit, not per keystroke — but clearing the field
+                // AI runs on submit, not per keystroke, but clearing the field
                 // still returns to the browse state.
                 if aiEnabled && !query.trimmingCharacters(in: .whitespaces).isEmpty { return }
                 viewModel.search(query: query, mode: appState.currentMode)
@@ -136,14 +142,14 @@ struct SearchView: View {
                     resetToBrowse()
                     return
                 }
-                // Only load on the first pass — avoids resetting AI results when backing out of a profile via swipe/back button
+                // Only load on the first pass. Avoids resetting AI results when backing out of a profile via swipe/back button
                 guard viewModel.results.isEmpty, viewModel.postResults.isEmpty else { return }
                 await viewModel.loadAll(mode: appState.currentMode)
             }
         }
     }
 
-    // MARK: Header — field, AI toggle, scope
+    // MARK: Header, field, AI toggle, scope
 
     private var searchHeader: some View {
         VStack(spacing: 10) {
@@ -233,8 +239,9 @@ struct SearchView: View {
     // MARK: Actions
 
     private func runAI() {
-        guard aiEnabled, !trimmedText.isEmpty else { return }
+        // Enter always closes the keyboard; keyword search has already run as they typed.
         isFieldFocused = false
+        guard aiEnabled, !trimmedText.isEmpty else { return }
         let radius = searchRadiusKm > 0 ? searchRadiusKm : nil
         Task { await viewModel.submitAI(prompt: trimmedText, mode: appState.currentMode, radiusKm: radius) }
     }
@@ -245,6 +252,14 @@ struct SearchView: View {
             runAI()
         } else {
             viewModel.search(query: searchText, mode: appState.currentMode)
+        }
+    }
+
+    /// Waits out the tab switch animation. Focusing mid-transition drops the keyboard.
+    private func focusFieldSoon() {
+        Task {
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            isFieldFocused = true
         }
     }
 
@@ -282,7 +297,7 @@ struct SearchView: View {
 
     @ViewBuilder
     private var peopleResults: some View {
-        // lastAIPrompt marks "an AI search has run" — gated on having results
+        // lastAIPrompt marks "an AI search has run", gated on having results
         // so this doesn't collide with the empty/retry states below.
         if !trimmedText.isEmpty && !viewModel.results.isEmpty {
             resultCount(viewModel.results.count)
@@ -393,7 +408,7 @@ struct SearchView: View {
             .padding(.top, 4)
     }
 
-    /// "72% match" above an AI post result — the same number the server
+    /// "72% match" above an AI post result. The same number the server
     /// ranked by, so the order and the percentages always agree.
     private func matchPill(_ score: Double) -> some View {
         HStack(spacing: 4) {
@@ -478,7 +493,7 @@ struct SearchView: View {
                 Task { await viewModel.refine(.text(text), mode: appState.currentMode) }
             }
         } message: {
-            Text("Say what to change — your search stays as it is.", bundle: bundle)
+            Text("Say what to change. Your search stays as it is.", bundle: bundle)
         }
     }
 
@@ -649,7 +664,7 @@ struct SearchView: View {
         switch warning.code {
         case "venue_unresolved":
             guard let place = warning.value, !place.isEmpty else { return nil }
-            return String(format: bundle.loc("Couldn't tell which city \"%@\" is in — add a province to narrow it down."), place)
+            return String(format: bundle.loc("Couldn't tell which city \"%@\" is in. Add a province to narrow it down."), place)
         case "query_unclear":
             return bundle.loc("Tell us what they're into, e.g. \"bạn nữ thích chụp ảnh film ở Hà Nội\".")
         case "no_match":
@@ -661,18 +676,18 @@ struct SearchView: View {
         case "unsupported_trait":
             return bundle.loc("ConnectSphere doesn't search by height, weight or looks. Try interests, skills or a place.")
         default:
-            return nil   // unknown code from a newer backend — stay silent
+            return nil   // unknown code from a newer backend. Stay silent
         }
     }
 
-    /// Warnings that say why nothing came back — they replace the generic
+    /// Warnings that say why nothing came back. They replace the generic
     /// empty state rather than sit on top of it.
     private var explainsEmptyResult: Bool {
         let codes: Set<String> = ["query_unclear", "no_match", "no_match_together", "unsupported_trait"]
         return viewModel.searchWarnings.contains { codes.contains($0.code) }
     }
 
-    /// The one unresolved place in this batch, if any — it's what the clarify
+    /// The one unresolved place in this batch, if any, it's what the clarify
     /// field teaches the app about.
     private var unresolvedPlace: String? {
         viewModel.searchWarnings
@@ -701,7 +716,7 @@ struct SearchView: View {
                         // and only while it's still worth asking.
                         if let place = unresolvedPlace {
                             if viewModel.clarifyUnconfirmed {
-                                Text("Thanks — we couldn't confirm that one either, so it's been flagged for review.", bundle: bundle)
+                                Text("Thanks, we couldn't confirm that one either, so it's been flagged for review.", bundle: bundle)
                                     .font(.system(size: 12))
                                     .foregroundColor(AppColors.textSecondary(colorScheme))
                                     .fixedSize(horizontal: false, vertical: true)
@@ -787,7 +802,7 @@ struct SearchView: View {
         .frame(maxWidth: .infinity)
     }
 
-    // Network/server error while loading the list — don't keep the old list, let the user retry
+    // Network/server error while loading the list, don't keep the old list, let the user retry
     private var networkErrorState: some View {
         VStack(spacing: 16) {
             Text("🐳")

@@ -6,7 +6,7 @@ import SwiftUI
 struct SwipeToReplyModifier: ViewModifier {
     /// `1` drags rightwards (their messages), `-1` leftwards (your own).
     let direction: CGFloat
-    /// Off for unsent messages and blocked chats — the same cases the
+    /// Off for unsent messages and blocked chats. The same cases the
     /// long-press "Reply" item excludes, or where the composer is disabled.
     let isEnabled: Bool
     let onReply: () -> Void

@@ -2,9 +2,10 @@ import SwiftUI
 
 /// A community page's header: the cover runs up under the status bar and the
 /// navigation buttons, its top fading into the page so the clock and buttons
-/// stay legible and its bottom dissolving into a blurred copy of itself; under
-/// it, a full-width card with the name, privacy, member count and Join.
+/// stay legible and its bottom edge left sharp; under it, a full-width card
+/// with the name, privacy, member count and Join.
 struct CommunityHeaderCard<Join: View>: View {
+    @Environment(ThemeManager.self) private var themeManager
     @Environment(\.appBundle) private var bundle
     @Environment(\.colorScheme) private var colorScheme
 
@@ -28,32 +29,14 @@ struct CommunityHeaderCard<Join: View>: View {
 
     private var coverHeight: CGFloat { topInset + Self.visibleCoverHeight }
 
-    /// The placeholder colour is see-through, and an opaque blur drops its
-    /// alpha (showing it at full strength); flattening it onto an opaque base
-    /// first keeps its own light tint in the blurred copy.
-    private var artwork: some View {
-        CommunityCover(community: community, emojiSize: 56)
-            .background(AppColors.surface(colorScheme))
-            .compositingGroup()
-    }
-
     // MARK: Cover
 
     private var cover: some View {
-        artwork
+        CommunityCover(community: community, emojiSize: 56)
+            .background(AppColors.surface(colorScheme))
             .frame(height: coverHeight)
             .frame(maxWidth: .infinity)
-            .mask(LinearGradient(stops: [
-                .init(color: .black, location: 0.82),
-                .init(color: .clear, location: 1),
-            ], startPoint: .top, endPoint: .bottom))
-            // A soft copy behind it, for its bottom edge to dissolve into.
-            .background {
-                artwork
-                    .blur(radius: 12, opaque: true)
-                    .clipped()
-                    .accessibilityHidden(true)
-            }
+            .clipped()
             .overlay(alignment: .top) {
                 LinearGradient(
                     colors: [AppColors.base(colorScheme).opacity(0.85), AppColors.base(colorScheme).opacity(0)],
@@ -91,7 +74,10 @@ struct CommunityHeaderCard<Join: View>: View {
 
             if let about = community.description?.trimmingCharacters(in: .whitespacesAndNewlines), !about.isEmpty {
                 // The rest is in "About this community" (the name opens it).
-                Text(about)
+                Text(community.isDescriptionMarkdown
+                     ? MarkdownFormatter.attributed(about, linkColor: themeManager.theme.primary,
+                                                    quoteColor: AppColors.textSecondary(colorScheme))
+                     : AttributedString(about))
                     .font(.system(size: 15))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .lineLimit(4)

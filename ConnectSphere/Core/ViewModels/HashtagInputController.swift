@@ -5,7 +5,7 @@ import Observation
 /// committed text, the debounced suggestion fetch, and the actual chip-commit logic)
 /// so the PARENT view (`CreatePostView`) can reach in and
 /// flush whatever's still sitting in the text field via `commitPending(into:)` right
-/// before reading its `hashtags` array at submit time — without this, a hashtag typed
+/// before reading its `hashtags` array at submit time. Without this, a hashtag typed
 /// but never followed by space/return/a suggestion tap was silently dropped.
 @Observable
 final class HashtagInputController {
@@ -17,7 +17,7 @@ final class HashtagInputController {
     let maxHashtags = 10
     private let maxTagLength = 100
 
-    /// The token currently being typed, with every "#" stripped (not just the leading one) —
+    /// The token currently being typed, with every "#" stripped (not just the leading one),
     /// used for the suggestion query. Must match EXACTLY how `commit(_:hashtags:)` strips "#"
     /// (also strips it anywhere in the string), otherwise the suggestion query and the token
     /// actually stored would diverge when the user types "#" mid-string (e.g. "#wo#rd").
@@ -72,7 +72,7 @@ final class HashtagInputController {
     }
 
     /// Validates + appends 1 hashtag. Strips "#" (even if accidentally typed mid-string), strips
-    /// any internal whitespace (a safety net — theoretically can't happen since a space already
+    /// any internal whitespace (a safety net. Theoretically can't happen since a space already
     /// commits the previous token), truncates to maxTagLength, and blocks duplicates (case-
     /// insensitive) as well as exceeding the maxHashtags cap.
     @discardableResult

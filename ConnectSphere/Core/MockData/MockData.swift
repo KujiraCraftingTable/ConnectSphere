@@ -6,7 +6,7 @@ struct MockData {
 
     /// Neutral placeholder used only as a last-resort fallback for a nil
     /// `appState.currentUser` (which shouldn't happen while logged in). It must
-    /// carry NO real person's data — a nil user should never render as someone
+    /// carry NO real person's data. A nil user should never render as someone
     /// specific.
     static let currentUser = UserProfile(
         id: "", name: "You", username: "you",

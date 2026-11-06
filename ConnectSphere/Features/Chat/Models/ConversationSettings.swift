@@ -4,7 +4,7 @@ import SwiftUI
 /// `ConversationPeer` does for list rows: a single other person (1:1) vs. a
 /// group's identity + member roster. The backend has no explicit `is_group`
 /// field on this response, but group responses always carry a `members`
-/// array and 1:1 responses never do — a safe decode-time discriminant.
+/// array and 1:1 responses never do. A safe decode-time discriminant.
 enum ConversationSettingsPeer: Equatable {
     case direct(
         otherUserId: String,
@@ -27,7 +27,7 @@ enum ConversationSettingsPeer: Equatable {
 /// Settings snapshot for a conversation (from `GET .../settings`), 1:1 or
 /// group. `theme` is shared between all participants; `mutedUntil` is the
 /// current user's own mute state (present for 1:1; the group settings
-/// response does not currently return it — see `ChatViewModel`/report notes).
+/// response does not currently return it. See `ChatViewModel`/report notes).
 struct ConversationSettings: Decodable, Equatable {
     let theme: String?
     let mutedUntil: Date?

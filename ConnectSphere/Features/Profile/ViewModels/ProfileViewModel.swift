@@ -22,7 +22,7 @@ class ProfileViewModel {
     private let userRepository = UserRepository()
     private let messageRepository = MessageRepository()
     private let pageSize = 20
-    /// The mode `posts`/`user` were last loaded for — guards addNewPost/
+    /// The mode `posts`/`user` were last loaded for. Guards addNewPost/
     /// restorePost from splicing in a post from the other mode (mirrors
     /// FeedViewModel.restorePost's post.mode branch).
     private var loadedMode: String?
@@ -50,7 +50,7 @@ class ProfileViewModel {
             guard let post = note.userInfo?["post"] as? Post else { return }
             self?.restorePost(post)
         })
-        // A new post was created — most likely from Home Feed's composer,
+        // A new post was created. Most likely from Home Feed's composer,
         // since this same screen's own composer already triggers a full
         // `load()` refetch on success. Without this, `user.postCount` (the
         // header stats card) undercounts until the next full reload if the
@@ -87,7 +87,7 @@ class ProfileViewModel {
     }
 
     /// Re-inserts a post restored via the Undo toast or the Recently Deleted
-    /// screen — inserts at the top if it isn't currently in the list (it was
+    /// screen, inserts at the top if it isn't currently in the list (it was
     /// just removed by `.postDeleted`), patches in place otherwise. Symmetric
     /// with `removePost`'s decrement: only bump `postCount` back up when the
     /// post genuinely wasn't already present (a patch-in-place means some
@@ -108,7 +108,7 @@ class ProfileViewModel {
 
     /// A new post was created somewhere in the app (usually Home Feed's
     /// composer). Only applies when it's genuinely the profile being viewed
-    /// here — this view model is only ever used for the current user's own
+    /// here, this view model is only ever used for the current user's own
     /// profile, but the author-id check costs nothing and matches the same
     /// defensive pattern `AppState`'s observers use.
     func addNewPost(_ post: Post) {
@@ -167,7 +167,7 @@ class ProfileViewModel {
             offset += fetched.count
             posts += fetched.filter { !existingIds.contains($0.id) }
         } catch {
-            // Scrolling further retries — don't block the already-loaded list.
+            // Scrolling further retries, don't block the already-loaded list.
         }
     }
 
@@ -193,7 +193,7 @@ class ProfileViewModel {
         }
     }
 
-    /// The conversation to open, or nil (fails silently — the user can tap again).
+    /// The conversation to open, or nil (fails silently. The user can tap again).
     func openConversation(with userId: String, mode: AppMode, token: String?) async -> String? {
         guard let token else { return nil }
         isOpeningChat = true

@@ -23,9 +23,11 @@ class AuthService {
     private let client = NetworkClient.shared
     private init() {}
 
-    /// What the sign-in alert says the device is: "iPhone · iOS 27.0".
+    /// What the sign-in alert says the device is: "iPhone 17 · iOS 27.0". Sent
+    /// percent-encoded: an HTTP header is ASCII, and the "·" arrived as "�".
     private static var deviceName: String {
-        "\(UIDevice.current.model) · \(UIDevice.current.systemName) \(UIDevice.current.systemVersion)"
+        let text = "\(DeviceModel.current) · \(UIDevice.current.systemName) \(UIDevice.current.systemVersion)"
+        return text.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: " .-_()"))) ?? text
     }
 
     /// POSTs a JSON body to an auth endpoint; errors throw NSError with
@@ -50,7 +52,7 @@ class AuthService {
         return data
     }
 
-    /// A token, or — with two-factor on — a code challenge.
+    /// A token, or, with two-factor on, a code challenge.
     private func signInResult(_ data: Data) throws -> LoginResult {
         let dict = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
         if dict?["two_factor_required"] as? Bool == true {
@@ -143,7 +145,7 @@ class AuthService {
         do {
             let (data, resp) = try await URLSession.shared.data(for: req)
             guard let http = resp as? HTTPURLResponse else { throw URLError(.badServerResponse) }
-            // Distinguish 401 (genuinely invalid token) from other errors (server trouble) —
+            // Distinguish 401 (genuinely invalid token) from other errors (server trouble),
             // the caller should only delete the Keychain token on a 401
             guard http.statusCode != 401 else { throw URLError(.userAuthenticationRequired) }
             guard http.statusCode == 200 else { throw URLError(.badServerResponse) }
@@ -153,7 +155,7 @@ class AuthService {
             if mode == nil { await CacheStore.shared.put(CacheStore.Key.me, body: data) }   // for an offline cold launch
             return user
         } catch let err as URLError where err.code != .userAuthenticationRequired && mode == nil && cacheFallback {
-            // Offline / server down (not a 401) — restore the last-known profile
+            // Offline / server down (not a 401). Restore the last-known profile
             // so the app opens to its cached state instead of the login screen.
             if let cached = await CacheStore.shared.get(MeResponse.self, CacheStore.Key.me) {
                 return cached.user

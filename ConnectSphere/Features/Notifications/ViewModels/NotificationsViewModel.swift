@@ -1,6 +1,6 @@
 import Foundation
 
-/// A run of notifications that share a grouping key, rendered as one row —
+/// A run of notifications that share a grouping key, rendered as one row,
 /// "Anna and 2 others liked your post".
 ///
 /// Grouping happens over the rows currently loaded, so a group can be split by
@@ -17,7 +17,7 @@ struct NotificationGroup: Identifiable {
     /// part of it still isn't.
     var isRead: Bool { members.allSatisfy(\.isRead) }
 
-    /// Distinct actor names, newest first — drives "Anna and 2 others".
+    /// Distinct actor names, newest first. Drives "Anna and 2 others".
     var actorNames: [String] {
         var seen = Set<String>()
         return members.compactMap { notif in
@@ -90,6 +90,8 @@ final class NotificationsViewModel {
 
     private(set) var filter: NotificationFilter = .all
 
+    /// The mode this list is for; a different mode is a different inbox.
+    private var mode: AppMode?
     private var nextCursor: String?
     private var hasMore = false
     private let repo = UserNotificationRepository()
@@ -122,7 +124,7 @@ final class NotificationsViewModel {
 
     // MARK: - Loading
 
-    /// Switch the All/Unread filter and reload. Takes the token explicitly —
+    /// Switch the All/Unread filter and reload. Takes the token explicitly,
     /// a `didSet` observer has no way to reach one, so the reload would
     /// silently no-op.
     func setFilter(_ newValue: NotificationFilter, token: String, appState: AppState?) async {
@@ -133,10 +135,11 @@ final class NotificationsViewModel {
 
     func load(token: String? = nil, appState: AppState? = nil) async {
         guard let token = token ?? appState?.authToken else { return }
+        mode = appState?.currentMode ?? mode
         isLoading = true
         defer { isLoading = false }
 
-        guard let response = try? await repo.fetch(filter: filter, token: token) else { return }
+        guard let response = try? await repo.fetch(filter: filter, mode: mode, token: token) else { return }
         notifications = response.data
         nextCursor    = response.nextCursor
         hasMore       = response.hasMore ?? false
@@ -151,7 +154,7 @@ final class NotificationsViewModel {
         isLoadingMore = true
         defer { isLoadingMore = false }
 
-        guard let response = try? await repo.fetch(cursor: cursor, filter: filter, token: token) else { return }
+        guard let response = try? await repo.fetch(cursor: cursor, filter: filter, mode: mode, token: token) else { return }
         // Guard against a row arriving twice if it was bumped between pages.
         let known = Set(notifications.map(\.id))
         notifications.append(contentsOf: response.data.filter { !known.contains($0.id) })
@@ -185,7 +188,7 @@ final class NotificationsViewModel {
         apply(isRead: isRead, to: ids)
         adjustUnread(by: isRead ? -changed : changed, appState: appState)
 
-        // Restore only the rows that actually failed — the ones that already
+        // Restore only the rows that actually failed. The ones that already
         // succeeded server-side stay in their new state.
         var failed: [String] = []
         for id in ids {
@@ -216,7 +219,7 @@ final class NotificationsViewModel {
         applyUnread(0, to: appState)
 
         do {
-            try await repo.markAllRead(token: token)
+            try await repo.markAllRead(mode: appState?.currentMode ?? mode, token: token)
             // The Unread filter should visibly empty out once everything is read.
             if filter == .unread { await load(token: token, appState: appState) }
         } catch {
@@ -288,7 +291,7 @@ final class NotificationsViewModel {
     /// Adjust the shared unread total by a delta.
     ///
     /// A delta rather than a recount, because in the Unread filter the loaded
-    /// rows are only the first page — recounting them would report a page size
+    /// rows are only the first page. Recounting them would report a page size
     /// as the total.
     private func adjustUnread(by delta: Int, appState: AppState?) {
         guard delta != 0 else { return }
@@ -302,7 +305,7 @@ final class NotificationsViewModel {
 }
 
 private extension UserNotificationDTO {
-    /// Copy with a flipped read flag — the DTO is a `let`-only Decodable.
+    /// Copy with a flipped read flag. The DTO is a `let`-only Decodable.
     func withIsRead(_ isRead: Bool) -> UserNotificationDTO {
         UserNotificationDTO(
             id: id, type: type, postId: postId, payload: payload,

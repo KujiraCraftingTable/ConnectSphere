@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - Explainer
 
 /// Shown in Messages while the Spaces view is on and the user has no spaces
-/// yet — says what a space is (a folder for people) before asking for anything.
+/// yet, says what a space is (a folder for people) before asking for anything.
 struct SpacesIntroCard: View {
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.appBundle) private var bundle
@@ -71,6 +71,8 @@ struct SpaceEditorSheet: View {
 
     private var trimmed: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var canSave: Bool { !trimmed.isEmpty && trimmed.count <= 30 && !isSaving }
+    /// A new Space starts blank; renaming starts from the current name and colour.
+    private var hasChanges: Bool { trimmed != initialName.trimmingCharacters(in: .whitespacesAndNewlines) || color != initialColor }
 
     var body: some View {
         NavigationStack {
@@ -126,10 +128,10 @@ struct SpaceEditorSheet: View {
             .background(AppColors.base(colorScheme))
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
-            .interactiveDismissDisabled()
+            .interactiveDismissDisabled(hasChanges)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    ConfirmCancelButton { dismiss() }
+                    ConfirmCancelButton(hasChanges: hasChanges) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(confirmTitle) {

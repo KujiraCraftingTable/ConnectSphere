@@ -3,12 +3,12 @@ import Observation
 
 @Observable
 class CommunitiesViewModel {
-    /// This mode's communities — only for the duplicate-name hint when creating one.
+    /// This mode's communities. Only for the duplicate-name hint when creating one.
     var discoverCommunities: [Community] = []
     var myCommunities: [Community] = []
     var isLoading = false
     var errorMessage: String?
-    /// Separate loading / error state for the "My communities" tab — it must not
+    /// Separate loading / error state for the "My communities" tab, it must not
     /// borrow `isLoading` (that tracks Discover) and must not swallow failures,
     /// or the tab silently shows "you haven't joined any communities".
     var isLoadingMine = false

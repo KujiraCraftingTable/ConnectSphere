@@ -57,7 +57,7 @@ struct CommunityRepository {
                                     method: "DELETE", token: token)
     }
 
-    /// Feed-visibility only — does not unfollow/leave the community.
+    /// Feed-visibility only, does not unfollow/leave the community.
     func mute(communityId: String, token: String) async throws {
         _ = try await client.fetch(OKResponse.self,
                                     path: "/communities/\(communityId)/mute",
@@ -80,8 +80,8 @@ struct CommunityRepository {
 
     // MARK: - Posts
 
-    /// Decodes as `PostDTO`/`Post` — the same model `PostCard` (and Feed)
-    /// render — not the legacy `CommunityPost`, which is now only used as
+    /// Decodes as `PostDTO`/`Post`. The same model `PostCard` (and Feed)
+    /// render, not the legacy `CommunityPost`, which is now only used as
     /// `PostComposerViewModel`'s internal create-response decode target.
     func fetchPosts(communityId: String, search: String? = nil, limit: Int, offset: Int, token: String) async throws -> [Post] {
         var items: [URLQueryItem] = [
@@ -196,17 +196,19 @@ struct CommunityRepository {
             let name, type, privacy, icon_emoji, cover_color: String
             let cover_url: String?
             let description: String?
+            let description_format: String?
         }
         let body = NetworkClient.encode(Body(name: name, type: type, privacy: privacy,
                                              icon_emoji: iconEmoji, cover_color: coverColor,
-                                             cover_url: coverUrl, description: description))
+                                             cover_url: coverUrl, description: description,
+                                             description_format: description == nil ? nil : PostRepository.contentFormat))
         let res = try await client.fetch(DataResponse<CommunityDTO>.self,
                                           path: "/communities", method: "POST",
                                           token: token, bodyData: body)
         return res.data.toCommunity(isMemberOverride: true)
     }
 
-    /// Partial edit — admin/moderator only, enforced server-side. A nil field
+    /// Partial edit, admin/moderator only, enforced server-side. A nil field
     /// leaves that column untouched; an empty `coverUrl` removes the cover.
     func updateCommunity(
         communityId: String,
@@ -218,11 +220,12 @@ struct CommunityRepository {
         token: String
     ) async throws -> Community {
         struct Body: Encodable {
-            let name, description, privacy, cover_url: String?
+            let name, description, description_format, privacy, cover_url: String?
             let require_post_approval: Bool?
         }
-        let body = NetworkClient.encode(Body(name: name, description: description, privacy: privacy,
-                                             cover_url: coverUrl, require_post_approval: requirePostApproval))
+        let body = NetworkClient.encode(Body(name: name, description: description,
+                                             description_format: description == nil ? nil : PostRepository.contentFormat,
+                                             privacy: privacy, cover_url: coverUrl, require_post_approval: requirePostApproval))
         let res = try await client.fetch(DataResponse<CommunityDTO>.self,
                                           path: "/communities/\(communityId)", method: "PATCH",
                                           token: token, bodyData: body)
@@ -247,7 +250,7 @@ struct CommunityRepository {
 
     // MARK: - Reports
 
-    /// Reports a community member — or a post in the community
+    /// Reports a community member, or a post in the community
     /// (`targetType == "post"`). `detail` is optional free text.
     func report(targetType: String, targetId: String, communityId: String,
                 reason: String, detail: String?, token: String) async throws {

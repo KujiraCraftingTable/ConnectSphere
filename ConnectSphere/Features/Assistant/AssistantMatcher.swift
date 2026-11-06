@@ -16,7 +16,7 @@ struct AssistantMatch: Equatable {
     static let unknown = AssistantMatch(intent: .unknown, isConfident: true)
 }
 
-/// Pure, synchronous, dependency-free rule-based matcher — resolves free-text
+/// Pure, synchronous, dependency-free rule-based matcher. Resolves free-text
 /// input to an `AssistantIntent` against `AssistantCommandRegistry`, with no
 /// network call and no reference to `AppState` (execution happens elsewhere,
 /// in `AssistantViewModel`). This is what guarantees the sub-3-second bar
@@ -24,11 +24,11 @@ struct AssistantMatch: Equatable {
 enum AssistantMatcher {
     /// Below this share of the input's tokens, a matched phrase is treated as
     /// incidental rather than the point of the sentence. Only gates
-    /// instantly-executed intents — guidance replies are just text, so a weak
+    /// instantly-executed intents, guidance replies are just text, so a weak
     /// match there costs nothing worse than an unhelpful answer.
     private static let confidentCoverageRatio = 0.5
 
-    /// Negation cues that make an instantly-executed match untrustworthy —
+    /// Negation cues that make an instantly-executed match untrustworthy,
     /// token matching still has no notion of "reject this," so "I don't want
     /// dark mode, keep it light" would otherwise match and execute
     /// `setTheme(.dark)`. Only cues appearing *before* the matched phrase
@@ -41,7 +41,7 @@ enum AssistantMatcher {
 
     /// Characters that separate words. Splitting on these rather than testing
     /// raw substring containment is what stops a phrase bleeding across word
-    /// boundaries — "reset it" no longer matches inside unrelated text.
+    /// boundaries, "reset it" no longer matches inside unrelated text.
     private static let separators = CharacterSet.whitespacesAndNewlines
         .union(.punctuationCharacters)
         .union(.symbols)
@@ -54,7 +54,7 @@ enum AssistantMatcher {
     ///
     /// There is no separate minimum-length floor: `contains` below requires
     /// the *entire* curated phrase to appear, so match strength already equals
-    /// however many tokens the registry author chose for that phrase — a
+    /// however many tokens the registry author chose for that phrase. A
     /// one-token phrase like "logout" is a deliberate, curated command, not a
     /// stray word slipping through.
     static func match(_ input: String) -> AssistantMatch {

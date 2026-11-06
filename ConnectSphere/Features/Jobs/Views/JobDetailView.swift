@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// One job: what, where, pay, the skills it needs (yours ticked, the rest
-/// to build), the description, who posted it — and Save / Apply (or, for
+/// to build), the description, who posted it, and Save / Apply (or, for
 /// whoever's hiring, its applicants).
 struct JobDetailView: View {
     @Environment(AppState.self) private var appState
@@ -11,6 +11,8 @@ struct JobDetailView: View {
 
     @State private var viewModel: JobDetailViewModel
     @State private var applying = false
+    @Environment(\.openURL) private var openURL
+    @State private var inAppBrowserURL: URL?
     let onChange: (JobListing) -> Void
 
     init(jobId: String, preloaded: JobListing? = nil, onChange: @escaping (JobListing) -> Void) {
@@ -28,10 +30,21 @@ struct JobDetailView: View {
                     if !job.skills.isEmpty { skills(job) }
                     if let text = job.description, !text.isEmpty {
                         card(bundle.loc("About the job")) {
-                            Text(text)
+                            Text(job.descriptionFormat == "markdown"
+                                 ? MarkdownFormatter.attributed(text, linkColor: themeManager.theme.primary,
+                                                                quoteColor: AppColors.textSecondary(colorScheme))
+                                 : AttributedString(text))
                                 .font(.system(size: 15))
                                 .foregroundColor(AppColors.textPrimary(colorScheme))
                                 .fixedSize(horizontal: false, vertical: true)
+                                .environment(\.openURL, OpenURLAction { url in
+                                    if let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
+                                        inAppBrowserURL = url
+                                    } else {
+                                        openURL(url)
+                                    }
+                                    return .handled
+                                })
                         }
                     }
                     card(bundle.loc("Posted by")) {
@@ -62,6 +75,7 @@ struct JobDetailView: View {
             }
         }
         .background(AppColors.base(colorScheme))
+        .inAppBrowser(url: $inAppBrowserURL)
         .navigationTitle(bundle.loc("Job"))
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {

@@ -14,7 +14,7 @@ struct UserProfileView: View {
     let userId: String
     let preloadedUser: UserProfile?
     /// The other side of the card (see `flip`): that mode's profile, view
-    /// only — connecting happens in that mode.
+    /// only, connecting happens in that mode.
     private var otherMode: AppMode { appState.currentMode == .hobby ? .work : .hobby }
     private var mode: AppMode { showingOther ? otherMode : appState.currentMode }
     /// The side being shown.
@@ -23,12 +23,12 @@ struct UserProfileView: View {
     @State private var pull: CGFloat = 0
     @State private var chatConversationId: String?
     @State private var navigateToChat = false
-    // Tap-to-open-post-detail — same PostRoute/PostDetailView navigation Feed uses.
+    // Tap-to-open-post-detail, same PostRoute/PostDetailView navigation Feed uses.
     @State private var detailRoute: PostRoute?
 
     // Block state
     @State private var showBlockConfirm = false
-    /// Relationship (friend / request / follow) with this person — shared by
+    /// Relationship (friend / request / follow) with this person. Shared by
     /// the card's buttons and the ••• menu's Follow item.
     @State private var connect = ConnectViewModel()
     @State private var listRoute: ProfileStat?
@@ -300,7 +300,7 @@ struct UserProfileView: View {
                 ProgressView().padding(.top, 20).frame(maxWidth: .infinity)
             } else if let error = shown.error, shown.posts.isEmpty {
                 // A single failed load (e.g. a dropped connection) otherwise
-                // left this permanently stuck empty — .task only fires once
+                // left this permanently stuck empty, .task only fires once
                 // per view identity, so navigating away and back doesn't
                 // retry on its own.
                 postsErrorState(error)

@@ -20,7 +20,7 @@ final class PostDetailViewModel {
         self.postId = postId
     }
 
-    /// Fetches once — `.task` re-runs when the view reappears. Returns true
+    /// Fetches once, `.task` re-runs when the view reappears. Returns true
     /// when the post is available (so comments can load).
     func loadPost() async -> Bool {
         if post != nil { return true }

@@ -14,6 +14,10 @@ struct ApplySheet: View {
     let onApplied: (JobApplication) -> Void
     @State private var viewModel: ApplyViewModel
     @State private var pickingCV = false
+    /// A note typed or a CV attached. Closing would lose it.
+    private var hasInput: Bool {
+        !viewModel.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.cvUrl != nil
+    }
 
     init(job: JobListing, onApplied: @escaping (JobApplication) -> Void) {
         self.job = job
@@ -49,7 +53,7 @@ struct ApplySheet: View {
                 } header: {
                     Text("Your profile", bundle: bundle)
                 } footer: {
-                    Text("Your Work profile — experience and skills — is shared with the job's poster.", bundle: bundle)
+                    Text("Your Work profile, experience and skills, is shared with the job's poster.", bundle: bundle)
                 }
                 Section {
                     TextField(bundle.loc("Why you're a good fit (optional)"), text: $viewModel.note, axis: .vertical)
@@ -88,10 +92,10 @@ struct ApplySheet: View {
             }
             .navigationTitle(bundle.loc("Apply"))
             .navigationBarTitleDisplayMode(.inline)
-            .interactiveDismissDisabled()
+            .interactiveDismissDisabled(hasInput)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    ConfirmCancelButton { dismiss() }
+                    ConfirmCancelButton(hasChanges: hasInput) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     if viewModel.isSubmitting {

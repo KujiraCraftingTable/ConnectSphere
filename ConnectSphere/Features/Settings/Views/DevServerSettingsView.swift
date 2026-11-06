@@ -2,7 +2,7 @@
 import SwiftUI
 
 /// Lets a real device point at a different dev backend without an Xcode
-/// rebuild — for when the built-in `.local` Bonjour hostname (`APIBaseURL`
+/// rebuild, for when the built-in `.local` Bonjour hostname (`APIBaseURL`
 /// in ConnectSphere-Info.plist) doesn't resolve on the current network
 /// (e.g. a router that blocks mDNS multicast between clients). Only
 /// compiled into DEBUG builds; APIConfig.serverBase checks this override

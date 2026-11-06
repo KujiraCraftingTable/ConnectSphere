@@ -11,7 +11,7 @@ final class NotificationBadgeViewModel {
 
     func refresh(appState: AppState) async {
         guard let token = appState.authToken else { return }
-        if let count = try? await repository.unreadCount(token: token) {
+        if let count = try? await repository.unreadCount(mode: appState.currentMode, token: token) {
             appState.notificationUnreadCount = count
         }
     }

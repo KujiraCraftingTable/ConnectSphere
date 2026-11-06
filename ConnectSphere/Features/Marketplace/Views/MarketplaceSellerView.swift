@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A seller as the Marketplace shows them — opened by tapping the seller on
+/// A seller as the Marketplace shows them. Opened by tapping the seller on
 /// an item. Like a community member's profile: the profile card, then just
 /// their other items; "View full profile" for everything else.
 struct MarketplaceSellerView: View {

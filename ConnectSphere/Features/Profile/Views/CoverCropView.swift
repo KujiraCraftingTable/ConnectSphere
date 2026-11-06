@@ -8,7 +8,7 @@ import UIKit
 enum CoverCrop {
     /// Pinching can go this far past "just fills the frame".
     static let maxZoom: CGFloat = 4
-    /// What a cover is rendered to on Done — 3 : 2, matching `CoverPhotoView`.
+    /// What a cover is rendered to on Done, 3 : 2, matching `CoverPhotoView`.
     static let outputSize = CGSize(width: 1500, height: 1000)
 
     /// The smallest scale at which the image still covers the whole frame
@@ -40,7 +40,7 @@ enum CoverCrop {
         return rect.intersection(CGRect(origin: .zero, size: image))
     }
 
-    /// Draws just `crop` of `image` into a fresh `outputSize` bitmap — what gets
+    /// Draws just `crop` of `image` into a fresh `outputSize` bitmap. What gets
     /// uploaded, so every screen shows exactly what was framed.
     static func render(_ image: UIImage, crop: CGRect) -> UIImage {
         let format = UIGraphicsImageRendererFormat()
@@ -84,7 +84,7 @@ struct CoverCropView: View {
                 let interacting = dragDelta != .zero || pinch != 1
 
                 ZStack {
-                    // Whole photo, dimmed — what falls outside the frame.
+                    // Whole photo, dimmed. What falls outside the frame.
                     photo(scale: scale, offset: shown)
                         .opacity(0.35)
 
@@ -93,7 +93,7 @@ struct CoverCropView: View {
                         .mask(Rectangle().frame(width: frame.width, height: frame.height))
 
                     // The top of the cover sits under the status bar and fades on
-                    // the profile — hinted here so nothing important gets framed there.
+                    // the profile, hinted here so nothing important gets framed there.
                     LinearGradient(colors: [Color.white.opacity(0.35), .clear],
                                    startPoint: .top, endPoint: .bottom)
                         .frame(width: frame.width, height: frame.height * CoverPhotoView.fadedTopFraction)
@@ -221,7 +221,7 @@ struct CoverCropView: View {
             .onEnded { value in
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
                     zoom = min(max(zoom * value.magnification, 1), CoverCrop.maxZoom)
-                    // Zooming out shrinks the overhang — pull the photo back to cover the frame.
+                    // Zooming out shrinks the overhang. Pull the photo back to cover the frame.
                     let scale = CoverCrop.minScale(image: image.size, frame: frame) * zoom
                     offset = CoverCrop.clampedOffset(offset, scale: scale, image: image.size, frame: frame)
                 }

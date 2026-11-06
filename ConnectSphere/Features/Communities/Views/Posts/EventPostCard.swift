@@ -79,7 +79,7 @@ struct EventPostCard: View {
     }
 
     /// Short formatted date: "Sat, Jun 7 · 7:00 PM" (or the Vietnamese
-    /// equivalent) — locale-aware so weekday/month names and AM/PM markers
+    /// equivalent), locale-aware so weekday/month names and AM/PM markers
     /// follow the in-app language, same convention as Date+Extensions.timeAgoString.
     private var formattedDate: String {
         let isVi = (UserDefaults.standard.string(forKey: "appLanguage") ?? "vi") == "vi"

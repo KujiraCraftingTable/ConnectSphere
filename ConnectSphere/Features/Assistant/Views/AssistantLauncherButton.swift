@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Floating round button — visible app-wide, bottom-trailing — that opens the
+/// Floating round button, visible app-wide, bottom-trailing, that opens the
 /// in-app AI assistant chat. Mirrors `CommunityDetailView.createPostFAB`'s
 /// exact visual recipe (54×54 circle, theme accent background, drop shadow)
 /// for visual consistency, but mounted globally from `MainTabView` instead of

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// "..." › Share community: into chats, or to your own feed — in the app
+/// "..." › Share community: into chats, or to your own feed. In the app
 /// only (there's no web link yet).
 struct ShareCommunitySheet: View {
     @Environment(AppState.self) private var appState

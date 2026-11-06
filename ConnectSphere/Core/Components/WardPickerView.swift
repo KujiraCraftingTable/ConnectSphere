@@ -44,7 +44,7 @@ struct WardPickerView: View {
                 )
             }
 
-            // Ward picker — only enabled after province selected
+            // Ward picker, only enabled after province selected
             Menu {
                 if viewModel.isLoadingWards {
                     Text("Loading...", bundle: bundle).foregroundColor(.secondary)

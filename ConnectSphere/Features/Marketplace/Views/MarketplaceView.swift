@@ -21,6 +21,7 @@ struct MarketplaceView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
+                scopeBar
                 chips
                 if viewModel.listings.isEmpty && !viewModel.isLoading {
                     empty
@@ -52,6 +53,35 @@ struct MarketplaceView: View {
                 .environment(appState)
                 .environment(themeManager)
         }
+    }
+
+    /// Top left, small like Messages' Archive button: everyone's items, or just yours.
+    private var scopeBar: some View {
+        HStack(spacing: AppSpacing.sm) {
+            scopeButton(bundle.loc("All"), icon: "square.grid.2x2", selected: !viewModel.mineOnly) {
+                await viewModel.setMine(false, mode: mode, userId: appState.currentUser?.id, token: token)
+            }
+            scopeButton(bundle.loc("Yours"), icon: "person.fill", selected: viewModel.mineOnly) {
+                await viewModel.setMine(true, mode: mode, userId: appState.currentUser?.id, token: token)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, AppSpacing.lg)
+    }
+
+    private func scopeButton(_ title: String, icon: String, selected: Bool, action: @escaping () async -> Void) -> some View {
+        Button { Task<Void, Never>(name: nil) { await action() } } label: {
+            HStack(spacing: 5) {
+                Image(systemName: icon).font(.system(size: 12, weight: .semibold))
+                Text(title).font(.system(size: 13, weight: .semibold))
+            }
+            .foregroundColor(selected ? .white : AppColors.textSecondary(colorScheme))
+            .padding(.horizontal, 12)
+            .frame(height: 30)
+            .background(selected ? themeManager.theme.primary : AppColors.surface(colorScheme), in: Capsule())
+            .overlay(Capsule().stroke(selected ? Color.clear : AppColors.borderDefault(colorScheme), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
     }
 
     /// A chip per community to narrow the list.

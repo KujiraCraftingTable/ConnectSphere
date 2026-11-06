@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 
 /// Strips identifying metadata from photos and videos before they're uploaded:
 /// GPS position, capture date, camera/phone model, lens, serials, software,
-/// XMP and IPTC. What's kept is only what's needed to show the file — pixel
+/// XMP and IPTC. What's kept is only what's needed to show the file. Pixel
 /// size, the colour profile, and for video the tracks themselves (duration,
 /// codec). The server strips JPEG/PNG again on arrival as a safety net.
 /// `nonisolated`: re-encoding a full-size photo takes long enough that it
@@ -25,7 +25,7 @@ nonisolated enum MediaSanitizer {
     /// Longest edge a photo keeps (as Facebook does): enough detail for any
     /// phone screen, a fraction of a 12 MP original's weight.
     static let maxPhotoEdge = 2048
-    /// The single lossy pass a photo gets — callers hand over the original
+    /// The single lossy pass a photo gets. Callers hand over the original
     /// (or a lossless copy), so it's compressed once, not twice.
     static let jpegQuality = 0.8
     /// The feed's copy: sharp on a full-width card, about a quarter of the
@@ -70,7 +70,7 @@ nonisolated enum MediaSanitizer {
         guard let destination = CGImageDestinationCreateWithData(out, type.identifier as CFString, 1, nil) else {
             throw Failure.encodeFailed
         }
-        // Only encoding settings — no EXIF/TIFF/GPS/IPTC dictionaries are passed,
+        // Only encoding settings. No EXIF/TIFF/GPS/IPTC dictionaries are passed,
         // so none are written. The colour profile travels with the CGImage.
         let encodeOptions: [CFString: Any] = isPNG ? [:] : [kCGImageDestinationLossyCompressionQuality: jpegQuality]
         CGImageDestinationAddImage(destination, image, encodeOptions as CFDictionary)
@@ -97,7 +97,7 @@ nonisolated enum MediaSanitizer {
     /// Copies the video's tracks into a new file without any metadata. A video
     /// at 1080p or below is copied as is (passthrough: no re-encoding, so no
     /// loss and no wait); anything larger (4K, 1440p…) is re-encoded to fit
-    /// 1920×1080 — 1080×1920 when it's vertical — in HEVC, which is about a
+    /// 1920×1080, 1080×1920 when it's vertical, in HEVC, which is about a
     /// quarter of a 4K file. Returns the new file (caller owns it) and its
     /// MIME type.
     ///
@@ -145,7 +145,7 @@ nonisolated enum MediaSanitizer {
     }
 
     /// Passthrough for 1080p and below; above that, the 1920×1080 preset
-    /// (which scales to fit, keeping the shape and orientation) — HEVC when
+    /// (which scales to fit, keeping the shape and orientation), HEVC when
     /// this device can export it, H.264 otherwise.
     private static func exportPreset(for asset: AVAsset, shortSide: CGFloat) async -> String {
         guard shortSide > 1080 else { return AVAssetExportPresetPassthrough }

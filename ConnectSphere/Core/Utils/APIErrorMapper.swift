@@ -2,7 +2,7 @@ import Foundation
 
 /// Maps API errors to user-friendly display strings.
 /// Replaces the 9 identical `private func friendlyError` copies across ViewModels.
-/// Uses `Bundle.app` since this is a free function with no `@Environment` access —
+/// Uses `Bundle.app` since this is a free function with no `@Environment` access,
 /// same convention as `Message.preview`.
 func friendlyError(_ error: Error) -> String {
     if case APIError.serverError(_, let msg) = error { return msg }

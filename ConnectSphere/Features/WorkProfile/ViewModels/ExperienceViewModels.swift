@@ -53,8 +53,18 @@ final class ExperienceEditorViewModel {
     private let companies = CompanyRepository()
     private var searchTask: Task<Void, Never>?
 
+    /// Every field as it was when the editor opened.
+    private var openedSignature: [String] = []
+    private var signature: [String] {
+        [title, companyName, companyId ?? "", employmentType.rawValue, location, locationType?.rawValue ?? "",
+         "\(start)", isCurrent ? "current" : "\(end)", description]
+    }
+    /// Has anything been changed since the editor opened? Cancel only asks then.
+    var hasChanges: Bool { signature != openedSignature }
+
     init(editing: WorkExperience? = nil) {
         self.editing = editing
+        defer { openedSignature = signature }
         guard let e = editing else { return }
         title = e.title
         companyName = e.companyName
@@ -192,8 +202,11 @@ final class SkillsViewModel {
             let result = try await repository.skills(of: userId, token: token)
             skills = result.data
             canEndorse = result.canEndorse
+            errorMessage = nil   // a failure from an earlier try is over
             loaded = true
         } catch {
+            // The view going away cancels its load; that isn't a failure.
+            if Task.isCancelled || error is CancellationError { return }
             if !loaded { errorMessage = friendlyError(error) }
             loaded = true
         }

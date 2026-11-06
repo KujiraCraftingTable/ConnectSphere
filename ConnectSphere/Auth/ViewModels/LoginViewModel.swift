@@ -108,7 +108,7 @@ final class LoginViewModel {
         }
     }
 
-    /// Google's SDK needs a view controller to present its sheet from — the
+    /// Google's SDK needs a view controller to present its sheet from. The
     /// one UI piece the view supplies (nil if no window is available).
     /// `hint` is the email to sign in as (a saved account); nil shows
     /// Google's account chooser.

@@ -1,12 +1,12 @@
 import SwiftUI
 
-/// "Saved" — the user's own bookmarked posts, newest saved first, with saved
+/// "Saved", the user's own bookmarked posts, newest saved first, with saved
 /// Marketplace items on their own tab. Reached from
 /// Settings → Account, alongside "Recently Deleted". Structurally modeled on
 /// RecentlyDeletedView (own PostRepository, single fetch, no pagination for
 /// v1, empty state) but renders full `PostCard` per row (not a compact inert
 /// row) since saved posts should stay fully interactive (like, comment,
-/// share, unsave — all still work from here).
+/// share, unsave, all still work from here).
 struct SavedPostsView: View {
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle

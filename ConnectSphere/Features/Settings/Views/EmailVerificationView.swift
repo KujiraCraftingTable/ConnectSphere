@@ -104,7 +104,7 @@ struct CodeEntry: View {
     }
 }
 
-/// Settings › Account › Email: your verified email — and, from there,
+/// Settings › Account › Email: your verified email, and, from there,
 /// changing it (confirm with the current address, then verify the new one).
 /// Without a verified email it goes straight to adding one.
 struct EmailVerificationView: View {
@@ -180,7 +180,7 @@ struct EmailVerificationView: View {
         } header: {
             Text("Step 1 of 2 · Confirm it's you", bundle: bundle)
         } footer: {
-            Text(String(format: bundle.loc("To change your email, first enter the code we send to %@ — so nobody else can take over your account."),
+            Text(String(format: bundle.loc("To change your email, first enter the code we send to %@, so nobody else can take over your account."),
                         AccountCode.mask(current)))
         }
     }

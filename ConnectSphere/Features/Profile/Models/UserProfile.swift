@@ -8,6 +8,9 @@ struct UserProfile: Identifiable {
     var avatarUrl: String? = nil
     var coverUrl: String? = nil
     var bio: String
+    /// 'markdown' when the bio was written with Markdown; older bios are plain.
+    var bioFormat: String? = nil
+    var isBioMarkdown: Bool { bioFormat == "markdown" }
     // Colleague fields
     var jobTitle: String?
     var company: String?
@@ -16,14 +19,14 @@ struct UserProfile: Identifiable {
     var interests: [String]
     var location: String?
     var gender: String?
-    // Per-mode persona setup status — determines whether the user "exists" in
+    // Per-mode persona setup status. Determines whether the user "exists" in
     // that mode (not set up = hidden from that mode's search/feed, switching
     // to that mode is blocked and the persona creation form is shown instead)
     var hobbySetup: Bool = false
     var workSetup: Bool = false
     // Self-only field (server only returns this in /auth/me and PATCH /users/me)
     var email: String? = nil
-    /// Whether a password has been set yet (Google-only accounts = false) — decides which
+    /// Whether a password has been set yet (Google-only accounts = false). Decides which
     /// flow to show (set password vs. change password)
     var hasPassword: Bool = false
     /// Self-only. Off = strangers can only follow; this user sends requests themselves.
@@ -33,7 +36,7 @@ struct UserProfile: Identifiable {
     /// This persona's profile has the flip button to the other one (on
     /// unless the person turned it off for this mode).
     var linksOtherMode: Bool = true
-    /// Self-only. The email was confirmed with a code (or by Google) —
+    /// Self-only. The email was confirmed with a code (or by Google),
     /// deleting a persona or the account needs it.
     var emailVerified: Bool = false
     /// Self-only. Every sign-in needs an emailed code.
@@ -45,7 +48,7 @@ struct UserProfile: Identifiable {
     var isLocked: Bool = false
     /// …and whether the viewer may see past it (theirs, or a connection).
     var canView: Bool = true
-    // Displayed age — present in both public and self views, null from server when dob_visibility = private
+    // Displayed age, present in both public and self views, null from server when dob_visibility = private
     var age: Int? = nil
     // Self-only field (server only returns this in /auth/me and PATCH /users/me),
     // same as email/hasPassword above
@@ -61,7 +64,7 @@ struct UserProfile: Identifiable {
     var connectionCount: Int = 0
     // Number of mutual friends/connections with the viewer (backend includes this in search/list results)
     var mutualCount: Int = 0
-    // AI search score — nil for regular search results
+    // AI search score. Nil for regular search results
     var score: Double?
 }
 

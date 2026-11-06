@@ -27,7 +27,10 @@ struct PostCard: View {
     /// with the composer focused (`focusComposer == true`). `nil` = no
     /// whole-card tap (e.g. inside `PostDetailView` itself, so it can't recurse).
     var onOpenDetail: ((_ focusComposer: Bool) -> Void)? = nil
-    /// Staff-only pin/unpin for a community post — set (non-nil) only by a
+    /// Replaces the comment sheet when set. The post's own page focuses its
+    /// comment box instead of popping a sheet over the comments it already shows.
+    var onCommentTap: (() -> Void)? = nil
+    /// Staff-only pin/unpin for a community post. Set (non-nil) only by a
     /// caller that has already verified the viewer is an admin/moderator of
     /// `post.community`; `nil` on every non-community call site, and on a
     /// community post viewed by a regular member.
@@ -45,13 +48,13 @@ struct PostCard: View {
     var showsHeader: Bool = true
     /// The community whose page this card is on (its feed, a member's profile
     /// there…). Naming the community on every post would be redundant, so the
-    /// header shows the poster, and tapping them — yourself included — pops up
+    /// header shows the poster, and tapping them, yourself included, pops up
     /// their profile in this community. Covers Marketplace items listed there too.
     var insideCommunityId: String? = nil
 
     @State private var shakeAmount: CGFloat = 0
     /// Drives the in-app browser (see `openLink(_:)`) for a tapped http(s)
-    /// link — the link-preview card or an in-text URL.
+    /// link, the link-preview card or an in-text URL.
     @State private var inAppBrowserURL: URL?
 
     init(
@@ -62,6 +65,7 @@ struct PostCard: View {
         onPostDeleted: (() -> Void)? = nil,
         onPostUpdated: ((Post) -> Void)? = nil,
         onOpenDetail: ((_ focusComposer: Bool) -> Void)? = nil,
+        onCommentTap: (() -> Void)? = nil,
         onPin: (() -> Void)? = nil,
         onUnpin: (() -> Void)? = nil,
         showConnectButton: Bool = true,
@@ -76,6 +80,7 @@ struct PostCard: View {
         self.onPostDeleted = onPostDeleted
         self.onPostUpdated = onPostUpdated
         self.onOpenDetail = onOpenDetail
+        self.onCommentTap = onCommentTap
         self.onPin = onPin
         self.onUnpin = onUnpin
         self.showConnectButton = showConnectButton
@@ -88,11 +93,16 @@ struct PostCard: View {
     @ViewBuilder
     var body: some View {
         Group {
-            if !actions.isHidden {
+            if let kind = actions.hiddenKind {
+                // Stays in place, with Undo, until the feed is refreshed.
+                HiddenPostPlaceholder(kind: kind, cornerRadius: cornerRadius) {
+                    Task { await actions.undoHidden() }
+                }
+            } else {
                 mainCard
             }
         }
-        .animation(.default, value: actions.isHidden)
+        .animation(.default, value: actions.hiddenKind)
     }
 
     private var mainCard: some View {
@@ -110,7 +120,7 @@ struct PostCard: View {
         .background(AppColors.surface(colorScheme))
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
         .offset(x: shakeAmount)
-        // Whole-card tap-to-open — placed on the outer container so it covers
+        // Whole-card tap-to-open, placed on the outer container so it covers
         // header/body/action-row dead space uniformly; every interactive child
         // (avatar/name links, the "…" menu, tag chips, the link-preview card,
         // poll/event controls, the like/comment/save/share buttons) still wins
@@ -138,7 +148,7 @@ struct PostCard: View {
         // Resyncs the locally-tracked count whenever a fresh `post` value
         // flows in from the parent (e.g. after `.postUpdated` patches this
         // post's entry in FeedViewModel/ProfileViewModel following a comment
-        // add/delete elsewhere) — `@State`'s `initialValue` only seeds once
+        // add/delete elsewhere), `@State`'s `initialValue` only seeds once
         // per view identity, so without this the row would keep showing a
         // stale count until the app fully reloads it. Mirrors the same
         // pattern already used in `CommunityPostCard`.
@@ -154,7 +164,7 @@ struct PostCard: View {
     @ViewBuilder
     private var postBody: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Content — only shown if there's actual text
+            // Content, only shown if there's actual text
             if !post.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(linkifiedContent)
                     .appFont(.body)
@@ -175,7 +185,7 @@ struct PostCard: View {
                 }
             }
 
-            // Hashtag chips — tapping one opens TagFeedView to browse by tag
+            // Hashtag chips, tapping one opens TagFeedView to browse by tag
             if !post.tags.isEmpty {
                 hashtagRow
                     .padding(.horizontal, 12)
@@ -188,7 +198,7 @@ struct PostCard: View {
                     .padding(.horizontal, 12)
                     .padding(.top, 10)
             }
-            // Real uploaded images — Facebook-style grid, supports multiple images
+            // Real uploaded images, Facebook-style grid, supports multiple images
             else if !post.displayImageUrls.isEmpty {
                 if post.postType == .listing {
                     // An item for sale: its photos one at a time, as in the Marketplace.
@@ -211,7 +221,7 @@ struct PostCard: View {
                     .padding(.top, 10)
             }
 
-            // Poll or Event inline body — same PollPostCard/EventPostCard used by
+            // Poll or Event inline body. Same PollPostCard/EventPostCard used by
             // CommunityPostCard, drop-in reusable since both view models are
             // fully post-id/event-id generic (no community coupling).
             switch post.postType {
@@ -286,6 +296,10 @@ struct PostCard: View {
 
     private var linkifiedContent: AttributedString {
         let text = displayedContent
+        if post.isMarkdown {
+            return MarkdownFormatter.attributed(text, linkColor: themeManager.theme.primary,
+                                                quoteColor: AppColors.textSecondary(colorScheme))
+        }
         var result = AttributedString(text)
         let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
         let matches = detector?.matches(in: text, range: NSRange(text.startIndex..., in: text)) ?? []
@@ -378,7 +392,7 @@ struct PostCard: View {
     /// A post that surfaced in Feed from a community: the community's own
     /// avatar/name lead as the primary identity (so it's immediately clear
     /// which community this came from), with the actual poster as a smaller
-    /// secondary line — same information `CommunityPostCard`'s small tag row
+    /// secondary line, same information `CommunityPostCard`'s small tag row
     /// used to bury below the personal header, promoted to the primary spot
     /// per the "which community, from which one" framing this was asked for.
     private func communityPostHeader(_ community: CommunityRef) -> some View {
@@ -389,7 +403,7 @@ struct PostCard: View {
                     .environment(appState).environment(themeManager)
             ) {
                 // Rounded-square (not circle) + the poster's own small
-                // circular avatar badged on the bottom-right corner — reads
+                // circular avatar badged on the bottom-right corner. Reads
                 // as "a community post, by this person" in the avatar shape
                 // alone, before even reading the text. Taller than a plain
                 // circle, so the timestamp moves to its own line below to
@@ -565,7 +579,7 @@ struct PostCard: View {
 
     // MARK: Hashtag Chips
 
-    /// List of the post's hashtags — tapping a chip opens TagFeedView to browse that tag
+    /// List of the post's hashtags. Tapping a chip opens TagFeedView to browse that tag
     private var hashtagRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: AppSpacing.sm) {
@@ -581,7 +595,7 @@ struct PostCard: View {
 
     // MARK: Action Buttons
 
-    /// Count shown immediately to the right of an action icon (hidden at 0) —
+    /// Count shown immediately to the right of an action icon (hidden at 0),
     /// same style the old FB-style summary row above the divider used to have.
     @ViewBuilder
     private func actionCount(_ value: Int) -> some View {
@@ -594,7 +608,7 @@ struct PostCard: View {
 
     private var actionButtons: some View {
         HStack {
-            // Like + Comment — bottom left
+            // Like + Comment. Bottom left
             HStack(spacing: 16) {
                 Button {
                     Task { await actions.toggleLike(postId: post.id) }
@@ -608,7 +622,7 @@ struct PostCard: View {
                 }
 
                 Button {
-                    if let onOpenDetail { onOpenDetail(true) } else { showComments = true }
+                    if let onOpenDetail { onOpenDetail(true) } else if let onCommentTap { onCommentTap() } else { showComments = true }
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "bubble.left")
@@ -621,7 +635,7 @@ struct PostCard: View {
 
             Spacer()
 
-            // Save + Share — bottom right
+            // Save + Share. Bottom right
             HStack(spacing: 16) {
                 Button {
                     Task { await actions.toggleSave(post: post) }
@@ -670,9 +684,14 @@ struct PostCard: View {
                                                                           appLanguage: appState.appLanguage)
                         let key = TranslationStore.key(post: shared.id)
                         let translated = canTranslate && translations.showsTranslation(key, mode: translationMode)
-                        Text(translated ? (shared.translatedContent ?? shared.content) : shared.content)
+                        let sharedText = translated ? (shared.translatedContent ?? shared.content) : shared.content
+                        Text(shared.isMarkdown
+                             ? MarkdownFormatter.attributed(sharedText, linkColor: themeManager.theme.primary,
+                                                            quoteColor: AppColors.textSecondary(colorScheme))
+                             : AttributedString(sharedText))
                             .font(.system(size: 14))
                             .foregroundColor(AppColors.textPrimary(colorScheme))
+                            .environment(\.openURL, OpenURLAction { url in openLink(url); return .handled })
                             .lineLimit(6)
                         if canTranslate {
                             TranslationToggle(showingTranslation: translated, fontSize: 12) {

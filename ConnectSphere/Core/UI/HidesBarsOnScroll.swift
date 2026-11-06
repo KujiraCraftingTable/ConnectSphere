@@ -9,28 +9,60 @@ private struct HidesBarsOnScroll: ViewModifier {
     /// is needed before anything moves, so finger jitter and the bounce at
     /// either end don't make the bars flicker.
     @State private var run: CGFloat = 0
+    /// When the bars last moved: while they animate, the scroll view's insets
+    /// change under it and those jumps aren't the reader's finger.
+    @State private var lastToggle = Date.distantPast
+
+    private struct Metrics: Equatable {
+        var offset: CGFloat
+        var insetTop: CGFloat
+        var contentHeight: CGFloat
+        var viewportHeight: CGFloat
+    }
+
+    /// A page that barely scrolls keeps its bars: hiding them only makes the
+    /// viewport taller, which clamps the offset and re-triggers the toggle.
+    private static let minScrollable: CGFloat = 120
+    private static let settle: TimeInterval = 0.5
 
     func body(content: Content) -> some View {
         content
-            .onScrollGeometryChange(for: CGFloat.self) { geo in
-                geo.contentOffset.y + geo.contentInsets.top
+            .onScrollGeometryChange(for: Metrics.self) { geo in
+                Metrics(offset: geo.contentOffset.y + geo.contentInsets.top,
+                        insetTop: geo.contentInsets.top,
+                        contentHeight: geo.contentSize.height,
+                        viewportHeight: geo.containerSize.height)
             } action: { old, new in
                 follow(from: old, to: new)
             }
-            .toolbar(hidden ? .hidden : .visible, for: .tabBar)
+            // `.automatic`, not `.visible`: a screen pushed from here (a post)
+            // hides the tab bar itself, and a forced `.visible` here overrides it.
+            .toolbar(hidden ? .hidden : .automatic, for: .tabBar)
     }
 
-    private func follow(from old: CGFloat, to new: CGFloat) {
-        let delta = new - old
+    private func follow(from old: Metrics, to new: Metrics) {
+        // Hiding the top bar changes the safe area, and with it the inset and
+        // viewport: that moves `offset` without any scrolling. Read as a
+        // scroll it flips the bars back, which flips the inset again. An
+        // endless loop that pins the main thread (the community-page freeze).
+        guard old.insetTop == new.insetTop, old.viewportHeight == new.viewportHeight,
+              Date().timeIntervalSince(lastToggle) > Self.settle else {
+            run = 0
+            return
+        }
+        let delta = new.offset - old.offset
         guard delta != 0 else { return }
         // Restart the run when the direction flips.
         run = (delta > 0) == (run > 0) ? run + delta : delta
         let hide: Bool
-        if new < 40 { hide = false }          // at (or pulled past) the top
-        else if run > 24 { hide = true }      // reading on, down the page
-        else if run < -24 { hide = false }    // heading back up
+        if new.contentHeight - new.viewportHeight < Self.minScrollable { hide = false }
+        else if new.offset < 40 { hide = false }          // at (or pulled past) the top
+        else if run > 24 { hide = true }                  // reading on, down the page
+        else if run < -24 { hide = false }                // heading back up
         else { return }
         guard hide != hidden else { return }
+        lastToggle = Date()
+        run = 0
         withAnimation(.easeInOut(duration: 0.25)) { hidden = hide }
     }
 }

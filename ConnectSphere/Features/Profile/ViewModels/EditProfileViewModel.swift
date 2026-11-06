@@ -13,6 +13,10 @@ final class EditProfileViewModel {
         didSet { if displayName.count > DisplayNameRules.maxLength { displayName = DisplayNameRules.capped(displayName) } }
     }
     var bio = ""
+    /// The bio as loaded: untouched, it keeps its format (old bios are plain);
+    /// changed, the new text is saved as Markdown.
+    private var openedBio = ""
+    private var openedBioFormat: String?
     var jobTitle = ""
     var company = ""
     var location = ""
@@ -33,7 +37,7 @@ final class EditProfileViewModel {
 
     /// New avatar picked this session (nil = keep the current one).
     private(set) var pickedImage: UIImage?
-    /// The framed cover from `CoverCropView` — exactly what gets uploaded.
+    /// The framed cover from `CoverCropView`. Exactly what gets uploaded.
     var pickedCover: UIImage?
     /// The cover as picked, kept until Save so its framing can be adjusted again.
     private(set) var coverOriginal: UIImage?
@@ -62,10 +66,24 @@ final class EditProfileViewModel {
         set { dob = Self.dobFormatter.string(from: newValue) }
     }
 
+    /// Every field as it was when the form opened.
+    private var openedSignature: [String] = []
+    private var signature: [String] {
+        [displayName, bio, jobTitle, company, location, dob, dobVisibility, relationship?.rawValue ?? "",
+         selectedInterests.map { "\($0.category)|\($0.rawInput)" }.joined(separator: ";"),
+         languages.joined(separator: ";"), skills.joined(separator: ";"),
+         pickedImage == nil ? "" : "avatar", pickedCover == nil ? "" : "cover"]
+    }
+    /// Has anything been changed since the form opened? Cancel only asks then.
+    var hasChanges: Bool { signature != openedSignature }
+
     func load(from user: UserProfile?) {
         guard let user else { return }
+        defer { openedSignature = signature }
         displayName = user.name
         bio         = user.bio
+        openedBio   = user.bio.trimmingCharacters(in: .whitespaces)
+        openedBioFormat = user.bioFormat
         jobTitle    = user.jobTitle ?? ""
         company     = user.company ?? ""
         location    = user.location ?? ""
@@ -73,7 +91,7 @@ final class EditProfileViewModel {
         languages   = user.languages
         relationship = user.relationshipStatus.flatMap(RelationshipStatus.init(rawValue:))
         // The backend returns dob as "yyyy-MM-dd" or a full ISO timestamp (a
-        // Postgres DATE in JSON) — the first 10 characters are yyyy-MM-dd either
+        // Postgres DATE in JSON). The first 10 characters are yyyy-MM-dd either
         // way. Older accounts may have none: leave it blank.
         dob           = String((user.dob ?? "").prefix(10))
         originalDob   = dob
@@ -128,6 +146,7 @@ final class EditProfileViewModel {
             mode:           mode.rawValue,   // edits this mode's persona
             display_name:   displayName.trimmingCharacters(in: .whitespaces),
             bio:            bio.trimmingCharacters(in: .whitespaces),
+            bio_format:     bio.trimmingCharacters(in: .whitespaces) == openedBio ? (openedBioFormat ?? "plain") : PostRepository.contentFormat,
             location:       location.trimmingCharacters(in: .whitespaces),
             dob:            dob.isEmpty ? nil : dob,
             dob_visibility: dobVisibility,

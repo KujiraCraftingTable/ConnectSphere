@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// A Hobby profile's "About": relationship, languages and education. Display
-/// only — all three are edited in Edit profile.
+/// only, all three are edited in Edit profile.
 struct HobbyAboutSection: View {
     @Environment(AppState.self) private var appState
     @Environment(ThemeManager.self) private var themeManager
@@ -149,9 +149,9 @@ struct EducationEditorView: View {
             }
             .navigationTitle(bundle.loc(viewModel.editing == nil ? "Add school" : "Edit school"))
             .navigationBarTitleDisplayMode(.inline)
-            .interactiveDismissDisabled()
+            .interactiveDismissDisabled(viewModel.hasChanges)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { ConfirmCancelButton { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { ConfirmCancelButton(hasChanges: viewModel.hasChanges) { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     if viewModel.isSaving {
                         ProgressView()

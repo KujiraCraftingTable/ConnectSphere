@@ -3,7 +3,7 @@ import Observation
 import PhotosUI
 import SwiftUI
 
-/// Shared post-composer logic for text/poll/event posts — originally
+/// Shared post-composer logic for text/poll/event posts. Originally
 /// Community-only (`CreateCommunityPostViewModel`), relocated here in Phase 2
 /// so Feed's composer can reuse it too. `communityId` is now optional:
 /// non-nil posts to a community (`/communities/:id/posts`), nil posts
@@ -66,7 +66,7 @@ class PostComposerViewModel {
         return true
     }
 
-    // Media — text posts only, same field names/upload path Feed's
+    // Media, text posts only, same field names/upload path Feed's
     // CreatePostView uses (backend only accepts image_urls on post_type='text').
     /// Post now (default) or save as a draft.
     var publish: PublishChoice = .now
@@ -78,7 +78,7 @@ class PostComposerViewModel {
     var selectedMedia: [PickedPostMedia] = []
     var isUploadingMedia = false
 
-    // Link preview — auto-detected from typed content, mirrors
+    // Link preview, auto-detected from typed content, mirrors
     // CreatePostViewModel.detectAndFetchLink so behavior matches Feed exactly.
     var isFetchingLink = false
     var linkPreview: LinkPreviewDTO? = nil
@@ -87,7 +87,7 @@ class PostComposerViewModel {
     private let client = NetworkClient.shared
     private let postRepository = PostRepository()
     /// Reused purely as a media loader/uploader utility (same multipart upload
-    /// path as Feed's composer) — not exposed to any view, so its own
+    /// path as Feed's composer), not exposed to any view, so its own
     /// Observable state never needs to be tracked here.
     private let mediaHelper = CreatePostViewModel()
 
@@ -98,7 +98,7 @@ class PostComposerViewModel {
         switch postType {
         case .text:
             // Parity with Feed: an image/video-only post (no caption) is valid
-            // too — once every picked item has loaded, or it'd be left out.
+            // too, once every picked item has loaded, or it'd be left out.
             return (!trimmed.isEmpty || !selectedMedia.isEmpty || linkPreview != nil) && pendingMediaCount == 0
         case .poll:
             guard !trimmed.isEmpty else { return false }
@@ -127,12 +127,12 @@ class PostComposerViewModel {
 
     /// `communityId` nil posts to the Feed (`POST /posts`), non-nil posts to a
     /// community (`POST /communities/:id/posts`). `mode`/`privacy` are always
-    /// sent now — community posts ignore them server-side today (mode/privacy
+    /// sent now, community posts ignore them server-side today (mode/privacy
     /// derive from the community), Feed posts need them to post with the
     /// composer's actual mode/privacy choice instead of a silent hobby/public
     /// default (see postModel.createCommunityPost's mode/privacy overrides).
     ///
-    /// `hashtags` mirror Feed's `CreatePostViewModel.submitPost` — user-typed tags
+    /// `hashtags` mirror Feed's `CreatePostViewModel.submitPost`, user-typed tags
     /// saved synchronously (`source = 'user'`). AI-generated tags are never shown
     /// (they only feed AI search), so there is nothing to refetch after the post
     /// is created.
@@ -172,7 +172,7 @@ class PostComposerViewModel {
 
     // MARK: - Media
 
-    /// Image → decode to UIImage; video → copy to a temp file + generate a thumbnail — the
+    /// Image → decode to UIImage; video → copy to a temp file + generate a thumbnail. The
     /// same logic Feed's composer uses (delegated through mediaHelper, not duplicated).
     func loadSelectedMedia(_ items: [PhotosPickerItem]) async {
         selectedMedia = await mediaHelper.loadSelectedMedia(items, keeping: selectedMedia) { [weak self] soFar in
@@ -195,7 +195,7 @@ class PostComposerViewModel {
     // MARK: - Link preview (debounced)
 
     /// Detects a URL in the content being typed and fetches a link preview 800ms after
-    /// typing stops — mirrors CreatePostViewModel.detectAndFetchLink (Feed) 1:1 but
+    /// typing stops, mirrors CreatePostViewModel.detectAndFetchLink (Feed) 1:1 but
     /// uses PostRepository directly since it doesn't need Feed's VM's own state.
     func detectAndFetchLink(_ text: String) {
         // A loaded draft's text has its URL stripped (the link lives in its
@@ -266,7 +266,7 @@ class PostComposerViewModel {
         var finalContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
         let capturedPreview = linkPreview
 
-        // Strip the detected URL out of the content — the link already shows via its
+        // Strip the detected URL out of the content. The link already shows via its
         // own card, leaving it in the text would duplicate it (same as Feed's submitPost).
         if capturedPreview != nil {
             let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
@@ -283,6 +283,7 @@ class PostComposerViewModel {
 
         var dict: [String: Any] = [
             "content":      finalContent,
+            "content_format": PostRepository.contentFormat,
             "post_type":    "text",
             "mode":         mode.rawValue,
             "privacy":      privacy.rawValue,
@@ -309,6 +310,7 @@ class PostComposerViewModel {
 
         var dict: [String: Any] = [
             "content":      content.trimmingCharacters(in: .whitespacesAndNewlines),
+            "content_format": PostRepository.contentFormat,
             "post_type":    "poll",
             "options":      validOptions,
             "mode":         mode.rawValue,
@@ -338,6 +340,7 @@ class PostComposerViewModel {
 
         var dict: [String: Any] = [
             "content":      content.trimmingCharacters(in: .whitespacesAndNewlines),
+            "content_format": PostRepository.contentFormat,
             "post_type":    "event",
             "eventData":    eventDict,
             "mode":         mode.rawValue,
@@ -380,6 +383,7 @@ class PostComposerViewModel {
 
         var dict: [String: Any] = [
             "content":      content.trimmingCharacters(in: .whitespacesAndNewlines),
+            "content_format": PostRepository.contentFormat,
             "post_type":    "job",
             "jobData":      jobDict,
             "mode":         mode.rawValue,

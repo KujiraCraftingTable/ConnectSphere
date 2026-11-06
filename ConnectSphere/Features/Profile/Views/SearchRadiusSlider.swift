@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Position math for the search-radius track, kept free of SwiftUI so it can be
 /// tested directly (`RadiusScaleTests`). Distances map *linearly* onto the
-/// first `linearSpan` of the track — 5 km is exactly a sixth of 0–30 km — and
+/// first `linearSpan` of the track, 5 km is exactly a sixth of 0–30 km, and
 /// the stored value `0` ("no limit") is a separate stop at the far right.
 /// The old slider spaced stops by list position, so 5 km sat at 29% of the bar.
 enum RadiusScale {
@@ -30,7 +30,7 @@ enum RadiusScale {
 /// Search radius picker drawn on a true-to-scale track. Drawn by hand rather
 /// than with `Slider` because the labels must sit exactly under their stops,
 /// and the system thumb's inset (a wide glass pill on iOS 26) isn't ours to
-/// measure. `km == 0` means no limit — the convention `SearchView` reads.
+/// measure. `km == 0` means no limit. The convention `SearchView` reads.
 struct SearchRadiusSlider: View {
     @Binding var km: Int
     let tint: Color
@@ -56,7 +56,7 @@ struct SearchRadiusSlider: View {
                     .fill(AppColors.borderDefault(colorScheme))
                     .frame(width: linearEnd - inset, height: trackHeight)
                     .position(x: (inset + linearEnd) / 2, y: trackY)
-                // Dotted gap to "no limit" — visibly not part of the distance scale.
+                // Dotted gap to "no limit", visibly not part of the distance scale.
                 Path { p in
                     p.move(to: CGPoint(x: linearEnd + 6, y: trackY))
                     p.addLine(to: CGPoint(x: x(1) - 4, y: trackY))

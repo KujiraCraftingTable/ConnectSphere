@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 
 /// Times how long each post in a feed is at least half on screen, notes the
-/// posts the user opens, and sends them in batches — the behaviour feed
+/// posts the user opens, and sends them in batches. The behaviour feed
 /// ranking learns from (FEED_RANKING_REVIEW.md, phase A). Used by the Home
 /// feed and community feeds.
 @MainActor

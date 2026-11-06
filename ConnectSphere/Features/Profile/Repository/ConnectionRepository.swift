@@ -110,7 +110,7 @@ struct ConnectionRepository {
                                    queryItems: [URLQueryItem(name: "mode", value: mode)])
     }
 
-    /// `followers` or `following` of a user in one mode — friends excluded.
+    /// `followers` or `following` of a user in one mode. Friends excluded.
     func fetchFollows(userId: String, followers: Bool, mode: String) async throws -> [ConnectionUserDTO] {
         try await client.fetch(PeopleResponse.self, path: "/follows/\(userId)", token: try token(),
                                queryItems: [URLQueryItem(name: "type", value: followers ? "followers" : "following"),

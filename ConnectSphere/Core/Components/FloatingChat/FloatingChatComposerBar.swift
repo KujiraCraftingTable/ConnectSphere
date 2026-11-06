@@ -2,7 +2,7 @@ import SwiftUI
 import PhotosUI
 
 /// Full-width message composer for the floating chat, docked directly above
-/// the keyboard — rendered once by `FloatingChatOverlay` for whichever chat
+/// the keyboard, rendered once by `FloatingChatOverlay` for whichever chat
 /// is composing.
 ///
 /// It deliberately does *not* live inside the floating window. As an overlay
@@ -12,7 +12,7 @@ import PhotosUI
 /// `ChatView.inputBar` and makes detaching structurally impossible, since the
 /// bar is not positioned relative to the freely-draggable window.
 ///
-/// Deliberately text and photos only — "keep the conversation going", not the
+/// Deliberately text and photos only, "keep the conversation going", not the
 /// full `ChatView` composer. Voice, meeting proposals and replies stay in the
 /// full chat, which a double-tap on the bubble restores.
 struct FloatingChatComposerBar: View {
@@ -26,7 +26,7 @@ struct FloatingChatComposerBar: View {
     @State private var pickerItems: [PhotosPickerItem] = []
     @FocusState private var isInputFocused: Bool
     /// Per-conversation quick-emoji preference, shared with `ChatView`'s send
-    /// button and set in Chat settings — see `quickEmojiStorageKey`.
+    /// button and set in Chat settings. See `quickEmojiStorageKey`.
     @AppStorage private var quickEmoji: String
 
     init(bubble: FloatingBubbleState, presenter: FloatingChatPresenter) {
@@ -39,7 +39,7 @@ struct FloatingChatComposerBar: View {
     }
 
     /// `bubble` is a reference type, so the draft is bound through explicit
-    /// get/set rather than `@Bindable` — it keeps the draft on the bubble
+    /// get/set rather than `@Bindable`. It keeps the draft on the bubble
     /// (surviving the bar closing and reopening) without shadowing `bubble`
     /// inside `body`.
     private var draftBinding: Binding<String> {
@@ -79,7 +79,7 @@ struct FloatingChatComposerBar: View {
         .overlay(alignment: .top) { Divider() }
         .onAppear { isInputFocused = true }
         // The overlay lifts the composing bubble to clear this bar, so it needs
-        // the bar's live top edge — reported here rather than derived from a
+        // the bar's live top edge. Reported here rather than derived from a
         // keyboard-height notification, which would have to guess the bar's
         // own height on top of it.
         .onGeometryChange(for: CGFloat.self) { proxy in
@@ -94,7 +94,7 @@ struct FloatingChatComposerBar: View {
         }
     }
 
-    /// Never greyed out — a grey control reads as "this can't be used", and
+    /// Never greyed out. A grey control reads as "this can't be used", and
     /// this one always can: with text it's the arrow, empty it's a one-tap
     /// quick-emoji send (Messenger's behaviour).
     private var sendButton: some View {
@@ -129,7 +129,7 @@ struct FloatingChatComposerBar: View {
         Task { await bubble.viewModel.sendText(trimmed) }
     }
 
-    /// Sends the configured quick emoji as an ordinary text message — there is
+    /// Sends the configured quick emoji as an ordinary text message. There is
     /// no sticker message type (`MessageType` is text/image/video/meeting/
     /// voice/album, and the DB CHECK allows only those), so one-tap send is simply a
     /// very short text.
@@ -137,7 +137,7 @@ struct FloatingChatComposerBar: View {
         Task { await bubble.viewModel.sendText(quickEmoji) }
     }
 
-    /// Sends the picked photos/videos immediately — the mini composer has no
+    /// Sends the picked photos/videos immediately. The mini composer has no
     /// staging strip to preview them in, unlike `ChatView`'s `mediaPreview`.
     /// Several photos go as one album, same as the full chat.
     private func sendPickedMedia(_ items: [PhotosPickerItem]) async {

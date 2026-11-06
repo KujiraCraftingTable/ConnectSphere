@@ -16,7 +16,7 @@ struct SettingsView: View {
     /// Read from the bundle rather than hardcoded, so it can't silently go
     /// stale on the next release.
     private var appVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "-"
     }
 
     var body: some View {
@@ -56,7 +56,7 @@ struct SettingsView: View {
                      : String(format: bundle.loc("Kujira only suggests people within %dkm when searching with location."), searchRadiusKm))
             }
 
-            // Account — identity, privacy, activity and deleting live in Manage account
+            // Account, identity, privacy, activity and deleting live in Manage account
             Section {
                 NavigationLink {
                     ManageAccountView()
@@ -90,6 +90,13 @@ struct SettingsView: View {
                         .environment(themeManager)
                 } label: {
                     settingsRow(icon: "bookmark.fill", label: bundle.loc("Saved"), color: Color(hex: "#795548"), showsChevron: false)
+                }
+                NavigationLink {
+                    MarketplaceMyItemsView(mode: appState.currentMode, sellerId: appState.currentUser?.id ?? "")
+                        .environment(appState)
+                        .environment(themeManager)
+                } label: {
+                    settingsRow(icon: "bag.fill", label: bundle.loc("Marketplace"), color: Color(hex: "#E67E22"), showsChevron: false)
                 }
                 NavigationLink {
                     RecentlyDeletedView()
@@ -168,7 +175,7 @@ struct SettingsView: View {
                 }
             }
         }
-        // .alert (not .confirmationDialog) — always a centered box regardless
+        // .alert (not .confirmationDialog). Always a centered box regardless
         // of action count, matching the familiar Facebook-style "Log out of
         // your account?" pattern. .confirmationDialog with just one
         // destructive action rendered as an anchored popover bubble near the

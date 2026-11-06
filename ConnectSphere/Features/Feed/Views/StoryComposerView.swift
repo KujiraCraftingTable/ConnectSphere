@@ -1,7 +1,7 @@
 import SwiftUI
 import PhotosUI
 
-/// Story composer — presented full-screen from `StoriesRow`'s "+"/empty-avatar
+/// Story composer, presented full-screen from `StoriesRow`'s "+"/empty-avatar
 /// tap. Up to 4 photos arranged in a collage, each independently
 /// pinch-to-zoom + drag-to-pan; every photo count (1-4) offers 2 alternate
 /// layout templates, picked via `layoutPicker`'s swatches (see
@@ -12,7 +12,7 @@ import PhotosUI
 /// "Post" flattens the exact on-screen canvas into a single `UIImage` via
 /// `ImageRenderer` and uploads it through the same pipeline a plain
 /// single-photo story always used (`PostRepository.uploadImage` →
-/// `StoryRepository.createStory`) — the server never knows a collage or text
+/// `StoryRepository.createStory`), the server never knows a collage or text
 /// overlay was involved; it just gets one JPEG, same as before this feature.
 struct StoryComposerView: View {
     @Environment(\.dismiss) private var dismiss
@@ -25,17 +25,17 @@ struct StoryComposerView: View {
 
     @State private var frames: [ComposerFrame] = []
     /// Which of the 2 layout templates for the current photo count is
-    /// active — reset to `.a` whenever a fresh set of photos is picked.
+    /// active, reset to `.a` whenever a fresh set of photos is picked.
     @State private var layoutVariant: LayoutVariant = .a
     /// Adjustable divider positions, as a fraction (0...1) of the canvas
-    /// width/height — which slot means what depends on the current
+    /// width/height, which slot means what depends on the current
     /// (frames.count, layoutVariant) shape, see `frameRects`/`dividers`.
     /// Reset to even whenever a fresh set of photos is picked or the
     /// layout variant changes (a different shape's dividers mean something
     /// different, so a carried-over value would be meaningless).
     @State private var ratios: [CGFloat] = [0.5, 0.5]
     @State private var textLayers: [TextLayerState] = []
-    /// Which layer the text-editor sheet is currently editing — always the
+    /// Which layer the text-editor sheet is currently editing. Always the
     /// one "Aa" just created; the sheet never re-opens an existing layer.
     @State private var editingTextLayerID: UUID?
     @State private var showTextEditor = false
@@ -44,13 +44,15 @@ struct StoryComposerView: View {
     @State private var replacementItem: PhotosPickerItem?
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var viewModel = StoryComposerViewModel()
+    /// A photo added or text placed. Closing would lose it.
+    private var hasWork: Bool { !frames.isEmpty || !textLayers.isEmpty }
     /// Drag-to-delete: while any text is being dragged, a trash icon shows
     /// at the bottom of the canvas; dropping the text near it deletes it.
     @State private var isDraggingText = false
     @State private var isNearTrash = false
 
 
-    /// Design-time canvas size the collage is laid out and rendered at —
+    /// Design-time canvas size the collage is laid out and rendered at,
     /// roughly a 9:16 story frame. `ImageRenderer`'s `scale` (see `post()`)
     /// is what actually determines the exported resolution, not this.
     private let canvasSize = CGSize(width: 360, height: 640)
@@ -76,10 +78,10 @@ struct StoryComposerView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.black.ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
-            .interactiveDismissDisabled()
+            .interactiveDismissDisabled(hasWork)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    ConfirmCancelButton { dismiss() }
+                    ConfirmCancelButton(hasChanges: hasWork) { dismiss() }
                         .foregroundColor(.white)
                 }
                 ToolbarItem(placement: .principal) {
@@ -128,7 +130,7 @@ struct StoryComposerView: View {
             textEditorSheet
         }
         .task {
-            // The composer IS the new "+" flow — open the picker immediately
+            // The composer IS the new "+" flow, open the picker immediately
             // on first appearance, matching the old instant-picker behavior.
             if frames.isEmpty { showPicker = true }
         }
@@ -163,7 +165,7 @@ struct StoryComposerView: View {
     }
 
     /// Two small tappable previews of the current photo count's two layout
-    /// templates — hidden until at least one photo is picked (no layout to
+    /// templates, hidden until at least one photo is picked (no layout to
     /// choose between before then).
     @ViewBuilder
     private var layoutPicker: some View {
@@ -202,7 +204,7 @@ struct StoryComposerView: View {
         }
     }
 
-    /// The pure visual content — collage frames + text overlay, nothing
+    /// The pure visual content. Collage frames + text overlay, nothing
     /// else. This is exactly what gets flattened into the posted image (see
     /// `post()`), so it must never contain editing-only chrome.
     private var composedContent: some View {
@@ -225,7 +227,7 @@ struct StoryComposerView: View {
     }
 
     /// What's actually shown on screen while editing: `composedContent` plus
-    /// the per-frame "replace photo" button — UI-only chrome, deliberately
+    /// the per-frame "replace photo" button, UI-only chrome, deliberately
     /// layered on top rather than baked into `composedContent`, since that's
     /// the exact view `post()` renders to produce the uploaded image.
     private var canvas: some View {
@@ -244,7 +246,7 @@ struct StoryComposerView: View {
                 }
                 .position(x: rects[i].minX + 22, y: rects[i].minY + 22)
             }
-            // Draggable lines between frames — pure editing chrome, kept out
+            // Draggable lines between frames. Pure editing chrome, kept out
             // of `composedContent` like everything else on this layer.
             ForEach(Self.dividers(count: frames.count, variant: layoutVariant, ratios: ratios, in: canvasSize)) { divider in
                 DividerHandle(
@@ -253,7 +255,7 @@ struct StoryComposerView: View {
                     axisLength: divider.isHorizontal ? canvasSize.height : canvasSize.width
                 )
             }
-            // Drag-to-delete target — shown only while a text layer is
+            // Drag-to-delete target, shown only while a text layer is
             // actively being dragged, never part of the exported image.
             if isDraggingText {
                 Image(systemName: isNearTrash ? "trash.circle.fill" : "trash.circle")
@@ -269,14 +271,14 @@ struct StoryComposerView: View {
 
     /// Two alternative collage templates per photo count, picked via
     /// `layoutPicker`'s swatches:
-    ///  1 photo — `.a` full-bleed edge-to-edge, `.b` inset/"framed" with a margin.
-    ///  2 photos — `.a` stacked halves, `.b` side-by-side halves.
-    ///  3 photos — `.a` one large top + two small bottom, `.b` one large left + two small right.
-    ///  4 photos — `.a` even 2×2 grid, `.b` one large top + three small bottom columns.
+    ///  1 photo, `.a` full-bleed edge-to-edge, `.b` inset/"framed" with a margin.
+    ///  2 photos, `.a` stacked halves, `.b` side-by-side halves.
+    ///  3 photos, `.a` one large top + two small bottom, `.b` one large left + two small right.
+    ///  4 photos, `.a` even 2×2 grid, `.b` one large top + three small bottom columns.
     /// Every split is a fraction from `ratios` rather than a fixed half, so
     /// dragging a divider (see `dividers`/`DividerHandle`) actually resizes
     /// the frames on either side of it. The one exception is `(4, .b)`'s
-    /// three bottom columns, which stay equal-width — a disclosed scope
+    /// three bottom columns, which stay equal-width. A disclosed scope
     /// trim so this doesn't need a third ratio slot.
     static func frameRects(count: Int, variant: LayoutVariant, ratios: [CGFloat], in size: CGSize) -> [CGRect] {
         let r0 = ratios.count > 0 ? ratios[0] : 0.5
@@ -358,7 +360,7 @@ struct StoryComposerView: View {
     /// The divider(s) for the current shape, positioned from the same
     /// `rects` `frameRects` just computed for it (a divider always sits
     /// exactly on the shared boundary between two of those rects). Mirrors
-    /// `frameRects`'s own switch — see its doc comment for what each shape
+    /// `frameRects`'s own switch. See its doc comment for what each shape
     /// looks like.
     static func dividers(count: Int, variant: LayoutVariant, ratios: [CGFloat], in size: CGSize) -> [FrameDivider] {
         let r0 = ratios.count > 0 ? ratios[0] : 0.5
@@ -404,7 +406,7 @@ struct StoryComposerView: View {
             let topH = size.height * r0
             return [FrameDivider(ratioIndex: 0, isHorizontal: true,
                                   hitRect: CGRect(x: 0, y: topH - thickness / 2, width: size.width, height: thickness))]
-        default: // (0, _), (1, .a), (1, .b) — nothing to divide
+        default: // (0, _), (1, .a), (1, .b). Nothing to divide
             return []
         }
     }
@@ -473,7 +475,7 @@ struct StoryComposerView: View {
 
     // MARK: - Text layers
 
-    /// A binding to one specific layer by id — used both by the editor
+    /// A binding to one specific layer by id. Used both by the editor
     /// sheet (bound to whichever layer "Aa" just created) and by each
     /// `EditableText` on the canvas.
     private func binding(for id: UUID) -> Binding<TextLayerState> {
@@ -488,7 +490,7 @@ struct StoryComposerView: View {
     }
 
     /// "Aa" always creates a brand-new text layer and opens the editor for
-    /// it — never re-opens an existing one. Staggers the default position
+    /// it, never re-opens an existing one. Staggers the default position
     /// slightly per existing layer so new texts don't land exactly on top
     /// of earlier ones.
     private func addTextLayer() {
@@ -498,7 +500,7 @@ struct StoryComposerView: View {
         // screen) so the user can actually see what they're typing/styling
         // as they do it. The previous version accumulated +40pt of Y per
         // existing layer, which could push a 3rd/4th text down behind the
-        // sheet entirely — a small horizontal-only stagger still keeps
+        // sheet entirely, a small horizontal-only stagger still keeps
         // several never-yet-repositioned texts from landing in the exact
         // same spot, without risking that.
         let stagger = CGFloat(textLayers.count % 4) * 24 - 36
@@ -546,11 +548,11 @@ struct StoryComposerView: View {
     private func post() async {
         guard !frames.isEmpty, !viewModel.isPosting else { return }
 
-        // `composedContent`, not `canvas` — the latter also includes the
+        // `composedContent`, not `canvas`. The latter also includes the
         // per-frame "replace photo" buttons, which must never end up baked
         // into the actual posted image.
         let renderer = ImageRenderer(content: composedContent)
-        // Render at a real resolution, not screen points — the canvas is a
+        // Render at a real resolution, not screen points. The canvas is a
         // fixed design-time size (`canvasSize`), so a flat 1x render would
         // look soft once viewed full-screen in `StoryViewerView`.
         renderer.scale = 3
@@ -563,7 +565,7 @@ struct StoryComposerView: View {
 
 // MARK: - Frame model + editable view
 
-/// Two alternate collage templates exist for every photo count (1-4) — see
+/// Two alternate collage templates exist for every photo count (1-4). See
 /// `StoryComposerView.frameRects(count:variant:ratios:in:)` for what each looks
 /// like at each count.
 enum LayoutVariant: CaseIterable {
@@ -580,13 +582,13 @@ struct ComposerFrame: Identifiable {
 }
 
 /// One collage slot: its photo always fills the slot (`scaledToFill`), then
-/// pinch zooms in further and drag repositions within it — the photo can
+/// pinch zooms in further and drag repositions within it. The photo can
 /// never be zoomed below "just covers the frame", matching how a normal
 /// story/collage editor behaves (no gaps ever show at the frame's edges).
 private struct EditableFrame: View {
     @Binding var frame: ComposerFrame
     let rect: CGRect
-    /// Double-tapping the photo also opens the replace-photo picker — a
+    /// Double-tapping the photo also opens the replace-photo picker. A
     /// second, more discoverable-by-feel path to the same flow the corner
     /// button triggers. Reported up rather than handled locally since
     /// `replacingFrameIndex` lives on the parent (`StoryComposerView`), not
@@ -628,11 +630,11 @@ private struct EditableFrame: View {
     }
 }
 
-/// The draggable line between two adjacent frames — a thin visible line
+/// The draggable line between two adjacent frames. A thin visible line
 /// plus a much more generous invisible hit area, both centered on
 /// `divider.hitRect`. Drags by translation-from-drag-start (like
 /// `EditableFrame`'s own pan/zoom) rather than `DragGesture`'s `location`,
-/// which is relative to this view's own small local frame, not the canvas —
+/// which is relative to this view's own small local frame, not the canvas,
 /// translation is coordinate-space-agnostic, so it stays correct regardless
 /// of where the hit rect sits.
 private struct DividerHandle: View {
@@ -682,10 +684,10 @@ struct TextLayerState: Identifiable {
 
 private struct EditableText: View {
     @Binding var state: TextLayerState
-    /// Live absolute position while dragging — lets the parent track
+    /// Live absolute position while dragging. Lets the parent track
     /// proximity to the trash zone and show/highlight its icon.
     var onDragMove: (CGPoint) -> Void = { _ in }
-    /// Final absolute position on release — the parent decides whether to
+    /// Final absolute position on release. The parent decides whether to
     /// commit it as the new position or delete this layer entirely (a
     /// single-layer `Binding` can't remove itself from the array it lives
     /// in, so that decision has to live one level up).

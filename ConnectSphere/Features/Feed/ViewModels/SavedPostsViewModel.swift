@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 /// The user's saved (bookmarked) posts, and separately their saved
-/// Marketplace items — the two tabs of Saved.
+/// Marketplace items, the two tabs of Saved.
 @MainActor
 @Observable
 final class SavedPostsViewModel {
@@ -13,7 +13,7 @@ final class SavedPostsViewModel {
     private(set) var listings: [Post] = []
     private(set) var isLoading = false
     var errorMessage: String?
-    /// Tabs fetched at least once — each loads when it's first opened.
+    /// Tabs fetched at least once. Each loads when it's first opened.
     private var loaded: Set<Tab> = []
 
     private let repository = PostRepository()
@@ -39,7 +39,7 @@ final class SavedPostsViewModel {
     /// A post changed somewhere in the app. Unsaved → drop it right away;
     /// still saved → patch it in place, or add a newly saved item to the top
     /// of its tab. (A generic feed only ever patches; the Saved list must also
-    /// remove — the same asymmetry Recently Deleted handles for delete/restore.)
+    /// remove, the same asymmetry Recently Deleted handles for delete/restore.)
     func postUpdated(_ updated: Post) {
         if updated.postType == .listing { apply(updated, to: &listings) } else { apply(updated, to: &posts) }
     }

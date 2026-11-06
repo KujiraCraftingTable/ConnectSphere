@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Someone as they appear in one community — opened from "..." › Your
+/// Someone as they appear in one community. Opened from "..." › Your
 /// community profile, a poster or commenter's name/photo, or the members list.
 struct CommunityMemberProfileView: View {
     @Environment(AppState.self) private var appState

@@ -1,7 +1,7 @@
 import SwiftUI
 import Observation
 
-/// One conversation in the floating chat window — its own already-joined
+/// One conversation in the floating chat window. Its own already-joined
 /// `ChatViewModel` and its per-chat state. `id` = conversationId, so a
 /// conversation is in the window at most once.
 @MainActor
@@ -14,19 +14,19 @@ final class FloatingBubbleState: Identifiable {
     let token: String
     let viewModel: ChatViewModel
 
-    /// Single-tap state — raises the keyboard and docks
+    /// Single-tap state, raises the keyboard and docks
     /// `FloatingChatComposerBar` above it for this chat.
     var isComposing = false
     /// Unsent composer text. Lives here rather than in the composer view so it
     /// survives the bar being dismissed and reopened, and so each chat keeps
     /// its own draft.
     var draftText = ""
-    /// When the user last looked at or used this chat — the one with the
+    /// When the user last looked at or used this chat. The one with the
     /// oldest gives way when a fifth chat is floated.
     var lastUsed = Date()
     /// The newest message the user has seen here: set when the chat is
     /// floated and each time its card is tapped. Messages arriving later are
-    /// unread until the next tap — merely being on screen doesn't count.
+    /// unread until the next tap. Merely being on screen doesn't count.
     var seenMessageID: String?
 
     init(conversationId: String, peer: ChatPeer, otherUserLocation: String?,
@@ -41,7 +41,7 @@ final class FloatingBubbleState: Identifiable {
     }
 
     /// The message to count as last seen so that the newest `unread` messages
-    /// from others are unread — a chat added from the picker arrives with the
+    /// from others are unread. A chat added from the picker arrives with the
     /// inbox's unread count rather than as all-seen. `nil` when they're all
     /// unread.
     static func seenBaseline(messages: [Message], unread: Int, currentUserId: String) -> String? {
@@ -69,7 +69,7 @@ enum FloatingChatStashEdge: Equatable {
     case leading, trailing
 }
 
-/// App-wide presenter for the floating chat window — lets the user keep up
+/// App-wide presenter for the floating chat window. Lets the user keep up
 /// to four conversations open (still receiving and able to send) while
 /// browsing any other tab, the way Android's chat bubbles work, scoped to
 /// staying inside this app (iOS has no system-level overlay API a
@@ -78,7 +78,7 @@ enum FloatingChatStashEdge: Equatable {
 /// Apple's picture-in-picture.
 ///
 /// One instance is injected via `.environment` from `ConnectSphereApp` and
-/// rendered by `MainTabView`'s overlay — same shape as `UndoToastPresenter`/
+/// rendered by `MainTabView`'s overlay. Same shape as `UndoToastPresenter`/
 /// `UndoToastView`, which is what makes it survive tab switches (`MainTabView`
 /// itself is never rebuilt when the selected tab changes).
 ///
@@ -101,9 +101,9 @@ final class FloatingChatPresenter {
     var windowPosition: CGPoint?
     /// Set while the window is tucked off a side edge, leaving only its tab.
     private(set) var stashEdge: FloatingChatStashEdge?
-    /// The one video or voice message playing in the window — one sound at a time.
+    /// The one video or voice message playing in the window. One sound at a time.
     var playingMediaID: String?
-    /// Set by `restore(_:)` — drives a root-level `.fullScreenCover` in
+    /// Set by `restore(_:)`. Drives a root-level `.fullScreenCover` in
     /// `MainTabView` back into a full `ChatView`, regardless of which tab is
     /// currently active. Cleared automatically when that cover is dismissed
     /// (native swipe, or `ChatView`'s own shrink action re-minimizing it).
@@ -138,7 +138,7 @@ final class FloatingChatPresenter {
 
     var totalUnread: Int { bubbles.reduce(0) { $0 + $1.unreadCount } }
 
-    /// The one chat currently composing, if any — `toggleComposing` keeps
+    /// The one chat currently composing, if any, `toggleComposing` keeps
     /// this exclusive, so the overlay renders a single composer bar for it.
     var composingBubble: FloatingBubbleState? {
         bubbles.first { $0.isComposing }
@@ -147,13 +147,13 @@ final class FloatingChatPresenter {
     /// Full `ChatView`s currently on screen. A count, not a flag: one chat can
     /// appear before the previous one's `onDisappear` fires (chat → chat).
     private var visibleFullChats = 0
-    /// The window stays alive but out of sight while a full chat is open — it'd
+    /// The window stays alive but out of sight while a full chat is open, it'd
     /// otherwise sit on top of its messages and composer.
     var isHiddenByFullChat: Bool { visibleFullChats > 0 }
 
     /// Called by `ChatView` as it appears, *before* it joins its conversation.
     /// A floating chat for that same conversation is closed outright: two live
-    /// views of one chat is redundant, and worse, they share one socket —
+    /// views of one chat is redundant, and worse, they share one socket,
     /// whichever leaves last emits `leave_conversation` and silently kicks the
     /// other out of the room. Closing first means this leave lands before the
     /// new join. The other floating chats are only hidden, and return when the
@@ -182,7 +182,7 @@ final class FloatingChatPresenter {
     /// `ChatViewModel.retag(to:)`) rather than tearing them down and
     /// rebuilding from scratch, so no message history is lost and no extra
     /// fetch happens. When four chats are already floating, the one used
-    /// longest ago is closed to make room — returned, so the caller can say so.
+    /// longest ago is closed to make room. Returned, so the caller can say so.
     @discardableResult
     func minimize(conversationId: String, peer: ChatPeer, otherUserLocation: String?,
                   currentUserId: String, token: String, viewModel: ChatViewModel) -> FloatingBubbleState? {
@@ -248,7 +248,7 @@ final class FloatingChatPresenter {
     }
 
     /// Shows `bubble` in the window (a swipe, an edge count, a new chat). Any
-    /// reply bar closes and the playing video stops — both belonged to the
+    /// reply bar closes and the playing video stops. Both belonged to the
     /// chat being left.
     func activate(_ bubble: FloatingBubbleState) {
         guard bubble.id != activeID else { return }
@@ -274,7 +274,7 @@ final class FloatingChatPresenter {
         bubble.viewModel.markRead()
     }
 
-    /// Closes a chat without restoring — tears down its socket listeners
+    /// Closes a chat without restoring. Tears down its socket listeners
     /// entirely (the conversation is no longer live anywhere). The window
     /// moves to a neighbour; closing the last one removes the window.
     func close(_ bubble: FloatingBubbleState) {
@@ -304,7 +304,7 @@ final class FloatingChatPresenter {
     }
 
     /// Toggles `bubble`'s inline-compose affordance, closing any other
-    /// chat's first — the on-screen keyboard is a single, device-wide
+    /// chat's first, the on-screen keyboard is a single, device-wide
     /// resource, so only one chat composes at a time.
     func toggleComposing(_ bubble: FloatingBubbleState) {
         let opening = !bubble.isComposing
@@ -312,14 +312,14 @@ final class FloatingChatPresenter {
         bubble.isComposing = opening
     }
 
-    /// Closes every chat's compose affordance — used by the overlay's
+    /// Closes every chat's compose affordance. Used by the overlay's
     /// tap-outside catcher.
     func dismissAllComposing() {
         for bubble in bubbles { bubble.isComposing = false }
     }
 
     /// Removes a chat from the window and hands its still-live
-    /// `ChatViewModel` to a root-level full-screen `ChatView` — no re-fetch,
+    /// `ChatViewModel` to a root-level full-screen `ChatView`. No re-fetch,
     /// no re-join; the socket listeners registered under the bubble's tag
     /// just keep running uninterrupted.
     func restore(_ bubble: FloatingBubbleState) {

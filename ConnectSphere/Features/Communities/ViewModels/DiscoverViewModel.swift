@@ -8,7 +8,7 @@ class DiscoverViewModel {
     var isLoading = false
     var errorMessage: String?
 
-    /// Results for the Discover tab's own search box — a real server-side
+    /// Results for the Discover tab's own search box. A real server-side
     /// search (`GET /communities?query=...`), not a client-side filter of
     /// the already-fetched trending/recommended lists (those are just a
     /// curated top-N, not the full browsable set).
@@ -18,7 +18,7 @@ class DiscoverViewModel {
     private let token: String
     private let repository = CommunityRepository()
     /// Discards a late search response from a since-superseded query (e.g.
-    /// typing fast) — same guard shape `SearchViewModel` already uses.
+    /// typing fast), same guard shape `SearchViewModel` already uses.
     private var searchGeneration = 0
 
     init(token: String) {
@@ -54,7 +54,7 @@ class DiscoverViewModel {
     }
 
     /// Join/leave straight from any row (trending, recommended or a search
-    /// result) — optimistic, reverted on failure.
+    /// result), optimistic, reverted on failure.
     func toggleMembership(_ community: Community) async {
         let joining = !community.isMember
         updateSearchMembership(id: community.id, isMember: joining, delta: joining ? 1 : -1)

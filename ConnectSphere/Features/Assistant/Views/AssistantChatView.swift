@@ -3,7 +3,7 @@ import SwiftUI
 /// Sheet presentation for the in-app AI assistant: a scrollable list of chat
 /// bubbles (user right-aligned filled, assistant left-aligned) plus a bottom
 /// text input bar. Matches Chat's visual style (bubble corner radius, fonts,
-/// colors) but as new, simpler view code — NOT a reuse of `MessageBubble`,
+/// colors) but as new, simpler view code, NOT a reuse of `MessageBubble`,
 /// which is heavily coupled to the real messaging system.
 struct AssistantChatView: View {
     @Environment(\.appBundle) var bundle
@@ -15,7 +15,7 @@ struct AssistantChatView: View {
 
     /// Owned by `MainTabView`, not by this sheet. `.sheet` destroys its content
     /// on dismiss, so a view model created here would take the conversation
-    /// with it — and "Take me there" dismisses, meaning acting on any
+    /// with it, and "Take me there" dismisses, meaning acting on any
     /// suggestion used to wipe the chat.
     let viewModel: AssistantViewModel
 
@@ -87,7 +87,7 @@ struct AssistantChatView: View {
 
     // MARK: - Empty state
 
-    /// Short welcome line + a few tappable example prompts — kept minimal
+    /// Short welcome line + a few tappable example prompts. Kept minimal
     /// (full quick-command suggestion chips as a discoverability feature is
     /// noted as future work; this is just enough to not stare at a blank sheet).
     private var emptyState: some View {

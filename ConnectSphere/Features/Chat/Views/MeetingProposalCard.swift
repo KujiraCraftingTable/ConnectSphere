@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// The card for a `.meeting` message: calendar icon, title, formatted date,
-/// optional location, then — in a group — a Going / Maybe / Can't go strip
-/// with the going count, or — in a 1:1 — the reminder. The proposer gets a
+/// optional location, then, in a group, a Going / Maybe / Can't go strip
+/// with the going count, or, in a 1:1, the reminder. The proposer gets a
 /// menu to reschedule or cancel where the host passes both actions.
 /// Cancelled proposals render muted and struck through with RSVP disabled.
 ///
@@ -12,7 +12,7 @@ import SwiftUI
 struct MeetingProposalCard: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.appBundle) private var bundle
-    @Environment(\.openURL) private var openURL
+    @State private var browserURL: URL?
 
     let proposal: MeetingProposal
     let isOwn: Bool
@@ -95,7 +95,7 @@ struct MeetingProposalCard: View {
                     .font(.system(size: compact ? 11 : 12, weight: .semibold))
                     .foregroundColor(.red)
             } else if isGroup {
-                // Groups keep RSVP — a 1:1 pair already coordinates by
+                // Groups keep RSVP. A 1:1 pair already coordinates by
                 // talking, so RSVP would be redundant there (see the
                 // reminder row below). The count has its own line: sharing the
                 // buttons' row crowded and wrapped them.
@@ -123,10 +123,11 @@ struct MeetingProposalCard: View {
             }
         }
         .opacity(cancelled ? 0.65 : 1)
+        .inAppBrowser(url: $browserURL)
     }
 
     /// Non-interactive reminder indicator shown in place of RSVP buttons for
-    /// a 1:1 proposal (RSVP is redundant there — the two people already
+    /// a 1:1 proposal (RSVP is redundant there. The two people already
     /// coordinate by talking; the reminder is what actually matters).
     private var reminderRow: some View {
         let offset = proposal.reminderOffsetValue ?? .oneDayBefore
@@ -171,7 +172,7 @@ struct MeetingProposalCard: View {
         }
     }
 
-    /// Short formatted date: "Sat, Jun 7 · 7:00 PM" — same format as EventPostCard.
+    /// Short formatted date: "Sat, Jun 7 · 7:00 PM", same format as EventPostCard.
     static func formattedDate(_ date: Date) -> String {
         let df = DateFormatter()
         df.dateFormat = "EEE, MMM d"
@@ -180,22 +181,16 @@ struct MeetingProposalCard: View {
         return "\(df.string(from: date)) · \(tf.string(from: date))"
     }
 
-    /// Opens the proposal's location in Google Maps — the native app if
-    /// installed (probed via `canOpenURL`, which requires `comgooglemaps`
-    /// whitelisted in `LSApplicationQueriesSchemes`), else the web fallback
-    /// in the default browser (always works, no whitelisting needed).
+    /// Opens the proposal's location on Google Maps in the in-app browser first;
+    /// "Open app" there continues in the Maps app.
     private func openLocation(_ location: String) {
-        // `.urlQueryAllowed` leaves RFC 3986 sub-delims (&, +, =, ;, ,) unescaped —
+        // `.urlQueryAllowed` leaves RFC 3986 sub-delims (&, +, =, ;, ,) unescaped,
         // fine for a full query STRING, wrong for a single query VALUE embedded
         // inside one (e.g. "H&M Cafe" would truncate the query at the `&`).
         // Excluding them here forces they get percent-encoded too.
         var allowed = CharacterSet.urlQueryAllowed
         allowed.remove(charactersIn: "&+=;,")
         guard let encoded = location.addingPercentEncoding(withAllowedCharacters: allowed) else { return }
-        if let appURL = URL(string: "comgooglemaps://?q=\(encoded)"), UIApplication.shared.canOpenURL(appURL) {
-            openURL(appURL)
-        } else if let webURL = URL(string: "https://www.google.com/maps/search/?api=1&query=\(encoded)") {
-            openURL(webURL)
-        }
+        browserURL = URL(string: "https://www.google.com/maps/search/?api=1&query=\(encoded)")
     }
 }

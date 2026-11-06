@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The Spaces mark: a ringed planet 🪐 drawn in a space's colour. Apple's
-/// symbol set has no planet with a ring, so it's drawn here — the ring passes
+/// symbol set has no planet with a ring, so it's drawn here. The ring passes
 /// behind the sphere and then in front of it, with a thin cut where it
 /// crosses so it still reads at 14 pt.
 struct SpacePlanetIcon: View {

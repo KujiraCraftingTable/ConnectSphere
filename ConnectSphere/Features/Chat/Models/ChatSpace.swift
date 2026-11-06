@@ -11,7 +11,7 @@ struct ChatSpace: Identifiable, Decodable, Equatable {
     var memberIds: [String]
     /// Group chats in the space (only ones you're still in).
     var groupIds: [String]
-    /// The same people with name and photo — so someone you haven't chatted
+    /// The same people with name and photo, so someone you haven't chatted
     /// with yet still shows in the space.
     var members: [SpaceMember]
 
@@ -61,10 +61,10 @@ struct ChatSpace: Identifiable, Decodable, Equatable {
     }
 }
 
-/// The preset colours a space can take — the same keys the server allowlists.
+/// The preset colours a space can take. The same keys the server allowlists.
 /// System colours, so each stays legible in both light and dark mode.
 enum SpaceColor: String, CaseIterable, Identifiable {
-    // Declared in hue order — the picker shows them in this order as a spectrum.
+    // Declared in hue order. The picker shows them in this order as a spectrum.
     case red, rose, coral, orange, amber, yellow, lime, olive
     case green, forest, emerald, teal, cyan, sky, blue, navy
     case indigo, violet, purple, fuchsia, pink, brown, slate, gray
@@ -102,7 +102,7 @@ enum SpaceColor: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Localization key — callers wrap it in `bundle.loc(...)`.
+    /// Localization key, callers wrap it in `bundle.loc(...)`.
     var label: String { rawValue.capitalized }
 
     private static func rgb(_ hex: UInt32, dark: UInt32? = nil) -> Color {
@@ -139,7 +139,7 @@ struct SpaceSection: Identifiable, Equatable {
     }
 
     /// A space shows its people's chats, then the people you haven't
-    /// messaged yet — they're in the folder all the same.
+    /// messaged yet, they're in the folder all the same.
     enum Row: Identifiable, Equatable {
         case chat(Conversation)
         case person(SpaceMember)
@@ -169,7 +169,7 @@ struct SpaceSection: Identifiable, Equatable {
     /// Groups the conversation list by space, keeping the list's own order
     /// inside each section, then adds the space's people who have no chat
     /// yet. A person or group in two spaces appears in both; every chat in no
-    /// space goes to the final "Other chats" section — so turning the view on
+    /// space goes to the final "Other chats" section, so turning the view on
     /// never hides a chat.
     static func make(conversations: [Conversation], spaces: [ChatSpace]) -> [SpaceSection] {
         var placed = Set<String>()

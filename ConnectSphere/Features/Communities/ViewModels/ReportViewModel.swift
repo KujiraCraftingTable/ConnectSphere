@@ -16,6 +16,11 @@ final class ReportViewModel {
 
     var canSubmit: Bool { selectedReason != nil && !isSubmitting }
 
+    /// A reason picked or a note typed, and not sent yet, Cancel asks then.
+    var hasChanges: Bool {
+        !submitted && (selectedReason != nil || !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    }
+
     func submit(targetType: String, targetId: String, communityId: String, token: String) async {
         guard let reason = selectedReason else { return }
         isSubmitting = true

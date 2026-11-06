@@ -2,7 +2,7 @@ import SwiftUI
 import PhotosUI
 
 /// "Sell" in the Marketplace: what's for sale, then (Next) which of your
-/// communities to also list it in — up to 5, or none for the Marketplace only.
+/// communities to also list it in. Up to 5, or none for the Marketplace only.
 struct CreateListingView: View {
     @Environment(AppState.self) private var appState
     @Environment(ThemeManager.self) private var themeManager
@@ -12,7 +12,8 @@ struct CreateListingView: View {
 
     @State private var viewModel: CreateListingViewModel
     @State private var showCommunities = false
-    @State private var altTarget: PickedPostMedia?
+    @State private var detailsSelection: TextSelection?
+    @FocusState private var detailsFocused: Bool
     let onCreated: (Post) -> Void
 
     init(mode: AppMode, preselectedCommunityId: String? = nil, onCreated: @escaping (Post) -> Void) {
@@ -26,11 +27,10 @@ struct CreateListingView: View {
     var body: some View {
         NavigationStack {
             Form {
-                mediaSection
+                ListingPhotosSection(photos: viewModel.photos)
                 Section {
                     TextField(bundle.loc("What are you selling?"), text: $viewModel.title)
-                    TextField(bundle.loc("Price (₫) — 0 = free"), text: $viewModel.price)
-                        .keyboardType(.numberPad)
+                    ListingPriceField(placeholder: bundle.loc("Price (0 = free)"), text: $viewModel.price)
                     Picker(bundle.loc("Condition"), selection: $viewModel.condition) {
                         ForEach(ListingCondition.allCases, id: \.self) { Text(bundle.loc($0.label)).tag($0) }
                     }
@@ -39,8 +39,9 @@ struct CreateListingView: View {
                     Text("Listing details", bundle: bundle)
                 }
                 Section {
-                    TextField(bundle.loc("Describe what you're selling…"), text: $viewModel.details, axis: .vertical)
+                    TextField(bundle.loc("Describe what you're selling…"), text: $viewModel.details, selection: $detailsSelection, axis: .vertical)
                         .lineLimit(3...8)
+                        .focused($detailsFocused)
                 } header: {
                     Text("Description", bundle: bundle)
                 }
@@ -57,90 +58,30 @@ struct CreateListingView: View {
                 } footer: {
                     Text("Your connections won't see this listing.", bundle: bundle)
                 }
+                AutoReupSection(isOn: $viewModel.autoReupOn, days: $viewModel.autoReupDays, hour: $viewModel.autoReupHour)
             }
             .tint(themeManager.theme.primary)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    if detailsFocused { MarkdownToolbar(text: $viewModel.details, selection: $detailsSelection) }
+                }
+            }
             .navigationTitle(Text("New listing", bundle: bundle))
             .navigationBarTitleDisplayMode(.inline)
-            .interactiveDismissDisabled()
+            .interactiveDismissDisabled(viewModel.hasChanges)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { ConfirmCancelButton { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { ConfirmCancelButton(hasChanges: viewModel.hasChanges) { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(bundle.loc("Next")) { showCommunities = true }
                         .disabled(!viewModel.canContinue)
                 }
             }
             .navigationDestination(isPresented: $showCommunities) { communityStep }
-            .onChange(of: viewModel.pickerItems) { _, _ in
-                Task<Void, Never>(name: nil) { await viewModel.loadPicked() }
-            }
-            .sheet(item: $altTarget) { item in
-                AltTextEditorSheet(preview: item.previewImage, isVideo: item.isVideo, initialText: item.altText) { text in
-                    viewModel.setAltText(text, for: item.id)
-                }
-            }
             .task { await viewModel.loadCommunities(token: token) }
         }
     }
 
-    // MARK: Step 1 — photos and videos
-
-    private var mediaSection: some View {
-        Section {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    PhotosPicker(selection: $viewModel.pickerItems, maxSelectionCount: CreateListingViewModel.maxMedia,
-                                 matching: .any(of: [.images, .videos])) {
-                        VStack(spacing: 6) {
-                            Image(systemName: "photo.badge.plus").font(.system(size: 24))
-                            Text("Add photos / videos", bundle: bundle)
-                                .font(.system(size: 11, weight: .medium))
-                                .multilineTextAlignment(.center)
-                        }
-                        .foregroundColor(themeManager.theme.primary)
-                        .frame(width: 96, height: 96)
-                        .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 12))
-                    }
-                    ForEach(viewModel.media) { item in tile(item) }
-                    ForEach(0..<viewModel.pendingMediaCount, id: \.self) { _ in
-                        MediaLoadingTile(width: 96, height: 96)
-                    }
-                }
-                .padding(.vertical, 4)
-            }
-        } footer: {
-            Text("Up to 10. The first one is the cover.", bundle: bundle)
-        }
-    }
-
-    private func tile(_ item: PickedPostMedia) -> some View {
-        ZStack(alignment: .topTrailing) {
-            ZStack {
-                if let preview = item.previewImage {
-                    Image(uiImage: preview).resizable().scaledToFill()
-                } else {
-                    Rectangle().fill(Color.black.opacity(0.85))
-                }
-                if item.isVideo {
-                    Image(systemName: "play.circle.fill").font(.system(size: 24)).foregroundColor(.white.opacity(0.92))
-                }
-            }
-            .frame(width: 96, height: 96)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(alignment: .bottomLeading) {
-                AltTextChip(hasText: !item.altText.isEmpty) { altTarget = item }
-            }
-            Button { viewModel.removeMedia(item) } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 20))
-                    .foregroundColor(.white)
-                    .shadow(radius: 2)
-            }
-            .buttonStyle(.plain)
-            .padding(4)
-        }
-    }
-
-    // MARK: Step 2 — where else it shows
+    // MARK: Step 2, where else it shows
 
     private var communityStep: some View {
         List {

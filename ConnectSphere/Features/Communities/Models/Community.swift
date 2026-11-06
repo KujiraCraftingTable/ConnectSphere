@@ -4,6 +4,9 @@ struct Community: Identifiable {
     let id: String
     let name: String
     let description: String?
+    /// 'markdown' when written with Markdown; only the detail response says (older text is plain).
+    var descriptionFormat: String? = nil
+    var isDescriptionMarkdown: Bool { descriptionFormat == "markdown" }
     let type: CommunityType
     let privacy: CommunityPrivacy
     let iconEmoji: String
@@ -14,7 +17,7 @@ struct Community: Identifiable {
     var memberCount: Int
     var postCount: Int
     var isMember: Bool
-    /// Feed-visibility mute — this community's posts are hidden from the
+    /// Feed-visibility mute, this community's posts are hidden from the
     /// viewer's main Feed while true, but its own page is unaffected.
     var isMuted: Bool = false
     var role: MemberRole?
@@ -41,7 +44,7 @@ enum CommunityType: String, CaseIterable {
     case fandom = "fandom"
     case work   = "work"
 
-    /// Localization key — callers must wrap this in `bundle.loc(...)`. Returning
+    /// Localization key, callers must wrap this in `bundle.loc(...)`. Returning
     /// a hardcoded translation here (as this used to for `.work`) meant the
     /// label showed in the wrong language regardless of the app's setting.
     var label: String {
@@ -69,7 +72,7 @@ enum MemberRole: String {
     case moderator = "moderator"
     case member    = "member"
 
-    /// Localization key — callers must wrap this in `bundle.loc(...)`.
+    /// Localization key, callers must wrap this in `bundle.loc(...)`.
     var label: String {
         switch self {
         case .admin:     return "Admin"
@@ -112,6 +115,7 @@ struct CommunityInfo: Decodable {
     }
 
     let about: String?
+    let aboutFormat: String?
     let privacy: String
     let createdAt: Date
     let nameChangedAt: Date?
@@ -127,6 +131,7 @@ struct CommunityInfo: Decodable {
 
     enum CodingKeys: String, CodingKey {
         case about, privacy, friends, staff
+        case aboutFormat = "about_format"
         case createdAt = "created_at"
         case nameChangedAt = "name_changed_at"
         case memberCount = "member_count"

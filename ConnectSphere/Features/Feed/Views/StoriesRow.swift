@@ -34,7 +34,7 @@ struct StoriesRow: View {
         }
         .task { await load() }
         .onChange(of: appState.currentMode) { _, _ in
-            // Stories are mode-scoped like posts — reload for the newly
+            // Stories are mode-scoped like posts. Reload for the newly
             // selected mode. (Previously this row was only ever shown in
             // Hobby mode, so switching modes tore the whole view down and
             // recreated it; now that it's shown in both, an explicit reload
@@ -57,7 +57,7 @@ struct StoriesRow: View {
     // MARK: - Bubbles
 
     /// "Your story" bubble: tapping the avatar opens your own story if you
-    /// have one, or the composer (same as the "+" badge) if you don't — a
+    /// have one, or the composer (same as the "+" badge) if you don't. A
     /// bare avatar with a "+" next to it reads as "tap me to add a story"
     /// just as much as the badge itself does.
     private var myStoryBubble: some View {
@@ -67,11 +67,11 @@ struct StoriesRow: View {
                     if let mine = myGroup { selectedGroup = mine } else { showComposer = true }
                 } label: {
                     ZStack {
-                        // A ring only when there's an actual story to show —
+                        // A ring only when there's an actual story to show,
                         // no story at all should look like no story at all,
                         // not a dim/neutral placeholder ring (that previously
                         // used AppColors.borderDefault, a near-transparent
-                        // 0.09-0.10 opacity hairline — barely visible against
+                        // 0.09-0.10 opacity hairline. Barely visible against
                         // a light background, which is exactly what read as
                         // "faded" rather than as an intentional neutral state).
                         if myGroup?.hasUnseen == true {
@@ -83,7 +83,7 @@ struct StoriesRow: View {
                                 .stroke(AppColors.borderDefault(colorScheme), lineWidth: 2.5)
                                 .frame(width: 68, height: 68)
                         }
-                        // `myProfile` is a fresh, mode-scoped fetch (see load()) —
+                        // `myProfile` is a fresh, mode-scoped fetch (see load()),
                         // `appState.currentUser` is a single unscoped cache that
                         // never changes on mode switch, so it's only a same-frame
                         // fallback before the first load() resolves.
@@ -97,7 +97,7 @@ struct StoriesRow: View {
                 // NOT `.disabled(myGroup == nil)`: SwiftUI dims a disabled
                 // Button's own content by default (even with .plain style),
                 // which is what was actually reading as a "faded" avatar
-                // with no story — not the ring (already ruled that out).
+                // with no story, not the ring (already ruled that out).
                 // The tap action now always does something meaningful
                 // (open the story, or open the composer), so there's
                 // nothing to disable in the first place.

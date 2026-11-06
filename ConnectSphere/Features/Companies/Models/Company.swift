@@ -13,7 +13,7 @@ struct Company: Identifiable, Decodable, Hashable {
     var website: String?
     var headquarters: String?
     var foundedYear: Int?
-    /// Verified by the app admin — shown as "Official".
+    /// Verified by the app admin. Shown as "Official".
     var isVerified: Bool
     var followerCount: Int
     var isFollowing: Bool

@@ -1,6 +1,6 @@
 import Foundation
 
-/// `/api/people/suggestions` (+ the connection request a card sends) — HTTP + decoding only.
+/// `/api/people/suggestions` (+ the connection request a card sends), HTTP + decoding only.
 struct SuggestionRepository {
     private let client = NetworkClient.shared
 

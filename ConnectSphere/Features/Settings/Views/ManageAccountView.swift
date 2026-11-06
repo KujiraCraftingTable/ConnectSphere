@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Settings › Account › Manage account: your username and email, editing
-/// the profile, privacy, your activity — and deleting the Hobby profile, the
+/// the profile, privacy, your activity, and deleting the Hobby profile, the
 /// Work profile or the whole account (each confirmed with an emailed code).
 struct ManageAccountView: View {
     @Environment(AppState.self) private var appState
@@ -91,7 +91,7 @@ struct ManageAccountView: View {
         }
     }
 
-    /// Your verified email, or "Add email" — tap to add or change it (codes).
+    /// Your verified email, or "Add email", tap to add or change it (codes).
     private var emailRow: some View {
         let user = appState.currentUser
         return HStack(spacing: 12) {
@@ -124,7 +124,7 @@ struct ManageAccountView: View {
         }
     }
 
-    /// Your @username — what you sign in with — and a Copy button.
+    /// Your @username, what you sign in with, and a Copy button.
     private var usernameRow: some View {
         let username = appState.currentUser?.username ?? ""
         return HStack(spacing: 12) {
@@ -211,7 +211,7 @@ struct DeleteScopeView: View {
     }
 
     private var deleted: [String] {
-        let chats = bundle.loc("Your chats in this mode — messages you sent stay, shown as “Deleted User”")
+        let chats = bundle.loc("Your chats in this mode. Messages you sent stay, shown as “Deleted User”")
         switch viewModel.scope {
         case .hobby:
             return [bundle.loc("Your Hobby profile: name, photo, cover and bio"),
@@ -228,14 +228,14 @@ struct DeleteScopeView: View {
         case .account:
             return [bundle.loc("Both your Hobby and Work profiles"),
                     bundle.loc("All your posts, comments, likes and stories"),
-                    bundle.loc("All your connections, followers and chats — messages you sent stay, shown as “Deleted User”"),
+                    bundle.loc("All your connections, followers and chats. Messages you sent stay, shown as “Deleted User”"),
                     bundle.loc("Your experience, skills, job applications and company pages only you manage"),
                     bundle.loc("Your email, removed from the account")]
         }
     }
 
     private var kept: [String] {
-        let reserved = String(format: bundle.loc("Your username @%@ stays reserved — nobody can sign up with it"), username)
+        let reserved = String(format: bundle.loc("Your username @%@ stays reserved. Nobody can sign up with it"), username)
         switch viewModel.scope {
         case .hobby:
             return [bundle.loc("Your account and your Work profile, with everything in it"),
@@ -302,7 +302,7 @@ struct DeleteScopeView: View {
         }
     }
 
-    /// Not a Label — a List row drops a Label's text.
+    /// Not a Label. A List row drops a Label's text.
     private func bullet(_ text: String, icon: String, color: Color) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Image(systemName: icon).foregroundColor(color).font(.system(size: 14))

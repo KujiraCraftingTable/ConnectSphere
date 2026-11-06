@@ -195,7 +195,7 @@ struct InterestPickerView: View {
             .padding(.horizontal, 20)
 
             HStack(spacing: 12) {
-                // Skip — add only category
+                // Skip, add only category
                 Button(bundle.loc("Skip")) {
                     addInterest(category: pendingCategory, rawInput: "")
                     showSubItemSheet = false

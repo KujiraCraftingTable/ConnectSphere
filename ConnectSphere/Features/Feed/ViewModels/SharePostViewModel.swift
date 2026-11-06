@@ -20,7 +20,7 @@ final class SharePostViewModel {
     /// The chats a post can go to, as the Messages screen orders them.
     private(set) var recipients: [Conversation] = []
     private(set) var isLoadingRecipients = false
-    /// Chats picked to send to — tapping a chat only picks it; Send sends.
+    /// Chats picked to send to. Tapping a chat only picks it; Send sends.
     private(set) var selected: Set<String> = []
     private(set) var isSending = false
     /// Some picked chats couldn't be sent to (they stay picked for a retry).
@@ -36,7 +36,7 @@ final class SharePostViewModel {
     var recent: [Conversation] { Array(recipients.prefix(Self.recentCount)) }
     var searched: [Conversation] { FloatingChatAddViewModel.addable(recipients, query: query) }
 
-    /// Accepted chats only (no Waiting requests), not archived, newest first —
+    /// Accepted chats only (no Waiting requests), not archived, newest first,
     /// the same list the floating window's "+" offers.
     func loadRecipients(mode: String, token: String) async {
         isLoadingRecipients = true
@@ -80,7 +80,7 @@ final class SharePostViewModel {
     }
 
     /// Posts it to your own Feed. Returns true on success. Sharing a share
-    /// points at the original — the backend resolves that. A community goes
+    /// points at the original. The backend resolves that. A community goes
     /// to the feed of its own mode.
     func share(_ target: ShareTarget, mode: AppMode, token: String) async -> Bool {
         isSharing = true

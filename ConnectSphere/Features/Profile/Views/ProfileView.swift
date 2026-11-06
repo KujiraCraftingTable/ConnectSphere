@@ -7,7 +7,7 @@ import SwiftUI
 /// uses. These are purely additive alongside the existing manual-tap
 /// `NavigationLink`s in `SettingsView`/`PrivacySecurityView` (e.g. Blocked
 /// Users is still also reachable by tapping through Privacy & Security as
-/// before) — both push mechanisms coexist safely on the same stack.
+/// before), both push mechanisms coexist safely on the same stack.
 enum ProfileRoute: Hashable {
     case settings
     case privacySecurity
@@ -31,13 +31,13 @@ struct ProfileView: View {
     @State private var pull: CGFloat = 0
     @State private var showCreatePost = false
     @State private var showEditProfile = false
-    // Tap-to-open-post-detail — same PostRoute/PostDetailView navigation Feed uses.
+    // Tap-to-open-post-detail, same PostRoute/PostDetailView navigation Feed uses.
     @State private var detailRoute: PostRoute?
 
-    /// Binding from MainTabView — resets to root whenever the tab is reselected
+    /// Binding from MainTabView. Resets to root whenever the tab is reselected
     @Binding var navPath: NavigationPath
 
-    /// Only `viewModel.user` — no fallback to `appState.currentUser`, which
+    /// Only `viewModel.user`, no fallback to `appState.currentUser`, which
     /// is resolved server-side against the account's stored `default_mode`
     /// (GET /auth/me has no mode param), not the live `appState.currentMode`.
     /// Falling back to it flashed the other mode's name/bio for a moment
@@ -71,7 +71,7 @@ struct ProfileView: View {
     }
 
     /// Used only where posts-section closures need an id while `user` may
-    /// still be nil (loading) — this is always the signed-in account's own
+    /// still be nil (loading). This is always the signed-in account's own
     /// profile (ProfileViewModel is never used for anyone else's).
     private var currentUserId: String { appState.currentUser?.id ?? "" }
 
@@ -99,7 +99,7 @@ struct ProfileView: View {
                             // Your other side is a preview: nothing to edit there.
                             if mode == .work {
                                 ExperienceSection(userId: user.id, isMe: !showingOther)
-                                SkillsSection(userId: user.id, isMe: !showingOther)
+                                SkillsSection(userId: user.id, isMe: !showingOther, refreshKey: user.skills)
                             }
                             if mode == .hobby {
                                 HobbyAboutSection(user: user, isMe: !showingOther)
@@ -197,7 +197,7 @@ struct ProfileView: View {
     }
 
     /// Opens Edit Profile when the AI assistant's "edit profile" guidance
-    /// action landed here — mirrors the consume-then-clear pattern
+    /// action landed here. Mirrors the consume-then-clear pattern
     /// `pendingDeepLink`/`pendingAssistantNavigation` use elsewhere.
     private func consumePendingAssistantSheet() {
         guard appState.pendingAssistantSheet == .editProfile else { return }
@@ -272,7 +272,7 @@ struct ProfileView: View {
                 SkeletonPostList(count: 2, colorScheme: colorScheme).padding(.top, 8)
             } else if let error = shown.error, shown.posts.isEmpty {
                 // A single failed load (e.g. a dropped connection) otherwise
-                // left this permanently stuck empty — .task only fires once
+                // left this permanently stuck empty, .task only fires once
                 // per view identity, so switching tabs away and back doesn't
                 // retry on its own.
                 postsErrorState(error)

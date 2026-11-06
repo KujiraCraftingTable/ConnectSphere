@@ -32,8 +32,16 @@ final class EducationEditorViewModel {
     let editing: Education?
     private let repository = EducationRepository()
 
+    /// The form as it opened, to tell whether Cancel would lose anything.
+    private var openedSignature: [String] = []
+    private var signature: [String] {
+        [schoolName, schoolType.rawValue, major, startYear.map(String.init) ?? "", endYear.map(String.init) ?? ""]
+    }
+    var hasChanges: Bool { signature != openedSignature }
+
     init(editing: Education? = nil) {
         self.editing = editing
+        defer { openedSignature = signature }
         guard let e = editing else { return }
         schoolName = e.schoolName
         schoolType = e.schoolType

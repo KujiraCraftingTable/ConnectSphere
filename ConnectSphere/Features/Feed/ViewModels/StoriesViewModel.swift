@@ -7,7 +7,7 @@ import Observation
 @Observable
 final class StoriesViewModel {
     private(set) var groups: [StoryGroup] = []
-    /// This mode's persona — "Your story" shows its avatar, not the session
+    /// This mode's persona, "Your story" shows its avatar, not the session
     /// user's unscoped one.
     private(set) var myProfile: UserProfile?
 

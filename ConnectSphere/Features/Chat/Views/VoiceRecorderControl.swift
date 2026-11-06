@@ -15,7 +15,7 @@ final class VoiceRecordingSession {
     private(set) var state: State = .idle
     /// Seconds recorded so far while recording; the final length in review.
     private(set) var elapsedSeconds: Int = 0
-    /// Most recent meter readings (0...1), newest last — drives the live,
+    /// Most recent meter readings (0...1), newest last. Drives the live,
     /// scrolling bars while recording.
     private(set) var liveLevels: [CGFloat] = []
     /// The fixed-length waveform that will be sent, shown during review.
@@ -34,7 +34,7 @@ final class VoiceRecordingSession {
 
     /// Enough live bars to fill the pill on any iPhone; extras are clipped.
     static let liveLevelCapacity = 60
-    /// Fixed sample count the sent waveform is downsampled to — matches what
+    /// Fixed sample count the sent waveform is downsampled to. Matches what
     /// `MessageBubble.voiceBubble` renders.
     private static let waveformBarCount = 40
     /// Shorter recordings are treated as an accidental tap and discarded.
@@ -55,7 +55,7 @@ final class VoiceRecordingSession {
         do {
             try session.setCategory(.playAndRecord, options: [.defaultToSpeaker])
         } catch {
-            // No mic hardware / session conflict — fail silently, same as a no-op tap.
+            // No mic hardware / session conflict. Fail silently, same as a no-op tap.
             return
         }
         session.requestRecordPermission { [weak self] granted in
@@ -96,7 +96,7 @@ final class VoiceRecordingSession {
     }
 
     /// Stops recording and moves to review. A recording under a second is
-    /// discarded instead — almost always a mis-tap on the mic.
+    /// discarded instead, almost always a mis-tap on the mic.
     func stop() {
         guard state == .recording, let recorder else { return }
         let length = recorder.currentTime
@@ -143,7 +143,7 @@ final class VoiceRecordingSession {
                 if player.isPlaying {
                     self.playbackProgress = player.duration > 0 ? player.currentTime / player.duration : 0
                 } else {
-                    // Reached the end — reset so the next tap replays from the start.
+                    // Reached the end. Reset so the next tap replays from the start.
                     self.isPlaying = false
                     self.playbackProgress = 0
                     self.playbackTimer?.invalidate()
@@ -163,7 +163,7 @@ final class VoiceRecordingSession {
     }
 
     /// Hands the recording to `onFinish` (temp file URL, whole seconds,
-    /// 40-point normalized waveform) — from review, or straight from
+    /// 40-point normalized waveform). From review, or straight from
     /// recording. The caller uploads it and deletes the temp file afterwards.
     func finalizeAndSend(onFinish: (URL, Int, [Float]) -> Void) {
         if state == .recording { stop() }
@@ -213,12 +213,12 @@ final class VoiceRecordingSession {
     }
 
     /// Buckets `samples` into exactly `count` evenly-spaced groups, averaging
-    /// each group — so a 3-second and a 30-second recording both end up as
+    /// each group, so a 3-second and a 30-second recording both end up as
     /// the same fixed-length waveform array.
     private static func downsample(_ samples: [Float], to count: Int) -> [Float] {
         guard !samples.isEmpty else { return Array(repeating: Float(0.1), count: count) }
         guard samples.count >= count else {
-            // Too few readings to fill every bucket — stretch by nearest
+            // Too few readings to fill every bucket. Stretch by nearest
             // sample instead of leaving trailing zeros.
             return (0..<count).map { i in
                 let idx = min(Int(Double(i) / Double(count) * Double(samples.count)), samples.count - 1)

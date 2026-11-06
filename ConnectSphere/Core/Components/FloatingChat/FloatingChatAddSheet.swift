@@ -66,7 +66,7 @@ struct FloatingChatAddSheet: View {
             List {
                 if presenter.bubbles.count >= FloatingChatPresenter.maxChats {
                     Section {
-                        Text("Up to 4 chats float at once — adding one closes the chat you used longest ago.", bundle: bundle)
+                        Text("Up to 4 chats float at once. Adding one closes the chat you used longest ago.", bundle: bundle)
                             .font(.system(size: 13))
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }

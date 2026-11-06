@@ -3,7 +3,7 @@ import Observation
 
 /// Shared bits of the code flows.
 enum AccountCode {
-    /// "kujira.personal@gmail.com" → "k•••l@gmail.com" — enough to recognise.
+    /// "kujira.personal@gmail.com" → "k•••l@gmail.com", enough to recognise.
     static func mask(_ email: String) -> String {
         let parts = email.split(separator: "@", maxSplits: 1)
         guard parts.count == 2, let first = parts[0].first else { return email }
@@ -11,7 +11,7 @@ enum AccountCode {
         return "\(name)@\(parts[1])"
     }
 
-    /// Digits only, at most 6 — what a code field accepts.
+    /// Digits only, at most 6. What a code field accepts.
     static func clean(_ typed: String) -> String { String(typed.filter(\.isNumber).prefix(6)) }
 
     /// Seconds until another code can be asked for (the server allows one a minute).
@@ -24,7 +24,7 @@ enum AccountCode {
 }
 
 /// The account email: shown when verified, added or changed with codes.
-/// Changing a verified one is two steps — confirm with a code to the current
+/// Changing a verified one is two steps. Confirm with a code to the current
 /// address, then verify the new one.
 @MainActor
 @Observable
@@ -168,7 +168,7 @@ final class DeleteScopeViewModel {
     }
 }
 
-/// Turning two-factor sign-in on or off — either way, with a code sent to
+/// Turning two-factor sign-in on or off. Either way, with a code sent to
 /// the verified email.
 @MainActor
 @Observable

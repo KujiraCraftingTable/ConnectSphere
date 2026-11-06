@@ -13,7 +13,7 @@ enum MessageType: String, Decodable {
     }
 }
 
-/// RSVP status for a meeting proposal — local to Chat (mirrors the shape of
+/// RSVP status for a meeting proposal. Local to Chat (mirrors the shape of
 /// Communities' `RsvpStatus` in `CommunityPost.swift`, but declared separately
 /// since that one is anchored to community events/posts, not messages).
 enum MeetingRsvpStatus: String, Codable {
@@ -21,7 +21,7 @@ enum MeetingRsvpStatus: String, Codable {
     case maybe
     case notGoing = "not_going"
 
-    /// English fallback / localization key — same values as `RsvpStatus.label`.
+    /// English fallback / localization key. Same values as `RsvpStatus.label`.
     var label: String {
         switch self {
         case .going:    return "Going"
@@ -39,7 +39,7 @@ enum MeetingRsvpStatus: String, Codable {
     }
 }
 
-/// Reminder lead time for a meeting proposal — one of 4 fixed calendar-app-style
+/// Reminder lead time for a meeting proposal. One of 4 fixed calendar-app-style
 /// presets chosen at creation (`MeetingProposalComposerView`), which computes the
 /// absolute `MeetingProposal.reminderAt` instant (7am local, N days before
 /// `startsAt`) client-side and sends both to the server. Mirrors
@@ -75,7 +75,7 @@ enum MeetingReminderOffset: String, CaseIterable, Codable {
     /// Computes the absolute instant this reminder should fire for a meeting
     /// starting at `startsAt`: 7am on the day `daysBefore` days before
     /// `startsAt`'s calendar day, in the given calendar (defaults to the
-    /// device's current calendar/timezone — "local" per the product decision,
+    /// device's current calendar/timezone, "local" per the product decision,
     /// deliberately NOT hardcoded UTC, since there's no per-user timezone
     /// tracked server-side; see Phase 2's `reminder_at` design note).
     func reminderDate(before startsAt: Date, calendar: Calendar = .current) -> Date {
@@ -87,7 +87,7 @@ enum MeetingReminderOffset: String, CaseIterable, Codable {
     }
 }
 
-/// Fixed reaction set shown in the quick-react picker — mirrors
+/// Fixed reaction set shown in the quick-react picker. Mirrors
 /// `ALLOWED_REACTION_EMOJI` in backend/src/models/messageModel.js.
 enum ReactionEmoji: String, CaseIterable {
     case heart = "❤️"
@@ -98,7 +98,7 @@ enum ReactionEmoji: String, CaseIterable {
     case fire = "🔥"
 }
 
-/// Compact preview of the message being replied to — embedded server-side so
+/// Compact preview of the message being replied to. Embedded server-side so
 /// the client never needs a second round-trip to render the quoted content.
 struct RepliedMessage: Decodable, Equatable {
     let id: String
@@ -106,7 +106,7 @@ struct RepliedMessage: Decodable, Equatable {
     let senderName: String
     let messageType: MessageType
     let isDeleted: Bool
-    /// nil when the original was recalled — client shows a placeholder instead.
+    /// nil when the original was recalled. Client shows a placeholder instead.
     let content: String?
 
     enum CodingKeys: String, CodingKey {
@@ -119,11 +119,11 @@ struct RepliedMessage: Decodable, Equatable {
     }
 }
 
-/// One pinned-message row, as returned by `GET .../pins` — flatter than
+/// One pinned-message row, as returned by `GET .../pins`. Flatter than
 /// `Message` (sender name + pin metadata inline, no reactions/status/
 /// reply-thread fields) since the pinned list only ever needs a preview plus
 /// who/when pinned it. `id` decodes from the wire's `message_id` (the
-/// message's own id) rather than `message_pins.id` — that's what
+/// message's own id) rather than `message_pins.id`, that's what
 /// `DELETE .../pins/:messageId` and `ChatView.jumpToMessage(_:)` both expect;
 /// the pin row's own id is never needed on this side. Reconciled against the
 /// real backend (`messageModel.listPins`, `backend/src/models/messageModel.js`).
@@ -173,7 +173,7 @@ struct PinnedMessage: Identifiable, Decodable, Equatable {
 
 }
 
-/// Meeting/appointment proposal embedded in a `.meeting` message — mirrors
+/// Meeting/appointment proposal embedded in a `.meeting` message. Mirrors
 /// Communities' `EventData` shape (title/location/starts_at/ends_at + RSVP),
 /// but anchored to a chat message instead of a community post. `rsvps` is a
 /// status → user-ids map, the exact same convention as `Message.reactions`
@@ -190,12 +190,12 @@ struct MeetingProposal: Decodable, Equatable {
     /// rsvp status ("going"/"maybe"/"not_going") → user ids who responded with it
     var rsvps: [String: [String]]
     /// Reminder lead-time label, raw ("on_day"/"1_day_before"/"2_days_before"/
-    /// "1_week_before") rather than the `MeetingReminderOffset` enum itself —
+    /// "1_week_before") rather than the `MeetingReminderOffset` enum itself,
     /// same decode-safety convention as `status` (a future server-added value
     /// shouldn't fail decoding the whole proposal). Use `reminderOffsetValue`
     /// for the typed form.
     var reminderOffset: String
-    /// Absolute instant the reminder fires — precomputed client-side at
+    /// Absolute instant the reminder fires. Precomputed client-side at
     /// creation (7am local, N days before `startsAt`) and echoed back by the server.
     var reminderAt: Date
     /// Set once the reminder job has sent it; nil while still pending.
@@ -248,7 +248,7 @@ struct MeetingProposal: Decodable, Equatable {
     }
 }
 
-/// One photo of an album message — `{ "url": "/uploads/messages/…", "type": "image" }`.
+/// One photo of an album message, `{ "url": "/uploads/messages/…", "type": "image" }`.
 struct MessageMediaItem: Codable, Equatable {
     let url: String
     let type: String
@@ -261,15 +261,15 @@ struct Message: Identifiable, Decodable, Equatable {
     var content: String?
     let messageType: MessageType
     var mediaUrl: String?
-    /// Present only when `messageType == .album` — its photos, in order
+    /// Present only when `messageType == .album`. Its photos, in order
     /// (`mediaUrl` is the first one). Any caption is in `content`.
     var mediaItems: [MessageMediaItem]?
-    /// User ids who have received (delivered) this message — same map-shaped
+    /// User ids who have received (delivered) this message. Same map-shaped
     /// convention as `reactions`/`MeetingProposal.rsvps`, unified onto a single
     /// per-participant model instead of a `sent/delivered/read` enum so groups
     /// can represent "delivered to 3 of 5" without a second receipt system.
     var deliveredTo: [String]
-    /// User ids who have read this message. Read implies delivered — callers
+    /// User ids who have read this message. Read implies delivered, callers
     /// appending to this array must also append to `deliveredTo`.
     var readBy: [String]
     let createdAt: Date
@@ -277,22 +277,22 @@ struct Message: Identifiable, Decodable, Equatable {
     var repliedMessage: RepliedMessage?
     /// emoji → user ids who reacted with it
     var reactions: [String: [String]]
-    /// Present only when `messageType == .meeting` — the proposal's details/RSVP state.
+    /// Present only when `messageType == .meeting`. The proposal's details/RSVP state.
     var meetingProposal: MeetingProposal?
-    /// Present only when `messageType == .poll` — options and who voted for each.
+    /// Present only when `messageType == .poll`. Options and who voted for each.
     var poll: ChatPoll?
     /// A post shared into the chat (`.post`); the card loads it as the viewer.
     var sharedPostId: String?
     /// A community shared into the chat (`.community`); the card loads it as the viewer.
     var sharedCommunityId: String?
-    /// Present only when `messageType == .voice` — playback length in seconds.
+    /// Present only when `messageType == .voice`. Playback length in seconds.
     var voiceDurationSeconds: Int?
-    /// Present only when `messageType == .voice` — a fixed-length (~40 point)
+    /// Present only when `messageType == .voice`. A fixed-length (~40 point)
     /// array of normalized 0.0-1.0 amplitude samples captured client-side at
     /// record time, so every viewer renders the identical waveform with no
     /// audio re-analysis on the receiving end.
     var voiceWaveform: [Float]?
-    /// Optional because the insert response doesn't return this field — nil means not recalled
+    /// Optional because the insert response doesn't return this field. Nil means not recalled
     private var deletedFlag: Bool?
 
     var isDeleted: Bool { deletedFlag ?? false }
@@ -335,7 +335,7 @@ struct Message: Identifiable, Decodable, Equatable {
         messageType = try c.decodeIfPresent(MessageType.self, forKey: .messageType) ?? .text
         mediaUrl = try c.decodeIfPresent(String.self, forKey: .mediaUrl)
         mediaItems = try c.decodeIfPresent([MessageMediaItem].self, forKey: .mediaItems)
-        // Default to [] for decode-safety — absent on some embed shapes
+        // Default to [] for decode-safety. Absent on some embed shapes
         // (e.g. a just-sent optimistic echo) rather than always present.
         deliveredTo = try c.decodeIfPresent([String].self, forKey: .deliveredTo) ?? []
         readBy = try c.decodeIfPresent([String].self, forKey: .readBy) ?? []
@@ -379,7 +379,7 @@ struct Message: Identifiable, Decodable, Equatable {
         (mediaItems ?? []).compactMap { APIConfig.mediaURL($0.url) }
     }
 
-    /// The current user's own reaction emoji on this message, if any — used to
+    /// The current user's own reaction emoji on this message, if any. Used to
     /// highlight the selected emoji in the picker and drive toggle behaviour.
     func myReaction(userId: String) -> String? {
         reactions.first { _, userIds in userIds.contains(userId) }?.key
@@ -399,7 +399,7 @@ struct Message: Identifiable, Decodable, Equatable {
     func isRead(by userId: String) -> Bool { readBy.contains(userId) }
 
     /// How many of the given participants (typically the conversation's
-    /// *other* members — the sender excluded) have read this message. Takes
+    /// *other* members, the sender excluded) have read this message. Takes
     /// the participant list as a parameter rather than storing it on `Message`
     /// itself, since `Message` has no notion of which conversation/roster it
     /// belongs to beyond `conversationId`.

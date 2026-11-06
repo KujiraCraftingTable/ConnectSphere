@@ -16,7 +16,7 @@ extension EnvironmentValues {
 }
 
 extension Bundle {
-    /// Bundle for the app's currently selected language (reads UserDefaults) — used where
+    /// Bundle for the app's currently selected language (reads UserDefaults). Used where
     /// @Environment(\.appBundle) isn't available, e.g. Date extension / ViewModel / push.
     static var app: Bundle {
         let code = UserDefaults.standard.string(forKey: "appLanguage")
@@ -72,7 +72,7 @@ extension Color {
     }
 }
 
-// MARK: - Card (light mode — warm white surface)
+// MARK: - Card (light mode. Warm white surface)
 
 struct GlassCard<Content: View>: View {
     let content: Content
@@ -189,7 +189,7 @@ extension View {
 
 // MARK: - Gradient Primary Button
 
-/// Legacy name kept for the Auth/Onboarding call sites — now a flat primary
+/// Legacy name kept for the Auth/Onboarding call sites. Now a flat primary
 /// button (no gradient), delegating to the design-system `PrimaryButton`.
 struct GradientButton: View {
     let title: String

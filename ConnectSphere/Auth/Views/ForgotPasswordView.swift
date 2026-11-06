@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Forgot password — 2 steps in a single sheet:
+/// Forgot password, 2 steps in a single sheet:
 /// (1) enter username/email to receive a code, (2) enter the 6-digit OTP + new password.
 /// The dev environment has no SMTP set up yet, so the OTP is printed to the server log.
 struct ForgotPasswordView: View {
@@ -9,6 +9,10 @@ struct ForgotPasswordView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var viewModel = ForgotPasswordViewModel()
+    /// Anything typed, closing would lose it.
+    private var hasInput: Bool {
+        ![viewModel.identifier, viewModel.otp, viewModel.newPassword, viewModel.confirmPassword].allSatisfy(\.isEmpty)
+    }
 
     var body: some View {
         NavigationStack {
@@ -29,10 +33,10 @@ struct ForgotPasswordView: View {
             }
             .navigationTitle(bundle.loc("Reset password"))
             .navigationBarTitleDisplayMode(.inline)
-            .interactiveDismissDisabled()
+            .interactiveDismissDisabled(hasInput)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    ConfirmCancelButton { dismiss() }
+                    ConfirmCancelButton(hasChanges: hasInput) { dismiss() }
                 }
             }
         }

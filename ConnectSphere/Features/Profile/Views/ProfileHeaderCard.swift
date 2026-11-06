@@ -12,8 +12,11 @@ enum ProfileStat {
 /// skills, and the action buttons.
 /// Shared by your own `ProfileView` and other people's `UserProfileView`.
 struct ProfileHeaderCard<Actions: View>: View {
+    @Environment(\.openURL) private var openURL
+    @State private var inAppBrowserURL: URL?
     @Environment(\.appBundle) private var bundle
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(ThemeManager.self) private var themeManager
 
     let user: UserProfile
     let mode: AppMode
@@ -48,11 +51,23 @@ struct ProfileHeaderCard<Actions: View>: View {
             identity
             if user.lockedOut { lockedNote } else { stats }
             if !user.bio.isEmpty {
-                Text(user.bio)
+                Text(user.isBioMarkdown
+                     ? MarkdownFormatter.attributed(user.bio, linkColor: themeManager.theme.primary,
+                                                    quoteColor: AppColors.textSecondary(colorScheme))
+                     : AttributedString(user.bio))
                     .font(.system(size: 15))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)   // always in full
+                    .environment(\.openURL, OpenURLAction { url in
+                        if let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
+                            inAppBrowserURL = url
+                        } else {
+                            openURL(url)
+                        }
+                        return .handled
+                    })
+                    .inAppBrowser(url: $inAppBrowserURL)
             }
             tags
             actions()
@@ -62,6 +77,7 @@ struct ProfileHeaderCard<Actions: View>: View {
         .padding(.bottom, AppSpacing.lg)
         .frame(maxWidth: .infinity)
         .overlay(alignment: .topTrailing) { if let flip { FlipButton(flip: flip) } }
+        .overlay(alignment: .topLeading) { if user.isLocked { lockedBadge } }
         .background(AppColors.surface(colorScheme),
                     in: RoundedRectangle(cornerRadius: cardRadius, style: .continuous))
         .shadow(color: AppElevation.overlay.color(colorScheme), radius: AppElevation.overlay.radius,
@@ -81,17 +97,6 @@ struct ProfileHeaderCard<Actions: View>: View {
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .textSelection(.enabled)
             }
-            if user.isLocked {
-                HStack(spacing: 4) {
-                    Image(systemName: "lock.fill")
-                    Text("Locked profile", bundle: bundle)
-                }
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(AppColors.textSecondary(colorScheme))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(AppColors.elevated(colorScheme), in: Capsule())
-            }
             if let job = jobLine {
                 Text(job)
                     .font(.system(size: 15))
@@ -106,8 +111,25 @@ struct ProfileHeaderCard<Actions: View>: View {
         }
     }
 
+    /// Top-left of the card, where it's seen first, in the theme colour.
+    private var lockedBadge: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "lock.fill")
+            Text("Locked profile", bundle: bundle)
+        }
+        .font(.system(size: 11, weight: .semibold))
+        .lineLimit(1)
+        .foregroundColor(themeManager.theme.primary)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(themeManager.theme.primary.opacity(0.14), in: Capsule())
+        // The switch button's height and padding, so both sit on one centre line.
+        .frame(height: 38)
+        .padding(12)
+    }
+
     /// "iOS dev · Kujira corp", or whichever half is set.
-    /// Work only — Hobby never talks about work.
+    /// Work only, Hobby never talks about work.
     private var jobLine: String? {
         guard mode == .work else { return nil }
         let parts = [user.jobTitle, user.company].compactMap { $0 }.filter { !$0.isEmpty }

@@ -21,7 +21,7 @@ extension JSONDecoder {
 
     /// Decoder for the backend's ISO 8601 dates (with or without fractional
     /// seconds). Resilient by design: an unrecognised or empty string yields
-    /// `.distantPast` rather than throwing — one malformed `created_at` must
+    /// `.distantPast` rather than throwing. One malformed `created_at` must
     /// never fail an entire list payload. (A `null` on a non-optional Date
     /// field still throws; make such fields optional in the DTO.)
     static func makeISO8601() -> JSONDecoder {

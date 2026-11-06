@@ -34,7 +34,7 @@ struct CommunityRow: View {
                     .font(.system(size: 12))
                     .foregroundColor(AppColors.textTertiary(colorScheme))
                 if let about = community.description, !about.isEmpty {
-                    Text(about)
+                    Text(MarkdownFormatter.plain(about))
                         .font(.system(size: 13))
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                         .lineLimit(2)

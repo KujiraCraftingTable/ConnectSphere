@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Small pill label. The default `.neutral` style (secondary text on an
-/// elevated fill) is what interests / skills / hashtags use at rest — the
+/// elevated fill) is what interests / skills / hashtags use at rest. The
 /// single biggest lever for making 12 loud palettes read calm. Palette color
 /// is reserved for `.accent` (an interactive filter) and the on-state of
 /// `.selectable`.

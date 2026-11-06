@@ -80,7 +80,7 @@ struct Education: Identifiable, Decodable, Hashable {
 }
 
 /// The built-in school list the picker searches (Vietnamese universities and
-/// colleges); anything else — a high school — is typed in.
+/// colleges); anything else, a high school, is typed in.
 enum SchoolCatalog {
     /// Lowercased, accents and đ folded: "Đại học Bách khoa" ~ "dai hoc bach khoa".
     static func fold(_ s: String) -> String {

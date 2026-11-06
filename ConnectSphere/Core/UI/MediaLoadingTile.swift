@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A photo-shaped grey tile that slowly blinks between two greys — one per
+/// A photo-shaped grey tile that slowly blinks between two greys. One per
 /// picked photo or video that's still loading, so you see at once how many
 /// you chose and that they're on their way (a large video can take a while).
 /// With Reduce Motion on it stays still.

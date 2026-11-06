@@ -1,6 +1,6 @@
 import Foundation
 
-/// `/api/muted-words` — HTTP + decoding only.
+/// `/api/muted-words`, HTTP + decoding only.
 struct MutedWordsRepository {
     private let client = NetworkClient.shared
 

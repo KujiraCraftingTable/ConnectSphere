@@ -1,7 +1,7 @@
 import Foundation
 
 /// A group chat poll (`messageType == .poll`; the question is the message's
-/// content). Options come in order with who voted for each, oldest first —
+/// content). Options come in order with who voted for each, oldest first,
 /// the same payload goes to every member, so "my vote" is found by looking
 /// for my id among the voters. One vote per person, which can be moved or
 /// taken back until the poll ends.

@@ -7,7 +7,7 @@ struct CommunitySettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     let viewModel: CommunityDetailViewModel
-    /// Left the community — the page closes too.
+    /// Left the community. The page closes too.
     let onLeft: () -> Void
     @State private var showReport = false
     @State private var confirmLeave = false

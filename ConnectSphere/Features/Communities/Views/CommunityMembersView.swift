@@ -133,7 +133,7 @@ struct CommunityMembersView: View {
 
         // Staff actions (not on self)
         if isStaff && !isSelf {
-            // Role change — admin only
+            // Role change, admin only
             if currentUserRole == .admin && member.role == .member {
                 Button {
                     Task<Void, Never>(name: nil) { await viewModel.updateRole(userId: member.id, newRole: .moderator) }
@@ -160,7 +160,7 @@ struct CommunityMembersView: View {
             }
         }
 
-        // Report — any member can report another member (not self)
+        // Report, any member can report another member (not self)
         if !isSelf {
             Divider()
             Button {

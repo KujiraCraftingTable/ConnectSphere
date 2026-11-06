@@ -195,7 +195,7 @@ struct ShareRecipientTile: View {
     }
 }
 
-/// "Send" / "Send to 3" — sends to every picked chat at once.
+/// "Send" / "Send to 3", sends to every picked chat at once.
 struct ShareSendButton: View {
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.appBundle) private var bundle
@@ -234,7 +234,7 @@ struct ShareSendButton: View {
     }
 }
 
-/// Every chat, searchable, each tapped to pick it — "⋯" in the share sheet.
+/// Every chat, searchable, each tapped to pick it, "⋯" in the share sheet.
 /// Picks are shared with the sheet's row; Send there sends to them all.
 struct ShareRecipientsView: View {
     @Environment(ThemeManager.self) private var themeManager

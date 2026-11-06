@@ -1,6 +1,6 @@
 import Foundation
 
-/// `/api/posts/drafts` — the user's drafts and scheduled posts. HTTP + decoding only.
+/// `/api/posts/drafts`, the user's drafts and scheduled posts. HTTP + decoding only.
 /// Saving and publishing go through the normal create routes (`publish`,
 /// `replaces_draft`).
 struct DraftRepository {

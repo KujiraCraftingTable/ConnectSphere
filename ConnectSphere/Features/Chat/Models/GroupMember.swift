@@ -1,6 +1,6 @@
 import Foundation
 
-/// A participant in a group conversation — from group settings' `members` array
+/// A participant in a group conversation. From group settings' `members` array
 /// (`GET .../settings`) or the participants-management screen. Roles are a
 /// simple owner/member 2-tier (not Communities' 3-tier admin/moderator/member).
 struct GroupMember: Decodable, Identifiable, Equatable {

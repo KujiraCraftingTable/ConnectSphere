@@ -1,13 +1,13 @@
 import SwiftUI
 
 /// A company's official page: cover, logo, name (✓ Official once verified),
-/// what it is, Follow — then About | Jobs | People. Its admins get Edit.
+/// what it is, Follow, then About | Jobs | People. Its admins get Edit.
 struct CompanyPageView: View {
     @Environment(AppState.self) private var appState
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.appBundle) private var bundle
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.openURL) private var openURL
+    @State private var browserURL: URL?
 
     @State private var viewModel: CompanyPageViewModel
     @State private var tab: Tab = .about
@@ -68,6 +68,7 @@ struct CompanyPageView: View {
             }
         }
         .task { await viewModel.load(token: token) }
+        .inAppBrowser(url: $browserURL)
     }
 
     private func header(_ company: Company) -> some View {
@@ -148,7 +149,7 @@ struct CompanyPageView: View {
             }
             if let site = company.website, let url = URL(string: site) {
                 detail("globe", bundle.loc("Website")) {
-                    Button(url.host ?? site) { openURL(url) }
+                    Button(url.host ?? site) { browserURL = url }
                         .foregroundColor(themeManager.theme.primary)
                 }
             }

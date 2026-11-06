@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// Backs `GroupMemberPickerView` — loads the current user's accepted
+/// Backs `GroupMemberPickerView`, loads the current user's accepted
 /// connections (same data source `ConnectionsListView` uses) and tracks a
 /// multi-select `Set<String>` of chosen user ids, capped at the number of
 /// remaining slots under the group's 100-member limit.

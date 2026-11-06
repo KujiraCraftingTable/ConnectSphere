@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Modal comment view — `PostCard`'s fallback when it has no `onOpenDetail`
+/// Modal comment view, `PostCard`'s fallback when it has no `onOpenDetail`
 /// to push to (e.g. from inside `PostDetailView` itself, or before that push
 /// wiring existed for a given screen). Feed's main flow shows comments inline
 /// on the pushed `PostDetailView` instead (see `CommentsSection`, which this
@@ -12,8 +12,9 @@ struct CommentSheet: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var viewModel = CommentViewModel()
     @State private var input = ""
+    @State private var inputSelection: TextSelection?
     @FocusState private var focused: Bool
-    /// Local Undo-toast presenter — `CommentSheet` is a `.sheet`, presented
+    /// Local Undo-toast presenter, `CommentSheet` is a `.sheet`, presented
     /// above `MainTabView`'s app-wide toast overlay, so it can't reuse that one
     /// and owns its own instance instead (see `UndoToastView.swift`).
     @State private var toastPresenter = UndoToastPresenter()
@@ -21,14 +22,14 @@ struct CommentSheet: View {
     let postId: String
     let postAuthorId: String
     /// Called with the change in comment count (+1 on send, -N on delete, +1
-    /// on undo) — see `CommentsSection.onCommentCountChange`, which this
+    /// on undo), see `CommentsSection.onCommentCountChange`, which this
     /// passes straight through.
     var onCommentCountChange: ((Int) -> Void)?
 
     var body: some View {
         NavigationStack {
             // ScrollViewReader wraps the whole VStack (not just the list) so
-            // the Send button below can also reach `proxy` — it scrolls to a
+            // the Send button below can also reach `proxy`. It scrolls to a
             // just-sent comment directly, deterministically, rather than
             // inferring "a comment was added" from a comments-count change
             // (that raced against @Observable's deferred change notification
@@ -86,7 +87,7 @@ struct CommentSheet: View {
                             AvatarView(user: me, size: 36)
                         }
 
-                        TextField(bundle.loc("Write a comment..."), text: $input, axis: .vertical)
+                        TextField(bundle.loc("Write a comment..."), text: $input, selection: $inputSelection, axis: .vertical)
                             .font(.system(size: 15))
                             .lineLimit(4)
                             .focused($focused)
@@ -120,6 +121,11 @@ struct CommentSheet: View {
                     .background(AppColors.surface(colorScheme))
                 }
                 .background(AppColors.base(colorScheme))
+                .toolbar {
+                    ToolbarItemGroup(placement: .keyboard) {
+                        if focused { MarkdownToolbar(text: $input, selection: $inputSelection) }
+                    }
+                }
                 .navigationTitle(bundle.loc("Comments"))
                 .navigationBarTitleDisplayMode(.inline)
             }

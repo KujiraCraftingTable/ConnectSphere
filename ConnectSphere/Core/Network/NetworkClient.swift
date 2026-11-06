@@ -19,7 +19,7 @@ final class NetworkClient {
 
     // MARK: - Endpoint-based
 
-    /// Automatically attaches the Bearer token from the Keychain if present — the backend now
+    /// Automatically attaches the Bearer token from the Keychain if present. The backend now
     /// requires a JWT for most endpoints and reads the caller's identity from it.
     func fetch<T: Decodable>(_ type: T.Type, from endpoint: Endpoint) async throws -> T {
         guard let url = endpoint.url else { throw APIError.invalidURL }
@@ -114,6 +114,8 @@ final class NetworkClient {
     private func performRaw<T: Decodable>(_ request: URLRequest, decoding type: T.Type) async throws -> (value: T, body: Data) {
         let (data, response): (Data, URLResponse)
         do { (data, response) = try await session.data(for: request) }
+        // A request cancelled with its screen isn't a network problem.
+        catch let e as URLError where e.code == .cancelled { throw CancellationError() }
         catch { throw APIError.networkError(error) }
 
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {

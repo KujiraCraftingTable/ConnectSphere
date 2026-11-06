@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Inline section shown inside CreatePostView when
-/// post type = Job. Work mode only — captures title, optional company/
+/// post type = Job. Work mode only, captures title, optional company/
 /// location/employment type/salary range/application deadline.
 struct CreateJobSheet: View {
     @Environment(\.colorScheme) var colorScheme

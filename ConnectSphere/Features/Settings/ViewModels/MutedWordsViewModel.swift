@@ -29,7 +29,7 @@ final class MutedWordsViewModel {
     }
 
     /// The text to send, or nil when it can't be muted (empty, too long, or
-    /// no letter or digit — the server ignores punctuation when matching).
+    /// no letter or digit. The server ignores punctuation when matching).
     static func cleaned(_ text: String) -> String? {
         var word = text.trimmingCharacters(in: .whitespacesAndNewlines)
         while word.hasPrefix("#") { word.removeFirst() }

@@ -14,7 +14,7 @@ struct MainTabView: View {
     @State private var showCommunities = false
     /// Owned here rather than by the assistant sheet: `.sheet` destroys its
     /// content on dismiss, so a view model created inside it would lose the
-    /// conversation every time — including when "Take me there" dismisses.
+    /// conversation every time. Including when "Take me there" dismisses.
     /// Injected into the environment for `ConversationListView` to present.
     @State private var assistantViewModel: AssistantViewModel?
 
@@ -22,7 +22,7 @@ struct MainTabView: View {
 
     // Custom binding: TabView always calls the setter when a tab is tapped, even when
     // re-tapping the tab that's already active (the setter runs even if the value doesn't
-    // change) — whereas onChange only fires when the value actually changes. This lets us
+    // change), whereas onChange only fires when the value actually changes. This lets us
     // catch the "re-tap the active tab" event to reset the view, the same way the "Profile"
     // tab always shows a fresh view.
     private var tabSelection: Binding<Int> {
@@ -56,11 +56,11 @@ struct MainTabView: View {
         // Undo toast for post soft-deletes (comment deletes use their own local
         // presenter inside CommentSheet, which is presented modally above this).
         .undoToastOverlay(toastPresenter)
-        // Floating "chat head" mini windows — persist above every tab the
+        // Floating "chat head" mini windows, persist above every tab the
         // same way the undo toast does (see `FloatingChatPresenter.swift`).
         .floatingChatOverlay(floatingChatPresenter)
         // Double-tap on a bubble restores it here, regardless of which tab is
-        // active — a root-level presentation sidesteps needing to replay
+        // active, a root-level presentation sidesteps needing to replay
         // "switch tab → push Messages → push this conversation" navigation.
         .fullScreenCover(item: $floatingChatPresenter.restoringBubble) { bubble in
             NavigationStack {
@@ -79,7 +79,7 @@ struct MainTabView: View {
             .environment(toastPresenter)
         }
         .accentColor(themeManager.theme.primary)
-        // Dense feed/chat layouts have fixed-height controls — support Dynamic
+        // Dense feed/chat layouts have fixed-height controls. Support Dynamic
         // Type up to a cap rather than unbounded accessibility sizes.
         .cappedDynamicType()
         .environment(assistantViewModel)
@@ -92,16 +92,20 @@ struct MainTabView: View {
             consumePendingDeepLink()
             consumePendingAssistantNavigation()
         }
+        // The badge counts the mode you're in.
+        .onChange(of: appState.currentMode) {
+            Task { await notificationBadge.refresh(appState: appState) }
+        }
         .onChange(of: selectedTab) { _, newTab in
             resetTabState(newTab)
         }
-        // Warm launch: link tapped while MainTabView is already showing — the `.task` above
+        // Warm launch: link tapped while MainTabView is already showing. The `.task` above
         // only runs once on appearance, so onChange is needed to catch subsequent times.
         .onChange(of: appState.pendingDeepLink) { _, _ in
             consumePendingDeepLink()
         }
         // Same pattern for assistant-driven navigation ("open Settings," "go
-        // to Communities") — fires both while the assistant sheet is still
+        // to Communities"), fires both while the assistant sheet is still
         // open (switches the tab underneath immediately) and again if
         // "Take me there" re-sets the same target after the sheet dismisses.
         .onChange(of: appState.pendingAssistantNavigation) { _, _ in
@@ -113,11 +117,11 @@ struct MainTabView: View {
         }
     }
 
-    /// iOS 26+: the system Liquid Glass tab bar — Home · Community ·
+    /// iOS 26+: the system Liquid Glass tab bar, Home · Community ·
     /// Notifications · Profile in the pill, Search detached beside it.
     /// System `Tab(_:systemImage:)` labels (titles stay for VoiceOver;
     /// `.iconOnly` hides them on screen). `.labelStyle` is inherited, so each
-    /// tab's content resets it to `.automatic` — otherwise every `Label`
+    /// tab's content resets it to `.automatic`, otherwise every `Label`
     /// inside the app (a profile's location, a job's place) lost its text.
     ///
     /// Tab *values* are unchanged from before the reorder, so everything that
@@ -167,7 +171,7 @@ struct MainTabView: View {
     /// Which role detaches Search into its own glass circle. iOS 26 detaches a
     /// `.search` tab by itself; from the iOS 27 SDK only the tab bar's
     /// *prominent* tab is detached, and a search tab is only made prominent
-    /// when it auto-activates a system search field — which SearchView, with
+    /// when it auto-activates a system search field, which SearchView, with
     /// its own field, doesn't use. So on 27 it's marked prominent explicitly.
     @available(iOS 26.0, *)
     private var searchTabRole: TabRole {
@@ -212,7 +216,7 @@ struct MainTabView: View {
             .accessibilityLabel(Text(title, bundle: bundle))
     }
 
-    /// Resets tab state to its default — runs both when SWITCHING to this tab (onChange)
+    /// Resets tab state to its default. Runs both when SWITCHING to this tab (onChange)
     /// and when RE-TAPPING the tab while it's already active (custom binding), for a
     /// consistent feel: re-tapping any tab behaves like opening it for the first time.
     private func resetTabState(_ tab: Int) {
@@ -233,7 +237,7 @@ struct MainTabView: View {
         }
     }
 
-    /// Navigates to a community from a share link (`connectsphere://community/<id>`) —
+    /// Navigates to a community from a share link (`connectsphere://community/<id>`),
     /// switches to the Community tab then pushes the id onto `communityNavPath`, using the
     /// same `navigationDestination(for: String.self)` mechanism that search results/Discover use
     /// (see `CommunitiesView.swift`). Clears `pendingDeepLink` so navigation doesn't repeat.
@@ -256,7 +260,7 @@ struct MainTabView: View {
     }
 
     /// Navigates based on a signal from the AI assistant ("go to Communities," "open
-    /// Settings") — same consume-then-clear mechanism as `consumePendingDeepLink`.
+    /// Settings"), same consume-then-clear mechanism as `consumePendingDeepLink`.
     /// `.tab(n)` just switches tabs; `.settings` switches to the Profile tab then pushes
     /// `ProfileRoute.settings` onto `profileNavPath` (see `ProfileView`).
     private func consumePendingAssistantNavigation() {
@@ -293,7 +297,7 @@ struct MainTabView: View {
     private func pushProfilePath(_ routes: [ProfileRoute]) {
         selectedTab = 4
         // Setting `selectedTab` above triggers `.onChange(of: selectedTab)` →
-        // `resetTabState(4)`, which resets `profileNavPath` to root — SwiftUI
+        // `resetTabState(4)`, which resets `profileNavPath` to root, SwiftUI
         // coalesces state changes into the next view-update pass, so that
         // reset actually runs AFTER this function returns, silently wiping
         // out a path pushed synchronously here (the real bug behind "Take me

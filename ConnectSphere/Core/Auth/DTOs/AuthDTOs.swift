@@ -18,6 +18,7 @@ struct AuthUserDTO: Decodable {
     let username: String
     let displayName: String
     let bio: String?
+    let bioFormat: String?
     let avatarColor: String
     let avatarUrl: String?
     let coverUrl: String?
@@ -51,6 +52,7 @@ struct AuthUserDTO: Decodable {
     let skills: [String]
 
     enum CodingKeys: String, CodingKey {
+        case bioFormat = "bio_format"
         case id, username, bio, location, gender, email, interests, skills, age, dob
         case hasPassword    = "has_password"
         case allowFriendRequests = "allow_friend_requests"
@@ -79,7 +81,7 @@ struct AuthUserDTO: Decodable {
     }
 
     // A pre-onboarding /auth/me (or a Google first-login) can omit half of
-    // these. Decode leniently so login / auto-login never fails outright — a
+    // these. Decode leniently so login / auto-login never fails outright. A
     // missing displayName/defaultMode/counts just gets a sensible default.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -87,6 +89,7 @@ struct AuthUserDTO: Decodable {
         username       = try c.decodeIfPresent(String.self, forKey: .username) ?? ""
         displayName    = try c.decodeIfPresent(String.self, forKey: .displayName) ?? ""
         bio            = try c.decodeIfPresent(String.self, forKey: .bio)
+        bioFormat      = try c.decodeIfPresent(String.self, forKey: .bioFormat)
         avatarColor    = try c.decodeIfPresent(String.self, forKey: .avatarColor) ?? "#7F5AF0"
         avatarUrl      = try c.decodeIfPresent(String.self, forKey: .avatarUrl)
         coverUrl       = try c.decodeIfPresent(String.self, forKey: .coverUrl)
@@ -122,7 +125,7 @@ struct AuthUserDTO: Decodable {
     func toUserProfile() -> UserProfile {
         UserProfile(
             id: id, name: displayName, username: username,
-            avatarColor: avatarColor, avatarUrl: avatarUrl, coverUrl: coverUrl, bio: bio ?? "",
+            avatarColor: avatarColor, avatarUrl: avatarUrl, coverUrl: coverUrl, bio: bio ?? "", bioFormat: bioFormat,
             jobTitle: jobTitle, company: company,
             skills: skills, interests: interests,
             location: location,

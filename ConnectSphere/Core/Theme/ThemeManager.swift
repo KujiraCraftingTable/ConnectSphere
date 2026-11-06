@@ -1,4 +1,4 @@
-// ThemeManager — owns palette selection per app mode.
+// ThemeManager, owns palette selection per app mode.
 // Inject at app root via .environment(themeManager).
 // currentMode is synced from AppState via .onChange in ConnectSphereApp.
 

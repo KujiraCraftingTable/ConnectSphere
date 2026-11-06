@@ -6,6 +6,7 @@ struct CommunityDTO: Decodable {
     let id: String
     let name: String
     let description: String?
+    let descriptionFormat: String?
     let type: String
     let privacy: String
     let iconEmoji: String
@@ -26,6 +27,7 @@ struct CommunityDTO: Decodable {
 
     enum CodingKeys: String, CodingKey {
         case id, name, description, type, privacy, role
+        case descriptionFormat  = "description_format"
         case iconEmoji          = "icon_emoji"
         case avatarUrl          = "avatar_url"
         case coverUrl           = "cover_url"
@@ -47,6 +49,7 @@ struct CommunityDTO: Decodable {
         id          = try c.decode(String.self, forKey: .id)
         name        = try c.decode(String.self, forKey: .name)
         description = try c.decodeIfPresent(String.self, forKey: .description)
+        descriptionFormat = try c.decodeIfPresent(String.self, forKey: .descriptionFormat)
         type        = try c.decode(String.self, forKey: .type)
         privacy     = try c.decode(String.self, forKey: .privacy)
         iconEmoji   = try c.decode(String.self, forKey: .iconEmoji)
@@ -71,6 +74,7 @@ struct CommunityDTO: Decodable {
             id:          id,
             name:        name,
             description: description,
+            descriptionFormat: descriptionFormat,
             type:        CommunityType(rawValue: type) ?? .fandom,
             privacy:     CommunityPrivacy(rawValue: privacy) ?? .public,
             iconEmoji:   iconEmoji,
@@ -148,13 +152,14 @@ struct CommunityPostDTO: Decodable {
     let pollData: PollDataDTO?
     let eventData: EventDataDTO?
     let jobData: JobDataDTO?
-    // Parity fields — same shape as Feed's PostDTO now that
+    // Parity fields, same shape as Feed's PostDTO now that
     // getPostsByCommunity reuses the shared buildPostSelect fragment.
     let imageUrl: String?
     let imageUrls: [String]?
     let imageAlts: [String]?
     let lang: String?
     let translatedText: String?
+    let contentFormat: String?
     let linkUrl: String?
     let articleTitle: String?
     let tags: [String]?
@@ -179,6 +184,7 @@ struct CommunityPostDTO: Decodable {
         case imageAlts    = "image_alts"
         case lang
         case translatedText    = "translated_text"
+        case contentFormat     = "content_format"
         case linkUrl      = "link_url"
         case articleTitle = "article_title"
     }
@@ -203,6 +209,7 @@ struct CommunityPostDTO: Decodable {
         imageAlts    = try c.decodeIfPresent([String].self, forKey: .imageAlts)
         lang    = try c.decodeIfPresent(String.self, forKey: .lang)
         translatedText = try c.decodeIfPresent(String.self, forKey: .translatedText)
+        contentFormat = try c.decodeIfPresent(String.self, forKey: .contentFormat)
         linkUrl      = try c.decodeIfPresent(String.self, forKey: .linkUrl)
         articleTitle = try c.decodeIfPresent(String.self, forKey: .articleTitle)
         tags         = try c.decodeIfPresent([String].self, forKey: .tags)
@@ -231,6 +238,7 @@ struct CommunityPostDTO: Decodable {
             imageAlts:    imageAlts ?? [],
             contentLang:    lang,
             translatedContent: translatedText,
+            contentFormat: contentFormat,
             articleTitle: articleTitle,
             tags:         tags ?? [],
             publishStatus: status,
@@ -296,7 +304,7 @@ struct PollDataDTO: Decodable {
     }
 
     // Defensive: a poll payload with a missing/garbled `options` array must not
-    // fail the whole feed page — decode to [] and let the card render empty.
+    // fail the whole feed page. Decode to [] and let the card render empty.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         options  = try c.decodeIfPresent([PollOptionDTO].self, forKey: .options) ?? []
@@ -387,12 +395,25 @@ struct ListingDataDTO: Decodable {
     let condition: String
     let location: String?
     let status: String
+    let reupCount: Int?
+    /// The seller's own auto re-up schedule (migration 095); nil for everyone else.
+    let autoReup: AutoReupDTO?
+    let nextAutoReupAt: Date?
     let hideFromFriends: Bool
     let hasAutoReply: Bool
     let autoReply: String?
     let communities: [ListedInDTO]?
     let latitude: Double?
     let longitude: Double?
+
+    struct AutoReupDTO: Decodable {
+        let everyDays: Int
+        let hour: Int
+        enum CodingKeys: String, CodingKey {
+            case everyDays = "every_days"
+            case hour
+        }
+    }
 
     struct ListedInDTO: Decodable {
         let id: String
@@ -409,15 +430,20 @@ struct ListingDataDTO: Decodable {
         case hideFromFriends = "hide_from_friends"
         case hasAutoReply    = "has_auto_reply"
         case autoReply       = "auto_reply"
+        case reupCount       = "reup_count"
+        case autoReup        = "auto_reup"
+        case nextAutoReupAt  = "next_auto_reup_at"
     }
 
     func toListingData() -> ListingData {
         ListingData(id: id, title: title, price: price,
                     condition: ListingCondition(rawValue: condition) ?? .good,
-                    location: location, isSold: status == "sold",
+                    location: location, isSold: status == "sold", reupCount: reupCount ?? 0,
                     hideFromFriends: hideFromFriends, hasAutoReply: hasAutoReply, autoReply: autoReply,
                     communities: (communities ?? []).map { .init(id: $0.id, name: $0.name, iconEmoji: $0.iconEmoji) },
-                    latitude: latitude, longitude: longitude)
+                    latitude: latitude, longitude: longitude,
+                    autoReup: autoReup.map { .init(days: $0.everyDays, hour: $0.hour) },
+                    nextAutoReupAt: nextAutoReupAt)
     }
 }
 

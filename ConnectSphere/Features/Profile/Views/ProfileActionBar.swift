@@ -3,7 +3,7 @@ import SwiftUI
 /// The buttons at the bottom of someone else's profile card: the relationship
 /// button, then Message. Friends / Requested / Respond / Following open a
 /// Facebook-style bottom sheet of actions. Following is independent of
-/// friendship — friends can unfollow each other and stay friends.
+/// friendship, friends can unfollow each other and stay friends.
 struct ProfileActionBar: View {
     @Environment(AppState.self) private var appState
     @Environment(\.appBundle) private var bundle

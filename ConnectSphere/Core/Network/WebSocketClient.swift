@@ -1,7 +1,7 @@
 import Foundation
 
 /// Posted after a socket reconnect (not the initial connect) so per-conversation
-/// view models can re-emit `join_conversation` — server-side room membership does
+/// view models can re-emit `join_conversation`, server-side room membership does
 /// not survive a disconnect, but registered event listeners do.
 extension Notification.Name {
     static let webSocketDidReconnect = Notification.Name("WebSocketClient.didReconnect")
@@ -46,7 +46,7 @@ final class WebSocketClient {
     private var shouldReconnect = false
     private var reconnectAttempt = 0
     private var reconnectWorkItem: DispatchWorkItem?
-    /// True once the very first successful connect has happened — distinguishes
+    /// True once the very first successful connect has happened. Distinguishes
     /// the initial connect from a later reconnect (only the latter posts `.webSocketDidReconnect`).
     private var hasConnectedOnce = false
 
@@ -289,7 +289,7 @@ final class WebSocketClient {
     }
 
     /// Automatically reconnects with exponential backoff (2s → 4s → … up to a 30s cap)
-    /// after a connection drop — previously a single drop left chat "dead" until the app was reopened.
+    /// after a connection drop. Previously a single drop left chat "dead" until the app was reopened.
     private func scheduleReconnect() {
         guard shouldReconnect, let token else { return }
         reconnectAttempt += 1

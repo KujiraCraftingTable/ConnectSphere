@@ -6,7 +6,7 @@ import SwiftUI
 /// siblings follow. Each row only draws its own slice, top to bottom; because
 /// the rows sit flush in the list, the slices join into continuous lines.
 struct ThreadDecoration: Equatable {
-    /// Thread levels whose line passes straight through this row — a
+    /// Thread levels whose line passes straight through this row. A
     /// sibling at that level still comes after it.
     var passingLevels: [Int] = []
     /// The parent's level when this row is a reply: the line comes down from
@@ -18,7 +18,7 @@ struct ThreadDecoration: Equatable {
     static let none = ThreadDecoration()
 
     /// Lays out a whole thread: `replyCounts[i]` is how many third-level
-    /// replies sit under the thread's i-th reply. Returned in display order — root, then
+    /// replies sit under the thread's i-th reply. Returned in display order. Root, then
     /// each reply followed by its own replies.
     static func layout(replyCounts: [Int]) -> (root: ThreadDecoration, replies: [(ThreadDecoration, [ThreadDecoration])]) {
         let root = ThreadDecoration(downFromLevel: replyCounts.isEmpty ? nil : 0)

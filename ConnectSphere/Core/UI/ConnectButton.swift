@@ -12,7 +12,7 @@ struct ConnectButton: View {
 
     let targetUserId: String
     var compact: Bool = false   // true = shown next to the name, smaller
-    /// Accept / Decline split the full width between them — for a row of
+    /// Accept / Decline split the full width between them, for a row of
     /// their own under a card's header.
     var fullWidth: Bool = false
 
@@ -116,7 +116,7 @@ struct ConnectButton: View {
         }
     }
 
-    /// Places the companion (if any) next to the status chip, on the same row — used for
+    /// Places the companion (if any) next to the status chip, on the same row. Used for
     /// statuses with only a single chip (connected/sent/none), which don't need their own row.
     @ViewBuilder
     private func withCompanion<C: View>(@ViewBuilder _ chip: () -> C) -> some View {
@@ -167,7 +167,7 @@ struct ConnectButton: View {
     }
 
     // minWidth: minimum width so the single-status states (Add friend / Sent)
-    // are the same size despite different content — sized to the widest button.
+    // are the same size despite different content. Sized to the widest button.
     // fixedWidth: exact width, used in the compact form to keep the chip from
     // resizing (and reflowing its neighbours) when the label swaps on tap.
     private func actionChip(label: String, icon: String, color: Color,

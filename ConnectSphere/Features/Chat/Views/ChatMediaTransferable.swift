@@ -5,7 +5,7 @@ import PhotosUI
 
 /// A picked image/video held in a composer before the user taps send.
 /// Shared by `ChatView`'s full input bar and the floating chat's docked
-/// composer (`FloatingChatComposerBar`) — both import from `PhotosPicker`
+/// composer (`FloatingChatComposerBar`), both import from `PhotosPicker`
 /// through `MediaFileTransferable` below, so the two stay in step.
 struct PendingMedia: Identifiable {
     let id = UUID()
@@ -16,7 +16,7 @@ struct PendingMedia: Identifiable {
 // MARK: - Transferable wrapper for photos picker
 
 /// Copies a `PhotosPicker` selection into the temporary directory and hands
-/// back its local URL — the shape `ChatViewModel.sendMedia(fileURL:)` expects.
+/// back its local URL. The shape `ChatViewModel.sendMedia(fileURL:)` expects.
 struct MediaFileTransferable: Transferable {
     let url: URL
 

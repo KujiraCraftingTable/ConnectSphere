@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Moderation queue for admin/moderators — shows pending and resolved reports
+/// Moderation queue for admin/moderators. Shows pending and resolved reports
 struct ModerationQueueView: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.appBundle) var bundle

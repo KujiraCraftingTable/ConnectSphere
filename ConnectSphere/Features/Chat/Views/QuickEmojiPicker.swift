@@ -16,7 +16,7 @@ enum QuickEmoji {
     /// Plain `isEmoji` isn't enough: digits, `#`, `*` and symbols like © carry
     /// it too (they can *become* emoji with a variation selector) but render
     /// as text alone. So require emoji presentation, or a multi-scalar
-    /// sequence — ❤️ is U+2764 + VS16, 1️⃣ is a keycap sequence.
+    /// sequence, ❤️ is U+2764 + VS16, 1️⃣ is a keycap sequence.
     static func isEmoji(_ character: Character) -> Bool {
         guard let first = character.unicodeScalars.first else { return false }
         return first.properties.isEmojiPresentation
@@ -24,7 +24,7 @@ enum QuickEmoji {
     }
 }
 
-/// Picks the quick emoji from the full system emoji keyboard — every emoji
+/// Picks the quick emoji from the full system emoji keyboard. Every emoji
 /// Apple ships, with its own search, skin tones and recents.
 struct QuickEmojiPickerSheet: View {
     @Binding var emoji: String

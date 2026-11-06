@@ -3,10 +3,10 @@ import Observation
 import PhotosUI
 import SwiftUI
 
-/// How root comments are ordered. Only affects top-level comments — each
+/// How root comments are ordered. Only affects top-level comments. Each
 /// root's own replies always stay chronological underneath it, same as a
 /// real conversation thread. A third `.mostRelated` case (relevance-ranked)
-/// is a natural later addition — deliberately not built yet, since defining
+/// is a natural later addition. Deliberately not built yet, since defining
 /// and testing "relevance" well is its own piece of work.
 enum CommentSortOrder: String, CaseIterable, Identifiable {
     case oldest
@@ -20,11 +20,11 @@ class CommentViewModel {
     var comments: [CommentDTO] = []
     var isLoading  = false
     var isSending  = false
-    /// Comment currently being replied to (nil = a plain comment) — can be a
+    /// Comment currently being replied to (nil = a plain comment). Can be a
     /// root comment or a depth-1 reply (replies nest one level deeper: root →
     /// reply → reply-to-reply, capped there).
     var replyingTo: CommentDTO? = nil
-    /// How `parents` orders root comments. Purely a display concern — doesn't
+    /// How `parents` orders root comments. Purely a display concern, doesn't
     /// change what's fetched, so switching it never needs a reload.
     var sortOrder: CommentSortOrder = .oldest
     /// The photo picked for the next comment, shown above the field until sent.
@@ -60,7 +60,7 @@ class CommentViewModel {
         comments.filter { $0.parentCommentId == parentId }
     }
 
-    /// Every comment, a page at a time — sorting and threading happen here,
+    /// Every comment, a page at a time. Sorting and threading happen here,
     /// so a post past one page needs them all (it used to stop at 50).
     static let pageSize = 100
     static let maxPages = 20
@@ -104,7 +104,7 @@ class CommentViewModel {
 
     /// Posts a comment (or a reply, when `replyingTo` is set), uploading the
     /// attached photo first. The server's copy of the new comment goes
-    /// straight into the list — no reload of every page.
+    /// straight into the list. No reload of every page.
     func addComment(postId: String, content: String) async -> Bool {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || attachedPhotoData != nil else { return false }
@@ -128,7 +128,7 @@ class CommentViewModel {
         return true
     }
 
-    /// Deletes one of your own comments (or one on your own post) — backend
+    /// Deletes one of your own comments (or one on your own post). Backend
     /// soft-deletes replies too. Returns how many comments were actually
     /// removed (deleting a root cascades to its replies), so the caller can
     /// decrement the post's displayed comment count by the right amount;

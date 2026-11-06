@@ -26,7 +26,13 @@ final class PersonaSetupViewModel {
 
     var isValid: Bool { !trimmed(displayName).isEmpty }
 
-    /// The created profile on success — the caller hands it to `AppState`.
+    /// Anything entered, closing the form would lose it, so Cancel asks.
+    var hasChanges: Bool {
+        !trimmed(displayName).isEmpty || !trimmed(jobTitle).isEmpty || !trimmed(company).isEmpty
+            || !skills.isEmpty || !selectedInterests.isEmpty
+    }
+
+    /// The created profile on success. The caller hands it to `AppState`.
     func save() async -> UserProfile? {
         isSaving = true
         errorMessage = nil

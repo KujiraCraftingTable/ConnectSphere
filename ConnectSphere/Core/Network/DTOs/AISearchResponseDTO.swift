@@ -31,7 +31,7 @@ struct AISearchCriteriaDTO: Decodable {
     }
 }
 
-/// A "match reason" in the mini CV — pre-built by the backend from a chunk/community, no LLM call.
+/// A "match reason" in the mini CV, pre-built by the backend from a chunk/community, no LLM call.
 /// Posts are already grouped by topic on the backend: postCount posts, newest/oldest timestamps.
 struct MatchEvidenceDTO: Decodable, Hashable {
     let type:           String     // "profile" | "post" | "engagement" | "community"
@@ -42,7 +42,7 @@ struct MatchEvidenceDTO: Decodable, Hashable {
     let latestPostAt:   Date?
     let oldestPostAt:   Date?
     let communityName:  String?
-    /// "engagement" only — public reactions (comments / public shares) on
+    /// "engagement" only, public reactions (comments / public shares) on
     /// matching posts. Likes are private, so the server never sends them.
     let commentedCount: Int?
     let sharedCount:    Int?
@@ -110,7 +110,7 @@ struct AISearchResponseDTO: Decodable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         data      = try c.decode([UserDTO].self, forKey: .data)
         criteria  = try c.decode(AISearchCriteriaDTO.self, forKey: .criteria)
-        // New field — still decodes fine against an older backend or an empty response
+        // New field, still decodes fine against an older backend or an empty response
         entity_suggestions = (try? c.decode([EntitySuggestionDTO].self, forKey: .entity_suggestions)) ?? []
         warnings           = (try? c.decode([SearchWarningDTO].self, forKey: .warnings)) ?? []
         search_session_id  = try? c.decodeIfPresent(String.self, forKey: .search_session_id)

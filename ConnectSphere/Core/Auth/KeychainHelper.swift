@@ -1,7 +1,7 @@
 import Foundation
 import Security
 
-/// Saves/reads/deletes values from the iOS Keychain — persists across restarts and rebuilds
+/// Saves/reads/deletes values from the iOS Keychain. Persists across restarts and rebuilds
 enum KeychainHelper {
     private static let service = "com.connectsphere.app"
 

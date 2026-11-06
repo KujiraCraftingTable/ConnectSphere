@@ -22,7 +22,7 @@ struct ConnectSphereTests {
 // MARK: - Test fixtures
 
 /// Shared helpers for building minimal, valid model instances for view-model tests.
-/// Only pure/computed logic is exercised here — network-backed flows (repository
+/// Only pure/computed logic is exercised here, network-backed flows (repository
 /// calls) are intentionally left untested, per the project's testing scope.
 private enum Fixtures {
     static func user(id: String = "u1", postCount: Int = 3) -> UserProfile {
@@ -143,7 +143,7 @@ struct CreatePostViewModelTests {
         )
 
         // The empty-content guard returns before any Task is spawned, so this
-        // is fully synchronous — no network call is ever attempted.
+        // is fully synchronous. No network call is ever attempted.
         #expect(succeeded == false)
         #expect(vm.isPosting == false)
     }
@@ -165,15 +165,17 @@ struct CreatePostViewModelTests {
         #expect(vm.isPosting == false)
     }
 
-    @Test func detectAndFetchLinkClearsExistingPreviewWhenTextHasNoLink() {
+    @Test func detectAndFetchLinkKeepsPreviewWhenTextHasNoLink() {
         let vm = CreatePostViewModel()
         vm.linkPreview = LinkPreviewDTO(
             url: "https://example.com", title: "Example", description: nil, image: nil, siteName: nil
         )
 
-        vm.detectAndFetchLink("just plain text, no url here")
+        // The URL is taken out of the text once the card shows, so a text
+        // without a link must not drop the card.
+        vm.detectAndFetchLink("just plain text, no url here") { }
 
-        #expect(vm.linkPreview == nil)
+        #expect(vm.linkPreview != nil)
     }
 
     @Test func detectAndFetchLinkKeepsPreviewWhenSameUrlIsDetectedAgain() {
@@ -188,8 +190,10 @@ struct CreatePostViewModelTests {
 
         // Same URL as the already-fetched preview -> should short-circuit
         // without clearing or scheduling a re-fetch.
-        vm.detectAndFetchLink("check this out https://example.com/article")
+        var shown = false
+        vm.detectAndFetchLink("check this out https://example.com/article") { shown = true }
 
         #expect(vm.linkPreview?.url == existing.url)
+        #expect(shown, "the composer is told to take the URL out of the text")
     }
 }
