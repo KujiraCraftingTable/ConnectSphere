@@ -19,12 +19,12 @@ struct SchedulePickerSheet: View {
                     .datePickerStyle(.graphical)
                     .tint(themeManager.theme.primary)
                 Text("Your post goes out at this time, in your time zone. You can change or cancel it from Settings → Drafts.", bundle: bundle)
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
                     .multilineTextAlignment(.center)
                 if initial != nil {
                     Button(role: .destructive) { onSet(nil); dismiss() } label: {
-                        Text("Remove schedule", bundle: bundle).font(.system(size: 15, weight: .semibold))
+                        Text("Remove schedule", bundle: bundle).scaledFont(15, .semibold)
                     }
                 }
                 Spacer()
@@ -60,13 +60,13 @@ struct ScheduleLine: View {
                 Label(String(format: bundle.loc("Goes out %@"), date.formatted(.dateTime.day().month(.abbreviated).hour().minute())),
                       systemImage: "clock.fill")
                     .labelStyle(.titleAndIcon)
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, .semibold)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
             }
             .buttonStyle(.plain)
             Button(action: onClear) {
-                Image(systemName: "xmark.circle.fill").font(.system(size: 15))
+                Image(systemName: "xmark.circle.fill").scaledFont(15)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text("Remove schedule", bundle: bundle))

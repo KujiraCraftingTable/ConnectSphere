@@ -191,6 +191,9 @@ struct UsersController {
         if sent("gender"), !["male", "female", "other"].contains(raw.gender ?? "") {
             throw InlineError(.badRequest, "Invalid gender")
         }
+        if sent("dob"), let dob = raw.dob, !dob.isEmpty, !BirthdayRules.isOldEnough(dob) {
+            throw InlineError(.badRequest, BirthdayRules.underageReason)
+        }
         if sent("dob_visibility"), !["private", "public"].contains(raw.dob_visibility ?? "") {
             throw InlineError(.badRequest, "dob_visibility must be private or public")
         }

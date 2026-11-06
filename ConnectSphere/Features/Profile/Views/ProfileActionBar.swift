@@ -136,12 +136,12 @@ struct ProfileActionBar: View {
                 } label: {
                     HStack(spacing: 16) {
                         Image(systemName: action.icon)
-                            .font(.system(size: 18, weight: .semibold))
+                            .scaledFont(18, .semibold)
                             .foregroundColor(action.destructive ? AppColors.danger(colorScheme) : AppColors.textPrimary(colorScheme))
                             .frame(width: 44, height: 44)
                             .background(AppColors.elevated(colorScheme), in: Circle())
                         Text(action.title)
-                            .font(.system(size: 17, weight: .medium))
+                            .scaledFont(17, .medium)
                             .foregroundColor(action.destructive ? AppColors.danger(colorScheme) : AppColors.textPrimary(colorScheme))
                         Spacer()
                     }

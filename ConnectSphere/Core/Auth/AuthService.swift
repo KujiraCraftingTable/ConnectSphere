@@ -108,6 +108,35 @@ class AuthService {
                                                      from: try await post("/auth/register", json: JSONSerialization.data(withJSONObject: body)))
     }
 
+    struct ConsentStatus: Decodable { let version: String; let accepted: Bool }
+
+    /// Has this account agreed to the current Terms and Privacy Policy?
+    func consentStatus(token: String) async throws -> ConsentStatus {
+        guard let url = URL(string: APIConfig.baseURL + "/auth/consent") else { throw URLError(.badURL) }
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 10
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        guard (resp as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+        return try JSONDecoder().decode(ConsentStatus.self, from: data)
+    }
+
+    /// Records agreement to the edition of the documents this build shows.
+    func acceptConsent(token: String) async throws {
+        guard let url = URL(string: APIConfig.baseURL + "/auth/consent") else { throw URLError(.badURL) }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.httpBody = try JSONEncoder().encode(["version": LegalDocs.version])
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        guard let http = resp as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+        guard http.statusCode == 200 else {
+            throw NSError(domain: "Auth", code: http.statusCode,
+                          userInfo: [NSLocalizedDescriptionKey: Self.serverErrorMessage(from: data)])
+        }
+    }
+
     /// Free to sign up with? No session needed (usernames are public).
     func usernameAvailable(_ username: String) async throws -> Bool {
         var comps = URLComponents(string: APIConfig.baseURL + "/auth/username-available")

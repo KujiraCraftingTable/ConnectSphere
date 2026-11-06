@@ -30,7 +30,7 @@ struct CommunityMemberProfileView: View {
                     header(p)
                     if viewModel.posts.isEmpty && !viewModel.isLoading {
                         Text("No posts in this community yet", bundle: bundle)
-                            .font(.system(size: 14))
+                            .scaledFont(14)
                             .foregroundColor(AppColors.textTertiary(colorScheme))
                             .padding(.top, 30)
                     }
@@ -78,15 +78,15 @@ struct CommunityMemberProfileView: View {
 
                 VStack(spacing: 4) {
                     Text(p.displayName)
-                        .font(.system(size: 26, weight: .bold))
+                        .scaledFont(26, .bold)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                         .multilineTextAlignment(.center)
                     Text("@\(p.username)")
-                        .font(.system(size: 15))
+                        .scaledFont(15)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                     if let line = membershipLine(p) {
                         Text(line)
-                            .font(.system(size: 14))
+                            .scaledFont(14)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
                 }
@@ -101,7 +101,7 @@ struct CommunityMemberProfileView: View {
                     UserProfileView(userId: userId).environment(appState)
                 } label: {
                     Text("View full profile", bundle: bundle)
-                        .font(.system(size: 15, weight: .semibold))
+                        .scaledFont(15, .semibold)
                         .foregroundColor(themeManager.theme.primary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, AppSpacing.sm + 2)
@@ -124,10 +124,10 @@ struct CommunityMemberProfileView: View {
     private func stat(_ n: Int, _ label: String) -> some View {
         VStack(spacing: 2) {
             Text("\(n)")
-                .font(.system(size: 18, weight: .bold))
+                .scaledFont(18, .bold)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             Text(label)
-                .font(.system(size: 12))
+                .scaledFont(12)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)

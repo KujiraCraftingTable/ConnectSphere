@@ -32,9 +32,9 @@ struct ApplySheet: View {
             Form {
                 Section {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(job.title).font(.system(size: 17, weight: .semibold))
+                        Text(job.title).scaledFont(17, .semibold)
                         Text(job.companyName ?? job.poster.displayName)
-                            .font(.system(size: 14))
+                            .scaledFont(14)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
                 }
@@ -43,9 +43,9 @@ struct ApplySheet: View {
                         HStack(spacing: 12) {
                             Avatar(name: me.name, colorHex: me.avatarColor, imageURL: me.avatarUrl, size: .md)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(me.name).font(.system(size: 15, weight: .semibold))
+                                Text(me.name).scaledFont(15, .semibold)
                                 if let title = me.jobTitle, !title.isEmpty {
-                                    Text(title).font(.system(size: 13)).foregroundColor(AppColors.textSecondary(colorScheme))
+                                    Text(title).scaledFont(13).foregroundColor(AppColors.textSecondary(colorScheme))
                                 }
                             }
                         }
@@ -87,7 +87,7 @@ struct ApplySheet: View {
                     Text("Optional. PDF, up to 10 MB. Only the people hiring can open it.", bundle: bundle)
                 }
                 if let error = viewModel.errorMessage {
-                    Section { Text(error).foregroundColor(.red).font(.system(size: 14)) }
+                    Section { Text(error).foregroundColor(.red).scaledFont(14) }
                 }
             }
             .navigationTitle(bundle.loc("Apply"))

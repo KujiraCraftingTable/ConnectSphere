@@ -40,10 +40,10 @@ struct SkillPickerView: View {
             if let error = catalog.loadError {
                 HStack(spacing: 10) {
                     Text(error)
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                     Button(bundle.loc("Retry")) { Task { await catalog.load(jobTitle: jobTitle) } }
-                        .font(.system(size: 13, weight: .semibold))
+                        .scaledFont(13, .semibold)
                         .buttonStyle(.borderless)
                 }
             }
@@ -102,12 +102,12 @@ struct SkillPickerView: View {
                 showSuggest = true
             } label: {
                 Label(bundle.loc("Can't find yours? Suggest it"), systemImage: "plus.bubble")
-                    .font(.system(size: 13, weight: .medium))
+                    .scaledFont(13, .medium)
             }
             .buttonStyle(.borderless)
             if let notice = catalog.suggestNotice {
                 Text(notice)
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }
         }

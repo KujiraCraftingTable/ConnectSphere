@@ -18,23 +18,23 @@ struct SpacesIntroCard: View {
                     .frame(width: 36, height: 36)
                     .background(themeManager.theme.primary.opacity(0.14), in: Circle())
                 Text("Organise chats with Spaces", bundle: bundle)
-                    .font(.system(size: 16, weight: .bold))
+                    .scaledFont(16, .bold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
             }
             Text("Spaces work like folders. Make one, add people and group chats to it, and those chats are kept together there.", bundle: bundle)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .fixedSize(horizontal: false, vertical: true)
 
             Label(bundle.loc("Only you can see your spaces."), systemImage: "lock.fill")
                 .labelStyle(.titleAndIcon)
-                .font(.system(size: 12, weight: .medium))
+                .scaledFont(12, .medium)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
 
             Button(action: onCreate) {
                 Label(bundle.loc("Create your first space"), systemImage: "plus")
                     .labelStyle(.titleAndIcon)
-                    .font(.system(size: 15, weight: .semibold))
+                    .scaledFont(15, .semibold)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity, minHeight: 44)
                     .background(themeManager.theme.primary, in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
@@ -81,7 +81,7 @@ struct SpaceEditorSheet: View {
                 HStack(spacing: 10) {
                     SpacePlanetIcon(color: color.color, size: 26)
                     TextField(bundle.loc("Space name"), text: $name)
-                        .font(.system(size: 22, weight: .bold))
+                        .scaledFont(22, .bold)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                         .focused($nameFocused)
                         .submitLabel(.done)
@@ -95,7 +95,7 @@ struct SpaceEditorSheet: View {
 
                 VStack(alignment: .leading, spacing: AppSpacing.sm) {
                     Text("Colour", bundle: bundle)
-                        .font(.system(size: 13, weight: .semibold))
+                        .scaledFont(13, .semibold)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                     // 24 colours: three rows of eight, in hue order.
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 8), spacing: 10) {
@@ -108,7 +108,7 @@ struct SpaceEditorSheet: View {
                                     if option == color {
                                         Circle().stroke(option.color, lineWidth: 2.5).frame(width: 36, height: 36)
                                         Image(systemName: "checkmark")
-                                            .font(.system(size: 12, weight: .bold))
+                                            .scaledFont(12, .bold)
                                             .foregroundColor(.white)
                                     }
                                 }
@@ -215,9 +215,9 @@ struct SpacePeoplePickerView: View {
                 }
                 ToolbarItem(placement: .principal) {
                     VStack(spacing: 0) {
-                        Text(spaceName).font(.system(size: 16, weight: .semibold))
+                        Text(spaceName).scaledFont(16, .semibold)
                         Text(String(format: bundle.loc("%lld selected"), selectedPeople.count + selectedGroups.count))
-                            .font(.system(size: 12))
+                            .scaledFont(12)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
                 }
@@ -248,17 +248,17 @@ struct SpacePeoplePickerView: View {
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(candidate.name)
-                        .font(.system(size: 15, weight: .semibold))
+                        .scaledFont(15, .semibold)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                     if let subtitle = candidate.subtitle, !subtitle.isEmpty {
                         Text(subtitle)
-                            .font(.system(size: 13))
+                            .scaledFont(13)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
                 }
                 Spacer()
                 Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 22))
+                    .scaledFont(22)
                     .foregroundColor(isOn ? themeManager.theme.primary : AppColors.textTertiary(colorScheme))
             }
             .contentShape(Rectangle())
@@ -295,12 +295,12 @@ struct SpaceMembershipSheet: View {
                             HStack(spacing: 12) {
                                 SpacePlanetIcon(color: space.color.color, size: 20)
                                 Text(space.name)
-                                    .font(.system(size: 16))
+                                    .scaledFont(16)
                                     .foregroundColor(AppColors.textPrimary(colorScheme))
                                 Spacer()
                                 if isIn {
                                     Image(systemName: "checkmark")
-                                        .font(.system(size: 15, weight: .semibold))
+                                        .scaledFont(15, .semibold)
                                         .foregroundColor(themeManager.theme.primary)
                                 }
                             }

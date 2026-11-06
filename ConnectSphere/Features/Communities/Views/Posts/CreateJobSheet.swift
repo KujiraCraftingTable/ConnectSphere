@@ -25,25 +25,25 @@ struct CreateJobSheet: View {
             // Title
             fieldRow(label: bundle.loc("Title") + " *") {
                 TextField(bundle.loc("Job title"), text: $title)
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
             }
 
             // Company
             fieldRow(label: bundle.loc("Company")) {
                 TextField(bundle.loc("Optional"), text: $company)
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
             }
 
             // Location
             VStack(alignment: .leading, spacing: 4) {
                 Text(bundle.loc("Location"))
-                    .font(.system(size: 12, weight: .medium))
+                    .scaledFont(12, .medium)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
                 LocationSearchField(bundle.loc("Optional"), text: $location) { field in
                     fieldBox(field
-                        .font(.system(size: 15))
+                        .scaledFont(15)
                         .foregroundColor(AppColors.textPrimary(colorScheme)))
                 }
             }
@@ -51,7 +51,7 @@ struct CreateJobSheet: View {
             // Employment type
             VStack(alignment: .leading, spacing: 4) {
                 Text(bundle.loc("Employment type"))
-                    .font(.system(size: 12, weight: .medium))
+                    .scaledFont(12, .medium)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
                 Menu {
                     Button(bundle.loc("None")) { employmentType = nil }
@@ -61,12 +61,12 @@ struct CreateJobSheet: View {
                 } label: {
                     HStack {
                         Text(employmentType.map { bundle.loc($0.label) } ?? bundle.loc("Optional"))
-                            .font(.system(size: 15))
+                            .scaledFont(15)
                             .foregroundColor(employmentType == nil
                                 ? AppColors.textTertiary(colorScheme) : AppColors.textPrimary(colorScheme))
                         Spacer()
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 12))
+                            .scaledFont(12)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
                     .padding(.horizontal, 12)
@@ -109,7 +109,7 @@ struct CreateJobSheet: View {
             }
             if !details.jobSalaryValid {
                 Text("The pay range needs numbers, the first no higher than the second.", bundle: bundle)
-                    .font(.system(size: 12)).foregroundColor(.red)
+                    .scaledFont(12).foregroundColor(.red)
             }
 
             // Required skills, matched against people's profiles
@@ -122,7 +122,7 @@ struct CreateJobSheet: View {
             // Optional application deadline
             Toggle(isOn: $showApplicationDeadline) {
                 Label(bundle.loc("Add application deadline"), systemImage: "calendar.badge.clock")
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
             }
             .tint(themeManager.theme.primary)
@@ -138,7 +138,7 @@ struct CreateJobSheet: View {
                     displayedComponents: [.date]
                 )
                 .datePickerStyle(.compact)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .onAppear { if applicationDeadline == nil { applicationDeadline = Date().addingTimeInterval(7 * 86400) } }
             }
         }
@@ -158,17 +158,17 @@ struct CreateJobSheet: View {
     private func pickerRow<M: View>(label: String, value: String, @ViewBuilder menu: () -> M) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label)
-                .font(.system(size: 12, weight: .medium))
+                .scaledFont(12, .medium)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
             Menu { menu() } label: {
                 HStack {
                     Text(value)
-                        .font(.system(size: 15))
+                        .scaledFont(15)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                         .lineLimit(1)
                     Spacer()
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 12))
+                        .scaledFont(12)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 .padding(.horizontal, 12)
@@ -181,14 +181,14 @@ struct CreateJobSheet: View {
 
     private func sectionLabel(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 13, weight: .semibold))
+            .scaledFont(13, .semibold)
             .foregroundColor(AppColors.textSecondary(colorScheme))
     }
 
     private func fieldRow<F: View>(label: String, @ViewBuilder field: () -> F) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label)
-                .font(.system(size: 12, weight: .medium))
+                .scaledFont(12, .medium)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
             fieldBox(field())
         }

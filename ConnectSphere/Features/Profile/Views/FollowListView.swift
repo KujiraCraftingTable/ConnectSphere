@@ -17,7 +17,7 @@ struct FollowListView: View {
             if viewModel.people.isEmpty && !viewModel.isLoading {
                 Text(viewModel.errorMessage
                      ?? bundle.loc(viewModel.showsFollowers ? "No followers yet" : "Not following anyone yet"))
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             } else {
                 ForEach(viewModel.people, id: \.id) { person in
@@ -42,15 +42,15 @@ struct FollowListView: View {
             AvatarView(user: person.toUserProfile(), size: 44)
             VStack(alignment: .leading, spacing: 2) {
                 Text(person.displayName)
-                    .font(.system(size: 15, weight: .semibold))
+                    .scaledFont(15, .semibold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 if appState.currentMode == .work, let title = person.jobTitle, !title.isEmpty {
                     Text(person.company.map { "\(title) · \($0)" } ?? title)
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 } else if let location = person.location, !location.isEmpty {
                     Text(location)
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
             }

@@ -21,12 +21,12 @@ struct ReportItemCard: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text(bundle.loc(reasonLabel))
-                            .font(.system(size: 14, weight: .semibold))
+                            .scaledFont(14, .semibold)
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                         statusBadge
                     }
                     Text(item.createdAt.timeAgoString)
-                        .font(.system(size: 12))
+                        .scaledFont(12)
                         .foregroundColor(AppColors.textTertiary(colorScheme))
                 }
                 Spacer()
@@ -34,9 +34,10 @@ struct ReportItemCard: View {
                     withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() }
                 } label: {
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .foregroundColor(AppColors.textTertiary(colorScheme))
                 }
+                .accessibilityLabel(isExpanded ? Bundle.app.loc("Show less") : Bundle.app.loc("Show more"))
                 .buttonStyle(.plain)
             }
             .padding(14)
@@ -62,7 +63,7 @@ struct ReportItemCard: View {
 
     private var typeIcon: some View {
         Image(systemName: item.targetType == "post" ? "doc.text" : "person.fill")
-            .font(.system(size: 14))
+            .scaledFont(14)
             .foregroundColor(Color(hex: coverColor))
             .frame(width: 32, height: 32)
             .background(Color(hex: coverColor).opacity(0.12))
@@ -71,7 +72,7 @@ struct ReportItemCard: View {
 
     private var statusBadge: some View {
         Text(statusLabel)
-            .font(.system(size: 10, weight: .semibold))
+            .scaledFont(10, .semibold)
             .foregroundColor(statusColor)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
@@ -101,12 +102,12 @@ struct ReportItemCard: View {
     private var targetPreview: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(bundle.loc(item.targetType == "post" ? "Reported post" : "Reported member"))
-                .font(.system(size: 12, weight: .medium))
+                .scaledFont(12, .medium)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
 
             if let content = item.postContent {
                 Text(content)
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .lineLimit(4)
                     .padding(10)
@@ -119,14 +120,14 @@ struct ReportItemCard: View {
                         .frame(width: 28, height: 28)
                         .overlay(
                             Text(String(member.displayName.prefix(1)))
-                                .font(.system(size: 12, weight: .bold))
+                                .scaledFont(12, .bold)
                                 .foregroundColor(.white)
                         )
                     VStack(alignment: .leading, spacing: 1) {
                         Text(member.displayName)
-                            .font(.system(size: 14, weight: .medium))
+                            .scaledFont(14, .medium)
                         Text("@\(member.username)")
-                            .font(.system(size: 12))
+                            .scaledFont(12)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
                 }
@@ -134,7 +135,7 @@ struct ReportItemCard: View {
 
             if let detail = item.detail, !detail.isEmpty {
                 Text("\"\(detail)\"")
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .italic()
             }
@@ -156,7 +157,7 @@ struct ReportItemCard: View {
     private func actionBtn(label: String, icon: String, color: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(label, systemImage: icon)
-                .font(.system(size: 13, weight: .medium))
+                .scaledFont(13, .medium)
                 .foregroundColor(color)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)

@@ -59,7 +59,7 @@ struct AlbumStackBubble: View {
                         image.resizable().scaledToFill()
                     } else if phase.error != nil {
                         Image(systemName: "photo")
-                            .font(.system(size: 28))
+                            .scaledFont(28)
                             .foregroundColor(AppColors.textTertiary(colorScheme))
                     } else {
                         ProgressView()
@@ -80,7 +80,7 @@ struct AlbumStackBubble: View {
         if urls.count > 1 {
             Label("+\(urls.count - 1)", systemImage: "square.on.square")
                 .labelStyle(.titleAndIcon)
-                .font(.system(size: 13, weight: .semibold))
+                .scaledFont(13, .semibold)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .modifier(AlbumBadgeGlass())

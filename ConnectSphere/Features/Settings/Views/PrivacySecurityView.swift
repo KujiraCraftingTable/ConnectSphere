@@ -32,15 +32,15 @@ struct PrivacySecurityView: View {
                                 .fill(Color(hex: "#FF9500"))
                                 .frame(width: 30, height: 30)
                             Image(systemName: "key.fill")
-                                .font(.system(size: 14))
+                                .scaledFont(14)
                                 .foregroundColor(.white)
                         }
                         Text(bundle.loc(hasPassword ? "Change password" : "Set password"))
-                            .font(.system(size: 16))
+                            .scaledFont(16)
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                         Spacer()
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 13))
+                            .scaledFont(13)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
                 }
@@ -62,11 +62,11 @@ struct PrivacySecurityView: View {
                                 .fill(themeManager.theme.primary)
                                 .frame(width: 30, height: 30)
                             Image(systemName: "person.badge.plus")
-                                .font(.system(size: 14))
+                                .scaledFont(14)
                                 .foregroundColor(.white)
                         }
                         Text("Allow friend requests", bundle: bundle)
-                            .font(.system(size: 16))
+                            .scaledFont(16)
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                     }
                 }
@@ -87,11 +87,11 @@ struct PrivacySecurityView: View {
                                 .fill(themeManager.theme.primary)
                                 .frame(width: 30, height: 30)
                             Image(systemName: "person.2.wave.2")
-                                .font(.system(size: 13))
+                                .scaledFont(13)
                                 .foregroundColor(.white)
                         }
                         Text("Show me in People you may know", bundle: bundle)
-                            .font(.system(size: 16))
+                            .scaledFont(16)
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                     }
                 }
@@ -112,11 +112,11 @@ struct PrivacySecurityView: View {
                                 .fill(Color(hex: "#3949AB"))
                                 .frame(width: 30, height: 30)
                             Image(systemName: "lock.shield.fill")
-                                .font(.system(size: 13))
+                                .scaledFont(13)
                                 .foregroundColor(.white)
                         }
                         Text("Two-factor authentication", bundle: bundle)
-                            .font(.system(size: 16))
+                            .scaledFont(16)
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                     }
                 }
@@ -142,11 +142,11 @@ struct PrivacySecurityView: View {
                                 .fill(themeManager.theme.primary)
                                 .frame(width: 30, height: 30)
                             Image(systemName: "lock.shield.fill")
-                                .font(.system(size: 13))
+                                .scaledFont(13)
                                 .foregroundColor(.white)
                         }
                         Text(bundle.loc(appState.currentMode == .work ? "Lock my Work profile" : "Lock my Hobby profile"))
-                            .font(.system(size: 16))
+                            .scaledFont(16)
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                     }
                 }
@@ -169,11 +169,11 @@ struct PrivacySecurityView: View {
                                 .fill(themeManager.theme.primary)
                                 .frame(width: 30, height: 30)
                             Image(systemName: otherMode.glyph)
-                                .font(.system(size: 13))
+                                .scaledFont(13)
                                 .foregroundColor(.white)
                         }
                         Text(bundle.loc(otherMode == .work ? "Show a link to my Work profile" : "Show a link to my Hobby profile"))
-                            .font(.system(size: 16))
+                            .scaledFont(16)
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                     }
                 }
@@ -196,11 +196,11 @@ struct PrivacySecurityView: View {
                                 .fill(Color(hex: "#E53935"))
                                 .frame(width: 30, height: 30)
                             Image(systemName: "nosign")
-                                .font(.system(size: 14))
+                                .scaledFont(14)
                                 .foregroundColor(.white)
                         }
                         Text("Blocked users", bundle: bundle)
-                            .font(.system(size: 16))
+                            .scaledFont(16)
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                     }
                 }

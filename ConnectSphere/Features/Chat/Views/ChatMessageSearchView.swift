@@ -44,11 +44,11 @@ struct ChatMessageSearchView: View {
     private func resultRow(_ message: Message) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(highlighted(message.content ?? "", term: query))
-                .font(.system(size: 15))
+                .scaledFont(15)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
                 .lineLimit(3)
             Text(message.createdAt.formatted(.dateTime.day().month().hour().minute()))
-                .font(.system(size: 12))
+                .scaledFont(12)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
         }
         .padding(.vertical, 4)
@@ -57,10 +57,10 @@ struct ChatMessageSearchView: View {
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 40))
+                .scaledFont(40)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
             Text("No messages found", bundle: bundle)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

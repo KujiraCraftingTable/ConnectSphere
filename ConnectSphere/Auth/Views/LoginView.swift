@@ -82,14 +82,14 @@ struct LoginView: View {
                     .fill(themeManager.theme.primary)
                     .frame(width: 72, height: 72)
                 Image(systemName: "bubble.left.and.bubble.right.fill")
-                    .font(.system(size: 30))
+                    .scaledFont(30)
                     .foregroundColor(.white)
             }
             Text("ConnectSphere")
-                .font(.system(size: 28, weight: .bold))
+                .scaledFont(28, .bold)
                 .foregroundStyle(themeManager.theme.primary)
             Text("Sign in to your account", bundle: bundle)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textSecondary(.light))
         }
     }
@@ -117,7 +117,7 @@ struct LoginView: View {
             HStack {
                 Spacer()
                 Button(bundle.loc("Forgot password?")) { showForgotPassword = true }
-                    .font(.system(size: 13, weight: .medium))
+                    .scaledFont(13, .medium)
                     .foregroundColor(AppColors.textSecondary(.light))
             }
 
@@ -126,7 +126,7 @@ struct LoginView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
                     Text(errorMessage)
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                 }
                 .foregroundColor(AppColors.danger(.light))
                 .padding(.horizontal, 12)
@@ -149,16 +149,16 @@ struct LoginView: View {
     private var codeSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             Label(bundle.loc("Check your email"), systemImage: "envelope.badge.shield.half.filled")
-                .font(.system(size: 17, weight: .semibold))
+                .scaledFont(17, .semibold)
                 .foregroundColor(AppColors.textPrimary(.light))
             Text(String(format: bundle.loc("Two-factor sign-in is on. Enter the 6-digit code we sent to %@."),
                         viewModel.challenge?.email ?? ""))
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textSecondary(.light))
                 .fixedSize(horizontal: false, vertical: true)
             if let errorMessage = viewModel.errorMessage {
                 Text(errorMessage)
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(AppColors.danger(.light))
             }
             CodeEntry(code: $viewModel.code, confirmTitle: bundle.loc("Verify"),
@@ -167,7 +167,7 @@ struct LoginView: View {
                       resendAt: viewModel.resendAt,
                       onResend: { Task { await viewModel.resendCode() } })
             Button(bundle.loc("Back")) { viewModel.cancelCode() }
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textSecondary(.light))
                 .frame(maxWidth: .infinity)
         }
@@ -180,7 +180,7 @@ struct LoginView: View {
     private var savedAccountsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Continue as", bundle: bundle)
-                .font(.system(size: 13, weight: .semibold))
+                .scaledFont(13, .semibold)
                 .foregroundColor(AppColors.textSecondary(.light))
             ForEach(viewModel.savedAccounts) { account in
                 HStack(spacing: 12) {
@@ -192,11 +192,11 @@ struct LoginView: View {
                                    imageURL: account.avatarUrl, size: .md)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(account.displayName)
-                                    .font(.system(size: 15, weight: .semibold))
+                                    .scaledFont(15, .semibold)
                                     .foregroundColor(AppColors.textPrimary(.light))
                                     .lineLimit(1)
                                 Text("@\(account.username)")
-                                    .font(.system(size: 13))
+                                    .scaledFont(13)
                                     .foregroundColor(AppColors.textSecondary(.light))
                                     .lineLimit(1)
                             }
@@ -208,7 +208,7 @@ struct LoginView: View {
                     .buttonStyle(.plain)
                     Button { withAnimation(.snappy) { viewModel.forget(account) } } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 12, weight: .semibold))
+                            .scaledFont(12, .semibold)
                             .foregroundColor(AppColors.textTertiary(.light))
                             .frame(width: 28, height: 28)
                     }
@@ -231,6 +231,8 @@ struct LoginView: View {
 
     private var socialSection: some View {
         VStack(spacing: 12) {
+            PolicyAgreementRow(isOn: $viewModel.acceptsPolicy)
+
             // Google Sign-In button following Google brand guidelines
             Button {
                 Task { await viewModel.loginWithGoogle(presenting: presentingViewController(), appState: appState) }
@@ -239,9 +241,9 @@ struct LoginView: View {
                     Spacer()
                     HStack(spacing: 10) {
                         GoogleGLogo()
-                            .frame(width: 20, height: 20)
+                            .frame(width: 18, height: 18)
                         Text("Continue with Google", bundle: bundle)
-                            .font(.system(size: 15, weight: .medium))
+                            .scaledFont(15, .medium)
                             .foregroundColor(Color(hex: "#3c4043"))
                     }
                     Spacer()
@@ -254,6 +256,8 @@ struct LoginView: View {
                         .stroke(Color(hex: "#dadce0"), lineWidth: 1)
                 )
             }
+            .disabled(!viewModel.acceptsPolicy)
+            .opacity(viewModel.acceptsPolicy ? 1 : 0.5)
 
         }
     }
@@ -263,12 +267,12 @@ struct LoginView: View {
     private var registerPrompt: some View {
         HStack(spacing: 4) {
             Text("Don't have an account?", bundle: bundle)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textSecondary(.light))
             Button(bundle.loc("Sign up")) {
                 navigateToRegister = true
             }
-            .font(.system(size: 14, weight: .bold))
+            .scaledFont(14, .bold)
             .foregroundStyle(themeManager.theme.primary)
         }
         .padding(.top, 4)
@@ -287,6 +291,8 @@ struct LoginView: View {
 
 // MARK: - Google G Logo (image asset from Assets.xcassets/GoogleLogo.imageset)
 
+/// Google's own "G", taken from the Google Sign-In SDK the app already uses
+/// (GoogleSignIn-iOS, Apache-2.0); brand rules forbid redrawing or recolouring it.
 struct GoogleGLogo: View {
     var body: some View {
         Image("GoogleLogo")

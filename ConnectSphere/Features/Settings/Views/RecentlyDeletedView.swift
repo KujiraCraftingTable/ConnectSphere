@@ -116,20 +116,20 @@ struct RecentlyDeletedView: View {
             VStack(alignment: .leading, spacing: 4) {
                 if !post.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Text(post.content)
-                        .font(.system(size: 14))
+                        .scaledFont(14)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                         .lineLimit(3)
                 } else if !post.displayImageUrls.isEmpty {
                     Text("Photo post", bundle: bundle)
-                        .font(.system(size: 14))
+                        .scaledFont(14)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 } else if post.linkUrl != nil {
                     Text("Link post", bundle: bundle)
-                        .font(.system(size: 14))
+                        .scaledFont(14)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 Text(post.timestamp.timeAgoString)
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }
             Spacer(minLength: 8)
@@ -144,11 +144,11 @@ struct RecentlyDeletedView: View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(comment.content)
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .lineLimit(3)
                 Text(comment.createdAt.timeAgoString)
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }
             Spacer(minLength: 8)
@@ -161,7 +161,7 @@ struct RecentlyDeletedView: View {
 
     private func emptyRow(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 14))
+            .scaledFont(14)
             .foregroundColor(AppColors.textSecondary(colorScheme))
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.vertical, 12)
@@ -173,7 +173,7 @@ struct RecentlyDeletedView: View {
                 ProgressView()
             } else {
                 Text("Restore", bundle: bundle)
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, .semibold)
                     .foregroundColor(themeManager.theme.primary)
             }
         }

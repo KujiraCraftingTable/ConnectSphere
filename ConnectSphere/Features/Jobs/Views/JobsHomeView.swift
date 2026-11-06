@@ -29,7 +29,7 @@ struct JobsHomeView: View {
                     if viewModel.segment == .search { searchBar }
                     if viewModel.segment == .forYou {
                         Text("Picked from your skills, experience and where you are.", bundle: bundle)
-                            .font(.system(size: 13))
+                            .scaledFont(13)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -94,7 +94,7 @@ struct JobsHomeView: View {
             Button { showFilters = true } label: {
                 Image(systemName: viewModel.filters.isEmpty || viewModel.filters == .init(query: viewModel.filters.query)
                       ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
-                    .font(.system(size: 24))
+                    .scaledFont(24)
                     .foregroundColor(themeManager.theme.primary)
             }
             .accessibilityLabel(Text(bundle.loc("Filters")))
@@ -104,10 +104,10 @@ struct JobsHomeView: View {
     private var emptyState: some View {
         VStack(spacing: 10) {
             Image(systemName: "briefcase")
-                .font(.system(size: 34))
+                .scaledFont(34)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
             Text(emptyText)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .multilineTextAlignment(.center)
         }
@@ -184,7 +184,7 @@ struct CompanyJobsList: View {
                 ProgressView().padding(32)
             } else if viewModel.jobs.isEmpty {
                 Text("No open jobs right now.", bundle: bundle)
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .padding(32)
             } else {

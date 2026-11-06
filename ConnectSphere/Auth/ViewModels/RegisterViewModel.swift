@@ -22,6 +22,10 @@ final class RegisterViewModel {
     var confirmPassword = ""
     /// Optional.
     var email = ""
+    /// The Terms of Service and Privacy Policy box, never pre-ticked (Law
+    /// 91/2025 Art. 9: consent must be an explicit act), and required before
+    /// anything is sent or created.
+    var acceptsPolicy = false
     var code = "" { didSet { if code != AccountCode.clean(code) { code = AccountCode.clean(code) } } }
     private(set) var stage: Stage = .details
     /// Set when the form is done. The view opens onboarding with it.
@@ -99,12 +103,14 @@ final class RegisterViewModel {
             && emailError == nil
             && password.count >= Self.minPassword
             && !confirmPassword.isEmpty && confirmPassword == password
+            && acceptsPolicy
     }
 
     // MARK: Submit
 
     /// No email: straight on to onboarding. An email: a code is sent first.
     func register() async {
+        guard acceptsPolicy else { errorMessage = Bundle.app.loc("Please tick to agree before continuing"); return }
         if let problem = UsernameRules.problem(trimmedUsername) ?? (trimmedUsername.isEmpty ? UsernameRules.hint : nil) {
             errorMessage = problem; return
         }
@@ -126,7 +132,8 @@ final class RegisterViewModel {
                 isLoading = false
             } else {
                 isLoading = false
-                pending = PendingSignup(username: trimmedUsername, password: password, email: nil)
+                pending = PendingSignup(username: trimmedUsername, password: password, email: nil,
+                                        acceptedPolicyVersion: LegalDocs.version)
             }
         } catch {
             isLoading = false
@@ -142,7 +149,8 @@ final class RegisterViewModel {
         do {
             try await AuthService.shared.registerVerify(email: trimmedEmail, code: code)
             isLoading = false
-            pending = PendingSignup(username: trimmedUsername, password: password, email: trimmedEmail)
+            pending = PendingSignup(username: trimmedUsername, password: password, email: trimmedEmail,
+                                    acceptedPolicyVersion: LegalDocs.version)
         } catch {
             isLoading = false
             code = ""

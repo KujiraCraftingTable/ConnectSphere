@@ -33,7 +33,7 @@ struct UnreadBadge: View {
     var body: some View {
         if count > 0 {
             Text(count > 99 ? "99+" : "\(count)")
-                .font(.system(size: 11, weight: .bold))
+                .scaledFont(11, .bold)
                 .foregroundStyle(.white)
                 .padding(.horizontal, count > 9 ? 4 : 0)
                 .frame(minWidth: 18, minHeight: 18)

@@ -40,4 +40,14 @@ struct SavedAccountsTests {
         s.forget(id: "2")
         #expect(s.all().map(\.username) == ["ann"])
     }
+
+    @Test func oldEntriesLoseTheirPlainEmail() throws {
+        let defaults = UserDefaults(suiteName: "SavedAccountsTests-\(UUID().uuidString)")!
+        let old = ##"[{"id":"9","username":"cat","email":"cat@example.com","displayName":"Cat","avatarColor":"#123456","hasPassword":true,"lastUsed":0}]"##
+        defaults.set(Data(old.utf8), forKey: "savedAccounts")
+        let s = SavedAccounts(defaults: defaults)
+        #expect(s.all().map(\.username) == ["cat"])
+        let stored = String(decoding: defaults.data(forKey: "savedAccounts") ?? Data(), as: UTF8.self)
+        #expect(!stored.contains("cat@example.com"))
+    }
 }

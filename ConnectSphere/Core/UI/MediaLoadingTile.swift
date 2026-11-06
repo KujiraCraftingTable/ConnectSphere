@@ -21,7 +21,7 @@ struct MediaLoadingTile: View {
             .frame(width: width, height: height)
             .overlay {
                 Image(systemName: "photo")
-                    .font(.system(size: 26))
+                    .scaledFont(26)
                     .foregroundColor(Color.gray.opacity(0.55))
             }
             .onAppear {

@@ -24,7 +24,7 @@ struct MarketplaceSellerView: View {
                 header
                 if viewModel.items.isEmpty && !viewModel.isLoading {
                     Text("No other items", bundle: bundle)
-                        .font(.system(size: 14))
+                        .scaledFont(14)
                         .foregroundColor(AppColors.textTertiary(colorScheme))
                         .padding(.top, 30)
                 } else {
@@ -64,17 +64,17 @@ struct MarketplaceSellerView: View {
 
                 VStack(spacing: 4) {
                     Text(seller.name)
-                        .font(.system(size: 26, weight: .bold))
+                        .scaledFont(26, .bold)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                         .multilineTextAlignment(.center)
                     if !seller.username.isEmpty {
                         Text("@\(seller.username)")
-                            .font(.system(size: 15))
+                            .scaledFont(15)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
                     if let location = seller.location, !location.isEmpty {
                         Label(location, systemImage: "mappin.and.ellipse")
-                            .font(.system(size: 14))
+                            .scaledFont(14)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
                 }
@@ -82,10 +82,10 @@ struct MarketplaceSellerView: View {
                 VStack(spacing: 2) {
                     // The item this page was opened from counts too.
                     Text("\(viewModel.items.count + 1)")
-                        .font(.system(size: 18, weight: .bold))
+                        .scaledFont(18, .bold)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                     Text("items listed", bundle: bundle)
-                        .font(.system(size: 12))
+                        .scaledFont(12)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 .padding(.vertical, 4)
@@ -95,7 +95,7 @@ struct MarketplaceSellerView: View {
                     UserProfileView(userId: seller.id, preloadedUser: seller)
                 } label: {
                     Text("View full profile", bundle: bundle)
-                        .font(.system(size: 15, weight: .semibold))
+                        .scaledFont(15, .semibold)
                         .foregroundColor(themeManager.theme.primary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, AppSpacing.sm + 2)

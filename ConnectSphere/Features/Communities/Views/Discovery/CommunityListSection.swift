@@ -16,14 +16,14 @@ struct CommunityListSection: View {
             HStack(spacing: 6) {
                 Image(systemName: icon).foregroundColor(AppColors.textSecondary(colorScheme))
                 Text(title)
-                    .font(.system(size: 17, weight: .semibold))
+                    .scaledFont(17, .semibold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
             }
             .padding(.horizontal, 16)
 
             if communities.isEmpty, let emptyText {
                 Text(emptyText)
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
                     .padding(.horizontal, 16)
             }

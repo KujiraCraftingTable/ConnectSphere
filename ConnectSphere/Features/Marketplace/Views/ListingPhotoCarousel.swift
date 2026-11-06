@@ -29,7 +29,7 @@ struct ListingPhotoCarousel: View {
             .overlay {
                 if urls.isEmpty {
                     Image(systemName: "bag")
-                        .font(.system(size: 28))
+                        .scaledFont(28)
                         .foregroundColor(AppColors.textTertiary(colorScheme))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .background(AppColors.elevated(colorScheme))
@@ -71,7 +71,7 @@ struct ListingPhotoCarousel: View {
     /// "2/6" in the top-right corner.
     private var counter: some View {
         Text("\(current + 1)/\(urls.count)")
-            .font(.system(size: 12, weight: .semibold))
+            .scaledFont(12, .semibold)
             .monospacedDigit()
             .foregroundColor(.white)
             .padding(.horizontal, 8)
@@ -93,7 +93,7 @@ struct ListingPhotoCarousel: View {
             if url.isVideoURL {
                 Color.black.opacity(0.85)
                 Image(systemName: "play.circle.fill")
-                    .font(.system(size: 34))
+                    .scaledFont(34)
                     .foregroundColor(.white.opacity(0.92))
             } else {
                 RemoteImage(url: APIConfig.mediaURL(url)) { phase in

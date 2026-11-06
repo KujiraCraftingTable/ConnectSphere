@@ -47,7 +47,7 @@ struct ChangePasswordView: View {
                 if let errorMessage = viewModel.errorMessage {
                     Section {
                         Text(errorMessage)
-                            .font(.system(size: 13))
+                            .scaledFont(13)
                             .foregroundColor(.red)
                     }
                 }

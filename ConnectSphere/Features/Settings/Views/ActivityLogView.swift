@@ -59,23 +59,23 @@ struct ActivityLogView: View {
     private func row(_ item: ActivityItem) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: item.kind == .comment ? "bubble.left.fill" : "hand.thumbsup.fill")
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(.white)
                 .frame(width: 32, height: 32)
                 .background(item.kind == .comment ? Color(hex: "#43A047") : themeManager.theme.primary, in: Circle())
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.headline(loc: bundle.loc))
-                    .font(.system(size: 15, weight: .semibold))
+                    .scaledFont(15, .semibold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 if let comment = item.commentExcerpt, !comment.isEmpty {
                     Text("“\(comment)”")
-                        .font(.system(size: 14))
+                        .scaledFont(14)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                         .lineLimit(2)
                 }
                 if !item.postExcerpt.isEmpty {
                     Text(item.postExcerpt)
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                         .lineLimit(2)
                 }
@@ -84,13 +84,13 @@ struct ActivityLogView: View {
                         Image(systemName: item.mode.glyph)
                         Text(bundle.loc(item.mode == .work ? "Work" : "Hobby"))
                     }
-                    .font(.system(size: 11, weight: .semibold))
+                    .scaledFont(11, .semibold)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .padding(.horizontal, 7)
                     .padding(.vertical, 2)
                     .background(AppColors.elevated(colorScheme), in: Capsule())
                     Text(item.createdAt.formatted(date: .omitted, time: .shortened))
-                        .font(.system(size: 12))
+                        .scaledFont(12)
                         .foregroundColor(AppColors.textTertiary(colorScheme))
                 }
             }

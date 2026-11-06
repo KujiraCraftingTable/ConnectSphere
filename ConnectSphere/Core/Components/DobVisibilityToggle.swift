@@ -16,10 +16,10 @@ struct DobVisibilityToggle: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Who can see your age?", bundle: bundle)
-                .font(.system(size: 13))
+                .scaledFont(13)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
             Text("Public shows your age on your profile and in search; private keeps it hidden.", bundle: bundle)
-                .font(.system(size: 12))
+                .scaledFont(12)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
 
             HStack(spacing: 0) {

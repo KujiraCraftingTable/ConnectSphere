@@ -53,11 +53,11 @@ struct CommunityHeaderCard<Join: View>: View {
             Button(action: onInfo) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(community.name)
-                        .font(.system(size: 24, weight: .bold))
+                        .scaledFont(24, .bold)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                         .multilineTextAlignment(.leading)
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 15, weight: .semibold))
+                        .scaledFont(15, .semibold)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
             }
@@ -69,7 +69,7 @@ struct CommunityHeaderCard<Join: View>: View {
                 Text("·")
                 Text(String(format: bundle.loc("%lld members"), community.memberCount))
             }
-            .font(.system(size: 14))
+            .scaledFont(14)
             .foregroundColor(AppColors.textSecondary(colorScheme))
 
             if let about = community.description?.trimmingCharacters(in: .whitespacesAndNewlines), !about.isEmpty {
@@ -78,7 +78,7 @@ struct CommunityHeaderCard<Join: View>: View {
                      ? MarkdownFormatter.attributed(about, linkColor: themeManager.theme.primary,
                                                     quoteColor: AppColors.textSecondary(colorScheme))
                      : AttributedString(about))
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .lineLimit(4)
                     .multilineTextAlignment(.leading)

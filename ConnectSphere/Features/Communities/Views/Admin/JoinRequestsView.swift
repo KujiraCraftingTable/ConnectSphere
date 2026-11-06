@@ -59,20 +59,20 @@ struct JoinRequestsView: View {
             ZStack {
                 Circle().fill(Color(hex: request.user.avatarColor))
                 Text(String(request.user.displayName.prefix(1)))
-                    .font(.system(size: 15, weight: .bold))
+                    .scaledFont(15, .bold)
                     .foregroundColor(.white)
             }
             .frame(width: 42, height: 42)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(request.user.displayName)
-                    .font(.system(size: 15, weight: .medium))
+                    .scaledFont(15, .medium)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 Text("@\(request.user.username)")
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                 Text(request.requestedAt.timeAgoString)
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
             }
             Spacer()
@@ -93,7 +93,7 @@ struct JoinRequestsView: View {
     private func actionButton(icon: String, color: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 13, weight: .bold))
+                .scaledFont(13, .bold)
                 .foregroundColor(color)
                 .frame(width: 32, height: 32)
                 .background(color.opacity(0.12))
@@ -105,13 +105,13 @@ struct JoinRequestsView: View {
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "person.badge.plus")
-                .font(.system(size: 40))
+                .scaledFont(40)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
             Text(bundle.loc("No pending requests"))
-                .font(.system(size: 16, weight: .medium))
+                .scaledFont(16, .medium)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
             Text(bundle.loc("Join requests will appear here"))
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

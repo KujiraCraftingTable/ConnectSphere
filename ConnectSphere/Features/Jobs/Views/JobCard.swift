@@ -18,12 +18,12 @@ struct JobCard: View {
                        imageURL: job.companyLogoUrl ?? job.poster.avatarUrl, size: .md, shape: .roundedSquare)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(job.title)
-                        .font(.system(size: 16, weight: .semibold))
+                        .scaledFont(16, .semibold)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                         .lineLimit(2)
                     HStack(spacing: 4) {
                         Text(job.companyName ?? job.poster.displayName)
-                            .font(.system(size: 14))
+                            .scaledFont(14)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                             .lineLimit(1)
                         if job.companyVerified { OfficialBadge(compact: true) }
@@ -32,14 +32,14 @@ struct JobCard: View {
                 Spacer(minLength: 4)
                 Button(action: onToggleSave) {
                     Image(systemName: job.saved ? "bookmark.fill" : "bookmark")
-                        .font(.system(size: 18))
+                        .scaledFont(18)
                         .foregroundColor(job.saved ? themeManager.theme.primary : AppColors.textTertiary(colorScheme))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(Text(bundle.loc(job.saved ? "Saved" : "Save")))
             }
             Text(job.salaryText(loc: bundle.loc) ?? bundle.loc("Negotiable"))
-                .font(.system(size: 14, weight: .semibold))
+                .scaledFont(14, .semibold)
                 .foregroundColor(themeManager.theme.primary)
             let facts = [job.location, job.workFormat.map { bundle.loc(JobListing.formatLabel($0)) },
                          job.level.map { bundle.loc(JobListing.levelLabel($0)) },
@@ -47,14 +47,14 @@ struct JobCard: View {
                 .compactMap { $0 }
             if !facts.isEmpty {
                 Text(facts.joined(separator: " · "))
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .lineLimit(2)
             }
             HStack(spacing: 8) {
                 if showsMatch && !job.isMine {
                     Label(job.matchText(loc: bundle.loc), systemImage: "sparkles")
-                        .font(.system(size: 12, weight: .medium))
+                        .scaledFont(12, .medium)
                         .foregroundColor(themeManager.theme.primary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
@@ -64,13 +64,13 @@ struct JobCard: View {
                     ApplicationStatusPill(status: status)
                 } else if let count = job.applicantCount {
                     Label(String(format: bundle.loc("%lld applied"), count), systemImage: "person.2")
-                        .font(.system(size: 12, weight: .medium))
+                        .scaledFont(12, .medium)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 Spacer(minLength: 0)
                 if let deadline = job.deadlineDate {
                     Text(String(format: bundle.loc("Until %@"), deadline.formatted(.dateTime.day().month(.abbreviated))))
-                        .font(.system(size: 12))
+                        .scaledFont(12)
                         .foregroundColor(AppColors.textTertiary(colorScheme))
                 }
             }

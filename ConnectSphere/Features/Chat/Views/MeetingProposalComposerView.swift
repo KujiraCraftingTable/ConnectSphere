@@ -29,7 +29,7 @@ struct MeetingProposalComposerView: View {
             // than just blocking further input.
             fieldRow(label: "Title") {
                 TextField(bundle.loc("Meeting title"), text: $title)
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .onChange(of: title) { _, newValue in
                         if newValue.count > titleLimit {
@@ -38,7 +38,7 @@ struct MeetingProposalComposerView: View {
                     }
             }
             Text(String(format: bundle.loc("%d/%d characters"), title.count, titleLimit))
-                .font(.system(size: 11))
+                .scaledFont(11)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
                 .padding(.top, -6)
                 // `.onChange` above only catches edits made WHILE this view is
@@ -56,11 +56,11 @@ struct MeetingProposalComposerView: View {
             // Location, MapKit suggestions under the field; tapping one fills it.
             VStack(alignment: .leading, spacing: 4) {
                 Text(bundle.loc("Location"))
-                    .font(.system(size: 12, weight: .medium))
+                    .scaledFont(12, .medium)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
                 LocationSearchField(bundle.loc("Search for a location"), text: $location) { field in
                     fieldBox(field
-                        .font(.system(size: 15))
+                        .scaledFont(15)
                         .foregroundColor(AppColors.textPrimary(colorScheme)))
                 }
             }
@@ -75,13 +75,13 @@ struct MeetingProposalComposerView: View {
                 displayedComponents: [.date, .hourAndMinute]
             )
             .datePickerStyle(.compact)
-            .font(.system(size: 14))
+            .scaledFont(14)
             .foregroundColor(AppColors.textPrimary(colorScheme))
 
             // Optional end time
             Toggle(isOn: $showEndDate) {
                 Label(bundle.loc("Add end time"), systemImage: "clock.badge.checkmark")
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
             }
             .tint(themeManager.theme.primary)
@@ -97,7 +97,7 @@ struct MeetingProposalComposerView: View {
                     displayedComponents: [.date, .hourAndMinute]
                 )
                 .datePickerStyle(.compact)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .onAppear { if endsAt == nil { endsAt = startsAt.addingTimeInterval(3600) } }
             }
 
@@ -126,14 +126,14 @@ struct MeetingProposalComposerView: View {
 
     private func sectionLabel(_ key: String) -> some View {
         Text(bundle.loc(key))
-            .font(.system(size: 13, weight: .semibold))
+            .scaledFont(13, .semibold)
             .foregroundColor(AppColors.textSecondary(colorScheme))
     }
 
     private func fieldRow<F: View>(label: String, @ViewBuilder field: () -> F) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(bundle.loc(label))
-                .font(.system(size: 12, weight: .medium))
+                .scaledFont(12, .medium)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
             fieldBox(field())
         }

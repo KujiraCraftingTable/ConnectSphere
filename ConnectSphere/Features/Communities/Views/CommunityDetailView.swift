@@ -95,13 +95,13 @@ struct CommunityDetailView: View {
                 Button {
                     showSearch = true
                 } label: {
-                    Image(systemName: "magnifyingglass").font(.system(size: 17))
+                    Image(systemName: "magnifyingglass").scaledFont(17)
                 }
                 .accessibilityLabel(Text("Search this community", bundle: bundle))
             }
             ToolbarItem(placement: .navigationBarTrailing) {
                 Menu { moreMenu } label: {
-                    Image(systemName: "ellipsis").font(.system(size: 17))
+                    Image(systemName: "ellipsis").scaledFont(17)
                 }
                 .accessibilityLabel(Text("More", bundle: bundle))
             }
@@ -371,14 +371,14 @@ struct CommunityDetailView: View {
     private var emptyFeed: some View {
         VStack(spacing: 12) {
             Image(systemName: "doc.text")
-                .font(.system(size: 40))
+                .scaledFont(40)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
             Text("No posts yet", bundle: bundle)
-                .font(.system(size: 16, weight: .medium))
+                .scaledFont(16, .medium)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
             if viewModel.community?.isMember == true {
                 Text("Be the first to post in this community!", bundle: bundle)
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
             }
         }
@@ -389,10 +389,10 @@ struct CommunityDetailView: View {
     private func privateLockedNotice(_ message: String) -> some View {
         VStack(spacing: 12) {
             Image(systemName: "lock.fill")
-                .font(.system(size: 40))
+                .scaledFont(40)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
             Text(message)
-                .font(.system(size: 15))
+                .scaledFont(15)
                 .multilineTextAlignment(.center)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .padding(.horizontal, 32)
@@ -414,7 +414,7 @@ struct CommunityDetailView: View {
             }
             Button { showCreatePost = true } label: {
                 Text("What's on your mind?", bundle: bundle)
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 14)

@@ -169,7 +169,7 @@ struct CoverCropView: View {
     private var controls: some View {
         VStack(spacing: 14) {
             Text("Drag to reposition · Pinch to zoom", bundle: bundle)
-                .font(.system(size: 13))
+                .scaledFont(13)
                 .foregroundColor(.white.opacity(0.7))
             Button {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
@@ -178,7 +178,7 @@ struct CoverCropView: View {
                 }
             } label: {
                 Text("Reset", bundle: bundle)
-                    .font(.system(size: 15, weight: .semibold))
+                    .scaledFont(15, .semibold)
                     .foregroundColor(.white)
                     .padding(.horizontal, 22)
                     .frame(height: 44)

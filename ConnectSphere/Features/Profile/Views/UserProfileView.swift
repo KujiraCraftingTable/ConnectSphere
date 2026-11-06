@@ -154,7 +154,7 @@ struct UserProfileView: View {
                         }
                     } label: {
                         Image(systemName: "ellipsis")
-                            .font(.system(size: 16, weight: .semibold))
+                            .scaledFont(16, .semibold)
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                     }
                 }
@@ -222,7 +222,7 @@ struct UserProfileView: View {
                     ? "You're viewing %@'s Work profile. Switch to Work mode to connect."
                     : "You're viewing %@'s Hobby profile. Switch to Hobby mode to connect."), user.name),
                   systemImage: mode.glyph)
-                .font(.system(size: 13))
+                .scaledFont(13)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(12)
@@ -231,7 +231,7 @@ struct UserProfileView: View {
         } else if viewModel.isBlocked {
             // Blocked → can no longer connect with or message this person.
             Text("Blocked", bundle: bundle)
-                .font(.system(size: 13, weight: .semibold))
+                .scaledFont(13, .semibold)
                 .foregroundColor(AppColors.danger(colorScheme))
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .background(AppColors.danger(colorScheme).opacity(0.12),
@@ -246,14 +246,14 @@ struct UserProfileView: View {
     private func noOtherProfileCard(_ front: UserProfile) -> some View {
         VStack(spacing: 14) {
             Image(systemName: otherMode.glyph)
-                .font(.system(size: 34))
+                .scaledFont(34)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
                 .frame(width: 84, height: 84)
                 .background(AppColors.elevated(colorScheme), in: Circle())
             Text(String(format: bundle.loc(otherMode == .work
                     ? "%@ doesn't have a profile in Work mode."
                     : "%@ doesn't have a profile in Hobby mode."), front.name))
-                .font(.system(size: 16, weight: .semibold))
+                .scaledFont(16, .semibold)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
                 .multilineTextAlignment(.center)
         }
@@ -284,11 +284,11 @@ struct UserProfileView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text("Posts", bundle: bundle)
-                    .font(.system(size: 17, weight: .semibold))
+                    .scaledFont(17, .semibold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 if !shown.isLoading {
                     Text("\(shown.posts.count)")
-                        .font(.system(size: 13, weight: .medium))
+                        .scaledFont(13, .medium)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 Spacer()
@@ -339,17 +339,17 @@ struct UserProfileView: View {
     private func postsErrorState(_ message: String) -> some View {
         VStack(spacing: 12) {
             Image(systemName: "wifi.exclamationmark")
-                .font(.system(size: 32))
+                .scaledFont(32)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
             Text(message)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .multilineTextAlignment(.center)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .padding(.horizontal, 32)
             Button(bundle.loc("Retry")) {
                 Task { await shown.load(userId: userId, mode: mode.rawValue) }
             }
-            .font(.system(size: 14, weight: .semibold))
+            .scaledFont(14, .semibold)
             .foregroundColor(themeManager.theme.primary)
         }
         .padding(.top, 24)

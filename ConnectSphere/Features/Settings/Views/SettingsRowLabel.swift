@@ -16,16 +16,16 @@ struct SettingsRowLabel: View {
                     .fill(color)
                     .frame(width: 30, height: 30)
                 Image(systemName: icon)
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(.white)
             }
             Text(label)
-                .font(.system(size: 16))
+                .scaledFont(16)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             Spacer()
             if showsChevron {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }
         }

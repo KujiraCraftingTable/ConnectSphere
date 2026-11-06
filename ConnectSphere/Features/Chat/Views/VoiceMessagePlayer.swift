@@ -43,13 +43,14 @@ struct VoiceMessagePlayer: View {
                         .font(.system(size: compact ? 24 : 30))
                         .foregroundColor(isOwn ? .white : accent)
                 }
+                .accessibilityLabel(isPlaying ? Bundle.app.loc("Pause") : Bundle.app.loc("Play"))
                 .buttonStyle(.plain)
 
                 waveform
             }
 
             Text(durationLabel)
-                .font(.system(size: 10, weight: .medium))
+                .scaledFont(10, .medium)
                 .monospacedDigit()
                 .lineLimit(1)
                 .fixedSize()

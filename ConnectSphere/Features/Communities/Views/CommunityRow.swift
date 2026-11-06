@@ -20,22 +20,22 @@ struct CommunityRow: View {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     if community.isPinned {
                         Image(systemName: "pin.fill")
-                            .font(.system(size: 11))
+                            .scaledFont(11)
                             .foregroundColor(themeManager.theme.primary)
                             .accessibilityLabel(Text("Pinned", bundle: bundle))
                     }
                     Text(community.name)
-                        .font(.system(size: 15, weight: .semibold))
+                        .scaledFont(15, .semibold)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Text(String(format: bundle.loc("%lld members"), community.memberCount))
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
                 if let about = community.description, !about.isEmpty {
                     Text(MarkdownFormatter.plain(about))
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                         .lineLimit(2)
                 }
@@ -53,7 +53,7 @@ struct CommunityRow: View {
     private func joinButton(_ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(community.isMember ? bundle.loc("Joined") : bundle.loc("Join"))
-                .font(.system(size: 13, weight: .semibold))
+                .scaledFont(13, .semibold)
                 .foregroundColor(community.isMember ? AppColors.textSecondary(colorScheme) : .white)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 7)

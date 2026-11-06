@@ -93,10 +93,10 @@ struct AssistantChatView: View {
     private var emptyState: some View {
         VStack(spacing: 14) {
             Image(systemName: "sparkles")
-                .font(.system(size: 34))
+                .scaledFont(34)
                 .foregroundColor(themeManager.theme.primary)
             Text("Ask me to change a setting or find something in the app.", bundle: bundle)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .multilineTextAlignment(.center)
             VStack(spacing: 8) {
@@ -116,7 +116,7 @@ struct AssistantChatView: View {
     private func suggestionChip(_ label: String) -> some View {
         Button { viewModel.send(label) } label: {
             Text(label)
-                .font(.system(size: 13, weight: .medium))
+                .scaledFont(13, .medium)
                 .foregroundColor(themeManager.theme.primary)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
@@ -131,7 +131,7 @@ struct AssistantChatView: View {
     private var inputBar: some View {
         HStack(alignment: .bottom, spacing: 10) {
             TextField("", text: $inputText, prompt: Text("Ask the assistant...", bundle: bundle), axis: .vertical)
-                .font(.system(size: 15))
+                .scaledFont(15)
                 .lineLimit(1...4)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
@@ -141,9 +141,10 @@ struct AssistantChatView: View {
 
             Button(action: sendCurrentInput) {
                 Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 32))
+                    .scaledFont(32)
                     .foregroundColor(canSend ? themeManager.theme.primary : AppColors.textTertiary(colorScheme))
             }
+            .accessibilityLabel(Bundle.app.loc("Send"))
             .disabled(!canSend)
         }
         .padding(.horizontal, 12)
@@ -182,7 +183,7 @@ private struct AssistantBubbleView: View {
 
             VStack(alignment: message.isFromUser ? .trailing : .leading, spacing: 6) {
                 Text(message.text)
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                     .foregroundColor(message.isFromUser ? .white : AppColors.textPrimary(colorScheme))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
@@ -208,7 +209,7 @@ private struct AssistantBubbleView: View {
                 } icon: {
                     Image(systemName: "arrow.right.circle.fill")
                 }
-                .font(.system(size: 13, weight: .semibold))
+                .scaledFont(13, .semibold)
                 .foregroundColor(.white)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
@@ -220,7 +221,7 @@ private struct AssistantBubbleView: View {
         case .confirmLogout:
             HStack(spacing: 8) {
                 Button(bundle.loc("Yes, log out")) { onConfirmLogout() }
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, .semibold)
                     .foregroundColor(.white)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
@@ -228,7 +229,7 @@ private struct AssistantBubbleView: View {
                     .clipShape(Capsule())
 
                 Button(bundle.loc("Cancel")) { onCancelLogout() }
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, .semibold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
@@ -240,7 +241,7 @@ private struct AssistantBubbleView: View {
         case .confirmIntent(let intent):
             HStack(spacing: 8) {
                 Button(bundle.loc("Yes")) { onConfirmIntent(intent) }
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, .semibold)
                     .foregroundColor(.white)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
@@ -248,7 +249,7 @@ private struct AssistantBubbleView: View {
                     .clipShape(Capsule())
 
                 Button(bundle.loc("No")) { onCancelIntent() }
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, .semibold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)

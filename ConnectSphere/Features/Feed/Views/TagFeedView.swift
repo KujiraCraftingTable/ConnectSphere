@@ -28,24 +28,24 @@ struct TagFeedView: View {
                 } else if let loadError = viewModel.loadError, viewModel.posts.isEmpty {
                     VStack(spacing: 10) {
                         Image(systemName: "wifi.exclamationmark")
-                            .font(.system(size: 36))
+                            .scaledFont(36)
                             .foregroundColor(AppColors.textTertiary(colorScheme))
                         Text(loadError)
-                            .font(.system(size: 14))
+                            .scaledFont(14)
                             .multilineTextAlignment(.center)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                             .padding(.horizontal, 32)
                         Button(bundle.loc("Retry")) { Task { await viewModel.load() } }
-                            .font(.system(size: 14, weight: .semibold))
+                            .scaledFont(14, .semibold)
                     }
                     .padding(.top, 60)
                 } else if viewModel.posts.isEmpty {
                     VStack(spacing: 10) {
                         Image(systemName: "number")
-                            .font(.system(size: 36))
+                            .scaledFont(36)
                             .foregroundColor(AppColors.textSecondary(colorScheme).opacity(0.4))
                         Text("No posts with this tag yet", bundle: bundle)
-                            .font(.system(size: 14))
+                            .scaledFont(14)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
                     .padding(.top, 60)

@@ -28,12 +28,13 @@ struct HighlightsRow: View {
                             Button { creating = true } label: {
                                 bubble(title: bundle.loc("New")) {
                                     Image(systemName: "plus")
-                                        .font(.system(size: 22, weight: .semibold))
+                                        .scaledFont(22, .semibold)
                                         .foregroundColor(themeManager.theme.primary)
                                         .frame(width: 64, height: 64)
                                         .background(AppColors.elevated(colorScheme), in: Circle())
                                 }
                             }
+                            .accessibilityLabel(Bundle.app.loc("New highlight"))
                             .buttonStyle(.plain)
                         }
                         ForEach(viewModel.highlights) { highlight in
@@ -63,7 +64,7 @@ struct HighlightsRow: View {
                 .padding(3)
                 .overlay(Circle().stroke(AppColors.borderDefault(colorScheme), lineWidth: 1.5))
             Text(title)
-                .font(.system(size: 12))
+                .scaledFont(12)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
                 .lineLimit(1)
                 .frame(width: 72)
@@ -137,24 +138,24 @@ struct HighlightViewerView: View {
                 .padding(.top, 8)
                 HStack(spacing: 10) {
                     Text(viewModel.highlight.title)
-                        .font(.system(size: 15, weight: .semibold))
+                        .scaledFont(15, .semibold)
                         .foregroundColor(.white)
                     if let item = viewModel.current {
                         Text(item.createdAt.timeAgoString)
-                            .font(.system(size: 12))
+                            .scaledFont(12)
                             .foregroundColor(.white.opacity(0.7))
                     }
                     Spacer()
                     if isMine { ownerMenu }
                     Button { dismiss() } label: {
-                        Image(systemName: "xmark").font(.system(size: 18, weight: .semibold)).foregroundColor(.white).padding(8)
+                        Image(systemName: "xmark").scaledFont(18, .semibold).foregroundColor(.white).padding(8)
                     }
                     .accessibilityLabel(Text(bundle.loc("Close")))
                 }
                 .padding(.horizontal, 12)
                 Spacer()
                 if let error = viewModel.errorMessage {
-                    Text(error).font(.system(size: 13)).foregroundColor(.white)
+                    Text(error).scaledFont(13).foregroundColor(.white)
                         .padding(10).background(.black.opacity(0.6), in: Capsule()).padding(.bottom, 24)
                 }
             }
@@ -204,7 +205,7 @@ struct HighlightViewerView: View {
                 Label(bundle.loc("Delete highlight"), systemImage: "trash")
             }
         } label: {
-            Image(systemName: "ellipsis").font(.system(size: 18, weight: .semibold)).foregroundColor(.white).padding(8)
+            Image(systemName: "ellipsis").scaledFont(18, .semibold).foregroundColor(.white).padding(8)
         }
         .accessibilityLabel(Text(bundle.loc("More")))
     }
@@ -324,8 +325,9 @@ struct HighlightEditorView: View {
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .overlay(alignment: .topTrailing) {
                 Button(action: onRemove) {
-                    Image(systemName: "xmark.circle.fill").font(.system(size: 18)).foregroundStyle(.white, .black.opacity(0.5))
+                    Image(systemName: "xmark.circle.fill").scaledFont(18).foregroundStyle(.white, .black.opacity(0.5))
                 }
+                .accessibilityLabel(Bundle.app.loc("Remove photo"))
                 .buttonStyle(.borderless)
                 .padding(4)
                 .accessibilityLabel(Text(bundle.loc("Remove")))
@@ -334,7 +336,7 @@ struct HighlightEditorView: View {
 
     private func check(_ on: Bool) -> some View {
         Image(systemName: on ? "checkmark.circle.fill" : "circle")
-            .font(.system(size: 20))
+            .scaledFont(20)
             .foregroundStyle(on ? themeManager.theme.primary : .white)
             .shadow(radius: 2)
             .padding(6)
@@ -385,7 +387,7 @@ struct AddToHighlightSheet: View {
                     }
                 }
                 if let error = viewModel.errorMessage {
-                    Text(error).foregroundStyle(.red).font(.system(size: 14))
+                    Text(error).foregroundStyle(.red).scaledFont(14)
                 }
             }
             .navigationTitle(bundle.loc("Add to highlight"))

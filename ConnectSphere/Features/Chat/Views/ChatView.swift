@@ -209,9 +209,10 @@ struct ChatView: View {
             ToolbarItem(placement: .navigationBarLeading) {
                 Button { dismiss() } label: {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 16, weight: .semibold))
+                        .scaledFont(16, .semibold)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                 }
+                .accessibilityLabel(Bundle.app.loc("Back"))
             }
 
             // Tappable display name (+ member count for groups) → chat settings
@@ -220,17 +221,17 @@ struct ChatView: View {
                     VStack(spacing: 1) {
                         HStack(spacing: 5) {
                             Text(headerName)
-                                .font(.system(size: 17, weight: .semibold))
+                                .scaledFont(17, .semibold)
                                 .foregroundColor(AppColors.textPrimary(colorScheme))
                             if viewModel.isMuted {
                                 Image(systemName: "bell.slash.fill")
-                                    .font(.system(size: 12))
+                                    .scaledFont(12)
                                     .foregroundColor(AppColors.textTertiary(colorScheme))
                             }
                         }
                         if let subtitle = groupMemberCountText {
                             Text(subtitle)
-                                .font(.system(size: 11))
+                                .scaledFont(11)
                                 .foregroundColor(AppColors.textTertiary(colorScheme))
                         }
                     }
@@ -265,9 +266,10 @@ struct ChatView: View {
                     dismiss()
                 } label: {
                     Image(systemName: "pip.enter")
-                        .font(.system(size: 15, weight: .semibold))
+                        .scaledFont(15, .semibold)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                 }
+                .accessibilityLabel(Bundle.app.loc("Minimize chat"))
             }
         }
         .sheet(isPresented: $showChatSettings) {
@@ -470,13 +472,13 @@ struct ChatView: View {
                             image.resizable().scaledToFill()
                         } else {
                             Text(String(headerName.prefix(1)))
-                                .font(.system(size: 14, weight: .bold))
+                                .scaledFont(14, .bold)
                                 .foregroundColor(.white)
                         }
                     }
                 } else {
                     Text(String(headerName.prefix(1)))
-                        .font(.system(size: 14, weight: .bold))
+                        .scaledFont(14, .bold)
                         .foregroundColor(.white)
                 }
             }
@@ -513,14 +515,14 @@ struct ChatView: View {
             if members.isEmpty {
                 Circle().fill(Color(hex: viewModel.groupAvatarColor ?? peer.avatarColor))
                 Image(systemName: "person.3.fill")
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, .semibold)
                     .foregroundColor(.white)
             } else {
                 ForEach(Array(members.enumerated()), id: \.element.id) { index, member in
                     ZStack {
                         Circle().fill(Color(hex: member.avatarColor))
                         Text(String(member.displayName.prefix(1)))
-                            .font(.system(size: 9, weight: .bold))
+                            .scaledFont(9, .bold)
                             .foregroundColor(.white)
                     }
                     .frame(width: 22, height: 22)
@@ -560,10 +562,10 @@ struct ChatView: View {
                 ToolbarItem(placement: .principal) {
                     if editingMeetingMessageId == nil {
                         Text("New meeting", bundle: bundle)
-                            .font(.system(size: 17, weight: .semibold))
+                            .scaledFont(17, .semibold)
                     } else {
                         Text("Reschedule meeting", bundle: bundle)
-                            .font(.system(size: 17, weight: .semibold))
+                            .scaledFont(17, .semibold)
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
@@ -676,21 +678,21 @@ struct ChatView: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "pin.fill")
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(chatPalette.primary)
                 if viewModel.pinnedMessages.count == 1, let only = viewModel.pinnedMessages.first {
                     Text(only.preview)
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                         .lineLimit(1)
                 } else {
                     Text(String(format: bundle.loc("%d pinned messages"), viewModel.pinnedMessages.count))
-                        .font(.system(size: 13, weight: .medium))
+                        .scaledFont(13, .medium)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
+                    .scaledFont(11, .semibold)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
             }
             .padding(.horizontal, 14)
@@ -766,7 +768,7 @@ struct ChatView: View {
                             }
                         } label: {
                             Text("Load older messages", bundle: bundle)
-                                .font(.system(size: 13))
+                                .scaledFont(13)
                                 .foregroundColor(chatPalette.primary)
                                 .padding(.vertical, 10)
                         }
@@ -916,7 +918,7 @@ struct ChatView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             if viewModel.isGroup {
                                 Text(summary)
-                                    .font(.system(size: 11))
+                                    .scaledFont(11)
                                     .foregroundColor(AppColors.textTertiary(colorScheme))
                                     .padding(.leading, 16)
                             }
@@ -982,13 +984,13 @@ struct ChatView: View {
                     .fill(Color(hex: peer.avatarColor))
                     .frame(width: 80, height: 80)
                 Text(String(peer.name.prefix(1)))
-                    .font(.system(size: 32, weight: .bold))
+                    .scaledFont(32, .bold)
                     .foregroundColor(.white)
             }
 
             // Display name
             Text(peer.name)
-                .font(.system(size: 17, weight: .semibold))
+                .scaledFont(17, .semibold)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
 
             // Connection status
@@ -997,7 +999,7 @@ struct ChatView: View {
                               ? "You're connected, say hello 👋"
                               : "You're connected. Say hello.")
                  : bundle.loc("You're not connected with this user"))
-                .font(.system(size: 13))
+                .scaledFont(13)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
@@ -1006,9 +1008,9 @@ struct ChatView: View {
             if let location = otherUserLocation, !location.isEmpty {
                 HStack(spacing: 4) {
                     Image(systemName: "mappin.circle.fill")
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                     Text(location)
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                 }
                 .foregroundColor(AppColors.textSecondary(colorScheme))
             }
@@ -1026,14 +1028,14 @@ struct ChatView: View {
                 .scaleEffect(1.4)
 
             Text(headerName)
-                .font(.system(size: 17, weight: .semibold))
+                .scaledFont(17, .semibold)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
                 .padding(.top, 10)
 
             Text(appState.currentMode == .hobby
                  ? bundle.loc("Say hello to the group 👋")
                  : bundle.loc("Say hello to the group."))
-                .font(.system(size: 13))
+                .scaledFont(13)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
         }
         .frame(maxWidth: .infinity)
@@ -1053,7 +1055,7 @@ struct ChatView: View {
     /// its own timestamp; see `ChatTimeline`.
     private func timeSeparator(for date: Date) -> some View {
         Text(ChatTimeline.separatorLabel(for: date, yesterday: bundle.loc("Yesterday")))
-            .font(.system(size: 12, weight: .medium))
+            .scaledFont(12, .medium)
             .foregroundColor(AppColors.textTertiary(colorScheme))
             .frame(maxWidth: .infinity)
             .padding(.top, 14)
@@ -1067,7 +1069,7 @@ struct ChatView: View {
     private func requestNotice(_ text: String, icon: String) -> some View {
         Label(text, systemImage: icon)
             .labelStyle(.titleAndIcon)
-            .font(.system(size: 13, weight: .medium))
+            .scaledFont(13, .medium)
             .foregroundColor(AppColors.textSecondary(colorScheme))
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)
@@ -1079,20 +1081,20 @@ struct ChatView: View {
     private var requestDecisionBar: some View {
         VStack(spacing: AppSpacing.sm) {
             Text(String(format: bundle.loc("%@ isn't your friend yet. Accept to move this chat to your inbox and reply."), headerName))
-                .font(.system(size: 13))
+                .scaledFont(13)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .multilineTextAlignment(.center)
             HStack(spacing: AppSpacing.sm) {
                 Button(role: .destructive) { showDeleteRequestConfirm = true } label: {
                     Text("Delete", bundle: bundle)
-                        .font(.system(size: 15, weight: .semibold))
+                        .scaledFont(15, .semibold)
                         .foregroundColor(AppColors.danger(colorScheme))
                         .frame(maxWidth: .infinity, minHeight: 44)
                         .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
                 }
                 Button { Task { await viewModel.acceptRequest() } } label: {
                     Text("Accept", bundle: bundle)
-                        .font(.system(size: 15, weight: .semibold))
+                        .scaledFont(15, .semibold)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity, minHeight: 44)
                         .background(chatPalette.primary, in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
@@ -1138,7 +1140,7 @@ struct ChatView: View {
                                      maxSelectionCount: 10,
                                      matching: .any(of: [.images, .videos])) {
                             Image(systemName: "photo.on.rectangle.angled")
-                                .font(.system(size: 22))
+                                .scaledFont(22)
                                 .foregroundColor(chatPalette.primary)
                                 .padding(.bottom, 6)
                         }
@@ -1148,16 +1150,17 @@ struct ChatView: View {
                             showMeetingComposer = true
                         } label: {
                             Image(systemName: "calendar.badge.plus")
-                                .font(.system(size: 22))
+                                .scaledFont(22)
                                 .foregroundColor(chatPalette.primary)
                                 .padding(.bottom, 6)
                         }
+                        .accessibilityLabel(Bundle.app.loc("Propose a meeting"))
 
                         // Polls are for groups. Between two people it's just a question.
                         if viewModel.isGroup {
                             Button { showPollComposer = true } label: {
                                 Image(systemName: "chart.bar.doc.horizontal")
-                                    .font(.system(size: 21))
+                                    .scaledFont(21)
                                     .foregroundColor(chatPalette.primary)
                                     .padding(.bottom, 6)
                             }
@@ -1170,7 +1173,7 @@ struct ChatView: View {
                             withAnimation(.snappy) { showsComposerTools = true }
                         } label: {
                             Image(systemName: "chevron.right")
-                                .font(.system(size: 17, weight: .semibold))
+                                .scaledFont(17, .semibold)
                                 .foregroundColor(chatPalette.primary)
                                 .frame(width: 26, height: 34)
                         }
@@ -1179,7 +1182,7 @@ struct ChatView: View {
 
                     TextField("", text: $inputText, prompt: Text("Message...", bundle: bundle), axis: .vertical)
                         .focused($isComposerFocused)
-                        .font(.system(size: 15))
+                        .scaledFont(15)
                         .lineLimit(1...5)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
@@ -1232,14 +1235,14 @@ struct ChatView: View {
                     Group {
                         if canSend || voiceSession.state != .idle {
                             Image(systemName: "arrow.up.circle.fill")
-                                .font(.system(size: 32))
+                                .scaledFont(32)
                                 .foregroundColor(chatPalette.primary)
                         } else {
                             // Never grey for an empty field: a grey control
                             // reads as "this can't be used", so instead send
                             // becomes a one-tap quick-emoji send.
                             Text(quickEmoji)
-                                .font(.system(size: 27))
+                                .scaledFont(27)
                         }
                     }
                     .frame(width: 34, height: 34)
@@ -1260,7 +1263,7 @@ struct ChatView: View {
     /// Short notice shown above the composer while either side has blocked the other. 1:1 only.
     private var blockedNotice: some View {
         Text("You've blocked this user", bundle: bundle)
-            .font(.system(size: 12, weight: .medium))
+            .scaledFont(12, .medium)
             .foregroundColor(AppColors.textSecondary(colorScheme))
             .frame(maxWidth: .infinity, alignment: .center)
     }
@@ -1293,10 +1296,10 @@ struct ChatView: View {
 
                     VStack(alignment: .leading, spacing: 1) {
                         Text(String(format: bundle.loc("Replying to %@"), senderDisplayName(for: message)))
-                            .font(.system(size: 12, weight: .semibold))
+                            .scaledFont(12, .semibold)
                             .foregroundColor(chatPalette.primary)
                         Text(preview)
-                            .font(.system(size: 12))
+                            .scaledFont(12)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                             .lineLimit(1)
                     }
@@ -1311,9 +1314,10 @@ struct ChatView: View {
                 replyingTo = nil
             } label: {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 18))
+                    .scaledFont(18)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
             }
+            .accessibilityLabel(Bundle.app.loc("Cancel reply"))
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
@@ -1355,7 +1359,7 @@ struct ChatView: View {
                                 ZStack {
                                     Rectangle().fill(AppColors.elevated(colorScheme))
                                     Image(systemName: "video.fill")
-                                        .font(.system(size: 24))
+                                        .scaledFont(24)
                                         .foregroundColor(AppColors.textSecondary(colorScheme))
                                 }
                             }
@@ -1367,9 +1371,10 @@ struct ChatView: View {
                             pendingMedia.removeAll { $0.id == media.id }
                         } label: {
                             Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 20))
+                                .scaledFont(20)
                                 .foregroundStyle(.white, .black.opacity(0.5))
                         }
+                        .accessibilityLabel(Bundle.app.loc("Remove"))
                         .offset(x: 6, y: -6)
                     }
                     .padding(.top, 6)

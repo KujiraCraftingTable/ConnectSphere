@@ -27,7 +27,7 @@ struct TranslationToggle: View {
                         .foregroundColor(themeManager.theme.primary)
                 }
             }
-            .font(.system(size: fontSize, weight: .medium))
+            .scaledFont(fontSize, .medium)
             .foregroundColor(AppColors.textTertiary(colorScheme))
             .contentShape(Rectangle())
         }

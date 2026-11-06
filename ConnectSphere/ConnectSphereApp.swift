@@ -71,10 +71,10 @@ struct RootView: View {
                     AppColors.base(.light).ignoresSafeArea()
                     VStack(spacing: 16) {
                         Image(systemName: "bubble.left.and.bubble.right.fill")
-                            .font(.system(size: 54))
+                            .scaledFont(54)
                             .foregroundColor(themeManager.theme.primary)
                         Text("ConnectSphere")
-                            .font(.system(size: 28, weight: .bold))
+                            .scaledFont(28, .bold)
                             .foregroundColor(AppColors.textPrimary(.light))
                         ProgressView().tint(themeManager.theme.primary)
                     }
@@ -83,11 +83,14 @@ struct RootView: View {
                 LoginView()
             } else if appState.needsOnboarding {
                 OnboardingView()
+            } else if appState.needsConsent {
+                ConsentGateView()
             } else {
                 MainTabView()
             }
         }
         .task { await appState.restoreSession() }
+        .task(id: appState.isLoggedIn && !appState.needsOnboarding) { await appState.refreshConsent() }
         .onAppear { KeyboardDismissal.install() }
     }
 }

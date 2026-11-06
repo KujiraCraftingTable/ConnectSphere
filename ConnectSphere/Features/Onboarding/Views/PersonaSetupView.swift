@@ -44,7 +44,7 @@ struct PersonaSetupView: View {
                         } else {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Select what you like", bundle: bundle)
-                                    .font(.system(size: 13))
+                                    .scaledFont(13)
                                     .foregroundColor(AppColors.textSecondary(colorScheme))
                                 InterestPickerView(selectedInterests: $viewModel.selectedInterests,
                                                    colorScheme: colorScheme)
@@ -55,7 +55,7 @@ struct PersonaSetupView: View {
                     if let e = viewModel.errorMessage {
                         HStack(spacing: 8) {
                             Image(systemName: "exclamationmark.triangle.fill")
-                            Text(e).font(.system(size: 13))
+                            Text(e).scaledFont(13)
                         }
                         .foregroundColor(AppColors.danger(.light))
                         .padding(.horizontal, 12).padding(.vertical, 8)
@@ -74,7 +74,7 @@ struct PersonaSetupView: View {
                         HStack(spacing: 8) {
                             if viewModel.isSaving { ProgressView().tint(.white).scaleEffect(0.8) }
                             Text(viewModel.isSaving ? bundle.loc("Saving...") : bundle.loc("Start"))
-                                .font(.system(size: 16, weight: .semibold))
+                                .scaledFont(16, .semibold)
                         }
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
@@ -110,18 +110,18 @@ struct PersonaSetupView: View {
                     .fill(themeManager.theme.primary.opacity(0.12))
                     .frame(width: 64, height: 64)
                 Image(systemName: mode.glyph)
-                    .font(.system(size: 26))
+                    .scaledFont(26)
                     .foregroundColor(themeManager.theme.primary)
             }
             VStack(spacing: 6) {
                 Text(mode == .work
                      ? bundle.loc("Set up your Work profile")
                      : bundle.loc("Set up your Hobby profile"))
-                    .font(.system(size: 19, weight: .bold))
+                    .scaledFont(19, .bold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .multilineTextAlignment(.center)
                 Text("This mode has its own separate identity. Name, avatar and bio won't be shared with the other mode", bundle: bundle)
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)

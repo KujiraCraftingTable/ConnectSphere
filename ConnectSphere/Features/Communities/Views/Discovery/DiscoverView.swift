@@ -80,7 +80,7 @@ struct DiscoverView: View {
             ProgressView().padding(.top, 40).frame(maxWidth: .infinity)
         } else if viewModel.searchResults.isEmpty {
             Text(bundle.loc("No results found"))
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
                 .padding(.horizontal, 16)
         } else {
@@ -129,13 +129,13 @@ struct DiscoverView: View {
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 40))
+                .scaledFont(40)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
             Text("Nothing to discover yet", bundle: bundle)
-                .font(.system(size: 16, weight: .medium))
+                .scaledFont(16, .medium)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
             Text("Come back when there are more communities", bundle: bundle)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)

@@ -146,7 +146,7 @@ private struct PollVotersSheet: View {
                     Avatar(name: voter.displayName, colorHex: voter.avatarColor ?? AppColors.avatarFallback,
                            imageURL: voter.avatarUrl, diameter: 36)
                     Text(voter.displayName)
-                        .font(.system(size: 15))
+                        .scaledFont(15)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                 }
             }
@@ -203,7 +203,7 @@ struct ChatPollComposer: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     TextField(bundle.loc("Ask a question"), text: $question, axis: .vertical)
-                        .font(.system(size: 16, weight: .semibold))
+                        .scaledFont(16, .semibold)
                         .lineLimit(1...4)
                         .padding(12)
                         .background(AppColors.surface(colorScheme), in: RoundedRectangle(cornerRadius: 14))

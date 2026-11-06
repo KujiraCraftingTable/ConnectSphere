@@ -215,7 +215,7 @@ struct ProfileView: View {
                     ? "This is your Work profile as others see it. Switch to Work mode to edit it."
                     : "This is your Hobby profile as others see it. Switch to Hobby mode to edit it."),
                   systemImage: mode.glyph)
-                .font(.system(size: 13))
+                .scaledFont(13)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(12)
@@ -233,15 +233,15 @@ struct ProfileView: View {
     private var noOtherProfileCard: some View {
         VStack(spacing: 14) {
             Image(systemName: otherMode.glyph)
-                .font(.system(size: 34))
+                .scaledFont(34)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
                 .frame(width: 84, height: 84)
                 .background(AppColors.elevated(colorScheme), in: Circle())
             Text(bundle.loc(otherMode == .work ? "You don't have a Work profile yet." : "You don't have a Hobby profile yet."))
-                .font(.system(size: 16, weight: .semibold))
+                .scaledFont(16, .semibold)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             Button(bundle.loc("Set it up")) { appState.requestModeSwitch(to: otherMode) }
-                .font(.system(size: 15, weight: .semibold))
+                .scaledFont(15, .semibold)
                 .foregroundColor(themeManager.theme.primary)
         }
         .padding(.vertical, 48)
@@ -256,11 +256,11 @@ struct ProfileView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text("Posts", bundle: bundle)
-                    .font(.system(size: 17, weight: .semibold))
+                    .scaledFont(17, .semibold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 if !shown.isLoading {
                     Text("\(shown.posts.count)")
-                        .font(.system(size: 13, weight: .medium))
+                        .scaledFont(13, .medium)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 Spacer()
@@ -312,17 +312,17 @@ struct ProfileView: View {
     private func postsErrorState(_ message: String) -> some View {
         VStack(spacing: 12) {
             Image(systemName: "wifi.exclamationmark")
-                .font(.system(size: 32))
+                .scaledFont(32)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
             Text(message)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .multilineTextAlignment(.center)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .padding(.horizontal, 32)
             Button(bundle.loc("Retry")) {
                 Task { await shown.load(userId: currentUserId, mode: appState.currentMode.rawValue) }
             }
-            .font(.system(size: 14, weight: .semibold))
+            .scaledFont(14, .semibold)
             .foregroundColor(themeManager.theme.primary)
         }
         .padding(.top, 24)
@@ -333,7 +333,7 @@ struct ProfileView: View {
     /// Bare glyph: the toolbar's Liquid Glass is its only background.
     private func navIconButton(icon: String) -> some View {
         Image(systemName: icon)
-            .font(.system(size: 15, weight: .medium))
+            .scaledFont(15, .medium)
             .foregroundColor(AppColors.textPrimary(colorScheme))
     }
 }

@@ -22,10 +22,10 @@ struct PendingPostsView: View {
             LazyVStack(spacing: AppSpacing.md) {
                 if viewModel.posts.isEmpty && !viewModel.isLoading {
                     VStack(spacing: 10) {
-                        Image(systemName: "checkmark.seal").font(.system(size: 36))
+                        Image(systemName: "checkmark.seal").scaledFont(36)
                             .foregroundColor(AppColors.textTertiary(colorScheme))
                         Text("No posts waiting for approval", bundle: bundle)
-                            .font(.system(size: 15)).foregroundColor(AppColors.textSecondary(colorScheme))
+                            .scaledFont(15).foregroundColor(AppColors.textSecondary(colorScheme))
                     }
                     .padding(.top, 60)
                 }

@@ -54,9 +54,11 @@ extension View {
     /// `.font(.system(size:weight:))`.
     func appFont(_ style: AppFont) -> some View { modifier(AppFontModifier(style)) }
 
-    /// Cap Dynamic Type so dense feed/chat layouts with fixed-height controls
-    /// don't clip. Apply once at a screen/app root.
-    func cappedDynamicType() -> some View { dynamicTypeSize(...DynamicTypeSize.xLarge) }
+    /// Cap Dynamic Type at the largest non-accessibility size (xxxLarge), so
+    /// dense feed/chat layouts with fixed-height controls don't clip. The
+    /// accessibility sizes above it are not supported yet (KNOWN_GAPS.md).
+    /// Apply once at a screen/app root.
+    func cappedDynamicType() -> some View { dynamicTypeSize(...DynamicTypeSize.xxxLarge) }
 }
 
 // MARK: - Icon glyph sizes (not Dynamic Type. Deliberate)
@@ -125,4 +127,30 @@ extension View {
     /// Canonical card container: surface fill + `AppRadius.md` + the single
     /// resting shadow. Replaces the copy-pasted inline shadow blocks.
     func cardStyle() -> some View { modifier(CardStyleModifier()) }
+}
+
+// MARK: - Scaled fixed sizes
+
+/// A fixed point size that follows the user's Dynamic Type setting (scaled the
+/// way body text is). Stands in for `.font(.system(size:weight:design:))`,
+/// which never grows; use `.appFont(_:)` for new text styles.
+private struct ScaledSystemFont: ViewModifier {
+    @ScaledMetric private var size: CGFloat
+    private let weight: Font.Weight
+    private let design: Font.Design
+
+    init(size: CGFloat, weight: Font.Weight, design: Font.Design) {
+        _size = ScaledMetric(wrappedValue: size, relativeTo: .body)
+        self.weight = weight
+        self.design = design
+    }
+    func body(content: Content) -> some View {
+        content.font(.system(size: size, weight: weight, design: design))
+    }
+}
+
+extension View {
+    func scaledFont(_ size: CGFloat, _ weight: Font.Weight = .regular, design: Font.Design = .default) -> some View {
+        modifier(ScaledSystemFont(size: size, weight: weight, design: design))
+    }
 }

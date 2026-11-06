@@ -27,7 +27,7 @@ struct ReportSheet: View {
                     detailField
                     if let err = viewModel.errorMessage {
                         Text(err)
-                            .font(.system(size: 13))
+                            .scaledFont(13)
                             .foregroundColor(.red)
                             .padding(.horizontal, 20)
                     }
@@ -50,7 +50,7 @@ struct ReportSheet: View {
                                                        communityId: communityId, token: token)
                             }
                         }
-                        .font(.system(size: 15, weight: .semibold))
+                        .scaledFont(15, .semibold)
                         .disabled(!viewModel.canSubmit)
                     }
                 }
@@ -64,7 +64,7 @@ struct ReportSheet: View {
     private var reasonList: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Why are you reporting this content?", bundle: bundle)
-                .font(.system(size: 14, weight: .semibold))
+                .scaledFont(14, .semibold)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .padding(.horizontal, 20)
                 .padding(.top, 20)
@@ -76,7 +76,7 @@ struct ReportSheet: View {
                 } label: {
                     HStack {
                         Text(bundle.loc(reason.displayName))
-                            .font(.system(size: 16))
+                            .scaledFont(16)
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                         Spacer()
                         if viewModel.selectedReason == reason {
@@ -102,11 +102,11 @@ struct ReportSheet: View {
     private var detailField: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Additional details (optional)", bundle: bundle)
-                .font(.system(size: 13, weight: .medium))
+                .scaledFont(13, .medium)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
 
             TextEditor(text: $viewModel.detail)
-                .font(.system(size: 15))
+                .scaledFont(15)
                 .frame(height: 80)
                 .padding(10)
                 .background(AppColors.elevated(colorScheme))
@@ -122,18 +122,18 @@ struct ReportSheet: View {
     private var submittedState: some View {
         VStack(spacing: 16) {
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 56))
+                .scaledFont(56)
                 .foregroundColor(.green)
             Text("Report submitted", bundle: bundle)
-                .font(.system(size: 20, weight: .bold))
+                .scaledFont(20, .bold)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             Text("Thank you. An admin will review this report soon.", bundle: bundle)
-                .font(.system(size: 15))
+                .scaledFont(15)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
             Button(bundle.loc("Done")) { dismiss() }
-                .font(.system(size: 16, weight: .semibold))
+                .scaledFont(16, .semibold)
                 .foregroundColor(.white)
                 .padding(.horizontal, 40)
                 .padding(.vertical, 12)

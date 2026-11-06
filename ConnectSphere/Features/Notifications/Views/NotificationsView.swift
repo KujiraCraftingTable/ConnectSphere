@@ -167,7 +167,7 @@ struct NotificationsView: View {
                             }
                         } header: {
                             Text(bundle.loc(section.bucket.titleKey))
-                                .font(.system(size: 13, weight: .semibold))
+                                .scaledFont(13, .semibold)
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
                                 .textCase(nil)
                         }
@@ -208,7 +208,7 @@ struct NotificationsView: View {
                     Button(bundle.loc("Read all")) {
                         Task { await viewModel.markAllRead(token: token, appState: appState) }
                     }
-                    .font(.system(size: 15, weight: .medium))
+                    .scaledFont(15, .medium)
                     .foregroundColor(themeManager.theme.primary)
                     .disabled(viewModel.unreadCount == 0)
                 }
@@ -287,13 +287,13 @@ struct NotificationsView: View {
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "bell.slash")
-                .font(.system(size: 40))
+                .scaledFont(40)
                 .foregroundColor(AppColors.textSecondary(colorScheme).opacity(0.4))
             Text(
                 viewModel.filter == .unread ? "Nothing unread" : "No notifications yet",
                 bundle: bundle
             )
-            .font(.system(size: 15))
+            .scaledFont(15)
             .foregroundColor(AppColors.textSecondary(colorScheme))
         }
         .frame(maxWidth: .infinity)
@@ -574,7 +574,7 @@ struct ActorNotifRow: View {
                 ZStack {
                     Circle().fill(themeManager.theme.primary).frame(width: 20, height: 20)
                     Image(systemName: badgeIcon)
-                        .font(.system(size: 10, weight: .bold))
+                        .scaledFont(10, .bold)
                         .foregroundColor(.white)
                 }
                 .offset(x: 2, y: 2)
@@ -582,12 +582,12 @@ struct ActorNotifRow: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(message)
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(notif.sortDate.timeAgoString)
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(group.isRead
                                      ? AppColors.textSecondary(colorScheme)
                                      : themeManager.theme.primary)
@@ -635,7 +635,7 @@ struct ActorNotifRow: View {
                 .fill(Color(hex: avatarColor))
                 .frame(width: 52, height: 52)
             Text(String(avatarName.prefix(1)).uppercased())
-                .font(.system(size: 20, weight: .bold))
+                .scaledFont(20, .bold)
                 .foregroundColor(.white)
         }
     }
@@ -663,14 +663,14 @@ struct ModeMismatchCard: View {
             // Header row
             HStack(spacing: 6) {
                 Image(systemName: "wand.and.stars")
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, .semibold)
                     .foregroundColor(AppColors.warning(colorScheme))
                 Text("AI suggestion", bundle: bundle)
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, .semibold)
                     .foregroundColor(AppColors.warning(colorScheme))
                 Spacer()
                 Text(notif.createdAt.timeAgoString)
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                 if !notif.isRead {
                     Circle().fill(AppColors.warning(colorScheme)).frame(width: 8, height: 8)
@@ -679,7 +679,7 @@ struct ModeMismatchCard: View {
 
             // Reason text
             Text(notif.payload.reason ?? String(format: bundle.loc("This post may fit %@ mode better"), suggestedLabel))
-                .font(.system(size: 15))
+                .scaledFont(15)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
 
             // Action buttons (hidden after resolved)
@@ -688,7 +688,7 @@ struct ModeMismatchCard: View {
                     Button(bundle.loc("Keep")) {
                         showKeepConfirm = true
                     }
-                    .font(.system(size: 14, weight: .medium))
+                    .scaledFont(14, .medium)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .padding(.horizontal, 14)
                     .padding(.vertical, 7)
@@ -715,7 +715,7 @@ struct ModeMismatchCard: View {
                     Button(String(format: bundle.loc("Switch to %@"), suggestedLabel)) {
                         showSwitchConfirm = true
                     }
-                    .font(.system(size: 14, weight: .semibold))
+                    .scaledFont(14, .semibold)
                     .foregroundColor(.white)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 7)
@@ -741,7 +741,7 @@ struct ModeMismatchCard: View {
                 ProgressView().scaleEffect(0.8)
             } else {
                 Text("Resolved", bundle: bundle)
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
             }
         }

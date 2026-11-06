@@ -36,17 +36,17 @@ struct MiniCVCard: View {
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(user.name)
-                            .font(.system(size: 17, weight: .semibold))
+                            .scaledFont(17, .semibold)
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                         if user.bio.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                             Text("This user hasn't shared anything about themselves yet", bundle: bundle)
-                                .font(.system(size: 13))
+                                .scaledFont(13)
                                 .italic()
                                 .foregroundColor(AppColors.textSecondary(colorScheme).opacity(0.8))
                         } else {
                             // Long bio wraps to as many lines as needed, not truncated with "…"
                             Text(user.bio)
-                                .font(.system(size: 13))
+                                .scaledFont(13)
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
                                 .multilineTextAlignment(.leading)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -63,16 +63,24 @@ struct MiniCVCard: View {
                 if let fitReason {
                     HStack(alignment: .top, spacing: 8) {
                         Image(systemName: "sparkles")
-                            .font(.system(size: 12))
+                            .scaledFont(12)
                             .foregroundColor(themeManager.theme.primary)
                             .frame(width: 16)
                             .padding(.top, 1)
-                        Text(fitReason)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(AppColors.textPrimary(colorScheme))
-                            .multilineTextAlignment(.leading)
-                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(fitReason)
+                                .scaledFont(13, .medium)
+                                .foregroundColor(AppColors.textPrimary(colorScheme))
+                                .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                            // AI Law 134/2025 Art. 11: AI-written text is marked as such.
+                            Text(bundle.loc("AI-generated"))
+                                .scaledFont(11)
+                                .foregroundColor(AppColors.textSecondary(colorScheme))
+                        }
                     }
+                    .accessibilityElement(children: .combine)
                     .transition(.opacity)
                 }
 
@@ -84,12 +92,12 @@ struct MiniCVCard: View {
                         ForEach(displayEvidence.prefix(5), id: \.self) { item in
                             HStack(alignment: .top, spacing: 8) {
                                 Image(systemName: icon(for: item))
-                                    .font(.system(size: 12))
+                                    .scaledFont(12)
                                     .foregroundColor(themeManager.theme.primary)
                                     .frame(width: 16)
                                     .padding(.top, 1)
                                 Text(reasonText(for: item))
-                                    .font(.system(size: 13))
+                                    .scaledFont(13)
                                     .foregroundColor(AppColors.textPrimary(colorScheme))
                                     .multilineTextAlignment(.leading)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -205,7 +213,7 @@ struct MatchPercentBadge: View {
 
     var body: some View {
         Text("\(percent)%")
-            .font(.system(size: 12, weight: .semibold))
+            .scaledFont(12, .semibold)
             .foregroundColor(themeManager.theme.primary)
             .padding(.horizontal, 9)
             .padding(.vertical, 4)

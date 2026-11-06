@@ -387,10 +387,13 @@ extension UserStore {
     // MARK: softDeleteAccount  (DELETE /api/users/me)
 
     /// The 6-step, ~13-write scrub from `userModel.softDeleteAccount`, one txn.
-    static func softDeleteAccount(_ userID: String, on db: AppDatabase) async throws {
+    static func softDeleteAccount(_ userID: String, on db: AppDatabase, logger: Logger) async throws {
+        // Listed first: the rows that name the files are gone after the scrub.
+        let files = try await AccountDeletionStore.uploadPaths(of: userID, on: db.sql())
         try await db.tx { t in
             // Their posts, comments, likes and stories go (both modes).
             try await AccountDeletionStore.removeActivity(of: userID, mode: nil, on: t)
+            try await AccountDeletionStore.removePersonalData(of: userID, on: t)
             try await t.raw("""
                 WITH gone AS (
                   DELETE FROM connections
@@ -444,10 +447,13 @@ extension UserStore {
                   hobby_display_name = NULL, hobby_bio = NULL, hobby_avatar_url = NULL, hobby_cover_url = NULL,
                   work_display_name = NULL, work_bio = NULL, work_avatar_url = NULL, work_cover_url = NULL,
                   job_title = NULL, company = NULL, location = NULL, ward_id = NULL, dob = NULL,
+                  cover_url = NULL, age = NULL, gender = 'other', dob_visibility = 'private',
+                  languages = '{}', relationship_status = NULL, two_factor_enabled = FALSE,
                   avatar_color = '#9E9E9E', deleted_at = NOW(), updated_at = NOW()
                 WHERE id = \(uuid: userID)
                 """).run()
         }
+        AccountDeletionStore.deleteUploads(files, logger: logger)
     }
 }
 

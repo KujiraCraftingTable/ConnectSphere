@@ -22,23 +22,23 @@ struct DraftRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 15, weight: .semibold))
+                .scaledFont(15, .semibold)
                 .foregroundColor(themeManager.theme.primary)
                 .frame(width: 36, height: 36)
                 .background(themeManager.theme.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 9))
             VStack(alignment: .leading, spacing: 4) {
                 Text(post.draftSnippet)
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .lineLimit(2)
                 HStack(spacing: 6) {
                     Text(place)
-                        .font(.system(size: 11, weight: .semibold))
+                        .scaledFont(11, .semibold)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 2)
                         .background(AppColors.elevated(colorScheme), in: Capsule())
                     Text(when)
-                        .font(.system(size: 12))
+                        .scaledFont(12)
                 }
                 .foregroundColor(AppColors.textSecondary(colorScheme))
             }

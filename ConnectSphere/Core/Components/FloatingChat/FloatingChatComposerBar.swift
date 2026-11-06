@@ -52,14 +52,14 @@ struct FloatingChatComposerBar: View {
                          maxSelectionCount: 10,
                          matching: .any(of: [.images, .videos])) {
                 Image(systemName: "photo.on.rectangle.angled")
-                    .font(.system(size: 22))
+                    .scaledFont(22)
                     .foregroundColor(themeManager.theme.primary)
                     .padding(.bottom, 6)
             }
 
             TextField("", text: draftBinding,
                       prompt: Text("Message...", bundle: bundle), axis: .vertical)
-                .font(.system(size: 15))
+                .scaledFont(15)
                 .lineLimit(1...5)
                 .focused($isInputFocused)
                 .padding(.horizontal, 14)
@@ -104,11 +104,11 @@ struct FloatingChatComposerBar: View {
             Group {
                 if canSend {
                     Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 32))
+                        .scaledFont(32)
                         .foregroundColor(themeManager.theme.primary)
                 } else {
                     Text(quickEmoji)
-                        .font(.system(size: 27))
+                        .scaledFont(27)
                 }
             }
             .frame(width: 34, height: 34)

@@ -28,13 +28,13 @@ struct SkillsSection: View {
             } else {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Skills", bundle: bundle)
-                        .font(.system(size: 18, weight: .bold))
+                        .scaledFont(18, .bold)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                     if !viewModel.loaded {
                         ProgressView().frame(maxWidth: .infinity)
                     } else if viewModel.skills.isEmpty {
                         Text("Add skills in Edit profile. Your Work connections can then endorse them.", bundle: bundle)
-                            .font(.system(size: 14))
+                            .scaledFont(14)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     } else {
                         let shown = showAll ? viewModel.skills : Array(viewModel.skills.prefix(3))
@@ -46,13 +46,13 @@ struct SkillsSection: View {
                             Button(showAll ? bundle.loc("Show less") : String(format: bundle.loc("Show all %lld"), viewModel.skills.count)) {
                                 withAnimation(.snappy) { showAll.toggle() }
                             }
-                            .font(.system(size: 14, weight: .semibold))
+                            .scaledFont(14, .semibold)
                             .foregroundColor(themeManager.theme.primary)
                             .frame(maxWidth: .infinity)
                         }
                     }
                     if let error = viewModel.errorMessage {
-                        Text(error).font(.system(size: 13)).foregroundColor(.red)
+                        Text(error).scaledFont(13).foregroundColor(.red)
                     }
                 }
                 .padding(16)
@@ -69,7 +69,7 @@ struct SkillsSection: View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(skill.skill)
-                    .font(.system(size: 15, weight: .semibold))
+                    .scaledFont(15, .semibold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 if skill.endorsementCount > 0 {
                     HStack(spacing: 6) {
@@ -81,7 +81,7 @@ struct SkillsSection: View {
                         }
                         Text(String(format: bundle.loc(skill.endorsementCount == 1 ? "%lld endorsement" : "%lld endorsements"),
                                     skill.endorsementCount))
-                            .font(.system(size: 13))
+                            .scaledFont(13)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
                 }
@@ -93,7 +93,7 @@ struct SkillsSection: View {
                 } label: {
                     Label(bundle.loc(skill.endorsedByMe ? "Endorsed" : "Endorse"),
                           systemImage: skill.endorsedByMe ? "checkmark" : "plus")
-                        .font(.system(size: 13, weight: .semibold))
+                        .scaledFont(13, .semibold)
                         .foregroundColor(skill.endorsedByMe ? AppColors.textSecondary(colorScheme) : themeManager.theme.primary)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)

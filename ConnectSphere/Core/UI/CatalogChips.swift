@@ -17,10 +17,10 @@ struct CatalogSearchField: View {
         HStack {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                 TextField(placeholder, text: $text)
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .autocorrectionDisabled()
             }
@@ -43,7 +43,7 @@ struct CatalogSection<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
+                .scaledFont(11, .semibold)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .textCase(.uppercase)
                 .kerning(0.6)
@@ -68,7 +68,7 @@ struct CatalogChip: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 13, weight: .medium))
+                .scaledFont(13, .medium)
                 .foregroundColor(isSelected ? .white : AppColors.textPrimary(colorScheme))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
@@ -91,7 +91,7 @@ struct CatalogMoreButton: View {
     var body: some View {
         Button(action: action) {
             Text("More", bundle: bundle)
-                .font(.system(size: 13, weight: .semibold))
+                .scaledFont(13, .semibold)
                 .foregroundColor(themeManager.theme.primary)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
@@ -110,10 +110,10 @@ struct CatalogSelectedChip: View {
     var body: some View {
         HStack(spacing: 5) {
             Text(title)
-                .font(.system(size: 13, weight: .medium))
+                .scaledFont(13, .medium)
             Button(action: remove) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .bold))
+                    .scaledFont(10, .bold)
             }
             .buttonStyle(.borderless)
             .accessibilityLabel(Text(String(format: bundle.loc("Remove %@"), title)))

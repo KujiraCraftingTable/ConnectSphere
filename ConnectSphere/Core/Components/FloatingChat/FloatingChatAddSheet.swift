@@ -67,7 +67,7 @@ struct FloatingChatAddSheet: View {
                 if presenter.bubbles.count >= FloatingChatPresenter.maxChats {
                     Section {
                         Text("Up to 4 chats float at once. Adding one closes the chat you used longest ago.", bundle: bundle)
-                            .font(.system(size: 13))
+                            .scaledFont(13)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
                 }
@@ -97,7 +97,7 @@ struct FloatingChatAddSheet: View {
         } else if let error = viewModel.errorMessage, viewModel.conversations.isEmpty {
             VStack(spacing: 10) {
                 Text(error)
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .multilineTextAlignment(.center)
                 Button(bundle.loc("Retry")) {
@@ -107,7 +107,7 @@ struct FloatingChatAddSheet: View {
             .padding(.horizontal, 32)
         } else if !viewModel.isLoading && viewModel.shown.isEmpty {
             Text("No conversations yet", bundle: bundle)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
         }
     }
@@ -120,11 +120,11 @@ struct FloatingChatAddSheet: View {
                        imageURL: conversation.avatarUrl, size: .md)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(conversation.displayName)
-                        .font(.system(size: 15, weight: .semibold))
+                        .scaledFont(15, .semibold)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                         .lineLimit(1)
                     Text(conversation.previewText(currentUserId: currentUserId))
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                         .lineLimit(1)
                 }
@@ -133,7 +133,7 @@ struct FloatingChatAddSheet: View {
                     ProgressView()
                 } else if floating {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 20))
+                        .scaledFont(20)
                         .foregroundColor(themeManager.theme.primary)
                 }
             }

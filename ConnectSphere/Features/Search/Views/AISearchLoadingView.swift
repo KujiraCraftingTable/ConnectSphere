@@ -70,7 +70,7 @@ struct AISearchLoadingView: View {
 
                     // Sparkles icon, SF Symbol animation
                     Image(systemName: "sparkles")
-                        .font(.system(size: 36, weight: .medium))
+                        .scaledFont(36, .medium)
                         .foregroundColor(themeManager.theme.primary)
                         .symbolEffect(
                             .variableColor.iterative.dimInactiveLayers,
@@ -81,11 +81,11 @@ struct AISearchLoadingView: View {
                 // ── Cycling text ───────────────────────────────────────────
                 VStack(spacing: 8) {
                     Text("Kujira")
-                        .font(.system(size: 18, weight: .bold))
+                        .scaledFont(18, .bold)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
 
                     Text(messages[messageIndex])
-                        .font(.system(size: 14))
+                        .scaledFont(14)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                         .opacity(messageOpacity)
                         .animation(.easeInOut(duration: 0.4), value: messageOpacity)

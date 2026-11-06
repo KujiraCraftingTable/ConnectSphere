@@ -27,17 +27,17 @@ struct PrivacyPickerSheet: View {
                                           : AppColors.base(colorScheme))
                                     .frame(width: 44, height: 44)
                                 Image(systemName: option.icon)
-                                    .font(.system(size: 18))
+                                    .scaledFont(18)
                                     .foregroundColor(selected == option ? .blue : AppColors.textSecondary(colorScheme))
                             }
 
                             // Label + description
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(option.label(for: mode))
-                                    .font(.system(size: 15, weight: .medium))
+                                    .scaledFont(15, .medium)
                                     .foregroundColor(AppColors.textPrimary(colorScheme))
                                 Text(option.description(for: mode))
-                                    .font(.system(size: 13))
+                                    .scaledFont(13)
                                     .foregroundColor(AppColors.textSecondary(colorScheme))
                             }
 
@@ -45,7 +45,7 @@ struct PrivacyPickerSheet: View {
 
                             if selected == option {
                                 Image(systemName: "checkmark")
-                                    .font(.system(size: 14, weight: .semibold))
+                                    .scaledFont(14, .semibold)
                                     .foregroundColor(.blue)
                             }
                         }

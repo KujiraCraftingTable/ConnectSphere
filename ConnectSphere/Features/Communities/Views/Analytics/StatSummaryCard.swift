@@ -13,16 +13,16 @@ struct StatSummaryCard: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Image(systemName: icon)
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(accentColor)
                 Spacer()
                 growthBadge
             }
             Text(value)
-                .font(.system(size: 28, weight: .bold))
+                .scaledFont(28, .bold)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             Text(title)
-                .font(.system(size: 12))
+                .scaledFont(12)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
         }
         .padding(14)
@@ -36,7 +36,7 @@ struct StatSummaryCard: View {
         let isPositive = growthRate >= 0
         let text = String(format: "%@%.1f%%", isPositive ? "+" : "", growthRate)
         return Text(text)
-            .font(.system(size: 11, weight: .semibold))
+            .scaledFont(11, .semibold)
             .foregroundColor(isPositive ? .green : .red)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)

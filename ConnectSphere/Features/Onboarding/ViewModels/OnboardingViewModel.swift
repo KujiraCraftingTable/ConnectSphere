@@ -25,8 +25,9 @@ final class OnboardingViewModel {
     /// Someone took the chosen @username before this one finished.
     private(set) var usernameLost = false
 
-    init(pending: PendingSignup? = nil) {
+    init(pending: PendingSignup? = nil, policyMemory: PolicyConsentMemory = PolicyConsentMemory()) {
         self.pending = pending
+        asksForPolicy = pending == nil && !policyMemory.acceptsCurrent
         if let pending { form.username = pending.username }
     }
 
@@ -44,7 +45,13 @@ final class OnboardingViewModel {
     var newPassword = ""
     var confirmNewPassword = ""
 
-    /// Set once a forward move was refused. From then on the step lists
+    /// A password sign-up ticked the Terms/Privacy box on the sign-up form, and a
+    /// Google sign-in on the login screen (remembered for this edition on this
+    /// phone). Only a Google account that somehow got here without a tick is asked.
+    let asksForPolicy: Bool
+    var acceptsPolicy = false
+
+    /// Set once a forward move was refused, from then on the step lists
     /// what's still missing.
     private(set) var showsMissing = false
 
@@ -104,6 +111,7 @@ final class OnboardingViewModel {
         if form.location.isEmpty { missing.append(Bundle.app.loc("province")) }
         if form.gender.isEmpty { missing.append(Bundle.app.loc("gender")) }
         if form.dob.isEmpty { missing.append(Bundle.app.loc("date of birth")) }
+        if asksForPolicy && !acceptsPolicy { missing.append(Bundle.app.loc("your agreement to the Terms and Privacy Policy")) }
         if newPasswordProblem != nil { missing.append(Bundle.app.loc("a valid password (or leave it empty)")) }
         return missing
     }
@@ -150,6 +158,8 @@ final class OnboardingViewModel {
 
     func finish(appState: AppState) async {
         form.interests = selectedInterests.map { $0.displayText }
+        form.accepted_policy_version = pending?.acceptedPolicyVersion
+            ?? (asksForPolicy ? (acceptsPolicy ? LegalDocs.version : nil) : LegalDocs.version)
         isLoading = true
         errorMessage = nil
         do {

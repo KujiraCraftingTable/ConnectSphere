@@ -37,7 +37,7 @@ struct ListingLocationPicker: View {
                                     .foregroundColor(AppColors.textPrimary(colorScheme))
                                 if !suggestion.subtitle.isEmpty {
                                     Text(suggestion.subtitle)
-                                        .font(.system(size: 13))
+                                        .scaledFont(13)
                                         .foregroundColor(AppColors.textSecondary(colorScheme))
                                 }
                             }

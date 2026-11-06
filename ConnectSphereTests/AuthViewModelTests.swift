@@ -15,6 +15,7 @@ struct AuthViewModelTests {
         vm.username = "good_name"
         vm.password = "password1"
         vm.confirmPassword = "password1"
+        vm.acceptsPolicy = true
         #expect(!vm.isFormValid)                       // the username isn't confirmed free yet
         vm.usernameStatus = .available
         #expect(vm.isFormValid && !vm.hasEmail)       // no email is fine
@@ -37,6 +38,7 @@ struct AuthViewModelTests {
         #expect(!vm.isFormValid)
         #expect(vm.confirmError != nil)
         vm.confirmPassword = "password1"
+        vm.acceptsPolicy = true
         #expect(vm.isFormValid)
         vm.usernameStatus = .taken
         #expect(!vm.isFormValid)
@@ -61,15 +63,24 @@ struct AuthViewModelTests {
         #expect(vm.canReset)
     }
 
+    /// A phone that has never ticked the Terms/Privacy box (isolated, so the test doesn't depend on this device).
+    private func freshMemory() -> PolicyConsentMemory {
+        PolicyConsentMemory(defaults: UserDefaults(suiteName: "AuthViewModelTests-\(UUID().uuidString)")!)
+    }
+
     @Test func onboardingListsWhatIsMissingAndGatesTheCarousel() {
-        let vm = OnboardingViewModel()
+        let vm = OnboardingViewModel(policyMemory: freshMemory())
         vm.prefill(username: "kujira", hasPassword: true)
         #expect(vm.form.username == "kujira" && !vm.needsUsername && !vm.offersPassword)
+        #expect(vm.asksForPolicy)                       // a Google-style sign-up that never ticked the box
         #expect(vm.reachableSteps == 2)                 // can't swipe past the basics yet
-        #expect(vm.missingBasics.count == 3)            // name, province, birthday (gender defaults to "other")
+        #expect(vm.missingBasics.count == 4)            // name, province, birthday, agreement (gender defaults to "other")
         vm.form.display_name = "Kujira"
         vm.form.location = "79"
         vm.form.gender = "male"
+        #expect(vm.missingBasics == [Bundle.app.loc("date of birth"),
+                                     Bundle.app.loc("your agreement to the Terms and Privacy Policy")])
+        vm.acceptsPolicy = true
         #expect(vm.missingBasics == [Bundle.app.loc("date of birth")])
         vm.form.dob = "2000-01-01"
         #expect(vm.basicsComplete && vm.reachableSteps == OnboardingViewModel.totalSteps)
@@ -78,7 +89,7 @@ struct AuthViewModelTests {
     }
 
     @Test func onboardingShowsMissingOnlyAfterARefusal() {
-        let vm = OnboardingViewModel()
+        let vm = OnboardingViewModel(policyMemory: freshMemory())
         vm.prefill(username: "kujira", hasPassword: true)
         vm.next()
         #expect(vm.stillNeeded == nil)
@@ -87,7 +98,7 @@ struct AuthViewModelTests {
     }
 
     @Test func googleSignUpGetsAnOptionalPassword() {
-        let vm = OnboardingViewModel()
+        let vm = OnboardingViewModel(policyMemory: freshMemory())
         vm.prefill(username: "user_1a2b3c4d", hasPassword: false)
         #expect(vm.offersPassword)
         #expect(vm.newPasswordProblem == nil)           // empty = skipped
@@ -101,21 +112,21 @@ struct AuthViewModelTests {
     }
 
     @Test func pendingSignupKeepsItsUsernameAndOffersNoPassword() {
-        let vm = OnboardingViewModel(pending: PendingSignup(username: "kujira_manual", password: "pw123456", email: nil))
+        let vm = OnboardingViewModel(pending: PendingSignup(username: "kujira_manual", password: "pw123456", email: nil, acceptedPolicyVersion: LegalDocs.version))
         vm.prefill(username: nil, hasPassword: false)   // no account yet: ignored
         #expect(vm.form.username == "kujira_manual")
         #expect(!vm.needsUsername && !vm.offersPassword && !vm.usernameLost)
     }
 
     @Test func carouselNeverLandsPastWhatIsReachable() {
-        let vm = OnboardingViewModel()
+        let vm = OnboardingViewModel(policyMemory: freshMemory())
         vm.prefill(username: "kujira", hasPassword: true)
         vm.show(step: 3)
         #expect(vm.step == 1)
     }
 
     @Test func onboardingBlocksIncompleteStepAndGoesBack() {
-        let vm = OnboardingViewModel()
+        let vm = OnboardingViewModel(policyMemory: freshMemory())
         vm.prefill(username: "kujira", hasPassword: true)
         #expect(!vm.canGoBack)
         #expect(vm.next())                 // mode → basics
@@ -127,7 +138,7 @@ struct AuthViewModelTests {
     }
 
     @Test func googleAccountMustChooseAvailableUsername() {
-        let vm = OnboardingViewModel()
+        let vm = OnboardingViewModel(policyMemory: freshMemory())
         vm.prefill(username: "user_1a2b3c4d", hasPassword: false)
         #expect(vm.needsUsername)
         #expect(vm.form.username.isEmpty)   // the placeholder isn't kept
@@ -154,5 +165,27 @@ struct AuthViewModelTests {
         #expect(!vm.isValid)
         vm.displayName = "Kujira"
         #expect(vm.isValid)
+    }
+
+    @Test func registerNeedsTheTermsAndPrivacyTick() {
+        let vm = RegisterViewModel()
+        vm.username = "good_name"
+        vm.usernameStatus = .available
+        vm.password = "password1"
+        vm.confirmPassword = "password1"
+        #expect(!vm.acceptsPolicy)              // never pre-ticked
+        #expect(!vm.isFormValid)
+        vm.acceptsPolicy = true
+        #expect(vm.isFormValid)
+        vm.acceptsPolicy = false
+        #expect(!vm.isFormValid)
+    }
+
+    @Test func passwordSignUpAsksNothingMoreAboutThePolicy() {
+        let pending = PendingSignup(username: "kujira_manual", password: "pw123456", email: nil,
+                                    acceptedPolicyVersion: LegalDocs.version)
+        let vm = OnboardingViewModel(pending: pending)
+        #expect(!vm.asksForPolicy)              // already ticked on the sign-up form
+        #expect(vm.missingBasics.allSatisfy { !$0.contains("agreement") })
     }
 }

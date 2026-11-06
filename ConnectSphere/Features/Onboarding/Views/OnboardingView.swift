@@ -110,7 +110,7 @@ struct OnboardingView: View {
                 if viewModel.canGoBack || viewModel.pending != nil {
                     Button(action: goBack) {
                         Image(systemName: "chevron.left")
-                            .font(.system(size: 14, weight: .semibold))
+                            .scaledFont(14, .semibold)
                             .foregroundColor(AppColors.textSecondary(.light))
                             .frame(width: 28, height: 28)
                             .contentShape(Rectangle())
@@ -119,11 +119,11 @@ struct OnboardingView: View {
                     .accessibilityLabel(Text("Back", bundle: bundle))
                 }
                 Text("Set up profile", bundle: bundle)
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, .semibold)
                     .foregroundColor(AppColors.textSecondary(.light))
                 Spacer()
                 Text("\(viewModel.step + 1)/\(totalSteps)")
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(AppColors.textSecondary(.light))
             }
             GeometryReader { geo in
@@ -164,16 +164,16 @@ struct OnboardingView: View {
             HStack(spacing: 14) {
                 ZStack {
                     Circle().fill(color.opacity(0.15)).frame(width: 50, height: 50)
-                    Image(systemName: icon).font(.system(size: 22)).foregroundColor(color)
+                    Image(systemName: icon).scaledFont(22).foregroundColor(color)
                 }
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(title).font(.system(size: 15, weight: .semibold)).foregroundColor(AppColors.textPrimary(.light))
-                    Text(desc).font(.system(size: 13)).foregroundColor(AppColors.textSecondary(.light))
+                    Text(title).scaledFont(15, .semibold).foregroundColor(AppColors.textPrimary(.light))
+                    Text(desc).scaledFont(13).foregroundColor(AppColors.textSecondary(.light))
                 }
                 Spacer()
                 if selected {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 22)).foregroundColor(color)
+                        .scaledFont(22).foregroundColor(color)
                 }
             }
             .padding(16)
@@ -198,7 +198,7 @@ struct OnboardingView: View {
                           text: $viewModel.confirmNewPassword, isSecure: true)
             Text(viewModel.newPasswordProblem
                  ?? bundle.loc("So you can also sign in with your @username or email, without Google. You can skip this."))
-                .font(.system(size: 12))
+                .scaledFont(12)
                 .foregroundColor(viewModel.newPasswordProblem == nil ? AppColors.textTertiary(.light) : AppColors.danger(.light))
                 .padding(.leading, 4)
         }
@@ -223,10 +223,10 @@ struct OnboardingView: View {
                             .foregroundColor(viewModel.form.location.isEmpty
                                 ? AppColors.textTertiary(.light)
                                 : AppColors.textPrimary(.light))
-                            .font(.system(size: 15))
+                            .scaledFont(15)
                         Spacer()
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 12))
+                            .scaledFont(12)
                             .foregroundColor(AppColors.textSecondary(.light))
                     }
                     .padding(.horizontal, 16)
@@ -244,7 +244,7 @@ struct OnboardingView: View {
                 // Gender picker (required)
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Gender *", bundle: bundle)
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .foregroundColor(AppColors.textSecondary(.light))
                     HStack(spacing: 10) {
                         ForEach([("male", "Male"), ("female", "Female"), ("other", "Other")], id: \.0) { value, label in
@@ -274,7 +274,7 @@ struct OnboardingView: View {
                         Image(systemName: "calendar").foregroundColor(AppColors.textSecondary(.light))
                         Text(viewModel.form.dob.isEmpty ? bundle.loc("Date of birth *") : String(format: bundle.loc("Date of birth: %@"), viewModel.form.dob))
                             .foregroundColor(viewModel.form.dob.isEmpty ? AppColors.textTertiary(.light) : AppColors.textPrimary(.light))
-                            .font(.system(size: 15))
+                            .scaledFont(15)
                         Spacer()
                     }
                     .padding(.horizontal, 16)
@@ -290,6 +290,11 @@ struct OnboardingView: View {
 
                 // Who can see the age. Defaults to Private, doesn't affect age-based search
                 DobVisibilityToggle(visibility: $viewModel.form.dob_visibility, accentColor: themeManager.theme.primary)
+
+                if viewModel.asksForPolicy {
+                    PolicyAgreementRow(isOn: $viewModel.acceptsPolicy)
+                        .padding(.top, 4)
+                }
             }
 
             if let e = viewModel.errorMessage { errorBanner(e) }
@@ -306,7 +311,7 @@ struct OnboardingView: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
             usernameStatusLine
-                .font(.system(size: 12))
+                .scaledFont(12)
                 .padding(.leading, 4)
         }
         .task(id: viewModel.form.username) { await viewModel.checkUsername(token: appState.authToken) }
@@ -348,7 +353,7 @@ struct OnboardingView: View {
             if viewModel.form.default_mode == "hobby" {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Select what you like", bundle: bundle)
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .foregroundColor(AppColors.textSecondary(.light))
                     InterestPickerView(selectedInterests: $viewModel.selectedInterests)
                 }
@@ -374,12 +379,12 @@ struct OnboardingView: View {
                     .frame(minHeight: 120)
                 if viewModel.form.bio.isEmpty {
                     Text("Write your bio here…", bundle: bundle)
-                        .font(.system(size: 14))
+                        .scaledFont(14)
                         .foregroundColor(AppColors.textDisabled(.light))
                         .padding(14)
                 }
                 TextEditor(text: $viewModel.form.bio)
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                     .foregroundColor(AppColors.textPrimary(.light))
                     .scrollContentBackground(.hidden)
                     .background(Color.clear)
@@ -391,7 +396,7 @@ struct OnboardingView: View {
             if let e = viewModel.errorMessage { errorBanner(e) }
             if viewModel.usernameLost {
                 Button(bundle.loc("Change username")) { dismiss() }
-                    .font(.system(size: 15, weight: .semibold))
+                    .scaledFont(15, .semibold)
                     .foregroundColor(themeManager.theme.primary)
             }
 
@@ -408,7 +413,7 @@ struct OnboardingView: View {
                 Task { await viewModel.finish(appState: appState) }
             } label: {
                 Text("Skip for now", bundle: bundle)
-                    .font(.system(size: 14, weight: .medium))
+                    .scaledFont(14, .medium)
                     .foregroundColor(AppColors.textSecondary(.light))
             }
             .disabled(viewModel.isLoading)
@@ -428,7 +433,7 @@ struct OnboardingView: View {
     private func errorBanner(_ msg: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "exclamationmark.triangle.fill")
-            Text(msg).font(.system(size: 13))
+            Text(msg).scaledFont(13)
         }
         .foregroundColor(AppColors.danger(.light))
         .padding(.horizontal, 12).padding(.vertical, 8)
@@ -447,10 +452,17 @@ struct OnboardingView: View {
 
     private var dobPickerSheet: some View {
         NavigationStack {
-            DatePicker("", selection: $dobDraft, in: ...Date(), displayedComponents: .date)
+            DatePicker("", selection: $dobDraft, in: ...Date.latestBirthdayFor16Plus, displayedComponents: .date)
                 .datePickerStyle(.wheel)
                 .labelsHidden()
                 .padding()
+                .safeAreaInset(edge: .bottom) {
+                    Text(bundle.loc("You must be 16 or older to use ConnectSphere."))
+                        .font(.footnote)
+                        .foregroundColor(AppColors.textSecondary(.light))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
                 .navigationTitle(bundle.loc("Date of birth"))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -478,11 +490,11 @@ struct OnboardingCard<Content: View>: View {
             VStack(spacing: 0) {
                 VStack(spacing: 6) {
                     Text(title)
-                        .font(.system(size: 22, weight: .bold))
+                        .scaledFont(22, .bold)
                         .foregroundColor(AppColors.textPrimary(.light))
                         .multilineTextAlignment(.center)
                     Text(subtitle)
-                        .font(.system(size: 14))
+                        .scaledFont(14)
                         .foregroundColor(AppColors.textSecondary(.light))
                         .multilineTextAlignment(.center)
                 }

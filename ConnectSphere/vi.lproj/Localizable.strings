@@ -119,6 +119,7 @@
 "Customize appearance" = "Tùy chỉnh giao diện";
 "Date of birth (optional)" = "Ngày sinh (tùy chọn)";
 "Date of birth *" = "Ngày sinh *";
+"You must be 16 or older to use ConnectSphere." = "Bạn cần từ 16 tuổi trở lên để dùng ConnectSphere.";
 "Date of birth" = "Ngày sinh";
 "Date of birth: %@" = "Ngày sinh: %@";
 "Decline" = "Từ chối";
@@ -1667,7 +1668,6 @@
 "Change it" = "Đổi";
 "This is your last change. After it, only support (%@) can change your birthday." = "Đây là lần đổi cuối cùng. Sau đó chỉ bộ phận hỗ trợ (%@) mới đổi được ngày sinh của bạn.";
 "After this you'll have 1 change left." = "Sau lần này bạn còn 1 lần đổi.";
-"Your age decides what you can use in ConnectSphere, like Dating, so a birthday can only be changed twice." = "Tuổi của bạn quyết định những gì bạn được dùng trong ConnectSphere, như Hẹn hò, nên ngày sinh chỉ được đổi 2 lần.";
 "Your birthday sets the age shown on your account, so it can only be changed twice." = "Ngày sinh quyết định độ tuổi hiển thị trên tài khoản của bạn, nên chỉ được đổi 2 lần.";
 
 /* Marketplace: re-up, photos, price chips */
@@ -1735,3 +1735,41 @@
 "List" = "Danh sách";
 "Quote" = "Trích dẫn";
 "Link" = "Liên kết";
+// Terms & Privacy consent
+"I am 16 or older and I agree to the" = "Tôi từ 16 tuổi trở lên và đồng ý với";
+"I agree to the Terms of Service and Privacy Policy" = "Tôi đồng ý với Điều khoản dịch vụ và Chính sách quyền riêng tư";
+"your agreement to the Terms and Privacy Policy" = "việc đồng ý với Điều khoản và Chính sách quyền riêng tư";
+"Our Terms and Privacy Policy" = "Điều khoản và Chính sách quyền riêng tư";
+"Please read them and agree to keep using ConnectSphere." = "Vui lòng đọc và đồng ý để tiếp tục dùng ConnectSphere.";
+"Agree and continue" = "Đồng ý và tiếp tục";
+"AI-generated" = "Do AI tạo";
+"Acknowledgements" = "Ghi nhận bản quyền";
+"With a verified email, deleting needs a code sent to it, so a stolen password alone can't do it. Without one, deleting your account needs your password." = "Nếu đã xác minh email, việc xoá cần mã gửi tới email đó, nên chỉ có mật khẩu bị lộ thì không xoá được. Nếu chưa có, xoá tài khoản cần mật khẩu của bạn.";
+"Confirm with your password" = "Xác nhận bằng mật khẩu";
+"Your experience, skills, job applications, CV files and company pages only you manage" = "Kinh nghiệm, kỹ năng, hồ sơ ứng tuyển, tệp CV và trang công ty chỉ mình bạn quản lý";
+"Your search history, saved posts and the photos you uploaded" = "Lịch sử tìm kiếm, bài đã lưu và ảnh bạn đã tải lên";
+"Your email, birthday and gender, removed from the account" = "Email, ngày sinh và giới tính, được xoá khỏi tài khoản";
+"Save or share your data file" = "Lưu hoặc chia sẻ tệp dữ liệu";
+"Download my data" = "Tải dữ liệu của tôi";
+"Your data" = "Dữ liệu của bạn";
+"A file with your profile, posts, comments, messages you sent and other data we hold about you." = "Một tệp gồm hồ sơ, bài viết, bình luận, tin nhắn bạn đã gửi và dữ liệu khác chúng tôi lưu về bạn.";
+
+// VoiceOver labels
+"Add members" = "Thêm thành viên";
+"Add to your story" = "Thêm vào tin của bạn";
+"Cancel reply" = "Huỷ trả lời";
+"Choose a photo" = "Chọn ảnh";
+"Clear search" = "Xoá tìm kiếm";
+"Comment" = "Bình luận";
+"Delete story" = "Xoá tin";
+"Hide password" = "Ẩn mật khẩu";
+"Minimize chat" = "Thu nhỏ cuộc trò chuyện";
+"Pause" = "Tạm dừng";
+"Play" = "Phát";
+"Propose a meeting" = "Đề xuất cuộc hẹn";
+"Remove link preview" = "Gỡ bản xem trước liên kết";
+"Remove option" = "Xoá lựa chọn";
+"Remove tag" = "Gỡ thẻ";
+"Show more" = "Xem thêm";
+"Show password" = "Hiện mật khẩu";
+"Please tick to agree before continuing" = "Vui lòng đánh dấu đồng ý trước khi tiếp tục";

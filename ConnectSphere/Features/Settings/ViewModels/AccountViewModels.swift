@@ -125,12 +125,22 @@ final class DeleteScopeViewModel {
     private(set) var isDeleting = false
     var errorMessage: String?
 
+    /// An account with no verified email confirms deleting with its password.
+    var password = ""
+    let usesPassword: Bool
+
     let scope: AccountRepository.Scope
     private let repository = AccountRepository()
 
-    init(scope: AccountRepository.Scope) { self.scope = scope }
+    init(scope: AccountRepository.Scope, hasVerifiedEmail: Bool = true) {
+        self.scope = scope
+        usesPassword = scope == .account && !hasVerifiedEmail
+    }
 
-    var canDelete: Bool { sentTo != nil && code.count == 6 && !isDeleting }
+    var canDelete: Bool {
+        guard !isDeleting else { return false }
+        return usesPassword ? !password.isEmpty : (sentTo != nil && code.count == 6)
+    }
 
     func sendCode(token: String) async {
         isSending = true
@@ -157,7 +167,7 @@ final class DeleteScopeViewModel {
                 let remaining = try await repository.deletePersona(mode, code: code, token: token)
                 appState.personaDeleted(mode, remaining: remaining)
             case .account:
-                try await repository.deleteAccount(code: code, token: token)
+                try await repository.deleteAccount(code: code, password: usesPassword ? password : nil, token: token)
                 appState.accountDeleted()
             }
             return true

@@ -20,14 +20,14 @@ struct PollPostCard: View {
             // Footer: total votes, then when it ends (or that it has) and
             // what a tap does. The same footer as a chat poll.
             Text(footerText)
-                .font(.system(size: 12))
+                .scaledFont(12)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 4)
 
             if let err = vm.errorMessage {
                 Text(err)
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(.red)
             }
         }
@@ -61,7 +61,7 @@ struct PollPostCard: View {
             HStack(spacing: 6) {
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .foregroundColor(accentColor)
                 }
                 Text(option.text)

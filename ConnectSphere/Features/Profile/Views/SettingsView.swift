@@ -144,11 +144,17 @@ struct SettingsView: View {
                 } label: {
                     settingsRow(icon: "hand.raised.fill", label: bundle.loc("Privacy Policy"), color: Color(hex: "#607D8B"), showsChevron: false)
                 }
+                NavigationLink {
+                    StaticInfoView(titleKey: "Acknowledgements", sections: StaticInfoView.acknowledgementSections)
+                        .environment(appState)
+                } label: {
+                    settingsRow(icon: "curlybraces", label: bundle.loc("Acknowledgements"), color: Color(hex: "#607D8B"), showsChevron: false)
+                }
                 HStack {
                     settingsRow(icon: "info.circle.fill", label: bundle.loc("Version"), color: Color(hex: "#9E9E9E"), showsChevron: false)
                     Spacer()
                     Text(appVersion)
-                        .font(.system(size: 14))
+                        .scaledFont(14)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
             }
@@ -165,11 +171,11 @@ struct SettingsView: View {
                                 .fill(Color.red)
                                 .frame(width: 30, height: 30)
                             Image(systemName: "rectangle.portrait.and.arrow.right")
-                                .font(.system(size: 14))
+                                .scaledFont(14)
                                 .foregroundColor(.white)
                         }
                         Text("Log out", bundle: bundle)
-                            .font(.system(size: 16))
+                            .scaledFont(16)
                             .foregroundColor(.red)
                     }
                 }
@@ -204,11 +210,11 @@ struct SettingsView: View {
                     .fill(Color(hex: "#5856D6"))
                     .frame(width: 30, height: 30)
                 Image(systemName: "globe")
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(.white)
             }
             Text("Language", bundle: bundle)
-                .font(.system(size: 16))
+                .scaledFont(16)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             Spacer()
             Picker("", selection: Bindable(appState).appLanguage) {
@@ -229,11 +235,11 @@ struct SettingsView: View {
                     .fill(Color(hex: "#30B0C7"))
                     .frame(width: 30, height: 30)
                 Image(systemName: "character.bubble")
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(.white)
             }
             Text("Translations", bundle: bundle)
-                .font(.system(size: 16))
+                .scaledFont(16)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             Spacer()
             Picker("", selection: $translationModeRaw) {
@@ -263,11 +269,11 @@ struct SettingsView: View {
                     .fill(themeManager.theme.primary)
                     .frame(width: 28, height: 28)
                 Text(themeManager.theme.name)
-                    .font(.system(size: 16))
+                    .scaledFont(16)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }
         }
@@ -281,11 +287,11 @@ struct SettingsView: View {
                 Image(systemName: "location.circle.fill")
                     .foregroundColor(themeManager.theme.primary)
                 Text("Search radius", bundle: bundle)
-                    .font(.system(size: 16))
+                    .scaledFont(16)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 Spacer()
                 Text(searchRadiusKm == 0 ? bundle.loc("Unlimited") : String(format: bundle.loc("%d km"), searchRadiusKm))
-                    .font(.system(size: 15, weight: .semibold))
+                    .scaledFont(15, .semibold)
                     .foregroundColor(themeManager.theme.primary)
             }
 

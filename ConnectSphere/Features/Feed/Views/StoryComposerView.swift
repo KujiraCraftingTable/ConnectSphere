@@ -90,7 +90,7 @@ struct StoryComposerView: View {
                             addTextLayer()
                         } label: {
                             Text("Aa")
-                                .font(.system(size: 17, weight: .bold))
+                                .scaledFont(17, .bold)
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 6)
@@ -153,9 +153,9 @@ struct StoryComposerView: View {
         } label: {
             VStack(spacing: 10) {
                 Image(systemName: "photo.on.rectangle.angled")
-                    .font(.system(size: 40))
+                    .scaledFont(40)
                 Text("Choose up to 4 photos", bundle: bundle)
-                    .font(.system(size: 15, weight: .medium))
+                    .scaledFont(15, .medium)
             }
             .foregroundColor(.white.opacity(0.7))
         }
@@ -239,11 +239,12 @@ struct StoryComposerView: View {
                     replacingFrameIndex = i
                 } label: {
                     Image(systemName: "photo")
-                        .font(.system(size: 11, weight: .semibold))
+                        .scaledFont(11, .semibold)
                         .foregroundColor(.white)
                         .padding(6)
                         .background(Color.black.opacity(0.45), in: Circle())
                 }
+                .accessibilityLabel(Bundle.app.loc("Choose a photo"))
                 .position(x: rects[i].minX + 22, y: rects[i].minY + 22)
             }
             // Draggable lines between frames. Pure editing chrome, kept out

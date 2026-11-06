@@ -247,7 +247,7 @@ struct VoiceRecorderControl: View {
             session.start()
         } label: {
             Image(systemName: "mic")
-                .font(.system(size: 22))
+                .scaledFont(22)
                 .foregroundColor(tint)
                 .padding(.bottom, 6)
         }
@@ -295,7 +295,7 @@ struct VoiceComposerBar: View {
                 session.cancel()
             } label: {
                 Image(systemName: "trash")
-                    .font(.system(size: 19, weight: .medium))
+                    .scaledFont(19, .medium)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
@@ -327,7 +327,7 @@ struct VoiceComposerBar: View {
             }
         } label: {
             Image(systemName: controlIcon)
-                .font(.system(size: 12, weight: .bold))
+                .scaledFont(12, .bold)
                 .foregroundColor(tint)
                 .frame(width: 30, height: 30)
                 .background(Color.white, in: Circle())
@@ -340,7 +340,7 @@ struct VoiceComposerBar: View {
 
     private var timer: some View {
         Text(Self.clock(session.displaySeconds))
-            .font(.system(size: 13, weight: .semibold))
+            .scaledFont(13, .semibold)
             .monospacedDigit()
             .foregroundColor(.white)
             .padding(.horizontal, 8)

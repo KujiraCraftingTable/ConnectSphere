@@ -37,7 +37,7 @@ struct AppearancePicker: View {
                     .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 18))
+                    .scaledFont(18)
                     .foregroundStyle(isSelected ? themeManager.theme.primary : AppColors.textTertiary(colorScheme))
             }
             .frame(maxWidth: .infinity)

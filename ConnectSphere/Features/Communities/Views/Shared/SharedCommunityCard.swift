@@ -21,7 +21,7 @@ struct SharedCommunityCard: View {
                     .frame(maxWidth: .infinity)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(community.name)
-                        .font(.system(size: 15, weight: .semibold))
+                        .scaledFont(15, .semibold)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                         .lineLimit(2)
                     HStack(spacing: 4) {
@@ -30,7 +30,7 @@ struct SharedCommunityCard: View {
                         Text("·")
                         Text(String(format: bundle.loc("%lld members"), community.memberCount))
                     }
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 .padding(10)
@@ -67,7 +67,7 @@ struct ChatCommunityCard: View {
                 SharedCommunityCard(community: ref)
             } else if viewModel.unavailable {
                 Text("This community isn't available", bundle: bundle)
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .padding(12)
                     .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 12))

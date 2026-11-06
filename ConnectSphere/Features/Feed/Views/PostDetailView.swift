@@ -183,7 +183,7 @@ struct PostDetailView: View {
 
     private func commentsHeader(count: Int) -> some View {
         Text(String(format: bundle.loc("Comments · %d"), count))
-            .font(.system(size: 15, weight: .semibold))
+            .scaledFont(15, .semibold)
             .foregroundColor(AppColors.textPrimary(colorScheme))
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, AppSpacing.md)
@@ -201,17 +201,18 @@ struct PostDetailView: View {
             if let replying = commentVM.replyingTo {
                 HStack(spacing: 8) {
                     Image(systemName: "arrowshape.turn.up.left.fill")
-                        .font(.system(size: 12))
+                        .scaledFont(12)
                         .foregroundColor(themeManager.theme.primary)
                     Text(String(format: bundle.loc("Replying to %@"), replying.author.displayName))
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                     Spacer()
                     Button { commentVM.replyingTo = nil } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 16))
+                            .scaledFont(16)
                             .foregroundColor(AppColors.textSecondary(colorScheme).opacity(0.6))
                     }
+                    .accessibilityLabel(Bundle.app.loc("Cancel reply"))
                 }
                 .padding(.horizontal, AppSpacing.md)
                 .padding(.vertical, 6)
@@ -230,7 +231,7 @@ struct PostDetailView: View {
                 }
 
                 TextField(bundle.loc("Write a comment..."), text: $draft, selection: $draftSelection, axis: .vertical)
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                     .lineLimit(4)
                     .focused($composerFocused)
                     .padding(.horizontal, 14)
@@ -255,10 +256,11 @@ struct PostDetailView: View {
                     }
                 } label: {
                     Image(systemName: commentVM.isSending ? "clock" : "paperplane.fill")
-                        .font(.system(size: 20))
+                        .scaledFont(20)
                         .foregroundColor(commentVM.canSend(draft)
                                          ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
                 }
+                .accessibilityLabel(Bundle.app.loc("Send"))
                 .disabled(!commentVM.canSend(draft))
             }
             .padding(.horizontal, AppSpacing.md)
@@ -271,10 +273,10 @@ struct PostDetailView: View {
     private var errorState: some View {
         VStack(spacing: 12) {
             Image(systemName: "doc.questionmark")
-                .font(.system(size: 40))
+                .scaledFont(40)
                 .foregroundColor(AppColors.textSecondary(colorScheme).opacity(0.4))
             Text("This post no longer exists or you don't have permission to view it", bundle: bundle)
-                .font(.system(size: 15))
+                .scaledFont(15)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
@@ -370,14 +372,14 @@ private struct PostDetailHeader: View {
 
     private func name(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 16, weight: .semibold))
+            .scaledFont(16, .semibold)
             .foregroundColor(AppColors.textPrimary(colorScheme))
             .lineLimit(1)
     }
 
     private func detail<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         HStack(spacing: 3) { content() }
-            .font(.system(size: 12))
+            .scaledFont(12)
             .foregroundColor(AppColors.textSecondary(colorScheme))
             .lineLimit(1)
     }

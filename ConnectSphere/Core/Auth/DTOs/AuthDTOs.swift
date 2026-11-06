@@ -166,4 +166,6 @@ struct OnboardingForm: Encodable {
     var company: String = ""
     var interests: [String] = []
     var skills: [String] = []
+    /// `LegalDocs.version`, set when the person ticks the Terms/Privacy box.
+    var accepted_policy_version: String?
 }

@@ -9,8 +9,8 @@ struct AltTextChip: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 3) {
-                if hasText { Image(systemName: "checkmark").font(.system(size: 9, weight: .bold)) }
-                Text(verbatim: "ALT").font(.system(size: 11, weight: .heavy))
+                if hasText { Image(systemName: "checkmark").scaledFont(9, .bold) }
+                Text(verbatim: "ALT").scaledFont(11, .heavy)
             }
             .foregroundColor(hasText ? .black : .white)
             .padding(.horizontal, 7)
@@ -63,7 +63,7 @@ struct AltTextEditorSheet: View {
                     Spacer()
                     Text("\(text.count)/\(Self.maxLength)")
                 }
-                .font(.system(size: 12))
+                .scaledFont(12)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
                 Spacer()
             }

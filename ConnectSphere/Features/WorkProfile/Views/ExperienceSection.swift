@@ -29,12 +29,12 @@ struct ExperienceSection: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Text("Experience", bundle: bundle)
-                    .font(.system(size: 18, weight: .bold))
+                    .scaledFont(18, .bold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 Spacer()
                 if isMe {
                     Button { editing = EditTarget(role: nil) } label: {
-                        Image(systemName: "plus").font(.system(size: 17, weight: .semibold))
+                        Image(systemName: "plus").scaledFont(17, .semibold)
                     }
                     .accessibilityLabel(Text(bundle.loc("Add a role")))
                 }
@@ -44,7 +44,7 @@ struct ExperienceSection: View {
             } else if groups.isEmpty {
                 Text(isMe ? bundle.loc("Add the places you've worked and your roles there.")
                           : bundle.loc("No work history yet."))
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             } else {
                 ForEach(Array((showAll ? groups : Array(groups.prefix(3))).enumerated()), id: \.element.id) { index, group in
@@ -55,7 +55,7 @@ struct ExperienceSection: View {
                     Button(showAll ? bundle.loc("Show less") : String(format: bundle.loc("Show all %lld"), groups.count)) {
                         withAnimation(.snappy) { showAll.toggle() }
                     }
-                    .font(.system(size: 14, weight: .semibold))
+                    .scaledFont(14, .semibold)
                     .foregroundColor(themeManager.theme.primary)
                     .frame(maxWidth: .infinity)
                 }
@@ -95,7 +95,7 @@ struct ExperienceSection: View {
                                 VStack(alignment: .leading, spacing: 3) {
                                     roleTitle(role)
                                     Text(bundle.loc(role.employmentType.label))
-                                        .font(.system(size: 13))
+                                        .scaledFont(13)
                                         .foregroundColor(AppColors.textSecondary(colorScheme))
                                     dates(role)
                                     details(role)
@@ -113,12 +113,12 @@ struct ExperienceSection: View {
     private func roleTitle(_ role: WorkExperience) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(role.title)
-                .font(.system(size: 15, weight: .semibold))
+                .scaledFont(15, .semibold)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             Spacer(minLength: 4)
             if isMe {
                 Button { editing = EditTarget(role: role) } label: {
-                    Image(systemName: "pencil").font(.system(size: 14))
+                    Image(systemName: "pencil").scaledFont(14)
                         .foregroundColor(AppColors.textTertiary(colorScheme))
                 }
                 .accessibilityLabel(Text(bundle.loc("Edit")))
@@ -135,7 +135,7 @@ struct ExperienceSection: View {
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             if group.verified { OfficialBadge(compact: true) }
             Text("· " + extra)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
         }
         if let id = group.companyId {
@@ -153,7 +153,7 @@ struct ExperienceSection: View {
         let to = end?.label(locale: bundle.locale) ?? bundle.loc("Present")
         let months = start.map { WorkMonth.span(from: $0, to: end ?? .now) } ?? 1
         return Text("\(from) – \(to) · \(WorkMonth.duration(months, loc: bundle.loc))")
-            .font(.system(size: 13))
+            .scaledFont(13)
             .foregroundColor(AppColors.textTertiary(colorScheme))
     }
 
@@ -162,12 +162,12 @@ struct ExperienceSection: View {
         let place = [role.location, role.locationType.map { bundle.loc($0.label) }].compactMap { $0 }.joined(separator: " · ")
         if !place.isEmpty {
             Text(place)
-                .font(.system(size: 13))
+                .scaledFont(13)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
         }
         if let text = role.description {
             Text(text)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
                 .lineLimit(4)
                 .padding(.top, 2)
@@ -358,7 +358,7 @@ struct CompanyPeopleList: View {
                 ProgressView().padding(32)
             } else if viewModel.people.isEmpty {
                 Text("People who list this company in their work history will show here.", bundle: bundle)
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .multilineTextAlignment(.center)
                     .padding(32)
@@ -369,14 +369,14 @@ struct CompanyPeopleList: View {
                             Avatar(name: person.displayName, colorHex: person.avatarColor, imageURL: person.avatarUrl, size: .md)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(person.displayName)
-                                    .font(.system(size: 15, weight: .semibold))
+                                    .scaledFont(15, .semibold)
                                     .foregroundColor(AppColors.textPrimary(colorScheme))
                                 Text(person.title)
-                                    .font(.system(size: 13))
+                                    .scaledFont(13)
                                     .foregroundColor(AppColors.textSecondary(colorScheme))
                                 if let since = WorkMonth(person.since) {
                                     Text(String(format: bundle.loc("Since %@"), since.label(locale: bundle.locale)))
-                                        .font(.system(size: 12))
+                                        .scaledFont(12)
                                         .foregroundColor(AppColors.textTertiary(colorScheme))
                                 }
                             }

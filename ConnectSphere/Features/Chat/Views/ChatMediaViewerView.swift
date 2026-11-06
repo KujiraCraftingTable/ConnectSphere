@@ -66,16 +66,17 @@ struct ChatMediaViewerView: View {
                 HStack {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .semibold))
+                            .scaledFont(16, .semibold)
                             .foregroundColor(.white)
                             .padding(10)
                             .background(Circle().fill(Color.black.opacity(0.45)))
                     }
+                    .accessibilityLabel(Bundle.app.loc("Close"))
                     Spacer()
                     if items.indices.contains(currentIndex) {
                         Button { save(items[currentIndex]) } label: {
                             Image(systemName: "arrow.down.to.line")
-                                .font(.system(size: 16, weight: .semibold))
+                                .scaledFont(16, .semibold)
                                 .foregroundColor(.white)
                                 .padding(10)
                                 .background(Circle().fill(Color.black.opacity(0.45)))
@@ -85,7 +86,7 @@ struct ChatMediaViewerView: View {
                     }
                     if items.count > 1 {
                         Text("\(currentIndex + 1)/\(items.count)")
-                            .font(.system(size: 14, weight: .semibold))
+                            .scaledFont(14, .semibold)
                             .foregroundColor(.white)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
@@ -187,7 +188,7 @@ private struct ZoomableAsyncImage: View {
 
     private var failurePlaceholder: some View {
         Image(systemName: "photo")
-            .font(.system(size: 40))
+            .scaledFont(40)
             .foregroundColor(.white.opacity(0.6))
     }
 

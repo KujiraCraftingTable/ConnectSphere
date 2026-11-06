@@ -85,11 +85,11 @@ struct StoryViewerView: View {
                     AvatarView(user: group.author, size: 36)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(group.author.name)
-                            .font(.system(size: 14, weight: .semibold))
+                            .scaledFont(14, .semibold)
                             .foregroundColor(.white)
                         if let story = currentStory {
                             Text(story.createdAt.timeAgoString)
-                                .font(.system(size: 12))
+                                .scaledFont(12)
                                 .foregroundColor(.white.opacity(0.7))
                         }
                     }
@@ -98,7 +98,7 @@ struct StoryViewerView: View {
                     if isOwn && appState.currentMode == .hobby {
                         Button { addingToHighlight = true } label: {
                             Image(systemName: "star.circle")
-                                .font(.system(size: 18, weight: .semibold))
+                                .scaledFont(18, .semibold)
                                 .foregroundColor(.white)
                                 .padding(8)
                         }
@@ -109,10 +109,11 @@ struct StoryViewerView: View {
                             showDeleteConfirm = true
                         } label: {
                             Image(systemName: "trash")
-                                .font(.system(size: 16, weight: .semibold))
+                                .scaledFont(16, .semibold)
                                 .foregroundColor(.white)
                                 .padding(8)
                         }
+                        .accessibilityLabel(Bundle.app.loc("Delete story"))
                         .confirmationDialog(
                             bundle.loc("Delete this story?"),
                             isPresented: $showDeleteConfirm,
@@ -128,10 +129,11 @@ struct StoryViewerView: View {
                         close()
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 18, weight: .semibold))
+                            .scaledFont(18, .semibold)
                             .foregroundColor(.white)
                             .padding(8)
                     }
+                    .accessibilityLabel(Bundle.app.loc("Close"))
                 }
                 .padding(.horizontal, 12)
 
@@ -144,11 +146,11 @@ struct StoryViewerView: View {
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: "eye.fill")
-                                .font(.system(size: 13))
+                                .scaledFont(13)
                             Text("\(viewModel.viewers.count)")
-                                .font(.system(size: 14, weight: .semibold))
+                                .scaledFont(14, .semibold)
                             Text("Viewers", bundle: bundle)
-                                .font(.system(size: 14))
+                                .scaledFont(14)
                         }
                         .foregroundColor(.white)
                         .padding(.horizontal, 14)
@@ -186,10 +188,10 @@ struct StoryViewerView: View {
                 if viewModel.viewers.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "eye.slash")
-                            .font(.system(size: 36))
+                            .scaledFont(36)
                             .foregroundColor(.secondary.opacity(0.5))
                         Text("No views yet", bundle: bundle)
-                            .font(.system(size: 15))
+                            .scaledFont(15)
                             .foregroundColor(.secondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -199,7 +201,7 @@ struct StoryViewerView: View {
                             ZStack {
                                 Circle().fill(Color(hex: viewer.avatarColor ?? "#7F5AF0"))
                                 Text(String(viewer.displayName.prefix(1)))
-                                    .font(.system(size: 15, weight: .bold))
+                                    .scaledFont(15, .bold)
                                     .foregroundColor(.white)
                                 if let url = APIConfig.mediaURL(viewer.avatarUrl) {
                                     RemoteImage(url: url) { phase in
@@ -214,12 +216,12 @@ struct StoryViewerView: View {
                             .clipShape(Circle())
 
                             Text(viewer.displayName)
-                                .font(.system(size: 15, weight: .medium))
+                                .scaledFont(15, .medium)
 
                             Spacer()
 
                             Text(viewer.viewedAt.timeAgoString)
-                                .font(.system(size: 12))
+                                .scaledFont(12)
                                 .foregroundColor(.secondary)
                         }
                     }

@@ -55,19 +55,20 @@ struct CommentSheet: View {
                     if let replying = viewModel.replyingTo {
                         HStack(spacing: 8) {
                             Image(systemName: "arrowshape.turn.up.left.fill")
-                                .font(.system(size: 12))
+                                .scaledFont(12)
                                 .foregroundColor(themeManager.theme.primary)
                             Text(String(format: bundle.loc("Replying to %@"), replying.author.displayName))
-                                .font(.system(size: 13))
+                                .scaledFont(13)
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
                             Spacer()
                             Button {
                                 viewModel.replyingTo = nil
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 16))
+                                    .scaledFont(16)
                                     .foregroundColor(AppColors.textSecondary(colorScheme).opacity(0.6))
                             }
+                            .accessibilityLabel(Bundle.app.loc("Cancel reply"))
                         }
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
@@ -88,7 +89,7 @@ struct CommentSheet: View {
                         }
 
                         TextField(bundle.loc("Write a comment..."), text: $input, selection: $inputSelection, axis: .vertical)
-                            .font(.system(size: 15))
+                            .scaledFont(15)
                             .lineLimit(4)
                             .focused($focused)
                             .padding(.horizontal, 12)
@@ -110,10 +111,11 @@ struct CommentSheet: View {
                             }
                         } label: {
                             Image(systemName: viewModel.isSending ? "clock" : "paperplane.fill")
-                                .font(.system(size: 20))
+                                .scaledFont(20)
                                 .foregroundColor(viewModel.canSend(input)
                                                  ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
                         }
+                        .accessibilityLabel(Bundle.app.loc("Send"))
                         .disabled(!viewModel.canSend(input))
                     }
                     .padding(.horizontal, 12)

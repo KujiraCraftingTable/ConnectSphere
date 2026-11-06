@@ -25,7 +25,7 @@ struct TwoFactorSheet: View {
                     } icon: {
                         Image(systemName: viewModel.enabling ? "lock.shield.fill" : "lock.open.fill")
                     }
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                 }
                 Section {
                     if viewModel.sentTo == nil {
@@ -48,7 +48,7 @@ struct TwoFactorSheet: View {
                     Text("Confirm with your email", bundle: bundle)
                 }
                 if let error = viewModel.errorMessage {
-                    Section { Text(error).foregroundStyle(.red).font(.system(size: 14)) }
+                    Section { Text(error).foregroundStyle(.red).scaledFont(14) }
                 }
             }
             .navigationTitle(bundle.loc("Two-factor authentication"))

@@ -9,6 +9,12 @@ import GoogleSignIn
 @MainActor
 @Observable
 final class LoginViewModel {
+    /// The Terms/Privacy box above the Google button. A Google account is created
+    /// the moment Google confirms it, so the box must be ticked first; the tick
+    /// is remembered on this phone for the current edition.
+    var acceptsPolicy = PolicyConsentMemory().acceptsCurrent {
+        didSet { acceptsPolicy ? PolicyConsentMemory().remember() : PolicyConsentMemory().forget() }
+    }
     /// The @username or the email.
     var identifier = ""
     var password = ""
@@ -81,7 +87,7 @@ final class LoginViewModel {
             password = ""
             passwordFocusRequest += 1
         } else {
-            await loginWithGoogle(presenting: rootViewController, appState: appState, hint: account.email)
+            await loginWithGoogle(presenting: rootViewController, appState: appState, hint: SavedAccounts().googleHint(for: account.id))
         }
     }
 
@@ -114,6 +120,10 @@ final class LoginViewModel {
     /// Google's account chooser.
     func loginWithGoogle(presenting rootViewController: UIViewController?, appState: AppState,
                          hint: String? = nil) async {
+        guard acceptsPolicy else {
+            errorMessage = Bundle.app.loc("Please tick to agree before continuing")
+            return
+        }
         guard let rootViewController else {
             errorMessage = Bundle.app.loc("Couldn't sign in, please try again")
             return

@@ -45,10 +45,10 @@ struct CommunityMembersView: View {
         if isPrivateLockedOut {
             VStack(spacing: 12) {
                 Image(systemName: "lock.fill")
-                    .font(.system(size: 40))
+                    .scaledFont(40)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
                 Text(bundle.loc("Members of a private community are only visible to its members."))
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                     .multilineTextAlignment(.center)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .padding(.horizontal, 32)
@@ -74,7 +74,7 @@ struct CommunityMembersView: View {
     private func group(_ title: String, _ members: [CommunityMember]) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(.system(size: 13, weight: .semibold))
+                .scaledFont(13, .semibold)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .padding(.horizontal, 14)
             LazyVStack(spacing: 0) {
@@ -102,16 +102,16 @@ struct CommunityMembersView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(member.displayName)
-                    .font(.system(size: 15, weight: .medium))
+                    .scaledFont(15, .medium)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 Text("@\(member.username)")
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }
             Spacer()
             if member.role != .member {
                 Text(bundle.loc(member.role.label))
-                    .font(.system(size: 11, weight: .semibold))
+                    .scaledFont(11, .semibold)
                     .foregroundColor(accentColor)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)

@@ -18,12 +18,12 @@ struct EmptyStateView: View {
     var body: some View {
         VStack(spacing: AppSpacing.md) {
             if mascot {
-                Text("🐳").font(.system(size: 44))
+                Text("🐳").scaledFont(44)
             } else if let emoji {
-                Text(emoji).font(.system(size: 40))
+                Text(emoji).scaledFont(40)
             } else if let systemImage {
                 Image(systemName: systemImage)
-                    .font(.system(size: 38))
+                    .scaledFont(38)
                     .foregroundStyle(AppColors.textTertiary(scheme))
             }
 

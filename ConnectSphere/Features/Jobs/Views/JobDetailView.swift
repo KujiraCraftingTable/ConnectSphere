@@ -34,7 +34,7 @@ struct JobDetailView: View {
                                  ? MarkdownFormatter.attributed(text, linkColor: themeManager.theme.primary,
                                                                 quoteColor: AppColors.textSecondary(colorScheme))
                                  : AttributedString(text))
-                                .font(.system(size: 15))
+                                .scaledFont(15)
                                 .foregroundColor(AppColors.textPrimary(colorScheme))
                                 .fixedSize(horizontal: false, vertical: true)
                                 .environment(\.openURL, OpenURLAction { url in
@@ -54,10 +54,10 @@ struct JobDetailView: View {
                                        imageURL: job.poster.avatarUrl, size: .md)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(job.poster.displayName)
-                                        .font(.system(size: 15, weight: .semibold))
+                                        .scaledFont(15, .semibold)
                                         .foregroundColor(AppColors.textPrimary(colorScheme))
                                     if let title = job.poster.jobTitle {
-                                        Text(title).font(.system(size: 13)).foregroundColor(AppColors.textSecondary(colorScheme))
+                                        Text(title).scaledFont(13).foregroundColor(AppColors.textSecondary(colorScheme))
                                     }
                                 }
                                 Spacer()
@@ -95,13 +95,13 @@ struct JobDetailView: View {
                        imageURL: job.companyLogoUrl ?? job.poster.avatarUrl, size: .lg, shape: .roundedSquare)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(job.title)
-                        .font(.system(size: 20, weight: .bold))
+                        .scaledFont(20, .bold)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                     companyLine(job)
                 }
             }
             Text(job.salaryText(loc: bundle.loc) ?? bundle.loc("Negotiable"))
-                .font(.system(size: 16, weight: .semibold))
+                .scaledFont(16, .semibold)
                 .foregroundColor(themeManager.theme.primary)
             let facts = [job.location, job.workFormat.map { bundle.loc(JobListing.formatLabel($0)) },
                          job.level.map { bundle.loc(JobListing.levelLabel($0)) },
@@ -109,19 +109,19 @@ struct JobDetailView: View {
                 .compactMap { $0 }
             if !facts.isEmpty {
                 Text(facts.joined(separator: " · "))
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }
             HStack {
                 if !job.isMine {
                     Label(job.matchText(loc: bundle.loc), systemImage: "sparkles")
-                        .font(.system(size: 13, weight: .medium))
+                        .scaledFont(13, .medium)
                         .foregroundColor(themeManager.theme.primary)
                 }
                 Spacer()
                 if let deadline = job.deadlineDate {
                     Text(String(format: bundle.loc("Apply by %@"), deadline.formatted(date: .abbreviated, time: .omitted)))
-                        .font(.system(size: 12))
+                        .scaledFont(12)
                         .foregroundColor(AppColors.textTertiary(colorScheme))
                 }
             }
@@ -135,7 +135,7 @@ struct JobDetailView: View {
     private func companyLine(_ job: JobListing) -> some View {
         let line = HStack(spacing: 4) {
             Text(job.companyName ?? job.poster.displayName)
-                .font(.system(size: 15))
+                .scaledFont(15)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
             if job.companyVerified { OfficialBadge(compact: true) }
         }
@@ -154,7 +154,7 @@ struct JobDetailView: View {
                 ForEach(job.skills, id: \.self) { skill in
                     let have = job.match.matchedSkills.contains(skill)
                     Label(skill, systemImage: have ? "checkmark.circle.fill" : "circle.dashed")
-                        .font(.system(size: 13, weight: .medium))
+                        .scaledFont(13, .medium)
                         .foregroundColor(have && !job.isMine ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
@@ -168,7 +168,7 @@ struct JobDetailView: View {
     private func card<C: View>(_ title: String, @ViewBuilder content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
-                .font(.system(size: 16, weight: .bold))
+                .scaledFont(16, .bold)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             content()
         }
@@ -182,7 +182,7 @@ struct JobDetailView: View {
             if let count = job.applicantCount {
                 NavigationLink { ApplicantsView(jobId: job.id) } label: {
                     Label(String(format: bundle.loc("Applicants (%lld)"), count), systemImage: "person.2")
-                        .font(.system(size: 15, weight: .semibold))
+                        .scaledFont(15, .semibold)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
@@ -192,7 +192,7 @@ struct JobDetailView: View {
             } else {
                 Button { Task { await viewModel.toggleSave(token: token) } } label: {
                     Label(bundle.loc(job.saved ? "Saved" : "Save"), systemImage: job.saved ? "bookmark.fill" : "bookmark")
-                        .font(.system(size: 15, weight: .semibold))
+                        .scaledFont(15, .semibold)
                         .foregroundColor(themeManager.theme.primary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
@@ -201,7 +201,7 @@ struct JobDetailView: View {
                 .buttonStyle(.plain)
                 if let status = job.applicationStatus {
                     Label(bundle.loc(JobApplication.statusLabel(status)), systemImage: JobApplication.statusIcon(status))
-                        .font(.system(size: 15, weight: .semibold))
+                        .scaledFont(15, .semibold)
                         .foregroundColor(themeManager.theme.primary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
@@ -209,7 +209,7 @@ struct JobDetailView: View {
                 } else {
                     Button { applying = true } label: {
                         Label(bundle.loc("Apply"), systemImage: "paperplane.fill")
-                            .font(.system(size: 15, weight: .semibold))
+                            .scaledFont(15, .semibold)
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)

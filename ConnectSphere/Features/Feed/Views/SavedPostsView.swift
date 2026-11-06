@@ -87,10 +87,10 @@ struct SavedPostsView: View {
     private var emptyState: some View {
         VStack(spacing: 10) {
             Image(systemName: "bookmark")
-                .font(.system(size: 36))
+                .scaledFont(36)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
             Text(bundle.loc(viewModel.tab == .posts ? "No saved posts" : "No saved items"))
-                .font(.system(size: 15))
+                .scaledFont(15)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
         }
         .frame(maxWidth: .infinity)

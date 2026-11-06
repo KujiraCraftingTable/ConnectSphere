@@ -18,7 +18,7 @@ struct ApplicationStatusPill: View {
 
     var body: some View {
         Label(bundle.loc(JobApplication.statusLabel(status)), systemImage: JobApplication.statusIcon(status))
-            .font(.system(size: 12, weight: .semibold))
+            .scaledFont(12, .semibold)
             .foregroundColor(color)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
@@ -40,12 +40,12 @@ struct MyApplicationCard: View {
                        imageURL: application.companyLogoUrl, size: .md, shape: .roundedSquare)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(application.jobTitle)
-                        .font(.system(size: 16, weight: .semibold))
+                        .scaledFont(16, .semibold)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                         .lineLimit(2)
                     if let company = application.companyName {
                         Text(company)
-                            .font(.system(size: 14))
+                            .scaledFont(14)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
                 }
@@ -67,11 +67,11 @@ struct MyApplicationCard: View {
                         .frame(width: 8)
                         HStack {
                             Text(bundle.loc(JobApplication.statusLabel(event.status)))
-                                .font(.system(size: 13, weight: .medium))
+                                .scaledFont(13, .medium)
                                 .foregroundColor(AppColors.textPrimary(colorScheme))
                             Spacer()
                             Text(event.createdAt.formatted(date: .abbreviated, time: .shortened))
-                                .font(.system(size: 12))
+                                .scaledFont(12)
                                 .foregroundColor(AppColors.textTertiary(colorScheme))
                         }
                         .padding(.bottom, 10)
@@ -168,7 +168,7 @@ struct ApplicantsView: View {
         let label = status.map { bundle.loc(JobApplication.statusLabel($0)) } ?? bundle.loc("All")
         return Button { viewModel.filter = status } label: {
             Text("\(label) \(viewModel.count(status))")
-                .font(.system(size: 13, weight: .medium))
+                .scaledFont(13, .medium)
                 .foregroundColor(selected ? .white : AppColors.textPrimary(colorScheme))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
@@ -192,16 +192,16 @@ struct ApplicantsView: View {
                     }
                 }
                 if let title = application.applicant.jobTitle, !title.isEmpty {
-                    Text(title).font(.system(size: 13)).foregroundColor(AppColors.textSecondary(colorScheme)).lineLimit(1)
+                    Text(title).scaledFont(13).foregroundColor(AppColors.textSecondary(colorScheme)).lineLimit(1)
                 }
                 HStack(spacing: 8) {
                     ApplicationStatusPill(status: application.status)
                     if let skills = application.skillsText(loc: bundle.loc) {
-                        Label(skills, systemImage: "sparkles").font(.system(size: 12)).foregroundColor(themeManager.theme.primary)
+                        Label(skills, systemImage: "sparkles").scaledFont(12).foregroundColor(themeManager.theme.primary)
                             .lineLimit(1)
                     }
                     if application.cvUrl != nil {
-                        Image(systemName: "doc.richtext").font(.system(size: 12)).foregroundColor(AppColors.textTertiary(colorScheme))
+                        Image(systemName: "doc.richtext").scaledFont(12).foregroundColor(AppColors.textTertiary(colorScheme))
                             .accessibilityLabel(Text(bundle.loc("CV")))
                     }
                 }
@@ -238,12 +238,12 @@ struct ApplicantDetailView: View {
                         Avatar(name: current.applicant.displayName, colorHex: current.applicant.avatarColor,
                                imageURL: current.applicant.avatarUrl, size: .lg)
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(current.applicant.displayName).font(.system(size: 17, weight: .semibold))
+                            Text(current.applicant.displayName).scaledFont(17, .semibold)
                             if let title = current.applicant.jobTitle, !title.isEmpty {
-                                Text(title).font(.system(size: 14)).foregroundColor(AppColors.textSecondary(colorScheme))
+                                Text(title).scaledFont(14).foregroundColor(AppColors.textSecondary(colorScheme))
                             }
                             Text(String(format: bundle.loc("Applied %@"), current.createdAt.formatted(date: .abbreviated, time: .omitted)))
-                                .font(.system(size: 12)).foregroundColor(AppColors.textTertiary(colorScheme))
+                                .scaledFont(12).foregroundColor(AppColors.textTertiary(colorScheme))
                         }
                     }
                 }
@@ -263,7 +263,7 @@ struct ApplicantDetailView: View {
                 }
             }
             if let note = current.note {
-                Section(bundle.loc("Note")) { Text(note).font(.system(size: 15)) }
+                Section(bundle.loc("Note")) { Text(note).scaledFont(15) }
             }
             if let cv = current.cvUrl, let url = APIConfig.mediaURL(cv) {
                 Section(bundle.loc("CV")) {
@@ -295,7 +295,7 @@ struct ApplicantDetailView: View {
                 }
             }
             if let error = viewModel.errorMessage {
-                Section { Text(error).foregroundColor(.red).font(.system(size: 14)) }
+                Section { Text(error).foregroundColor(.red).scaledFont(14) }
             }
         }
         .navigationTitle(bundle.loc("Applicant"))
@@ -310,7 +310,7 @@ struct ApplicantDetailView: View {
             Image(systemName: has ? "checkmark.circle.fill" : "circle.dashed")
             Text(skill)
         }
-            .font(.system(size: 13, weight: .medium))
+            .scaledFont(13, .medium)
             .foregroundColor(has ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
             .padding(.horizontal, 10)
             .padding(.vertical, 5)

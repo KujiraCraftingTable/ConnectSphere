@@ -71,7 +71,7 @@ struct MeetingProposalCard: View {
                         }
                     } label: {
                         Image(systemName: "ellipsis")
-                            .font(.system(size: 13, weight: .semibold))
+                            .scaledFont(13, .semibold)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                             .padding(6)
                     }

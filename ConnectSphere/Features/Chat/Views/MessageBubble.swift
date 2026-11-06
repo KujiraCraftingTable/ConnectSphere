@@ -110,11 +110,11 @@ struct MessageBubble: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(replied.senderName)
-                        .font(.system(size: 12, weight: .semibold))
+                        .scaledFont(12, .semibold)
                         .foregroundColor(Self.replyChipName)
                         .lineLimit(1)
                     Text(replied.isDeleted ? bundle.loc("Message unsent") : (replied.content ?? ""))
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .italic(replied.isDeleted)
                         .foregroundColor(Self.replyChipText)
                         .lineLimit(2)
@@ -148,7 +148,7 @@ struct MessageBubble: View {
                     Text(item.emoji).font(.system(size: isPlayful ? 13 : 11))
                     if item.count > 1 {
                         Text("\(item.count)")
-                            .font(.system(size: 10, weight: .medium))
+                            .scaledFont(10, .medium)
                             .foregroundColor(isMine ? .white : AppColors.textSecondary(colorScheme))
                     }
                 }
@@ -166,7 +166,7 @@ struct MessageBubble: View {
         if message.isDeleted {
             // Placeholder for a recalled message
             Text("Message unsent", bundle: bundle)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .italic()
                 .foregroundColor(AppColors.textTertiary(colorScheme))
                 .padding(.horizontal, 12)
@@ -184,7 +184,7 @@ struct MessageBubble: View {
         case .text, .unknown:
             if let text = message.content {
                 Text(text)
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                     .foregroundColor(isOwn ? .white : AppColors.textPrimary(colorScheme))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
@@ -219,7 +219,7 @@ struct MessageBubble: View {
                 AlbumStackBubble(urls: message.albumURLs(), isOwn: isOwn) { onMediaTap?(message) }
                 if let caption = message.content, !caption.isEmpty {
                     Text(caption)
-                        .font(.system(size: 15))
+                        .scaledFont(15)
                         .foregroundColor(isOwn ? .white : AppColors.textPrimary(colorScheme))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
@@ -257,7 +257,7 @@ struct MessageBubble: View {
             VStack(alignment: isOwn ? .trailing : .leading, spacing: 4) {
                 if let note = message.content, !note.isEmpty {
                     Text(note)
-                        .font(.system(size: 15))
+                        .scaledFont(15)
                         .foregroundColor(isOwn ? .white : AppColors.textPrimary(colorScheme))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
@@ -273,7 +273,7 @@ struct MessageBubble: View {
             VStack(alignment: isOwn ? .trailing : .leading, spacing: 4) {
                 if let note = message.content, !note.isEmpty {
                     Text(note)
-                        .font(.system(size: 15))
+                        .scaledFont(15)
                         .foregroundColor(isOwn ? .white : AppColors.textPrimary(colorScheme))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
@@ -293,7 +293,7 @@ struct MessageBubble: View {
         ZStack {
             Rectangle().fill(Color.black.opacity(0.85))
             Image(systemName: "play.circle.fill")
-                .font(.system(size: 42))
+                .scaledFont(42)
                 .foregroundColor(.white.opacity(0.92))
         }
         .frame(width: 200, height: 140)
@@ -317,10 +317,10 @@ struct MessageBubble: View {
     private func imagePlaceholder(icon: String, label: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 22))
+                .scaledFont(22)
                 .foregroundColor(isOwn ? .white.opacity(0.8) : AppColors.textSecondary(colorScheme))
             Text(label)
-                .font(.system(size: 14, weight: .medium))
+                .scaledFont(14, .medium)
                 .foregroundColor(isOwn ? .white : AppColors.textPrimary(colorScheme))
         }
         .padding(.horizontal, 16)
@@ -340,7 +340,7 @@ struct MessageBubble: View {
     private var metaRow: some View {
         HStack(spacing: 4) {
             Text(message.createdAt.formatted(.dateTime.hour().minute()))
-                .font(.system(size: 11))
+                .scaledFont(11)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
 
             if isOwn {
@@ -367,15 +367,15 @@ struct MessageBubble: View {
             groupStatusView(readCount: readCount, total: total)
         } else if readCount > 0 {
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 11))
+                .scaledFont(11)
                 .foregroundColor(palette.primary)
         } else if deliveredCount > 0 {
             Image(systemName: "checkmark.circle")
-                .font(.system(size: 11))
+                .scaledFont(11)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
         } else {
             Image(systemName: "checkmark")
-                .font(.system(size: 10, weight: .semibold))
+                .scaledFont(10, .semibold)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
         }
     }
@@ -388,19 +388,19 @@ struct MessageBubble: View {
     private func groupStatusView(readCount: Int, total: Int) -> some View {
         if readCount >= total {
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 11))
+                .scaledFont(11)
                 .foregroundColor(palette.primary)
         } else if readCount > 0 {
             Text(String(format: bundle.loc("Read %d/%d"), readCount, total))
-                .font(.system(size: 10, weight: .medium))
+                .scaledFont(10, .medium)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
         } else if message.deliveredCount(among: otherParticipantIds) > 0 {
             Image(systemName: "checkmark.circle")
-                .font(.system(size: 11))
+                .scaledFont(11)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
         } else {
             Image(systemName: "checkmark")
-                .font(.system(size: 10, weight: .semibold))
+                .scaledFont(10, .semibold)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
         }
     }

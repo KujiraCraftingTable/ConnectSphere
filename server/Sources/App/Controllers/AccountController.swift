@@ -10,6 +10,8 @@ struct AccountController {
         me.post("email", "verify", use: verifyEmail)        // POST /users/me/email/verify {code}
         me.post("email", "change-code", use: sendChangeCode) // POST /users/me/email/change-code → current address
         me.post("email", "change-confirm", use: confirmChange) // POST /users/me/email/change-confirm {code}
+        me.post("export", "code", use: sendExportCode)      // POST /users/me/export/code → emailed code
+        me.post("export", use: exportData)                  // POST /users/me/export {code | password} → the person's data as JSON
         me.post("deletion", "code", use: sendDeletionCode)  // POST /users/me/deletion/code {scope}
         me.delete("personas", ":mode", use: deletePersona)  // DELETE /users/me/personas/:mode {code}
         me.post("two-factor", "code", use: sendTwoFactorCode) // POST /users/me/two-factor/code
@@ -55,6 +57,7 @@ struct AccountController {
     }
 
     struct CodeBody: Content { var code: String? }
+    struct DeleteAccountBody: Content { var code: String?; var password: String? }
     struct VerifiedResponse: Content { var status = "ok"; var email: String }
     static let changeWindowMinutes = 15
 
@@ -158,6 +161,45 @@ struct AccountController {
         return SentResponse(email: email)
     }
 
+    // MARK: download my data
+
+    /// Proof for an action that is too sensitive for a session alone: the code
+    /// emailed to the verified address, or, with no verified email on the
+    /// account, its password.
+    static func confirmSensitive(_ user: String, purpose: AccountCodeStore.Purpose, code: String?, password: String?,
+                                 on db: any SQLDatabase) async throws {
+        let a = try await account(user, on: db)
+        if a.verified {
+            _ = try await AccountCodeStore.consume(user: user, purpose: purpose, code: code ?? "", on: db)
+            return
+        }
+        struct H: Decodable { let password_hash: String? }
+        let hash = try await db.raw("SELECT password_hash FROM users WHERE id = \(uuid: user)")
+            .first(decoding: H.self)?.password_hash
+        guard UserStore.hasRealPassword(hash), let hash, let password, !password.isEmpty,
+              (try? Bcrypt.verify(password, created: hash)) == true
+        else { throw Abort(.forbidden, reason: "Enter your password to continue") }
+    }
+
+    static func sendExportCode(_ req: Request) async throws -> SentResponse {
+        let db = req.db.sql()
+        let a = try await account(req.userID, on: db)
+        guard a.verified, let email = a.email else { throw Abort(.badRequest, reason: "Add and verify an email first") }
+        let code = try await AccountCodeStore.issue(user: req.userID, purpose: .exportData, email: email, on: db)
+        try await Mailer(req).sendCode(code, to: email, kind: .exportData, minutes: AccountCodeStore.ttlMinutes)
+        return SentResponse(email: email)
+    }
+
+    static func exportData(_ req: Request) async throws -> Response {
+        let body = try? req.content.decode(DeleteAccountBody.self)
+        try await confirmSensitive(req.userID, purpose: .exportData, code: body?.code, password: body?.password, on: req.db.sql())
+        let json = try await DataExportStore.json(for: req.userID, on: req.db.sql())
+        var headers = HTTPHeaders()
+        headers.contentType = .json
+        headers.replaceOrAdd(name: .contentDisposition, value: "attachment; filename=\"connectsphere-data.json\"")
+        return Response(status: .ok, headers: headers, body: .init(string: json))
+    }
+
     // MARK: two-factor sign-in
 
     static func sendTwoFactorCode(_ req: Request) async throws -> SentResponse {
@@ -205,10 +247,10 @@ struct AccountController {
 
     /// DELETE /users/me, the whole account, confirmed with an emailed code.
     static func deleteAccount(_ req: Request) async throws -> StatusOK {
-        let code = (try? req.content.decode(CodeBody.self).code) ?? ""
-        _ = try await account(req.userID, on: req.db.sql())
-        _ = try await AccountCodeStore.consume(user: req.userID, purpose: .deleteAccount, code: code, on: req.db.sql())
-        try await UserStore.softDeleteAccount(req.userID, on: req.db)
+        let body = try? req.content.decode(DeleteAccountBody.self)
+        let db = req.db.sql()
+        try await confirmSensitive(req.userID, purpose: .deleteAccount, code: body?.code, password: body?.password, on: db)
+        try await UserStore.softDeleteAccount(req.userID, on: req.db, logger: req.logger)
         req.logger.info("account soft-deleted \(req.userID)")
         return StatusOK()
     }

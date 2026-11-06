@@ -45,14 +45,14 @@ struct VideoPosterView: View {
             .clipped()
             .overlay {
                 Image(systemName: "play.circle.fill")
-                    .font(.system(size: 40))
+                    .scaledFont(40)
                     .foregroundStyle(.white, .black.opacity(0.35))
                     .shadow(color: .black.opacity(0.3), radius: 4)
             }
             .overlay(alignment: .bottomTrailing) {
                 if let seconds = model.seconds {
                     Text(String(format: "%d:%02d", seconds / 60, seconds % 60))
-                        .font(.system(size: 11, weight: .semibold))
+                        .scaledFont(11, .semibold)
                         .monospacedDigit()
                         .foregroundColor(.white)
                         .padding(.horizontal, 7)

@@ -18,7 +18,7 @@ struct CompanySearchResults: View {
         VStack(spacing: 10) {
             Button { showCreate = true } label: {
                 Label(bundle.loc("Create a company page"), systemImage: "plus.square.on.square")
-                    .font(.system(size: 15, weight: .semibold))
+                    .scaledFont(15, .semibold)
                     .foregroundColor(themeManager.theme.primary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
@@ -30,7 +30,7 @@ struct CompanySearchResults: View {
                 ProgressView().padding(.vertical, 24)
             } else if viewModel.results.isEmpty {
                 Text(query.isEmpty ? bundle.loc("No company pages yet.") : bundle.loc("No companies match."))
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .padding(.vertical, 24)
             } else {

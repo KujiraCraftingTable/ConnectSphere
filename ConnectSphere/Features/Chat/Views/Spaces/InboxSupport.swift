@@ -22,7 +22,7 @@ struct SpaceTag: View {
         HStack(spacing: 3) {
             SpacePlanetIcon(color: space.color.color, size: 12)
             Text(space.name)
-                .font(.system(size: 11, weight: .semibold))
+                .scaledFont(11, .semibold)
                 .lineLimit(1)
         }
         .foregroundColor(AppColors.textSecondary(colorScheme))

@@ -169,7 +169,7 @@ struct FloatingChatMessageRow: View {
 
     private func textBubble(_ text: String, muted: Bool = false) -> some View {
         Text(text)
-            .font(.system(size: 13))
+            .scaledFont(13)
             .italic(muted)
             .foregroundColor(isOwn && !muted ? .white : AppColors.textPrimary(colorScheme))
             .padding(.horizontal, 9)
@@ -209,7 +209,7 @@ struct FloatingChatVideo: View {
             if let player { FloatingPlayerLayer(player: player) }
             if !isPlaying {
                 Image(systemName: ended ? "arrow.counterclockwise.circle.fill" : "play.circle.fill")
-                    .font(.system(size: 34))
+                    .scaledFont(34)
                     .foregroundStyle(.white.opacity(0.9))
             }
         }

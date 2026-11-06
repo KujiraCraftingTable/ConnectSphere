@@ -69,19 +69,19 @@ struct ChatPinnedMessagesView: View {
         HStack(alignment: .top, spacing: 10) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(pin.senderName)
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, .semibold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 Text(pin.preview)
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .lineLimit(2)
                 Text(String(format: bundle.loc("Pinned by %@"), pinnedByName(pin))
                      + " · " + pin.pinnedAt.formatted(.dateTime.day().month().hour().minute()))
-                    .font(.system(size: 11))
+                    .scaledFont(11)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
                 if let expiresAt = pin.expiresAt {
                     Text(String(format: bundle.loc("Expires %@"), expiresAt.formatted(.dateTime.day().month().year())))
-                        .font(.system(size: 11))
+                        .scaledFont(11)
                         .foregroundColor(AppColors.textTertiary(colorScheme))
                 }
             }
@@ -92,9 +92,10 @@ struct ChatPinnedMessagesView: View {
                 pendingUnpin = pin
             } label: {
                 Image(systemName: "pin.slash")
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
             }
+            .accessibilityLabel(Bundle.app.loc("Unpin"))
             .buttonStyle(.plain)
         }
         .padding(.vertical, 4)
@@ -110,10 +111,10 @@ struct ChatPinnedMessagesView: View {
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "pin.slash")
-                .font(.system(size: 40))
+                .scaledFont(40)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
             Text("No pinned messages yet", bundle: bundle)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

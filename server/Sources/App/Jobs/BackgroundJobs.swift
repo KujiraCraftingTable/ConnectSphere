@@ -113,6 +113,10 @@ enum BackgroundJobs {
                 DELETE FROM password_resets
                 WHERE (used_at IS NOT NULL OR expires_at < NOW()) AND created_at < NOW() - INTERVAL '7 days'
                 """).run()
+            // Email codes and notifications: 90 days, as the Privacy Policy says.
+            try await db.raw("DELETE FROM account_codes WHERE created_at < NOW() - INTERVAL '90 days'").run()
+            try await db.raw("DELETE FROM signup_codes WHERE expires_at < NOW() - INTERVAL '90 days'").run()
+            try await db.raw("DELETE FROM user_notifications WHERE created_at < NOW() - INTERVAL '90 days'").run()
             try await db.raw("DELETE FROM search_logs WHERE created_at < NOW() - INTERVAL '90 days'").run()
             try await db.raw("DELETE FROM post_impressions WHERE last_seen_at < NOW() - INTERVAL '90 days'").run()
             try await db.raw("DELETE FROM search_sessions WHERE created_at < NOW() - INTERVAL '90 days'").run()

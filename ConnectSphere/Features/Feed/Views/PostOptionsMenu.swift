@@ -168,11 +168,11 @@ struct PostOptionsMenu: View {
         } label: {
             if inToolbar {
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 15, weight: .medium))
+                    .scaledFont(15, .medium)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
             } else {
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 18))
+                    .scaledFont(18)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .frame(width: 36, height: 36)
                     .contentShape(Rectangle())

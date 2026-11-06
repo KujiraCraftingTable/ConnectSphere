@@ -85,7 +85,7 @@ struct CommunityAnalyticsView: View {
     private func topPostsSection(_ posts: [AnalyticsPost]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Top Posts This Period", bundle: bundle)
-                .font(.system(size: 15, weight: .semibold))
+                .scaledFont(15, .semibold)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
                 .padding(.horizontal, 16)
 
@@ -100,14 +100,14 @@ struct CommunityAnalyticsView: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(post.content)
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .lineLimit(2)
                 HStack(spacing: 12) {
                     Label("\(post.likeCount)", systemImage: "heart")
                     Label("\(post.commentCount)", systemImage: "bubble.right")
                 }
-                .font(.system(size: 12))
+                .scaledFont(12)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
             }
             Spacer()

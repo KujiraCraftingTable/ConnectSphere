@@ -155,7 +155,7 @@ struct CreatePostView: View {
 
                             VStack(alignment: .leading, spacing: 8) {
                                 Text(appState.currentUser?.name ?? "")
-                                    .font(.system(size: 16, weight: .bold))
+                                    .scaledFont(16, .bold)
                                     .foregroundColor(AppColors.textPrimary(colorScheme))
 
                                 if let target {
@@ -164,11 +164,11 @@ struct CreatePostView: View {
                                     Button { showPrivacyPicker = true } label: {
                                         HStack(spacing: 5) {
                                             Image(systemName: privacy.icon)
-                                                .font(.system(size: 11, weight: .semibold))
+                                                .scaledFont(11, .semibold)
                                             Text(privacy.label(for: appState.currentMode))
-                                                .font(.system(size: 13, weight: .semibold))
+                                                .scaledFont(13, .semibold)
                                             Image(systemName: "chevron.down")
-                                                .font(.system(size: 9, weight: .bold))
+                                                .scaledFont(9, .bold)
                                         }
                                         .foregroundColor(themeManager.theme.primary)
                                         .padding(.horizontal, 12)
@@ -184,7 +184,7 @@ struct CreatePostView: View {
                             // Mode badge (icon only). Hobby vs work,
                             // kept fully separate from the privacy icon to avoid confusion.
                             Image(systemName: effectiveMode.glyph)
-                                .font(.system(size: 15, weight: .semibold))
+                                .scaledFont(15, .semibold)
                                 .foregroundColor(themeManager.theme.primary)
                                 .frame(width: 40, height: 40)
                                 .background(Circle().fill(themeManager.theme.softFill))
@@ -227,14 +227,14 @@ struct CreatePostView: View {
                         ZStack(alignment: .topLeading) {
                             if content.isEmpty {
                                 Text(placeholderText)
-                                    .font(.system(size: 16))
+                                    .scaledFont(16)
                                     .foregroundColor(AppColors.textTertiary(colorScheme))
                                     .padding(.top, 12)
                                     .padding(.leading, 14)
                             }
                             TextEditor(text: $content, selection: $contentSelection)
                                 .focused($contentFocused)
-                                .font(.system(size: 16))
+                                .scaledFont(16)
                                 .foregroundColor(AppColors.textPrimary(colorScheme))
                                 .frame(minHeight: 150)
                                 .scrollContentBackground(.hidden)
@@ -254,7 +254,7 @@ struct CreatePostView: View {
                             // The server caps posts at this length.
                             let remaining = composerViewModel.maxLength - content.count
                             Text("\(remaining)")
-                                .font(.system(size: 12))
+                                .scaledFont(12)
                                 .foregroundColor(remaining < 50 ? AppColors.danger(colorScheme) : AppColors.textTertiary(colorScheme))
                                 .padding(10)
                         }
@@ -307,7 +307,7 @@ struct CreatePostView: View {
                                 HStack(spacing: 8) {
                                     ProgressView().scaleEffect(0.8)
                                     Text("Loading link preview...", bundle: bundle)
-                                        .font(.system(size: 13))
+                                        .scaledFont(13)
                                         .foregroundColor(AppColors.textSecondary(colorScheme))
                                 }
                                 .padding(.horizontal, 16)
@@ -326,12 +326,12 @@ struct CreatePostView: View {
                                             Text("#\(tag)")
                                             if typedTags.contains(tag) {
                                                 Button { typedTags.removeAll { $0 == tag } } label: {
-                                                    Image(systemName: "xmark").font(.system(size: 10, weight: .bold))
+                                                    Image(systemName: "xmark").scaledFont(10, .bold)
                                                 }
                                                 .accessibilityLabel(bundle.loc("Remove hashtag"))
                                             }
                                         }
-                                        .font(.system(size: 14))
+                                        .scaledFont(14)
                                         .foregroundColor(AppColors.textSecondary(colorScheme))
                                         .padding(.horizontal, 12).padding(.vertical, 6)
                                         .background(Capsule().fill(AppColors.surface(colorScheme)))
@@ -351,10 +351,10 @@ struct CreatePostView: View {
                             ) {
                                 HStack(spacing: 8) {
                                     Image(systemName: "photo.on.rectangle.angled")
-                                        .font(.system(size: 16, weight: .medium))
+                                        .scaledFont(16, .medium)
                                         .foregroundColor(Color(hex: "#45BD62"))
                                     Text("Photo / Video", bundle: bundle)
-                                        .font(.system(size: 15, weight: .medium))
+                                        .scaledFont(15, .medium)
                                         .foregroundColor(AppColors.textPrimary(colorScheme))
                                 }
                                 .frame(maxWidth: .infinity)
@@ -382,7 +382,7 @@ struct CreatePostView: View {
 
                             if photosBlockedByLink {
                                 Text("Photos can't be added to a post with a link. Remove the link to attach photos.", bundle: bundle)
-                                    .font(.system(size: 13))
+                                    .scaledFont(13)
                                     .foregroundColor(AppColors.textSecondary(colorScheme))
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(.horizontal, 20)
@@ -402,7 +402,7 @@ struct CreatePostView: View {
                         } else {
                             Button { showSchedulePicker = true } label: {
                                 Image(systemName: "clock")
-                                    .font(.system(size: 18, weight: .medium))
+                                    .scaledFont(18, .medium)
                                     .foregroundColor(AppColors.textSecondary(colorScheme))
                                     .frame(width: 40, height: 40)
                             }
@@ -417,7 +417,7 @@ struct CreatePostView: View {
                             HStack(spacing: 6) {
                                 ProgressView().scaleEffect(0.8).tint(.white)
                                 Text("Posting...", bundle: bundle)
-                                    .font(.system(size: 15, weight: .semibold))
+                                    .scaledFont(15, .semibold)
                                     .foregroundColor(.white)
                             }
                             .padding(.horizontal, 20)
@@ -425,7 +425,7 @@ struct CreatePostView: View {
                             .background(Capsule().fill(AppColors.textTertiary(colorScheme)))
                         } else {
                             Text(isEditMode ? bundle.loc("Save") : bundle.loc(scheduleAt == nil ? "Post" : "Schedule"))
-                                .font(.system(size: 15, weight: .bold))
+                                .scaledFont(15, .bold)
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 32)
                                 .padding(.vertical, 11)
@@ -733,9 +733,9 @@ struct CreatePostView: View {
         let audience: CommunityAudience = target.isPrivate ? .members : communityAudience
         return VStack(alignment: .leading, spacing: 6) {
             chip {
-                Text(target.icon).font(.system(size: 12))
+                Text(target.icon).scaledFont(12)
                 Text(target.name)
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, .semibold)
                     .lineLimit(1)
             }
             .accessibilityLabel(Text(String(format: bundle.loc("Post to %@"), target.name)))
@@ -754,7 +754,7 @@ struct CreatePostView: View {
                 } label: {
                     chip {
                         audienceLabel(audience)
-                        Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
+                        Image(systemName: "chevron.down").scaledFont(9, .bold)
                     }
                 }
                 .accessibilityLabel(Text(bundle.loc("Who can see this post")))
@@ -764,8 +764,8 @@ struct CreatePostView: View {
 
     private func audienceLabel(_ audience: CommunityAudience) -> some View {
         HStack(spacing: 5) {
-            Image(systemName: audience.icon).font(.system(size: 11, weight: .semibold))
-            Text(bundle.loc(audience.label)).font(.system(size: 13, weight: .semibold))
+            Image(systemName: audience.icon).scaledFont(11, .semibold)
+            Text(bundle.loc(audience.label)).scaledFont(13, .semibold)
         }
     }
 
@@ -814,16 +814,16 @@ struct CreatePostView: View {
             VStack(alignment: .leading, spacing: 4) {
                 if let site = preview.siteName {
                     Text(site.uppercased())
-                        .font(.system(size: 10, weight: .semibold))
+                        .scaledFont(10, .semibold)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 Text(preview.title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, .semibold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .lineLimit(2)
                 if let desc = preview.description {
                     Text(desc)
-                        .font(.system(size: 12))
+                        .scaledFont(12)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                         .lineLimit(2)
                 }
@@ -833,10 +833,11 @@ struct CreatePostView: View {
 
             Button { viewModel.linkPreview = nil } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .padding(10)
             }
+            .accessibilityLabel(Bundle.app.loc("Remove link preview"))
         }
         .background(AppColors.surface(colorScheme))
         .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -873,7 +874,7 @@ struct CreatePostView: View {
                             }
                             if media.isVideo {
                                 Image(systemName: "play.circle.fill")
-                                    .font(.system(size: 30))
+                                    .scaledFont(30)
                                     .foregroundColor(.white.opacity(0.92))
                             }
                         }
@@ -891,10 +892,11 @@ struct CreatePostView: View {
                             if let item = media.pickerItem { selectedItems.removeAll { $0 == item } }
                         } label: {
                             Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 22))
+                                .scaledFont(22)
                                 .foregroundColor(.white)
                                 .shadow(radius: 2)
                         }
+                        .accessibilityLabel(Bundle.app.loc("Remove photo"))
                         .padding(6)
                     }
                 }

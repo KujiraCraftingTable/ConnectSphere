@@ -23,7 +23,7 @@ struct SharePostSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     TextField(bundle.loc(post.postType == .listing ? "Say something about this item..." : "Say something about this post..."), text: $viewModel.comment, axis: .vertical)
-                        .font(.system(size: 15))
+                        .scaledFont(15)
                         .lineLimit(1...4)
                         .padding(12)
                         .background(AppColors.base(colorScheme))
@@ -67,7 +67,7 @@ struct SharePostSheet: View {
 
                     if viewModel.shareFailed {
                         Text("Couldn't share, please try again", bundle: bundle)
-                            .font(.system(size: 13))
+                            .scaledFont(13)
                             .foregroundColor(.red)
                     }
                 }
@@ -96,13 +96,13 @@ struct SharePostSheet: View {
             HStack(spacing: 8) {
                 AvatarView(user: post.sharedPost?.author ?? post.author, size: 28)
                 Text((post.sharedPost?.author ?? post.author).name)
-                    .font(.system(size: 14, weight: .semibold))
+                    .scaledFont(14, .semibold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
             }
             let previewText = post.sharedPost?.content ?? post.content
             if !previewText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(previewText)
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .lineLimit(3)
             }
@@ -117,13 +117,13 @@ struct SharePostSheet: View {
     private var sendRow: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Send to", bundle: bundle)
-                .font(.system(size: 16, weight: .bold))
+                .scaledFont(16, .bold)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             if viewModel.isLoadingRecipients && viewModel.recipients.isEmpty {
                 ProgressView().frame(maxWidth: .infinity, minHeight: 90)
             } else if viewModel.recipients.isEmpty {
                 Text("No conversations yet", bundle: bundle)
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -136,12 +136,12 @@ struct SharePostSheet: View {
                         Button { showAllChats = true } label: {
                             VStack(spacing: 6) {
                                 Image(systemName: "ellipsis")
-                                    .font(.system(size: 20, weight: .semibold))
+                                    .scaledFont(20, .semibold)
                                     .foregroundColor(AppColors.textPrimary(colorScheme))
                                     .frame(width: Avatar.Size.lg.rawValue, height: Avatar.Size.lg.rawValue)
                                     .background(AppColors.elevated(colorScheme), in: Circle())
                                 Text("More", bundle: bundle)
-                                    .font(.system(size: 12))
+                                    .scaledFont(12)
                                     .foregroundColor(AppColors.textSecondary(colorScheme))
                             }
                         }
@@ -176,7 +176,7 @@ struct ShareRecipientTile: View {
                     .overlay(alignment: .bottomTrailing) {
                         if isSelected {
                             Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 22))
+                                .scaledFont(22)
                                 .foregroundStyle(.white, themeManager.theme.primary)
                         }
                     }
@@ -227,7 +227,7 @@ struct ShareSendButton: View {
             .disabled(viewModel.selected.isEmpty || viewModel.isSending)
             if viewModel.sendFailed {
                 Text("Couldn't send to some chats", bundle: bundle)
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(AppColors.danger(colorScheme))
             }
         }
@@ -249,7 +249,7 @@ struct ShareRecipientsView: View {
                 Avatar(name: conversation.displayName, colorHex: conversation.avatarColor,
                        imageURL: conversation.avatarUrl, size: .md)
                 Text(conversation.displayName)
-                    .font(.system(size: 15, weight: .semibold))
+                    .scaledFont(15, .semibold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .lineLimit(1)
                 Spacer(minLength: 8)
@@ -271,7 +271,7 @@ struct ShareRecipientsView: View {
     private func tick(_ conversation: Conversation) -> some View {
         let picked = viewModel.isSelected(conversation)
         return Image(systemName: picked ? "checkmark.circle.fill" : "circle")
-            .font(.system(size: 22))
+            .scaledFont(22)
             .foregroundStyle(picked ? themeManager.theme.primary : AppColors.textTertiary(colorScheme))
     }
 }

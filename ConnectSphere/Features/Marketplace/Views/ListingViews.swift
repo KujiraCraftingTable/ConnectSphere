@@ -29,7 +29,7 @@ struct ListingPostCard: View {
                         Task<Void, Never>(name: nil) { chatId = await viewModel.messageSeller(token: appState.authToken ?? "") }
                     } label: {
                         Label(bundle.loc("Message seller"), systemImage: "message.fill")
-                            .font(.system(size: 14, weight: .semibold))
+                            .scaledFont(14, .semibold)
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 10)
@@ -39,7 +39,7 @@ struct ListingPostCard: View {
                     .disabled(viewModel.isOpeningChat)
                 }
                 if let error = viewModel.errorMessage {
-                    Text(error).font(.system(size: 12)).foregroundColor(AppColors.danger(colorScheme))
+                    Text(error).scaledFont(12).foregroundColor(AppColors.danger(colorScheme))
                 }
             }
             .padding(.horizontal, 14)
@@ -76,7 +76,7 @@ struct ListingSummary: View {
                     Label(location, systemImage: "mappin.and.ellipse").labelStyle(.titleAndIcon)
                 }
             }
-            .font(.system(size: 13))
+            .scaledFont(13)
             .foregroundColor(AppColors.textSecondary(colorScheme))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -87,7 +87,7 @@ struct SoldBadge: View {
     @Environment(\.appBundle) private var bundle
     var body: some View {
         Text(bundle.loc("Sold"))
-            .font(.system(size: 11, weight: .bold))
+            .scaledFont(11, .bold)
             .foregroundColor(.white)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
@@ -101,7 +101,7 @@ struct ReupBadge: View {
     let text: String
     var body: some View {
         Text(text)
-            .font(.system(size: 11, weight: .bold))
+            .scaledFont(11, .bold)
             .foregroundColor(themeManager.theme.primary)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
@@ -136,7 +136,7 @@ struct ListingCard: View {
         if let listing = post.listingData {
             VStack(alignment: .leading, spacing: 3) {
                 Text(listing.priceText(loc: bundle.loc))
-                    .font(.system(size: 15, weight: .bold))
+                    .scaledFont(15, .bold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 if listing.isSold || listing.reupCount > 0 || listing.autoReup != nil {
                     HStack(spacing: 6) {
@@ -145,7 +145,7 @@ struct ListingCard: View {
                         // Only the seller's own items carry a schedule.
                         if listing.autoReup != nil {
                             Image(systemName: "arrow.triangle.2.circlepath")
-                                .font(.system(size: 11, weight: .bold))
+                                .scaledFont(11, .bold)
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
                                 .accessibilityLabel(Text("Auto re-up", bundle: bundle))
                         }
@@ -153,12 +153,12 @@ struct ListingCard: View {
                 }
                 // One line, "…" when longer, so every card is the same height.
                 Text(listing.title)
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .lineLimit(1)
                     .truncationMode(.tail)
                 Text([post.timestamp.timeAgoString, listing.location].compactMap { $0 }.joined(separator: " · "))
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .lineLimit(1)
             }
@@ -204,7 +204,7 @@ struct ListingDetailView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         ListingSummary(listing: listing, large: true)
                         Text(viewModel.post.timestamp.timeAgoString)
-                            .font(.system(size: 13))
+                            .scaledFont(13)
                             .foregroundColor(AppColors.textTertiary(colorScheme))
                     }
                     .padding(.horizontal, AppSpacing.lg)
@@ -216,12 +216,12 @@ struct ListingDetailView: View {
                 if !viewModel.post.content.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Description", bundle: bundle)
-                            .font(.system(size: 15, weight: .semibold))
+                            .scaledFont(15, .semibold)
                         Text(viewModel.post.isMarkdown
                              ? MarkdownFormatter.attributed(viewModel.post.content, linkColor: themeManager.theme.primary,
                                                             quoteColor: AppColors.textSecondary(colorScheme))
                              : AttributedString(viewModel.post.content))
-                            .font(.system(size: 15))
+                            .scaledFont(15)
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                             .environment(\.openURL, OpenURLAction { url in
                                 if let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
@@ -240,7 +240,7 @@ struct ListingDetailView: View {
                 sellerRow
                     .padding(.horizontal, AppSpacing.lg)
                 if let error = viewModel.errorMessage {
-                    Text(error).font(.system(size: 13)).foregroundColor(AppColors.danger(colorScheme))
+                    Text(error).scaledFont(13).foregroundColor(AppColors.danger(colorScheme))
                         .padding(.horizontal, AppSpacing.lg)
                 }
             }
@@ -262,15 +262,15 @@ struct ListingDetailView: View {
                 .foregroundColor(themeManager.theme.primary)
             VStack(alignment: .leading, spacing: 2) {
                 Text(listing.autoReupText(bundle: bundle) ?? "")
-                    .font(.system(size: 14, weight: .semibold))
+                    .scaledFont(14, .semibold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 if let next = listing.nextAutoReupText(bundle: bundle) {
-                    Text(next).font(.system(size: 12)).foregroundColor(AppColors.textSecondary(colorScheme))
+                    Text(next).scaledFont(12).foregroundColor(AppColors.textSecondary(colorScheme))
                 }
             }
             Spacer()
             Button(bundle.loc("Cancel")) { confirmCancelAuto = true }
-                .font(.system(size: 14, weight: .semibold))
+                .scaledFont(14, .semibold)
                 .foregroundColor(AppColors.danger(colorScheme))
                 .buttonStyle(.plain)
                 .confirmationDialog(bundle.loc("Stop auto re-up?"), isPresented: $confirmCancelAuto, titleVisibility: .visible) {
@@ -293,15 +293,15 @@ struct ListingDetailView: View {
                 AvatarView(user: viewModel.post.author, size: 40)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(viewModel.post.author.name)
-                        .font(.system(size: 15, weight: .semibold))
+                        .scaledFont(15, .semibold)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                     Text(String(format: bundle.loc("Listed in %@"), listedIn))
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, .semibold)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
             }
             .padding(12)
@@ -325,7 +325,7 @@ struct ListingDetailView: View {
                 } else {
                     if listing.isSold {
                         Label(bundle.loc("This item has been sold"), systemImage: "checkmark.seal")
-                            .font(.system(size: 15, weight: .semibold))
+                            .scaledFont(15, .semibold)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
@@ -377,7 +377,7 @@ private struct ListingSquareButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 17, weight: .semibold))
+                .scaledFont(17, .semibold)
                 .foregroundColor(tint ?? AppColors.textPrimary(colorScheme))
                 .frame(width: 46, height: 44)
                 .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 12))
@@ -431,7 +431,7 @@ struct ListingSellerBar: View {
                 if !listing.isSold {
                     Button { confirmReup = true } label: {
                         Text(bundle.loc("Re-up"))
-                            .font(.system(size: 15, weight: .semibold))
+                            .scaledFont(15, .semibold)
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                             .padding(.horizontal, 14)
                             .frame(height: 44)
@@ -482,7 +482,7 @@ private struct ListingButtonStyle: ButtonStyle {
     let fill: Color
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 15, weight: .semibold))
+            .scaledFont(15, .semibold)
             .foregroundColor(.white)
             .padding(.vertical, 12)
             .background(fill.opacity(configuration.isPressed ? 0.8 : 1),

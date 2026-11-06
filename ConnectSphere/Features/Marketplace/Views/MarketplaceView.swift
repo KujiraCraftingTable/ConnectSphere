@@ -107,7 +107,7 @@ struct MarketplaceView: View {
     private func chip(_ title: String, selected: Bool, action: @escaping () async -> Void) -> some View {
         Button { Task<Void, Never>(name: nil) { await action() } } label: {
             Text(title)
-                .font(.system(size: 13, weight: .semibold))
+                .scaledFont(13, .semibold)
                 .lineLimit(1)
                 .foregroundColor(selected ? .white : AppColors.textPrimary(colorScheme))
                 .padding(.horizontal, 12)
@@ -120,10 +120,10 @@ struct MarketplaceView: View {
     private var empty: some View {
         VStack(spacing: 10) {
             Image(systemName: "bag")
-                .font(.system(size: 40))
+                .scaledFont(40)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
             Text(viewModel.errorMessage ?? bundle.loc("Nothing for sale in your communities yet"))
-                .font(.system(size: 15))
+                .scaledFont(15)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .multilineTextAlignment(.center)
         }

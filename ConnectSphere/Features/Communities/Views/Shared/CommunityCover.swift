@@ -30,6 +30,6 @@ struct CommunityCover: View {
     }
 
     private var placeholder: some View {
-        Text(community.iconEmoji).font(.system(size: emojiSize))
+        Text(community.iconEmoji).scaledFont(emojiSize)
     }
 }

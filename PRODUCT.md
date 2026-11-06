@@ -26,7 +26,8 @@ means keyword search that only matches exact words.
 ## Who it's for
 
 People aged **16 and up** (from high school on), since the app mixes a social
-life with a first professional network. Younger people can still use it.
+life with a first professional network. Sign-up is closed under 16 (the
+birthday is self-declared; see [`KNOWN_GAPS.md`](KNOWN_GAPS.md)).
 
 | Group | What they want | Example |
 |---|---|---|

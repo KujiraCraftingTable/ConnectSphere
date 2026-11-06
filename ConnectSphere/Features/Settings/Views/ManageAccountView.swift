@@ -47,11 +47,21 @@ struct ManageAccountView: View {
             } header: {
                 Text("Privacy", bundle: bundle)
             }
+            Section {
+                NavigationLink {
+                    DataExportView(hasVerifiedEmail: user?.emailVerified ?? false)
+                } label: {
+                    SettingsRowLabel(icon: "arrow.down.doc.fill", label: bundle.loc("Download my data"),
+                                     color: Color(hex: "#2196F3"), showsChevron: false)
+                }
+            } header: {
+                Text("Your data", bundle: bundle)
+            }
             if !(user?.emailVerified ?? false) {
                 Section {
                     Button(bundle.loc("Add and verify an email")) { addingEmail = true }
                 } footer: {
-                    Text("Deleting needs a code sent to your verified email, so a stolen password alone can't do it.", bundle: bundle)
+                    Text("With a verified email, deleting needs a code sent to it, so a stolen password alone can't do it. Without one, deleting your account needs your password.", bundle: bundle)
                 }
             }
             Section {
@@ -100,25 +110,25 @@ struct ManageAccountView: View {
                     .fill(Color(hex: "#1E88E5"))
                     .frame(width: 30, height: 30)
                 Image(systemName: "envelope.fill")
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(.white)
             }
             Text("Email", bundle: bundle)
-                .font(.system(size: 16))
+                .scaledFont(16)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             Spacer()
             if let email = user?.email, user?.emailVerified == true {
                 Text(email)
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .lineLimit(1)
                 Image(systemName: "checkmark.seal.fill")
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(.green)
                     .accessibilityLabel(Text(bundle.loc("Verified")))
             } else {
                 Text("Add email", bundle: bundle)
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                     .foregroundColor(themeManager.theme.primary)
             }
         }
@@ -133,15 +143,15 @@ struct ManageAccountView: View {
                     .fill(Color(hex: "#7E57C2"))
                     .frame(width: 30, height: 30)
                 Image(systemName: "at")
-                    .font(.system(size: 14, weight: .semibold))
+                    .scaledFont(14, .semibold)
                     .foregroundColor(.white)
             }
             Text("Username", bundle: bundle)
-                .font(.system(size: 16))
+                .scaledFont(16)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             Spacer()
             Text("@\(username)")
-                .font(.system(size: 15))
+                .scaledFont(15)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .lineLimit(1)
             Button {
@@ -153,9 +163,10 @@ struct ManageAccountView: View {
                 }
             } label: {
                 Image(systemName: copiedUsername ? "checkmark" : "doc.on.doc")
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(themeManager.theme.primary)
             }
+            .accessibilityLabel(copiedUsername ? Bundle.app.loc("Copied") : Bundle.app.loc("Copy username"))
             // Borderless: a plain Button in a List row fires on any tap of the row.
             .buttonStyle(.borderless)
             .accessibilityLabel(Text(bundle.loc(copiedUsername ? "Copied" : "Copy username")))
@@ -164,20 +175,20 @@ struct ManageAccountView: View {
 
     private func row(_ scope: AccountRepository.Scope, icon: String, title: String, detail: String) -> some View {
         NavigationLink {
-            DeleteScopeView(scope: scope) { dismiss() }
+            DeleteScopeView(scope: scope, hasVerifiedEmail: user?.emailVerified ?? false) { dismiss() }
         } label: {
             HStack(spacing: 12) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 7)
                         .fill(scope == .account ? Color.red : AppColors.textTertiary(colorScheme))
                         .frame(width: 30, height: 30)
-                    Image(systemName: icon).font(.system(size: 13)).foregroundColor(.white)
+                    Image(systemName: icon).scaledFont(13).foregroundColor(.white)
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: 16))
+                        .scaledFont(16)
                         .foregroundColor(scope == .account ? .red : AppColors.textPrimary(colorScheme))
-                    Text(detail).font(.system(size: 13)).foregroundColor(AppColors.textSecondary(colorScheme))
+                    Text(detail).scaledFont(13).foregroundColor(AppColors.textSecondary(colorScheme))
                 }
             }
         }
@@ -194,8 +205,8 @@ struct DeleteScopeView: View {
     @State private var confirming = false
     let onDone: () -> Void
 
-    init(scope: AccountRepository.Scope, onDone: @escaping () -> Void) {
-        _viewModel = State(initialValue: DeleteScopeViewModel(scope: scope))
+    init(scope: AccountRepository.Scope, hasVerifiedEmail: Bool = true, onDone: @escaping () -> Void) {
+        _viewModel = State(initialValue: DeleteScopeViewModel(scope: scope, hasVerifiedEmail: hasVerifiedEmail))
         self.onDone = onDone
     }
 
@@ -229,8 +240,9 @@ struct DeleteScopeView: View {
             return [bundle.loc("Both your Hobby and Work profiles"),
                     bundle.loc("All your posts, comments, likes and stories"),
                     bundle.loc("All your connections, followers and chats. Messages you sent stay, shown as “Deleted User”"),
-                    bundle.loc("Your experience, skills, job applications and company pages only you manage"),
-                    bundle.loc("Your email, removed from the account")]
+                    bundle.loc("Your experience, skills, job applications, CV files and company pages only you manage"),
+                    bundle.loc("Your search history, saved posts and the photos you uploaded"),
+                    bundle.loc("Your email, birthday and gender, removed from the account")]
         }
     }
 
@@ -257,7 +269,11 @@ struct DeleteScopeView: View {
                 ForEach(kept, id: \.self) { bullet($0, icon: "checkmark.circle.fill", color: .green) }
             }
             Section {
-                if viewModel.sentTo == nil {
+                if viewModel.usesPassword {
+                    SecureField(bundle.loc("Password"), text: $viewModel.password)
+                    Button(bundle.loc("Delete account"), role: .destructive) { confirming = true }
+                        .disabled(!viewModel.canDelete)
+                } else if viewModel.sentTo == nil {
                     Button(String(format: bundle.loc("Send a code to %@"), AccountCode.mask(appState.currentUser?.email ?? ""))) {
                         Task { await viewModel.sendCode(token: token) }
                     }
@@ -272,14 +288,14 @@ struct DeleteScopeView: View {
                         .listRowInsets(EdgeInsets())
                 }
             } header: {
-                Text("Confirm with your email", bundle: bundle)
+                Text(viewModel.usesPassword ? bundle.loc("Confirm with your password") : bundle.loc("Confirm with your email"))
             } footer: {
                 if let sent = viewModel.sentTo {
                     Text(String(format: bundle.loc("We sent a code to %@. It expires in 10 minutes."), AccountCode.mask(sent)))
                 }
             }
             if let error = viewModel.errorMessage {
-                Section { Text(error).foregroundStyle(.red).font(.system(size: 14)) }
+                Section { Text(error).foregroundStyle(.red).scaledFont(14) }
             }
         }
         .navigationTitle(title)
@@ -305,8 +321,8 @@ struct DeleteScopeView: View {
     /// Not a Label. A List row drops a Label's text.
     private func bullet(_ text: String, icon: String, color: Color) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Image(systemName: icon).foregroundColor(color).font(.system(size: 14))
-            Text(text).font(.system(size: 15)).foregroundColor(AppColors.textPrimary(colorScheme))
+            Image(systemName: icon).foregroundColor(color).scaledFont(14)
+            Text(text).scaledFont(15).foregroundColor(AppColors.textPrimary(colorScheme))
                 .fixedSize(horizontal: false, vertical: true)
         }
     }

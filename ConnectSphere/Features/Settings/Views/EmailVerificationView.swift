@@ -38,7 +38,7 @@ struct OTPCodeField: View {
         let chars = Array(code)
         let isCurrent = focused && index == min(chars.count, length - 1)
         return Text(index < chars.count ? String(chars[index]) : "")
-            .font(.system(size: 22, weight: .semibold, design: .rounded))
+            .scaledFont(22, .semibold, design: .rounded)
             .foregroundColor(AppColors.textPrimary(colorScheme))
             .frame(width: 44, height: 54)
             .background(AppColors.surface(colorScheme), in: RoundedRectangle(cornerRadius: 10))
@@ -132,7 +132,7 @@ struct EmailVerificationView: View {
                 case .newEmail: newEmail
                 }
                 if let error = viewModel.errorMessage {
-                    Section { Text(error).foregroundStyle(.red).font(.system(size: 14)) }
+                    Section { Text(error).foregroundStyle(.red).scaledFont(14) }
                 }
             }
             .animation(.snappy, value: viewModel.stage)
@@ -152,7 +152,7 @@ struct EmailVerificationView: View {
                 Text(current).lineLimit(1)
                 Spacer()
                 Label(bundle.loc("Verified"), systemImage: "checkmark.seal.fill")
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, .semibold)
                     .foregroundStyle(.green)
             }
             Button(bundle.loc("Change email")) { viewModel.startChange() }

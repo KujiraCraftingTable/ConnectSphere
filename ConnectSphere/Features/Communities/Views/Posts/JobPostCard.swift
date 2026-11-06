@@ -32,7 +32,7 @@ struct JobPostCard: View {
             // Job header row
             HStack(spacing: 10) {
                 Image(systemName: "briefcase.fill")
-                    .font(.system(size: 16, weight: .medium))
+                    .scaledFont(16, .medium)
                     .foregroundColor(accentColor)
                     .frame(width: 32, height: 32)
                     .background(accentColor.opacity(0.12))
@@ -40,12 +40,12 @@ struct JobPostCard: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(vm.jobData.title)
-                        .font(.system(size: 15, weight: .semibold))
+                        .scaledFont(15, .semibold)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
 
                     if let subtitle {
                         Text(subtitle)
-                            .font(.system(size: 13))
+                            .scaledFont(13)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
                 }
@@ -54,25 +54,25 @@ struct JobPostCard: View {
 
             if let location = vm.jobData.location, !location.isEmpty {
                 Label(location, systemImage: "mappin.circle")
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }
 
             if let pay = payText {
                 Label(pay, systemImage: "dollarsign.circle")
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }
 
             if let deadline = vm.jobData.applicationDeadline {
                 Label(String(format: bundle.loc("Apply by %@"), formattedDeadline(deadline)), systemImage: "calendar.badge.clock")
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }
 
             NavigationLink { JobDetailView(jobId: vm.jobData.id) { _ in } } label: {
                 Label(bundle.loc("View job"), systemImage: "briefcase")
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, .semibold)
             }
 
             // Actions
@@ -83,12 +83,12 @@ struct JobPostCard: View {
                 }
                 Spacer()
                 Text(String(format: bundle.loc("%d interested"), vm.jobData.interestedCount))
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
             }
 
             if let err = vm.errorMessage {
-                Text(err).font(.system(size: 12)).foregroundColor(.red)
+                Text(err).scaledFont(12).foregroundColor(.red)
             }
         }
         .padding(.horizontal, 14)
@@ -120,9 +120,9 @@ struct JobPostCard: View {
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: isActive ? "checkmark.circle.fill" : "hand.raised")
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                 Text(bundle.loc(isActive ? "Interested" : "I'm interested"))
-                    .font(.system(size: 12, weight: .medium))
+                    .scaledFont(12, .medium)
             }
             .foregroundColor(isActive ? .white : AppColors.textSecondary(colorScheme))
             .padding(.horizontal, 10)
@@ -144,9 +144,9 @@ struct JobPostCard: View {
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "message")
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                 Text("Message", bundle: bundle)
-                    .font(.system(size: 12, weight: .medium))
+                    .scaledFont(12, .medium)
             }
             .foregroundColor(AppColors.textSecondary(colorScheme))
             .padding(.horizontal, 10)

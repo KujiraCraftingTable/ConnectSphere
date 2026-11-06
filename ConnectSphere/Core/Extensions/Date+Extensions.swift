@@ -38,3 +38,11 @@ extension Date {
         return f
     }
 }
+
+extension Date {
+    /// ConnectSphere is 16+: the latest birthday a person may pick. Mirrors
+    /// `BirthdayRules.minimumAge` on the server, which is what enforces it.
+    static var latestBirthdayFor16Plus: Date {
+        Calendar.current.date(byAdding: .year, value: -16, to: Date()) ?? Date()
+    }
+}

@@ -108,14 +108,15 @@ struct StoriesRow: View {
                     ZStack {
                         Circle().fill(themeManager.theme.primary).frame(width: 22, height: 22)
                         Image(systemName: "plus")
-                            .font(.system(size: 12, weight: .bold))
+                            .scaledFont(12, .bold)
                             .foregroundColor(.white)
                     }
                 }
+                .accessibilityLabel(Bundle.app.loc("Add to your story"))
                 .offset(x: 2, y: 2)
             }
             Text("Your story", bundle: bundle)
-                .font(.system(size: 11, weight: .medium))
+                .scaledFont(11, .medium)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
                 .lineLimit(1)
         }
@@ -136,7 +137,7 @@ struct StoriesRow: View {
                 AvatarView(user: group.author, size: 60)
             }
             Text(group.author.name.components(separatedBy: " ").first ?? "")
-                .font(.system(size: 11, weight: .medium))
+                .scaledFont(11, .medium)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
                 .lineLimit(1)
         }

@@ -51,12 +51,12 @@ struct LocationSearchField<Styled: View>: View {
                 Button { pick(result) } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(result.title)
-                            .font(.system(size: 14, weight: .medium))
+                            .scaledFont(14, .medium)
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                             .lineLimit(1)
                         if !result.subtitle.isEmpty {
                             Text(result.subtitle)
-                                .font(.system(size: 12))
+                                .scaledFont(12)
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
                                 .lineLimit(1)
                         }

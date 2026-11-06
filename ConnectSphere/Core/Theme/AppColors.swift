@@ -24,15 +24,18 @@ struct AppColors {
     }
 
     // MARK: Text
+    // Contrast on the app's backgrounds (WCAG AA needs 4.5:1 for normal text):
+    // secondary ≥ 5.8:1 light / 6.3:1 dark, tertiary ≥ 4.5:1 light / 4.6:1 dark.
+    // textDisabled is exempt (disabled controls), keep it for disabled states only.
 
     static func textPrimary(_ scheme: ColorScheme) -> Color {
         scheme == .dark ? .white : Color(hex: "#1A1916")
     }
     static func textSecondary(_ scheme: ColorScheme) -> Color {
-        scheme == .dark ? Color.white.opacity(0.55) : Color(hex: "#6B6960")
+        scheme == .dark ? Color.white.opacity(0.65) : Color(hex: "#5F5D55")
     }
     static func textTertiary(_ scheme: ColorScheme) -> Color {
-        scheme == .dark ? Color.white.opacity(0.30) : Color(hex: "#9E9B94")
+        scheme == .dark ? Color.white.opacity(0.50) : Color(hex: "#6F6D65")
     }
     static func textDisabled(_ scheme: ColorScheme) -> Color {
         scheme == .dark ? Color.white.opacity(0.20) : Color(hex: "#C4C1BA")

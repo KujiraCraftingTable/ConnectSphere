@@ -350,12 +350,12 @@ struct PostCard: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(url.host ?? url.absoluteString)
-                            .font(.system(size: 11))
+                            .scaledFont(11)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                             .textCase(.uppercase)
                         if let title = post.articleTitle {
                             Text(title)
-                                .font(.system(size: 14, weight: .semibold))
+                                .scaledFont(14, .semibold)
                                 .foregroundColor(AppColors.textPrimary(colorScheme))
                                 .lineLimit(2)
                                 .multilineTextAlignment(.leading)
@@ -363,7 +363,7 @@ struct PostCard: View {
                     }
                     Spacer()
                     Image(systemName: "arrow.up.right")
-                        .font(.system(size: 12))
+                        .scaledFont(12)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 .padding(10)
@@ -615,22 +615,24 @@ struct PostCard: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: actions.isLiked ? "hand.thumbsup.fill" : "hand.thumbsup")
-                            .font(.system(size: 20))
+                            .scaledFont(20)
                             .foregroundColor(actions.isLiked ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
                         actionCount(actions.likeCount)
                     }
                 }
+                .accessibilityLabel(Bundle.app.loc("Like"))
 
                 Button {
                     if let onOpenDetail { onOpenDetail(true) } else if let onCommentTap { onCommentTap() } else { showComments = true }
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "bubble.left")
-                            .font(.system(size: 20))
+                            .scaledFont(20)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                         actionCount(actions.commentCount)
                     }
                 }
+                .accessibilityLabel(Bundle.app.loc("Comment"))
             }
 
             Spacer()
@@ -641,18 +643,20 @@ struct PostCard: View {
                     Task { await actions.toggleSave(post: post) }
                 } label: {
                     Image(systemName: actions.isSaved ? "bookmark.fill" : "bookmark")
-                        .font(.system(size: 20))
+                        .scaledFont(20)
                         .foregroundColor(actions.isSaved ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
                 }
+                .accessibilityLabel(actions.isSaved ? Bundle.app.loc("Unsave") : Bundle.app.loc("Save"))
 
                 Button { showShareSheet = true } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "arrowshape.turn.up.right")
-                            .font(.system(size: 20))
+                            .scaledFont(20)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                         actionCount(actions.shareCount)
                     }
                 }
+                .accessibilityLabel(Bundle.app.loc("Share"))
             }
         }
         .padding(.horizontal, 14)
@@ -671,10 +675,10 @@ struct PostCard: View {
                         AvatarView(user: shared.author, size: 30)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(shared.author.name)
-                                .font(.system(size: 14, weight: .semibold))
+                                .scaledFont(14, .semibold)
                                 .foregroundColor(AppColors.textPrimary(colorScheme))
                             Text(shared.timestamp.timeAgoString)
-                                .font(.system(size: 12))
+                                .scaledFont(12)
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
                         }
                     }
@@ -689,7 +693,7 @@ struct PostCard: View {
                              ? MarkdownFormatter.attributed(sharedText, linkColor: themeManager.theme.primary,
                                                             quoteColor: AppColors.textSecondary(colorScheme))
                              : AttributedString(sharedText))
-                            .font(.system(size: 14))
+                            .scaledFont(14)
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                             .environment(\.openURL, OpenURLAction { url in openLink(url); return .handled })
                             .lineLimit(6)
@@ -709,7 +713,7 @@ struct PostCard: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 Text("This content no longer exists", bundle: bundle)
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)

@@ -33,12 +33,12 @@ struct HashtagInputView: View {
 
             if capReached {
                 Text(String(format: bundle.loc("Maximum of %d hashtags reached"), controller.maxHashtags))
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
             } else {
                 VStack(alignment: .leading, spacing: 0) {
                     TextField(bundle.loc("Add a hashtag (#topic)"), text: $controller.currentText)
-                        .font(.system(size: 15))
+                        .scaledFont(15)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled(true)
@@ -88,14 +88,15 @@ struct HashtagInputView: View {
     private func chip(for tag: String) -> some View {
         HStack(spacing: 4) {
             Text("#\(tag)")
-                .font(.system(size: 13, weight: .medium))
+                .scaledFont(13, .medium)
                 .lineLimit(1)
             Button {
                 hashtags.removeAll { $0 == tag }
             } label: {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 13))
+                    .scaledFont(13)
             }
+            .accessibilityLabel(Bundle.app.loc("Remove tag"))
             .buttonStyle(.plain)
         }
         .foregroundColor(themeManager.theme.primary)
@@ -114,11 +115,11 @@ struct HashtagInputView: View {
                 } label: {
                     HStack {
                         Text("#\(suggestion.tag)")
-                            .font(.system(size: 14, weight: .medium))
+                            .scaledFont(14, .medium)
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                         Spacer()
                         Text("\(suggestion.usageCount)")
-                            .font(.system(size: 12))
+                            .scaledFont(12)
                             .foregroundColor(AppColors.textTertiary(colorScheme))
                     }
                     .padding(.horizontal, 12)

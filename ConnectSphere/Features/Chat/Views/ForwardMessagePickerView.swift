@@ -77,20 +77,20 @@ struct ForwardMessagePickerView: View {
                 Circle().fill(Color(hex: conversation.avatarColor)).frame(width: 44, height: 44)
                 if conversation.isGroup {
                     Image(systemName: "person.3.fill")
-                        .font(.system(size: 16, weight: .semibold))
+                        .scaledFont(16, .semibold)
                         .foregroundColor(.white)
                 } else {
                     Text(String(conversation.displayName.prefix(1)))
-                        .font(.system(size: 17, weight: .bold))
+                        .scaledFont(17, .bold)
                         .foregroundColor(.white)
                 }
             }
             Text(conversation.displayName)
-                .font(.system(size: 15, weight: .semibold))
+                .scaledFont(15, .semibold)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             Spacer()
             Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 22))
+                .scaledFont(22)
                 .foregroundColor(isSelected ? themeManager.theme.primary : AppColors.textTertiary(colorScheme))
         }
         .contentShape(Rectangle())
@@ -100,10 +100,10 @@ struct ForwardMessagePickerView: View {
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "bubble.left.and.bubble.right")
-                .font(.system(size: 40))
+                .scaledFont(40)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
             Text("No other conversations to forward to", bundle: bundle)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)

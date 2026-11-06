@@ -127,7 +127,7 @@ struct AuthTextField: View {
             if let prefix = prefix {
                 Text(prefix)
                     .foregroundColor(AppColors.textSecondary(.light))
-                    .font(.system(size: 15))
+                    .scaledFont(15)
             }
 
             Group {
@@ -145,7 +145,7 @@ struct AuthTextField: View {
                 }
             }
             .foregroundColor(AppColors.textPrimary(.light))
-            .font(.system(size: 15))
+            .scaledFont(15)
             .modifier(OptionalFocus(binding: isFocused))
 
             if let characterLimit {
@@ -156,8 +156,9 @@ struct AuthTextField: View {
                 Button(action: { isRevealed.toggle() }) {
                     Image(systemName: isRevealed ? "eye.slash" : "eye")
                         .foregroundColor(AppColors.textTertiary(.light))
-                        .font(.system(size: 14))
+                        .scaledFont(14)
                 }
+                .accessibilityLabel(isRevealed ? Bundle.app.loc("Hide password") : Bundle.app.loc("Show password"))
             }
         }
         .padding(.horizontal, 16)
@@ -212,7 +213,7 @@ struct LabelDivider: View {
                 .fill(AppColors.borderDefault(.light))
                 .frame(height: 1)
             Text(label)
-                .font(.system(size: 12, weight: .medium))
+                .scaledFont(12, .medium)
                 .foregroundColor(AppColors.textTertiary(.light))
                 .fixedSize()
             Rectangle()

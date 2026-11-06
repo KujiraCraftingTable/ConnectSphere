@@ -46,12 +46,13 @@ struct EditProfileView: View {
                                     .frame(width: 28, height: 28)
                                 // Pencil once there's a cover to edit; camera to add the first one.
                                 Image(systemName: hasCover ? "pencil" : "camera.fill")
-                                    .font(.system(size: 13, weight: .semibold))
+                                    .scaledFont(13, .semibold)
                                     .foregroundColor(.white)
                             }
                             .padding(8)
                         }
                     }
+                    .accessibilityLabel(hasCover ? Bundle.app.loc("Edit cover photo") : Bundle.app.loc("Add cover photo"))
                     .buttonStyle(.plain)
                     .listRowInsets(EdgeInsets())
                     .accessibilityLabel(Text(hasCover ? "Edit cover photo" : "Add cover photo", bundle: bundle))
@@ -74,7 +75,7 @@ struct EditProfileView: View {
                                     Circle().fill(themeManager.theme.primary)
                                         .frame(width: 28, height: 28)
                                     Image(systemName: "camera.fill")
-                                        .font(.system(size: 13))
+                                        .scaledFont(13)
                                         .foregroundColor(.white)
                                 }
                             }
@@ -95,7 +96,7 @@ struct EditProfileView: View {
                         .focused($bioFocused)
                     LocationSearchField(bundle.loc("Location"), text: $viewModel.location)
                     DatePicker(bundle.loc("Date of birth"), selection: $viewModel.dobDate,
-                               displayedComponents: .date)
+                               in: ...Date.latestBirthdayFor16Plus, displayedComponents: .date)
                         .disabled(viewModel.isDobLocked)
                     dobNote
 
@@ -168,7 +169,7 @@ struct EditProfileView: View {
                 if let errorMessage = viewModel.errorMessage {
                     Section {
                         Text(errorMessage)
-                            .font(.system(size: 13))
+                            .scaledFont(13)
                             .foregroundColor(.red)
                     }
                 }
@@ -253,7 +254,7 @@ struct EditProfileView: View {
                  ? String(format: bundle.loc("You've used both birthday changes. To change it again, email %@."),
                           EditProfileViewModel.supportEmail)
                  : String(format: bundle.loc(left == 1 ? "You can change your birthday 1 more time." : "You can change your birthday %lld more times."), left))
-                .font(.system(size: 13))
+                .scaledFont(13)
                 .foregroundColor(left == 0 ? AppColors.danger(colorScheme) : AppColors.textSecondary(colorScheme))
         }
     }

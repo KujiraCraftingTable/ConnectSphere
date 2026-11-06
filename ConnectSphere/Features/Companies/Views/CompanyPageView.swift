@@ -97,19 +97,19 @@ struct CompanyPageView: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
                     Text(company.name)
-                        .font(.system(size: 22, weight: .bold))
+                        .scaledFont(22, .bold)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                     if company.isVerified { OfficialBadge() }
                 }
                 let summary = company.summary { String(format: bundle.loc("%@ employees"), $0) }
                 if !summary.isEmpty {
                     Text(summary)
-                        .font(.system(size: 14))
+                        .scaledFont(14)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 Text(String(format: bundle.loc(company.followerCount == 1 ? "%lld follower" : "%lld followers"),
                             company.followerCount))
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
 
                 Button {
@@ -117,7 +117,7 @@ struct CompanyPageView: View {
                 } label: {
                     Label(bundle.loc(company.isFollowing ? "Following" : "Follow"),
                           systemImage: company.isFollowing ? "checkmark" : "plus")
-                        .font(.system(size: 15, weight: .semibold))
+                        .scaledFont(15, .semibold)
                         .foregroundColor(company.isFollowing ? AppColors.textPrimary(colorScheme) : .white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
@@ -143,7 +143,7 @@ struct CompanyPageView: View {
         VStack(alignment: .leading, spacing: 14) {
             if let about = company.about {
                 Text(about)
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -178,10 +178,10 @@ struct CompanyPageView: View {
                 .foregroundColor(AppColors.textTertiary(colorScheme))
             VStack(alignment: .leading, spacing: 2) {
                 Text(label)
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
                 value()
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
             }
         }
@@ -190,10 +190,10 @@ struct CompanyPageView: View {
     private func emptyTab(icon: String, text: String) -> some View {
         VStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 30))
+                .scaledFont(30)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
             Text(text)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .multilineTextAlignment(.center)
         }
@@ -228,7 +228,7 @@ struct CompanyRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 4) {
                     Text(company.name)
-                        .font(.system(size: 16, weight: .semibold))
+                        .scaledFont(16, .semibold)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                         .lineLimit(1)
                     if company.isVerified { OfficialBadge(compact: true) }
@@ -236,13 +236,13 @@ struct CompanyRow: View {
                 let summary = company.summary { String(format: bundle.loc("%@ employees"), $0) }
                 if !summary.isEmpty {
                     Text(summary)
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                         .lineLimit(1)
                 }
                 Text(String(format: bundle.loc(company.followerCount == 1 ? "%lld follower" : "%lld followers"),
                             company.followerCount))
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
             }
             Spacer(minLength: 0)

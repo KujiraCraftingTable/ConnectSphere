@@ -81,7 +81,7 @@ struct GrowthChart: View {
 
     private var noDataPlaceholder: some View {
         Text("No data yet for this period", bundle: bundle)
-            .font(.system(size: 14))
+            .scaledFont(14)
             .foregroundColor(AppColors.textTertiary(colorScheme))
             .frame(maxWidth: .infinity, alignment: .center)
             .frame(height: 180)

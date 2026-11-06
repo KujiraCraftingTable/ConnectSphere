@@ -52,10 +52,10 @@ struct CommentsSection: View {
                     .padding(.vertical, 40)
             } else if viewModel.comments.isEmpty {
                 VStack(spacing: 12) {
-                    Image(systemName: "bubble.left").font(.system(size: 40))
+                    Image(systemName: "bubble.left").scaledFont(40)
                         .foregroundColor(AppColors.textSecondary(colorScheme).opacity(0.4))
                     Text("No comments yet", bundle: bundle)
-                        .font(.system(size: 15))
+                        .scaledFont(15)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 .frame(maxWidth: .infinity)
@@ -111,9 +111,9 @@ struct CommentsSection: View {
                 HStack(spacing: 4) {
                     Text(sortOrderLabel(viewModel.sortOrder))
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .semibold))
+                        .scaledFont(10, .semibold)
                 }
-                .font(.system(size: 13, weight: .bold))
+                .scaledFont(13, .bold)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
             }
             Spacer()
@@ -198,12 +198,12 @@ struct CommentsSection: View {
     private func mutedRow(_ comment: CommentDTO) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "speaker.slash")
-                .font(.system(size: 12))
+                .scaledFont(12)
             Text("Hidden: contains a word you muted", bundle: bundle)
-                .font(.system(size: 13))
+                .scaledFont(13)
             Text("·")
             Button { withAnimation(.snappy) { viewModel.reveal(comment.id) } } label: {
-                Text("Show", bundle: bundle).font(.system(size: 13, weight: .semibold))
+                Text("Show", bundle: bundle).scaledFont(13, .semibold)
             }
             .buttonStyle(.plain)
             .foregroundColor(themeManager.theme.primary)
@@ -412,7 +412,7 @@ struct CommentRow: View {
                      ? MarkdownFormatter.attributed(shown, linkColor: themeManager.theme.primary,
                                                     quoteColor: AppColors.textSecondary(colorScheme))
                      : AttributedString(shown))
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .fixedSize(horizontal: false, vertical: true)
                     .environment(\.openURL, OpenURLAction { url in openCommentLink(url); return .handled })
@@ -455,16 +455,16 @@ struct CommentRow: View {
     private var metaRow: some View {
         HStack(spacing: 14) {
             Text(comment.createdAt.timeAgoString)
-                .font(.system(size: 12))
+                .scaledFont(12)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
 
             if let onLike {
                 Button(action: onLike) {
                     HStack(spacing: 3) {
                         Image(systemName: comment.isLiked ? "heart.fill" : "heart")
-                            .font(.system(size: 12))
+                            .scaledFont(12)
                         if comment.likeCount > 0 {
-                            Text("\(comment.likeCount)").font(.system(size: 12))
+                            Text("\(comment.likeCount)").scaledFont(12)
                         }
                     }
                     .foregroundColor(comment.isLiked ? AppColors.danger(colorScheme) : AppColors.textSecondary(colorScheme))
@@ -474,7 +474,7 @@ struct CommentRow: View {
             if let onReply {
                 Button(action: onReply) {
                     Text("Reply", bundle: bundle)
-                        .font(.system(size: 12, weight: .semibold))
+                        .scaledFont(12, .semibold)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 .buttonStyle(.plain)
@@ -488,7 +488,7 @@ struct CommentRow: View {
     private var editRow: some View {
         HStack(spacing: 8) {
             TextField(bundle.loc("Write a comment..."), text: editingText, axis: .vertical)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .lineLimit(4)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
@@ -497,16 +497,18 @@ struct CommentRow: View {
 
             Button(action: { onSaveEdit?() }) {
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 20))
+                    .scaledFont(20)
                     .foregroundColor(themeManager.theme.primary)
             }
+            .accessibilityLabel(Bundle.app.loc("Save"))
             .disabled(editingText.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
             Button(action: { onCancelEdit?() }) {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 20))
+                    .scaledFont(20)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }
+            .accessibilityLabel(Bundle.app.loc("Cancel"))
         }
     }
 
@@ -533,7 +535,7 @@ struct CommentRow: View {
                 .fill(Color(hex: comment.author.avatarColor))
                 .frame(width: Self.avatarSize, height: Self.avatarSize)
             Text(String(comment.author.displayName.prefix(1)).uppercased())
-                .font(.system(size: 14, weight: .bold))
+                .scaledFont(14, .bold)
                 .foregroundColor(.white)
         }
     }

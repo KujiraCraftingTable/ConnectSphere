@@ -72,8 +72,25 @@ struct AccountRepository {
         return AppMode(rawValue: r.defaultMode) ?? (mode == .hobby ? .work : .hobby)
     }
 
-    func deleteAccount(code: String, token: String) async throws {
+    func sendExportCode(token: String) async throws -> Sent {
+        try await client.fetch(Sent.self, path: "/users/me/export/code", method: "POST", token: token, bodyData: try body([:]))
+    }
+
+    /// The person's data as the server's JSON file, confirmed with the emailed
+    /// `code` (or, with no verified email, the `password`).
+    func exportData(code: String, password: String?, token: String) async throws -> Data {
+        struct AnyJSON: Decodable {}
+        var fields = ["code": code]
+        if let password { fields["password"] = password }
+        return try await client.fetchRaw(AnyJSON.self, path: "/users/me/export", method: "POST", token: token,
+                                         bodyData: try body(fields)).body
+    }
+
+    /// With a verified email the emailed `code` confirms; without one, the `password` does.
+    func deleteAccount(code: String, password: String?, token: String) async throws {
+        var fields = ["code": code]
+        if let password { fields["password"] = password }
         _ = try await client.fetch(OKResponse.self, path: "/users/me", method: "DELETE", token: token,
-                                   bodyData: try body(["code": code]))
+                                   bodyData: try body(fields))
     }
 }

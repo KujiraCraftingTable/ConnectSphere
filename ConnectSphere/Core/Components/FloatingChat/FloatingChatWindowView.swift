@@ -108,7 +108,7 @@ private struct FloatingChatLabel: View {
                            imageURL: active.peer.avatarUrl, size: .xs)
                     VStack(alignment: .leading, spacing: 0) {
                         Text(active.peer.name)
-                            .font(.system(size: 12, weight: .semibold))
+                            .scaledFont(12, .semibold)
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                             .lineLimit(1)
                         if presenter.bubbles.count > 1, let index = presenter.activeIndex {
@@ -124,7 +124,7 @@ private struct FloatingChatLabel: View {
                 }
                 Button(action: onAdd) {
                     Image(systemName: "plus")
-                        .font(.system(size: 12, weight: .bold))
+                        .scaledFont(12, .bold)
                         .foregroundColor(themeManager.theme.primary)
                         .frame(width: 22, height: 22)
                         .contentShape(Rectangle())
@@ -134,7 +134,7 @@ private struct FloatingChatLabel: View {
                 if let active = presenter.active {
                     Button { withAnimation(.snappy) { presenter.close(active) } } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 10, weight: .bold))
+                            .scaledFont(10, .bold)
                             .foregroundColor(AppColors.textTertiary(colorScheme))
                             .frame(width: 22, height: 22)
                             .contentShape(Rectangle())
@@ -160,7 +160,7 @@ private struct FloatingChatLabel: View {
                 Text(count > 99 ? "99+" : "\(count)")
                 if !leading { Image(systemName: "chevron.right") }
             }
-            .font(.system(size: 10, weight: .bold))
+            .scaledFont(10, .bold)
             .foregroundColor(.white)
             .padding(.horizontal, 5)
             .padding(.vertical, 2)
@@ -191,7 +191,7 @@ private struct FloatingChatPage: View {
                 LazyVStack(spacing: 6) {
                     if bubble.viewModel.messages.isEmpty {
                         Text("No messages yet", bundle: bundle)
-                            .font(.system(size: 11))
+                            .scaledFont(11)
                             .foregroundColor(AppColors.textTertiary(colorScheme))
                             .padding(.top, 20)
                     } else {
@@ -214,7 +214,7 @@ private struct FloatingChatPage: View {
             // New since the last tap. Tapping the chat marks them seen.
             if bubble.unreadCount > 0 {
                 Text(String(format: bundle.loc("%lld new"), bubble.unreadCount))
-                    .font(.system(size: 11, weight: .semibold))
+                    .scaledFont(11, .semibold)
                     .foregroundColor(.white)
                     .padding(.horizontal, 9)
                     .padding(.vertical, 4)
@@ -245,7 +245,7 @@ struct FloatingChatStashTab: View {
 
     var body: some View {
         Image(systemName: edge == .leading ? "chevron.compact.right" : "chevron.compact.left")
-            .font(.system(size: 22, weight: .semibold))
+            .scaledFont(22, .semibold)
             .foregroundStyle(.primary)
             .frame(width: 28, height: 64)
             .modifier(StashTabGlass(edge: edge))

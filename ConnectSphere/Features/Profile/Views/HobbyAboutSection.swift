@@ -24,7 +24,7 @@ struct HobbyAboutSection: View {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {
                         Text("About", bundle: bundle)
-                            .font(.system(size: 18, weight: .bold))
+                            .scaledFont(18, .bold)
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                         Spacer()
                     }
@@ -38,7 +38,7 @@ struct HobbyAboutSection: View {
                     ForEach(viewModel.schools) { schoolRow($0) }
                     if isMe && isEmpty && viewModel.loaded {
                         Text("Add where you studied, the languages you speak and your relationship status in Edit profile.", bundle: bundle)
-                            .font(.system(size: 14))
+                            .scaledFont(14)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
                 }
@@ -53,11 +53,11 @@ struct HobbyAboutSection: View {
     private func row(icon: String, text: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 15))
+                .scaledFont(15)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .frame(width: 22)
             Text(text)
-                .font(.system(size: 15))
+                .scaledFont(15)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
         }
     }
@@ -65,17 +65,17 @@ struct HobbyAboutSection: View {
     private func schoolRow(_ school: Education) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: school.schoolType == .highSchool ? "book.closed.fill" : "graduationcap.fill")
-                .font(.system(size: 15))
+                .scaledFont(15)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .frame(width: 22)
             VStack(alignment: .leading, spacing: 2) {
                 Text(school.schoolName)
-                    .font(.system(size: 15, weight: .semibold))
+                    .scaledFont(15, .semibold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 let detail = [school.major, school.yearsText(loc: bundle.loc)].compactMap { $0 }
                 if !detail.isEmpty {
                     Text(detail.joined(separator: " · "))
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
             }

@@ -19,9 +19,9 @@ struct CommunityNotificationsSheet: View {
                             HStack(alignment: .top, spacing: 12) {
                                 Image(systemName: icon(level)).frame(width: 24)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(bundle.loc(title(level))).font(.system(size: 16))
+                                    Text(bundle.loc(title(level))).scaledFont(16)
                                     Text(bundle.loc(detail(level)))
-                                        .font(.system(size: 13))
+                                        .scaledFont(13)
                                         .foregroundStyle(.secondary)
                                 }
                                 Spacer()

@@ -156,10 +156,10 @@ struct SearchView: View {
             HStack(spacing: 8) {
                 HStack(spacing: 8) {
                     Image(systemName: aiEnabled ? "sparkles" : "magnifyingglass")
-                        .font(.system(size: 15, weight: .medium))
+                        .scaledFont(15, .medium)
                         .foregroundColor(aiEnabled ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
                     TextField("", text: $searchText, prompt: Text(placeholder))
-                        .font(.system(size: 15))
+                        .scaledFont(15)
                         .focused($isFieldFocused)
                         .submitLabel(.search)
                         .onSubmit(runAI)
@@ -214,7 +214,7 @@ struct SearchView: View {
                 Image(systemName: "sparkles")
                 Text("AI", bundle: bundle)
             }
-            .font(.system(size: 14, weight: .semibold))
+            .scaledFont(14, .semibold)
             .foregroundColor(aiEnabled ? .white : AppColors.textSecondary(colorScheme))
             .padding(.horizontal, 12)
             .frame(height: 40)
@@ -278,7 +278,7 @@ struct SearchView: View {
     private var quickMatchesCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Quick matches", bundle: bundle)
-                .font(.system(size: 13, weight: .semibold))
+                .scaledFont(13, .semibold)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
             ForEach(viewModel.quickMatches) { user in
                 if appState.currentMode == .hobby {
@@ -401,7 +401,7 @@ struct SearchView: View {
 
     private func resultCount(_ count: Int) -> some View {
         Text(String(format: bundle.loc("%d results"), count))
-            .font(.system(size: 13))
+            .scaledFont(13)
             .foregroundColor(AppColors.textSecondary(colorScheme))
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 4)
@@ -415,7 +415,7 @@ struct SearchView: View {
             Image(systemName: "sparkles")
             Text(String(format: bundle.loc("%d%% match"), Int((score * 100).rounded())))
         }
-        .font(.system(size: 12, weight: .semibold))
+        .scaledFont(12, .semibold)
         .foregroundColor(themeManager.theme.primary)
         .padding(.horizontal, 10)
         .padding(.vertical, 4)
@@ -425,7 +425,7 @@ struct SearchView: View {
 
     private func searchHint(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 14))
+            .scaledFont(14)
             .foregroundColor(AppColors.textSecondary(colorScheme))
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)
@@ -436,10 +436,10 @@ struct SearchView: View {
     private var emptyKeywordState: some View {
         VStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 36))
+                .scaledFont(36)
                 .foregroundColor(AppColors.textSecondary(colorScheme).opacity(0.4))
             Text("No results found", bundle: bundle)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
         }
         .frame(maxWidth: .infinity)
@@ -476,7 +476,7 @@ struct SearchView: View {
             .disabled(viewModel.isRefining)
             if let message = viewModel.refineError {
                 Text(message)
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .padding(.horizontal, 4)
             }
@@ -511,7 +511,7 @@ struct SearchView: View {
             Image(systemName: icon)
             Text(title).lineLimit(1)
         }
-        .font(.system(size: 13, weight: .medium))
+        .scaledFont(13, .medium)
         .foregroundColor(themeManager.theme.primary)
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
@@ -524,10 +524,10 @@ struct SearchView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 4) {
                 Image(systemName: "flame.fill")
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(themeManager.theme.primary)
                 Text("Trending", bundle: bundle)
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, .semibold)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }
             ForEach(viewModel.suggestions.prefix(4), id: \.self) { suggestion in
@@ -538,10 +538,10 @@ struct SearchView: View {
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: "sparkles")
-                            .font(.system(size: 12))
+                            .scaledFont(12)
                             .foregroundColor(themeManager.theme.primary)
                         Text(suggestion)
-                            .font(.system(size: 14))
+                            .scaledFont(14)
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                             .multilineTextAlignment(.leading)
                         Spacer(minLength: 0)
@@ -571,9 +571,9 @@ struct SearchView: View {
             // Header
             HStack(spacing: 6) {
                 Image(systemName: "sparkles")
-                    .font(.system(size: 12, weight: .semibold))
+                    .scaledFont(12, .semibold)
                 Text("AI search keywords", bundle: bundle)
-                    .font(.system(size: 12, weight: .semibold))
+                    .scaledFont(12, .semibold)
             }
             .foregroundColor(themeManager.theme.primary)
 
@@ -582,7 +582,7 @@ struct SearchView: View {
                 ForEach(keywords, id: \.label) { row in
                     HStack(alignment: .top, spacing: 6) {
                         Text("\(row.label):")
-                            .font(.system(size: 12, weight: .medium))
+                            .scaledFont(12, .medium)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                             .frame(width: 64, alignment: .leading)
 
@@ -590,7 +590,7 @@ struct SearchView: View {
                         FlowLayout(spacing: 4) {
                             ForEach(row.values.prefix(5), id: \.self) { kw in
                                 Text(kw)
-                                    .font(.system(size: 12, weight: .medium))
+                                    .scaledFont(12, .medium)
                                     .foregroundColor(themeManager.theme.primary)
                                     .padding(.horizontal, 9)
                                     .padding(.vertical, 3)
@@ -618,9 +618,9 @@ struct SearchView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 6) {
                         Image(systemName: "questionmark.circle")
-                            .font(.system(size: 12, weight: .semibold))
+                            .scaledFont(12, .semibold)
                         Text(String(format: bundle.loc("By \"%@\", did you mean?"), suggestion.keyword))
-                            .font(.system(size: 12, weight: .semibold))
+                            .scaledFont(12, .semibold)
                     }
                     .foregroundColor(themeManager.theme.primary)
 
@@ -631,9 +631,9 @@ struct SearchView: View {
                             } label: {
                                 HStack(spacing: 4) {
                                     Text(candidate.canonical_name)
-                                        .font(.system(size: 12, weight: .medium))
+                                        .scaledFont(12, .medium)
                                     Image(systemName: "plus.circle.fill")
-                                        .font(.system(size: 11))
+                                        .scaledFont(11)
                                 }
                                 .foregroundColor(themeManager.theme.primary)
                                 .padding(.horizontal, 10)
@@ -701,13 +701,13 @@ struct SearchView: View {
             if !messages.isEmpty {
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 13, weight: .semibold))
+                        .scaledFont(13, .semibold)
                         .foregroundColor(AppColors.warning(colorScheme))
                         .padding(.top, 1)
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(messages, id: \.self) { message in
                             Text(message)
-                                .font(.system(size: 13))
+                                .scaledFont(13)
                                 .foregroundColor(AppColors.textPrimary(colorScheme))
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -717,7 +717,7 @@ struct SearchView: View {
                         if let place = unresolvedPlace {
                             if viewModel.clarifyUnconfirmed {
                                 Text("Thanks, we couldn't confirm that one either, so it's been flagged for review.", bundle: bundle)
-                                    .font(.system(size: 12))
+                                    .scaledFont(12)
                                     .foregroundColor(AppColors.textSecondary(colorScheme))
                                     .fixedSize(horizontal: false, vertical: true)
                             } else {
@@ -740,13 +740,13 @@ struct SearchView: View {
     private func clarifyRow(for place: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(String(format: bundle.loc("What is \"%@\"?"), place))
-                .font(.system(size: 12, weight: .semibold))
+                .scaledFont(12, .semibold)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
 
             HStack(alignment: .top, spacing: 8) {
                 LocationSearchField(bundle.loc("e.g. Landmark 81"), text: $clarifyText) { field in
                     field
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .textFieldStyle(.plain)
                         .autocorrectionDisabled()
                         .padding(.horizontal, 10)
@@ -761,7 +761,7 @@ struct SearchView: View {
                         ProgressView().scaleEffect(0.7)
                     } else {
                         Text("Search again", bundle: bundle)
-                            .font(.system(size: 12, weight: .semibold))
+                            .scaledFont(12, .semibold)
                             .foregroundColor(.white)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 7)
@@ -784,14 +784,14 @@ struct SearchView: View {
     private var kujiraEmptyState: some View {
         VStack(spacing: 16) {
             Text("🐳")
-                .font(.system(size: 48))
+                .scaledFont(48)
             VStack(spacing: 6) {
                 Text("Your request is truly unique!", bundle: bundle)
-                    .font(.system(size: 15, weight: .semibold))
+                    .scaledFont(15, .semibold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .multilineTextAlignment(.center)
                 Text("Kujira couldn't find anyone matching your description... What a shame! But at least Kujira has you here~ 💕", bundle: bundle)
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .multilineTextAlignment(.center)
                     .lineSpacing(4)
@@ -806,14 +806,14 @@ struct SearchView: View {
     private var networkErrorState: some View {
         VStack(spacing: 16) {
             Text("🐳")
-                .font(.system(size: 48))
+                .scaledFont(48)
             VStack(spacing: 6) {
                 Text("Couldn't load results", bundle: bundle)
-                    .font(.system(size: 15, weight: .semibold))
+                    .scaledFont(15, .semibold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .multilineTextAlignment(.center)
                 Text("Check your connection and try again", bundle: bundle)
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .multilineTextAlignment(.center)
                     .lineSpacing(4)
@@ -822,7 +822,7 @@ struct SearchView: View {
                 Task { await viewModel.loadAll(mode: appState.currentMode) }
             } label: {
                 Text("Retry", bundle: bundle)
-                    .font(.system(size: 14, weight: .semibold))
+                    .scaledFont(14, .semibold)
                     .foregroundColor(.white)
                     .padding(.horizontal, 24)
                     .padding(.vertical, 9)
@@ -838,14 +838,14 @@ struct SearchView: View {
     private var kujiraRetryState: some View {
         VStack(spacing: 16) {
             Text("🐳")
-                .font(.system(size: 48))
+                .scaledFont(48)
             VStack(spacing: 6) {
                 Text("Kujira ran into a problem!", bundle: bundle)
-                    .font(.system(size: 15, weight: .semibold))
+                    .scaledFont(15, .semibold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .multilineTextAlignment(.center)
                 Text("Maybe the network is weak or Kujira is busy~ Try again later! 🙏", bundle: bundle)
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .multilineTextAlignment(.center)
                     .lineSpacing(4)
@@ -882,20 +882,20 @@ struct FriendSearchCard: View {
                         VStack(alignment: .leading, spacing: 3) {
                             HStack(spacing: 6) {
                                 Text(user.name)
-                                    .font(.system(size: 16, weight: .semibold))
+                                    .scaledFont(16, .semibold)
                                     .foregroundColor(AppColors.textPrimary(colorScheme))
                                     .lineLimit(2)
                                 if let matchPercent { MatchPercentBadge(percent: matchPercent) }
                             }
                             Text(user.bio)
-                                .font(.system(size: 13))
+                                .scaledFont(13)
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
                                 .lineLimit(2)
                                 .fixedSize(horizontal: false, vertical: true)
                             if let location = user.location {
                                 HStack(spacing: 3) {
-                                    Image(systemName: "mappin.circle.fill").font(.system(size: 11))
-                                    Text(location).font(.system(size: 12)).lineLimit(1)
+                                    Image(systemName: "mappin.circle.fill").scaledFont(11)
+                                    Text(location).scaledFont(12).lineLimit(1)
                                 }
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
                             }
@@ -919,7 +919,7 @@ struct FriendSearchCard: View {
                             HStack(spacing: 6) {
                                 ForEach(user.interests, id: \.self) { interest in
                                     Text(interest)
-                                        .font(.system(size: 11, weight: .medium))
+                                        .scaledFont(11, .medium)
                                         .foregroundColor(themeManager.theme.primary)
                                         .padding(.horizontal, 8)
                                         .padding(.vertical, 3)
@@ -930,8 +930,8 @@ struct FriendSearchCard: View {
                     }
 
                     HStack(spacing: 4) {
-                        Image(systemName: "person.2.fill").font(.system(size: 11))
-                        Text(String(format: bundle.loc("%d mutual friends"), user.mutualCount)).font(.system(size: 12))
+                        Image(systemName: "person.2.fill").scaledFont(11)
+                        Text(String(format: bundle.loc("%d mutual friends"), user.mutualCount)).scaledFont(12)
                     }
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
@@ -969,21 +969,21 @@ struct ColleagueSearchCard: View {
                         VStack(alignment: .leading, spacing: 3) {
                             HStack(spacing: 6) {
                                 Text(user.name)
-                                    .font(.system(size: 16, weight: .semibold))
+                                    .scaledFont(16, .semibold)
                                     .foregroundColor(AppColors.textPrimary(colorScheme))
                                     .lineLimit(2)
                                 if let matchPercent { MatchPercentBadge(percent: matchPercent) }
                             }
                             if appState.currentMode == .work, let title = user.jobTitle, let company = user.company {
                                 Text("\(title) · \(company)")
-                                    .font(.system(size: 13, weight: .medium))
+                                    .scaledFont(13, .medium)
                                     .foregroundColor(AppColors.textSecondary(colorScheme))
                                     .lineLimit(2)
                             }
                             if let location = user.location {
                                 HStack(spacing: 3) {
-                                    Image(systemName: "mappin.circle.fill").font(.system(size: 11))
-                                    Text(location).font(.system(size: 12)).lineLimit(1)
+                                    Image(systemName: "mappin.circle.fill").scaledFont(11)
+                                    Text(location).scaledFont(12).lineLimit(1)
                                 }
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
                             }
@@ -1007,7 +1007,7 @@ struct ColleagueSearchCard: View {
                             HStack(spacing: 6) {
                                 ForEach(user.skills.prefix(4), id: \.self) { skill in
                                     Text(skill)
-                                        .font(.system(size: 11, weight: .medium))
+                                        .scaledFont(11, .medium)
                                         .foregroundColor(AppColors.textSecondary(colorScheme))
                                         .padding(.horizontal, 10)
                                         .padding(.vertical, 4)
@@ -1018,8 +1018,8 @@ struct ColleagueSearchCard: View {
                     }
 
                     HStack(spacing: 4) {
-                        Image(systemName: "person.2.fill").font(.system(size: 11))
-                        Text(String(format: bundle.loc("%d mutual connections"), user.mutualCount)).font(.system(size: 12))
+                        Image(systemName: "person.2.fill").scaledFont(11)
+                        Text(String(format: bundle.loc("%d mutual connections"), user.mutualCount)).scaledFont(12)
                     }
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                 }

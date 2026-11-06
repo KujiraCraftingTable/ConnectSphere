@@ -37,7 +37,7 @@ private struct MediaSaveStatusCapsule: View {
                     .foregroundStyle(isError ? Color.red : Color.green)
             }
             Text(message)
-                .font(.system(size: 14, weight: .semibold))
+                .scaledFont(14, .semibold)
                 .multilineTextAlignment(.leading)
         }
         .padding(.horizontal, 14)

@@ -119,6 +119,7 @@
 "Customize appearance" = "Customize appearance";
 "Date of birth (optional)" = "Date of birth (optional)";
 "Date of birth *" = "Date of birth *";
+"You must be 16 or older to use ConnectSphere." = "You must be 16 or older to use ConnectSphere.";
 "Date of birth" = "Date of birth";
 "Date of birth: %@" = "Date of birth: %@";
 "Decline" = "Decline";
@@ -1325,7 +1326,6 @@
 "Verified" = "Verified";
 "Add email" = "Add email";
 "Add and verify an email" = "Add and verify an email";
-"Deleting needs a code sent to your verified email, so a stolen password alone can't do it." = "Deleting needs a code sent to your verified email, so a stolen password alone can't do it.";
 "Delete Hobby profile" = "Delete Hobby profile";
 "Keep your account and your Work profile." = "Keep your account and your Work profile.";
 "Delete Work profile" = "Delete Work profile";
@@ -1667,7 +1667,6 @@
 "Change it" = "Change it";
 "This is your last change. After it, only support (%@) can change your birthday." = "This is your last change. After it, only support (%@) can change your birthday.";
 "After this you'll have 1 change left." = "After this you'll have 1 change left.";
-"Your age decides what you can use in ConnectSphere, like Dating, so a birthday can only be changed twice." = "Your age decides what you can use in ConnectSphere, like Dating, so a birthday can only be changed twice.";
 "Your birthday sets the age shown on your account, so it can only be changed twice." = "Your birthday sets the age shown on your account, so it can only be changed twice.";
 
 /* Marketplace: re-up, photos, price chips */
@@ -1735,3 +1734,41 @@
 "List" = "List";
 "Quote" = "Quote";
 "Link" = "Link";
+// Terms & Privacy consent
+"I am 16 or older and I agree to the" = "I am 16 or older and I agree to the";
+"I agree to the Terms of Service and Privacy Policy" = "I agree to the Terms of Service and Privacy Policy";
+"your agreement to the Terms and Privacy Policy" = "your agreement to the Terms and Privacy Policy";
+"Our Terms and Privacy Policy" = "Our Terms and Privacy Policy";
+"Please read them and agree to keep using ConnectSphere." = "Please read them and agree to keep using ConnectSphere.";
+"Agree and continue" = "Agree and continue";
+"AI-generated" = "AI-generated";
+"Acknowledgements" = "Acknowledgements";
+"With a verified email, deleting needs a code sent to it, so a stolen password alone can't do it. Without one, deleting your account needs your password." = "With a verified email, deleting needs a code sent to it, so a stolen password alone can't do it. Without one, deleting your account needs your password.";
+"Confirm with your password" = "Confirm with your password";
+"Your experience, skills, job applications, CV files and company pages only you manage" = "Your experience, skills, job applications, CV files and company pages only you manage";
+"Your search history, saved posts and the photos you uploaded" = "Your search history, saved posts and the photos you uploaded";
+"Your email, birthday and gender, removed from the account" = "Your email, birthday and gender, removed from the account";
+"Save or share your data file" = "Save or share your data file";
+"Download my data" = "Download my data";
+"Your data" = "Your data";
+"A file with your profile, posts, comments, messages you sent and other data we hold about you." = "A file with your profile, posts, comments, messages you sent and other data we hold about you.";
+
+// VoiceOver labels
+"Add members" = "Add members";
+"Add to your story" = "Add to your story";
+"Cancel reply" = "Cancel reply";
+"Choose a photo" = "Choose a photo";
+"Clear search" = "Clear search";
+"Comment" = "Comment";
+"Delete story" = "Delete story";
+"Hide password" = "Hide password";
+"Minimize chat" = "Minimize chat";
+"Pause" = "Pause";
+"Play" = "Play";
+"Propose a meeting" = "Propose a meeting";
+"Remove link preview" = "Remove link preview";
+"Remove option" = "Remove option";
+"Remove tag" = "Remove tag";
+"Show more" = "Show more";
+"Show password" = "Show password";
+"Please tick to agree before continuing" = "Please tick to agree before continuing";

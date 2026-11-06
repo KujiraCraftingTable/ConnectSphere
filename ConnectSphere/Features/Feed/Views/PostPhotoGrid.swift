@@ -99,16 +99,16 @@ struct PostPhotoGrid: View {
             Color.gray.opacity(0.15)
             VStack(spacing: 6) {
                 Image(systemName: failed ? "exclamationmark.triangle" : "photo")
-                    .font(.system(size: 18))
+                    .scaledFont(18)
                 if !alt.isEmpty {
                     Text(alt)
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .multilineTextAlignment(.center)
                         .lineLimit(4)
                 }
                 if failed {
                     Text("Couldn't load · Tap to retry", bundle: .app)
-                        .font(.system(size: 12, weight: .semibold))
+                        .scaledFont(12, .semibold)
                 } else if alt.isEmpty {
                     ProgressView()
                 }
@@ -158,7 +158,7 @@ struct PostPhotoGrid: View {
                         ZStack {
                             Color.black.opacity(0.45)
                             Text("+\(overflow)")
-                                .font(.system(size: 26, weight: .bold))
+                                .scaledFont(26, .bold)
                                 .foregroundColor(.white)
                         }
                     }

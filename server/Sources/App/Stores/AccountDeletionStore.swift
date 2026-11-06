@@ -124,7 +124,7 @@ enum AccountDeletionStore {
     /// endorsements given, applications, saved jobs, company follows and
     /// admin roles. A company page they alone manage is deleted; one with
     /// other admins gets a new owner if they were it.
-    private static func removeWorkLife(of user: String, on t: any SQLDatabase) async throws {
+    static func removeWorkLife(of user: String, on t: any SQLDatabase) async throws {
         try await t.raw("DELETE FROM work_experiences WHERE user_id = \(uuid: user)").run()
         try await t.raw("DELETE FROM user_skills WHERE user_id = \(uuid: user)").run()
         try await t.raw("DELETE FROM skill_endorsements WHERE endorser_id = \(uuid: user)").run()
@@ -152,5 +152,84 @@ enum AccountDeletionStore {
             """).run()
         try await t.raw("DELETE FROM company_admins WHERE user_id = \(uuid: user)").run()
         try await t.raw("UPDATE users SET job_title = NULL, company = NULL WHERE id = \(uuid: user)").run()
+    }
+
+    // MARK: whole account
+
+    /// Rows that belong to one person and mean nothing without them. Table and
+    /// column names are literals from this list, never user input. Messages,
+    /// conversation memberships and moderation reports are left on purpose:
+    /// other people's chats and the safety record depend on them.
+    private static let personalRows: [(table: String, column: String)] = [
+        ("educations", "user_id"), ("highlights", "user_id"),
+        ("follows", "follower_id"), ("follows", "followee_id"),
+        ("muted_words", "user_id"),
+        ("search_results", "shown_user_id"), ("search_sessions", "user_id"),
+        ("post_impressions", "user_id"),
+        ("post_feedback", "user_id"), ("post_feedback", "author_id"),
+        ("saved_posts", "user_id"), ("hidden_posts", "user_id"), ("story_views", "viewer_id"),
+        ("suggestion_dismissals", "user_id"), ("suggestion_dismissals", "target_id"),
+        ("interest_suggestions", "user_id"), ("recommendation_interests", "user_id"),
+        ("chat_space_members", "user_id"), ("chat_spaces", "owner_id"),
+        ("comment_likes", "user_id"), ("poll_votes", "user_id"), ("event_rsvps", "user_id"),
+        ("community_join_requests", "user_id"),
+        ("community_bans", "user_id"),
+        ("message_reactions", "user_id"), ("message_meeting_rsvps", "user_id"),
+        ("chat_poll_votes", "user_id"), ("conversation_nicknames", "setter_id"),
+        ("conversation_nicknames", "target_id"), ("conversation_block_acks", "user_id"),
+        ("message_receipts", "user_id"), ("listing_auto_replies", "buyer_id"),
+        // The Dating space is archived (legacy/dating), but its tables stay and may still hold rows.
+        ("dating_likes", "from_user"), ("dating_likes", "to_user"),
+        ("dating_matches", "user_a"), ("dating_matches", "user_b"),
+        ("dating_profiles", "user_id"),   // its photos go with it (ON DELETE CASCADE)
+    ]
+
+    /// Everything account deletion removes beyond `removeActivity`: the Work side
+    /// (CV applications, experience, endorsements) and the rest of `personalRows`.
+    static func removePersonalData(of user: String, on t: any SQLDatabase) async throws {
+        try await removeWorkLife(of: user, on: t)
+        for (table, column) in personalRows {
+            try await t.raw("DELETE FROM \(unsafeRaw: table) WHERE \(unsafeRaw: column) = \(uuid: user)").run()
+        }
+    }
+
+    // MARK: uploaded files
+
+    /// The `/uploads/…` files only this person's content uses: their post and
+    /// comment photos, stories, avatars and covers, highlights, Dating photos
+    /// and CVs. Chat media stays, the messages stay for the other people.
+    static func uploadPaths(of user: String, on db: any SQLDatabase) async throws -> [String] {
+        struct P: Decodable { let path: String? }
+        let rows = try await db.raw("""
+            SELECT x AS path FROM (
+              SELECT unnest(image_urls) AS x FROM posts WHERE author_id = \(uuid: user)
+              UNION ALL SELECT image_url FROM comments WHERE author_id = \(uuid: user)
+              UNION ALL SELECT image_url FROM stories WHERE author_id = \(uuid: user)
+              UNION ALL SELECT v FROM users u, LATERAL (VALUES (u.avatar_url), (u.cover_url), (u.hobby_avatar_url),
+                (u.hobby_cover_url), (u.work_avatar_url), (u.work_cover_url)) AS t(v) WHERE u.id = \(uuid: user)
+              UNION ALL SELECT cover_url FROM highlights WHERE user_id = \(uuid: user)
+              UNION ALL SELECT i.image_url FROM highlight_items i JOIN highlights h ON h.id = i.highlight_id WHERE h.user_id = \(uuid: user)
+              UNION ALL SELECT url FROM dating_photos WHERE user_id = \(uuid: user)
+              UNION ALL SELECT cv_url FROM job_applications WHERE applicant_id = \(uuid: user)
+            ) f WHERE x IS NOT NULL
+            """).all(decoding: P.self)
+        return Array(Set(rows.compactMap(\.path)))
+    }
+
+    /// Removes the files (and a photo's `_t.jpg` thumbnail). A failure is logged
+    /// and skipped: the account is already gone and a leftover file is harmless.
+    static func deleteUploads(_ paths: [String], logger: Logger) {
+        let fm = FileManager.default
+        for path in paths {
+            // Only our own uploads folder, never an outside link or a path with "..".
+            guard path.hasPrefix("/uploads/"), !path.contains("..") else { continue }
+            let file = UploadsController.uploadDir + path.dropFirst("/uploads".count)
+            var targets = [file]
+            if let dot = file.lastIndex(of: ".") { targets.append(String(file[..<dot]) + "_t.jpg") }
+            for target in targets where fm.fileExists(atPath: target) {
+                do { try fm.removeItem(atPath: target) }
+                catch { logger.warning("account deletion: could not remove an upload: \(error)") }
+            }
+        }
     }
 }

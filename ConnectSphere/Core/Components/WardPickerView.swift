@@ -75,15 +75,15 @@ struct WardPickerView: View {
     private func pickerRow(icon: String, text: String, isPlaceholder: Bool) -> some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(.secondary)
                 .frame(width: 20)
             Text(text)
-                .font(.system(size: 15))
+                .scaledFont(15)
                 .foregroundColor(isPlaceholder ? .secondary : .primary)
             Spacer()
             Image(systemName: "chevron.up.chevron.down")
-                .font(.system(size: 12))
+                .scaledFont(12)
                 .foregroundColor(.secondary)
         }
         .padding(.horizontal, 14)

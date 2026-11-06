@@ -25,6 +25,8 @@ struct AuthController {
         authed.get("me", use: me)
         authed.get("check-username", use: checkUsername)
         authed.post("setup", use: setup)
+        authed.get("consent", use: consentStatus)
+        authed.post("consent", use: acceptConsent)
         authed.grouped(RateLimitMiddleware.passwordAuth()).post("change-password", use: changePassword)
         limited.post("forgot-password", use: forgotPassword)
         limited.post("reset-password", use: resetPassword)
@@ -56,11 +58,14 @@ struct AuthController {
         var display_name: String?; var dob: String?; var dob_visibility: String?; var bio: String?
         var location: String?; var default_mode: String?; var job_title: String?; var company: String?
         var gender: String?; var interests: [String]?; var skills: [String]?
+        /// `LegalDocs.version` of the Terms and Privacy Policy the person ticked.
+        var accepted_policy_version: String?
 
         var profile: SetupBody {
             SetupBody(username: username, display_name: display_name, dob: dob, dob_visibility: dob_visibility,
                       bio: bio, location: location, default_mode: default_mode, job_title: job_title,
-                      company: company, gender: gender, interests: interests, skills: skills)
+                      company: company, gender: gender, interests: interests, skills: skills,
+                      accepted_policy_version: accepted_policy_version)
         }
     }
 
@@ -136,6 +141,7 @@ struct AuthController {
     /// email (confirmed with its code first), and the whole profile.
     static func registerUser(_ req: Request) async throws -> Response {
         let body = try req.content.decode(RegisterBody.self)
+        try ConsentStore.requireCurrent(body.accepted_policy_version)
         let password = body.password ?? ""
         let db = req.db.sql()
         let username = try await newUsername(body.username, on: db)
@@ -167,6 +173,7 @@ struct AuthController {
                     """).first(decoding: NewRow.self)
                 else { throw Abort(.internalServerError) }
                 try await applyProfile(created.id, username: username, fields, on: t)
+                try await ConsentStore.record(created.id, on: t)
                 if let email { try await SignupCodeStore.take(email, on: t) }
                 return created.id
             }
@@ -390,6 +397,26 @@ struct AuthController {
         return AvailableResponse(available: !taken)
     }
 
+    // MARK: GET/POST /consent
+
+    struct ConsentStatus: Content { var version: String; var accepted: Bool }
+    struct ConsentBody: Content { var version: String? }
+
+    /// Whether this account has agreed to the current Terms and Privacy Policy;
+    /// the app asks again when it hasn't (the texts changed, or the account is
+    /// older than consent records).
+    static func consentStatus(_ req: Request) async throws -> ConsentStatus {
+        ConsentStatus(version: LegalDocs.version,
+                      accepted: try await ConsentStore.hasAcceptedCurrent(req.userID, on: req.db.sql()))
+    }
+
+    static func acceptConsent(_ req: Request) async throws -> ConsentStatus {
+        let body = try req.content.decode(ConsentBody.self)
+        try ConsentStore.requireCurrent(body.version)
+        try await ConsentStore.record(req.userID, on: req.db.sql())
+        return ConsentStatus(version: LegalDocs.version, accepted: true)
+    }
+
     // MARK: POST /setup
 
     struct SetupBody: Content {
@@ -405,6 +432,8 @@ struct AuthController {
         var gender: String?
         var interests: [String]?
         var skills: [String]?
+        /// `LegalDocs.version` of the Terms and Privacy Policy the person ticked.
+        var accepted_policy_version: String?
     }
 
     /// Everything onboarding saves, checked. Shared by `setup` (Google
@@ -435,6 +464,7 @@ struct AuthController {
             guard let dobDate = JSONCoding.dateOnly.date(from: dob) ?? ISO8601DateFormatter().date(from: dob),
                   dobDate < Date()
             else { throw InlineError(.badRequest, "dob must be a valid past date") }
+            guard BirthdayRules.isOldEnough(dob) else { throw InlineError(.badRequest, BirthdayRules.underageReason) }
 
             let dobVisibility = b.dob_visibility ?? "private"
             guard ["private", "public"].contains(dobVisibility) else {
@@ -492,9 +522,14 @@ struct AuthController {
         if try await UserStore.usernameTaken(username, excluding: req.userID, on: db) {
             throw InlineError(.conflict, "Username already taken")
         }
+        // A Google account has agreed to nothing yet; it does so on the last
+        // onboarding step. (Someone who already has is not asked twice.)
+        let alreadyAccepted = try await ConsentStore.hasAcceptedCurrent(req.userID, on: db)
+        if !alreadyAccepted { try ConsentStore.requireCurrent(b.accepted_policy_version) }
         if let picks = fields.interests { fields.interests = try await InterestStore.cleanPicks(picks, userID: req.userID, on: db) }
         fields.skills = try await SkillStore.cleanPicks(fields.skills, userID: req.userID, on: db)
         try await applyProfile(req.userID, username: username, fields, on: db)
+        if !alreadyAccepted { try await ConsentStore.record(req.userID, on: db) }
         return MeResponse(user: try await loadUser(req.userID, db))
     }
 

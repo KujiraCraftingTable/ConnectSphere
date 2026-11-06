@@ -26,7 +26,7 @@ struct ForgotPasswordView: View {
                 if let errorMessage = viewModel.errorMessage {
                     Section {
                         Text(errorMessage)
-                            .font(.system(size: 13))
+                            .scaledFont(13)
                             .foregroundColor(.red)
                     }
                 }
@@ -106,10 +106,10 @@ struct ForgotPasswordView: View {
         Section {
             VStack(spacing: 12) {
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 44))
+                    .scaledFont(44)
                     .foregroundColor(.green)
                 Text("Password reset. Please log in with your new password.", bundle: bundle)
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                     .multilineTextAlignment(.center)
                 Button {
                     dismiss()

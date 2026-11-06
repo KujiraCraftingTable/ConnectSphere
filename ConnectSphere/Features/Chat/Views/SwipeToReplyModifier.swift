@@ -70,7 +70,7 @@ struct SwipeToReplyModifier: ViewModifier {
     private var replyIcon: some View {
         let progress = min(1, abs(offset) / threshold)
         return Image(systemName: "arrowshape.turn.up.left.fill")
-            .font(.system(size: 14, weight: .semibold))
+            .scaledFont(14, .semibold)
             .foregroundStyle(.secondary)
             .frame(width: 32, height: 32)
             .background(.thinMaterial, in: Circle())

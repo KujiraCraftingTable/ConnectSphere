@@ -86,11 +86,11 @@ struct CreateCommunityView: View {
         Group {
             if let err = nameError {
                 Text(err)
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(.red)
             } else if isDuplicateName {
                 Text(duplicateWarning)
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(viewModel.type == .fandom ? themeManager.theme.primary : Color.red)
             }
         }
@@ -124,14 +124,14 @@ struct CreateCommunityView: View {
                                         RoundedRectangle(cornerRadius: 10)
                                             .fill(Color(hex: viewModel.selectedColor).opacity(0.18))
                                             .frame(width: 44, height: 44)
-                                        Text(viewModel.selectedEmoji).font(.system(size: 22))
+                                        Text(viewModel.selectedEmoji).scaledFont(22)
                                     }
                                 }
                                 ZStack {
                                     Circle().fill(themeManager.theme.primary)
                                         .frame(width: 18, height: 18)
                                     Image(systemName: "camera.fill")
-                                        .font(.system(size: 9))
+                                        .scaledFont(9)
                                         .foregroundColor(.white)
                                 }
                             }
@@ -145,7 +145,7 @@ struct CreateCommunityView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             // Edited right on the card: what you type is the name.
                             TextField(bundle.loc("Community name"), text: $viewModel.name)
-                                .font(.system(size: 15, weight: .semibold))
+                                .scaledFont(15, .semibold)
                                 .foregroundColor(AppColors.textPrimary(colorScheme))
                                 .submitLabel(.done)
                                 .onChange(of: viewModel.name) { _, _ in
@@ -154,14 +154,14 @@ struct CreateCommunityView: View {
                                 }
                                 .onChange(of: viewModel.type) { _, _ in refreshWarning() }
                             Text(bundle.loc(viewModel.type.label))
-                                .font(.system(size: 12))
+                                .scaledFont(12)
                                 .foregroundColor(Color(hex: viewModel.selectedColor))
                         }
                         Spacer()
                         if viewModel.pickedImage != nil {
                             Button { viewModel.removePhoto() } label: {
                                 Image(systemName: "trash")
-                                    .font(.system(size: 15))
+                                    .scaledFont(15)
                                     .foregroundColor(AppColors.textSecondary(colorScheme))
                                     .frame(width: 36, height: 36)
                             }
@@ -182,7 +182,7 @@ struct CreateCommunityView: View {
                     formSection(title: bundle.loc("Description (optional)")) {
                         TextEditor(text: $viewModel.description, selection: $descriptionSelection)
                             .focused($descriptionFocused)
-                            .font(.system(size: 15))
+                            .scaledFont(15)
                             .scrollContentBackground(.hidden)
                             .padding(8)
                             .background(AppColors.surface(colorScheme))
@@ -191,7 +191,7 @@ struct CreateCommunityView: View {
                             .frame(height: 80)
                         Text(String(format: bundle.loc("%lld/%lld words"),
                                     CommunityDescription.wordCount(viewModel.description), CommunityDescription.maxWords))
-                            .font(.system(size: 12))
+                            .scaledFont(12)
                             .foregroundColor(AppColors.textTertiary(colorScheme))
                             .frame(maxWidth: .infinity, alignment: .trailing)
                     }
@@ -225,7 +225,7 @@ struct CreateCommunityView: View {
                             HStack(spacing: 10) {
                                 TextField(bundle.loc("Type or paste an emoji…"), text: $customEmojiDraft)
                                     .focused($emojiInputFocused)
-                                    .font(.system(size: 22))
+                                    .scaledFont(22)
                                     .multilineTextAlignment(.center)
                                     .frame(width: 50, height: 44)
                                     .background(AppColors.surface(colorScheme))
@@ -240,14 +240,14 @@ struct CreateCommunityView: View {
                                         customEmojiDraft     = ""
                                     }
                                 Text("Type or paste any emoji", bundle: bundle)
-                                    .font(.system(size: 13))
+                                    .scaledFont(13)
                                     .foregroundColor(AppColors.textTertiary(colorScheme))
                                 Spacer()
                                 Button(bundle.loc("Cancel")) {
                                     showCustomEmojiInput = false
                                     customEmojiDraft     = ""
                                 }
-                                .font(.system(size: 13, weight: .semibold))
+                                .scaledFont(13, .semibold)
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
                             }
                             .padding(.top, 4)
@@ -260,7 +260,7 @@ struct CreateCommunityView: View {
                                     Image(systemName: "plus.circle")
                                     Text("Add emoji", bundle: bundle)
                                 }
-                                .font(.system(size: 13))
+                                .scaledFont(13)
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
                             }
                             .buttonStyle(.plain)
@@ -293,7 +293,7 @@ struct CreateCommunityView: View {
                             set: { viewModel.selectedColor = $0.toHex() ?? viewModel.selectedColor }
                         ), supportsOpacity: false) {
                             Text("Custom color", bundle: bundle)
-                                .font(.system(size: 13))
+                                .scaledFont(13)
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
                         }
                         .padding(.top, 4)
@@ -303,7 +303,7 @@ struct CreateCommunityView: View {
 
                     if let err = viewModel.errorMessage {
                         Text(err)
-                            .font(.system(size: 13))
+                            .scaledFont(13)
                             .foregroundColor(.red)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -382,7 +382,7 @@ struct CreateCommunityView: View {
     private func emojiCell(_ emoji: String) -> some View {
         Button { viewModel.selectedEmoji = emoji } label: {
             Text(emoji)
-                .font(.system(size: 22))
+                .scaledFont(22)
                 .frame(width: 34, height: 34)
                 .background(viewModel.selectedEmoji == emoji
                     ? Color(hex: viewModel.selectedColor).opacity(0.18)
@@ -396,7 +396,7 @@ struct CreateCommunityView: View {
     private func formSection<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.system(size: 13, weight: .semibold))
+                .scaledFont(13, .semibold)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
             content()
         }

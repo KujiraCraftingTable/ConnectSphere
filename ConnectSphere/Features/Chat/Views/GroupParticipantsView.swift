@@ -49,6 +49,7 @@ struct GroupParticipantsView: View {
                     Button { showAddMembers = true } label: {
                         Image(systemName: "person.badge.plus")
                     }
+                    .accessibilityLabel(Bundle.app.loc("Add members"))
                 }
             }
         }
@@ -111,17 +112,17 @@ struct GroupParticipantsView: View {
             ZStack {
                 Circle().fill(Color(hex: member.avatarColor))
                 Text(String(member.displayName.prefix(1)))
-                    .font(.system(size: 15, weight: .bold))
+                    .scaledFont(15, .bold)
                     .foregroundColor(.white)
             }
             .frame(width: 40, height: 40)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(member.displayName)
-                    .font(.system(size: 15, weight: .medium))
+                    .scaledFont(15, .medium)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 Text("@\(member.username)")
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }
 
@@ -129,7 +130,7 @@ struct GroupParticipantsView: View {
 
             if member.isOwner {
                 Text(bundle.loc("Owner"))
-                    .font(.system(size: 11, weight: .semibold))
+                    .scaledFont(11, .semibold)
                     .foregroundColor(themeManager.theme.primary)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)

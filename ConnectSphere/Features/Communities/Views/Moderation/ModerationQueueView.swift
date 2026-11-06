@@ -67,10 +67,10 @@ struct ModerationQueueView: View {
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "checkmark.shield")
-                .font(.system(size: 40))
+                .scaledFont(40)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
             Text(selectedTab == 0 ? bundle.loc("No pending reports") : bundle.loc("No resolved reports"))
-                .font(.system(size: 16, weight: .medium))
+                .scaledFont(16, .medium)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

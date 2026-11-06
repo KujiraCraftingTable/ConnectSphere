@@ -68,7 +68,7 @@ struct CommunitiesView: View {
                                 Image(systemName: "plus")
                                 Text(bundle.loc("Sell"))
                             }
-                            .font(.system(size: 15, weight: .semibold))
+                            .scaledFont(15, .semibold)
                             .foregroundColor(themeManager.theme.primary)
                             .padding(.horizontal, 6)
                         }
@@ -76,9 +76,10 @@ struct CommunitiesView: View {
                         Button { showCreate = true } label: {
                             // Plain glyph, a filled disc read as a button inside the glass.
                             Image(systemName: "plus")
-                                .font(.system(size: 17, weight: .semibold))
+                                .scaledFont(17, .semibold)
                                 .foregroundColor(themeManager.theme.primary)
                         }
+                        .accessibilityLabel(Bundle.app.loc("Create community"))
                     }
                 }
             }
@@ -140,17 +141,17 @@ struct CommunitiesView: View {
     private func myCommunitiesError(_ message: String) -> some View {
         VStack(spacing: 12) {
             Image(systemName: "wifi.exclamationmark")
-                .font(.system(size: 36))
+                .scaledFont(36)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
             Text(message)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .multilineTextAlignment(.center)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .padding(.horizontal, 32)
             Button(bundle.loc("Retry")) {
                 Task<Void, Never>(name: nil) { await viewModel.loadMyCommunities() }
             }
-            .font(.system(size: 14, weight: .semibold))
+            .scaledFont(14, .semibold)
             .foregroundColor(themeManager.theme.primary)
         }
         .padding(.top, 60)
@@ -166,7 +167,7 @@ struct CommunitiesView: View {
 
         if visible.isEmpty {
             Text(searchText.isEmpty ? bundle.loc("You haven't joined any communities") : bundle.loc("No results found"))
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
                 .padding(.horizontal, 16)
                 .padding(.top, 2)

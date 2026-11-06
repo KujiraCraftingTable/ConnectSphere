@@ -72,14 +72,14 @@ struct UndoToastView: View {
     var body: some View {
         HStack(spacing: 12) {
             Text(item.message)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(.white)
                 .lineLimit(2)
             Spacer(minLength: 8)
             if item.onUndo != nil {
                 Button(action: onUndo) {
                     Text("Undo", bundle: bundle)
-                        .font(.system(size: 14, weight: .semibold))
+                        .scaledFont(14, .semibold)
                         .foregroundColor(themeManager.theme.primary)
                 }
             }

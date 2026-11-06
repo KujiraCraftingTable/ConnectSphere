@@ -13,6 +13,7 @@ enum AccountCodeStore {
         case deleteAccount = "delete_account"
         case login
         case twoFactor = "two_factor"
+        case exportData = "export_data"
 
         var mailKind: Mailer.Kind {
             switch self {
@@ -23,6 +24,7 @@ enum AccountCodeStore {
             case .deleteAccount: .deleteAccount
             case .login: .loginCode
             case .twoFactor: .twoFactor
+            case .exportData: .exportData
             }
         }
     }

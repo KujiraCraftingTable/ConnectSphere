@@ -67,7 +67,7 @@ struct ThemePickerView: View {
             // Header label
             HStack {
                 Text("Preview", bundle: bundle)
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, .semibold)
                     .foregroundColor(.secondary)
                     .textCase(.uppercase)
                     .kerning(0.5)
@@ -75,9 +75,9 @@ struct ThemePickerView: View {
                 // Active mode badge
                 HStack(spacing: 4) {
                     Image(systemName: themeManager.currentMode.glyph)
-                        .font(.system(size: 10))
+                        .scaledFont(10)
                     Text(themeManager.currentMode == .hobby ? bundle.loc("Hobby Mode") : bundle.loc("Work Mode"))
-                        .font(.system(size: 11, weight: .semibold))
+                        .scaledFont(11, .semibold)
                 }
                 .foregroundColor(themeManager.theme.primary)
                 .padding(.horizontal, 10)
@@ -97,14 +97,14 @@ struct ThemePickerView: View {
                         .fill(themeManager.theme.primary)
                         .frame(width: 54, height: 54)
                     Text(String(previewUser.name.prefix(1)))
-                        .font(.system(size: 22, weight: .bold))
+                        .scaledFont(22, .bold)
                         .foregroundColor(.white)
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 6) {
                         Text(previewUser.name)
-                            .font(.system(size: 16, weight: .bold))
+                            .scaledFont(16, .bold)
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                         Circle()
                             .fill(themeManager.theme.accent)
@@ -119,7 +119,7 @@ struct ThemePickerView: View {
                         HStack(spacing: 6) {
                             ForEach(Array(tags), id: \.self) { tag in
                                 Text(tag)
-                                    .font(.system(size: 11, weight: .semibold))
+                                    .scaledFont(11, .semibold)
                                     .foregroundColor(themeManager.theme.primary)
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 3)
@@ -134,7 +134,7 @@ struct ThemePickerView: View {
 
                 // Connect button
                 Text("Connect", bundle: bundle)
-                    .font(.system(size: 13, weight: .bold))
+                    .scaledFont(13, .bold)
                     .foregroundColor(.white)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
@@ -164,16 +164,16 @@ struct ThemePickerView: View {
             // Section header
             HStack(spacing: 6) {
                 Image(systemName: icon)
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(targetMode == themeManager.currentMode
                                      ? themeManager.theme.primary
                                      : .secondary)
                 Text(title)
-                    .font(.system(size: 15, weight: .semibold))
+                    .scaledFont(15, .semibold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 if targetMode == themeManager.currentMode {
                     Text("Active", bundle: bundle)
-                        .font(.system(size: 11, weight: .semibold))
+                        .scaledFont(11, .semibold)
                         .foregroundColor(themeManager.theme.primary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
@@ -232,7 +232,7 @@ struct ThemePickerView: View {
                         .frame(width: isSelected ? 40 : 44, height: isSelected ? 40 : 44)
                     if isSelected {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 12, weight: .bold))
+                            .scaledFont(12, .bold)
                             .foregroundColor(.white)
                     }
                 }

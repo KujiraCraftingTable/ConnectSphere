@@ -40,28 +40,28 @@ struct FeedView: View {
                     } else if let error = viewModel.error, viewModel.posts(for: appState.currentMode).isEmpty {
                         VStack(spacing: 10) {
                             Image(systemName: "wifi.exclamationmark")
-                                .font(.system(size: 36))
+                                .scaledFont(36)
                                 .foregroundColor(AppColors.textTertiary(colorScheme))
                             Text(error)
-                                .font(.system(size: 14))
+                                .scaledFont(14)
                                 .multilineTextAlignment(.center)
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
                                 .padding(.horizontal, 32)
                             Button(bundle.loc("Retry")) {
                                 Task { await viewModel.loadPosts(for: appState.currentMode) }
                             }
-                            .font(.system(size: 14, weight: .semibold))
+                            .scaledFont(14, .semibold)
                         }
                         .padding(.top, 40)
                     } else if viewModel.posts(for: appState.currentMode).isEmpty {
                         VStack(spacing: 10) {
                             Image(systemName: "person.2")
-                                .font(.system(size: 36))
+                                .scaledFont(36)
                                 .foregroundColor(AppColors.textSecondary(colorScheme).opacity(0.4))
                             Text(bundle.loc(viewModel.feedScope == .following
                                             ? "Follow people to see their public posts here"
                                             : "No posts yet"))
-                                .font(.system(size: 14))
+                                .scaledFont(14)
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
                         }
                         .padding(.top, 40)
@@ -224,7 +224,7 @@ struct FeedView: View {
             }
         } label: {
             Image(systemName: icon)
-                .font(.system(size: 11, weight: .semibold))
+                .scaledFont(11, .semibold)
                 .foregroundColor(isActive ? .white : AppColors.textSecondary(colorScheme))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
@@ -254,7 +254,7 @@ struct FeedView: View {
             viewModel.feedScope = scope
         } label: {
             Text(label)
-                .font(.system(size: 13, weight: .semibold))
+                .scaledFont(13, .semibold)
                 .foregroundColor(isActive ? .white : AppColors.textSecondary(colorScheme))
                 .padding(.horizontal, 14)
                 .padding(.vertical, 6)
@@ -276,7 +276,7 @@ struct FeedView: View {
                 Text(appState.currentMode == .hobby
                      ? bundle.loc("What's on your mind?")
                      : bundle.loc("Share a professional update..."))
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 14)
@@ -294,9 +294,10 @@ struct FeedView: View {
         Button { showMessages = true } label: {
             // Bare glyph on the toolbar's glass (no circle of our own).
             Image(systemName: "message.fill")
-                .font(.system(size: 15, weight: .medium))
+                .scaledFont(15, .medium)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
         }
+        .accessibilityLabel(Bundle.app.loc("Messages"))
     }
 
     @ViewBuilder

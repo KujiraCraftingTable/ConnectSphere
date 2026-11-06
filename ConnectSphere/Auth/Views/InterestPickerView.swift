@@ -62,10 +62,10 @@ struct InterestPickerView: View {
             if let error = catalog.loadError {
                 HStack(spacing: 10) {
                     Text(error)
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                     Button(bundle.loc("Retry")) { Task { await catalog.load() } }
-                        .font(.system(size: 13, weight: .semibold))
+                        .scaledFont(13, .semibold)
                 }
             }
             ForEach(catalog.visibleCategories) { category in
@@ -147,13 +147,13 @@ struct InterestPickerView: View {
                 showSuggest = true
             } label: {
                 Label(bundle.loc("Can't find yours? Suggest it"), systemImage: "plus.bubble")
-                    .font(.system(size: 13, weight: .medium))
+                    .scaledFont(13, .medium)
                     .foregroundColor(themeManager.theme.primary)
             }
             .buttonStyle(.plain)
             if let notice = catalog.suggestNotice {
                 Text(notice)
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }
         }
@@ -167,17 +167,17 @@ struct InterestPickerView: View {
         VStack(spacing: 20) {
             VStack(spacing: 4) {
                 Text(pendingName)
-                    .font(.system(size: 20, weight: .bold))
+                    .scaledFont(20, .bold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 Text(String(format: bundle.loc("Specifically which %@? (optional)"), pendingName.lowercased()))
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }
             .padding(.top, AppSpacing.xl)
 
             VStack(alignment: .leading, spacing: 6) {
                 TextField(String(format: bundle.loc("e.g. %@"), subItemPlaceholder(pendingCategory)), text: $subItemInput)
-                    .font(.system(size: 16))
+                    .scaledFont(16)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 13)
@@ -188,7 +188,7 @@ struct InterestPickerView: View {
                     .onSubmit { confirmSubItem() }
                 if let error = catalog.specificError {
                     Text(error)
-                        .font(.system(size: 12))
+                        .scaledFont(12)
                         .foregroundColor(.red)
                 }
             }
@@ -200,7 +200,7 @@ struct InterestPickerView: View {
                     addInterest(category: pendingCategory, rawInput: "")
                     showSubItemSheet = false
                 }
-                .font(.system(size: 15, weight: .medium))
+                .scaledFont(15, .medium)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 13)
@@ -214,7 +214,7 @@ struct InterestPickerView: View {
                     Group {
                         if catalog.isChecking { ProgressView().tint(.white) } else { Text("Add", bundle: bundle) }
                     }
-                    .font(.system(size: 15, weight: .semibold))
+                    .scaledFont(15, .semibold)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)

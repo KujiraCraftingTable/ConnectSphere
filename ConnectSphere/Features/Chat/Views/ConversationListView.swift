@@ -65,17 +65,17 @@ struct ConversationListView: View {
                 } else if let error = viewModel.error, viewModel.conversations.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "wifi.exclamationmark")
-                            .font(.system(size: 38))
+                            .scaledFont(38)
                             .foregroundColor(AppColors.textTertiary(colorScheme))
                         Text(error)
-                            .font(.system(size: 14))
+                            .scaledFont(14)
                             .multilineTextAlignment(.center)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                             .padding(.horizontal, 32)
                         Button(bundle.loc("Retry")) {
                             Task { await viewModel.load(mode: mode, token: token) }
                         }
-                        .font(.system(size: 14, weight: .semibold))
+                        .scaledFont(14, .semibold)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if viewModel.inbox.isEmpty && !(spacesOn && !spacesViewModel.spaces.isEmpty) {
@@ -216,7 +216,7 @@ struct ConversationListView: View {
                                         .fill(Color(hex: conn.user.avatarColor))
                                         .frame(width: 56, height: 56)
                                     Text(String(conn.user.displayName.prefix(1)))
-                                        .font(.system(size: 22, weight: .bold))
+                                        .scaledFont(22, .bold)
                                         .foregroundColor(.white)
                                 }
                                 // Green dot indicating online status
@@ -227,7 +227,7 @@ struct ConversationListView: View {
                             }
 
                             Text(conn.user.displayName)
-                                .font(.system(size: 12))
+                                .scaledFont(12)
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
                                 .lineLimit(1)
                                 .frame(width: 64)
@@ -282,7 +282,7 @@ struct ConversationListView: View {
                         .overlay(alignment: .topTrailing) {
                             if !viewModel.waiting.isEmpty {
                                 Text("\(viewModel.waiting.count)")
-                                    .font(.system(size: 10, weight: .bold))
+                                    .scaledFont(10, .bold)
                                     .foregroundColor(.white)
                                     .frame(minWidth: 18, minHeight: 18)
                                     .padding(.horizontal, viewModel.waiting.count > 9 ? 3 : 0)
@@ -302,7 +302,7 @@ struct ConversationListView: View {
                     Button { spaceEditor = .create } label: {
                         // Capsule height, so the row doesn't grow when it appears.
                         Image(systemName: "plus")
-                            .font(.system(size: 13, weight: .bold))
+                            .scaledFont(13, .bold)
                             .foregroundColor(.white)
                             .frame(width: Self.barButtonHeight, height: Self.barButtonHeight)
                             .background(themeManager.theme.primary, in: Circle())
@@ -316,7 +316,7 @@ struct ConversationListView: View {
             }
             if !spacesOn && !spacesIntroSeen && spacesViewModel.hasLoaded && spacesViewModel.spaces.isEmpty {
                 Text("New: keep chats in Spaces. Folders for the people you talk to.", bundle: bundle)
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
             }
         }
@@ -340,7 +340,7 @@ struct ConversationListView: View {
                 SpacePlanetIcon(color: spacesOn ? .white : themeManager.theme.primary, size: 16)
                 Text("Spaces", bundle: bundle)
             }
-            .font(.system(size: 13, weight: .semibold))
+            .scaledFont(13, .semibold)
             .foregroundColor(spacesOn ? .white : AppColors.textSecondary(colorScheme))
             .padding(.horizontal, 14)
             .frame(height: Self.barButtonHeight)
@@ -360,7 +360,7 @@ struct ConversationListView: View {
     /// Icon-only, but sized like the Feed's scope pills rather than a bare glyph.
     private func inboxButtonLabel(icon: String) -> some View {
         Image(systemName: icon)
-            .font(.system(size: 15, weight: .semibold))
+            .scaledFont(15, .semibold)
             .foregroundColor(AppColors.textSecondary(colorScheme))
             .frame(width: 56, height: Self.barButtonHeight)
             .background(AppColors.surface(colorScheme), in: Capsule())
@@ -514,7 +514,7 @@ struct ConversationListView: View {
                     // Folded: still say there's something new inside.
                     if collapsed && section.unreadCount > 0 {
                         Text("\(section.unreadCount)")
-                            .font(.system(size: 11, weight: .bold))
+                            .scaledFont(11, .bold)
                             .foregroundColor(.white)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
@@ -522,7 +522,7 @@ struct ConversationListView: View {
                     }
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .semibold))
+                        .scaledFont(12, .semibold)
                         .foregroundColor(AppColors.textTertiary(colorScheme))
                         .rotationEffect(.degrees(collapsed ? -90 : 0))
                 }
@@ -544,7 +544,7 @@ struct ConversationListView: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis")
-                        .font(.system(size: 14, weight: .semibold))
+                        .scaledFont(14, .semibold)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                         .frame(width: 32, height: 28)
                         .contentShape(Rectangle())
@@ -552,7 +552,7 @@ struct ConversationListView: View {
                 .accessibilityLabel(Text(String(format: bundle.loc("%@ options"), space.name)))
             }
         }
-        .font(.system(size: 14, weight: .semibold))
+        .scaledFont(14, .semibold)
         .textCase(nil)
     }
 
@@ -593,17 +593,17 @@ struct ConversationListView: View {
                 Avatar(name: member.displayName, colorHex: member.avatarColor, imageURL: member.avatarUrl, diameter: 52)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(member.displayName)
-                        .font(.system(size: 15))
+                        .scaledFont(15)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                         .lineLimit(1)
                     Text("No messages yet, say hi", bundle: bundle)
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .foregroundColor(AppColors.textTertiary(colorScheme))
                         .lineLimit(1)
                 }
                 Spacer()
                 Image(systemName: "bubble.left")
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                     .foregroundColor(space.color.color)
             }
             .padding(.horizontal, 16)
@@ -628,7 +628,7 @@ struct ConversationListView: View {
                 Image(systemName: "person.badge.plus")
                     .foregroundColor(space.color.color)
                 Text("Add people or groups", bundle: bundle)
-                    .font(.system(size: 14, weight: .medium))
+                    .scaledFont(14, .medium)
                     .foregroundColor(themeManager.theme.primary)
                 Spacer()
             }
@@ -731,10 +731,10 @@ struct ConversationListView: View {
     private var searchEmptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 40))
+                .scaledFont(40)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
             Text("No results", bundle: bundle)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -769,17 +769,17 @@ struct ConversationListView: View {
     private var emptyState: some View {
         VStack(spacing: 16) {
             Image(systemName: appState.currentMode == .hobby ? "face.smiling" : "bubble.left.and.bubble.right")
-                .font(.system(size: 52))
+                .scaledFont(52)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
             Text(appState.currentMode == .hobby
                  ? bundle.loc("No chats yet 👋")
                  : bundle.loc("No conversations yet"))
-                .font(.system(size: 18, weight: .semibold))
+                .scaledFont(18, .semibold)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             Text(appState.currentMode == .hobby
                  ? bundle.loc("Say hi to a connection and start the fun!")
                  : bundle.loc("Start a conversation by visiting someone's profile."))
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .multilineTextAlignment(.center)
         }
@@ -822,17 +822,17 @@ struct ConversationRow: View {
 
                     if conversation.isMuted {
                         Image(systemName: "bell.slash.fill")
-                            .font(.system(size: 11))
+                            .scaledFont(11)
                             .foregroundColor(AppColors.textTertiary(colorScheme))
                     }
                     if conversation.isPinned {
                         Image(systemName: "pin.fill")
-                            .font(.system(size: 11))
+                            .scaledFont(11)
                             .foregroundColor(AppColors.textTertiary(colorScheme))
                     }
                     if let at = conversation.lastMessageAt {
                         Text(at.relativeShort(bundle: bundle))
-                            .font(.system(size: 12))
+                            .scaledFont(12)
                             .foregroundColor(AppColors.textTertiary(colorScheme))
                     }
                 }
@@ -840,15 +840,15 @@ struct ConversationRow: View {
                 HStack {
                     if conversation.isGroup {
                         Text(String(format: bundle.loc("%d members"), conversation.memberCount))
-                            .font(.system(size: 12))
+                            .scaledFont(12)
                             .foregroundColor(AppColors.textTertiary(colorScheme))
                         Text("·")
-                            .font(.system(size: 12))
+                            .scaledFont(12)
                             .foregroundColor(AppColors.textTertiary(colorScheme))
                     }
 
                     Text(previewOverride ?? AttributedString(conversation.previewText(currentUserId: currentUserId)))
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .foregroundColor(conversation.hasUnread
                                          ? AppColors.textPrimary(colorScheme)
                                          : AppColors.textSecondary(colorScheme))
@@ -858,7 +858,7 @@ struct ConversationRow: View {
 
                     if conversation.hasUnread {
                         Text("\(conversation.unreadCount)")
-                            .font(.system(size: 11, weight: .bold))
+                            .scaledFont(11, .bold)
                             .foregroundColor(.white)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
@@ -905,7 +905,7 @@ struct GroupAvatar: View {
                     .fill(Color(hex: colorHex ?? AppColors.avatarFallback))
                     .frame(width: size, height: size)
                 Image(systemName: "person.3.fill")
-                    .font(.system(size: size * 0.35, weight: .semibold))
+                    .scaledFont(size * 0.35, .semibold)
                     .foregroundColor(.white)
             }
         }

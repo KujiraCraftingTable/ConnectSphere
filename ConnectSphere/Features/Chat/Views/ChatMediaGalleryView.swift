@@ -81,7 +81,7 @@ struct ChatMediaGalleryView: View {
         ZStack {
             AppColors.elevated(colorScheme)
             Image(systemName: icon)
-                .font(.system(size: 26))
+                .scaledFont(26)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
         }
     }
@@ -89,10 +89,10 @@ struct ChatMediaGalleryView: View {
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "photo.on.rectangle.angled")
-                .font(.system(size: 44))
+                .scaledFont(44)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
             Text("No photos or videos yet", bundle: bundle)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
         }
         .frame(maxWidth: .infinity)

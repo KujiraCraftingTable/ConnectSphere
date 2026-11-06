@@ -9,4 +9,6 @@ struct PendingSignup: Identifiable, Equatable {
     let password: String
     /// Already confirmed with its code; nil when none was given.
     let email: String?
+    /// `LegalDocs.version` of the Terms and Privacy Policy ticked on the sign-up form.
+    let acceptedPolicyVersion: String
 }

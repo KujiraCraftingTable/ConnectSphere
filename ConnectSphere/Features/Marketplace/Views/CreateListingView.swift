@@ -112,7 +112,7 @@ struct CreateListingView: View {
                                 Text(c.name).foregroundColor(AppColors.textPrimary(colorScheme))
                                 if viewModel.waitsForApproval(c) {
                                     Text("Waits for admin approval", bundle: bundle)
-                                        .font(.system(size: 12))
+                                        .scaledFont(12)
                                         .foregroundColor(AppColors.textSecondary(colorScheme))
                                 }
                             }

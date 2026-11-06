@@ -49,7 +49,7 @@ struct CommunityInfoView<Members: View>: View {
                      ? MarkdownFormatter.attributed(about, linkColor: themeManager.theme.primary,
                                                     quoteColor: AppColors.textSecondary(colorScheme))
                      : AttributedString(about))
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                     .environment(\.openURL, OpenURLAction { url in
                         if let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
                             inAppBrowserURL = url
@@ -88,7 +88,7 @@ struct CommunityInfoView<Members: View>: View {
                 Text("Members", bundle: bundle)
                 Spacer()
                 NavigationLink(bundle.loc("See all"), destination: members)
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                 .textCase(nil)
             }
         }
@@ -116,12 +116,12 @@ struct CommunityInfoView<Members: View>: View {
     private func fact(_ icon: String, _ title: String, _ detail: String) -> some View {
         HStack(alignment: .top, spacing: 14) {
             Image(systemName: icon)
-                .font(.system(size: 18))
+                .scaledFont(18)
                 .frame(width: 26)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 15, weight: .semibold))
-                Text(detail).font(.system(size: 13)).foregroundColor(AppColors.textSecondary(colorScheme))
+                Text(title).scaledFont(15, .semibold)
+                Text(detail).scaledFont(13).foregroundColor(AppColors.textSecondary(colorScheme))
             }
         }
         .padding(.vertical, 2)
@@ -130,7 +130,7 @@ struct CommunityInfoView<Members: View>: View {
     private func peopleRow(_ people: [CommunityInfo.Person], _ line: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             avatarStack(people)
-            Text(line).font(.system(size: 14)).foregroundColor(AppColors.textSecondary(colorScheme))
+            Text(line).scaledFont(14).foregroundColor(AppColors.textSecondary(colorScheme))
         }
         .padding(.vertical, 4)
     }

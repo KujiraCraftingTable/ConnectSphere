@@ -51,7 +51,7 @@ struct EditCommunityView: View {
                 Section {
                     TextField(bundle.loc("Name"), text: $viewModel.name)
                     if let problem = viewModel.nameProblem {
-                        Text(problem).font(.system(size: 13)).foregroundStyle(.red)
+                        Text(problem).scaledFont(13).foregroundStyle(.red)
                     }
                 } header: {
                     Text("Name", bundle: bundle)

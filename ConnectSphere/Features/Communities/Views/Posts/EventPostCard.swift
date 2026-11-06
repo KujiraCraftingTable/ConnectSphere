@@ -13,7 +13,7 @@ struct EventPostCard: View {
             // Event header row
             HStack(spacing: 10) {
                 Image(systemName: "calendar")
-                    .font(.system(size: 16, weight: .medium))
+                    .scaledFont(16, .medium)
                     .foregroundColor(accentColor)
                     .frame(width: 32, height: 32)
                     .background(accentColor.opacity(0.12))
@@ -21,11 +21,11 @@ struct EventPostCard: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(vm.eventData.title)
-                        .font(.system(size: 15, weight: .semibold))
+                        .scaledFont(15, .semibold)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
 
                     Text(formattedDate)
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 Spacer()
@@ -34,7 +34,7 @@ struct EventPostCard: View {
             // Location (if present)
             if let location = vm.eventData.location, !location.isEmpty {
                 Label(location, systemImage: "mappin.circle")
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }
 
@@ -45,12 +45,12 @@ struct EventPostCard: View {
                 }
                 Spacer()
                 Text(String(format: bundle.loc("%d going"), vm.eventData.rsvpCount))
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
             }
 
             if let err = vm.errorMessage {
-                Text(err).font(.system(size: 12)).foregroundColor(.red)
+                Text(err).scaledFont(12).foregroundColor(.red)
             }
         }
         .padding(.horizontal, 14)
@@ -64,9 +64,9 @@ struct EventPostCard: View {
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: status.icon)
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                 Text(bundle.loc(status.label))
-                    .font(.system(size: 12, weight: .medium))
+                    .scaledFont(12, .medium)
             }
             .foregroundColor(isActive ? .white : AppColors.textSecondary(colorScheme))
             .padding(.horizontal, 10)

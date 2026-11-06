@@ -120,3 +120,74 @@ a future update."
 login (`UNUserNotificationCenter` registration + `POST /users/me/device-token`);
 store tokens server-side; send from `messageService`/`notificationService` on
 new-message / new-notification events alongside the existing WebSocket emit.
+
+---
+
+## Age is self-declared (no verified age, no phone verification)
+
+**Status:** sign-up and Edit profile reject a birthday under 16
+(`BirthdayRules.minimumAge`), but nothing checks the birthday is true. The app
+also does not verify accounts by Vietnamese phone number.
+
+**Why deferred:** a person's real birthday sits with the national ID (CCCD)
+database. An SMS code only proves someone holds a number; carriers do not hand
+the ID birthday to apps (their KYC APIs are paid, business-to-business). The
+government's plan to link social networks to VNeID was still at design stage
+(target Q3 2026) with no route for third-party apps that we found. Asking users
+for photos of their ID is not allowed for social networks (Law 91/2025 Art. 29),
+and reading the ID chip over NFC needs a paid Apple Developer account, a real
+device and a lawyer's view on holding ID data.
+
+**What the rules ask for (to confirm with a lawyer before any public launch):**
+Decree 147/2024 asks social networks to verify accounts by Vietnamese phone
+number, and to have a parent register accounts for under-16s. We choose not to
+offer under-16 accounts instead.
+
+**Existing accounts:** an account created before this rule with a birthday under
+16 is not locked automatically — find them with
+`SELECT id, username FROM users WHERE dob > CURRENT_DATE - INTERVAL '16 years'`.
+
+**To pick this up:** register a business and a paid Apple account, then use
+either VNeID linking (once opened) or a carrier/KYC provider, and add a parent
+registration flow only if under-16s are ever admitted.
+
+---
+
+## No "personalised feed" off switch
+
+**Status:** the feed and AI search rank with what a person likes, views, saves and
+searches (`post_impressions`, `post_feedback`, `search_sessions`; kept 90 days). The
+Privacy Policy says so, and deleting the account removes it, but there is no setting
+to turn the ranking off while staying signed in.
+
+**Why deferred:** a non-personalised feed is a second ranking path in `FeedStore` /
+`PostRanking`, with its own tests; it is not small. Vietnam's Law 91/2025 asks that
+people can refuse behaviour tracking on social networks (Art. 29) — confirm with a
+lawyer whether in-app ranking from your own activity counts.
+
+**To pick this up:** add `users.personalised_feed BOOLEAN DEFAULT TRUE`, skip the
+signals when off (no impressions or feedback written, ranking by recency and mode),
+and a switch in Settings › Privacy & Security.
+
+---
+
+## Accessibility: text sizes and what was not checked
+
+**Done:** about 1,070 fixed font sizes now follow the user's text-size setting
+(`.scaledFont` in `Core/Theme/AppMetrics.swift`); the app-wide cap is the largest
+non-accessibility size (xxxLarge, `cappedDynamicType`); tertiary and secondary
+text colours meet WCAG AA (4.5:1) on the app's backgrounds; icon-only buttons
+got spoken labels.
+
+**Still open:**
+- **Accessibility sizes (AX1 and up) are capped.** Dense screens with fixed-height
+  controls (feed card actions, chat input bar) would clip above xxxLarge. Lifting
+  the cap needs each of those screens checked in the simulator.
+- **57 fixed font sizes remain** (sizes written as `compact ? 10 : 11`, or with
+  `.monospacedDigit()`); they do not grow.
+- **Not tested with VoiceOver on a device or simulator.** Labels were added from a
+  code scan for icon-only buttons; reading order, custom gestures (swipes, long
+  presses) and images without alt text were not reviewed.
+- **Contrast of text on photos, coloured chips and theme-coloured buttons** was not
+  measured; only the shared text colour tokens were.
+- **Reduce Motion** is honoured in two places only.

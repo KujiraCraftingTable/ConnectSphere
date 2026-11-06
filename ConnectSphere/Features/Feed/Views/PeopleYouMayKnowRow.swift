@@ -18,7 +18,7 @@ struct PeopleYouMayKnowRow: View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
             HStack {
                 Text("People you may know", bundle: bundle)
-                    .font(.system(size: 16, weight: .bold))
+                    .scaledFont(16, .bold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 Spacer()
                 NavigationLink {
@@ -27,7 +27,7 @@ struct PeopleYouMayKnowRow: View {
                         .environment(themeManager)
                 } label: {
                     Text("See all", bundle: bundle)
-                        .font(.system(size: 14, weight: .semibold))
+                        .scaledFont(14, .semibold)
                         .foregroundColor(themeManager.theme.primary)
                 }
             }
@@ -60,11 +60,11 @@ struct PeopleYouMayKnowRow: View {
                 VStack(spacing: 6) {
                     Avatar(name: person.displayName, colorHex: person.avatarColor, imageURL: person.avatarUrl, diameter: 72)
                     Text(person.displayName)
-                        .font(.system(size: 14, weight: .semibold))
+                        .scaledFont(14, .semibold)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                         .lineLimit(1)
                     Text(PeopleSuggestionText.reason(person.reason, mode: mode, bundle: bundle))
-                        .font(.system(size: 12))
+                        .scaledFont(12)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                         .multilineTextAlignment(.center)
                         .lineLimit(2, reservesSpace: true)
@@ -85,7 +85,7 @@ struct PeopleYouMayKnowRow: View {
         .overlay(alignment: .topTrailing) {
             Button { Task { await viewModel.dismiss(person, mode: mode) } } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .bold))
+                    .scaledFont(11, .bold)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
                     .frame(width: 28, height: 28)
                     .contentShape(Rectangle())
@@ -107,7 +107,7 @@ struct PeopleYouMayKnowRow: View {
                     Label(bundle.loc("Add friend"), systemImage: "person.badge.plus").labelStyle(.titleAndIcon)
                 }
             }
-            .font(.system(size: 13, weight: .semibold))
+            .scaledFont(13, .semibold)
             .foregroundColor(requested ? AppColors.textSecondary(colorScheme) : .white)
             .frame(maxWidth: .infinity, minHeight: 32)
             .background(requested ? AnyShapeStyle(AppColors.surface(colorScheme)) : AnyShapeStyle(themeManager.theme.primary),

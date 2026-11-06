@@ -79,6 +79,8 @@ struct RegisterView: View {
                 fieldHint(viewModel.emailHint, isError: viewModel.emailError != nil)
             }
 
+            PolicyAgreementRow(isOn: $viewModel.acceptsPolicy)
+
             if let errorMessage = viewModel.errorMessage {
                 errorBanner(errorMessage)
             }
@@ -99,7 +101,7 @@ struct RegisterView: View {
             switch viewModel.usernameStatus {
             case .taken:     fieldHint(bundle.loc("Username already taken"), isError: true)
             case .available: Label(bundle.loc("Username available"), systemImage: "checkmark.circle.fill")
-                                .font(.system(size: 12)).foregroundColor(.green).padding(.leading, 4)
+                                .scaledFont(12).foregroundColor(.green).padding(.leading, 4)
             case .checking:  fieldHint(bundle.loc("Checking…"), isError: false)
             case .failed:    fieldHint(bundle.loc("Couldn't check the username, try again"), isError: true)
             case .idle:      fieldHint(viewModel.usernameHint, isError: false)
@@ -113,11 +115,11 @@ struct RegisterView: View {
     private var codeStage: some View {
         VStack(alignment: .leading, spacing: 14) {
             Label(bundle.loc("Check your email"), systemImage: "envelope.badge")
-                .font(.system(size: 17, weight: .semibold))
+                .scaledFont(17, .semibold)
                 .foregroundColor(AppColors.textPrimary(.light))
             Text(String(format: bundle.loc("Enter the 6-digit code we sent to %@. Then you'll set up your profile."),
                         viewModel.maskedEmail))
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textSecondary(.light))
                 .fixedSize(horizontal: false, vertical: true)
             // No Confirm: the code is checked as soon as all six digits are in.
@@ -129,7 +131,7 @@ struct RegisterView: View {
             if viewModel.isLoading {
                 HStack(spacing: 8) {
                     ProgressView()
-                    Text("Checking the code…", bundle: bundle).font(.system(size: 13))
+                    Text("Checking the code…", bundle: bundle).scaledFont(13)
                         .foregroundColor(AppColors.textSecondary(.light))
                 }
             }
@@ -137,7 +139,7 @@ struct RegisterView: View {
                 errorBanner(errorMessage)
             }
             Button(bundle.loc("Change email")) { viewModel.changeEmail() }
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textSecondary(.light))
                 .frame(maxWidth: .infinity)
         }
@@ -152,11 +154,11 @@ struct RegisterView: View {
                     .fill(themeManager.theme.primary)
                     .frame(width: 72, height: 72)
                 Image(systemName: "person.badge.plus")
-                    .font(.system(size: 30))
+                    .scaledFont(30)
                     .foregroundColor(.white)
             }
             Text("Pick a username and password, you'll set up your profile next", bundle: bundle)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textSecondary(.light))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
@@ -167,7 +169,7 @@ struct RegisterView: View {
 
     private func fieldHint(_ text: String, isError: Bool) -> some View {
         Text(text)
-            .font(.system(size: 12))
+            .scaledFont(12)
             .foregroundColor(isError ? AppColors.danger(.light) : AppColors.textTertiary(.light))
             .padding(.leading, 4)
     }
@@ -178,7 +180,7 @@ struct RegisterView: View {
         HStack(spacing: 8) {
             Image(systemName: "exclamationmark.triangle.fill")
             Text(errorMessage)
-                .font(.system(size: 13))
+                .scaledFont(13)
         }
         .foregroundColor(AppColors.danger(.light))
         .padding(.horizontal, 12)

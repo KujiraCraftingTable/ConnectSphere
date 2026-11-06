@@ -19,18 +19,18 @@ struct CreateEventSheet: View {
             // Title
             fieldRow(label: bundle.loc("Title") + " *") {
                 TextField(bundle.loc("Event title"), text: $title)
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
             }
 
             // Location
             VStack(alignment: .leading, spacing: 4) {
                 Text(bundle.loc("Location"))
-                    .font(.system(size: 12, weight: .medium))
+                    .scaledFont(12, .medium)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
                 LocationSearchField(bundle.loc("Optional"), text: $location) { field in
                     fieldBox(field
-                        .font(.system(size: 15))
+                        .scaledFont(15)
                         .foregroundColor(AppColors.textPrimary(colorScheme)))
                 }
             }
@@ -45,13 +45,13 @@ struct CreateEventSheet: View {
                 displayedComponents: [.date, .hourAndMinute]
             )
             .datePickerStyle(.compact)
-            .font(.system(size: 14))
+            .scaledFont(14)
             .foregroundColor(AppColors.textPrimary(colorScheme))
 
             // Optional end time
             Toggle(isOn: $showEndDate) {
                 Label(bundle.loc("Add end time"), systemImage: "clock.badge.checkmark")
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
             }
             .tint(themeManager.theme.primary)
@@ -67,7 +67,7 @@ struct CreateEventSheet: View {
                     displayedComponents: [.date, .hourAndMinute]
                 )
                 .datePickerStyle(.compact)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .onAppear { if endsAt == nil { endsAt = startsAt.addingTimeInterval(3600) } }
             }
         }
@@ -85,14 +85,14 @@ struct CreateEventSheet: View {
 
     private func sectionLabel(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 13, weight: .semibold))
+            .scaledFont(13, .semibold)
             .foregroundColor(AppColors.textSecondary(colorScheme))
     }
 
     private func fieldRow<F: View>(label: String, @ViewBuilder field: () -> F) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label)
-                .font(.system(size: 12, weight: .medium))
+                .scaledFont(12, .medium)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
             fieldBox(field())
         }

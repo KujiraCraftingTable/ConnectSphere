@@ -44,7 +44,7 @@ struct GroupMemberPickerView: View {
                         if let note {
                             Section {
                                 Text(note)
-                                    .font(.system(size: 13))
+                                    .scaledFont(13)
                                     .foregroundColor(AppColors.textSecondary(colorScheme))
                                     .listRowBackground(Color.clear)
                             }
@@ -81,7 +81,7 @@ struct GroupMemberPickerView: View {
                 ToolbarItem(placement: .principal) {
                     if !viewModel.selectedIds.isEmpty {
                         Text("\(viewModel.selectedIds.count)/\(remainingSlots)")
-                            .font(.system(size: 12, weight: .medium))
+                            .scaledFont(12, .medium)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
                 }
@@ -103,21 +103,21 @@ struct GroupMemberPickerView: View {
             AvatarView(user: item.user.toUserProfile(), size: 44)
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.user.displayName)
-                    .font(.system(size: 15, weight: .semibold))
+                    .scaledFont(15, .semibold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 if appState.currentMode == .work, let title = item.user.jobTitle, !title.isEmpty {
                     Text(title)
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 } else if let location = item.user.location, !location.isEmpty {
                     Text(location)
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
             }
             Spacer()
             Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 22))
+                .scaledFont(22)
                 .foregroundColor(isSelected ? themeManager.theme.primary : AppColors.textTertiary(colorScheme))
         }
         .contentShape(Rectangle())
@@ -127,10 +127,10 @@ struct GroupMemberPickerView: View {
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "person.2")
-                .font(.system(size: 40))
+                .scaledFont(40)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
             Text("No connections available to add", bundle: bundle)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
@@ -162,20 +162,20 @@ struct NewGroupDetailsSheet: View {
                 ZStack {
                     Circle().fill(themeManager.theme.primaryGradient).frame(width: 84, height: 84)
                     Image(systemName: "person.3.fill")
-                        .font(.system(size: 30, weight: .semibold))
+                        .scaledFont(30, .semibold)
                         .foregroundColor(.white)
                 }
                 .padding(.top, 24)
 
                 TextField(bundle.loc("Group name (optional)"), text: $name)
-                    .font(.system(size: 16))
+                    .scaledFont(16)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 12)
                     .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 12))
                     .padding(.horizontal, 24)
 
                 Text(String(format: bundle.loc("%d members selected"), memberCount))
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
 
                 Spacer()

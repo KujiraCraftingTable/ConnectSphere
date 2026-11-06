@@ -42,10 +42,10 @@ struct BlockedUsersView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(user.displayName)
-                    .font(.system(size: 15, weight: .semibold))
+                    .scaledFont(15, .semibold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 Text(user.blockedAt.timeAgoString)
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }
 
@@ -59,7 +59,7 @@ struct BlockedUsersView: View {
                         .frame(width: 70, height: 28)
                 } else {
                     Text("Unblock", bundle: bundle)
-                        .font(.system(size: 13, weight: .semibold))
+                        .scaledFont(13, .semibold)
                         .foregroundColor(themeManager.theme.primary)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
@@ -78,7 +78,7 @@ struct BlockedUsersView: View {
         ZStack {
             Circle().fill(Color(hex: user.avatarColor ?? "#7F5AF0"))
             Text(String(user.displayName.prefix(1)))
-                .font(.system(size: 17, weight: .bold))
+                .scaledFont(17, .bold)
                 .foregroundColor(.white)
             if let url = APIConfig.mediaURL(user.avatarUrl) {
                 RemoteImage(url: url) { phase in
@@ -96,10 +96,10 @@ struct BlockedUsersView: View {
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "nosign")
-                .font(.system(size: 40))
+                .scaledFont(40)
                 .foregroundColor(AppColors.textSecondary(colorScheme).opacity(0.4))
             Text("No blocked users", bundle: bundle)
-                .font(.system(size: 15))
+                .scaledFont(15)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -108,15 +108,15 @@ struct BlockedUsersView: View {
     private func errorState(_ message: String) -> some View {
         VStack(spacing: 12) {
             Image(systemName: "wifi.exclamationmark")
-                .font(.system(size: 38))
+                .scaledFont(38)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
             Text(message)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .multilineTextAlignment(.center)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .padding(.horizontal, 32)
             Button(bundle.loc("Retry")) { Task { await viewModel.load() } }
-                .font(.system(size: 14, weight: .semibold))
+                .scaledFont(14, .semibold)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

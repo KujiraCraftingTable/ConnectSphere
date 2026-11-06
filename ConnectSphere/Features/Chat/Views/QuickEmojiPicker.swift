@@ -39,7 +39,7 @@ struct QuickEmojiPickerSheet: View {
             VStack(spacing: 18) {
                 Button { focusRequest += 1 } label: {
                     Text(emoji)
-                        .font(.system(size: 72))
+                        .scaledFont(72)
                         .frame(width: 112, height: 112)
                         .background(AppColors.elevated(colorScheme), in: Circle())
                 }
@@ -47,7 +47,7 @@ struct QuickEmojiPickerSheet: View {
                 .accessibilityLabel(Text("Current quick emoji", bundle: bundle))
 
                 Text("Pick any emoji from the keyboard", bundle: bundle)
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
 
                 // Hosts the keyboard only; it never shows text of its own.

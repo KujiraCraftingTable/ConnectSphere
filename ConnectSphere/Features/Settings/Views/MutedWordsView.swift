@@ -40,7 +40,7 @@ struct MutedWordsView: View {
             Section {
                 if words.isEmpty {
                     Text(mode == .hobby ? "No muted words in Hobby mode." : "No muted words in Work mode.", bundle: bundle)
-                        .font(.system(size: 14))
+                        .scaledFont(14)
                         .foregroundColor(AppColors.textTertiary(colorScheme))
                 } else {
                     ForEach(words) { word in
@@ -130,9 +130,9 @@ struct MutedWordsView: View {
             } label: {
                 HStack(spacing: 3) {
                     Text(bundle.loc(duration.label))
-                    Image(systemName: "chevron.up.chevron.down").font(.system(size: 10, weight: .semibold))
+                    Image(systemName: "chevron.up.chevron.down").scaledFont(10, .semibold)
                 }
-                .font(.system(size: 13, weight: .medium))
+                .scaledFont(13, .medium)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .fixedSize()
             }
@@ -140,7 +140,7 @@ struct MutedWordsView: View {
                 if viewModel.isAdding {
                     ProgressView()
                 } else {
-                    Text("Mute word", bundle: bundle).font(.system(size: 14, weight: .semibold))
+                    Text("Mute word", bundle: bundle).scaledFont(14, .semibold)
                 }
             }
             .buttonStyle(.borderedProminent)
@@ -152,11 +152,11 @@ struct MutedWordsView: View {
     private func wordRow(_ word: MutedWord) -> some View {
         HStack {
             Text(word.word)
-                .font(.system(size: 16))
+                .scaledFont(16)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             Spacer()
             Text(remainingText(word.remaining()))
-                .font(.system(size: 13))
+                .scaledFont(13)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
         }
     }

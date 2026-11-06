@@ -13,7 +13,7 @@ struct CommentPhotoButton: View {
     var body: some View {
         PhotosPicker(selection: $pickedItem, matching: .images, photoLibrary: .shared()) {
             Image(systemName: "camera")
-                .font(.system(size: 19))
+                .scaledFont(19)
                 .foregroundColor(themeManager.theme.primary)
         }
         .disabled(viewModel.isSending)
@@ -44,10 +44,11 @@ struct CommentPhotoPreview: View {
                 .overlay(alignment: .topTrailing) {
                     Button { viewModel.removePhoto() } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 18))
+                            .scaledFont(18)
                             .symbolRenderingMode(.palette)
                             .foregroundStyle(.white, .black.opacity(0.6))
                     }
+                    .accessibilityLabel(Bundle.app.loc("Remove photo"))
                     .offset(x: 6, y: -6)
                     .disabled(viewModel.isSending)
                     .accessibilityLabel(Text(bundle.loc("Remove photo")))

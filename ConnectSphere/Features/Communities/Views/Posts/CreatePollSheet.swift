@@ -17,12 +17,12 @@ struct CreatePollSheet: View {
             ForEach(options.indices, id: \.self) { i in
                 HStack(spacing: 8) {
                     Text("\(i + 1).")
-                        .font(.system(size: 14, weight: .medium))
+                        .scaledFont(14, .medium)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                         .frame(width: 22, alignment: .trailing)
 
                     TextField(String(format: bundle.loc("Option %d"), i + 1), text: $options[i])
-                        .font(.system(size: 15))
+                        .scaledFont(15)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 9)
@@ -35,8 +35,9 @@ struct CreatePollSheet: View {
                         } label: {
                             Image(systemName: "minus.circle.fill")
                                 .foregroundColor(.red.opacity(0.7))
-                                .font(.system(size: 20))
+                                .scaledFont(20)
                         }
+                        .accessibilityLabel(Bundle.app.loc("Remove option"))
                         .buttonStyle(.plain)
                     }
                 }
@@ -47,7 +48,7 @@ struct CreatePollSheet: View {
                     options.append("")
                 } label: {
                     Label(bundle.loc("Add option"), systemImage: "plus.circle")
-                        .font(.system(size: 14, weight: .medium))
+                        .scaledFont(14, .medium)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 .buttonStyle(.plain)
@@ -59,7 +60,7 @@ struct CreatePollSheet: View {
             // Optional end date toggle
             Toggle(isOn: $showEndDate) {
                 Label(bundle.loc("Poll end date"), systemImage: "clock")
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
             }
             .tint(themeManager.theme.primary)
@@ -75,7 +76,7 @@ struct CreatePollSheet: View {
                     displayedComponents: [.date, .hourAndMinute]
                 )
                 .datePickerStyle(.compact)
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .onAppear { if endsAt == nil { endsAt = Date().addingTimeInterval(86400) } }
             }
         }
@@ -93,7 +94,7 @@ struct CreatePollSheet: View {
 
     private func sectionLabel(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 13, weight: .semibold))
+            .scaledFont(13, .semibold)
             .foregroundColor(AppColors.textSecondary(colorScheme))
     }
 }

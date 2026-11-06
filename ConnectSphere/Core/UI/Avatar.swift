@@ -85,7 +85,7 @@ struct Avatar: View {
             // unfilled.
             Color(hex: colorHex)
             Text(String(name.trimmingCharacters(in: .whitespaces).prefix(1)).uppercased())
-                .font(.system(size: diameter * 0.40, weight: .semibold))
+                .scaledFont(diameter * 0.40, .semibold)
                 .foregroundColor(.white)
         }
     }

@@ -15,7 +15,7 @@ struct AssistantLauncherButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "sparkles")
-                .font(.system(size: 20, weight: .bold))
+                .scaledFont(20, .bold)
                 .foregroundColor(.white)
                 .frame(width: 54, height: 54)
                 .background(themeManager.theme.primary)

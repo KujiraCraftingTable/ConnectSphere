@@ -190,16 +190,16 @@ struct ChatSettingsView: View {
 
             VStack(spacing: 2) {
                 Text(displayName)
-                    .font(.system(size: 20, weight: .bold))
+                    .scaledFont(20, .bold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 if isGroup {
                     Text(String(format: bundle.loc("%d members"), viewModel.settings?.members.count ?? peer.memberCount ?? 0))
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 } else if let settings = viewModel.settings, settings.otherUserNickname != nil {
                     // When a nickname is set, show the real name underneath for context.
                     Text(settings.otherUserName ?? "")
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
             }
@@ -267,7 +267,7 @@ struct ChatSettingsView: View {
                 ZStack {
                     Circle().fill(Color(hex: peer.avatarColor))
                     Text(String(displayName.prefix(1)))
-                        .font(.system(size: 34, weight: .bold))
+                        .scaledFont(34, .bold)
                         .foregroundColor(.white)
                 }
             }
@@ -280,7 +280,7 @@ struct ChatSettingsView: View {
         ZStack {
             Circle().fill(Color(hex: viewModel.settings?.groupAvatarColor ?? peer.avatarColor))
             Image(systemName: "person.3.fill")
-                .font(.system(size: 30, weight: .semibold))
+                .scaledFont(30, .semibold)
                 .foregroundColor(.white)
         }
     }
@@ -288,10 +288,10 @@ struct ChatSettingsView: View {
     private func pill(icon: String, title: String) -> some View {
         VStack(spacing: 6) {
             Image(systemName: icon)
-                .font(.system(size: 18, weight: .semibold))
+                .scaledFont(18, .semibold)
                 .foregroundColor(themeManager.theme.primary)
             Text(title)
-                .font(.system(size: 12, weight: .medium))
+                .scaledFont(12, .medium)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
         }
         .frame(width: 104, height: 62)
@@ -492,7 +492,7 @@ struct ChatSettingsView: View {
                 SettingsRow(icon: "hand.thumbsup.fill", iconColor: themeManager.theme.primary,
                             title: bundle.loc("Quick emoji"), colorScheme: colorScheme,
                             subtitle: bundle.loc("Sent when the message box is empty"),
-                            trailing: AnyView(Text(quickEmoji).font(.system(size: 22))))
+                            trailing: AnyView(Text(quickEmoji).scaledFont(22)))
             }
             .buttonStyle(.plain)
             divider
@@ -631,7 +631,7 @@ struct ChatSettingsView: View {
                 Circle().fill(palette.primaryGradient).frame(width: 56, height: 56)
                 if isSelected {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 20, weight: .bold))
+                        .scaledFont(20, .bold)
                         .foregroundColor(.white)
                 }
             }
@@ -639,7 +639,7 @@ struct ChatSettingsView: View {
                 Circle().stroke(AppColors.textPrimary(colorScheme).opacity(isSelected ? 0.9 : 0), lineWidth: 2)
             )
             Text(palette.name)
-                .font(.system(size: 12))
+                .scaledFont(12)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
         }
     }
@@ -774,7 +774,7 @@ private struct SettingsRow: View {
                     customIcon
                 } else {
                     Image(systemName: icon)
-                        .font(.system(size: 16, weight: .semibold))
+                        .scaledFont(16, .semibold)
                         .foregroundColor(iconColor)
                 }
             }
@@ -786,7 +786,7 @@ private struct SettingsRow: View {
                     .foregroundColor(destructive ? .red : AppColors.textPrimary(colorScheme))
                 if let subtitle {
                     Text(subtitle)
-                        .font(.system(size: 12))
+                        .scaledFont(12)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
             }
@@ -797,7 +797,7 @@ private struct SettingsRow: View {
                 trailing
             } else if showsChevron {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, .semibold)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
             }
         }

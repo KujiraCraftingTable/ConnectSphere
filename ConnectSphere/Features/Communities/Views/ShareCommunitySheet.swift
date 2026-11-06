@@ -25,7 +25,7 @@ struct ShareCommunitySheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     TextField(bundle.loc("Say something about this community..."), text: $viewModel.comment, axis: .vertical)
-                        .font(.system(size: 15))
+                        .scaledFont(15)
                         .lineLimit(1...4)
                         .padding(12)
                         .background(AppColors.base(colorScheme))
@@ -52,14 +52,14 @@ struct ShareCommunitySheet: View {
                     .disabled(viewModel.isSharing)
                     if viewModel.shareFailed {
                         Text("Couldn't share, please try again", bundle: bundle)
-                            .font(.system(size: 13)).foregroundColor(AppColors.danger(colorScheme))
+                            .scaledFont(13).foregroundColor(AppColors.danger(colorScheme))
                     }
 
                     Text("Send in a chat", bundle: bundle)
-                        .font(.system(size: 15, weight: .semibold))
+                        .scaledFont(15, .semibold)
                     if viewModel.recipients.isEmpty {
                         Text(viewModel.isLoadingRecipients ? "" : bundle.loc("No conversations yet"))
-                            .font(.system(size: 14))
+                            .scaledFont(14)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     } else {
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -71,7 +71,7 @@ struct ShareCommunitySheet: View {
                                 }
                                 Button { showAllChats = true } label: {
                                     Image(systemName: "ellipsis")
-                                        .font(.system(size: 20, weight: .semibold))
+                                        .scaledFont(20, .semibold)
                                         .foregroundColor(AppColors.textPrimary(colorScheme))
                                         .frame(width: Avatar.Size.lg.rawValue, height: Avatar.Size.lg.rawValue)
                                         .background(AppColors.elevated(colorScheme), in: Circle())

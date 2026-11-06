@@ -55,7 +55,7 @@ struct ProfileHeaderCard<Actions: View>: View {
                      ? MarkdownFormatter.attributed(user.bio, linkColor: themeManager.theme.primary,
                                                     quoteColor: AppColors.textSecondary(colorScheme))
                      : AttributedString(user.bio))
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)   // always in full
@@ -87,25 +87,25 @@ struct ProfileHeaderCard<Actions: View>: View {
     private var identity: some View {
         VStack(spacing: 4) {
             Text(user.name)
-                .font(.system(size: 26, weight: .bold))
+                .scaledFont(26, .bold)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
                 .multilineTextAlignment(.center)
             // The same on both personas: it's the account's handle.
             if !user.username.isEmpty {
                 Text("@\(user.username)")
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .textSelection(.enabled)
             }
             if let job = jobLine {
                 Text(job)
-                    .font(.system(size: 15))
+                    .scaledFont(15)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .multilineTextAlignment(.center)
             }
             if let location = user.location, !location.isEmpty {
                 Label(location, systemImage: "mappin.and.ellipse")
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }
         }
@@ -117,7 +117,7 @@ struct ProfileHeaderCard<Actions: View>: View {
             Image(systemName: "lock.fill")
             Text("Locked profile", bundle: bundle)
         }
-        .font(.system(size: 11, weight: .semibold))
+        .scaledFont(11, .semibold)
         .lineLimit(1)
         .foregroundColor(themeManager.theme.primary)
         .padding(.horizontal, 8)
@@ -140,12 +140,12 @@ struct ProfileHeaderCard<Actions: View>: View {
     private var lockedNote: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "lock.shield.fill")
-                .font(.system(size: 22))
+                .scaledFont(22)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
             Text(String(format: bundle.loc(mode == .work
                     ? "%@ locked their profile. Only their connections can see their posts and details."
                     : "%@ locked their profile. Only their friends can see their posts and details."), user.name))
-                .font(.system(size: 14))
+                .scaledFont(14)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -168,10 +168,10 @@ struct ProfileHeaderCard<Actions: View>: View {
         Button { onStatTap(kind) } label: {
             VStack(spacing: 2) {
                 Text("\(count)")
-                    .font(.system(size: 18, weight: .bold))
+                    .scaledFont(18, .bold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                 Text(label)
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
@@ -221,10 +221,10 @@ struct ProfileCardButton: View {
                 if isLoading {
                     ProgressView().scaleEffect(0.8).tint(prominent ? .white : nil)
                 } else {
-                    Image(systemName: icon).font(.system(size: 14, weight: .semibold))
+                    Image(systemName: icon).scaledFont(14, .semibold)
                 }
                 Text(title)
-                    .font(.system(size: 15, weight: .semibold))
+                    .scaledFont(15, .semibold)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
             }
@@ -249,12 +249,12 @@ struct FlipButton<Actions: View>: View {
         Button(action: flip.action) {
             ZStack(alignment: .bottomTrailing) {
                 Image(systemName: flip.to.glyph)
-                    .font(.system(size: 15, weight: .semibold))
+                    .scaledFont(15, .semibold)
                     .foregroundColor(themeManager.theme.primary)
                     .frame(width: 38, height: 38)
                     .background(AppColors.elevated(colorScheme), in: Circle())
                 Image(systemName: "arrow.triangle.2.circlepath")
-                    .font(.system(size: 9, weight: .bold))
+                    .scaledFont(9, .bold)
                     .foregroundColor(.white)
                     .padding(3)
                     .background(themeManager.theme.primary, in: Circle())

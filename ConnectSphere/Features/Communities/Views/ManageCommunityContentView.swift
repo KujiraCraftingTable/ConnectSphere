@@ -95,7 +95,7 @@ struct ManageCommunityContentView: View {
                     let selected = viewModel.status == status
                     Button { viewModel.status = status } label: {
                         Text("\(bundle.loc(label(status))) \(viewModel.count(of: status))")
-                            .font(.system(size: 13, weight: .semibold))
+                            .scaledFont(13, .semibold)
                             .foregroundColor(selected ? .white : AppColors.textPrimary(colorScheme))
                             .padding(.horizontal, 12).padding(.vertical, 7)
                             .background(selected ? themeManager.theme.primary : AppColors.elevated(colorScheme), in: Capsule())
@@ -120,33 +120,33 @@ struct ManageCommunityContentView: View {
         switch post.publishStatus {
         case "pending":
             Label(bundle.loc("Waiting for approval"), systemImage: "hourglass")
-                .font(.system(size: 12, weight: .semibold)).foregroundColor(.orange)
+                .scaledFont(12, .semibold).foregroundColor(.orange)
         case "declined":
             VStack(alignment: .leading, spacing: 2) {
                 Label(bundle.loc("Declined"), systemImage: "xmark.octagon")
-                    .font(.system(size: 12, weight: .semibold)).foregroundColor(AppColors.danger(colorScheme))
+                    .scaledFont(12, .semibold).foregroundColor(AppColors.danger(colorScheme))
                 if let reason = post.declineReason {
                     Text(String(format: bundle.loc("Reason: %@"), reason))
-                        .font(.system(size: 12)).foregroundColor(AppColors.textSecondary(colorScheme))
+                        .scaledFont(12).foregroundColor(AppColors.textSecondary(colorScheme))
                 }
             }
         default:
             Label(bundle.loc("Published"), systemImage: "checkmark.circle")
-                .font(.system(size: 12, weight: .semibold)).foregroundColor(.green)
+                .scaledFont(12, .semibold).foregroundColor(.green)
         }
     }
 
     private func commentRow(_ comment: MyCommunityContent.Comment) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(comment.content)
-                .font(.system(size: 15))
+                .scaledFont(15)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             Text(String(format: bundle.loc("On: %@"), comment.postExcerpt.isEmpty ? bundle.loc("a post") : comment.postExcerpt))
-                .font(.system(size: 12))
+                .scaledFont(12)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .lineLimit(1)
             Text(comment.createdAt.formatted(date: .abbreviated, time: .shortened))
-                .font(.system(size: 11))
+                .scaledFont(11)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
         }
         .padding(12)
@@ -157,7 +157,7 @@ struct ManageCommunityContentView: View {
 
     private var empty: some View {
         Text(viewModel.kind == .posts ? bundle.loc("Nothing here yet") : bundle.loc("You haven't commented here yet"))
-            .font(.system(size: 14))
+            .scaledFont(14)
             .foregroundColor(AppColors.textTertiary(colorScheme))
             .frame(maxWidth: .infinity)
             .padding(.top, 40)
