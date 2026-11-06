@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// GET /api/feed/recommendations, port of feedController.js; and
+/// GET /api/feed/recommendations; and
 /// POST /api/feed/impressions, what the viewer looked at.
 struct FeedController {
     static func register(routes: any RoutesBuilder) {
@@ -42,7 +42,7 @@ struct FeedController {
     }
 }
 
-/// GET /api/tags/{trending,suggest}, port of tagRoutes.js.
+/// GET /api/tags/{trending,suggest}.
 struct TagsController {
     static func register(routes: any RoutesBuilder) {
         let tags = routes.grouped("tags").grouped(AuthMiddleware())
@@ -75,7 +75,7 @@ struct TagsController {
     }
 }
 
-/// POST /api/events/:id/rsvp, port of eventRoutes.js.
+/// POST /api/events/:id/rsvp.
 struct EventsController {
     static func register(routes: any RoutesBuilder) {
         routes.grouped("events").grouped(AuthMiddleware()).post(":id", "rsvp", use: rsvp)
@@ -105,7 +105,7 @@ struct JobsController {
     }
 }
 
-/// /api/stories, port of storyRoutes.js.
+/// /api/stories.
 struct StoriesController {
     static func register(routes: any RoutesBuilder) {
         let s = routes.grouped("stories").grouped(AuthMiddleware())

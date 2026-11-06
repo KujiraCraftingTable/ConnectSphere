@@ -10,11 +10,11 @@ let package = Package(
         // HTTP server, routing, middleware, WebSocket, async HTTP client.
         .package(url: "https://github.com/vapor/vapor.git", from: "4.106.0"),
         // PostgresKit re-exports SQLKit. Raw parameterized SQL against Postgres,
-        // which is how every query in the Node backend is written. No Fluent.
+        // which is how every query is written. No Fluent.
         .package(url: "https://github.com/vapor/postgres-kit.git", from: "2.13.0"),
-        // HMAC-SHA256 for the hand-rolled HS256 JWT (jsonwebtoken-compatible).
+        // HMAC-SHA256 for the hand-rolled HS256 JWT.
         .package(url: "https://github.com/apple/swift-crypto.git", "3.0.0" ..< "5.0.0"),
-        // Background jobs + scheduled tasks on Redis (BullMQ counterpart).
+        // Background jobs + scheduled tasks on Redis.
         .package(url: "https://github.com/vapor/queues.git", from: "1.13.0"),
         .package(url: "https://github.com/vapor/queues-redis-driver.git", from: "1.1.0"),
     ],

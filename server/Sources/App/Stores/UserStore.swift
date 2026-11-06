@@ -1,9 +1,7 @@
 import Vapor
 import SQLKit
 
-/// Raw-SQL data access for users. The Swift port of the relevant parts of
-/// `backend/src/routes/authRoutes.js` (`getUserById`) and
-/// `backend/src/models/userModel.js`.
+/// Raw-SQL data access for users.
 enum UserStore {
     /// Characters (Swift `count`, spaces included), so a Vietnamese accented
     /// letter counts once. Same limit as the app's `DisplayNameRules`: what
@@ -13,10 +11,10 @@ enum UserStore {
 
     static func displayNameFits(_ name: String) -> Bool { name.count <= maxDisplayNameLength }
 
-    /// Port of `getUserById` in authRoutes.js. `display_name`/`bio`/`avatar_url`/
+    /// The signed-in user's full record. `display_name`/`bio`/`avatar_url`/
     /// `cover_url` resolve from the `default_mode` persona; `password_hash` and
     /// `google_id` are never selected. `interests`/`skills` use `array_agg`
-    /// (same sorted DISTINCT output as the Node `json_agg(DISTINCT …)`).
+    /// (sorted, DISTINCT).
     /// `mode` picks which persona's name / bio / photos come back; nil is the
     /// account's default mode. Only "hobby" / "work", it's inlined as SQL.
     static func authUser(id: String, mode: String? = nil, on db: any SQLDatabase) async throws -> AuthUserObject? {

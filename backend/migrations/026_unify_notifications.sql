@@ -15,7 +15,7 @@
 -- uses it, and the mode_mismatch keep/switch flow depends on post_id plus
 -- resolved_at, both of which are left untouched.
 --
--- NOTE: scripts/migrate.js wraps every migration file in BEGIN/COMMIT, so this
+-- NOTE: the migration runner wraps every migration file in BEGIN/COMMIT, so this
 -- file must not open a transaction of its own.
 -- ═══════════════════════════════════════════════════════════════════════════
 

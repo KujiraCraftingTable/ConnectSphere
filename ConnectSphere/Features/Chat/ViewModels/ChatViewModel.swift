@@ -684,8 +684,7 @@ class ChatViewModel {
         }
 
         // The recipient's client confirmed receipt of one of my messages.
-        // Reconciled against the real backend broadcast (`backend/index.js`'s
-        // `message_delivered` handler): `{ conversationId, messageId, userId }`,
+        // The server's `message_delivered` broadcast: `{ conversationId, messageId, userId }`,
         // sent only to the sender's personal room. Appends the delivering
         // user's id to `deliveredTo`, idempotently (a duplicate delivered
         // event for an already-delivered message is a no-op).
@@ -713,8 +712,8 @@ class ChatViewModel {
         }
 
         // Someone (possibly me, from another device) read messages in this
-        // conversation. Reconciled against the real backend broadcast
-        // (`backend/index.js`'s `mark_read` handler): `{ conversationId, readBy }`
+        // conversation. The server's `mark_read` broadcast:
+        // `{ conversationId, readBy }`
         // where `readBy` is the reading user's id (not `user_id`/`userId`, and
         // no message ids, `mark_read` is conversation-scoped, so every message
         // not sent by the reader is affected, matching `markRead()`'s "mark my

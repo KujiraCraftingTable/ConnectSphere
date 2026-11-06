@@ -1,6 +1,6 @@
 -- 027_perf_indexes.sql
 -- Indexes for hot query paths that were doing sequential scans.
--- migrate.js wraps each file in BEGIN/COMMIT, so no CONCURRENTLY here (fine at
+-- the migration runner wraps each file in BEGIN/COMMIT, so no CONCURRENTLY here (fine at
 -- this DB's size; add CONCURRENTLY manually in a real prod cutover).
 
 CREATE EXTENSION IF NOT EXISTS pg_trgm;

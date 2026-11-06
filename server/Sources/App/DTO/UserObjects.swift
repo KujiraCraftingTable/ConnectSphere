@@ -1,8 +1,7 @@
 import Vapor
 
-/// Shared column set for `userModel.findAll` / `findById`
-/// (`backend/src/models/userModel.js` `userSelect`). `interests`/`skills` via
-/// `array_agg` (same sorted DISTINCT output as Node's `json_agg(DISTINCT …)`).
+/// Shared column set for the user list and profile reads. `interests`/`skills`
+/// come from `array_agg` (sorted, DISTINCT).
 struct UserCore: Content {
     var id: String
     var username: String

@@ -1,8 +1,8 @@
 import Foundation
 
-/// Node's `JSON.stringify` keeps `"key": null`; Swift's `JSONEncoder` drops nil
-/// Optionals. Wrapping an optional response field in `@NullCoded` forces the key
-/// to be emitted as `null`, so response bodies match the Node contract.
+/// Swift's `JSONEncoder` drops nil Optionals, but the app expects `"key": null`.
+/// Wrapping an optional response field in `@NullCoded` forces the key to be
+/// emitted as `null`.
 ///
 /// Decoding is tolerant: an absent key OR an explicit null both yield `nil`
 /// (so the same wrapper is safe on structs that also decode SQL rows).

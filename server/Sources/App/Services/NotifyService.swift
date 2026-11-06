@@ -1,8 +1,7 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/services/userNotifyService.js` (write side) +
-/// `userNotificationModel.js` inserts. The single funnel for creating a
+/// The single funnel for creating a
 /// notification: writes the row and pushes `notification` + `notification_count`
 /// over the Socket.IO shim so the two can never drift. Every entry point
 /// swallows its own errors. A notification must never fail the action that
@@ -297,8 +296,8 @@ enum NotifyService {
         return card
     }
 
-    /// Fire-and-forget a notification side effect from a REST handler, Node
-    /// never awaits these, so neither do we (keeps response latency parity).
+    /// Fire-and-forget a notification side effect from a REST handler. Nothing
+    /// awaits these, which keeps response latency low.
     static func fireAndForget(_ req: Request, _ work: @escaping @Sendable (any SQLDatabase, SocketHub, Logger) async -> Void) {
         let db = req.application.db, hub = req.application.socketHub, log = req.logger
         Task { await work(db.sql(), hub, log) }

@@ -41,7 +41,7 @@ struct SeedDemoCommand: AsyncCommand {
         "first_username", "coldstart_test1",
     ]
 
-    /// Made by the contract tests of the Node port (removed; the accounts can still be in an old database).
+    /// Made by an early API test run; such accounts can still sit in an old database.
     static let contractUsernamePattern = "^p(1|2|3|4|4b|4c|5|u)_[0-9]+_"
 
     /// Hand-made QA accounts from earlier feature checks, confirmed one by one
@@ -161,7 +161,7 @@ struct SeedDemoCommand: AsyncCommand {
     }
 
     /// Every denormalized counter set to what its rows say. Including back to
-    /// zero where no rows remain. Adapted from `scripts/reconcile-counters.js` of the retired Node backend (tag `node-backend-final`);
+    /// zero where no rows remain;
     /// each source yields `(id, n)` for every row of the target table.
     static func recountCounters(on t: any SQLDatabase) async throws -> [String] {
         let connections = """

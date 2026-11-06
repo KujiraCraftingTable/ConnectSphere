@@ -2,10 +2,9 @@ import Vapor
 import Foundation
 import SQLKit
 
-/// The client→server Socket.IO event handlers, ported 1:1 from the
-/// `io.on('connection', …)` block in `backend/index.js`. Payload keys are
-/// **camelCase** in (matching the client) and the exact casing Node emits out.
-/// Error strings are copied verbatim. The socket path uses its own literals
+/// The client→server Socket.IO event handlers. Payload keys are
+/// **camelCase** both in (matching the client) and out.
+/// The socket path uses its own error literals
 /// (e.g. `Not a participant`), not the REST `Abort` reasons.
 enum SocketHandlers {
 

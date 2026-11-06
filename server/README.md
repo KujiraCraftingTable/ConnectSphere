@@ -1,7 +1,6 @@
 # ConnectSphere, Swift backend (Vapor)
 
-The Swift/Vapor 4 backend, ported from Node/Express (the retired Node
-code is in git history, tag `node-backend-final`). It owns the PostgreSQL
+The Swift/Vapor 4 backend. It owns the PostgreSQL
 schema in `../backend/migrations/`. Raw parameterized SQL via
 SQLKit/PostgresKit, no Fluent. Overview: `../README.md`, layering:
 `../ARCHITECTURE.md`.

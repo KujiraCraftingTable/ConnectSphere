@@ -1,7 +1,7 @@
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 021, User-typed hashtags + per-post AI-tag visibility toggle
 --
--- post_tags.source distinguishes AI-extracted tags (postTagExtractService.js,
+-- post_tags.source distinguishes AI-extracted tags (PostTagExtractService,
 -- async via tagQueue) from user-typed hashtags (entered at post-creation time,
 -- saved synchronously). posts.show_ai_tags controls whether a post's AI tags
 -- are ever surfaced via the API (buildPostSelect's tags aggregation and the

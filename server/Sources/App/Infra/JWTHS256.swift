@@ -1,10 +1,9 @@
 import Foundation
 import Crypto
 
-/// Hand-rolled HS256 JWT that reproduces `jsonwebtoken`'s output byte-for-byte:
-/// header `{"alg":"HS256","typ":"JWT"}`, payload `{"sub":…,"iat":…,"exp":…}`,
-/// base64url (no padding), `HMAC-SHA256` signature. Tokens minted by the Node
-/// backend verify here and vice versa (same `JWT_SECRET`).
+/// Hand-rolled HS256 JWT: header `{"alg":"HS256","typ":"JWT"}`, payload
+/// `{"sub":…,"iat":…,"exp":…}`, base64url (no padding), `HMAC-SHA256` signature
+/// keyed by `JWT_SECRET`.
 enum JWTHS256 {
     struct Payload {
         var sub: String
@@ -24,7 +23,7 @@ enum JWTHS256 {
         let iat = Int(now.timeIntervalSince1970)
         let exp = iat + seconds(from: expiresIn)
         let header = #"{"alg":"HS256","typ":"JWT"}"#
-        // Key order matches jsonwebtoken: sub, then iat, then exp.
+        // Key order: sub, then iat, then exp.
         let payload = #"{"sub":"\#(sub)","iat":\#(iat),"exp":\#(exp)}"#
         let signingInput = b64(Data(header.utf8)) + "." + b64(Data(payload.utf8))
         let sig = HMAC<SHA256>.authenticationCode(for: Data(signingInput.utf8), using: .init(data: Data(secret.utf8)))
@@ -58,7 +57,7 @@ enum JWTHS256 {
         return Payload(sub: sub, iat: iat, exp: exp)
     }
 
-    /// `jsonwebtoken`-style duration: bare number = seconds, or suffix s/m/h/d.
+    /// Duration: bare number = seconds, or suffix s/m/h/d.
     static func seconds(from spec: String) -> Int {
         let s = spec.trimmingCharacters(in: .whitespaces)
         if let n = Int(s) { return n }

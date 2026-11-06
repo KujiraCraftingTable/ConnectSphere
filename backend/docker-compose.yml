@@ -35,8 +35,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # The Swift/Vapor backend (was Node/Express until the Phase 6 cutover. The
-  # retired Node app is in git history, tag `node-backend-final`).
+  # The Swift/Vapor backend.
   # Container name / published port are unchanged so nothing downstream (the iOS
   # app's APIBaseURL, dev.sh, TablePlus) needs touching.
   backend:

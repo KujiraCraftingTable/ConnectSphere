@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/models/pollModel.js`.
+/// Polls.
 enum PollStore {
     static func createWithOptions(postID: String, options: [String], endsAt: String?, on db: any SQLDatabase) async throws {
         var q: SQLQueryString = "INSERT INTO poll_options (post_id, text, vote_count, position, ends_at) VALUES "
@@ -57,7 +57,7 @@ enum PollStore {
     }
 }
 
-/// Port of `backend/src/models/eventModel.js`.
+/// Events.
 enum EventStore {
     static func create(postID: String, title: String, location: String?, startsAt: String, endsAt: String?, on db: any SQLDatabase) async throws {
         try await db.raw("""

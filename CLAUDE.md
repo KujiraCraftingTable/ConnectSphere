@@ -1,7 +1,6 @@
 # ConnectSphere
 A native iOS social networking app (COMP1682 project) with a **Swift/Vapor 4** backend
-(`server/`), ported from Node/Express (the retired Node code is in git history,
-tag `node-backend-final`). Raw parameterised SQL via SQLKit/PostgresKit. No Fluent.
+(`server/`). Raw parameterised SQL via SQLKit/PostgresKit. No Fluent.
 Notable feature: an AI-powered semantic search over users/posts using a local LLM
 query pipeline and chunk-based pgvector embeddings. See `AI_SEARCH_OVERVIEW.md`.
 

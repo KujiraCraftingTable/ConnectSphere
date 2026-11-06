@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// Port of `authMiddleware` in `backend/src/routes/authRoutes.js`.
+/// Bearer-token authentication.
 /// - `Authorization: Bearer <jwt>` → HS256 verify with `JWT_SECRET`.
 /// - Extra round-trip: `SELECT deleted_at FROM users WHERE id = $1`. A
 ///   soft-deleted (or vanished) account's token is rejected immediately with

@@ -8,7 +8,7 @@
 -- than derived here, since this schema tracks no per-user timezone,
 -- messageService.validateMeetingProposal falls back to a UTC-anchored
 -- default only when a caller doesn't send one (e.g. a pre-reminder-feature
--- client). reminder_sent_at is null until meetingReminderJob.js sends the
+-- client). reminder_sent_at is null until MeetingReminderJob sends the
 -- reminder, it doubles as the job's dedupe guard, and is reset to NULL on
 -- reschedule (see messageModel.updateMeetingProposal) so a moved meeting's
 -- reminder re-arms against the new time.

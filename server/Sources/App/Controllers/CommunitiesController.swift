@@ -1,11 +1,8 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/routes/communityRoutes.js` + `communityController.js` +
-/// `communityService.js`. Notifications/socket side effects deferred to the
-/// notification port (same phase) / Phase 4. `clientError` in the Node service
-/// → `Abort` ({status,code,message}); the controllers' own inline guards →
-/// `Abort` too (they use `err.status = …; next(err)`).
+/// Communities: create, edit, members, join requests, posts, recommendations.
+/// Client errors are thrown as `Abort` ({status,code,message}).
 ///
 /// Review fixes folded: reviewJoinRequest status-guard → 409; joinCommunity
 /// ON CONFLICT + counter-on-real-insert; incrementMemberCount 0 floor;
@@ -663,7 +660,7 @@ struct CommunitiesController {
         return DataResponse(data: result)
     }
 
-    // MARK: recommendations / trending / discover. Port of recommendationService.js
+    // MARK: recommendations / trending / discover
 
     /// getRecommendations: interest-overlap list if the user has interests,
     /// else the trending list. Returns raw JSON since the two paths have

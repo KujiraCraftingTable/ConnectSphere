@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/services/chunkService.js`. The chunk-based embedding
+/// The chunk-based embedding
 /// pipeline. One `user_embedding_chunks` row per embeddable unit:
 ///   • `user_profile` (source_id NULL): normalised profile fields
 ///   • `post` (source_id = posts.id): one post's content + article title + tags

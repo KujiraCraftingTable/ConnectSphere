@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/models/feedModel.js`. The personalized newsfeed.
+/// The personalized newsfeed.
 /// Taste vector built in Swift from `user_embedding_chunks` (populated by the
 /// embed worker), then a keyset-paginated blended-ranking CTE.
 enum FeedStore {

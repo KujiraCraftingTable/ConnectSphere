@@ -1,8 +1,8 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/routes/authRoutes.js`. Error bodies use the inline
-/// `{ "error": "…" }` shape (via `InlineError`), matching the Node handlers.
+/// Error bodies use the inline
+/// `{ "error": "…" }` shape (via `InlineError`).
 struct AuthController {
     static let bcryptCost = 12
     static let usernameRegex = try! NSRegularExpression(pattern: "^[a-z0-9_]{3,30}$")

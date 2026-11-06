@@ -1,7 +1,6 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/controllers/usersController.js` (+ `userRoutes.js` order).
 /// All routes require auth. `/me*` and `/blocked` are registered before `/:id`.
 struct UsersController {
     static func register(routes: any RoutesBuilder) {

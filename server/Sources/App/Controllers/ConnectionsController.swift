@@ -1,9 +1,7 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/routes/connectionRoutes.js`. Inline `{error}` bodies.
-/// Notifications deferred to the notification port below (same phase). Folded
-/// review fix: `/request` maps a unique-violation to 409 instead of a 500.
+/// Inline `{error}` bodies. `/request` maps a unique-violation to 409 instead of a 500.
 struct ConnectionsController {
     static func register(routes: any RoutesBuilder) {
         let c = routes.grouped("connections").grouped(AuthMiddleware())

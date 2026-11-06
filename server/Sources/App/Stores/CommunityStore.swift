@@ -1,8 +1,7 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/models/communityModel.js` + `joinRequestModel.js`.
-/// Review fixes folded in: `joinCommunity` uses `ON CONFLICT DO NOTHING
+/// Community and join-request data access. `joinCommunity` uses `ON CONFLICT DO NOTHING
 /// RETURNING`, `incrementMemberCount` has a 0 floor, `reviewRequest` is
 /// status-guarded.
 enum CommunityStore {
@@ -472,7 +471,7 @@ enum CommunityStore {
     }
 
     /// `getRecommendedCommunities`, interest-overlap scored. Response carries
-    /// the extra `tag_overlap` / `rec_score` fields Node's `res.json(rows)` leaks.
+    /// the extra `tag_overlap` / `rec_score` fields.
     struct RecommendedRow: Content {
         var id: String
         @NullCoded var description: String?

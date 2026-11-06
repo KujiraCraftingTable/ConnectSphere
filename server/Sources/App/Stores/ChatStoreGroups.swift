@@ -14,9 +14,8 @@ struct ValidatedMeeting: Sendable {
     var reminderAt: String
 }
 
-/// Phase 4b, group management, group nicknames, alert-only block
-/// acknowledgement, and meeting-proposal mutation. Ports the remaining
-/// `messageModel.js` functions not covered by the 4a slice.
+/// Group management, group nicknames, alert-only block acknowledgement, and
+/// meeting-proposal mutation.
 extension ChatStore {
 
     // MARK: group conversations

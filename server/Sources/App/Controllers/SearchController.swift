@@ -1,7 +1,6 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/controllers/searchController.js` + `searchRoutes.js`.
 /// `POST /api/search/ai` (rate-limited. Folded fix), `GET /api/search/suggestions`,
 /// `POST /api/search/lookup` (exact + vector tiers; the Wikipedia self-learn
 /// tier and venue geocoding land in Phase 8).

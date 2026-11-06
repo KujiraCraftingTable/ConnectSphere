@@ -1,7 +1,6 @@
 import Vapor
 
-/// Central error handler. The Swift counterpart of
-/// `backend/src/middlewares/errorHandler.js`. Emits `{status,code,message}` with
+/// Central error handler. Emits `{status,code,message}` with
 /// 5xx messages scrubbed. Individual handlers that need the inline `{error:"…"}`
 /// shape throw `InlineError` instead (see below).
 struct AppErrorMiddleware: AsyncMiddleware {
@@ -48,8 +47,7 @@ struct AppErrorMiddleware: AsyncMiddleware {
             status = abort.status
             message = abort.reason
         default:
-            // Postgres "client error" SQLSTATEs → 4xx, matching
-            // backend/src/middlewares/errorHandler.js's PG_CLIENT_ERRORS map.
+            // Postgres "client error" SQLSTATEs → 4xx.
             if PGError.sqlState(error, is: "22P02") {          // invalid_text_representation (bad UUID)
                 status = .notFound;   message = "Not found"
             } else if PGError.sqlState(error, is: "22003") {   // numeric_value_out_of_range

@@ -1,10 +1,9 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/routes/notificationRoutes.js` +
-/// `notificationController.js` + `userNotificationModel.js` (read side) +
-/// `notificationTypes.js`. Mounted at both `/api/notifications` and
-/// `/api/user-notifications`; every mutation accepts PATCH and POST.
+/// The notification inbox (read side) and the notification type table. Mounted at
+/// both `/api/notifications` and `/api/user-notifications`; every mutation
+/// accepts PATCH and POST.
 ///
 /// The notification *creation* / fan-out side (pushUserNotification,
 /// createBulkForCommunity, upsertMessageNotification) is deferred, it's all

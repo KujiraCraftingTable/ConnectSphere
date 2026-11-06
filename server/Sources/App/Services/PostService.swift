@@ -1,9 +1,8 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/services/postService.js`. `clientError` in the Node
-/// original throws with `err.status` → the central handler → `{status,code,
-/// message}`, so these use `Abort` (renders that shape), not `InlineError`.
+/// Post creation and publishing rules. Client errors use `Abort` (the central
+/// handler renders `{status,code,message}`), not `InlineError`.
 /// The community-only side effects (tag-extraction enqueue, member fan-out
 /// notification, realtime broadcast, interest rebuild) are deferred:
 ///  - tag/embed queue  → Phase 5
@@ -61,7 +60,7 @@ enum PostService {
         return post
     }
 
-    /// Port of `postModel.createCommunityPost`. Mode derives from the
+    /// Inserts a community post row. Mode derives from the
     /// community's type unless explicitly overridden; hashtags inserted synchronously.
     static func createCommunityPostRow(
         content: String?, authorID: String, communityID: String?, postType: String,

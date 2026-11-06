@@ -2,7 +2,7 @@
 -- "Location dictionary": a user teaches the app that "landmark hcmc" means "Landmark 81".
 --
 -- Unlike interest_entities.aliases (TEXT[]. Written straight in, no one reviews it):
--- a location alias drives a HARD filter (searchModel.js does a LIKE on users.location),
+-- a location alias drives a HARD filter (the people search does a LIKE on users.location),
 -- so one bad alias silently zeroes out results and the user has no idea why. That's why
 -- this table has status pending/validated/rejected + attribution, and only 'validated'
 -- rows are ever used by search.
@@ -10,7 +10,7 @@
 -- Auto-validate: the user only submits a NAME, never coordinates. The backend geocodes
 -- that name itself, if the geocode succeeds, that's objective proof, so it's validated
 -- immediately. If it fails, it's left pending for the data controller
--- (scripts/review-location-aliases.js).
+-- (the location-alias review script).
 
 CREATE TABLE location_aliases (
   id            UUID             PRIMARY KEY DEFAULT gen_random_uuid(),

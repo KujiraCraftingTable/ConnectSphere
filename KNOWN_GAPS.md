@@ -42,7 +42,7 @@ prototype surface for the project; finishing them is post-submission work.
   posts from the last 60 days) in SQL rather than doing an
   `ORDER BY embedding <=> $vec LIMIT k` over everything. Fine at demo scale.
 - The post list runs a near-duplicate `PostStore.countAll` per feed page.
-- Carried over from the Node port and not re-checked since: notification
+- Not re-checked since the first version: notification
   fan-out issues one unread-count query per recipient, and
   `sendMessage` / `createMeetingProposal` are not wrapped in a transaction.
 - Orphaned files under `backend/uploads/` (from deleted posts / recalled

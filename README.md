@@ -11,8 +11,6 @@ an AI-powered semantic search over people and posts. Built for **COMP1682**.
   SQLKit/PostgresKit (no Fluent), PostgreSQL 16 + `pgvector`, Redis + Vapor
   Queues for background jobs, a Socket.IO v4 shim on Vapor WebSocket, and a
   local **Ollama** LLM for query understanding, embeddings and translation.
-  Ported from Node/Express; the retired implementation is kept in git history
-  (tag `node-backend-final`).
 
 Further reading: [`PRODUCT.md`](PRODUCT.md) (who it is for, what it does),
 [`ARCHITECTURE.md`](ARCHITECTURE.md) (layering and the MVVM rule),

@@ -17,13 +17,13 @@ final class JobMatchTests: XCTestCase {
     }
 
     private let me = JobBoardStore.Viewer(
-        skills: Set(["Swift", "SwiftUI", "Node.js"].map(JobBoardStore.normalize)),
+        skills: Set(["Swift", "SwiftUI", "React.js"].map(JobBoardStore.normalize)),
         titleWords: Set(JobBoardStore.words("iOS Developer")),
         placeWords: Set(JobBoardStore.words("Hồ Chí Minh")))
 
     func testSkillsMatchIgnoringCaseAndPunctuation() {
-        let m = JobBoardStore.match(row(), skills: ["swift", "NodeJS", "Kotlin"], viewer: me)
-        XCTAssertEqual(m.matched_skills, ["swift", "NodeJS"])
+        let m = JobBoardStore.match(row(), skills: ["swift", "ReactJS", "Kotlin"], viewer: me)
+        XCTAssertEqual(m.matched_skills, ["swift", "ReactJS"])
         XCTAssertEqual(m.missing_skills, ["Kotlin"])
         XCTAssertEqual(m.reason, "skills")
     }

@@ -2,7 +2,7 @@ import Vapor
 import AsyncHTTPClient
 import NIOCore
 
-/// POST /api/link-preview, port of `backend/src/routes/linkPreviewRoutes.js`.
+/// POST /api/link-preview.
 /// Keeps the SSRF guard (block localhost / private / link-local / CGNAT /
 /// multicast, re-check every redirect hop), oEmbed-first for known providers,
 /// OG-tag scrape (≤150 KB) as fallback, and "return minimal metadata, still

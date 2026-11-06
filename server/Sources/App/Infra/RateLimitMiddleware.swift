@@ -1,9 +1,8 @@
 import Vapor
 import NIOConcurrencyHelpers
 
-/// In-memory fixed-window rate limiter. The Swift counterpart of the
-/// `express-rate-limit` instances in the Node backend. Counts are per-process
-/// and reset on restart, which matches the Node behaviour (no Redis store).
+/// In-memory fixed-window rate limiter. Counts are per-process and reset on
+/// restart (no Redis store).
 ///
 /// - global: 1000 / 15 min on every route.
 /// - `passwordAuth()`: 10 / 15 min, body `{ "error": "Too many attempts, please try again later" }`.
@@ -37,8 +36,7 @@ struct RateLimitMiddleware: AsyncMiddleware {
         .init(name: "clarify", max: 20, windowSeconds: 15 * 60, inlineErrorBody: true,
               message: "Too many requests, please try again later")
     }
-    /// Folded review fix: the Ollama-bound `/api/search/ai` is unthrottled in
-    /// Node, cap it per client. Allowlisted divergence.
+    /// The Ollama-bound `/api/search/ai` is capped per client.
     static func aiSearch() -> RateLimitMiddleware {
         .init(name: "ai-search", max: 30, windowSeconds: 15 * 60, inlineErrorBody: false,
               message: "Too many searches, please slow down")

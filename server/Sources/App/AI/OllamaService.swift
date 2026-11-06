@@ -3,12 +3,12 @@ import AsyncHTTPClient
 import SQLKit
 import NIOFoundationCompat
 
-/// Port of `backend/src/services/aiService.js`. Query understanding,
+/// Query understanding,
 /// translation, and text embedding via a local Ollama instance.
 ///
-/// Folded review fix: `translateToEnglish` **throws** on an Ollama failure
-/// (Node swallows it and embeds the raw non-English text) so the embedding
-/// queue's retry re-runs the translation instead of poisoning the chunk.
+/// `translateToEnglish` **throws** on an Ollama failure (rather than embedding
+/// the raw non-English text) so the embedding queue's retry re-runs the
+/// translation instead of poisoning the chunk.
 enum OllamaService {
     static let keepAlive = "30m"
     static let embedModel = "mxbai-embed-large"
@@ -22,7 +22,7 @@ enum OllamaService {
         init(_ env: AppEnv.Ollama, client: HTTPClient) { url = env.url; model = env.model; self.client = client }
     }
 
-    // MARK: prompts (verbatim from aiService.js)
+    // MARK: prompts
 
     static let locationList = #""Ho Chi Minh"|"Hanoi"|"Da Nang"|"Hai Phong"|"Can Tho"|"Hue"|"Tuyen Quang"|"Lao Cai"|"Thai Nguyen"|"Phu Tho"|"Bac Ninh"|"Hung Yen"|"Ninh Binh"|"Quang Tri"|"Quang Ngai"|"Gia Lai"|"Khanh Hoa"|"Lam Dong"|"Dak Lak"|"Dong Nai"|"Tay Ninh"|"Vinh Long"|"Dong Thap"|"Ca Mau"|"An Giang"|"Lai Chau"|"Dien Bien"|"Son La"|"Lang Son"|"Quang Ninh"|"Thanh Hoa"|"Nghe An"|"Ha Tinh"|"Cao Bang""#
 
@@ -159,7 +159,7 @@ enum OllamaService {
         ]
     }
 
-    // MARK: keyword sanitisation (aiService.js cleanKeywords)
+    // MARK: keyword sanitisation
 
     private static let sentimentPrefix = try! NSRegularExpression(
         pattern: #"^(thích|muốn|quan tâm đến|quan tâm|mê|đam mê|hứng thú với|hứng thú|yêu thích|yêu|like|love|enjoy|want to|interested in)\s+"#,

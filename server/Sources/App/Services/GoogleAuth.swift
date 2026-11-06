@@ -1,9 +1,9 @@
 import Vapor
 import AsyncHTTPClient
 
-/// Port of the Google verification in `POST /api/auth/google`. A raw call to
-/// Google's `tokeninfo` endpoint (no google-auth-library), with the same `aud`
-/// and `email_verified` checks and the same 10s timeout.
+/// Google verification for `POST /api/auth/google`. A raw call to
+/// Google's `tokeninfo` endpoint, with `aud` and `email_verified` checks and a
+/// 10s timeout.
 enum GoogleAuth {
     struct TokenInfo: Content {
         var sub: String?

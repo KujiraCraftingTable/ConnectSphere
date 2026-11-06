@@ -1,7 +1,7 @@
 import Vapor
 import AsyncHTTPClient
 
-/// Port of `backend/src/services/wikipediaService.js`, Tier-3 entity lookup:
+/// Tier-3 entity lookup:
 /// Wikipedia REST summary + MediaWiki langlinks/categories, then an LLM parse
 /// into `{ canonical_name, category, aliases, genre_tags }`. Best-effort, any
 /// failure returns nil and the caller falls back to embedding the raw text.

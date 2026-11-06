@@ -1,7 +1,6 @@
 import Vapor
 
-/// A Feed / community post row. Port of `buildPostSelect` in
-/// `backend/src/models/postModel.js`. Nested objects (`author`, `shared_post`,
+/// A Feed / community post row. Nested objects (`author`, `shared_post`,
 /// `event_data`, `poll_data`) come from Postgres `json_build_object`; `tags`
 /// from `json_agg`. The same struct decodes the SQL row (JSON columns selected
 /// as `jsonb`) and encodes the response.
@@ -51,8 +50,8 @@ struct PostObject: Content {
     @NullCoded var job_data: JobData?
     @NullCoded var listing_data: ListingData? = nil
     /// Only present on community-post responses (getPostsByCommunity's outer
-    /// wrapper). Plain Optional, the key is *absent* on Feed posts, matching
-    /// Node's `buildPostSelect` which doesn't project it at all.
+    /// wrapper). Plain Optional, the key is *absent* on Feed posts (the post
+    /// select doesn't project it).
     var community: CommunityRef?
     /// A community shared to the feed (migration 070): its card under the note.
     @NullCoded var shared_community: SharedCommunity? = nil

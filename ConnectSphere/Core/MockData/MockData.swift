@@ -30,7 +30,7 @@ struct MockData {
         UserProfile(id: "2", name: "Minh Trần", username: "minhtran",
                     avatarColor: "#4CAF50", bio: "Full-stack dev | Music producer 🎵",
                     jobTitle: "Backend Engineer", company: "VNG",
-                    skills: ["Node.js", "PostgreSQL", "Docker", "Go"],
+                    skills: ["Kotlin", "PostgreSQL", "Docker", "Go"],
                     interests: ["Music", "Gaming", "Coding", "Coffee"],
                     location: "Ho Chi Minh City",
                     followerCount: 189, followingCount: 145, postCount: 32),

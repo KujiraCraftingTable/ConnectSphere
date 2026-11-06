@@ -4,11 +4,9 @@ import QueuesRedisDriver
 import SQLKit
 import NIOConcurrencyHelpers
 
-/// Port of `backend/src/jobs/*` + `queues/*`. BullMQ → Vapor Queues.
+/// Background jobs on Vapor Queues (Redis).
 ///
-/// Gated behind `RUN_JOBS=1`. During the parallel-oracle phase the Node
-/// backend owns the schedule; the Swift server only runs jobs once it is the
-/// primary (Phase 6 cutover sets the flag).
+/// Gated behind `RUN_JOBS=1`: only the server that owns the schedule runs jobs.
 enum BackgroundJobs {
     static var enabled: Bool { Environment.get("RUN_JOBS") == "1" }
 
@@ -56,7 +54,7 @@ enum BackgroundJobs {
         app.queues.schedule(TrendingJob()).using(utc).hourly().at(0)
         // Safety net for the 6-hour freshness promise (see `chunkSweep`).
         app.queues.schedule(ChunkSweepJob()).every(minutes: 30)
-        app.queues.schedule(MeetingReminderJob()).every(minutes: 5)   // matches Node's */5 cron; atomic claim makes it idempotent
+        app.queues.schedule(MeetingReminderJob()).every(minutes: 5)   // atomic claim makes it idempotent
         app.queues.schedule(PublishScheduledJob()).every(minutes: 1)   // scheduled posts go out within a minute
         app.queues.schedule(AutoReupJob()).every(minutes: 1)           // auto re-up lands within a minute of its slot
         app.queues.schedule(TranslationSweepJob()).every(minutes: 2)

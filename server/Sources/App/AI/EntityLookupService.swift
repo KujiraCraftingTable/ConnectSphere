@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/services/entityLookupService.js`. The 3-tier
+/// The 3-tier
 /// text → canonical `interest_entities` lookup:
 ///   Tier 1 exact (SQL), Tier 2 confident vector (≥0.8, auto-saves the alias),
 ///   Tier 3 Wikipedia (proper nouns → fetch + LLM-parse → INSERT so Tier 1

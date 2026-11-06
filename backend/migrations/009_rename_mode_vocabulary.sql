@@ -11,7 +11,7 @@
 --
 -- Does NOT touch posts.privacy ('public'/'friends'/'only_me'), 'friends' there
 -- is a privacy level, not a mode.
--- Runs in a single transaction (migrate.js wraps BEGIN/COMMIT automatically).
+-- Runs in a single transaction (the migration runner wraps BEGIN/COMMIT automatically).
 -- ─────────────────────────────────────────────────────────────────────────────
 
 -- 1. Theme columns

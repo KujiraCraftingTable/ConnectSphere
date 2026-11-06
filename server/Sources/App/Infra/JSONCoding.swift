@@ -1,9 +1,8 @@
 import Vapor
 import Foundation
 
-/// Node's `res.json` serialises `Date` via `Date.prototype.toISOString()`,
-/// `YYYY-MM-DDTHH:mm:ss.sssZ` (always UTC, always 3 fractional digits). Match
-/// that everywhere so response bodies are byte-comparable with the Node backend.
+/// Dates go over the wire as `YYYY-MM-DDTHH:mm:ss.sssZ` (always UTC, always
+/// 3 fractional digits), everywhere, so the app parses one format.
 enum JSONCoding {
     static let isoFractional: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
@@ -18,8 +17,7 @@ enum JSONCoding {
             var c = encoder.singleValueContainer()
             try c.encode(isoFractional.string(from: date))
         }
-        // Node preserves insertion order; we don't sort. Key order isn't
-        // semantically significant and the contract harness normalises it.
+        // Keys are not sorted; their order isn't semantically significant.
         e.outputFormatting = [.withoutEscapingSlashes]
         return e
     }

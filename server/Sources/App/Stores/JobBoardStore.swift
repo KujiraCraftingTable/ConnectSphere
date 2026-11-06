@@ -127,7 +127,7 @@ enum JobBoardStore {
                       placeWords: Set(words(r.location ?? "")))
     }
 
-    /// "Node.js" ~ "nodejs", "C#" stays "c#".
+    /// "React.js" ~ "reactjs", "C#" stays "c#".
     static func normalize(_ s: String) -> String {
         s.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil)
             .filter { $0.isLetter || $0.isNumber || $0 == "+" || $0 == "#" }

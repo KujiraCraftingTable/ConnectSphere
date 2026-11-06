@@ -1,9 +1,8 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/controllers/postsController.js` + `postRoutes.js`.
-/// AI side effects (mode-mismatch notification, tag extraction, chunk cleanup)
-/// are deferred to Phase 3/5. They don't touch the synchronous response.
+/// Posts: create, edit, delete, share, drafts. AI side effects (mode-mismatch
+/// notification, tag extraction, chunk cleanup) never touch the synchronous response.
 struct PostsController {
     static func register(routes: any RoutesBuilder) {
         let posts = routes.grouped("posts").grouped(AuthMiddleware())
@@ -282,7 +281,7 @@ struct PostsController {
         return DataResponse(data: post)
     }
 
-    /// Port of `utils/postInput.js#normalizeImageUrls`.
+    /// Cleans the image list: stored paths only, at most 10.
     static func normalizeImageUrls(_ urls: [String]?) -> [String]? {
         guard let clean = MediaPath.storable(urls)?.prefix(10), !clean.isEmpty else { return nil }
         return Array(clean)

@@ -1,9 +1,8 @@
 import Vapor
 
-/// Approximates the headers `helmet()` sets in the Node backend (`app.use(helmet())`
-/// with defaults). The API is JSON-only and consumed by a native app, so the
-/// browser-oriented CSP/HSTS bits matter little, but keeping parity avoids
-/// surprises for anyone hitting it from a browser.
+/// Sets the usual security headers. The API is JSON-only and
+/// consumed by a native app, so the browser-oriented CSP/HSTS bits matter little,
+/// but they avoid surprises for anyone hitting it from a browser.
 struct SecurityHeadersMiddleware: AsyncMiddleware {
     func respond(to request: Request, chainingTo next: any AsyncResponder) async throws -> Response {
         let response = try await next.respond(to: request)

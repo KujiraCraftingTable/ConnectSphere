@@ -1,10 +1,9 @@
 import Vapor
 import SQLKit
 
-/// Port of the core of `backend/src/models/messageModel.js`. Conversations,
-/// messages (with the `MESSAGE_EMBED_SELECT` jsonb shaping), settings, mute,
-/// media, search, reactions, pins, receipts. Group management + meeting-proposal
-/// mutation + the Socket.IO fan-out land in later Phase 4 slices.
+/// Chat data access: conversations, messages (with the embedded-message jsonb
+/// shaping), settings, mute, media, search, reactions, pins, receipts. Group
+/// management and meeting proposals live in `ChatStoreGroups`.
 enum ChatStore {
     static let reactionEmoji = ["❤️", "👍", "😂", "😮", "😢", "🔥"]
     static let maxPins = 10
@@ -326,7 +325,7 @@ enum ChatStore {
             ORDER BY created_at DESC, ord
             """).all(decoding: MediaItem.self)
     }
-    /// Node's `searchMessages` SELECT omits the two voice columns, so the search
+    /// The search SELECT omits the two voice columns, so the search
     /// result shape has no `voice_duration_seconds` / `voice_waveform` keys.
     struct SearchMsgRow: Decodable {
         var id: String; var conversation_id: String; var sender_id: String
@@ -383,7 +382,7 @@ enum ChatStore {
             ORDER BY mp.pinned_at DESC
             """).all(decoding: PinRow.self)
     }
-    /// Node's `pinMessage` returns `RETURNING *`. The full `message_pins` row.
+    /// The full `message_pins` row (`RETURNING *`).
     struct PinInserted: Content {
         var id: String; var conversation_id: String; var message_id: String
         var pinned_by: String; var pinned_at: Date; @NullCoded var expires_at: Date?
@@ -465,7 +464,7 @@ struct MessageObject: Content {
 }
 
 /// Message shape for search results. Same as `MessageObject` minus the two
-/// voice columns (Node's search query doesn't project them).
+/// voice columns (the search query doesn't project them).
 struct SearchMessageObject: Content {
     var id: String
     var conversation_id: String

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Port of `backend/src/utils/personaSql.js`. Builds raw SQL fragments that pick
+/// Builds raw SQL fragments that pick
 /// a user's per-mode identity column (`hobby_*` / `work_*`). `modeRef` is a
 /// trusted SQL expression. A column (`u.default_mode`, `p.mode`), a bound
 /// placeholder written by the caller, or a quoted literal (`'hobby'`). Never

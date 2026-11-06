@@ -1,7 +1,6 @@
 import Vapor
 
-/// The `user` object returned by `/api/auth/*` and `/api/auth/me`. A 1:1 port
-/// of `getUserById` in `backend/src/routes/authRoutes.js`: every `users` column
+/// The `user` object returned by `/api/auth/*` and `/api/auth/me`: every `users` column
 /// except `password_hash` / `google_id`, with `display_name` / `bio` /
 /// `avatar_url` / `cover_url` persona-resolved from `default_mode`, plus the
 /// computed `hobby_setup` / `work_setup` / `has_password` / `interests` / `skills`.

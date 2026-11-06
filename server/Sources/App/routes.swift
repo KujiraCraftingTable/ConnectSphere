@@ -1,7 +1,6 @@
 import Vapor
 
-/// Route mounts. Grows one phase at a time; the prefixes and order mirror
-/// `backend/index.js` lines 542–561.
+/// Route mounts.
 func routes(_ app: Application) throws {
     let api = app.grouped("api")
 

@@ -17,8 +17,7 @@ final class SocketConn: @unchecked Sendable {
     var oid: ObjectIdentifier { ObjectIdentifier(self) }
 }
 
-/// In-memory connection registry + room fan-out + presence counter. Mirrors the
-/// `io.to(room).emit(...)` / `onlineCounts` machinery in `backend/index.js`.
+/// In-memory connection registry + room fan-out + presence counter.
 /// One instance, stored on `Application`.
 final class SocketHub: @unchecked Sendable {
     private let lock = NIOLock()

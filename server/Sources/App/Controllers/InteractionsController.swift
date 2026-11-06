@@ -1,10 +1,8 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/routes/interactionRoutes.js`. Mounted under
-/// `/api/posts/:id` (mergeParams). Notification/socket side effects deferred to
-/// Phase 3/4. Inline `{error}` bodies match the Node handlers. Includes the
-/// review fix: comment restore is wrapped in a txn with a `status = 'deleted'`
+/// Likes, comments and shares. Mounted under `/api/posts/:id`. Inline `{error}`
+/// bodies. Comment restore is wrapped in a txn with a `status = 'deleted'`
 /// guard and a 409 on a double restore.
 struct InteractionsController {
     static func register(routes: any RoutesBuilder) {

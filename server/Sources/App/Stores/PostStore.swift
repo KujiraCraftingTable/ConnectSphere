@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// Raw-SQL data access for posts. Port of `backend/src/models/postModel.js`.
+/// Raw-SQL data access for posts.
 /// The JSON sub-objects (`author`, `shared_post`, `event_data`, `poll_data`,
 /// `tags`) are selected as `::text` and parsed with `JSONCoding.makeDecoder()`
 /// (the tolerant ISO-8601 strategy), PostgresKit's built-in JSON decoder uses
@@ -9,7 +9,7 @@ import SQLKit
 enum PostStore {
     static let maxHashtagsPerPost = 10
 
-    /// Port of `sanitizeHashtags`. Strip all whitespace, cap 100 chars, cap 10
+    /// Strip all whitespace, cap 100 chars, cap 10
     /// tags, case-insensitive dedupe (first casing wins).
     static func sanitizeHashtags(_ tags: [String]?) -> [String] {
         guard let tags else { return [] }
@@ -659,10 +659,8 @@ enum PostStore {
         return try await db.raw(q).all(decoding: PostRow.self).map(map)
     }
 
-    /// Port of `getPostsByCommunity`. Pinned post first. `buildPostSelect`
-    /// itself now projects `community` (needed so Feed posts carry it too,
-    /// once Feed starts including community posts), so this no longer needs
-    /// its own outer wrapper to merge it in.
+    /// A community's posts, pinned post first. `buildPostSelect` already
+    /// projects `community`, so there is no outer wrapper to merge it in.
     static func getPostsByCommunity(_ communityID: String, viewer: String, tag: String?, search: String? = nil, limit: Int, offset: Int, on db: any SQLDatabase) async throws -> [PostObject] {
         var q = buildPostSelect(viewer)
         // The community's own posts, plus Marketplace listings tied to it.

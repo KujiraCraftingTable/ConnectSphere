@@ -1,12 +1,8 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/routes/uploadRoutes.js`. Generic media upload, used
-/// by post image attachments, avatar/cover-photo upload, and Stories. Was
-/// never carried over in the initial Node→Swift port (`configure.swift` had
-/// a stale "added in Phase 2" comment); its absence made all three features
-/// silently fail, since `PostRepository.uploadImage` 404s and returns `nil`
-/// rather than throwing.
+/// Generic media upload, used by post image attachments, avatar/cover-photo
+/// upload, and Stories.
 struct UploadsController {
     /// `POST /api/uploads`, auth required, matches the Node route exactly.
     static func register(routes: any RoutesBuilder) {

@@ -5,25 +5,7 @@
 > Updated 2026-07-04: chunk-based retrieval + a new query pipeline
 > (Normalizer → Extractor → Query Builder), with English normalization on both sides.
 >
-> **Updated 2026-09 (Phase 6 cutover):** the backend was ported to Swift/Vapor.
-> The algorithm, prompts, weights and CTEs are unchanged. Only the language differs. File mapping:
->
-> | Node (old, tag `node-backend-final`, `src/`) | Swift (`server/Sources/App/`) |
-> |---|---|
-> | `services/aiService.js`               | `AI/OllamaService.swift` |
-> | `services/chunkService.js`            | `AI/ChunkService.swift` |
-> | `services/postTagExtractService.js`   | `AI/PostTagExtractService.swift` |
-> | `services/postAnalyzeService.js`      | `AI/PostAnalyzeService.swift` |
-> | `models/searchModel.js`               | `AI/SearchStore.swift` |
-> | `controllers/searchController.js`     | `Controllers/SearchController.swift` |
-> | `queues/{tag,embed}Queue.js`          | `Jobs/BackgroundJobs.swift` (Vapor Queues) |
-> | `models/feedModel.js` (taste vector)  | `Stores/FeedStore.swift` |
-> | `services/entityLookupService.js`, Wikipedia tier, `venueLocationService.js` | `AI/EntityLookupService.swift`, `AI/WikipediaService.swift`, `AI/VenueLocationService.swift` |
-> |, (new in Swift) | `AI/OllamaGate.swift` (user searches take priority over background Ollama work), `AI/SearchRanking.swift`, `AI/PostRanking.swift`, `AI/SearchConcepts.swift`, `AI/Translation/` |
->
-> **Updated 2026-11:** file references below that still say `*.js` / `backend/src/…` mean the
-> Swift file in this table (the descriptions were not rewritten). Since the port, search also
-> has a post-only endpoint (`POST /api/search/ai/posts`), a cached criteria step (migration 086),
+> **Updated 2026-11:** search also has a post-only endpoint (`POST /api/search/ai/posts`), a cached criteria step (migration 086),
 > logged search sessions/events (079) and a curated interest catalogue (080); the Home feed
 > ranks with impressions and feedback (076–077), capped at 400 candidates from the last 60 days.
 
@@ -168,7 +150,7 @@ POST /api/search/ai   (JWT, the searcher is the user in the token)
 Body: { "query": "tìm bạn thích anime để hẹn hò", "mode": "friend", "radiusKm": 10 }
 ```
 
-### Step 2, Query Understanding (aiService.js → `extractSearchCriteria`)
+### Step 2, Query Understanding (`OllamaService` → `extractSearchCriteria`)
 
 The LLM `qwen2.5:7b-instruct-q4_k_m` via Ollama, in **2 rounds** (it used to be 3):
 
@@ -185,7 +167,7 @@ The LLM `qwen2.5:7b-instruct-q4_k_m` via Ollama, in **2 rounds** (it used to be 
 
 Step 1.5 follows: geocode the venue → `searchCoords` (non-fatal). The LLM only parses. It does no ranking.
 
-### Step 3, Query Builder (searchController.js, plain code, no LLM)
+### Step 3, Query Builder (`SearchController`, plain code, no LLM)
 
 **The searcher's own vector is not blended in.** The query vector comes straight
 from the search content, built by two functions that run in parallel:
@@ -207,7 +189,7 @@ entity is preferred but general is not excluded. The constants `W_ENTITY`/`W_GEN
 are at the top of the file. When the criteria produce no vector, fall back to embedding
 `intent_en` (not the raw prompt).
 
-### Step 4, Chunk retrieval (searchModel.js → vectorSearch)
+### Step 4, Chunk retrieval (`SearchStore` → vectorSearch)
 
 A single SQL statement with 4 CTE layers:
 
@@ -224,7 +206,7 @@ A single SQL statement with 4 CTE layers:
 
 Formula ③: the best chunk decides 70%, plus 30% for "diligence", divided by a
 fixed 3, so only a user who matches in several sources (profile + multiple posts)
-gets the full amount. The weights are constants at the top of `searchModel.js`
+gets the full amount. The weights are constants at the top of `SearchStore`
 (`W_MAX`, `W_AVG`, `W_RETRIEVAL`, `W_PERSONAL`, `CHUNK_POOL_SIZE`). Easy to tune.
 
 **Hard filters** are applied at the user level (after grouping, before LIMIT 20):

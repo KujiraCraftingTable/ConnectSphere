@@ -1,8 +1,7 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/services/reportService.js` + `reportController.js` +
-/// `reportModel.js`. `clientError` → `Abort` ({status,code,message}).
+/// Reports. Client errors are thrown as `Abort` ({status,code,message}).
 /// The staff auto-notify on threshold is deferred with the rest of the
 /// notification fan-out; the folded review fix (`>= 5 && < 10` window instead
 /// of a bare `=== 5`) is carried in the comment for when it's wired.

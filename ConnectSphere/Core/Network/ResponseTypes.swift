@@ -73,8 +73,7 @@ struct OKResponse: Decodable {
     let status: String
 }
 
-/// `{status, code, message}`, or the inline `{error}` shape a few routes
-/// inherited from the Node backend.
+/// `{status, code, message}`, or the inline `{error}` shape a few routes use.
 struct ErrorResponse: Decodable {
     let message: String
 

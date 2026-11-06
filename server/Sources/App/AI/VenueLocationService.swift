@@ -3,7 +3,7 @@ import SQLKit
 import AsyncHTTPClient
 import NIOConcurrencyHelpers
 
-/// Port of `backend/src/services/venueLocationService.js`. Resolve a venue /
+/// Resolve a venue /
 /// place name to `{ provinceName, lat, lng }`:
 ///   bounded in-memory cache → community-validated `location_aliases` → Nominatim.
 /// `recordClarification` writes a user-submitted alias (auto-validated when the

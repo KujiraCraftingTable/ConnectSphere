@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/services/postTagExtractService.js`, LLM topic/entity
+/// LLM topic/entity
 /// extraction → entity-registry expansion (Tier-1 exact + Tier-2 confident
 /// vector; the Wikipedia self-learn tier is Phase 8) → dedup → bulk insert into
 /// `post_tags` with `source = 'ai'`.

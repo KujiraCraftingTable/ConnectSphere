@@ -5,7 +5,7 @@
 -- a boolean on `messages`, because chat needs multiple *simultaneous* pins,
 -- unlike Communities' single-pinned-post pattern on `posts.is_pinned`). Each
 -- pin optionally carries its own expires_at for auto-delete (per-pin, not a
--- conversation-wide default); a daily job (pinExpiryJob.js) sweeps expired
+-- conversation-wide default); a daily job (PinExpiryJob) sweeps expired
 -- rows. The 10-per-conversation cap is enforced by a COUNT(*) < 10 guard on
 -- the insert itself (messageModel.pinMessage), mirroring setMeetingRsvp's
 -- guard-the-write-itself style rather than a separate check-then-act.

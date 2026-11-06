@@ -1,12 +1,12 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/models/searchModel.js`. The chunk-based people
+/// The chunk-based people
 /// vector-search CTE plus its helpers (`getUserContext`, `logSearch`,
 /// `findCommunityEvidence`), and `entityLookupService`'s pure-SQL / vector
 /// tiers (`exactMatch`, `findEntityCandidates`).
 ///
-/// Folded review fixes vs the Node CTE:
+/// Retrieval rules:
 ///   • `chunk_pool` is filtered BEFORE the 200-row HNSW cap, soft-deleted
 ///     authors, non-`posted`/non-public post chunks, and mutual blocks vs the
 ///     searcher no longer waste a slot or influence a score.

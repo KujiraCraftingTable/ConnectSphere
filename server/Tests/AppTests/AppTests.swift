@@ -29,7 +29,7 @@ final class AppTests: XCTestCase {
         })
     }
 
-    // MARK: JWTHS256, must stay wire-compatible with `jsonwebtoken`.
+    // MARK: JWTHS256, the token format must not change.
 
     func testJWTDurationParsing() {
         XCTAssertEqual(JWTHS256.seconds(from: "90d"), 90 * 86400)
@@ -44,7 +44,7 @@ final class AppTests: XCTestCase {
         let token = JWTHS256.sign(sub: "abc-123", secret: "s3cr3t", expiresIn: "90d", now: now)
         let parts = token.split(separator: ".")
         XCTAssertEqual(parts.count, 3)
-        // header is the canonical jsonwebtoken header
+        // header is the canonical JWT header
         XCTAssertEqual(JWTHS256.b64Decode(String(parts[0])).flatMap { String(data: $0, encoding: .utf8) },
                        #"{"alg":"HS256","typ":"JWT"}"#)
         let payload = try JWTHS256.verify(token, secret: "s3cr3t", now: now.addingTimeInterval(60))

@@ -1,10 +1,7 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/routes/messageRoutes.js` + `messageController.js` +
-/// the core of `messageService.js` / `messageModel.js`. Error bodies use the
-/// `{status,code,message}` shape (the Node controller's inline errors carry
-/// `code`; `clientError` in the service goes through the central handler).
+/// Chat REST routes. Error bodies use the `{status,code,message}` shape.
 ///
 /// This slice (4a): conversations open/list, messages list/send/recall,
 /// react, read/delivered/unread, clear, settings/mute/media/search, pins.
@@ -441,9 +438,8 @@ struct MessagesController {
         let id = req.parameters.get("id")!
         try await requireParticipant(id, req)
         _ = try await ChatStore.markRead(id, userID: req.userID, on: req.db.sql())
-        // Folded review fix: the REST read path also emits messages_read (Node's
-        // only fires it from the socket handler) so the other side's ticks
-        // update even when the reader used REST.
+        // The REST read path also emits messages_read (the socket handler does
+        // too) so the other side's ticks update even when the reader used REST.
         req.socketHub.emit(room: id, event: "messages_read", WSMessagesRead(conversationId: id, readBy: req.userID))
         let uid = req.userID
         NotifyService.fireAndForget(req) { d, h, l in
@@ -456,7 +452,7 @@ struct MessagesController {
         let id = req.parameters.get("id")!
         try await requireParticipant(id, req)
         let rows = try await ChatStore.markConversationDelivered(id, userID: req.userID, on: req.db.sql())
-        // Node's REST catch-up path emits { conversationId, messageId } (no userId).
+        // The REST catch-up path emits { conversationId, messageId } (no userId).
         for r in rows {
             req.socketHub.emitToUser(r.sender_id, event: "message_delivered",
                 WSMessageDelivered(conversationId: id, messageId: r.id, userId: nil))

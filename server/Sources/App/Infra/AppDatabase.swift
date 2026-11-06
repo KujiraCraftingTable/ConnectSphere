@@ -3,8 +3,7 @@ import PostgresKit
 import PostgresNIO
 import SQLKit
 
-/// Thin wrapper over a PostgresKit connection pool. The Swift counterpart of
-/// `backend/src/config/db.js`. Exposes raw SQL (`sql()` → `SQLDatabase`) plus a
+/// Thin wrapper over a PostgresKit connection pool. Exposes raw SQL (`sql()` → `SQLDatabase`) plus a
 /// `withTransaction` helper with the same all-or-nothing contract.
 final class AppDatabase: @unchecked Sendable {
     let pool: EventLoopGroupConnectionPool<PostgresConnectionSource>
@@ -19,7 +18,7 @@ final class AppDatabase: @unchecked Sendable {
             database: env.db.database,
             tls: .disable
         )
-        // Node's `DB_POOL_MAX` is a total; spread it across the event loops,
+        // `DB_POOL_MAX` is a total; spread it across the event loops,
         // but never below 4 each: on a 10-core Mac 10 / 10 left every loop one
         // connection, so one slow query (or a job) stalled every request on it.
         var loops = 0
@@ -28,8 +27,8 @@ final class AppDatabase: @unchecked Sendable {
         self.pool = EventLoopGroupConnectionPool(
             source: PostgresConnectionSource(sqlConfiguration: config),
             maxConnectionsPerEventLoop: perLoop,
-            // How long a request waits for a free connection; Node's 2 s is
-            // too tight while the job workers are busy.
+            // How long a request waits for a free connection; 2 s is too
+            // tight while the job workers are busy.
             requestTimeout: .milliseconds(Int64(max(env.db.connectionTimeoutMS, 5000))),
             pruneInterval: .seconds(30),
             maxIdleTimeBeforePruning: .milliseconds(Int64(env.db.idleTimeoutMS)),
@@ -45,8 +44,7 @@ final class AppDatabase: @unchecked Sendable {
     }
 
     /// Run `work` inside a single BEGIN/COMMIT on one pooled connection. Any
-    /// thrown error triggers ROLLBACK and re-throws. Mirrors `withTransaction`
-    /// in db.js.
+    /// thrown error triggers ROLLBACK and re-throws.
     func withTransaction<T: Sendable>(
         _ work: @Sendable @escaping (any SQLDatabase) async throws -> T
     ) async throws -> T {

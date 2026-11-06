@@ -1,11 +1,10 @@
 import Vapor
 import SQLKit
 
-/// Port of the rest of `backend/src/models/userModel.js`. Profile reads,
-/// block graph, profile update, and account soft-delete.
+/// Profile reads, block graph, profile update, and account soft-delete.
 extension UserStore {
 
-    /// `escapeLike` from `backend/src/utils/sql.js`.
+    /// Escapes `%`, `_` and `\` so a search term is matched literally by LIKE.
     static func escapeLike(_ term: String) -> String {
         var out = ""
         for ch in term {

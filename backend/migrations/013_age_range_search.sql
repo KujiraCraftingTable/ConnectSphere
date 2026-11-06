@@ -13,9 +13,8 @@
 -- Postgres rejects that: "age from today's date" depends on the current date,
 -- which isn't an immutable expression, generated/index expressions can't
 -- reference it. Standard workaround: a plain, indexable INT column, computed
--- at write time whenever dob is set/changed (see userModel.js), kept fresh by
--- a daily job (backend/src/jobs/ageJob.js, mirrors the existing
--- communityJobs.js analytics-snapshot pattern) that recomputes it for every
+-- at write time whenever dob is set/changed (see the profile update), kept fresh by
+-- a daily job (AgeRecomputeJob) that recomputes it for every
 -- user with a non-null dob. Worst-case staleness is under 24h around a
 -- birthday, acceptable for a hard filter, not worth a heavier mechanism.
 --

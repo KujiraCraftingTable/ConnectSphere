@@ -88,7 +88,7 @@ enum MeetingReminderOffset: String, CaseIterable, Codable {
 }
 
 /// Fixed reaction set shown in the quick-react picker. Mirrors
-/// `ALLOWED_REACTION_EMOJI` in backend/src/models/messageModel.js.
+/// the server's allowed reaction set.
 enum ReactionEmoji: String, CaseIterable {
     case heart = "❤️"
     case thumbsUp = "👍"
@@ -125,8 +125,8 @@ struct RepliedMessage: Decodable, Equatable {
 /// who/when pinned it. `id` decodes from the wire's `message_id` (the
 /// message's own id) rather than `message_pins.id`, that's what
 /// `DELETE .../pins/:messageId` and `ChatView.jumpToMessage(_:)` both expect;
-/// the pin row's own id is never needed on this side. Reconciled against the
-/// real backend (`messageModel.listPins`, `backend/src/models/messageModel.js`).
+/// the pin row's own id is never needed on this side. Matches the
+/// server's pins response.
 struct PinnedMessage: Identifiable, Decodable, Equatable {
     let id: String
     let content: String?
@@ -177,7 +177,7 @@ struct PinnedMessage: Identifiable, Decodable, Equatable {
 /// Communities' `EventData` shape (title/location/starts_at/ends_at + RSVP),
 /// but anchored to a chat message instead of a community post. `rsvps` is a
 /// status → user-ids map, the exact same convention as `Message.reactions`
-/// (see `backend/src/models/messageModel.js`'s `MESSAGE_EMBED_SELECT`), so the
+/// (the server's embedded-message shape), so the
 /// client derives counts and "my response" locally without a per-user query.
 struct MeetingProposal: Decodable, Equatable {
     let id: String
