@@ -32,11 +32,11 @@ Full description in [`ARCHITECTURE.md`](../../ARCHITECTURE.md). In short:
 ### Backend (Swift/Vapor)
 - Throw `Abort(.badRequest, reason: "...")` or `InlineError(.badRequest, "...")`; let the
   error propagate rather than catching and re-wrapping
-- `AppErrorMiddleware` (`Sources/App/Infra/`) is the central handler — it renders the
+- `AppErrorMiddleware` (`Sources/App/Infra/`) is the central handler. It renders the
   consistent JSON shape the iOS client parses:
   `{ "status": "error", "code": 400, "message": "..." }`
 - Use Vapor's `Logger` (`req.logger`), never `print` on a request path
-- Fire-and-forget side effects (notifications, embeddings) must not fail the request —
+- Fire-and-forget side effects (notifications, embeddings) must not fail the request,
   detach them, following `NotifyService.fireAndForget`
 
 ### iOS
@@ -46,7 +46,7 @@ Full description in [`ARCHITECTURE.md`](../../ARCHITECTURE.md). In short:
 
 ## General
 - Write code in English (variable names, comments, file names)
-- Comment the *why*, not the what — a non-obvious constraint, a subtle invariant, a
+- Comment the *why*, not the what. A non-obvious constraint, a subtle invariant, a
   workaround and the bug it works around. Well-named code doesn't need narration
 - No dead code, no TODO left uncommitted
 - Each feature must be complete (model + service + route + controller) before moving to the next

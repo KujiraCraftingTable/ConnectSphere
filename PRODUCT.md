@@ -1,4 +1,4 @@
-# ConnectSphere — Product
+# ConnectSphere, Product
 
 > One account, two sides of your life. ConnectSphere is a social app for
 > Vietnam where your **Hobby** side (friends, interests, fandoms) and your
@@ -20,7 +20,7 @@ A young person in Vietnam today spreads their social life across several apps:
 
 Two things go wrong. Friends and colleagues see the same profile, so people
 either over-share at work or under-share with friends. And finding *the right
-person* — someone who shares a niche hobby, or has a particular skill nearby —
+person*, someone who shares a niche hobby, or has a particular skill nearby,
 means keyword search that only matches exact words.
 
 ## Who it's for
@@ -42,6 +42,8 @@ feed. Most features exist in both, and content stays in the mode it was made in.
 
 **Feed & posts**
 - Write posts with photos/videos, hashtags, polls; privacy per post.
+- Report a post, then optionally hide everything from its author without
+  blocking them.
 - Stories with highlights on the profile.
 - Drafts and scheduled posts; save posts for later.
 - Comments with photos and threaded replies; translate posts and comments.
@@ -53,7 +55,8 @@ feed. Most features exist in both, and content stays in the mode it was made in.
 
 **Chat**
 - Direct and group chats, with photos/videos, voice messages, replies,
-  pinned messages, polls and message search.
+  pinned messages, polls and message search; message requests from people you
+  aren't connected to.
 - **Meeting proposals** with a place, time and reminder.
 - Share posts and communities into a chat; a floating chat bubble; chat *spaces*
   to group conversations.
@@ -62,7 +65,7 @@ feed. Most features exist in both, and content stays in the mode it was made in.
 - Join or create communities (hobby or work); a community page with cover,
   members and info.
 - Post text, polls, events and jobs inside a community.
-- Admin tools: post approval, moderation, analytics, member roles.
+- Admin tools: post approval, a report queue, analytics, member roles.
 - Per-member choice of new-post notifications (all / friends' posts / off),
   and "Manage your content" to see your own posts and comments there.
 
@@ -73,9 +76,13 @@ feed. Most features exist in both, and content stays in the mode it was made in.
   where it also appears as a post.
 - Seller tools: an automatic first reply to buyers, hide the listing from your
   friends, mark as sold (after which buyers can no longer message about it).
+- **Re-up**: a seller can re-up an item (by hand, or automatically every 1 / 3 / 7
+  days at a chosen hour) so it shows as new. A re-up is a new post: likes and
+  comments don't carry over, and the item shows how many times it was re-upped.
 
 **Jobs & companies**
-- Company pages; job posts; browse and filter jobs; apply with a note.
+- Company pages; job posts; a Jobs tab with recommendations, search and saved
+  jobs; Easy Apply with applicant tracking; skill endorsements.
 
 **Search & assistant**
 - **AI search** over people and posts in plain language (see below).
@@ -83,7 +90,10 @@ feed. Most features exist in both, and content stays in the mode it was made in.
 
 **Account & safety**
 - Sign in (incl. Google), email verification, two-factor authentication.
-- Blocked users, muted words, activity log, recently deleted, privacy settings.
+- Saved accounts on the device for quick switching, sign in with email or
+  `@username`.
+- Blocked users, muted words, activity log, recently deleted, lock profile,
+  privacy and security settings, links open in an in-app browser.
 - English / Vietnamese, light/dark themes.
 
 ## What makes it different
@@ -94,7 +104,7 @@ feed. Most features exist in both, and content stays in the mode it was made in.
 2. **AI search that understands what you mean.** Ask "iOS developers near
    Landmark 81 who like J-pop" in Vietnamese or English; a local LLM works out
    the intent and the place, and vector search (pgvector) finds matching people
-   and posts — not just exact keywords. Runs locally (Ollama), so queries don't
+   and posts, not just exact keywords. Runs locally (Ollama), so queries don't
    leave the server. Details: [`AI_SEARCH_OVERVIEW.md`](AI_SEARCH_OVERVIEW.md); its gaps
    next to Spotify, Netflix and Amazon: [`AI_SEARCH_REVIEW.md`](AI_SEARCH_REVIEW.md).
    How the Home feed ranks posts, and its gaps next to Facebook and TikTok:
@@ -109,13 +119,13 @@ feed. Most features exist in both, and content stays in the mode it was made in.
 
 ## Product principles
 
-Rules the app already follows — keep them when adding features:
+Rules the app already follows. Keep them when adding features:
 
 - **Privacy by mode.** Content and connections never cross from Hobby to Work
   (or back) unless the user moves them.
 - **Never lose someone's work by surprise.** Every form asks before Cancel
   discards it, even when empty, and swipe-to-dismiss can't skip the question.
-- **Ask before anything that can't be undone** — delete, mark as sold, leave
+- **Ask before anything that can't be undone**. Delete, mark as sold, leave
   a community.
 - **The right input for the job.** Number fields open the number keypad;
   location fields search places (Apple Maps) as you type.
@@ -141,7 +151,7 @@ Summarised from [`KNOWN_GAPS.md`](KNOWN_GAPS.md):
 
 | Term | Meaning |
 |---|---|
-| **Mode** | Hobby or Work — the side of the app you're using; content belongs to one mode |
+| **Mode** | Hobby or Work. The side of the app you're using; content belongs to one mode |
 | **Persona** | Your profile for one mode (Hobby profile, Work profile) |
 | **Connection** | A mutual friend link in one mode; separate from following |
 | **Community** | A group around a hobby (fandom) or a field of work |

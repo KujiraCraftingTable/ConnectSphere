@@ -19,7 +19,7 @@ the server.
 | **Model** | `Features/<Feature>/Models/`, `Core/Network/DTOs/` | Plain data: DTOs decoded from the API, and app models such as `Post` | Behaviour beyond simple computed properties |
 | **`AppState`** (`Core/AppState.swift`) | One instance, in the SwiftUI environment | App-wide session: auth token, current user, Hobby/Work mode, badge counts | Screen-specific state |
 
-The app has **49 ViewModels** and **9 repositories**. No view calls the
+The app has about **73 ViewModels** and **25 repositories**. No view calls the
 network or the Keychain directly; a single `grep` over the view folders
 proves it (see *Checking the rule* below).
 
@@ -120,9 +120,10 @@ layered instead:
 | **Routes + Controllers** | `routes.swift`, `Controllers/` | Decode and validate input (enums against allowlists, lengths bounded), check auth (`req.userID` from `AuthMiddleware`), call stores/services, shape the JSON |
 | **Services** | `Services/`, `AI/` | Multi-step business logic: notifications (`NotifyService`), posting, the AI search pipeline, embeddings (`ChunkService`), ranking |
 | **Stores** | `Stores/` | Parameterised SQL through SQLKit (`\(bind:)`, `\(uuid:)`); no Fluent ORM |
-| **Jobs** | `Jobs/` | Background work on Redis via Vapor Queues: embeddings, tag extraction, notifications, daily housekeeping |
+| **Jobs** | `Jobs/` | Background work on Redis via Vapor Queues (only when `RUN_JOBS=1`): tag extraction, chunk embedding and its 30-minute sweep, social notifications, translation, scheduled-post publishing, auto re-up, meeting reminders, daily housekeeping |
 | **Realtime** | `Realtime/` | The Socket.IO-compatible hub the app's `WebSocketClient` talks to |
-| **Infra** | `Infra/` | Environment, error middleware (`{ status, code, message }`), rate limiting, security headers, the migration runner |
+| **Infra** | `Infra/` | Environment, error middleware (`{ status, code, message }`), rate limiting, security headers, the migration runner (`RUN_MIGRATIONS=1`), upload metadata stripping |
+| **Commands** | `Commands/` | One-off maintenance commands: `seed-demo`, `strip-upload-metadata`, `verify-company`, `community-reports` |
 
-The database schema lives in `backend/migrations/` and is replayed at boot.
+The database schema lives in `backend/migrations/` (92 files, `001`–`097`) and is replayed at boot when `RUN_MIGRATIONS=1`.
 The AI search design is described in `AI_SEARCH_OVERVIEW.md`.

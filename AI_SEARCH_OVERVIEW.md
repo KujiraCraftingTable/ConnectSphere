@@ -1,14 +1,14 @@
-# AI Search — Cách hoạt động (ConnectSphere)
+# AI Search, How It Works (ConnectSphere)
 
-> Tài liệu đọc hiểu, không phải thiết kế. Mọi mô tả đều phản ánh code hiện tại.
-> So sánh với Spotify / Netflix / Amazon và kế hoạch nâng cấp: [`AI_SEARCH_REVIEW.md`](AI_SEARCH_REVIEW.md).
-> Cập nhật 2026-07-04: chunk-based retrieval + query pipeline mới
-> (Normalizer → Extractor → Query Builder), chuẩn hóa tiếng Anh cả hai phía.
+> A reading guide, not a design document. Every description reflects the current code.
+> For a comparison with Spotify / Netflix / Amazon and the upgrade plan, see [`AI_SEARCH_REVIEW.md`](AI_SEARCH_REVIEW.md).
+> Updated 2026-07-04: chunk-based retrieval + a new query pipeline
+> (Normalizer → Extractor → Query Builder), with English normalization on both sides.
 >
-> **Cập nhật 2026-09 (Phase 6 cutover):** backend đã port sang Swift/Vapor.
-> Thuật toán, prompt, trọng số, và CTE giữ nguyên — chỉ đổi ngôn ngữ. Ánh xạ file:
+> **Updated 2026-09 (Phase 6 cutover):** the backend was ported to Swift/Vapor.
+> The algorithm, prompts, weights and CTEs are unchanged. Only the language differs. File mapping:
 >
-> | Node (cũ, `legacy/backend-node/src/`) | Swift (`server/Sources/App/`) |
+> | Node (old, tag `node-backend-final`, `src/`) | Swift (`server/Sources/App/`) |
 > |---|---|
 > | `services/aiService.js`               | `AI/OllamaService.swift` |
 > | `services/chunkService.js`            | `AI/ChunkService.swift` |
@@ -18,217 +18,228 @@
 > | `controllers/searchController.js`     | `Controllers/SearchController.swift` |
 > | `queues/{tag,embed}Queue.js`          | `Jobs/BackgroundJobs.swift` (Vapor Queues) |
 > | `models/feedModel.js` (taste vector)  | `Stores/FeedStore.swift` |
-> | entity Wikipedia tier, venue geocode, suggestion LLM cache | **chưa port** — Phase 8 |
+> | `services/entityLookupService.js`, Wikipedia tier, `venueLocationService.js` | `AI/EntityLookupService.swift`, `AI/WikipediaService.swift`, `AI/VenueLocationService.swift` |
+> |, (new in Swift) | `AI/OllamaGate.swift` (user searches take priority over background Ollama work), `AI/SearchRanking.swift`, `AI/PostRanking.swift`, `AI/SearchConcepts.swift`, `AI/Translation/` |
+>
+> **Updated 2026-11:** file references below that still say `*.js` / `backend/src/…` mean the
+> Swift file in this table (the descriptions were not rewritten). Since the port, search also
+> has a post-only endpoint (`POST /api/search/ai/posts`), a cached criteria step (migration 086),
+> logged search sessions/events (079) and a curated interest catalogue (080); the Home feed
+> ranks with impressions and feedback (076–077), capped at 400 candidates from the last 60 days.
 
 ---
 
-## 1. Tổng quan kiến trúc
+## 1. Architecture overview
 
 ```
 [iOS App]  →  POST /api/search/ai  →  [Backend]
                                            │
                       ┌────────────────────▼────────────────────┐
-                      │  QUERY UNDERSTANDING (LLM — qwen2.5)      │
+                      │  QUERY UNDERSTANDING (LLM, qwen2.5)      │
                       │  Stage 1 · Normalizer (1 call)           │
-                      │    dịch EN + khử noise + mode +           │
+                      │    translate to EN + strip noise + mode + │
                       │    has_entity + target_gender            │
-                      │  Stage 2 · Extractor (2 call song song)  │
+                      │  Stage 2 · Extractor (2 parallel calls)  │
                       │    Entity Extractor | Semantic Extractor │
                       └────────────────────┬────────────────────┘
                                            │ criteria
                       ┌────────────────────▼────────────────────┐
-                      │  QUERY BUILDER (code thuần — 3 nhánh)    │
+                      │  QUERY BUILDER (plain code, 3 branches) │
                       │  entity → canonical / direct;            │
                       │  general → interests+skills              │
-                      │  → entityVec + generalVec (song song)    │
+                      │  → entityVec + generalVec (in parallel)  │
                       └────────────────────┬────────────────────┘
                                            │
                       ┌────────────────────▼────────────────────┐
                       │  CHUNK RETRIEVAL (pgvector HNSW)         │
-                      │  top-k chunk → group theo user →         │
-                      │  score → rerank → weighted-merge         │
+                      │  top-k chunks → group by user →          │
+                      │  score → rerank → weighted merge         │
                       └────────────────────┬────────────────────┘
                                            │
               [iOS App] ← users + criteria + reasoning + entity_suggestions
 ```
 
-Hai khác biệt cốt lõi so với thiết kế cũ:
+Two core differences from the old design:
 
-1. **Không còn `users.embedding` duy nhất** — mỗi user là **nhiều chunk** trong
-   `user_embedding_chunks`, điểm tổng hợp từ các chunk trúng.
-2. **Cả query lẫn chunk đều được chuẩn hóa sang tiếng Anh** trước khi embed, vì
-   `mxbai-embed-large` yếu tiếng Việt — hai vế phải gặp nhau trong cùng không gian.
+1. **There is no single `users.embedding` any more**. Each user is **many chunks** in
+   `user_embedding_chunks`, and the overall score is aggregated from the matching chunks.
+2. **Both the query and the chunks are normalized to English** before embedding, because
+   `mxbai-embed-large` is weak at Vietnamese. Both sides must meet in the same space.
 
 ---
 
-## 2. Bảng `user_embedding_chunks`
+## 2. The `user_embedding_chunks` table
 
 **Schema:** `backend/migrations/001_init.sql`
 
-| Cột | Ý nghĩa |
+| Column | Meaning |
 |---|---|
-| `user_id` | Chunk này nói về user nào (FK, CASCADE) |
-| `source_type` | `'user_profile'` \| `'post'` (v1 — mở rộng sau: comment, event, composite) |
-| `source_id` | `posts.id` với post chunk; NULL với profile chunk |
-| `chunk_index` | Thứ tự khi một nguồn tách thành nhiều chunk (v1 luôn 0) |
-| `topic` | Nhãn chủ đề (tag đầu tiên của post) |
-| `content` | Text chuẩn hóa đã đem đi embed — để debug/rebuild |
-| `embedding` | `VECTOR(1024)` — mxbai-embed-large, HNSW cosine index |
-| `model_name` | Model đã embed (default `mxbai-embed-large`) |
+| `user_id` | Which user this chunk describes (FK, CASCADE) |
+| `source_type` | `'user_profile'` \| `'post'` (v1. More later: comment, event, composite) |
+| `source_id` | `posts.id` for a post chunk; NULL for a profile chunk |
+| `chunk_index` | Order when one source is split into several chunks (always 0 in v1) |
+| `topic` | Topic label (the post's first tag) |
+| `content` | The normalized text that was embedded. Kept for debugging/rebuilding |
+| `embedding` | `VECTOR(1024)`, mxbai-embed-large, HNSW cosine index |
+| `model_name` | The model that produced the embedding (default `mxbai-embed-large`) |
 
-Dedupe bằng **2 partial unique index** (UNIQUE thường bỏ lọt hàng có
-`source_id IS NULL`). Xóa user → chunks tự xóa (FK CASCADE).
+Deduplication uses **two partial unique indexes** (a plain UNIQUE misses rows with
+`source_id IS NULL`). Deleting a user deletes their chunks (FK CASCADE).
 
-### 3 lớp chunk theo thiết kế
+### The 3 chunk layers by design
 
-1. **User profile chunk** — gom field mô tả user: interests, skills, bio, job,
-   company, location (mỗi user đúng 1 chunk).
-2. **Entity chunk** — mỗi post là 1 chunk riêng: content + article title + tags.
-3. **Composite chunk** — chunk tổng hợp theo chủ đề. *Chưa làm ở v1.*
+1. **User profile chunk**, gathers the fields that describe the user: interests,
+   skills, bio, job, company, location (exactly one chunk per user).
+2. **Entity chunk**, each post is its own chunk: content + article title + tags.
+3. **Composite chunk**, a summary chunk per topic. *Not built in v1.*
 
-### Chuẩn hóa alias khi build chunk
+### Alias normalization when building chunks
 
-Interests/skills/tags được qua **Tier-1 exact lookup** của `interest_entities`
-(SQL thuần, không gọi Ollama): alias được nối canonical name vào text —
-`"JS"` → `"JS (JavaScript)"`. Lý do (đo thật với mxbai-embed-large):
+Interests/skills/tags go through the **Tier-1 exact lookup** of `interest_entities`
+(plain SQL, no Ollama call): an alias gets its canonical name appended to the text,
+`"JS"` → `"JS (JavaScript)"`. Why (measured with mxbai-embed-large):
 
-| Input | Cosine với "Kimetsu no Yaiba" |
+| Input | Cosine with "Kimetsu no Yaiba" |
 |---|---|
-| "One Piece" (anime khác!) | 0.634 |
-| "Demon Slayer" (tên EN chính thức) | 0.531 |
+| "One Piece" (a different anime!) | 0.634 |
+| "Demon Slayer" (official EN name) | 0.531 |
 | "KNY" | 0.526 |
 | "sửa xe máy" (noise floor) | 0.475 |
-| "Thanh gươm diệt quỷ" (tên VN) | 0.474 |
+| "Thanh gươm diệt quỷ" (VN name) | 0.474 |
 
-→ Embedding model **không** tự phân giải được viết tắt/tên tiếng Việt; alias
-table là tầng danh tính chính xác, embedding lo phần ngữ nghĩa mờ.
+→ The embedding model **cannot** resolve abbreviations or Vietnamese names on its
+own; the alias table is the exact identity layer, and embeddings handle the fuzzy
+semantics.
 
 ---
 
-## 3. Luồng build chunk (incremental — không còn cron rebuild toàn bộ)
+## 3. Chunk build flow (incremental. No more full-rebuild cron)
 
-**File:** `backend/src/services/chunkService.js`, `backend/src/queues/embedQueue.js`,
-`backend/src/jobs/chunkSweepJob.js`
+**Files:** `server/Sources/App/AI/ChunkService.swift`, `Jobs/BackgroundJobs.swift`
+(`ChunkEmbedJob`, `ChunkSweepJob`)
 
 ```
-Tạo post ──► tagQueue (BullMQ) ──► tags xong ──► enqueuePostEmbed ──► buildPostChunk
-Post chỉ có link (không content) ─────────────► enqueuePostEmbed (embed thẳng)
-Sửa post (PATCH) ─────────────────────────────► enqueuePostEmbed (re-embed)
-Xóa post (soft-delete) ───────────────────────► deletePostChunks (chunk biến mất ngay)
+Create post ──► tag queue (Vapor Queues) ──► tags done ──► enqueuePostEmbed ──► buildPostChunk
+Link-only post (no content) ──────────────────► enqueuePostEmbed (embed directly)
+Edit post (PATCH) ────────────────────────────► enqueuePostEmbed (re-embed)
+Delete post (soft delete) ────────────────────► deletePostChunks (chunk disappears immediately)
 
-Onboarding xong (POST /auth/setup) ───────────► enqueueProfileEmbed ──► buildProfileChunk
-Sửa hồ sơ (PATCH /users/me) ──────────────────► enqueueProfileEmbed
+Onboarding done (POST /auth/setup) ───────────► enqueueProfileEmbed ──► buildProfileChunk
+Edit profile (PATCH /users/me) ───────────────► enqueueProfileEmbed
 ```
 
-- Queue BullMQ `chunk-embedding` (Redis), 2 loại job `post` / `profile`,
-  retry 3 lần exponential backoff, concurrency 1 để không đè Ollama.
-- **Không có cột status**: "pending" được suy ra — post/user chưa có chunk
-  tương ứng nghĩa là cần embed.
-- **`chunkSweepJob`** (chạy ngay lúc boot + mỗi giờ):
-  1. Post `'posted'` thiếu chunk → enqueue (đây cũng là cơ chế backfill).
-  2. User thiếu profile chunk → enqueue.
-  3. Chunk mồ côi (post đã xóa/ẩn) → delete.
+- The Vapor Queues job `ChunkEmbedJob` (Redis) has two kinds, `post` / `profile`, and is
+  dispatched with up to 3 retries. `OllamaGate` keeps background embedding from
+  starving user-facing searches.
+- **There is no status column**: "pending" is inferred, a post/user with no
+  matching chunk needs embedding.
+- **`ChunkSweepJob`** (runs at boot and then every 30 minutes; it also re-embeds stale chunks):
+  1. `'posted'` posts missing a chunk → enqueue (this is also the backfill mechanism).
+  2. Users missing a profile chunk → enqueue.
+  3. Orphaned chunks (post deleted/hidden) → delete.
 
-### Chuẩn hóa tiếng Anh khi build chunk
+### English normalization when building chunks
 
-Free-text tiếng Việt (post content + article title, và bio của profile) được
-**dịch sang tiếng Anh** (`aiService.translateToEnglish`, qwen2.5) trước khi embed;
-`content` của chunk lưu bản đã dịch. Interests/skills/tags giữ nguyên vì đã đi
-qua canonicalization (đa số là tên riêng/tiếng Anh).
+Vietnamese free text (post content + article title, and the profile bio) is
+**translated to English** (`aiService.translateToEnglish`, qwen2.5) before embedding;
+the chunk's `content` stores the translated version. Interests/skills/tags are left
+as they are because they already went through canonicalization (mostly proper nouns
+or English).
 
-Lý do — đo thật: query tiếng Việt (đã normalize sang EN) so với post "leo núi,
-cắm trại":
+Why, measured: a Vietnamese query (normalized to EN) compared against a post about
+"leo núi, cắm trại" (hiking, camping):
 
-| Phía chunk | Cosine với query EN "hiking and camping" |
+| Chunk side | Cosine with EN query "hiking and camping" |
 |---|---|
-| **EN (đã dịch)** | **0.775** — vượt ngưỡng 0.6, nổi lên |
-| VN (chưa dịch, cũ) | 0.392 — dưới ngưỡng, **không bao giờ khớp** |
+| **EN (translated)** | **0.775**. Above the 0.6 threshold, surfaces |
+| VN (untranslated, old) | 0.392. Below the threshold, **never matches** |
 
-→ Nếu chỉ dịch phía query mà không dịch phía chunk thì hai vế lệch nhau, khớp
-tệ hơn cả khi cùng để tiếng Việt.
+→ Translating only the query side and not the chunk side leaves the two sides
+misaligned, matching worse than leaving both in Vietnamese.
 
 ---
 
-## 4. Luồng search chi tiết
+## 4. The search flow in detail
 
-### Bước 1 — iOS gọi API
+### Step 1, iOS calls the API
 
 ```
-POST /api/search/ai   (JWT — người tìm là user trong token)
+POST /api/search/ai   (JWT, the searcher is the user in the token)
 Body: { "query": "tìm bạn thích anime để hẹn hò", "mode": "friend", "radiusKm": 10 }
 ```
 
-### Bước 2 — Query Understanding (aiService.js → `extractSearchCriteria`)
+### Step 2, Query Understanding (aiService.js → `extractSearchCriteria`)
 
-LLM `qwen2.5:7b-instruct-q4_k_m` qua Ollama, **2 vòng** (trước là 3):
+The LLM `qwen2.5:7b-instruct-q4_k_m` via Ollama, in **2 rounds** (it used to be 3):
 
-**Stage 1 — Normalizer** (1 call, gộp dịch + khử noise + phân loại):
-- `intent_en` — intent cốt lõi đã dịch sang tiếng Anh, giữ nguyên proper noun
-- `mode` (friend/colleague), `has_entity` (có nhắc tên riêng cụ thể không)
-- `target_gender` — chỉ set khi user **nói rõ** "bạn nam/nữ", không đoán
+**Stage 1, Normalizer** (1 call that combines translation, noise removal and classification):
+- `intent_en`, the core intent translated to English, proper nouns kept as-is
+- `mode` (friend/colleague), `has_entity` (whether a specific proper name is mentioned)
+- `target_gender`, set only when the user **says so explicitly** ("bạn nam/nữ"), never guessed
 
-**Stage 2 — Extractor** (2 call song song, chạy trên `intent_en`):
-- **Entity Extractor** (chỉ chạy khi `has_entity`) → `entity_name`, `entity_type`,
+**Stage 2, Extractor** (2 parallel calls, run on `intent_en`):
+- **Entity Extractor** (runs only when `has_entity`) → `entity_name`, `entity_type`,
   `entity_keywords`
 - **Semantic Extractor** → `interest_groups`, `skills`, `bio_keywords`,
-  `job_title_keywords`, `location`, `place_name` (prompt đổi theo mode)
+  `job_title_keywords`, `location`, `place_name` (the prompt varies by mode)
 
-Kèm bước 1.5 geocode venue → `searchCoords` (non-fatal). LLM chỉ parse — không ranking.
+Step 1.5 follows: geocode the venue → `searchCoords` (non-fatal). The LLM only parses. It does no ranking.
 
-### Bước 3 — Query Builder (searchController.js — code thuần, không LLM)
+### Step 3, Query Builder (searchController.js, plain code, no LLM)
 
-**Không blend vector người tìm.** Query vector đến thẳng từ nội dung tìm kiếm,
-xây bằng 2 hàm chạy song song:
+**The searcher's own vector is not blended in.** The query vector comes straight
+from the search content, built by two functions that run in parallel:
 
-`buildEntityVector` — biến specific entity thành 1 vector theo 3 nhánh:
+`buildEntityVector`, turns a specific entity into one vector via 3 branches:
 
-| Nhánh | Điều kiện | Hành động |
+| Branch | Condition | Action |
 |---|---|---|
-| 1 | Exact match trong `interest_entities` (canonical/aliases) | embed **canonical_name** |
-| 2 | Vector match ≥ 0.8 (tự tin) | embed canonical + auto-save alias (nền) |
-| 3a | Vùng xám 0.6–0.8 | embed **thẳng** entity + trả `entity_suggestions` để hỏi user |
-| 3b | < 0.6 (proper noun mới) | embed thẳng + fire-and-forget Wikipedia tự học |
+| 1 | Exact match in `interest_entities` (canonical/aliases) | embed the **canonical_name** |
+| 2 | Vector match ≥ 0.8 (confident) | embed the canonical + auto-save the alias (in the background) |
+| 3a | Gray zone 0.6–0.8 | embed the entity **directly** + return `entity_suggestions` to ask the user |
+| 3b | < 0.6 (new proper noun) | embed directly + fire-and-forget Wikipedia self-learning |
 
-`buildGeneralVector` — embed `interests + skills` (ngữ nghĩa chung).
+`buildGeneralVector`, embeds `interests + skills` (general semantics).
 
-Hai vector chạy 2 lượt retrieval song song rồi **weighted-merge theo user id**:
-`score = 0.7 × entity_score + 0.3 × general_score` (thiếu vế nào = 0) — ưu tiên
-entity nhưng không loại general. Hằng số `W_ENTITY`/`W_GENERAL` đầu file.
-Khi criteria không ra vector nào → fallback embed `intent_en` (không phải raw prompt).
+The two vectors run two retrieval passes in parallel, then are **weighted-merged by user id**:
+`score = 0.7 × entity_score + 0.3 × general_score` (a missing side counts as 0),
+entity is preferred but general is not excluded. The constants `W_ENTITY`/`W_GENERAL`
+are at the top of the file. When the criteria produce no vector, fall back to embedding
+`intent_en` (not the raw prompt).
 
-### Bước 4 — Chunk retrieval (searchModel.js → vectorSearch)
+### Step 4, Chunk retrieval (searchModel.js → vectorSearch)
 
-Một câu SQL 4 tầng CTE:
+A single SQL statement with 4 CTE layers:
 
 ```
-① chunk_pool : top-200 chunk gần nhất (ORDER BY embedding <=> $vec — HNSW)
-② hits       : lọc similarity ≥ 0.6 (threshold cấp chunk)
-③ user_scores: group theo user_id
+① chunk_pool : the 200 nearest chunks (ORDER BY embedding <=> $vec, HNSW)
+② hits       : keep similarity ≥ 0.6 (chunk-level threshold)
+③ user_scores: group by user_id
                retrieval_score = 0.7 × max(sim) + 0.3 × (Σ top-3 sim ÷ 3)
-④ personal   : rerank cá nhân hóa
-               score = 0.85 × retrieval + 0.15 × sim(profile chunk người tìm,
-                                                     profile chunk ứng viên)
-               (thiếu profile chunk ở một trong hai phía → dùng retrieval thuần)
+④ personal   : personalized rerank
+               score = 0.85 × retrieval + 0.15 × sim(searcher's profile chunk,
+                                                     candidate's profile chunk)
+               (if either side lacks a profile chunk → use plain retrieval)
 ```
 
-Công thức ③: chunk tốt nhất quyết định 70%, cộng 30% "điểm chuyên cần" — chia
-cố định cho 3 nên user khớp ở nhiều nguồn (profile + nhiều post) mới ăn trọn.
-Các trọng số là hằng số đầu file `searchModel.js` (`W_MAX`, `W_AVG`,
-`W_RETRIEVAL`, `W_PERSONAL`, `CHUNK_POOL_SIZE`) — chỉnh dễ.
+Formula ③: the best chunk decides 70%, plus 30% for "diligence", divided by a
+fixed 3, so only a user who matches in several sources (profile + multiple posts)
+gets the full amount. The weights are constants at the top of `searchModel.js`
+(`W_MAX`, `W_AVG`, `W_RETRIEVAL`, `W_PERSONAL`, `CHUNK_POOL_SIZE`). Easy to tune.
 
-**Hard filters** áp ở tầng user (sau group, trước LIMIT 20):
+**Hard filters** are applied at the user level (after grouping, before LIMIT 20):
 
-| Filter | Điều kiện |
+| Filter | Condition |
 |---|---|
-| `mode` | `u.default_mode = 'friend'` hoặc `'colleague'` |
+| `mode` | `u.default_mode = 'friend'` or `'colleague'` |
 | `location` | `u.location ILIKE '%...%'` |
-| `target_gender` | `u.gender = <giới user nói rõ>` — **thắng** heuristic hẹn hò |
-| `partner words` | các từ hẹn hò ("to date", "người yêu"…) bị bỏ khỏi câu tìm; phần còn lại (giới tính, nơi ở, sở thích) vẫn được tìm. Không còn lọc ngược giới. |
-| `radius` | Haversine qua `vn_wards` khi có searchCoords + radiusKm |
-| `interest_groups` | AND giữa các nhóm, OR trong nhóm (substring 2 chiều) |
-| `block / self` | loại user chặn nhau 2 chiều + loại chính mình |
+| `target_gender` | `u.gender = <gender the user stated>`, **wins** over the dating heuristic |
+| `partner words` | dating words ("to date", "người yêu"…) are dropped from the query; the rest (gender, location, interests) is still searched. There is no longer a reverse-gender filter. |
+| `radius` | Haversine over `vn_wards` when searchCoords + radiusKm are present |
+| `interest_groups` | AND across groups, OR within a group (two-way substring) |
+| `block / self` | exclude users who blocked each other (both directions) and exclude the searcher |
 
-### Bước 5 — Kết quả trả về iOS
+### Step 5, Result returned to iOS
 
 ```json
 {
@@ -239,113 +250,114 @@ Các trọng số là hằng số đầu file `searchModel.js` (`W_MAX`, `W_AVG`
 }
 ```
 
-`entity_suggestions` (thường rỗng) chỉ có khi entity rơi vào vùng xám 0.6–0.8 —
-xem mục alias confirm bên dưới.
+`entity_suggestions` (usually empty) is present only when an entity falls in the
+0.6–0.8 gray zone, see the alias-confirmation section below.
 
-### Bước 6 — Vòng học alias có người xác nhận
+### Step 6, The human-confirmed alias learning loop
 
-Auto-save alias (như Tier-2 cũ, ngưỡng 0.65) có bẫy: với "thanh gươm diệt quỷ",
-**One Piece (0.634) điểm cao hơn Demon Slayer (0.531)** → có thể lưu alias SAI một
-cách tự tin. Nên chia theo độ tin:
+Auto-saving aliases (like the old Tier-2, threshold 0.65) has a trap: for
+"thanh gươm diệt quỷ", **One Piece (0.634) scores higher than Demon Slayer (0.531)**,
+so a WRONG alias could be saved with confidence. So we split by confidence:
 
-- **≥ 0.8** — tự tin → auto-save alias (giữ tự động hóa).
-- **0.6–0.8** — vùng xám → **không** tự lưu; trả `entity_suggestions`, iOS hiện
-  chip *"Với 'X', ý bạn là? [Google +]"* **ngay sau AI keyword badges, trước
-  danh sách kết quả** (không chặn search — kết quả vẫn render bên dưới).
-  User bấm → `POST /api/entities/alias {keyword, entity_id}` → alias được lưu →
-  lần sau Tier-1 bắt được ngay.
-- **< 0.6** — bỏ qua (đằng nào cũng embed thẳng).
+- **≥ 0.8**, confident → auto-save the alias (keeps the automation).
+- **0.6–0.8**, gray zone → **do not** auto-save; return `entity_suggestions`, and iOS
+  shows the chip *"For 'X', did you mean? [Google +]"* **right after the AI keyword
+  badges, before the result list** (it does not block the search. Results still
+  render below). When the user taps it → `POST /api/entities/alias {keyword, entity_id}`
+  → the alias is saved → next time Tier-1 catches it immediately.
+- **< 0.6**, ignored (it is embedded directly anyway).
 
-**File:** `entityLookupService.js` (`findEntityCandidates`, `saveAlias`,
-ngưỡng `HIGH_CONFIDENCE_THRESHOLD`/`SUGGEST_THRESHOLD`), `routes/entityRoutes.js`,
+**Files:** `AI/EntityLookupService.swift` (`lookupEntity`, `saveAlias`, thresholds in
+`SearchStore.swift`), `SearchController.entityAlias`,
 iOS `SearchView.entitySuggestionsBox` + `SearchViewModel.confirmAlias`.
 
 ---
 
-## 5. Recommendation feed (feedModel.js)
+## 5. Recommendation feed (`Stores/FeedStore.swift`)
 
-Cũng đọc từ `user_embedding_chunks` — một nguồn duy nhất:
+It also reads from `user_embedding_chunks`. A single source:
 
 ```
-taste vector = profile chunk của viewer
-so cosine với chunk của từng post (source_type='post', 1 post = 1 chunk)
+taste vector = the viewer's profile chunk
+compare cosine with each post's chunk (source_type='post', 1 post = 1 chunk)
 threshold 0.65 → keyset pagination (score DESC, id DESC)
 ```
 
-Viewer chưa có profile chunk (chưa onboarding xong) → feed rỗng, client fallback
-feed thường. Filter privacy/block/mode/community y như post list.
+A viewer with no profile chunk (onboarding not finished) gets an empty feed, and the
+client falls back to the regular feed. Privacy/block/mode/community filters are the
+same as the post list.
 
 ---
 
-## 6. Map file → chức năng
+## 6. File → responsibility map
 
-### Backend
+### Backend (`server/Sources/App/`)
 
 ```
-backend/src/services/chunkService.js         ← Build/xóa chunk (profile+post), dịch EN + canonicalize alias
-backend/src/services/aiService.js            ← Normalizer + Extractor + embedText + translateToEnglish
-backend/src/services/entityLookupService.js  ← Entity lookup: exactMatch, findEntityCandidates, saveAlias
-backend/src/services/venueLocationService.js ← Geocode venue/place → tỉnh thành + coords
-backend/src/queues/embedQueue.js             ← BullMQ 'chunk-embedding': job post/profile + helpers enqueue
-backend/src/queues/tagQueue.js               ← Tag extraction, xong thì chain enqueuePostEmbed
-backend/src/jobs/chunkSweepJob.js            ← Sweep mỗi giờ: thiếu → enqueue, mồ côi → xóa (kiêm backfill)
-backend/src/controllers/searchController.js  ← Điều phối: criteria → Query Builder (3 nhánh) → merge → suggestions
-backend/src/models/searchModel.js            ← vectorSearch() chunk-based + score + rerank + hard filters (target_gender)
-backend/src/models/feedModel.js              ← Feed từ chunks (taste vector = profile chunk)
-backend/src/routes/searchRoutes.js           ← Route: POST /api/search/ai
-backend/src/routes/entityRoutes.js           ← Route: POST /api/entities/alias (confirm alias)
-backend/src/config/env.js                    ← Config Ollama URL + model name
+AI/ChunkService.swift             ← Build/delete chunks (profile+post), EN translation + alias canonicalization
+AI/OllamaService.swift            ← Normalizer + Extractor + embedText + translateToEnglish
+AI/OllamaGate.swift               ← Priority gate: user searches before background embedding
+AI/EntityLookupService.swift      ← Entity lookup (exact, vector, Wikipedia tier), saveAlias
+AI/WikipediaService.swift         ← Wikipedia lookup for proper nouns
+AI/VenueLocationService.swift     ← Venue/place → province + coords
+AI/PostTagExtractService.swift    ← Tag extraction; when done, chains the post embed
+AI/SearchStore.swift              ← chunk-based vector search + score + rerank + hard filters
+AI/SearchRanking.swift, PostRanking.swift, SearchConcepts.swift ← ranking nudges, concept catalogue
+Jobs/BackgroundJobs.swift         ← ChunkEmbedJob, TagExtractionJob, 30-minute ChunkSweepJob
+Controllers/SearchController.swift ← Orchestration: criteria → Query Builder (3 branches) → merge → suggestions;
+                                     POST /api/search/ai, /ai/posts, POST /api/entities/alias
+Stores/FeedStore.swift            ← Feed from chunks (taste vector = profile chunk)
 ```
 
 ### iOS
 
 ```
-Features/Search/Views/SearchView.swift           ← UI: banner, kết quả, chip "ý bạn là…?" (entitySuggestionsBox)
-Features/Search/ViewModels/SearchViewModel.swift ← State + gọi API + confirmAlias
+Features/Search/Views/SearchView.swift           ← UI: banner, results, "did you mean…?" chip (entitySuggestionsBox)
+Features/Search/ViewModels/SearchViewModel.swift ← State + API call + confirmAlias
 Features/Search/Repository/UserRepository.swift  ← aiSearch + confirmAlias
-Core/Network/DTOs/AISearchResponseDTO.swift      ← Decode response + EntitySuggestionDTO/EntityCandidateDTO
-Core/Network/Endpoint.swift                      ← Định nghĩa endpoint .aiSearch
+Core/Network/DTOs/AISearchResponseDTO.swift      ← Decodes the response + EntitySuggestionDTO/EntityCandidateDTO
+Core/Network/Endpoint.swift                      ← Defines the .aiSearch endpoint
 ```
 
 ---
 
-## 7. Công nghệ & model
+## 7. Technology & models
 
-| Thành phần | Công nghệ |
+| Component | Technology |
 |---|---|
-| iOS frontend | SwiftUI, `@Observable` macro (iOS 17+), `async/await` |
-| Backend | Node.js 22 (Docker), Express 4 |
-| Database | PostgreSQL 16 + `pgvector` (HNSW), schema baseline `001_init.sql` |
+| iOS frontend | SwiftUI, `@Observable` macro (deployment target iOS 18), `async/await` |
+| Backend | Swift 5.10, Vapor 4 (runs on the host via `./dev.sh start`) |
+| Database | PostgreSQL 16 + `pgvector` (HNSW), baseline schema `001_init.sql` |
 | LLM runtime | Ollama (local) |
-| LLM model | `qwen2.5:7b-instruct-q4_k_m` — normalize/dịch/parse criteria + dịch chunk |
-| Embed model | `mxbai-embed-large` (1024 chiều) — chunk, query, entity lookup |
-| Queue | BullMQ + Redis (tag extraction, chunk embedding) |
-| Logging | `pino` + `pino-pretty` |
-| Scheduled jobs | `node-cron` + `setInterval` (chunkSweepJob hourly) |
+| LLM model | `qwen2.5:7b-instruct-q4_k_m`, normalize/translate/parse criteria + translate chunks |
+| Embed model | `mxbai-embed-large` (1024 dimensions). Chunks, queries, entity lookup |
+| Queue | Vapor Queues + Redis (tag extraction, chunk embedding, translation) |
+| Logging | Vapor `Logger` |
+| Scheduled jobs | Vapor Queues schedules (chunk sweep every 30 minutes; see `Jobs/BackgroundJobs.swift`) |
 
 ---
 
-## 8. Điểm đáng chú ý / hạn chế
+## 8. Notable points / limitations
 
-**Được so với thiết kế cũ:**
+**Gains over the old design:**
 
-- User mới **không phải chờ đến 3h sáng**: profile chunk build ngay khi
-  onboarding xong; post embed ngay sau khi tag xong.
-- Kết quả giải thích được: biết user trúng vì chunk nào (`content` lưu sẵn).
-- Search bám sát prompt (không bị vector profile người tìm pha loãng);
-  cá nhân hóa vẫn còn nhưng là gia vị ở bước rerank (15%).
-- 1 nguồn vector duy nhất cho cả search lẫn feed.
-- **Query và chunk cùng không gian tiếng Anh** → bài/hồ sơ tiếng Việt vẫn khớp
-  query (đo được: 0.392 → 0.775).
-- Entity resolve về canonical + vòng học alias có người xác nhận → tránh học sai.
+- New users **no longer wait until 3 a.m.**: the profile chunk is built as soon as
+  onboarding finishes; a post is embedded right after its tags are extracted.
+- Results are explainable: you can see which chunk made a user match (`content` is stored).
+- Search stays close to the prompt (not diluted by the searcher's own profile vector);
+  personalization remains, but only as a seasoning at the rerank step (15%).
+- One vector source for both search and the feed.
+- **Query and chunks share the same English space** → Vietnamese posts/profiles still
+  match queries (measured: 0.392 → 0.775).
+- Entities resolve to canonical names, plus a human-confirmed alias learning loop → avoids learning wrong aliases.
 
-**Hạn chế còn lại:**
+**Remaining limitations:**
 
-- Ollama down → search trả `[]`, chunk build dồn vào queue retry + sweep.
-- Dịch EN thêm 1 LLM call/chunk (chạy nền) và 1 vòng LLM/search — chấp nhận ở
-  quy mô ~1000 user, chưa tối ưu cho tải lớn.
-- Threshold cứng (0.6 chunk / 0.65 feed / 0.8 alias) — chưa tự điều chỉnh.
-- Top-200 chunk pool: user có rất nhiều post khớp có thể lấn chỗ user khác.
-- Composite chunk (lớp 3) và các source_type mới (comment, event) chưa làm.
-- Normalizer đôi khi phân loại nhập nhằng (vd "React" thành skill thay vì entity)
-  — vô hại vì vẫn khớp qua nhánh general.
+- Ollama down → search returns `[]`, and chunk builds pile up in the retry queue + sweep.
+- English translation adds 1 LLM call per chunk (in the background) and 1 LLM round
+  per search, acceptable at ~1000 users, not optimized for heavy load.
+- Hard thresholds (0.6 chunk / 0.65 feed / 0.8 alias). They don't self-adjust yet.
+- Top-200 chunk pool: a user with very many matching posts can crowd out other users.
+- Composite chunks (layer 3) and new source_types (comment, event) are not built yet.
+- The Normalizer sometimes classifies ambiguously (e.g. "React" as a skill instead of
+  an entity), harmless since it still matches through the general branch.

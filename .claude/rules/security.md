@@ -5,12 +5,12 @@
 - Always keep `.env` in `.gitignore`; provide `.env.example` with dummy values
 - Use bcrypt for password hashing (min 12 rounds)
 - Use JWT for auth (`JWTHS256` + `AuthMiddleware`); `req.userID` is the lowercased subject
-- Validate every input explicitly after decoding it into a `Content` struct — check
+- Validate every input explicitly after decoding it into a `Content` struct. Check
   enums against an allowlist (`guard ["hobby","work"].contains(mode)`) and bound lengths
   before they reach SQL
 - `SecurityHeadersMiddleware` and `RateLimitMiddleware` are already registered in
   `configure.swift`; put new auth-adjacent routes behind the rate limiter
-- Database queries must use parameterised interpolation — `\(bind:)` for values,
+- Database queries must use parameterised interpolation, `\(bind:)` for values,
   `\(uuid:)` for UUIDs. `\(unsafeRaw:)` only for literals already validated against an
   allowlist, never for user input
 

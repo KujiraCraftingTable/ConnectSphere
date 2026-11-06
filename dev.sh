@@ -27,7 +27,7 @@ err()  { echo "${RED}✗${NC} $1"; }
 start() {
   echo ""
   echo "${BLUE}╔══════════════════════════════╗${NC}"
-  echo "${BLUE}║   ConnectSphere — Starting   ║${NC}"
+  echo "${BLUE}║   ConnectSphere, Starting   ║${NC}"
   echo "${BLUE}╚══════════════════════════════╝${NC}"
   echo ""
 
@@ -46,7 +46,7 @@ start() {
     ok "Docker is ready"
   fi
 
-  # 2. Ollama server (stays on the host — Docker can't use the GPU on macOS)
+  # 2. Ollama server (stays on the host, Docker can't use the GPU on macOS)
   log "Starting Ollama server..."
   if pgrep -x "ollama" > /dev/null; then
     ok "Ollama already running"
@@ -62,11 +62,11 @@ start() {
       ok "Ollama model present: $model"
     else
       log "Pulling Ollama model $model (first run only, this is large)..."
-      ollama pull "$model" && ok "Pulled $model" || warn "Failed to pull $model — AI search will be degraded"
+      ollama pull "$model" && ok "Pulled $model" || warn "Failed to pull $model, AI search will be degraded"
     fi
   done
 
-  # 3. Docker: the data layer ONLY — Postgres 16 + pgvector and Redis.
+  # 3. Docker: the data layer ONLY, Postgres 16 + pgvector and Redis.
   #    The Swift backend runs on the host (step 3b), not as a container.
   log "Starting Docker data layer (Postgres, Redis)..."
   cd "$BACKEND_DIR"
@@ -81,7 +81,7 @@ start() {
   echo ""
   ok "Postgres + Redis running (Docker)"
 
-  # 3b. Swift/Vapor backend — on the host (reads ../backend/.env; migrations
+  # 3b. Swift/Vapor backend, on the host (reads ../backend/.env; migrations
   #     replay at boot via RUN_MIGRATIONS=1, advisory-locked and idempotent).
   log "Starting Swift backend (host: swift run App serve)..."
   if lsof -nP -iTCP:3000 -sTCP:LISTEN > /dev/null 2>&1; then
@@ -90,26 +90,26 @@ start() {
     cd "$SERVER_DIR"
     RUN_MIGRATIONS=1 RUN_JOBS=1 PORT=3000 nohup swift run App serve > "$SERVER_LOG" 2>&1 &
     SERVER_PID=$!
-    echo "   Waiting for the backend to be healthy (first run compiles Swift — this is slow)"
+    echo "   Waiting for the backend to be healthy (first run compiles Swift. This is slow)"
     tries=0
     while ! curl -sf http://localhost:3000/health > /dev/null 2>&1; do
       if ! kill -0 "$SERVER_PID" 2>/dev/null; then
         echo ""
-        err "Swift backend exited before it came up — check $SERVER_LOG"
+        err "Swift backend exited before it came up. Check $SERVER_LOG"
         tail -n 20 "$SERVER_LOG"
         return 1
       fi
       tries=$((tries + 1))
       if [ "$tries" -gt 180 ]; then   # ~6 min
         echo ""
-        err "Backend not healthy after 6 min — check $SERVER_LOG"
+        err "Backend not healthy after 6 min. Check $SERVER_LOG"
         return 1
       fi
       printf "."
       sleep 2
     done
     echo ""
-    ok "Swift backend running on :3000 (host) — logs: $SERVER_LOG"
+    ok "Swift backend running on :3000 (host). Logs: $SERVER_LOG"
   fi
 
   # 5. Xcode
@@ -152,7 +152,7 @@ start() {
 stop() {
   echo ""
   echo "${RED}╔══════════════════════════════╗${NC}"
-  echo "${RED}║   ConnectSphere — Stopping   ║${NC}"
+  echo "${RED}║   ConnectSphere, Stopping   ║${NC}"
   echo "${RED}╚══════════════════════════════╝${NC}"
   echo ""
 
@@ -194,7 +194,7 @@ stop() {
   cd "$BACKEND_DIR"
   docker compose down > /dev/null 2>&1 && ok "Docker services stopped" || warn "Docker services were not running"
 
-  # 8. Docker Desktop — wait for containers to stop first
+  # 8. Docker Desktop, wait for containers to stop first
   log "Quitting Docker Desktop..."
   sleep 1
   osascript -e 'tell application "Docker Desktop" to quit' 2>/dev/null
@@ -218,7 +218,7 @@ case "$1" in
   *)
     echo "Usage: ./dev.sh [start|stop]"
     echo ""
-    echo "  start  —  Docker (Postgres + Redis) + Ollama + Swift backend (host) + Xcode + VS Code + TablePlus"
-    echo "  stop   —  Dừng tất cả và đóng Xcode"
+    echo "  start ,  Docker (Postgres + Redis) + Ollama + Swift backend (host) + Xcode + VS Code + TablePlus"
+    echo "  stop  ,  Stop everything and close Xcode"
     ;;
 esac

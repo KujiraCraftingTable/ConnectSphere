@@ -13,14 +13,14 @@ count() { grep -rn "$1" "$SRC" --include='*.swift' 2>/dev/null | grep -v '//' | 
 # ── Hard fails ──────────────────────────────────────────────────────────────
 purple_orange=$(count 'Color\.\(purple\|orange\)')
 if [ "$purple_orange" -ne 0 ]; then
-  echo "FAIL: $purple_orange raw Color.purple/.orange literal(s) — use theme.primary or AppColors.warning"
+  echo "FAIL: $purple_orange raw Color.purple/.orange literal(s). Use theme.primary or AppColors.warning"
   grep -rn 'Color\.\(purple\|orange\)' "$SRC" --include='*.swift' | grep -v '//'
   fail=1
 fi
 
 apptheme=$(grep -rn 'AppTheme\.\|AppGradient' "$SRC" --include='*.swift' 2>/dev/null | grep -v '// \|Replaces AppTheme' | wc -l | tr -d ' ')
 if [ "$apptheme" -ne 0 ]; then
-  echo "FAIL: AppTheme / AppGradient reference(s) reintroduced — both were deleted"
+  echo "FAIL: AppTheme / AppGradient reference(s) reintroduced. Both were deleted"
   fail=1
 fi
 

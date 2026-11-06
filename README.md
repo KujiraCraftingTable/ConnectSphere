@@ -1,125 +1,139 @@
 # ConnectSphere
 
-A native iOS social‑networking app with a dual‑persona (Hobby / Work) model,
-communities, real‑time chat, and an AI‑powered semantic search over people and
-posts. Built for **COMP1682**.
+A native iOS social-networking app with a dual-persona (Hobby / Work) model,
+communities with a built-in marketplace, real-time chat, Work-mode careers and
+an AI-powered semantic search over people and posts. Built for **COMP1682**.
 
-- **iOS app** — SwiftUI, `@Observable` view models, `URLSession` + a hand‑rolled
-  WebSocket client (no third‑party networking).
-- **Backend** — Swift + Vapor 4, raw parameterised SQL via SQLKit/PostgresKit
-  (no Fluent), PostgreSQL (with `pgvector`), Redis + Vapor Queues for background
-  jobs, a Socket.IO v4 / Engine.IO 4 protocol shim on Vapor WebSocket, and a
-  local **Ollama** LLM for query understanding and embeddings. *(Ported from
-  Node/Express — the retired implementation is in `legacy/backend-node/`, tag
-  `node-backend-final`.)*
-- **Bilingual** — English / Vietnamese, switchable in‑app.
+- **iOS app**, SwiftUI, MVVM with `@Observable` ViewModels, `URLSession` plus
+  a hand-rolled Socket.IO WebSocket client. Deployment target iOS 18.0.
+  English / Vietnamese, switchable in-app.
+- **Backend** (`server/`), Swift + Vapor 4, raw parameterised SQL via
+  SQLKit/PostgresKit (no Fluent), PostgreSQL 16 + `pgvector`, Redis + Vapor
+  Queues for background jobs, a Socket.IO v4 shim on Vapor WebSocket, and a
+  local **Ollama** LLM for query understanding, embeddings and translation.
+  Ported from Node/Express; the retired implementation is kept in git history
+  (tag `node-backend-final`).
 
-Who the app is for, what people do in it and what sets it apart:
-[`PRODUCT.md`](PRODUCT.md). For how the AI search pipeline works end to end, see
-[`AI_SEARCH_OVERVIEW.md`](AI_SEARCH_OVERVIEW.md), and for how it compares with Spotify, Netflix
-and Amazon, see [`AI_SEARCH_REVIEW.md`](AI_SEARCH_REVIEW.md); for how the Home feed ranks posts
-compared with Facebook and TikTok, see [`FEED_RANKING_REVIEW.md`](FEED_RANKING_REVIEW.md). For deliberately deferred
-scope, see [`KNOWN_GAPS.md`](KNOWN_GAPS.md).
+Further reading: [`PRODUCT.md`](PRODUCT.md) (who it is for, what it does),
+[`ARCHITECTURE.md`](ARCHITECTURE.md) (layering and the MVVM rule),
+[`AI_SEARCH_OVERVIEW.md`](AI_SEARCH_OVERVIEW.md) (AI search pipeline),
+[`AI_SEARCH_REVIEW.md`](AI_SEARCH_REVIEW.md) and
+[`FEED_RANKING_REVIEW.md`](FEED_RANKING_REVIEW.md) (comparisons with large
+platforms), [`KNOWN_GAPS.md`](KNOWN_GAPS.md) (deliberately deferred scope).
 
----
+## What is in the app
 
-## Architecture
+Hobby and Work are separate datasets everywhere (feed, connections, search,
+communities, chat inbox).
+
+- **Feed and posts**, photos/videos, hashtags, polls, per-post privacy,
+  drafts and scheduled posts, stories and profile highlights, saved posts,
+  EN↔VI translation of posts and comments, muted words, report and
+  "hide all from this person".
+- **Profiles**, Hobby profile (About, details, schools, highlights, lock
+  profile) and Work profile (experience, skills with endorsements); flip a
+  person's card to their other persona.
+- **Chat**, direct and group chats, albums, voice, polls, meeting proposals
+  with reminders, message requests, inbox *Spaces*, archive.
+- **Communities**, per-mode discovery, cover and info pages, post approval,
+  notification levels, sharing, "Manage your content", reports and a
+  moderation queue per community.
+- **Marketplace**, listings (photos, price, map location) that also appear
+  as posts in up to 5 communities; re-up (manual and automatic), seller
+  auto-reply, hide from friends, mark as sold.
+- **Work careers**, company pages, jobs tab (recommended, search, saved),
+  Easy Apply with applicant tracking.
+- **AI search and assistant**, natural-language search, "People you may
+  know", an in-app assistant.
+- **Account**, saved accounts on the device, sign in with email or
+  `@username`, Google sign-in, email codes, two-factor sign-in, privacy and
+  security settings, in-app browser for links, deleting a persona or the
+  account.
+- **Not live:** the 16+ Dating space was archived on 2026-11-05 and lives in
+  `legacy/dating/` (see its README). Push notifications are not implemented.
+
+## Repository layout
 
 ```
-┌────────────┐     REST + WebSocket      ┌──────────────────────────────┐
-│  iOS app   │ ───────────────────────▶  │  Vapor API (server/)          │
-│ (SwiftUI)  │ ◀───────────────────────  │  ├─ routes → controllers →    │
-└────────────┘                           │  │   stores (raw SQL)         │
-                                         │  ├─ Socket.IO v4 shim         │
-                                         │  │   (presence, chat, counters)│
-                                         │  └─ Vapor Queues workers      │
-                                         └───┬───────────┬───────────┬───┘
-                                             │           │           │
-                                    ┌────────▼──┐  ┌─────▼─────┐  ┌──▼────────┐
-                                    │ Postgres  │  │  Redis    │  │  Ollama   │
-                                    │ +pgvector │  │ (queues)  │  │ (host)    │
-                                    └───────────┘  └───────────┘  └───────────┘
+ConnectSphere/          iOS app: Auth/, Core/ (network, theme, shared UI,
+                        persistence), Features/<X>/{Views,ViewModels,Repository,Models}
+ConnectSphereTests/     iOS unit tests (Swift Testing)
+ConnectSphereUITests/   UI tests
+server/                 Vapor backend: Sources/App/{Controllers,Stores,Services,AI,
+                        Jobs,Realtime,Infra,Commands}, Tests/AppTests
+backend/                infra: docker-compose.yml, .env(.example), migrations/, uploads/
+legacy/                 archived Dating space (not built)
+scripts/                lint-design.sh (design-token budget check)
+dev.sh                  start / stop the whole local stack
 ```
-
-- `server/Sources/App/` is layered **routes → controllers → stores**; the
-  `Stores/` (and `AI/`) files are the only place raw SQL lives
-  (`Infra/AppDatabase.swift` — `sql()` / `withTransaction`).
-- Background work (tag extraction → chunk embedding chain, daily cleanup,
-  birthday / meeting reminders, post purge, trending) runs in
-  `server/Sources/App/Jobs/` (gated by `RUN_JOBS=1`).
-- The 27 `backend/migrations/*.sql` files are unchanged and replayed at boot by
-  `Infra/MigrationRunner.swift` (advisory-locked, idempotent).
-- `server/contract/` diffs every endpoint's normalised JSON against a running
-  copy of the old Node backend — 179 checks across 8 suites.
-- The iOS app mirrors the layering: `Features/<X>/{Views,ViewModels,Repository,Models}`
-  with shared infrastructure in `Core/`.
 
 ## Quick start
 
-**Prerequisites:** Docker Desktop, Xcode 16+, and [Ollama](https://ollama.com)
-installed on the host (Docker on Apple Silicon can't pass the GPU to a
-container, so Ollama stays on the host).
+**Prerequisites:** Docker Desktop, Xcode, and [Ollama](https://ollama.com) on
+the host (Docker on Apple Silicon can't pass the GPU through).
 
 ```bash
-git clone <repo> && cd ConnectSphere
-
-# 1. Backend env
 cp backend/.env.example backend/.env
-#    then edit backend/.env — set at least JWT_SECRET (`openssl rand -hex 32`)
-#    and, for Google sign‑in, GOOGLE_CLIENT_ID.
+#   set at least JWT_SECRET (`openssl rand -hex 32`); GOOGLE_CLIENT_ID for Google sign-in.
+#   Leave BREVO_API_KEY unset in dev: email codes are logged instead of sent.
 
-# 2. Pull the two models the AI pipeline needs
-ollama pull qwen2.5:7b-instruct-q4_k_m
-ollama pull mxbai-embed-large
-
-# 3. Bring up Postgres + Redis + the Swift backend (migrations run at boot)
 ./dev.sh start
-#    (or manually:  cd backend && docker compose up -d --build)
-#    First run builds the Swift release image — slow; later runs cache.
-#    For a fast inner loop, run the server on the host instead:
-#      cd server && PORT=3000 swift run App serve          # reads ../backend/.env
-
-# 4. Open the iOS app
-open ConnectSphere.xcodeproj      # then Run on an iOS 17+ simulator
 ```
 
-`./dev.sh start` also opens Xcode / VS Code / TablePlus; `./dev.sh stop` tears
-everything down. The script derives its own path, so it runs from any checkout
-location.
+`./dev.sh start` starts Docker (Postgres + Redis only), Ollama (pulling
+`qwen2.5:7b-instruct-q4_k_m` and `mxbai-embed-large` on first run), runs the
+Swift backend **on the host** on port 3000 with `RUN_MIGRATIONS=1 RUN_JOBS=1`
+(log: `/tmp/connectsphere-server.log`), then opens Xcode, VS Code and
+TablePlus. `./dev.sh stop` shuts it all down. Then run the `ConnectSphere`
+scheme on an iOS simulator.
+
+Fast inner loop without the script (Postgres and Redis already up):
+
+```bash
+cd server && RUN_MIGRATIONS=1 RUN_JOBS=1 PORT=3000 swift run App serve   # reads ../backend/.env
+```
+
+`backend/docker-compose.yml` also defines a `backend` service (the Swift
+server in a container) for `docker compose up -d --build`, but `dev.sh` does
+not use it.
+
+## Database and migrations
+
+- `backend/migrations/` holds 92 SQL files, numbered `001`–`097` (`089`–`092`
+  and `094` do not exist). They are shared by the server and replayed at boot
+  in filename order by `Infra/MigrationRunner.swift`, each in a transaction,
+  under a Postgres advisory lock.
+- The replay only happens with `RUN_MIGRATIONS=1` (`dev.sh` and the compose
+  file set it). A server started without it will not apply new migrations.
+- There are no down-migrations: `pg_dump` before a risky one.
+- `docker compose down` keeps data; `-v` wipes the `postgres_data` / `redis_data` volumes.
+- `RUN_JOBS=1` enables background jobs: tag extraction and chunk embedding,
+  the 30-minute chunk sweep, scheduled-post publishing, auto re-up,
+  translation, meeting reminders and daily housekeeping
+  (`server/Sources/App/Jobs/BackgroundJobs.swift`).
 
 ## Tests
 
 ```bash
-# Backend contract checks — diff the Vapor port against the retired Node oracle.
-# Needs the Node backend running on :3000 as the oracle:
-#   cd legacy/backend-node && npm install && DB_HOST=localhost npm start   # :3000
-#   cd server && PORT=8080 swift run App serve                             # :8080
-bash server/contract/phase2.sh          # etc. — see server/contract/
-
 # Backend unit tests
 cd server && swift test
 
-# iOS unit tests
-xcodebuild test -scheme ConnectSphere \
-  -destination 'platform=iOS Simulator,name=iPhone 16' \
+# iOS unit tests (pick any installed simulator)
+xcodebuild test -project ConnectSphere.xcodeproj -scheme ConnectSphere \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
   -only-testing:ConnectSphereTests
+
+# Design-token budget check
+bash scripts/lint-design.sh
 ```
 
-## Operational notes
+The MVVM rule check (must print nothing) is in
+[`ARCHITECTURE.md`](ARCHITECTURE.md).
 
-- `GET /health` reports the liveness of Postgres, Redis, and Ollama.
-- Migrations run at boot in filename order, each wrapped in a transaction, under
-  a Postgres advisory lock (`Infra/MigrationRunner.swift`). There are no
-  down‑migrations — take a `pg_dump` before a risky one. `RUN_MIGRATIONS=1`
-  (set by docker-compose) enables the boot replay.
-- The retired Node backend is in `legacy/backend-node/` (tag `node-backend-final`)
-  — kept as a reference and a contract-test oracle, not part of the running stack.
-- `docker compose down` (no `-v`) stops everything and **keeps** data; `-v`
-  would wipe the `postgres_data` / `redis_data` volumes.
+## Other commands
 
-## Known limitations
-
-Push notifications (APNs) are not implemented — in‑app notifications work, but
-nothing arrives while the app is closed. The iOS error‑state rollout and a few
-backend query optimisations are partial. See
-[`KNOWN_GAPS.md`](KNOWN_GAPS.md) for the full list with reasoning.
+`GET /health` reports Postgres, Redis and Ollama. The server binary also has
+maintenance commands (`swift run App <name>`, defined in
+`server/Sources/App/Commands/`): `seed-demo` (wipe, seed and embed demo
+people; use `--commit`), `strip-upload-metadata`, `verify-company`,
+`community-reports`.

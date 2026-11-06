@@ -1,4 +1,4 @@
-# Feed ranking review — Facebook, TikTok and ConnectSphere
+# Feed ranking review, Facebook, TikTok and ConnectSphere
 
 > How the two big feeds decide what to show, how our Home feed ("For you")
 > does it today, where ours falls short, and a TikTok-style plan to fix it.
@@ -7,9 +7,9 @@
 
 Sources (summarised in our own words):
 
-- Meta, *Our Approach to Facebook Feed Ranking* (updated June 2025) —
+- Meta, *Our Approach to Facebook Feed Ranking* (updated June 2025),
   <https://transparency.meta.com/features/ranking-and-content/>
-- TikTok, *How TikTok recommends content* —
+- TikTok, *How TikTok recommends content*,
   <https://www.tiktok.com/support/faq_detail?id=7655285288050104852&category=web_account>
 
 ---
@@ -19,10 +19,10 @@ Sources (summarised in our own words):
 **Pipeline.** For posts from people, Groups and Pages you're connected to,
 ranking runs in four steps:
 
-1. **Inventory** — every post you could see right now.
-2. **Signals** — thousands of facts about you, the post, and you *and* the post.
-3. **Predictions** — over 100 models each guess how you'll react.
-4. **Score** — the predictions are combined into one relevance score and the
+1. **Inventory**, every post you could see right now.
+2. **Signals**, thousands of facts about you, the post, and you *and* the post.
+3. **Predictions**, over 100 models each guess how you'll react.
+4. **Score**, the predictions are combined into one relevance score and the
    feed is sorted by it.
 
 Recommended posts from people you don't know, then ads, are mixed in afterwards.
@@ -163,7 +163,7 @@ not the formula, is why our feed is weaker.
 
 Each phase can ship and be checked on its own.
 
-**Phase A — Record what people actually do.**
+**Phase A, Record what people actually do.**
 - **Table:** a `post_impressions` table, one row per user × post: first/last
   seen, total time on screen, opened, skipped fast (< 1 s). Rows older than 90
   days are cleaned up daily.
@@ -171,7 +171,7 @@ Each phase can ship and be checked on its own.
   and sends small batches to `POST /api/feed/impressions` (post ids and times
   only).
 
-**Phase B — Rank on behaviour.**
+**Phase B, Rank on behaviour.**
 - **Taste from everything you do,** recent actions counting more (14-day
   half-life):
   - like ×1, comment ×2, save ×2, share ×3;
@@ -181,12 +181,12 @@ Each phase can ship and be checked on its own.
   posts are pushed down.
 - **Popularity as a rate:** `(likes + 2·comments + 3·shares) / (views + 20)`.
 
-**Phase C — "Not interested" that learns.**
+**Phase C, "Not interested" that learns.**
 - A **Not interested** option pushes down posts similar to that one, and that
   author's posts, for 30 days.
 - **Show more like this** does the opposite.
 
-**Phase D — Several tastes, closeness, diversity.**
+**Phase D, Several tastes, closeness, diversity.**
 - **Several tastes:** up to 4 taste clusters per person; each post scores
   against the best one.
 - **Closeness:** a per-author score from your likes, comments, messages and
@@ -194,7 +194,7 @@ Each phase can ship and be checked on its own.
 - **Diversity:** never the same author twice in a row, at most 2 per author and
   3 per topic per 10 posts, and at least 1 in 10 posts from something new.
 
-**Phase E — "People like you" and cold start.**
+**Phase E, "People like you" and cold start.**
 - **People like you:** boost posts liked or read long by users who liked the
   same posts as you in the last 30 days.
 - **Cold start:** new accounts' interest picks seed the first taste directly;
