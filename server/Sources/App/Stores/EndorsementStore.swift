@@ -51,7 +51,7 @@ enum EndorsementStore {
             .first(decoding: R.self)?.skill
     }
 
-    /// Endorsing needs an accepted Work connection — the people who'd know.
+    /// Endorsing needs an accepted Work connection. The people who'd know.
     static func areWorkConnections(_ a: String, _ b: String, on db: any SQLDatabase) async throws -> Bool {
         struct R: Decodable { let ok: Bool }
         return try await db.raw("""

@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 058 — Job details for the Jobs tab and recommendations (Work mode)
+-- 058, Job details for the Jobs tab and recommendations (Work mode)
 --
 -- A job can be posted as a company page (by its admins), and says how and at
 -- what level it's done, its pay range (VND million / month) and the skills it
@@ -22,7 +22,7 @@ CREATE TABLE job_skills (
   PRIMARY KEY (job_id, skill)
 );
 
--- What ChunkService.buildPostChunk embeds: content, article title, tags —
+-- What ChunkService.buildPostChunk embeds: content, article title, tags,
 -- and for a job its title, company, level, place and skills.
 CREATE OR REPLACE FUNCTION post_embed_source_hash(p_id UUID) RETURNS TEXT
 LANGUAGE sql STABLE AS $$

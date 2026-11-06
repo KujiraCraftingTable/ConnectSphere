@@ -1,7 +1,7 @@
 import Vapor
 import AsyncHTTPClient
 
-/// Port of the Google verification in `POST /api/auth/google` — a raw call to
+/// Port of the Google verification in `POST /api/auth/google`. A raw call to
 /// Google's `tokeninfo` endpoint (no google-auth-library), with the same `aud`
 /// and `email_verified` checks and the same 10s timeout.
 enum GoogleAuth {
@@ -45,14 +45,14 @@ enum GoogleAuth {
 
         if !clientId.isEmpty {
             guard info.aud == clientId else {
-                logger.warning("Google token aud mismatch — rejected (aud=\(info.aud ?? "nil"))")
+                logger.warning("Google token aud mismatch. Rejected (aud=\(info.aud ?? "nil"))")
                 throw GoogleError.invalidToken
             }
         } else if isProduction {
-            logger.error("GOOGLE_CLIENT_ID is not set — refusing Google sign-in in production")
+            logger.error("GOOGLE_CLIENT_ID is not set. Refusing Google sign-in in production")
             throw GoogleError.notConfigured
         } else {
-            logger.warning("GOOGLE_CLIENT_ID not set — skipping aud check (dev only)")
+            logger.warning("GOOGLE_CLIENT_ID not set, skipping aud check (dev only)")
         }
 
         if info.email_verified == "false" {

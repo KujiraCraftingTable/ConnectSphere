@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 062 — Hobby profile details: languages, relationship status, education
+-- 062, Hobby profile details: languages, relationship status, education
 --
 -- Hobby-only (the Work profile has experience and skills instead). The API
 -- returns them only for a Hobby view and accepts edits only in Hobby mode.

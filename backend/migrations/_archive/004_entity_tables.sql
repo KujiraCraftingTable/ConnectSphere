@@ -1,6 +1,6 @@
 -- Migration 004: interest_entities + update user_interests to Option C
 
--- pgvector (idempotent — already enabled manually, but safe to re-run)
+-- pgvector (idempotent, already enabled manually, but safe to re-run)
 CREATE EXTENSION IF NOT EXISTS vector;
 
 -- ── Canonical entity registry ─────────────────────────────────────────────────

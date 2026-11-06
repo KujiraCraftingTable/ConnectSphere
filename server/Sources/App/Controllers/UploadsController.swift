@@ -1,25 +1,25 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/routes/uploadRoutes.js` — generic media upload, used
+/// Port of `backend/src/routes/uploadRoutes.js`. Generic media upload, used
 /// by post image attachments, avatar/cover-photo upload, and Stories. Was
 /// never carried over in the initial Node→Swift port (`configure.swift` had
 /// a stale "added in Phase 2" comment); its absence made all three features
 /// silently fail, since `PostRepository.uploadImage` 404s and returns `nil`
 /// rather than throwing.
 struct UploadsController {
-    /// `POST /api/uploads` — auth required, matches the Node route exactly.
+    /// `POST /api/uploads`, auth required, matches the Node route exactly.
     static func register(routes: any RoutesBuilder) {
         routes.grouped(AuthMiddleware())
             .on(.POST, "uploads", body: .collect(maxSize: "50mb"), use: create)
     }
 
-    /// `GET /uploads/:filename` — public, no auth, mounted directly on `app`
-    /// (bare path, no `/api` prefix — matches where `create`'s returned `url`
+    /// `GET /uploads/:filename`, public, no auth, mounted directly on `app`
+    /// (bare path, no `/api` prefix. Matches where `create`'s returned `url`
     /// actually points, and where `PostRepository.uploadImage` requests it
     /// from). Deliberately a single dynamic path segment, not a blanket
     /// `FileMiddleware` over all of `backend/uploads/`: that directory also
-    /// holds `uploads/messages/` (private chat attachments) — a one-segment
+    /// holds `uploads/messages/` (private chat attachments). A one-segment
     /// route structurally can't match that two-segment path, so this can't
     /// accidentally expose it. `registerMessageMedia` below is that subtree's
     /// own (auth-gated) route.
@@ -27,10 +27,10 @@ struct UploadsController {
         app.get("uploads", ":filename", use: serve)
     }
 
-    /// `GET /uploads/messages/:filename` — private chat attachments (photo/
+    /// `GET /uploads/messages/:filename`, private chat attachments (photo/
     /// video/voice messages). Auth-gated, but can't reuse `AuthMiddleware`
     /// as-is: that only reads `Authorization: Bearer`, and `AsyncImage`/any
-    /// plain GET-by-URL load (which is how this is always fetched — inline
+    /// plain GET-by-URL load (which is how this is always fetched. Inline
     /// message media, not an explicit fetch call) can't attach custom
     /// headers. So the JWT rides along as `?token=`, exactly like
     /// `APIConfig.mediaURL` on the client already anticipates. Mirrors
@@ -69,7 +69,7 @@ struct UploadsController {
     }
 
     /// Extension is derived from the whitelisted MIME type, never trusted
-    /// from the client's filename — same reasoning as the Node original:
+    /// from the client's filename. Same reasoning as the Node original:
     /// blocks uploading something like `.html`/`.svg` under a spoofed
     /// mimetype that would then get served back from `/uploads`.
     static let extByMime: [String: String] = [
@@ -79,7 +79,7 @@ struct UploadsController {
     ]
     static let uploadDir = "../backend/uploads"
 
-    /// A photo's feed-size copy (`<name>_t.jpg`), made on the phone — the
+    /// A photo's feed-size copy (`<name>_t.jpg`), made on the phone. The
     /// server has no image library. Optional: older apps and videos send none.
     static let maxThumbnailBytes = 2 * 1024 * 1024
 
@@ -121,8 +121,8 @@ struct UploadsController {
     }
 
     /// The file to send for a requested name. A thumbnail (`<uuid>_t.jpg`)
-    /// that was never made — an older upload, or a PNG kept for its
-    /// transparency — falls back to its original.
+    /// that was never made. An older upload, or a PNG kept for its
+    /// transparency, falls back to its original.
     static func resolve(_ filename: String, exists: (String) -> Bool) -> String? {
         if exists(filename) { return filename }
         guard filename.hasSuffix("_t.jpg") else { return nil }

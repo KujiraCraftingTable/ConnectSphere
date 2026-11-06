@@ -1,6 +1,6 @@
 -- Migration 010: Communities Phase 2
 -- Adds: Polls, Events, Post-pinning, Notifications, Join Requests, Member Management
--- IMPORTANT: Only additive changes — no modification of existing tables/columns.
+-- IMPORTANT: Only additive changes. No modification of existing tables/columns.
 
 -- ── Extend posts ───────────────────────────────────────────────────────────────
 

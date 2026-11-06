@@ -7,17 +7,19 @@ import SQLKit
 /// status-guarded.
 enum CommunityStore {
 
-    /// `getCommunityById` — always includes `created_by`, `is_member`, `role`
+    /// `getCommunityById`, always includes `created_by`, `is_member`, `role`
     /// (null when not a member) and `join_request_status` (null when none).
     struct CommunityDetail: Content {
         var id: String
         @NullCoded var description: String?
+        /// 'plain' or 'markdown' (migration 099).
+        var description_format: String? = nil
         var name: String
         var type: String
         var privacy: String
         var icon_emoji: String
         @NullCoded var avatar_url: String?
-        /// The community's picture (migration 070) — no profile picture any more.
+        /// The community's picture (migration 070). No profile picture any more.
         @NullCoded var cover_url: String?
         var cover_color: String
         var member_count: Int
@@ -29,10 +31,10 @@ enum CommunityStore {
         var is_member: Bool
         @NullCoded var role: String?
         @NullCoded var join_request_status: String?
-        /// Feed-visibility mute — false for a non-member (nothing to mute).
+        /// Feed-visibility mute, false for a non-member (nothing to mute).
         var is_muted: Bool
         var is_pinned: Bool
-        /// all | friends | off — null for a non-member.
+        /// all | friends | off. Null for a non-member.
         @NullCoded var notify_level: String?
     }
 
@@ -69,7 +71,7 @@ enum CommunityStore {
         let q: SQLQueryString
         if let viewer {
             q = """
-                SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.avatar_url, c.cover_url, c.cover_color,
+                SELECT c.id::text AS id, c.name, c.description, c.description_format, c.type, c.privacy, c.icon_emoji, c.avatar_url, c.cover_url, c.cover_color,
                   c.member_count, c.post_count, c.created_by::text AS created_by, c.created_at, c.name_changed_at,
                   c.require_post_approval,
                   (cm.user_id IS NOT NULL) AS is_member, cm.role, jr.status AS join_request_status,
@@ -81,7 +83,7 @@ enum CommunityStore {
                 """
         } else {
             q = """
-                SELECT c.id::text AS id, c.name, c.description, c.type, c.privacy, c.icon_emoji, c.avatar_url, c.cover_url, c.cover_color,
+                SELECT c.id::text AS id, c.name, c.description, c.description_format, c.type, c.privacy, c.icon_emoji, c.avatar_url, c.cover_url, c.cover_color,
                   c.member_count, c.post_count, c.created_by::text AS created_by, c.created_at, c.name_changed_at,
                   c.require_post_approval,
                   false AS is_member, NULL::VARCHAR AS role, NULL::VARCHAR AS join_request_status,
@@ -172,7 +174,7 @@ enum CommunityStore {
         @NullCoded var avatar_color: String?
         /// Connections in the community's mode.
         var connections_count: Int
-        /// admin | moderator | member — null when not (or no longer) a member.
+        /// admin | moderator | member. Null when not (or no longer) a member.
         @NullCoded var role: String?
         @NullCoded var joined_at: Date?
         var post_count: Int
@@ -197,7 +199,8 @@ enum CommunityStore {
               (SELECT COUNT(*)::int FROM connections k WHERE k.status = 'accepted' AND k.mode = \(bind: modeValue)
                  AND (k.requester_id = u.id OR k.addressee_id = u.id)) AS connections_count,
               m.role, m.joined_at,
-              (SELECT COUNT(*)::int FROM posts p WHERE p.community_id = \(uuid: communityID)
+              -- Items for sale listed here count as posts, like the list below shows them.
+              (SELECT COUNT(*)::int FROM posts p WHERE (p.community_id = \(uuid: communityID) OR \(ListingStore.listedInClause(communityID)))
                  AND p.author_id = u.id AND p.status = 'posted') AS post_count
             FROM users u
             LEFT JOIN community_members m ON m.community_id = \(uuid: communityID) AND m.user_id = u.id
@@ -354,11 +357,13 @@ enum CommunityStore {
 
     struct CommunityInfo: Content {
         @NullCoded var about: String?
+        /// 'plain' or 'markdown' (migration 099).
+        var about_format: String? = nil
         var privacy: String
         var created_at: Date
         @NullCoded var name_changed_at: Date?
         var member_count: Int
-        /// The viewer's connections (in the community's mode) who joined — a few, and how many.
+        /// The viewer's connections (in the community's mode) who joined. A few, and how many.
         var friends: [InfoPerson]
         var friends_count: Int
         /// Admins first, then moderators.
@@ -405,7 +410,7 @@ enum CommunityStore {
             """).first(decoding: Activity.self)
         // A private community's about stays with its members (as on its page).
         let about = c.privacy == "private" && !c.is_member ? nil : c.description
-        return CommunityInfo(about: about, privacy: c.privacy, created_at: c.created_at,
+        return CommunityInfo(about: about, about_format: about == nil ? nil : c.description_format, privacy: c.privacy, created_at: c.created_at,
                              name_changed_at: c.name_changed_at, member_count: c.member_count,
                              friends: friends, friends_count: friendsCount, staff: staff,
                              posts_today: activity?.posts_today ?? 0, posts_week: activity?.posts_week ?? 0,
@@ -423,7 +428,7 @@ enum CommunityStore {
         var joined_at: Date
         /// Their photo in the community's mode.
         @NullCoded var avatar_url: String?
-        /// Connected with the viewer in the community's mode — the list splits
+        /// Connected with the viewer in the community's mode. The list splits
         /// friends from everyone else.
         var is_friend: Bool
     }
@@ -446,7 +451,7 @@ enum CommunityStore {
             """).all(decoding: MemberRow.self)
     }
 
-    /// Public communities of one type, busiest first — with the viewer's own
+    /// Public communities of one type, busiest first. With the viewer's own
     /// membership, so ones they've joined show as joined.
     static func trendingCommunities(type: String, limit: Int, viewer: String, on db: any SQLDatabase) async throws -> [CommunityRow] {
         try await db.raw("""
@@ -466,7 +471,7 @@ enum CommunityStore {
             .first(decoding: One.self) != nil
     }
 
-    /// `getRecommendedCommunities` — interest-overlap scored. Response carries
+    /// `getRecommendedCommunities`, interest-overlap scored. Response carries
     /// the extra `tag_overlap` / `rec_score` fields Node's `res.json(rows)` leaks.
     struct RecommendedRow: Content {
         var id: String
@@ -619,22 +624,27 @@ enum CommunityStore {
         return try await db.raw("DELETE FROM community_members WHERE community_id = \(uuid: communityID) AND user_id = \(uuid: targetID) RETURNING user_id::text AS user_id")
             .first(decoding: R.self) != nil
     }
-    /// Partial update — a nil field is left untouched (only non-nil fields are
+    /// Partial update, a nil field is left untouched (only non-nil fields are
     /// written), same convention as `UserQueries.updateProfile`. Returns false
     /// when nothing matched `id` (already-deleted community).
     static func update(_ id: String, name: String?, description: String?, privacy: String?,
                         iconEmoji: String?, coverColor: String?, avatarURL: String?,
-                        coverURL: String? = nil, requirePostApproval: Bool? = nil, on db: any SQLDatabase) async throws -> Bool {
+                        coverURL: String? = nil, requirePostApproval: Bool? = nil, descriptionFormat: String? = nil,
+                        on db: any SQLDatabase) async throws -> Bool {
         var sets: [SQLQueryString] = []
         if let name {
             let trimmed = name.trimmingCharacters(in: .whitespaces)
             sets.append("name = \(bind: trimmed)")
-            // "Name last changed on …" on the info page — only a real change counts.
+            // "Name last changed on …" on the info page. Only a real change counts.
             sets.append("name_changed_at = CASE WHEN name IS DISTINCT FROM \(bind: trimmed) THEN NOW() ELSE name_changed_at END")
         }
         if let coverURL { sets.append("cover_url = \(bind: coverURL.trimmingCharacters(in: .whitespaces).nilIfEmpty)") }
         if let requirePostApproval { sets.append("require_post_approval = \(bind: requirePostApproval)") }
-        if let description { sets.append("description = \(bind: description.trimmingCharacters(in: .whitespaces).nilIfEmpty)") }
+        if let description {
+            sets.append("description = \(bind: description.trimmingCharacters(in: .whitespaces).nilIfEmpty)")
+            // New text from an app that doesn't say otherwise is plain.
+            sets.append("description_format = \(bind: PostStore.contentFormats.contains(descriptionFormat ?? "") ? descriptionFormat! : "plain")")
+        }
         if let privacy { sets.append("privacy = \(bind: privacy)") }
         if let iconEmoji { sets.append("icon_emoji = \(bind: iconEmoji)") }
         if let coverColor { sets.append("cover_color = \(bind: coverColor)") }

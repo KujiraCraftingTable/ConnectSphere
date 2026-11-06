@@ -1,8 +1,8 @@
 import Foundation
 
 /// The last stage of AI people search (AI_SEARCH_REVIEW.md, phases S2–S5):
-/// the fused retrieval list re-ordered by who fits *you* — your taste, people
-/// you share, how active they are — and by what you did after earlier
+/// the fused retrieval list re-ordered by who fits *you*. Your taste, people
+/// you share, how active they are, and by what you did after earlier
 /// searches, then spread so one city doesn't fill the page.
 enum SearchRanking {
     // MARK: Score mix (phase S2)
@@ -94,7 +94,7 @@ enum SearchRanking {
 
     /// Within each run of 10, at most 3 people from one city
     /// (`FeedStore.spread`), so one district doesn't fill the page. Name
-    /// matches stay first, and a prompt that named a place isn't spread —
+    /// matches stay first, and a prompt that named a place isn't spread,
     /// everyone is from there on purpose. Topics aren't spread: a prompt about
     /// one thing should return people about that thing.
     static func diversify(_ users: [SearchStore.RawUser], byPlace: Bool) -> [SearchStore.RawUser] {

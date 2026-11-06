@@ -8,7 +8,7 @@
 -- `is_public` says whether others can already see the reaction: likes never
 -- (only counts are shown), comments yes (on the public posts search uses),
 -- shares only when the repost itself is public. Search may rank by any
--- reaction but must only ever *display* public ones — see SearchStore.vectorSearch.
+-- reaction but must only ever *display* public ones. See SearchStore.vectorSearch.
 CREATE OR REPLACE VIEW post_reactions AS
   SELECT user_id, post_id, 'like'::text AS kind, FALSE AS is_public, created_at FROM post_likes
   UNION ALL

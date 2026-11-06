@@ -1,11 +1,11 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 011 — Reply-to-message + message reactions (minimal, bounded scope)
+-- 011, Reply-to-message + message reactions (minimal, bounded scope)
 --
 -- Adds two chat primitives that had no support at any layer:
---   1. messages.reply_to_message_id — quote a single earlier message when
+--   1. messages.reply_to_message_id, quote a single earlier message when
 --      composing a new one (self-referencing FK; SET NULL if the original
 --      is ever hard-deleted, though today messages are only soft-deleted).
---   2. message_reactions — one reaction per user per message, fixed emoji
+--   2. message_reactions, one reaction per user per message, fixed emoji
 --      set. Re-tapping the same emoji removes it (handled in application
 --      code via the UNIQUE constraint below); tapping a different emoji
 --      replaces it (upsert).

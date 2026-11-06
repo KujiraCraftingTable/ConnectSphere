@@ -3,7 +3,7 @@ import AsyncHTTPClient
 import SQLKit
 import NIOFoundationCompat
 
-/// Port of `backend/src/services/aiService.js` — query understanding,
+/// Port of `backend/src/services/aiService.js`. Query understanding,
 /// translation, and text embedding via a local Ollama instance.
 ///
 /// Folded review fix: `translateToEnglish` **throws** on an Ollama failure
@@ -34,21 +34,21 @@ enum OllamaService {
         intent_en: the core search intent translated to English. Preserve proper nouns exactly (anime/movie/song titles, artist names, team names, brands, companies, universities, frameworks, tools, places). Remove greetings, filler ("help me", "I want to"), and emotional noise. Keep only what describes WHO the user wants to find.
         mode: "hobby" if looking for friends or social connections, "work" if looking for work or study partners, null if unclear.
         target_gender: "male" or "female" ONLY when explicitly asked ("bạn nam", "female friend"). Never guess from context.
-        target_age_min / target_age_max: ALWAYS set these when the query mentions any age — never skip them. A bare number without "tuổi" / "years old" ("thích 8", "số 67") is never an age. "20-30" -> min 20, max 30. "over 25"/"trên 25"/"trên 25 tuổi" -> min 25, max null. "under 30"/"dưới 30" -> min null, max 30. A single age ("25 tuổi", "around 25") -> a ±2 range, min 23 max 27. Only omit when no age is mentioned at all.
+        target_age_min / target_age_max: ALWAYS set these when the query mentions any age. Never skip them. A bare number without "tuổi" / "years old" ("thích 8", "số 67") is never an age. "20-30" -> min 20, max 30. "over 25"/"trên 25"/"trên 25 tuổi" -> min 25, max null. "under 30"/"dưới 30" -> min null, max 30. A single age ("25 tuổi", "around 25") -> a ±2 range, min 23 max 27. Only omit when no age is mentioned at all.
         entity_type: type of the specific named entity, one of: anime, manga, movie, tv_show, book, game, music, podcast, celebrity, art, food, sport, company, university, industry, programming_language, framework, tool, certification, job_role, professional_field, startup. null if the query names no specific entity.
         entity_name: canonical English name of that entity. null if none.
-        interest_groups: 2D array for hobbies/lifestyle. Each inner array is ONE concept plus its synonyms, base-form nouns/verbs only, no adjectives or emotion words. AND between groups, OR within a group. Include every activity, habit or lifestyle asked for, including smoking, drinking or chatting — never drop one. CORRECT: [["cook","cooking","food"],["travel","hiking"]]. WRONG: [["cook","travel"]] — never mix concepts.
+        interest_groups: 2D array for hobbies/lifestyle. Each inner array is ONE concept plus its synonyms, base-form nouns/verbs only, no adjectives or emotion words. AND between groups, OR within a group. Include every activity, habit or lifestyle asked for, including smoking, drinking or chatting. Never drop one. CORRECT: [["cook","cooking","food"],["travel","hiking"]]. WRONG: [["cook","travel"]], never mix concepts.
         skills: work or study skills only (iOS, React, Python, Accounting, Marketing). Never put these in interest_groups.
         bio_keywords: words describing the person type (student, freelancer, senior, teacher).
         job_title_keywords: job or role titles (developer, designer, accountant).
-        location: exact match from this list only — \(locationList) — null if not mentioned.
+        location: exact match from this list only, \(locationList), null if not mentioned.
         place_name: a specific venue name when the city is unknown (e.g. "CGV Go Vap"). null if not mentioned.
-        unsupported: body or appearance traits asked for — height ("1m8", "cao 1m7"), weight, looks ("đẹp trai"). Omit otherwise.
-        like_me: true when the user wants people similar to themselves — who share their own interests or taste ("same stuff as me", "giống mình", "hợp gu với tôi"). Omit otherwise.
+        unsupported: body or appearance traits asked for. Height ("1m8", "cao 1m7"), weight, looks ("đẹp trai"). Omit otherwise.
+        like_me: true when the user wants people similar to themselves, who share their own interests or taste ("same stuff as me", "giống mình", "hợp gu với tôi"). Omit otherwise.
 
         For a hobby-mode query leave skills and job_title_keywords empty. For a work-mode query leave interest_groups empty.
 
-        Omit any field that is null or empty — do not emit null or [] values. Output compact JSON on one line, no explanation.
+        Omit any field that is null or empty. Do not emit null or [] values. Output compact JSON on one line, no explanation.
 
         Example: "tìm bạn nữ xem Kimetsu no Yaiba ở Hà Nội"
         {"intent_en":"find female friend who watches Kimetsu no Yaiba in Hanoi","mode":"hobby","target_gender":"female","entity_type":"anime","entity_name":"Kimetsu no Yaiba","interest_groups":[["anime","manga"]],"location":"Hanoi"}
@@ -65,7 +65,7 @@ enum OllamaService {
         Translate the following text to English.
         Rules:
         - Preserve all proper nouns exactly as written: movie/anime/song titles, artist names, team names, brand/company names, university names, framework and tool names, place names
-        - Output ONLY the translated English text — no explanation, no quotes, no extra text
+        - Output ONLY the translated English text. No explanation, no quotes, no extra text
         - If the input is already in English, output it unchanged
         """
 
@@ -210,7 +210,7 @@ enum OllamaService {
         /// "Someone into the same stuff as me": your own taste becomes part
         /// of the query (AI_SEARCH_REVIEW.md, phase S2).
         var like_me = false
-        /// Height, weight or looks asked for — not searchable (phase S6).
+        /// Height, weight or looks asked for, not searchable (phase S6).
         var unsupported: [String] = []
     }
 
@@ -285,7 +285,7 @@ enum OllamaService {
                 like_me: j["like_me"] as? Bool ?? false,
                 unsupported: strArray(j["unsupported"]))
         } catch {
-            logger.warning("Query analyzer failed — using defaults: \(error)")
+            logger.warning("Query analyzer failed, using defaults: \(error)")
             return Analyzed(intent_en: query, mode: nil, target_gender: nil, target_age_min: nil, target_age_max: nil,
                             entity_type: nil, entity_name: nil, interest_groups: [], skills: [], bio_keywords: [],
                             job_title_keywords: [], location: nil, place_name: nil, failed: true)
@@ -385,7 +385,7 @@ enum OllamaService {
         You write one short sentence per person explaining why they could be a good fit for the searcher, for a social app's search results.
         Input JSON: "query" (what the searcher asked for), "searcher" (their own interests), and "people" (each with an "id" and "evidence": what they post or say about themselves).
         Rules:
-        - Write exactly one sentence for every id in "people" — never skip one.
+        - Write exactly one sentence for every id in "people", never skip one.
         - Use only facts in the evidence and the searcher's interests. Never invent facts.
         - Say only what fits: what they share with the searcher, or what in their evidence matches the query. No "but", "though" or differences.
         - At most 20 words each, friendly, \(vietnamese ? "starting like \"Hai bạn đều…\" or \"Bạn ấy hay đăng về…\"" : "starting like \"You both…\" or \"They post about…\"").
@@ -396,7 +396,7 @@ enum OllamaService {
 
     struct ExplainPerson: Encodable { let id: String; let evidence: [String] }
 
-    /// One batched call for the top people. Empty on any failure — the
+    /// One batched call for the top people. Empty on any failure. The
     /// evidence chips are already on screen, so the sentence is optional.
     static func explainFits(_ cfg: Config, query: String, searcherInterests: [String], people: [ExplainPerson],
                             vietnamese: Bool, logger: Logger) async -> [String: String] {

@@ -12,8 +12,8 @@ final class AccountRulesTests: XCTestCase {
     }
 
     func testWrongCodeSaysTriesLeft() {
-        XCTAssertEqual(AccountCodeStore.wrongCodeMessage(triesLeft: 3), "That code isn't right — 3 tries left")
-        XCTAssertEqual(AccountCodeStore.wrongCodeMessage(triesLeft: 1), "That code isn't right — 1 try left")
+        XCTAssertEqual(AccountCodeStore.wrongCodeMessage(triesLeft: 3), "That code isn't right, 3 tries left")
+        XCTAssertEqual(AccountCodeStore.wrongCodeMessage(triesLeft: 1), "That code isn't right, 1 try left")
         XCTAssertEqual(AccountCodeStore.wrongCodeMessage(triesLeft: 0), "Too many wrong codes. Ask for a new one")
     }
 

@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 084 — Curated skill catalogue (Work mode)
+-- 084, Curated skill catalogue (Work mode)
 --
 -- Skills were free text, so "reactjs", "React" and "react.js" were three
 -- different skills to search and job matching. Like LinkedIn's standard skills

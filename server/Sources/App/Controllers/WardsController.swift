@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/routes/wardRoutes.js` — the Vietnam ward/province
+/// Port of `backend/src/routes/wardRoutes.js`. The Vietnam ward/province
 /// reference data for the location pickers. **No auth** (matches Node: mounted
 /// before any auth middleware).
 struct WardsController {

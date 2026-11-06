@@ -1,7 +1,7 @@
 import Vapor
 import Foundation
 
-/// Node's `res.json` serialises `Date` via `Date.prototype.toISOString()` —
+/// Node's `res.json` serialises `Date` via `Date.prototype.toISOString()`,
 /// `YYYY-MM-DDTHH:mm:ss.sssZ` (always UTC, always 3 fractional digits). Match
 /// that everywhere so response bodies are byte-comparable with the Node backend.
 enum JSONCoding {

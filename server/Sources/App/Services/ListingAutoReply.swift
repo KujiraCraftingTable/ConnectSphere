@@ -3,7 +3,7 @@ import SQLKit
 
 /// A seller's listing auto-reply (migration 072). When a buyer sends one of
 /// the seller's listings into their 1-on-1 chat ("Message seller"), the
-/// seller's canned answer follows straight away — once per buyer per listing.
+/// seller's canned answer follows straight away. Once per buyer per listing.
 ///
 /// It's stored as the seller's message but skips the message-request gate:
 /// only the seller writing back themselves accepts a stranger's request.

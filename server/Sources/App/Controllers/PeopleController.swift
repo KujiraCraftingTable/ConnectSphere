@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// `/api/people/suggestions` — People you may know (see `SuggestionStore`).
+/// `/api/people/suggestions`, People you may know (see `SuggestionStore`).
 struct PeopleController {
     static func register(routes: any RoutesBuilder) {
         let p = routes.grouped("people", "suggestions").grouped(AuthMiddleware())

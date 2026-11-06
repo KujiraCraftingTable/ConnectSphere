@@ -6,7 +6,7 @@
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 -- feedModel.buildTasteVector: "FROM post_likes WHERE user_id = $1 ORDER BY
--- created_at DESC" — the PK is (post_id, user_id), so this had no usable index.
+-- created_at DESC", the PK is (post_id, user_id), so this had no usable index.
 CREATE INDEX IF NOT EXISTS idx_post_likes_user
   ON post_likes (user_id, created_at DESC);
 

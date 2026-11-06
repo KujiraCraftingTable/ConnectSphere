@@ -1,4 +1,4 @@
--- Job/Opportunity posts (Work mode only) — a fourth post_type alongside
+-- Job/Opportunity posts (Work mode only). A fourth post_type alongside
 -- text/poll/event. "Interested" is a plain toggle (presence/absence in
 -- job_interests), not a multi-state status like event RSVPs, so it's
 -- shaped closer to poll_votes than event_rsvps.

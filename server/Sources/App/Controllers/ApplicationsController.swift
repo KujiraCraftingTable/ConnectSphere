@@ -2,7 +2,7 @@ import Vapor
 import SQLKit
 
 /// Easy Apply: apply with your profile (+ note, + CV), follow your
-/// applications, and — for a job's poster or company admins — its applicants.
+/// applications, and, for a job's poster or company admins, its applicants.
 struct ApplicationsController {
     static func register(routes: any RoutesBuilder, app: Application) {
         let j = routes.grouped("jobs").grouped(AuthMiddleware())
@@ -54,7 +54,7 @@ struct ApplicationsController {
         let managers = try await ApplicationStore.managers(of: jobID, on: db).filter { $0.lowercased() != me }
         let title = job.title
         NotifyService.fireAndForget(req) { d, h, l in
-            var payload = (try? await NotifyService.actorPayload(me, on: d)) ?? ["fromUserId": me]
+            var payload = (try? await NotifyService.actorPayload(me, mode: "work", on: d)) ?? ["fromUserId": me]
             payload["jobId"] = jobID
             payload["jobTitle"] = title
             payload["mode"] = "work"
@@ -106,7 +106,7 @@ struct ApplicationsController {
             let actor = req.userID, applicant = application.applicant.id
             let jobID = application.job_id, title = application.job_title
             NotifyService.fireAndForget(req) { d, h, l in
-                var payload = (try? await NotifyService.actorPayload(actor, on: d)) ?? ["fromUserId": actor]
+                var payload = (try? await NotifyService.actorPayload(actor, mode: "work", on: d)) ?? ["fromUserId": actor]
                 payload["jobId"] = jobID
                 payload["jobTitle"] = title
                 payload["status"] = status

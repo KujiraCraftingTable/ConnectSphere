@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 009 — Rename mode vocabulary: friend → hobby, colleague → work
+-- 009, Rename mode vocabulary: friend → hobby, colleague → work
 --
 -- Renames the mode vocabulary at the root across the whole DB to match the
 -- product language (the UI already shows Hobby/Work). Consists of 3 parts:
@@ -9,7 +9,7 @@
 --      search_logs/suggestion_cache
 --   3. Rebuild CHECK constraints with the new values
 --
--- Does NOT touch posts.privacy ('public'/'friends'/'only_me') — 'friends' there
+-- Does NOT touch posts.privacy ('public'/'friends'/'only_me'), 'friends' there
 -- is a privacy level, not a mode.
 -- Runs in a single transaction (migrate.js wraps BEGIN/COMMIT automatically).
 -- ─────────────────────────────────────────────────────────────────────────────

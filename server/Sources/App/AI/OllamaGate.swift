@@ -2,7 +2,7 @@ import Foundation
 
 /// One local Ollama serves both people waiting on a screen (AI search, the
 /// interest check, post analysis) and background work (embeddings, AI tags,
-/// translation sweeps). Left alone, a sweep kept Ollama — and the machine —
+/// translation sweeps). Left alone, a sweep kept Ollama, and the machine,
 /// busy enough that `/auth/me` and the feed took a minute.
 ///
 /// Calls made while `isBackground` is set (jobs and sweeps set it) run one at

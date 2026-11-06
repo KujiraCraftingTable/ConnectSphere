@@ -1,10 +1,10 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 082 — Dating setup: kids answer, and a GPS location kept fresh
+-- 082, Dating setup: kids answer, and a GPS location kept fresh
 --
 -- The step-by-step setup asks "Do you have kids?" (optional, shown on the
--- profile). A dating location now comes only from the phone's GPS — never a
+-- profile). A dating location now comes only from the phone's GPS. Never a
 -- typed place, so nobody can pose as being somewhere else to look at people
--- there — and the app sends a fresh one each time Dating opens;
+-- there, and the app sends a fresh one each time Dating opens;
 -- location_updated_at records when.
 -- ─────────────────────────────────────────────────────────────────────────────
 

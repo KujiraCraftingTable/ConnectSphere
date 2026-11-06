@@ -64,7 +64,7 @@ struct AuthController {
         }
     }
 
-    /// Lowercased and format-checked; 409 when someone has (or had) it —
+    /// Lowercased and format-checked; 409 when someone has (or had) it,
     /// usernames are never freed.
     static func newUsername(_ raw: String?, on db: any SQLDatabase) async throws -> String {
         let username = (raw ?? "").trimmingCharacters(in: .whitespaces).lowercased()
@@ -105,8 +105,8 @@ struct AuthController {
         return AccountController.SentResponse(email: email)
     }
 
-    /// Free to sign up with right now? Public — usernames are shown on
-    /// profiles anyway — so the sign-up form can check as the user types.
+    /// Free to sign up with right now? Public, usernames are shown on
+    /// profiles anyway, so the sign-up form can check as the user types.
     struct Availability: Content { var available: Bool; var reason: String? }
 
     static func usernameAvailable(_ req: Request) async throws -> Availability {
@@ -131,7 +131,7 @@ struct AuthController {
         return StatusOKResponse()
     }
 
-    /// Creates the account — only when onboarding finishes, so an abandoned
+    /// Creates the account. Only when onboarding finishes, so an abandoned
     /// sign-up never holds a username. @username + password, an optional
     /// email (confirmed with its code first), and the whole profile.
     static func registerUser(_ req: Request) async throws -> Response {
@@ -149,7 +149,7 @@ struct AuthController {
         if let raw = body.email, !raw.trimmingCharacters(in: .whitespaces).isEmpty {
             let cleaned = try await newEmail(raw, on: db)
             guard try await SignupCodeStore.isConfirmed(cleaned, on: db) else {
-                throw InlineError(.badRequest, "Your email confirmation expired — go back and send a new code")
+                throw InlineError(.badRequest, "Your email confirmation expired. Go back and send a new code")
             }
             email = cleaned
         }
@@ -278,7 +278,7 @@ struct AuthController {
 
     // MARK: two-factor sign-in + the sign-in alert
 
-    /// `{ two_factor_required, challenge, email }` — answer with the emailed code.
+    /// `{ two_factor_required, challenge, email }`. Answer with the emailed code.
     struct TwoFactorChallenge: Content {
         var two_factor_required = true
         var challenge: String
@@ -287,7 +287,7 @@ struct AuthController {
 
     /// The last step of every sign-in: with two-factor on, a code goes to the
     /// verified email and the app gets a challenge instead of a token;
-    /// otherwise it's signed in — and told about by email and in-app.
+    /// otherwise it's signed in, and told about by email and in-app.
     static func finishSignIn(_ userID: String, method: String, isNew: Bool, _ req: Request) async throws -> Response {
         let db = req.db.sql()
         struct T: Decodable { let on: Bool; let email: String? }
@@ -347,7 +347,9 @@ struct AuthController {
     /// verified address (which still arrives if someone else is in the
     /// account and clears the notifications). Never blocks the sign-in.
     static func signInAlert(_ userID: String, method: String, _ req: Request) {
-        let device = String((req.headers.first(name: "X-Device") ?? req.headers.first(name: .userAgent) ?? "Unknown device").prefix(80))
+        // The app percent-encodes its device name (headers are ASCII); decode it back.
+        let rawDevice = req.headers.first(name: "X-Device") ?? req.headers.first(name: .userAgent) ?? "Unknown device"
+        let device = String((rawDevice.removingPercentEncoding ?? rawDevice).prefix(80))
         let app = req.application
         NotifyService.fireAndForget(req) { d, h, l in
             // No mode: it's about the account, and deleting a persona mustn't wipe it.
@@ -368,7 +370,7 @@ struct AuthController {
 
     // MARK: GET /me
 
-    /// `?mode=hobby|work` returns that mode's persona — the app asks for it
+    /// `?mode=hobby|work` returns that mode's persona. The app asks for it
     /// on a mode switch, before the new default mode has reached the server.
     static func me(_ req: Request) async throws -> MeResponse {
         let mode = req.query[String.self, at: "mode"]
@@ -405,7 +407,7 @@ struct AuthController {
         var skills: [String]?
     }
 
-    /// Everything onboarding saves, checked — shared by `setup` (Google
+    /// Everything onboarding saves, checked. Shared by `setup` (Google
     /// accounts) and `registerUser` (which creates the account at the end).
     struct ProfileFields {
         var displayName: String
@@ -482,7 +484,7 @@ struct AuthController {
         var fields = try ProfileFields.validate(b)
         let username = (b.username ?? "").trimmingCharacters(in: .whitespaces).lowercased()
         guard !username.isEmpty else { throw InlineError(.badRequest, "username is required") }
-        // Same format as /register — a Google account picks its name here.
+        // Same format as /register. A Google account picks its name here.
         guard matches(usernameRegex, username) else {
             throw InlineError(.badRequest, "Username must be 3-30 characters: lowercase letters, numbers, underscore")
         }
@@ -549,7 +551,7 @@ struct AuthController {
 
         let db = req.db.sql()
         struct URow: Decodable { let id: String; let email: String? }
-        // Only a verified email gets the code — an unproven one could be anyone's.
+        // Only a verified email gets the code. An unproven one could be anyone's.
         let user = try await db.raw("""
             SELECT id, email FROM users
             WHERE (username = \(bind: identifier) OR email = \(bind: identifier))

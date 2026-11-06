@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/models/feedModel.js` — the personalized newsfeed.
+/// Port of `backend/src/models/feedModel.js`. The personalized newsfeed.
 /// Taste vector built in Swift from `user_embedding_chunks` (populated by the
 /// embed worker), then a keyset-paginated blended-ranking CTE.
 enum FeedStore {
@@ -39,7 +39,7 @@ enum FeedStore {
     // MARK: People like you (phase E)
 
     /// People who liked, saved, commented on or read the same posts as you in
-    /// the last 30 days (the 50 with most in common) — what they engaged with
+    /// the last 30 days (the 50 with most in common). What they engaged with
     /// that you haven't is lifted, by how much they share your taste.
     static let peerDays = 30, maxPeers = 50
     static let peerBoost = 0.15, peerHalf = 3.0
@@ -135,7 +135,7 @@ enum FeedStore {
 
     /// Reorders one page so the same author never shows twice in a row and,
     /// within each run of 10, no author has more than 2 posts or topic more
-    /// than 3 — falling back step by step when nothing else is left. Nothing
+    /// than 3, falling back step by step when nothing else is left. Nothing
     /// is dropped, so paging is unaffected.
     static func spread<T>(_ items: [T], author: (T) -> String, topic: (T) -> String?) -> [T] {
         var remaining = items
@@ -216,7 +216,7 @@ enum FeedStore {
     }
 
     /// `asOf` pins the "now" used for every page's `recency` computation to
-    /// whenever the *first* page of a pagination sequence was fetched — see
+    /// whenever the *first* page of a pagination sequence was fetched. See
     /// `getRecommendedFeed`'s use of it below for why.
     struct Cursor: Codable { var score: Double; var id: String; var relaxed: Bool?; var asOf: Date }
 
@@ -266,7 +266,7 @@ enum FeedStore {
         }
         tastes += interests
         if tastes.isEmpty {
-            // Brand new: start from the interests picked at sign-up — posts
+            // Brand new: start from the interests picked at sign-up. Posts
             // tagged with or mentioning them, before any profile embedding.
             tastes = clusterTaste(try await interestPickVectors(userID, on: db), weights: [], maxK: maxInterests)
         }
@@ -289,8 +289,8 @@ enum FeedStore {
     }
 
     /// What you do, as (post embedding, weight): every post you liked,
-    /// commented on, saved, shared, opened or read for a while, and — with a
-    /// negative weight — ones you skipped straight past or said "Not
+    /// commented on, saved, shared, opened or read for a while, and. With a
+    /// negative weight, ones you skipped straight past or said "Not
     /// interested" to; each weighted by the action and how recent it was.
     static func behaviorSignals(_ userID: String, on db: any SQLDatabase) async throws -> [(vec: [Double], weight: Double)] {
         struct Row: Decodable { let vec: String; let weight: Double }
@@ -329,8 +329,8 @@ enum FeedStore {
         return rows.map { (parseVec($0.vec), $0.weight) }.filter { $0.weight != 0 }
     }
 
-    /// `weight` when the candidate post (`p`, embedding `c`) is like — or by
-    /// the author of — a post you gave `kind` feedback on in the last 30 days.
+    /// `weight` when the candidate post (`p`, embedding `c`) is like, or by
+    /// the author of. A post you gave `kind` feedback on in the last 30 days.
     /// Feedback newer than the first page (`asOf`) waits for the next refresh,
     /// so paging stays stable.
     private static func feedbackTerm(kind: String, similar: Bool, userID: String, asOf: Date,
@@ -399,7 +399,7 @@ enum FeedStore {
         // per page: `recency` (and therefore `score`) is a continuously
         // time-decaying value, and two different posts decay at different
         // absolute rates (a newer, higher-recency post's score falls faster
-        // in absolute terms than an older one's, even at the same tau) — so
+        // in absolute terms than an older one's, even at the same tau), so
         // recomputing against a fresh clock on every request lets a post
         // that was correctly ranked just above the keyset cursor boundary
         // drift to just below it moments later, and get returned again on a
@@ -409,7 +409,7 @@ enum FeedStore {
         let asOf = decoded?.asOf ?? Date()
 
         func run(relaxed: Bool) async throws -> [FeedRow] {
-            // COALESCE to 0 (not left NULL) for a post with no chunk yet — a
+            // COALESCE to 0 (not left NULL) for a post with no chunk yet. A
             // bare NULL would poison the whole weighted `score` sum below via
             // SQL's NULL-propagation, silently dropping the post from ranking
             // entirely rather than just scoring its semantic term as "unknown".
@@ -494,7 +494,7 @@ enum FeedStore {
               SELECT post_id FROM cf
             ),
             scored AS (
-              SELECT p.id::text AS id, p.content, p.mode, p.privacy, p.image_urls[1] AS image_url, p.image_urls, p.image_alts, p.article_title, p.link_url,
+              SELECT p.id::text AS id, p.content, p.content_format, p.mode, p.privacy, p.image_urls[1] AS image_url, p.image_urls, p.image_alts, p.article_title, p.link_url,
                 p.lang, \(unsafeRaw: TranslationService.translatedColumn("p")) AS translated_text,
                 p.like_count, p.comment_count, p.share_count, p.created_at, p.post_type, p.is_pinned, p.pinned_at, p.shared_post_id::text AS shared_post_id,
                 EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = \(uuid: userID)) AS is_liked,
@@ -530,7 +530,7 @@ enum FeedStore {
                  - \(feedbackTerm(kind: "less", similar: false, userID: userID, asOf: asOf, weight: lessAuthorPenalty))
                 )::float AS feedback_adjust,
                 (CASE WHEN p.shared_post_id IS NOT NULL THEN (
-                  SELECT json_build_object('id', sp.id, 'content', sp.content, 'image_url', sp.image_urls[1], 'image_urls', sp.image_urls, 'image_alts', sp.image_alts, 'lang', sp.lang, 'translated_text', \(unsafeRaw: TranslationService.translatedColumn("sp")),
+                  SELECT json_build_object('id', sp.id, 'content', sp.content, 'content_format', sp.content_format, 'image_url', sp.image_urls[1], 'image_urls', sp.image_urls, 'image_alts', sp.image_alts, 'lang', sp.lang, 'translated_text', \(unsafeRaw: TranslationService.translatedColumn("sp")),
                     'link_url', sp.link_url, 'article_title', sp.article_title, 'created_at', sp.created_at,
                     'author', json_build_object('id', su.id, 'username', su.username,
                       'display_name', \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "sp.mode", alias: "su")),
@@ -554,21 +554,22 @@ enum FeedStore {
               FROM cand
               JOIN posts p ON p.id = cand.id
               JOIN users u ON u.id = p.author_id
-              -- LEFT (not INNER) join: a post with no embedding chunk yet —
+              -- LEFT (not INNER) join: a post with no embedding chunk yet,
               -- because its async embed job hasn't run, is still queued, or
-              -- Ollama was unavailable when it tried — must still be a feed
+              -- Ollama was unavailable when it tried. Must still be a feed
               -- candidate, just with no semantic signal (see semanticExpr
               -- above), not silently erased from the feed until it's embedded.
               -- `c.source_type = 'post'` has to live in this ON clause, not
-              -- WHERE below — WHERE would drop every unmatched (NULL) row and
+              -- WHERE below, WHERE would drop every unmatched (NULL) row and
               -- turn this back into an INNER JOIN in all but name.
               LEFT JOIN user_embedding_chunks c ON c.source_id = p.id AND c.source_type = 'post'
               LEFT JOIN post_tags pt ON pt.post_id = p.id
               LEFT JOIN aff ON aff.author_id = p.author_id
               LEFT JOIN cf ON cf.post_id = p.id
               WHERE p.mode = \(bind: mode) AND p.status = 'posted'
-                -- Listings live in the Marketplace and their communities.
-                AND p.post_type <> 'listing'
+                -- Items for sale compete like any post; sold ones drop out.
+                AND NOT EXISTS (SELECT 1 FROM listing_posts lsold WHERE lsold.post_id = p.id AND lsold.status = 'sold')
+                AND \(ListingStore.notHiddenFromFriendClause(userID))
                 AND (p.community_id IS NULL OR p.author_id = \(uuid: userID)
                   OR EXISTS (SELECT 1 FROM communities co2 WHERE co2.id = p.community_id AND co2.privacy = 'public'
                     AND p.community_audience = 'public')
@@ -580,11 +581,12 @@ enum FeedStore {
                   WHERE (ub.blocker_id = \(uuid: userID) AND ub.blocked_id = p.author_id)
                      OR (ub.blocker_id = p.author_id AND ub.blocked_id = \(uuid: userID)))
                 AND NOT EXISTS (SELECT 1 FROM hidden_posts hp WHERE hp.user_id = \(uuid: userID) AND hp.post_id = p.id)
+                AND \(PostStore.notHiddenAuthorClause(userID))
                 AND NOT EXISTS (SELECT 1 FROM post_feedback pf
                   WHERE pf.user_id = \(uuid: userID) AND pf.post_id = p.id AND pf.kind = 'less')
                 AND \(PostStore.notMutedWordsClause(userID))
                 AND (p.privacy = 'public' OR (p.privacy = 'friends' AND EXISTS (SELECT 1 FROM connections cf
-                  WHERE cf.status = 'accepted' AND ((cf.requester_id = p.author_id AND cf.addressee_id = \(uuid: userID))
+                  WHERE cf.status = 'accepted' AND cf.mode = p.mode AND ((cf.requester_id = p.author_id AND cf.addressee_id = \(uuid: userID))
                     OR (cf.addressee_id = p.author_id AND cf.requester_id = \(uuid: userID))))))
               GROUP BY p.id, u.id, c.id
             ),
@@ -609,7 +611,7 @@ enum FeedStore {
             // "is_connection OR c.id IS NULL OR ..."): a handful of unscored
             // posts squeaking through here would make `rows` non-empty below,
             // which would suppress the `relaxed` retry for a viewer with a
-            // taste vector but zero genuinely strong matches — trading a
+            // taste vector but zero genuinely strong matches. Trading a
             // small, correct fallback (relaxed → the full pool, ranked
             // recency/engagement-only) for a much worse one (just those few
             // stray unscored posts). Unscored posts still surface via that
@@ -625,12 +627,12 @@ enum FeedStore {
             q = q + " ) SELECT * FROM ranked WHERE 1 = 1"
             if let d = decoded {
                 // `id` here is `p.id::text` (see the SELECT above), not a raw
-                // uuid column — binding this as `\(uuid:)` sends a `::uuid`
+                // uuid column, binding this as `\(uuid:)` sends a `::uuid`
                 // typed parameter against a `text` value, which Postgres
                 // rejects outright ("operator does not exist: text < uuid").
                 // That made every second-page request of this feed 500,
                 // silently swallowed by the client's "scrolling further will
-                // retry" catch — i.e. pagination has never actually worked
+                // retry" catch, i.e. pagination has never actually worked
                 // past page 1. Plain `\(bind:)` matches the column's real type.
                 q = q + " AND (score < \(bind: d.score) OR (score = \(bind: d.score) AND id < \(bind: d.id)))"
             }
@@ -657,14 +659,14 @@ enum FeedStore {
 
         var rows = try await run(relaxed: relaxed)
         // Widen to the relaxed (no-relevance-floor) pool whenever the strict,
-        // personalized pass didn't fill a whole page — not just when the
+        // personalized pass didn't fill a whole page, not just when the
         // very first page came back completely empty. A viewer can easily
         // have a handful of connection/high-similarity posts (page 1 isn't
         // empty, so the old check never fired) and then run out of them a
         // page or two later, at which point pagination would previously just
         // stop cold even though plenty of less-personally-relevant posts
         // remain. Merge rather than replace, since the strict rows are still
-        // valid and already the most relevant — just top the page up with
+        // valid and already the most relevant. Just top the page up with
         // whatever the relaxed pass finds that the strict pass didn't
         // already return, then re-rank the combined set by the same score so
         // ordering stays consistent either way.
@@ -711,7 +713,7 @@ enum FeedStore {
     }
 }
 
-/// Feed recommendation row — same fields as `PostObject` minus `is_saved`,
+/// Feed recommendation row. Same fields as `PostObject` minus `is_saved`,
 /// plus the internal `score` (Node returns it too). The event / poll / job
 /// data must be here: without it those posts showed only their text in For you.
 struct FeedPostObject: Content {

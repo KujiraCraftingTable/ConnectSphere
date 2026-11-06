@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// Raw-SQL data access for users — the Swift port of the relevant parts of
+/// Raw-SQL data access for users. The Swift port of the relevant parts of
 /// `backend/src/routes/authRoutes.js` (`getUserById`) and
 /// `backend/src/models/userModel.js`.
 enum UserStore {
@@ -18,11 +18,12 @@ enum UserStore {
     /// `google_id` are never selected. `interests`/`skills` use `array_agg`
     /// (same sorted DISTINCT output as the Node `json_agg(DISTINCT …)`).
     /// `mode` picks which persona's name / bio / photos come back; nil is the
-    /// account's default mode. Only "hobby" / "work" — it's inlined as SQL.
+    /// account's default mode. Only "hobby" / "work", it's inlined as SQL.
     static func authUser(id: String, mode: String? = nil, on db: any SQLDatabase) async throws -> AuthUserObject? {
         let modeRef = mode.flatMap { ["hobby", "work"].contains($0) ? "'\($0)'" : nil } ?? "u.default_mode"
         let dn  = PersonaSQL.expr("display_name", modeRef: modeRef)
         let bio = PersonaSQL.expr("bio", modeRef: modeRef)
+        let bioFormat = PersonaSQL.expr("bio_format", modeRef: modeRef)
         let av  = PersonaSQL.expr("avatar_url", modeRef: modeRef)
         let cv  = PersonaSQL.expr("cover_url", modeRef: modeRef)
 
@@ -31,12 +32,17 @@ enum UserStore {
               u.id::text AS id, u.username,
               \(unsafeRaw: dn)  AS display_name,
               \(unsafeRaw: bio) AS bio,
+              \(unsafeRaw: bioFormat) AS bio_format,
               u.avatar_color,
               \(unsafeRaw: av)  AS avatar_url,
               u.location, u.ward_id::text AS ward_id, u.gender, u.dob,
               u.job_title, u.company, u.phone, u.email,
               u.is_setup, u.default_mode, u.hobby_theme, u.work_theme,
-              u.follower_count, u.following_count, u.post_count,
+              u.follower_count, u.following_count,
+              -- This persona's own posts, never ones made in a community or
+              -- marketplace listings (each has its own page): the profile list's rule.
+              (SELECT COUNT(*)::int FROM posts pc WHERE pc.author_id = u.id AND pc.mode = \(unsafeRaw: modeRef)
+                 AND pc.status = 'posted' AND pc.community_id IS NULL AND pc.post_type <> 'listing') AS post_count,
               u.created_at, u.updated_at, u.deleted_at,
               \(unsafeRaw: cv)  AS cover_url,
               u.hobby_display_name, u.hobby_bio, u.hobby_avatar_url, u.hobby_cover_url,

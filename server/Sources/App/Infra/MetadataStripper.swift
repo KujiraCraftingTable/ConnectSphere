@@ -6,10 +6,10 @@ import Foundation
 /// already re-encodes media without metadata before uploading, but the
 /// upload endpoints shouldn't trust that every client does.
 ///
-/// Pure byte-level segment/chunk filtering — the pixel data is never decoded
+/// Pure byte-level segment/chunk filtering. The pixel data is never decoded
 /// or re-encoded, so quality is untouched. Anything that isn't a well-formed
 /// JPEG or PNG is returned unchanged rather than risk corrupting it (HEIC,
-/// WebP and video aren't handled here — see KNOWN_GAPS.md).
+/// WebP and video aren't handled here. See KNOWN_GAPS.md).
 enum MetadataStripper {
     static func strip(_ bytes: [UInt8]) -> [UInt8] {
         if bytes.starts(with: [0xFF, 0xD8]) { return stripJPEG(bytes) ?? bytes }
@@ -20,7 +20,7 @@ enum MetadataStripper {
     // MARK: JPEG
 
     /// APPn markers worth keeping: APP0 (JFIF header), APP2 (ICC colour
-    /// profile) and APP14 (Adobe colour transform — without it some CMYK/RGB
+    /// profile) and APP14 (Adobe colour transform. Without it some CMYK/RGB
     /// JPEGs decode with wrong colours). Every other APPn and COM is dropped:
     /// APP1 carries EXIF (incl. GPS) and XMP, APP13 carries IPTC.
     private static let keptAppMarkers: Set<UInt8> = [0xE0, 0xE2, 0xEE]
@@ -53,7 +53,7 @@ enum MetadataStripper {
             let end = m + 1 + length
             guard end <= b.count else { return nil }
 
-            if marker == 0xDA {          // SOS: compressed data follows — copy the rest as is
+            if marker == 0xDA {          // SOS: compressed data follows. Copy the rest as is
                 out += [0xFF]
                 out += b[m...]
                 return out
@@ -72,7 +72,7 @@ enum MetadataStripper {
     // MARK: PNG
 
     private static let pngSignature: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
-    /// Text, EXIF and timestamp chunks — none affect how the image renders.
+    /// Text, EXIF and timestamp chunks. None affect how the image renders.
     private static let droppedPNGChunks: Set<String> = ["eXIf", "tEXt", "zTXt", "iTXt", "tIME"]
 
     private static func stripPNG(_ b: [UInt8]) -> [UInt8]? {

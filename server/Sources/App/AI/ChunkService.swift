@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/services/chunkService.js` — the chunk-based embedding
+/// Port of `backend/src/services/chunkService.js`. The chunk-based embedding
 /// pipeline. One `user_embedding_chunks` row per embeddable unit:
 ///   • `user_profile` (source_id NULL): normalised profile fields
 ///   • `post` (source_id = posts.id): one post's content + article title + tags
@@ -162,11 +162,11 @@ enum ChunkService {
         if stored?.source_hash == hash { return true }
 
         struct R: Decodable {
-            let author_id: String; let content: String?; let article_title: String?
+            let author_id: String; let content: String?; let content_format: String?; let article_title: String?
             let status: String; let tags: String
         }
         guard let post = try await db.raw("""
-            SELECT p.author_id::text AS author_id, p.content, p.article_title, p.status,
+            SELECT p.author_id::text AS author_id, p.content, p.content_format, p.article_title, p.status,
               COALESCE(array_to_json(array_agg(pt.tag) FILTER (WHERE pt.tag IS NOT NULL)), '[]')::text AS tags
             FROM posts p
             LEFT JOIN post_tags pt ON pt.post_id = p.id
@@ -180,7 +180,9 @@ enum ChunkService {
             return false
         }
         let tags = (try? JSONDecoder().decode([String].self, from: Data(post.tags.utf8))) ?? []
-        let naturalText = [post.content, post.article_title].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ". ")
+        // The embedding should see the words, not `**` or `[label](url)`.
+        let words = post.content_format == "markdown" ? post.content.map(MarkdownText.plain) : post.content
+        let naturalText = [words, post.article_title].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ". ")
         let contentEn = try await translateOrNil(cfg, naturalText.isEmpty ? nil : naturalText)
         let canonTags = await canonicalizeAll(cfg, tags, on: db)
 

@@ -3,7 +3,7 @@ import XCTest
 
 final class TranslationTests: XCTestCase {
     func testDetectsEnglishVietnameseAndOthers() {
-        XCTAssertEqual(TranslationService.detectLanguage("Vừa cày xong Jujutsu Kaisen — arc mới đỉnh thật sự 😭🔥"), "vi")
+        XCTAssertEqual(TranslationService.detectLanguage("Vừa cày xong Jujutsu Kaisen. Arc mới đỉnh thật sự 😭🔥"), "vi")
         XCTAssertEqual(TranslationService.detectLanguage("mình thích nghe nhạc jpop"), "vi")
         XCTAssertEqual(TranslationService.detectLanguage("I love eating jolibee"), "en")
         XCTAssertEqual(TranslationService.detectLanguage("We had phở for lunch, it was great"), "en")   // one borrowed word

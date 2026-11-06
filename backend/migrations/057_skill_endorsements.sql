@@ -1,7 +1,7 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 057 — Skill endorsements (Work mode)
+-- 057, Skill endorsements (Work mode)
 --
--- A Work connection vouching for one of your skills — one per person per
+-- A Work connection vouching for one of your skills. One per person per
 -- skill. Tied to the skill row, so removing a skill removes its endorsements
 -- (and keeping it keeps them: skill edits no longer recreate every row).
 -- ─────────────────────────────────────────────────────────────────────────────

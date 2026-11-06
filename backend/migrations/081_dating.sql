@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 081 — Dating (account menu, 16+ only)
+-- 081, Dating (account menu, 16+ only)
 --
 -- Normal search is for friends (Hobby) and colleagues (Work); looking for a
 -- partner happens here instead. Like Facebook Dating, it is opt-in and kept
@@ -13,7 +13,7 @@
 --
 -- Each profile picks its own place on a map rather than reusing the free-text
 -- users.location, so distance can be measured. Height is shown, never filtered
--- or ranked on — search doesn't judge people by looks, and neither does this.
+-- or ranked on. Search doesn't judge people by looks, and neither does this.
 --
 -- A like or a pass is one row per (from, to); liking someone who already liked
 -- you makes a match. A match chats in the normal Hobby inbox: its conversation

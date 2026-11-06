@@ -10,7 +10,7 @@ enum SuggestionStore {
     static let defaultLimit = 20
     static let maxLimit = 50
     /// How many nearest profiles join the pool, and how many candidates get
-    /// scored — bounded so the query stays cheap however big the graph gets.
+    /// scored, bounded so the query stays cheap however big the graph gets.
     static let nearestProfiles = 100
     static let poolLimit = 300
 
@@ -68,7 +68,7 @@ enum SuggestionStore {
             + (samePlace ? 0.1 : 0)
     }
 
-    /// The one line shown on the card — the strongest true thing about them.
+    /// The one line shown on the card. The strongest true thing about them.
     static func reason(mode: String, mutual: Int, shared: [String], sameCompany: String?, sameProvince: String?) -> Reason {
         if mutual > 0 { return Reason(kind: "mutual", value: nil, count: mutual) }
         if let first = shared.first { return Reason(kind: mode == "work" ? "skill" : "interest", value: first, count: nil) }

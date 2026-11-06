@@ -2,7 +2,7 @@ import Vapor
 import SQLKit
 
 /// Your activity log: comments you wrote and things you liked, both modes,
-/// newest first — only on posts you can still see.
+/// newest first, only on posts you can still see.
 enum ActivityStore {
     struct Item: Content {
         /// comment | post_like | comment_like

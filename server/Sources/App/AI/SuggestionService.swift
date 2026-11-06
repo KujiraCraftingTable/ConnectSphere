@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/services/suggestionService.js` — 4 AI search
+/// Port of `backend/src/services/suggestionService.js`, 4 AI search
 /// suggestions per mode, generated from the last 7 days of `search_logs` via
 /// the LLM, cached in `suggestion_cache` with a 1-hour TTL. Falls back to the
 /// static defaults on any miss / failure.

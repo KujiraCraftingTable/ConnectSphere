@@ -1,12 +1,12 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 049 — Upload links stored as bare paths
+-- 049, Upload links stored as bare paths
 --
 -- The app used to save its own uploads with the server address the uploading
 -- device used in front (http://localhost:3000/uploads/x.jpg from the
 -- simulator, a LAN IP or *.local name from a phone). Other devices can't reach
 -- that address, so they saw blank photos. From now on the server stores
 -- /uploads/x.jpg and each client adds its own server address; this rewrites
--- the links already saved. Only dev/LAN hosts are stripped — a link to an
+-- the links already saved. Only dev/LAN hosts are stripped. A link to an
 -- outside site keeps its host.
 -- ─────────────────────────────────────────────────────────────────────────────
 

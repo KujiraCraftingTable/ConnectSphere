@@ -1,6 +1,6 @@
 import Vapor
 
-/// The `user` object returned by `/api/auth/*` and `/api/auth/me` — a 1:1 port
+/// The `user` object returned by `/api/auth/*` and `/api/auth/me`. A 1:1 port
 /// of `getUserById` in `backend/src/routes/authRoutes.js`: every `users` column
 /// except `password_hash` / `google_id`, with `display_name` / `bio` /
 /// `avatar_url` / `cover_url` persona-resolved from `default_mode`, plus the
@@ -14,6 +14,8 @@ struct AuthUserObject: Content {
     var username: String
     var display_name: String
     @NullCoded var bio: String?
+    /// 'plain' or 'markdown' (migration 099).
+    var bio_format: String? = nil
     @NullCoded var avatar_color: String?
     @NullCoded var avatar_url: String?
     @NullCoded var location: String?
@@ -55,7 +57,7 @@ struct AuthUserObject: Content {
     var show_in_suggestions: Bool
     /// This persona's profile links to your other one (migration 060).
     var links_other_mode: Bool
-    /// The email was confirmed with a code (or by Google) — migration 061.
+    /// The email was confirmed with a code (or by Google). Migration 061.
     var email_verified: Bool
     /// This mode's profile is locked (migration 064).
     var is_locked: Bool
@@ -68,14 +70,14 @@ struct AuthUserObject: Content {
     var skills: [String]
 }
 
-/// `{ token, user, is_new_user }` — register / login / google.
+/// `{ token, user, is_new_user }`. Register / login / google.
 struct AuthResponse: Content {
     var token: String
     var user: AuthUserObject
     var is_new_user: Bool
 }
 
-/// `{ user }` — /me and /setup.
+/// `{ user }`, /me and /setup.
 struct MeResponse: Content {
     var user: AuthUserObject
 }

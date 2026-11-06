@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 042 — Muted words
+-- 042, Muted words
 --
 -- Words or phrases a user doesn't want to see. Posts containing one (in the
 -- text, title or a visible tag) drop out of their feeds and community lists;

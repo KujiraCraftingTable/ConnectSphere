@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 071 — Sharing a community into a chat
+-- 071, Sharing a community into a chat
 --
 -- A 'community' message points at the community; the sender's optional note
 -- is its content. Like a shared post, only the id is stored and each member

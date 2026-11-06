@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 080 — Curated interest catalogue (AI_SEARCH_REVIEW.md, phase S6)
+-- 080, Curated interest catalogue (AI_SEARCH_REVIEW.md, phase S6)
 --
 -- Interests used to be a hard-coded list of 13 in the app plus free text, so
 -- nobody could pick "hút thuốc" or "chém gió" and search had no way to

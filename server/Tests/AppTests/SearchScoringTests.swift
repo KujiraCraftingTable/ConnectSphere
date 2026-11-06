@@ -60,7 +60,7 @@ final class SearchScoringTests: XCTestCase {
         XCTAssertTrue(SearchController.fuse(semantic: [], keyword: []).isEmpty)
     }
 
-    // MARK: S2 — who fits you
+    // MARK: S2, who fits you
 
     func testTasteStretchesTheUsefulCosineBand() {
         XCTAssertEqual(SearchRanking.taste(nil), 0)
@@ -120,7 +120,7 @@ final class SearchScoringTests: XCTestCase {
         XCTAssertEqual(Set(out.map(\.id)), ["a", "me_like"])
     }
 
-    // MARK: S3 — learning from what you did
+    // MARK: S3, learning from what you did
 
     func testDismissedPeopleSink() {
         let out = SearchRanking.rerank([user("a", score: 0.03), user("b", score: 0.025)],
@@ -135,7 +135,7 @@ final class SearchScoringTests: XCTestCase {
         XCTAssertEqual(Set(SearchStore.eventColumns.keys), ["tap", "dismiss"])
     }
 
-    // MARK: S5 — diversity and personal post search
+    // MARK: S5, diversity and personal post search
 
     func testOneCityDoesNotFillThePage() {
         let users = (0..<6).map { user("h\($0)", location: "Hanoi") } + [user("s", location: "Ho Chi Minh City")]

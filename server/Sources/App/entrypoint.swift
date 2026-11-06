@@ -7,7 +7,7 @@ struct Entrypoint {
         // Load `../backend/.env` (overridable via DOTENV_PATH) into the process
         // environment BEFORE anything reads it, so the Swift server shares the
         // exact same config the Node backend uses. Real env vars already set
-        // win — they are not overwritten.
+        // win, they are not overwritten.
         loadDotEnv(ProcessInfo.processInfo.environment["DOTENV_PATH"] ?? "../backend/.env")
 
         var env = try Environment.detect()
@@ -24,7 +24,7 @@ struct Entrypoint {
         try await app.asyncShutdown()
     }
 
-    /// Minimal `.env` parser — `KEY=VALUE` lines, `#` comments, optional quotes.
+    /// Minimal `.env` parser, `KEY=VALUE` lines, `#` comments, optional quotes.
     /// Deliberately tiny; the file it reads is the project's own `backend/.env`.
     static func loadDotEnv(_ path: String) {
         guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { return }

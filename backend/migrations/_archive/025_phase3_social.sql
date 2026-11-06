@@ -1,6 +1,6 @@
 -- Migration 025: Phase 3 social features
 -- 1. Stories 24h (stories + story_views)
--- 2. Thu hồi tin nhắn (messages.deleted_at)
+-- 2. Unsend messages (messages.deleted_at)
 -- 3. Repost/share (posts.shared_post_id)
 
 -- ── 1. Stories ────────────────────────────────────────────────────────────────
@@ -23,13 +23,13 @@ CREATE TABLE IF NOT EXISTS story_views (
   PRIMARY KEY (story_id, viewer_id)
 );
 
--- ── 2. Thu hồi tin nhắn ───────────────────────────────────────────────────────
+-- ── 2. Unsend messages ────────────────────────────────────────────────────────
 
 ALTER TABLE messages
   ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 
 -- ── 3. Repost / share ─────────────────────────────────────────────────────────
--- ON DELETE SET NULL: bài gốc bị xóa cứng thì bài share hiện "nội dung không còn"
+-- ON DELETE SET NULL: if the original post is hard-deleted, the shared post shows "content no longer available"
 
 ALTER TABLE posts
   ADD COLUMN IF NOT EXISTS shared_post_id UUID REFERENCES posts (id) ON DELETE SET NULL;

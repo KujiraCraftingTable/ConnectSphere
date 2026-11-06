@@ -2,7 +2,7 @@ import Vapor
 import SQLKit
 
 extension ChatStore {
-    /// `listConversations` — the forked UNION-ALL (1:1 branch + group branch).
+    /// `listConversations`, the forked UNION-ALL (1:1 branch + group branch).
     struct ConversationSummary: Content {
         var id: String
         var mode: String
@@ -165,7 +165,7 @@ extension ChatStore {
     }
 
     /// Mirrors Node `getGroupSettings` exactly: `{ id, theme, name, avatar_url,
-    /// avatar_color, created_by, members[] }` — no mute (that's per-user, read
+    /// avatar_color, created_by, members[] }`. No mute (that's per-user, read
     /// via the 1:1/settings path), members ordered purely by `joined_at ASC`.
     struct GroupSettings: Content {
         var id: String

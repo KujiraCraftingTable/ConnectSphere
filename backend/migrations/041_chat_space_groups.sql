@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 041 — Group chats in spaces
+-- 041, Group chats in spaces
 --
 -- A space can hold group chats as well as people. Same privacy as 038: only
 -- the space's owner sees it. A group shows in a space only while the owner is

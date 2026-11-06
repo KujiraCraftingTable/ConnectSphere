@@ -8,6 +8,8 @@ struct UserCore: Content {
     var username: String
     var display_name: String
     @NullCoded var bio: String?
+    /// 'plain' or 'markdown' (migration 099).
+    var bio_format: String? = nil
     @NullCoded var avatar_url: String?
     @NullCoded var cover_url: String?
     @NullCoded var avatar_color: String?
@@ -31,7 +33,7 @@ struct UserCore: Content {
     @NullCoded var relationship_status: String?
 }
 
-/// `findAll` row — `UserCore` + `mutual_count`, flattened (Node returns one flat
+/// `findAll` row, `UserCore` + `mutual_count`, flattened (Node returns one flat
 /// object). The same struct decodes the SQL row and encodes the response.
 struct SearchUserObject: Content {
     var core: UserCore
@@ -48,7 +50,7 @@ struct SearchUserObject: Content {
     enum K: String, CodingKey { case mutual_count }
 }
 
-/// `findById` row — `UserCore` + `connection_count`, flattened.
+/// `findById` row, `UserCore` + `connection_count`, flattened.
 struct PublicUserObject: Content {
     var core: UserCore
     var connection_count: Int
@@ -79,6 +81,7 @@ struct PublicUserObject: Content {
     /// What someone locked out still sees: who it is, the avatar and cover.
     mutating func trimForLockedOut() {
         core.bio = nil
+        core.bio_format = nil
         core.location = nil
         core.age = nil
         core.job_title = nil
@@ -95,7 +98,7 @@ struct PublicUserObject: Content {
     }
 }
 
-/// PATCH /users/me response — `PublicUserObject` + the owner-only fields the
+/// PATCH /users/me response, `PublicUserObject` + the owner-only fields the
 /// controller merges in (`email`, `has_password`, `dob`, `dob_visibility`, `age`).
 /// Response-only (never decoded).
 struct PrivateUserObject: Content {
@@ -152,4 +155,5 @@ struct PaginatedResponse<T: Content>: Content {
 }
 struct StatusOK: Content { var status = "ok" }
 struct BlockedFlagResponse: Content { var status = "ok"; var blocked: Bool }
+struct HiddenAuthorResponse: Content { var status = "ok"; var hidden: Bool }
 struct BlockStatusResponse: Content { var blocked: Bool; var blockedEitherWay: Bool }

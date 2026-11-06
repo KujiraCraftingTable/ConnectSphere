@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 038 — Chat spaces
+-- 038, Chat spaces
 --
 -- A space is a private label a user puts on people ("Greenwich Uni",
 -- "Badminton") to organise Messages. Only its owner ever sees it. Spaces are

@@ -1,6 +1,6 @@
 import Vapor
 
-/// A Feed / community post row — port of `buildPostSelect` in
+/// A Feed / community post row. Port of `buildPostSelect` in
 /// `backend/src/models/postModel.js`. Nested objects (`author`, `shared_post`,
 /// `event_data`, `poll_data`) come from Postgres `json_build_object`; `tags`
 /// from `json_agg`. The same struct decodes the SQL row (JSON columns selected
@@ -28,7 +28,7 @@ struct PostObject: Content {
     var publish_at: Date? = nil
     /// Why a community moderator declined it (author's own declined posts only).
     var decline_reason: String? = nil
-    /// en | vi | other | none — set once the translation pipeline has run.
+    /// en | vi | other | none. Set once the translation pipeline has run.
     @NullCoded var lang: String? = nil
     /// The text in the other of en/vi (migration 048); null when there's none
     /// or it's stale after an edit.
@@ -51,11 +51,13 @@ struct PostObject: Content {
     @NullCoded var job_data: JobData?
     @NullCoded var listing_data: ListingData? = nil
     /// Only present on community-post responses (getPostsByCommunity's outer
-    /// wrapper). Plain Optional — the key is *absent* on Feed posts, matching
+    /// wrapper). Plain Optional, the key is *absent* on Feed posts, matching
     /// Node's `buildPostSelect` which doesn't project it at all.
     var community: CommunityRef?
     /// A community shared to the feed (migration 070): its card under the note.
     @NullCoded var shared_community: SharedCommunity? = nil
+    /// 'plain' (every post made before Markdown) or 'markdown' (migration 098).
+    var content_format: String? = nil
 
     struct SharedCommunity: Content {
         var id: String
@@ -84,6 +86,7 @@ struct PostObject: Content {
         @NullCoded var image_alts: [String]?
         @NullCoded var lang: String?
         @NullCoded var translated_text: String?
+        var content_format: String? = nil
         @NullCoded var link_url: String?
         @NullCoded var article_title: String?
         var created_at: Date
@@ -125,6 +128,11 @@ struct PostObject: Content {
         var condition: String
         @NullCoded var location: String?
         var status: String
+        /// How many times the seller re-upped it (migration 093).
+        var reup_count: Int = 0
+        /// The seller's auto re-up schedule and its next run (migration 095); only they get these.
+        @NullCoded var auto_reup: AutoReup? = nil
+        @NullCoded var next_auto_reup_at: Date? = nil
         var hide_from_friends: Bool
         var has_auto_reply: Bool
         @NullCoded var auto_reply: String?
@@ -137,6 +145,11 @@ struct PostObject: Content {
             var id: String
             var name: String
             var icon_emoji: String
+        }
+        struct AutoReup: Content, Equatable {
+            var every_days: Int
+            /// 9, 12, 15, 18, 21 or 24 (midnight), Vietnam time.
+            var hour: Int
         }
     }
     struct JobData: Content {

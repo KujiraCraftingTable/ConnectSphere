@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/routes/interactionRoutes.js` — mounted under
+/// Port of `backend/src/routes/interactionRoutes.js`. Mounted under
 /// `/api/posts/:id` (mergeParams). Notification/socket side effects deferred to
 /// Phase 3/4. Inline `{error}` bodies match the Node handlers. Includes the
 /// review fix: comment restore is wrapped in a txn with a `status = 'deleted'`
@@ -110,7 +110,7 @@ struct InteractionsController {
             let id: String; let content: String?; let created_at: Date
             let parent_comment_id: String?; let like_count: Int; let is_liked: Bool; let author: String
             let reply_to: String?; let muted: Bool
-            let lang: String?; let translated_text: String?; let image_url: String?
+            let lang: String?; let translated_text: String?; let image_url: String?; let content_format: String?
         }
         let rows = try await db.raw("""
             SELECT c.id, c.content, c.created_at, c.parent_comment_id, c.like_count,
@@ -120,7 +120,7 @@ struct InteractionsController {
               CASE WHEN rc.id IS NULL THEN NULL ELSE json_build_object('id', ru.id,
                 'display_name', \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "p.mode", alias: "ru")))::text END AS reply_to,
               (c.author_id <> \(uuid: req.userID) AND \(PostStore.mutedWordHit(req.userID, textSQL: "c.content", modeRef: "p.mode"))) AS muted,
-              c.lang, \(unsafeRaw: TranslationService.translatedColumn("c")) AS translated_text, c.image_url
+              c.lang, \(unsafeRaw: TranslationService.translatedColumn("c")) AS translated_text, c.image_url, c.content_format
             FROM comments c JOIN posts p ON p.id = c.post_id JOIN users u ON u.id = c.author_id
             LEFT JOIN comments rc ON rc.id = COALESCE(c.reply_to_comment_id, c.parent_comment_id)
             LEFT JOIN users ru ON ru.id = rc.author_id
@@ -136,19 +136,20 @@ struct InteractionsController {
                           parent_comment_id: r.parent_comment_id, like_count: r.like_count, is_liked: r.is_liked,
                           author: try dec.decode(CommentObject.CommentAuthor.self, from: Data(r.author.utf8)),
                           reply_to: try r.reply_to.map { try dec.decode(CommentObject.ReplyTo.self, from: Data($0.utf8)) },
-                          muted: r.muted, lang: r.lang, translated_text: r.translated_text, image_url: r.image_url)
+                          muted: r.muted, lang: r.lang, translated_text: r.translated_text, image_url: r.image_url,
+                          content_format: r.content_format)
         }
         return CommentsListResponse(data: comments, total: total)
     }
 
-    struct AddCommentBody: Content { var content: String?; var parent_comment_id: String?; var image_url: String? }
+    struct AddCommentBody: Content { var content: String?; var parent_comment_id: String?; var image_url: String?; var content_format: String? }
 
     static func addComment(_ req: Request) async throws -> Response {
         let postID = req.parameters.get("id")!
         let db = req.db.sql()
         let b = try req.content.decode(AddCommentBody.self)
         let content = b.content?.trimmedText ?? ""
-        // Only a photo uploaded here — not a link to someone else's image.
+        // Only a photo uploaded here, not a link to someone else's image.
         let imageURL = MediaPath.storable(b.image_url)
         if let imageURL, !imageURL.hasPrefix("/uploads/") || imageURL.hasPrefix("/uploads/messages/") {
             throw InlineError(.badRequest, "image_url must be an uploaded photo")
@@ -180,15 +181,16 @@ struct InteractionsController {
         }
         struct C: Decodable {
             let id: String; let content: String?; let created_at: Date; let parent_comment_id: String?
-            let like_count: Int; let image_url: String?
+            let like_count: Int; let image_url: String?; let content_format: String?
         }
+        let format = PostStore.contentFormats.contains(b.content_format ?? "") ? b.content_format! : "plain"
         var created: C!
         try await req.db.tx { t in
             created = try await t.raw("""
-                INSERT INTO comments (post_id, author_id, content, parent_comment_id, reply_to_comment_id, image_url)
+                INSERT INTO comments (post_id, author_id, content, parent_comment_id, reply_to_comment_id, image_url, content_format)
                 VALUES (\(uuid: postID), \(uuid: req.userID), \(bind: content), \(uuid: placement?.parentID),
-                        \(uuid: placement?.replyToID), \(bind: imageURL))
-                RETURNING id, content, created_at, parent_comment_id, like_count, image_url
+                        \(uuid: placement?.replyToID), \(bind: imageURL), \(bind: format))
+                RETURNING id, content, created_at, parent_comment_id, like_count, image_url, content_format
                 """).first(decoding: C.self)
             try await t.raw("UPDATE posts SET comment_count = comment_count + 1 WHERE id = \(uuid: postID)").run()
         }
@@ -199,15 +201,15 @@ struct InteractionsController {
                                     parent_comment_id: created.parent_comment_id, like_count: created.like_count,
                                     is_liked: false, author: author,
                                     reply_to: answered.map { .init(id: $0.id, display_name: $0.display_name) },
-                                    image_url: created.image_url)
+                                    image_url: created.image_url, content_format: created.content_format)
 
         // Notify the post's author for any comment (grouped by post so several
-        // collapse), plus the parent comment's author when this is a reply —
+        // collapse), plus the parent comment's author when this is a reply,
         // both delayed + cancel-if-deleted via SocialNotifyJob.
         NotifyService.dispatchSocial(req, .init(
             type: "post_commented", actorID: req.userID, recipientID: meta.authorID,
             postID: postID, commentID: created.id))
-        // The person actually answered — for a flattened third-level reply
+        // The person actually answered, for a flattened third-level reply
         // that's the reply it answers, not the comment it's stored under.
         if let placement, let answeredAuthorID, answeredAuthorID != meta.authorID {
             NotifyService.dispatchSocial(req, .init(
@@ -229,7 +231,7 @@ struct InteractionsController {
         struct C: Decodable { let author_id: String }
         // `::text` matters: a raw `uuid` column decodes to Swift's uppercase
         // `UUID.uuidString` form, while `req.userID` is the lowercased JWT
-        // subject — without the cast this comparison (and edit's/restore's
+        // subject, without the cast this comparison (and edit's/restore's
         // below) can never match, so delete/edit/restore silently 403 for
         // everyone. Bug found and fixed alongside this batch's cascade change.
         guard let c = try await db.raw("SELECT author_id::text AS author_id FROM comments WHERE id = \(uuid: commentID) AND post_id = \(uuid: postID) AND status = 'posted'")
@@ -242,7 +244,7 @@ struct InteractionsController {
             struct D: Decodable { let id: String }
             // Cascade two levels: the comment itself, its direct replies, and
             // (only relevant when commentID is a root) those replies' own
-            // replies — deleting a depth-1 reply already catches its depth-2
+            // replies, deleting a depth-1 reply already catches its depth-2
             // children via the middle clause; this extra clause is what's
             // needed for a root delete to also remove its grandchildren.
             let rows = try await t.raw("""
@@ -259,11 +261,13 @@ struct InteractionsController {
         return DeleteCommentResponse(removed: removed)
     }
 
-    struct EditCommentBody: Content { var content: String? }
+    struct EditCommentBody: Content { var content: String?; var content_format: String? }
     static func editComment(_ req: Request) async throws -> DataResponse<CommentObject> {
         let postID = req.parameters.get("id")!, commentID = req.parameters.get("commentId")!
         let db = req.db.sql()
-        let content = try req.content.decode(EditCommentBody.self).content?.trimmedText ?? ""
+        let body = try req.content.decode(EditCommentBody.self)
+        let content = body.content?.trimmedText ?? ""
+        let newFormat: String? = PostStore.contentFormats.contains(body.content_format ?? "") ? body.content_format : nil
         guard let meta = try await visibleMeta(postID, viewer: req.userID, db) else { throw InlineError(.notFound, "Post not found") }
         struct C: Decodable { let author_id: String; let image_url: String? }
         guard let c = try await db.raw("""
@@ -275,11 +279,12 @@ struct InteractionsController {
         guard !content.isEmpty || c.image_url != nil else { throw InlineError(.badRequest, "content is required") }
         struct U: Decodable {
             let id: String; let content: String?; let created_at: Date; let parent_comment_id: String?
-            let like_count: Int; let image_url: String?
+            let like_count: Int; let image_url: String?; let content_format: String?
         }
         let u = try await db.raw("""
-            UPDATE comments SET content = \(bind: content) WHERE id = \(uuid: commentID)
-            RETURNING id, content, created_at, parent_comment_id, like_count, image_url
+            UPDATE comments SET content = \(bind: content), content_format = COALESCE(\(bind: newFormat)::text, content_format)
+            WHERE id = \(uuid: commentID)
+            RETURNING id, content, created_at, parent_comment_id, like_count, image_url, content_format
             """).first(decoding: U.self)!
         struct L: Decodable { let is_liked: Bool }
         let liked = try await db.raw("SELECT EXISTS(SELECT 1 FROM comment_likes WHERE comment_id = \(uuid: commentID) AND user_id = \(uuid: req.userID)) AS is_liked")
@@ -288,7 +293,7 @@ struct InteractionsController {
         await TranslationService.enqueue(req, .comment, id: u.id)
         return DataResponse(data: CommentObject(id: u.id, content: u.content, created_at: u.created_at,
             parent_comment_id: u.parent_comment_id, like_count: u.like_count, is_liked: liked, author: author,
-            image_url: u.image_url))
+            image_url: u.image_url, content_format: u.content_format))
     }
 
     static func restoreComment(_ req: Request) async throws -> RestoreCommentResponse {
@@ -301,7 +306,7 @@ struct InteractionsController {
         guard c.author_id == req.userID else { throw InlineError(.forbidden, "Not allowed to restore this comment") }
         struct R: Decodable {
             let id: String; let content: String?; let created_at: Date; let parent_comment_id: String?
-            let like_count: Int; let image_url: String?
+            let like_count: Int; let image_url: String?; let content_format: String?
         }
         var restored: R?
         var commentCount = 0
@@ -309,7 +314,7 @@ struct InteractionsController {
             restored = try await t.raw("""
                 UPDATE comments SET status = 'posted', deleted_at = NULL
                 WHERE id = \(uuid: commentID) AND status = 'deleted'
-                RETURNING id, content, created_at, parent_comment_id, like_count, image_url
+                RETURNING id, content, created_at, parent_comment_id, like_count, image_url, content_format
                 """).first(decoding: R.self)
             guard restored != nil else { return }
             struct CC: Decodable { let comment_count: Int }
@@ -321,7 +326,7 @@ struct InteractionsController {
         return RestoreCommentResponse(
             data: CommentObject(id: r.id, content: r.content, created_at: r.created_at,
                 parent_comment_id: r.parent_comment_id, like_count: r.like_count, is_liked: false, author: author,
-                image_url: r.image_url),
+                image_url: r.image_url, content_format: r.content_format),
             comment_count: commentCount)
     }
 
@@ -376,8 +381,8 @@ struct InteractionsController {
     struct FeedbackBody: Content { var kind: String }
     struct FeedbackResponse: Content { @NullCoded var kind: String? }
 
-    /// Tells the For you feed to show less (or more) like this post — and
-    /// from its author — for the next 30 days. Not for your own posts.
+    /// Tells the For you feed to show less (or more) like this post, and
+    /// from its author, for the next 30 days. Not for your own posts.
     static func feedback(_ req: Request) async throws -> FeedbackResponse {
         let postID = req.parameters.get("id")!
         let b = try req.content.decode(FeedbackBody.self)
@@ -427,7 +432,7 @@ struct CommentObject: Content {
     var like_count: Int
     var is_liked: Bool
     var author: CommentAuthor
-    /// Who a reply is answering — the author of `reply_to_comment_id` (or of
+    /// Who a reply is answering. The author of `reply_to_comment_id` (or of
     /// the parent, for replies written before that column). Null on top-level comments.
     @NullCoded var reply_to: ReplyTo? = nil
     /// Contains one of the viewer's muted words: still listed so threads keep
@@ -438,6 +443,8 @@ struct CommentObject: Content {
     @NullCoded var translated_text: String? = nil
     /// The comment's photo, a bare /uploads/… path (migration 051).
     @NullCoded var image_url: String? = nil
+    /// 'plain' or 'markdown' (migration 098).
+    var content_format: String? = nil
     struct ReplyTo: Content {
         var id: String
         var display_name: String

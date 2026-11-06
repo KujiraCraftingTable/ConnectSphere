@@ -9,7 +9,7 @@ let package = Package(
     dependencies: [
         // HTTP server, routing, middleware, WebSocket, async HTTP client.
         .package(url: "https://github.com/vapor/vapor.git", from: "4.106.0"),
-        // PostgresKit re-exports SQLKit — raw parameterized SQL against Postgres,
+        // PostgresKit re-exports SQLKit. Raw parameterized SQL against Postgres,
         // which is how every query in the Node backend is written. No Fluent.
         .package(url: "https://github.com/vapor/postgres-kit.git", from: "2.13.0"),
         // HMAC-SHA256 for the hand-rolled HS256 JWT (jsonwebtoken-compatible).

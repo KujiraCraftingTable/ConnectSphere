@@ -2,7 +2,7 @@ import Foundation
 
 /// Port of `backend/src/utils/personaSql.js`. Builds raw SQL fragments that pick
 /// a user's per-mode identity column (`hobby_*` / `work_*`). `modeRef` is a
-/// trusted SQL expression — a column (`u.default_mode`, `p.mode`), a bound
+/// trusted SQL expression. A column (`u.default_mode`, `p.mode`), a bound
 /// placeholder written by the caller, or a quoted literal (`'hobby'`). Never
 /// raw client input (mode is validated to hobby/work in the controller first).
 ///
@@ -14,8 +14,8 @@ enum PersonaSQL {
     static func expr(_ field: String, modeRef: String, alias: String = "u") -> String {
         let e = "CASE WHEN \(modeRef) = 'work' THEN \(alias).work_\(field) ELSE \(alias).hobby_\(field) END"
         guard field == "display_name" else { return e }
-        // A deleted persona (migration 061) shows as "Deleted User" — never
-        // the other persona's name — until it's created again.
+        // A deleted persona (migration 061) shows as "Deleted User", never
+        // the other persona's name. Until it's created again.
         let deleted = "CASE WHEN (CASE WHEN \(modeRef) = 'work' THEN \(alias).work_deleted_at ELSE \(alias).hobby_deleted_at END) IS NOT NULL THEN 'Deleted User' END"
         return "COALESCE(\(e), \(deleted), \(alias).display_name)"
     }
@@ -25,6 +25,7 @@ enum PersonaSQL {
         """
         \(expr("display_name", modeRef: modeRef, alias: alias)) AS display_name,
         \(expr("bio", modeRef: modeRef, alias: alias))          AS bio,
+        \(expr("bio_format", modeRef: modeRef, alias: alias))   AS bio_format,
         \(expr("avatar_url", modeRef: modeRef, alias: alias))   AS avatar_url,
         \(expr("cover_url", modeRef: modeRef, alias: alias))    AS cover_url
         """

@@ -1,15 +1,15 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 020 — Meeting proposal reminders
+-- 020, Meeting proposal reminders
 --
 -- A meeting proposal gets a scheduled reminder: reminder_offset is the
--- creator-chosen lead-time preset (display/editing label — "1 day before"),
+-- creator-chosen lead-time preset (display/editing label, "1 day before"),
 -- reminder_at is the precomputed absolute instant it fires. reminder_at is
 -- computed CLIENT-SIDE (device-local 7am, N days before starts_at) rather
--- than derived here, since this schema tracks no per-user timezone —
+-- than derived here, since this schema tracks no per-user timezone,
 -- messageService.validateMeetingProposal falls back to a UTC-anchored
 -- default only when a caller doesn't send one (e.g. a pre-reminder-feature
 -- client). reminder_sent_at is null until meetingReminderJob.js sends the
--- reminder — it doubles as the job's dedupe guard, and is reset to NULL on
+-- reminder, it doubles as the job's dedupe guard, and is reset to NULL on
 -- reschedule (see messageModel.updateMeetingProposal) so a moved meeting's
 -- reminder re-arms against the new time.
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -23,7 +23,7 @@ ALTER TABLE message_meeting_proposals
 -- Backfill for pre-existing rows: there's no real reminder_at to backfill
 -- (the app never captured one before this migration), and defaulting to
 -- NOW() would make the job's `reminder_at <= NOW()` guard true immediately
--- for every existing active proposal on deploy — a reminder-spam bug.
+-- for every existing active proposal on deploy. A reminder-spam bug.
 -- Instead, backfill reminder_at to each row's own starts_at (a harmless,
 -- always-valid placeholder) AND stamp reminder_sent_at = NOW() so old
 -- proposals read as "already sent" and the job skips them entirely.

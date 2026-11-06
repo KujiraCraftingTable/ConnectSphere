@@ -2,7 +2,7 @@ import Vapor
 import SQLKit
 
 extension ChatStore {
-    /// One row of `GET /messages/search` — every `ConversationSummary` field
+    /// One row of `GET /messages/search`. Every `ConversationSummary` field
     /// (so the client can decode the same way it decodes a normal
     /// conversation-list row) plus what matched and why.
     struct ConversationSearchHit: Content {
@@ -70,7 +70,7 @@ extension ChatStore {
         var created_at: Date
     }
 
-    /// Cross-conversation search — content matches (message text, most recent
+    /// Cross-conversation search, content matches (message text, most recent
     /// hit per conversation) first, then any name matches not already covered.
     /// Scoped to conversations `userID` actually participates in, same as
     /// `listConversations` (which this reuses for display metadata rather

@@ -34,7 +34,7 @@ enum AccountCodeStore {
     /// Why a code didn't work, as the app shows it.
     static func wrongCodeMessage(triesLeft: Int) -> String {
         triesLeft > 0
-            ? "That code isn't right — \(triesLeft) \(triesLeft == 1 ? "try" : "tries") left"
+            ? "That code isn't right, \(triesLeft) \(triesLeft == 1 ? "try" : "tries") left"
             : "Too many wrong codes. Ask for a new one"
     }
     static let expiredMessage = "This code has expired. Ask for a new one"
@@ -45,7 +45,7 @@ enum AccountCodeStore {
         try await issueWithID(user: user, purpose: purpose, email: email, on: db).code
     }
 
-    /// The code and its row id — for a sign-in, the id is the challenge the
+    /// The code and its row id, for a sign-in, the id is the challenge the
     /// app sends back with the code. `meta` is a short note (the sign-in method).
     static func issueWithID(user: String, purpose: Purpose, email: String, meta: String? = nil,
                             on db: any SQLDatabase) async throws -> (code: String, id: String) {
@@ -107,7 +107,7 @@ enum AccountCodeStore {
     }
 
     /// Uses up a code; returns the email it was sent to. Each wrong try counts.
-    /// `id` pins one sign-in challenge — its own code, not the user's latest.
+    /// `id` pins one sign-in challenge. Its own code, not the user's latest.
     static func consume(user: String, purpose: Purpose, code: String, id: String? = nil,
                         on db: any SQLDatabase) async throws -> String {
         struct Row: Decodable { let id: String; let email: String; let code_hash: String; let attempts: Int }

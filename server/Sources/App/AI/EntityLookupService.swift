@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/services/entityLookupService.js` — the 3-tier
+/// Port of `backend/src/services/entityLookupService.js`. The 3-tier
 /// text → canonical `interest_entities` lookup:
 ///   Tier 1 exact (SQL), Tier 2 confident vector (≥0.8, auto-saves the alias),
 ///   Tier 3 Wikipedia (proper nouns → fetch + LLM-parse → INSERT so Tier 1
@@ -36,13 +36,13 @@ enum EntityLookupService {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return Result(confidence: "none", genreTags: []) }
 
-        // Tier 1 — exact
+        // Tier 1, exact
         if let hit = try? await SearchStore.exactMatch(trimmed, category: category, on: db) {
             return Result(entityID: hit.id, canonicalName: hit.canonical_name, category: hit.category,
                           confidence: "exact", genreTags: [])
         }
 
-        // Tier 2 — confident vector (auto-save alias, fire-and-forget)
+        // Tier 2, confident vector (auto-save alias, fire-and-forget)
         if let vec = await OllamaService.embedText(cfg, trimmed, logger: logger),
            let top = (try? await SearchStore.findEntityCandidates(vec, category: category, limit: 1, on: db))?.first,
            top.similarity >= SearchStore.highConfidenceThreshold {
@@ -51,7 +51,7 @@ enum EntityLookupService {
                           confidence: "vector", genreTags: [])
         }
 
-        // Tier 3 — Wikipedia (proper nouns)
+        // Tier 3, Wikipedia (proper nouns)
         if isName || WikipediaService.isProperNoun(trimmed) {
             if let wiki = await WikipediaService.searchWikipedia(trimmed, client: client, logger: logger),
                let parsed = await WikipediaService.parseWikiData(wiki, cfg: cfg, logger: logger) {
@@ -67,7 +67,7 @@ enum EntityLookupService {
                                      FROM UNNEST(interest_entities.aliases || EXCLUDED.aliases) a)
                     RETURNING id::text AS id, canonical_name, category
                     """).first(decoding: R.self) {
-                    logger.info("Tier 3 Wikipedia match — entity saved: \(row.canonical_name)")
+                    logger.info("Tier 3 Wikipedia match. Entity saved: \(row.canonical_name)")
                     return Result(entityID: row.id, canonicalName: row.canonical_name, category: row.category,
                                   confidence: "wikipedia", genreTags: parsed.genreTags)
                 }

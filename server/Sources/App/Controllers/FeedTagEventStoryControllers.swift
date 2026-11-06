@@ -1,8 +1,8 @@
 import Vapor
 import SQLKit
 
-/// GET /api/feed/recommendations — port of feedController.js; and
-/// POST /api/feed/impressions — what the viewer looked at.
+/// GET /api/feed/recommendations, port of feedController.js; and
+/// POST /api/feed/impressions, what the viewer looked at.
 struct FeedController {
     static func register(routes: any RoutesBuilder) {
         let feed = routes.grouped("feed").grouped(AuthMiddleware())
@@ -42,7 +42,7 @@ struct FeedController {
     }
 }
 
-/// GET /api/tags/{trending,suggest} — port of tagRoutes.js.
+/// GET /api/tags/{trending,suggest}, port of tagRoutes.js.
 struct TagsController {
     static func register(routes: any RoutesBuilder) {
         let tags = routes.grouped("tags").grouped(AuthMiddleware())
@@ -75,7 +75,7 @@ struct TagsController {
     }
 }
 
-/// POST /api/events/:id/rsvp — port of eventRoutes.js.
+/// POST /api/events/:id/rsvp, port of eventRoutes.js.
 struct EventsController {
     static func register(routes: any RoutesBuilder) {
         routes.grouped("events").grouped(AuthMiddleware()).post(":id", "rsvp", use: rsvp)
@@ -89,7 +89,7 @@ struct EventsController {
     }
 }
 
-/// /api/jobs — "I'm interested" toggle for Job/Opportunity posts.
+/// /api/jobs, "I'm interested" toggle for Job/Opportunity posts.
 struct JobsController {
     static func register(routes: any RoutesBuilder) {
         routes.grouped("jobs").grouped(AuthMiddleware()).post(":id", "interest", use: interest)
@@ -105,7 +105,7 @@ struct JobsController {
     }
 }
 
-/// /api/stories — port of storyRoutes.js.
+/// /api/stories, port of storyRoutes.js.
 struct StoriesController {
     static func register(routes: any RoutesBuilder) {
         let s = routes.grouped("stories").grouped(AuthMiddleware())
@@ -199,7 +199,7 @@ struct StoriesController {
         struct S: Decodable { let author_id: String; let mode: String }
         guard let s = try await req.db.sql().raw("SELECT author_id, mode FROM stories WHERE id = \(uuid: id)").first(decoding: S.self),
               s.author_id == req.userID else { throw InlineError(.notFound, "Story not found") }
-        // Viewers are shown with the persona matching this story's own mode —
+        // Viewers are shown with the persona matching this story's own mode,
         // same reasoning as `list`'s author field: the identity a hobby-mode
         // story's audience sees should be their hobby persona, not whichever
         // mode they currently happen to be browsing in.

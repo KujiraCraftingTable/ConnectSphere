@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 039 — Pin and archive a conversation (per participant)
+-- 039, Pin and archive a conversation (per participant)
 --
 -- Both are each person's own view of their inbox: pinning keeps a chat at the
 -- top of *your* list, archiving moves it out of *your* main list. A new

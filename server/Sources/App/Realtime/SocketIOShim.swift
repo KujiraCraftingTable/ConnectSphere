@@ -3,7 +3,7 @@ import Foundation
 
 /// Engine.IO 4 / Socket.IO v4 protocol shim over a raw Vapor `WebSocket`.
 /// The iOS `WebSocketClient` speaks only the websocket transport, one
-/// namespace, and a fully-enumerated event set — this reproduces exactly that
+/// namespace, and a fully-enumerated event set. This reproduces exactly that
 /// slice of the protocol, nothing more (no long-polling, no binary frames, no
 /// multiplexing).
 ///
@@ -23,7 +23,7 @@ enum SocketIOShim {
                 ws: ws, db: req.application.db, hub: req.application.socketHub,
                 jwtSecret: req.application.appEnv.jwt.secret, logger: req.logger)
             await session.start()
-            // `onText` writes a channel-loop-bound box — it MUST be registered
+            // `onText` writes a channel-loop-bound box. It MUST be registered
             // on the channel's event loop, not this async Task's executor.
             ws.eventLoop.execute {
                 ws.onText { _, text in

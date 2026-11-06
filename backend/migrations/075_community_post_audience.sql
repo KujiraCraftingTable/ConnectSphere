@@ -1,7 +1,7 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 075 — Who can see a community post
+-- 075, Who can see a community post
 --
--- The poster picks: 'public' (anyone — it also shows outside the community)
+-- The poster picks: 'public' (anyone. It also shows outside the community)
 -- or 'members' (only the community's members). A private community's posts
 -- are always 'members'. NULL on posts outside communities; a community post
 -- left NULL is treated as 'members'.

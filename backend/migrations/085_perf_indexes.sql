@@ -1,9 +1,9 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 085 — Indexes for the feed and the embedding sweep
+-- 085, Indexes for the feed and the embedding sweep
 --
 -- `user_embedding_chunks` was only indexed by `user_id` first, but the feed
 -- joins a post to its chunk by `(source_type, source_id)` and the
--- `embedding_out_of_date` view checks every post the same way — a scan per
+-- `embedding_out_of_date` view checks every post the same way. A scan per
 -- post, which the sweep at boot turned into seconds of load on every restart.
 --
 -- The feed and the post sweeps filter posts by mode and status and read the

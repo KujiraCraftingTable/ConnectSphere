@@ -1,4 +1,4 @@
--- Migration 005: thêm privacy cho posts
+-- Migration 005: add privacy to posts
 
 ALTER TABLE posts
   ADD COLUMN IF NOT EXISTS privacy VARCHAR(20) NOT NULL DEFAULT 'public'

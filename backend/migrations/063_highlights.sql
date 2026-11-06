@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 063 — Highlights (Hobby profile)
+-- 063, Highlights (Hobby profile)
 --
 -- Story-like photo collections that stay until each photo is removed. Items
 -- keep their own image path: stories are deleted when they expire, but their

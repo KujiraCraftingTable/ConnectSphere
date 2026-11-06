@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 053 — Strip blank edges from existing post text
+-- 053, Strip blank edges from existing post text
 --
 -- Post text was trimmed of spaces but not line breaks, so a caption could
 -- end in a run of empty lines (a big blank gap on the card). New text is
@@ -7,7 +7,7 @@
 -- inside the text are kept.
 --
 -- A translation is tied to its source text by `translated_hash`, so it is
--- re-pointed to the trimmed text where it matched the old one — the
+-- re-pointed to the trimmed text where it matched the old one. The
 -- translation of "text⏎⏎" is the translation of "text", and keeping it
 -- spares the local model a re-translation of every one of these posts.
 -- ─────────────────────────────────────────────────────────────────────────────

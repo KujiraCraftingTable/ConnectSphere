@@ -1,15 +1,15 @@
 import Vapor
 import SQLKit
 
-/// Raw-SQL data access for posts — port of `backend/src/models/postModel.js`.
+/// Raw-SQL data access for posts. Port of `backend/src/models/postModel.js`.
 /// The JSON sub-objects (`author`, `shared_post`, `event_data`, `poll_data`,
 /// `tags`) are selected as `::text` and parsed with `JSONCoding.makeDecoder()`
-/// (the tolerant ISO-8601 strategy) — PostgresKit's built-in JSON decoder uses
+/// (the tolerant ISO-8601 strategy), PostgresKit's built-in JSON decoder uses
 /// a numeric date strategy and would choke on the string timestamps.
 enum PostStore {
     static let maxHashtagsPerPost = 10
 
-    /// Port of `sanitizeHashtags` — strip all whitespace, cap 100 chars, cap 10
+    /// Port of `sanitizeHashtags`. Strip all whitespace, cap 100 chars, cap 10
     /// tags, case-insensitive dedupe (first casing wins).
     static func sanitizeHashtags(_ tags: [String]?) -> [String] {
         guard let tags else { return [] }
@@ -67,7 +67,7 @@ enum PostStore {
         let avSp = PersonaSQL.expr("avatar_url", modeRef: "sp.mode", alias: "su")
         return """
         SELECT
-          p.id::text AS id, p.content, p.mode, p.privacy, p.image_urls[1] AS image_url, p.image_urls, p.image_alts, p.status::text AS status, p.publish_at, p.decline_reason,
+          p.id::text AS id, p.content, p.content_format, p.mode, p.privacy, p.image_urls[1] AS image_url, p.image_urls, p.image_alts, p.status::text AS status, p.publish_at, p.decline_reason,
           p.lang, \(unsafeRaw: TranslationService.translatedColumn("p")) AS translated_text, p.article_title, p.link_url,
           p.like_count, p.comment_count, p.share_count, p.created_at,
           p.post_type, p.is_pinned, p.pinned_at, p.shared_post_id::text AS shared_post_id,
@@ -75,14 +75,14 @@ enum PostStore {
           EXISTS(SELECT 1 FROM saved_posts sp2 WHERE sp2.post_id = p.id AND sp2.user_id = \(uuid: v)) AS is_saved,
           (CASE WHEN p.shared_post_id IS NOT NULL THEN (
             SELECT json_build_object(
-              'id', sp.id, 'content', sp.content, 'image_url', sp.image_urls[1], 'image_urls', sp.image_urls, 'image_alts', sp.image_alts, 'lang', sp.lang, 'translated_text', \(unsafeRaw: TranslationService.translatedColumn("sp")),
+              'id', sp.id, 'content', sp.content, 'content_format', sp.content_format, 'image_url', sp.image_urls[1], 'image_urls', sp.image_urls, 'image_alts', sp.image_alts, 'lang', sp.lang, 'translated_text', \(unsafeRaw: TranslationService.translatedColumn("sp")),
               'link_url', sp.link_url, 'article_title', sp.article_title, 'created_at', sp.created_at,
               'author', json_build_object('id', su.id, 'username', su.username,
                 'display_name', \(unsafeRaw: dnSp), 'avatar_color', su.avatar_color, 'avatar_url', \(unsafeRaw: avSp)))
             FROM posts sp JOIN users su ON su.id = sp.author_id
             WHERE sp.id = p.shared_post_id AND sp.status = 'posted'
               AND (sp.privacy = 'public' OR sp.author_id = \(uuid: v)
-                OR (sp.privacy = 'friends' AND EXISTS (SELECT 1 FROM connections c WHERE c.status = 'accepted'
+                OR (sp.privacy = 'friends' AND EXISTS (SELECT 1 FROM connections c WHERE c.status = 'accepted' AND c.mode = sp.mode
                      AND ((c.requester_id = sp.author_id AND c.addressee_id = \(uuid: v))
                        OR (c.addressee_id = sp.author_id AND c.requester_id = \(uuid: v))))))
               AND (sp.community_id IS NULL OR sp.author_id = \(uuid: v)
@@ -109,7 +109,7 @@ enum PostStore {
     }
 
     /// Who may see a post. A locked persona (migration 064) turns its public
-    /// posts into "connections in this mode" ones — except in communities,
+    /// posts into "connections in this mode" ones, except in communities,
     /// whose own visibility rules apply. A listing hidden from friends (072)
     /// is hidden from the seller's connections on top of that.
     static func privacyClause(_ v: String) -> SQLQueryString {
@@ -125,7 +125,7 @@ enum PostStore {
          OR (p.privacy = 'public' AND EXISTS (SELECT 1 FROM connections c WHERE c.status = 'accepted' AND c.mode = p.mode
               AND ((c.requester_id = p.author_id AND c.addressee_id = \(uuid: v))
                 OR (c.addressee_id = p.author_id AND c.requester_id = \(uuid: v)))))
-         OR (p.privacy = 'friends' AND EXISTS (SELECT 1 FROM connections c WHERE c.status = 'accepted'
+         OR (p.privacy = 'friends' AND EXISTS (SELECT 1 FROM connections c WHERE c.status = 'accepted' AND c.mode = p.mode
               AND ((c.requester_id = p.author_id AND c.addressee_id = \(uuid: v))
                 OR (c.addressee_id = p.author_id AND c.requester_id = \(uuid: v))))))
         """
@@ -157,7 +157,7 @@ enum PostStore {
         """
     }
     /// Feed-only suppression: a community you've muted still exists (its own
-    /// page, findById, listSaved are all unaffected — this is deliberately
+    /// page, findById, listSaved are all unaffected. This is deliberately
     /// NOT folded into `communityVisibilityClause`, which those still use
     /// unchanged), but its posts drop out of your Feed. Your own posts in a
     /// muted community still show (muting isn't "hide myself from myself").
@@ -174,12 +174,17 @@ enum PostStore {
              OR (ub.blocker_id = p.author_id AND ub.blocked_id = \(uuid: v)))
         """
     }
+    /// Authors the viewer chose "Hide all from" (migration 096). Not applied on
+    /// a profile page, that person's own page still shows their posts.
+    static func notHiddenAuthorClause(_ v: String) -> SQLQueryString {
+        "NOT EXISTS (SELECT 1 FROM hidden_authors ha WHERE ha.user_id = \(uuid: v) AND ha.author_id = p.author_id)"
+    }
     static func notHiddenClause(_ v: String) -> SQLQueryString {
         "NOT EXISTS (SELECT 1 FROM hidden_posts hp WHERE hp.user_id = \(uuid: v) AND hp.post_id = p.id)"
     }
-    /// Muted words (migration 042): text folded the way post search folds it —
+    /// Muted words (migration 042): text folded the way post search folds it,
     /// accents stripped, lowercased, every run of non-alphanumerics one space,
-    /// padded both ends — so `LIKE '% word %'` is a whole-word (or whole-phrase)
+    /// padded both ends, so `LIKE '% word %'` is a whole-word (or whole-phrase)
     /// match: "chet" hides "chết", "ass" leaves "class" alone. The word is
     /// folded the same way, which also strips any LIKE wildcards from it.
     static func folded(_ textSQL: String) -> String {
@@ -236,6 +241,7 @@ enum PostStore {
     struct PostRow: Decodable {
         var id: String
         var content: String?
+        var content_format: String?
         var mode: String
         var privacy: String
         var image_url: String?
@@ -292,7 +298,8 @@ enum PostStore {
             job_data: try parse(r.job_data, PostObject.JobData.self),
             listing_data: try parse(r.listing_data, PostObject.ListingData.self),
             community: try parse(r.community, PostObject.CommunityRef.self),
-            shared_community: try parse(r.shared_community, PostObject.SharedCommunity.self)
+            shared_community: try parse(r.shared_community, PostObject.SharedCommunity.self),
+            content_format: r.content_format ?? "plain"
         )
     }
 
@@ -310,9 +317,11 @@ enum PostStore {
         var followingOnly = false
         var limit: Int
         var offset: Int
-        /// Listings live in the Marketplace and their communities, not in
-        /// Home, profile or tag feeds — only a lookup by id keeps them.
+        /// Listings stay out of profile, tag and search feeds; a lookup by id
+        /// keeps them all, sold ones too.
         var includeListings = false
+        /// Home's Connections / Following feeds: items still for sale only.
+        var listingsForSaleOnly = false
     }
 
     static func feedWhere(_ v: String, _ f: FeedFilters) -> SQLQueryString {
@@ -320,12 +329,17 @@ enum PostStore {
         w = w + communityVisibilityClause(v) + " AND " + notMutedClause(v) + " AND "
         w = w + privacyClause(v) + " AND " + notBlockedClause(v) + " AND " + notHiddenClause(v)
         w = w + " AND " + notMutedWordsClause(v)
-        if !f.includeListings { w = w + " AND p.post_type <> 'listing'" }
+        if f.authorID == nil { w = w + " AND " + notHiddenAuthorClause(v) }
+        if f.includeListings {
+            if f.listingsForSaleOnly { w = w + " AND NOT EXISTS (SELECT 1 FROM listing_posts lsold WHERE lsold.post_id = p.id AND lsold.status = 'sold')" }
+        } else {
+            w = w + " AND p.post_type <> 'listing'"
+        }
         if f.connectionsOnly { w = w + " AND " + connectionsOnlyClause(v) }
         if f.followingOnly { w = w + " AND " + followingOnlyClause(v) }
         if let m = f.mode { w = w + " AND p.mode = \(bind: m)" }
         // Author-scoped listing is only ever a Profile screen (own or someone
-        // else's) — community posts belong on that community's own page, not
+        // else's), community posts belong on that community's own page, not
         // mixed into a person's profile feed, so exclude them here even
         // though they'd otherwise pass communityVisibilityClause fine.
         if let a = f.authorID { w = w + " AND p.author_id = \(uuid: a) AND p.community_id IS NULL" }
@@ -355,7 +369,7 @@ enum PostStore {
 
     /// Content folded for word matching: accents stripped, lowercased, and
     /// every run of non-alphanumerics turned into one space, with a leading
-    /// space so "% word" matches the start of any word — including the first.
+    /// space so "% word" matches the start of any word. Including the first.
     private static let contentWords = "(' ' || regexp_replace(unaccent(lower(coalesce(p.content, ''))), '[^[:alnum:]]+', ' ', 'g'))"
 
     /// Only tags the author wrote count. AI tags exist to classify posts for
@@ -398,7 +412,7 @@ enum PostStore {
 
     /// Loads `ids` as full feed posts, keeping only those `viewer` may see
     /// under exactly the feed's rules (status, privacy, blocks, community
-    /// visibility, hidden, muted). Order is not preserved — callers re-sort.
+    /// visibility, hidden, muted). Order is not preserved. Callers re-sort.
     static func findVisible(_ ids: [String], viewer: String, on db: any SQLDatabase) async throws -> [PostObject] {
         guard !ids.isEmpty else { return [] }
         // A listing sent into a chat ("Message seller") must still be found.
@@ -429,6 +443,16 @@ enum PostStore {
         return alts.allSatisfy(\.isEmpty) ? nil : alts
     }
 
+    static let contentFormats = ["plain", "markdown"]
+
+    /// Marks how a post's text is written; anything unknown stays plain.
+    @discardableResult
+    static func setContentFormat(_ id: String, _ raw: String?, on db: any SQLDatabase) async throws -> String {
+        let format = contentFormats.contains(raw ?? "") ? raw! : "plain"
+        try await db.raw("UPDATE posts SET content_format = \(bind: format) WHERE id = \(uuid: id)").run()
+        return format
+    }
+
     /// Sets a post's alt text to match its current media.
     @discardableResult
     static func setImageAlts(_ id: String, _ raw: [String]?, on db: any SQLDatabase) async throws -> [String]? {
@@ -440,7 +464,7 @@ enum PostStore {
     }
 
     /// `includeOwnUnpublished`: also return the viewer's own draft, scheduled,
-    /// pending (awaiting approval) or declined post — only to its author.
+    /// pending (awaiting approval) or declined post. Only to its author.
     static func findById(_ id: String, viewer: String, includeOwnUnpublished: Bool = false,
                          on db: any SQLDatabase) async throws -> PostObject? {
         let status: SQLQueryString = includeOwnUnpublished
@@ -456,7 +480,7 @@ enum PostStore {
 
     // MARK: drafts & scheduled (migration 047)
 
-    /// The author's drafts and scheduled posts, both modes, newest first —
+    /// The author's drafts and scheduled posts, both modes, newest first,
     /// with everything the composer needs to reopen one.
     static func listUnpublished(_ author: String, on db: any SQLDatabase) async throws -> [PostObject] {
         let q = buildPostSelect(author)
@@ -495,12 +519,12 @@ enum PostStore {
     static func findMeta(_ id: String, on db: any SQLDatabase) async throws -> PostMeta? {
         // `::text` matters: a raw `uuid` column decodes to Swift's uppercase
         // UUID.uuidString form, while req.userID is the lowercased JWT
-        // subject — without the cast, every ownership check built on this
+        // subject, without the cast, every ownership check built on this
         // (delete/edit/restore) can never match, silently 403ing for the
         // genuine owner. Same fix already applied to comments in
         // InteractionsController.swift.
         // Drafts and scheduled posts are invisible here: nobody can vote on,
-        // report, like, edit or remove one through the normal post routes —
+        // report, like, edit or remove one through the normal post routes,
         // they're managed only through the drafts endpoints.
         try await db.raw("SELECT id::text AS id, author_id::text AS author_id, community_id::text AS community_id, post_type FROM posts WHERE id = \(uuid: id) AND status NOT IN ('draft', 'scheduled')")
             .first(decoding: PostMeta.self)
@@ -589,6 +613,18 @@ enum PostStore {
         return .updated(post)
     }
 
+    /// Swaps the post's own tags for `tags` (AI-made tags stay).
+    static func replaceUserTags(_ id: String, _ tags: [String], on db: any SQLDatabase) async throws {
+        let clean = sanitizeHashtags(tags)
+        try await db.raw("DELETE FROM post_tags WHERE post_id = \(uuid: id) AND source = 'user'").run()
+        guard !clean.isEmpty else { return }
+        try await db.raw("""
+            INSERT INTO post_tags (post_id, tag, source)
+            SELECT \(uuid: id), UNNEST(\(bind: clean)::text[]), 'user'
+            ON CONFLICT (post_id, tag) DO UPDATE SET source = 'user'
+            """).run()   // a tag the AI also made becomes the person's own
+    }
+
     struct DeleteRow: Decodable { let id: String; let author_id: String; let community_id: String? }
 
     static func softDelete(_ id: String, on db: any SQLDatabase) async throws -> DeleteRow? {
@@ -597,7 +633,10 @@ enum PostStore {
             WHERE id = \(uuid: id) AND status = 'posted'
             RETURNING id, author_id, community_id
             """).first(decoding: DeleteRow.self) else { return nil }
-        try await db.raw("UPDATE users SET post_count = GREATEST(post_count - 1, 0) WHERE id = \(uuid: row.author_id)").run()
+        // A community post never counted on the author's profile.
+        if row.community_id == nil {
+            try await db.raw("UPDATE users SET post_count = GREATEST(post_count - 1, 0) WHERE id = \(uuid: row.author_id)").run()
+        }
         return row
     }
 
@@ -607,7 +646,9 @@ enum PostStore {
             WHERE id = \(uuid: id) AND author_id = \(uuid: requester) AND status = 'deleted'
             RETURNING id, author_id, community_id
             """).first(decoding: DeleteRow.self) else { return nil }
-        try await db.raw("UPDATE users SET post_count = post_count + 1 WHERE id = \(uuid: row.author_id)").run()
+        if row.community_id == nil {
+            try await db.raw("UPDATE users SET post_count = post_count + 1 WHERE id = \(uuid: row.author_id)").run()
+        }
         return try await findById(row.id, viewer: requester, on: db)
     }
 
@@ -618,7 +659,7 @@ enum PostStore {
         return try await db.raw(q).all(decoding: PostRow.self).map(map)
     }
 
-    /// Port of `getPostsByCommunity` — pinned post first. `buildPostSelect`
+    /// Port of `getPostsByCommunity`. Pinned post first. `buildPostSelect`
     /// itself now projects `community` (needed so Feed posts carry it too,
     /// once Feed starts including community posts), so this no longer needs
     /// its own outer wrapper to merge it in.
@@ -628,6 +669,9 @@ enum PostStore {
         q = q + " WHERE (p.community_id = \(uuid: communityID) OR " + ListingStore.listedInClause(communityID) + ")"
             + " AND p.status = 'posted' AND " + notMutedWordsClause(viewer)
             + " AND " + ListingStore.notHiddenFromFriendClause(viewer)
+            // The same rules as opening one post: a members-only post stays
+            // with members, and blocked people's posts don't show.
+            + " AND " + communityVisibilityClause(viewer) + " AND " + notBlockedClause(viewer)
         if let tag {
             q = q + " AND EXISTS (SELECT 1 FROM post_tags ptf WHERE ptf.post_id = p.id AND LOWER(ptf.tag) = LOWER(\(bind: tag)) AND ptf.source = 'user')"
         }

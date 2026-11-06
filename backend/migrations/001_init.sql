@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════════════
--- 001_init.sql — ConnectSphere clean baseline schema
+-- 001_init.sql, ConnectSphere clean baseline schema
 --
 -- Consolidates former migrations 001–026 into one file, with the schema
 -- restructure approved on 2026-07-04:
@@ -31,7 +31,7 @@ $$;
 -- Soft-delete / moderation state shared by posts and comments
 CREATE TYPE post_status AS ENUM ('posted', 'deleted', 'banned');
 
--- ─── vn_wards — Vietnamese administrative units (data in 003 seed) ───────────
+-- ─── vn_wards, Vietnamese administrative units (data in 003 seed) ───────────
 
 CREATE TABLE vn_wards (
   id               UUID             PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -126,7 +126,7 @@ CREATE TABLE user_interests (
 
 CREATE INDEX idx_user_interests_user ON user_interests (user_id);
 
--- ─── interest_entities — canonical entity registry (entity lookup) ────────────
+-- ─── interest_entities, canonical entity registry (entity lookup) ────────────
 
 CREATE TABLE interest_entities (
   id             UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -444,7 +444,7 @@ CREATE TABLE community_trending (
 
 CREATE INDEX idx_trending_score ON community_trending (score DESC);
 
--- Permanent bans — prevents rejoin
+-- Permanent bans, prevents rejoin
 CREATE TABLE community_bans (
   community_id UUID        NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
   user_id      UUID        NOT NULL REFERENCES users(id)       ON DELETE CASCADE,
@@ -559,7 +559,7 @@ CREATE TABLE story_views (
   PRIMARY KEY (story_id, viewer_id)
 );
 
--- ─── user_embedding_chunks — chunk-based semantic retrieval ───────────────────
+-- ─── user_embedding_chunks, chunk-based semantic retrieval ───────────────────
 -- Replaces the former single-vector design (users.embedding / posts.embedding).
 -- One row = one embeddable unit of meaning about a user:
 --   source_type 'user_profile' → normalized profile text (source_id NULL)

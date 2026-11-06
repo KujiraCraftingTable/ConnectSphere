@@ -1,8 +1,8 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 019 — Message pins
+-- 019, Message pins
 --
 -- Lets any participant pin up to 10 messages per conversation (side table, not
--- a boolean on `messages`, because chat needs multiple *simultaneous* pins —
+-- a boolean on `messages`, because chat needs multiple *simultaneous* pins,
 -- unlike Communities' single-pinned-post pattern on `posts.is_pinned`). Each
 -- pin optionally carries its own expires_at for auto-delete (per-pin, not a
 -- conversation-wide default); a daily job (pinExpiryJob.js) sweeps expired

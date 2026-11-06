@@ -3,7 +3,7 @@ import PostgresKit
 import PostgresNIO
 import SQLKit
 
-/// Replays `backend/migrations/*.sql` in filename order — the same files, the
+/// Replays `backend/migrations/*.sql` in filename order. The same files, the
 /// same `schema_migrations` bookkeeping table, and one transaction per file as
 /// `backend/scripts/migrate.js`. Adds a session-level Postgres advisory lock so
 /// two runners can't apply the same file twice (review fix: migrate.js has none).

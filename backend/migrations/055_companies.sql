@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 055 — Company pages (Work mode)
+-- 055, Company pages (Work mode)
 --
 -- A company's official page: who it is (about, industry, size, website, HQ),
 -- who runs it (admins) and who follows it. Anyone can create one and becomes

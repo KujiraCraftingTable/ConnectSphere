@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// `swift run App verify-company <slug>` — marks a company page Official
+/// `swift run App verify-company <slug>`. Marks a company page Official
 /// (`--undo` takes it back). Verification is the app admin's call, not
 /// something a page's own admins can do.
 struct VerifyCompanyCommand: AsyncCommand {

@@ -3,7 +3,7 @@ import SQLKit
 
 /// Port of `authMiddleware` in `backend/src/routes/authRoutes.js`.
 /// - `Authorization: Bearer <jwt>` → HS256 verify with `JWT_SECRET`.
-/// - Extra round-trip: `SELECT deleted_at FROM users WHERE id = $1` — a
+/// - Extra round-trip: `SELECT deleted_at FROM users WHERE id = $1`. A
 ///   soft-deleted (or vanished) account's token is rejected immediately with
 ///   the *same* message as a bad token, so account status isn't leaked.
 /// - On success: `req.userID = payload.sub`.
@@ -32,7 +32,7 @@ struct AuthMiddleware: AsyncMiddleware {
             throw InlineError(.unauthorized, "Invalid or expired token")
         }
 
-        // Canonicalise to lowercase — Postgres uuid columns decode to an
+        // Canonicalise to lowercase, Postgres uuid columns decode to an
         // uppercase String via PostgresKit, but `json_build_object` and node-pg
         // both render lowercase, so everything downstream expects lowercase.
         request.userID = payload.sub.lowercased()

@@ -3,7 +3,7 @@ import Foundation
 /// How often a birthday may change (migration 083). Pure, so it's testable;
 /// `UserStore.updateProfile` applies it.
 enum BirthdayRules {
-    /// For the account's whole life — after that, support makes the change.
+    /// For the account's whole life. After that, support makes the change.
     static let maxChanges = 2
 
     static let limitReason = "You've used both birthday changes. To change it again, email support."

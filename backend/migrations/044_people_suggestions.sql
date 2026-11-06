@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 044 — People you may know
+-- 044, People you may know
 --
 -- Suggestions are computed on request (friends of friends + people with a
 -- similar profile embedding); nothing is precomputed. This stores only what

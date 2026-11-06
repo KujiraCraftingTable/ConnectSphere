@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════════════
--- 026_unify_notifications.sql — one inbox.
+-- 026_unify_notifications.sql, one inbox.
 --
 -- Folds community_notifications into user_notifications so the app has a
 -- single list, a single unread count, and a single id space for mark-read /
@@ -42,11 +42,11 @@ COMMENT ON COLUMN user_notifications.entity_type IS
 COMMENT ON COLUMN user_notifications.entity_id IS
   'polymorphic reference resolved by entity_type; intentionally has no FK';
 COMMENT ON COLUMN user_notifications.group_key IS
-  'type + '':'' + grouping target id — stable client grouping key ("Anna and 2 others liked your post")';
+  'type + '':'' + grouping target id, stable client grouping key ("Anna and 2 others liked your post")';
 COMMENT ON COLUMN user_notifications.collapse_count IS
   'number of events collapsed into this row; only chat ''message'' rows ever exceed 1';
 COMMENT ON COLUMN user_notifications.updated_at IS
-  'sort key — a collapsed chat row is bumped here so it resurfaces without losing created_at';
+  'sort key, a collapsed chat row is bumped here so it resurfaces without losing created_at';
 
 -- ─── 2. Backfill the existing user_notifications rows ───────────────────────
 

@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// `/api/muted-words` — the signed-in user's muted words, one list per mode
+/// `/api/muted-words`, the signed-in user's muted words, one list per mode
 /// (see `MutedWordStore`). Another user's word id behaves like a missing one.
 struct MutedWordsController {
     static func register(routes: any RoutesBuilder) {

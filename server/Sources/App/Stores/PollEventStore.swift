@@ -14,8 +14,8 @@ enum PollStore {
 
     struct OptionRow: Decodable { let id: String }
 
-    /// Sets `userID`'s vote on the poll of `postID` to `optionID` — a first
-    /// vote or a move from another option — or takes it back when
+    /// Sets `userID`'s vote on the poll of `postID` to `optionID`. A first
+    /// vote or a move from another option, or takes it back when
     /// `optionID` is nil. One vote per person, as in chat polls; nothing
     /// changes once the poll has ended (409). The poll's post row is locked
     /// so the vote and the counts change together.

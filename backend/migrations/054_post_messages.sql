@@ -1,9 +1,9 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 054 — Sharing a post into a chat
+-- 054, Sharing a post into a chat
 --
 -- A 'post' message points at the shared post; the sender's optional note is
 -- its content. The post's own privacy still decides who can see it, so the
--- message stores only the id — each member's app loads the post as itself.
+-- message stores only the id. Each member's app loads the post as itself.
 -- If the post is deleted the link is cleared and the card shows the post as
 -- unavailable, so a post message may end up with neither content nor media.
 -- ─────────────────────────────────────────────────────────────────────────────

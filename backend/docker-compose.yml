@@ -10,7 +10,7 @@ services:
     ports:
       - "5432:5432"
     # Any statement over half a second goes to the container log
-    # (`docker logs connectsphere_db`) — the slow-query half of tracing.
+    # (`docker logs connectsphere_db`). The slow-query half of tracing.
     command: ["postgres", "-c", "log_min_duration_statement=500"]
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -35,8 +35,8 @@ services:
       timeout: 5s
       retries: 5
 
-  # The Swift/Vapor backend (was Node/Express until the Phase 6 cutover — the
-  # retired Node app lives in ../legacy/backend-node, tag `node-backend-final`).
+  # The Swift/Vapor backend (was Node/Express until the Phase 6 cutover. The
+  # retired Node app is in git history, tag `node-backend-final`).
   # Container name / published port are unchanged so nothing downstream (the iOS
   # app's APIBaseURL, dev.sh, TablePlus) needs touching.
   backend:
@@ -50,7 +50,7 @@ services:
       - "3000:3000"
     env_file:
       - .env                        # JWT_SECRET, DB creds, SMTP, etc. (gitignored; teammates copy .env.example)
-    environment:                    # applied after env_file, so these win — host-vs-container differences
+    environment:                    # applied after env_file, so these win, host-vs-container differences
       NODE_ENV: development         # Vapor maps this via `--env`; kept for parity with the seed data
       PORT: "3000"
       DB_HOST: postgres

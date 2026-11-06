@@ -1,6 +1,6 @@
 import Vapor
 
-/// `swift run App strip-upload-metadata` — one-off clean-up of files uploaded
+/// `swift run App strip-upload-metadata`, one-off clean-up of files uploaded
 /// before uploads were stripped on the way in: rewrites every JPEG/PNG under
 /// the uploads folders without its EXIF/GPS/XMP/text metadata, in place.
 /// Safe to run again; files that are already clean are left untouched.

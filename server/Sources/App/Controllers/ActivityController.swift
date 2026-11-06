@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// GET /users/me/activity?type=comments|reactions&offset=0&limit=30 — paged by
+/// GET /users/me/activity?type=comments|reactions&offset=0&limit=30, paged by
 /// offset: the timestamps go out at millisecond precision, too coarse for a
 /// "before" cursor.
 struct ActivityController {

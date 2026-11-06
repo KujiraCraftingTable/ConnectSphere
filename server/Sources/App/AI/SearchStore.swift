@@ -1,13 +1,13 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/models/searchModel.js` — the chunk-based people
+/// Port of `backend/src/models/searchModel.js`. The chunk-based people
 /// vector-search CTE plus its helpers (`getUserContext`, `logSearch`,
 /// `findCommunityEvidence`), and `entityLookupService`'s pure-SQL / vector
 /// tiers (`exactMatch`, `findEntityCandidates`).
 ///
 /// Folded review fixes vs the Node CTE:
-///   • `chunk_pool` is filtered BEFORE the 200-row HNSW cap — soft-deleted
+///   • `chunk_pool` is filtered BEFORE the 200-row HNSW cap, soft-deleted
 ///     authors, non-`posted`/non-public post chunks, and mutual blocks vs the
 ///     searcher no longer waste a slot or influence a score.
 ///   • the user-level block exclusion always runs when a searcher is known.
@@ -23,7 +23,7 @@ enum SearchStore {
     static let suggestThreshold = 0.6
     /// Interest groups the LLM pulls out of a prompt lift the people who match
     /// them (scaled by the share of groups matched) rather than exclude everyone
-    /// else — one invented group ("walks") used to empty the whole result.
+    /// else, one invented group ("walks") used to empty the whole result.
     static let wGroup = 0.1
     /// A display name or username at least this close (pg_trgm
     /// `strict_word_similarity`, accents folded) to some words of the prompt
@@ -51,7 +51,7 @@ enum SearchStore {
     /// Everyone who shows topic `c`: picked it (or something under it) as an
     /// interest or skill, wrote its exact words in their profile or a public post,
     /// or posted about it (a post chunk within `conceptPostMin` of the topic
-    /// embedded on its own). Reacting to such a post doesn't count here — it
+    /// embedded on its own). Reacting to such a post doesn't count here. It
     /// ranks, but it doesn't prove interest.
     static func conceptPeople(_ c: SearchConcepts.Concept, vector: [Double]?, mode: String?,
                               on db: any SQLDatabase) async throws -> Set<String> {
@@ -192,7 +192,7 @@ enum SearchStore {
     struct KeywordQuery {
         /// Criteria terms (interests, skills, entity…), already in English.
         var terms: [String]
-        /// The prompt as typed — names are matched against it.
+        /// The prompt as typed. Names are matched against it.
         var nameQuery: String
     }
 
@@ -204,7 +204,7 @@ enum SearchStore {
         var post_count: Int?
         var latest_post_at: Date?
         var oldest_post_at: Date?
-        /// Engagement evidence only, and only public reactions — like counts
+        /// Engagement evidence only, and only public reactions. Like counts
         /// are never selected, so they can't reach the client.
         var commented_count: Int?
         var shared_count: Int?
@@ -249,7 +249,7 @@ enum SearchStore {
         let tsq = tsQuery(p.keyword?.terms ?? [])
 
         // ── chunk_pool (folded fix: pre-filter before the HNSW LIMIT) ──
-        // Keyword leg: `sim` is ts_rank_cd normalised to 0…1 (rank / (rank+1)) —
+        // Keyword leg: `sim` is ts_rank_cd normalised to 0…1 (rank / (rank+1)),
         // only comparable within this leg; the legs meet by rank (RRF), not score.
         let simExpr: SQLQueryString = isKeyword
             ? "ts_rank_cd(c.search_tsv, \(tsq), 32)::float"
@@ -323,7 +323,7 @@ enum SearchStore {
                 """)
         }
         // Share of interest groups this person matches (0…1), lifting the score
-        // by `wGroup` — see `wGroup` for why it no longer filters.
+        // by `wGroup`, see `wGroup` for why it no longer filters.
         var groupMatch: SQLQueryString = "0"
         if let groups = p.interestGroups?.filter({ !$0.isEmpty }), !groups.isEmpty {
             groupMatch = "(("
@@ -335,7 +335,7 @@ enum SearchStore {
                     ors.append("(LOWER(uix.interest) LIKE \(bind: "%\(k)%") OR \(bind: k) LIKE '%' || LOWER(uix.interest) || '%')")
                     shown.append("LOWER(hx.content) LIKE \(bind: "%\(k)%")")
                 }
-                // A declared interest satisfies the group — and so does shown
+                // A declared interest satisfies the group, and so does shown
                 // interest: a matching post they wrote or reacted to. Otherwise
                 // people who never filled in their interests could never match.
                 var clause: SQLQueryString = "(EXISTS (SELECT 1 FROM user_interests uix WHERE uix.user_id = u.id AND ("
@@ -693,8 +693,8 @@ extension SearchStore {
             """).run()
     }
 
-    /// What the top people of a session say about themselves — their profile
-    /// and latest public posts — for "why they fit you". Only text anyone can
+    /// What the top people of a session say about themselves. Their profile
+    /// and latest public posts, for "why they fit you". Only text anyone can
     /// already see on their profile.
     static func explainEvidence(sessionID: String, top: Int, mode: String?,
                                 on db: any SQLDatabase) async throws -> [OllamaService.ExplainPerson] {

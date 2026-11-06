@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// Port of the core of `backend/src/models/messageModel.js` — conversations,
+/// Port of the core of `backend/src/models/messageModel.js`. Conversations,
 /// messages (with the `MESSAGE_EMBED_SELECT` jsonb shaping), settings, mute,
 /// media, search, reactions, pins, receipts. Group management + meeting-proposal
 /// mutation + the Socket.IO fan-out land in later Phase 4 slices.
@@ -137,7 +137,7 @@ enum ChatStore {
             WHERE c.mode = \(bind: mode) AND c.is_group = FALSE LIMIT 1
             """).first(decoding: R.self)?.id
     }
-    /// `requestFrom`: the starter when the two aren't friends — the chat then
+    /// `requestFrom`: the starter when the two aren't friends. The chat then
     /// waits for the other person to accept (migration 040).
     static func createConversation(_ a: String, _ b: String, mode: String, requestFrom: String? = nil,
                                    on db: AppDatabase) async throws -> String {
@@ -303,7 +303,7 @@ enum ChatStore {
         var id: String; var conversation_id: String; var sender_id: String
         var message_type: String; var media_url: String?; var created_at: Date
     }
-    /// Every photo/video in the chat, newest first — an album contributes each
+    /// Every photo/video in the chat, newest first. An album contributes each
     /// of its photos (id `<message id>:<index>`, in album order).
     static func media(_ conversationID: String, userID: String, on db: any SQLDatabase) async throws -> [MediaItem] {
         try await db.raw("""
@@ -383,7 +383,7 @@ enum ChatStore {
             ORDER BY mp.pinned_at DESC
             """).all(decoding: PinRow.self)
     }
-    /// Node's `pinMessage` returns `RETURNING *` — the full `message_pins` row.
+    /// Node's `pinMessage` returns `RETURNING *`. The full `message_pins` row.
     struct PinInserted: Content {
         var id: String; var conversation_id: String; var message_id: String
         var pinned_by: String; var pinned_at: Date; @NullCoded var expires_at: Date?
@@ -449,7 +449,7 @@ struct MessageObject: Content {
         var reminder_offset: String; var reminder_at: Date; @NullCoded var reminder_sent_at: Date?
         var created_at: Date; var updated_at: Date; var rsvps: [String: [String]]
     }
-    /// Options in order, each with who voted for it (oldest first) — the app
+    /// Options in order, each with who voted for it (oldest first). The app
     /// finds "my vote" here, so the same payload can go to every member.
     struct Poll: Content {
         @NullCoded var ends_at: Date?
@@ -464,7 +464,7 @@ struct MessageObject: Content {
     }
 }
 
-/// Message shape for search results — same as `MessageObject` minus the two
+/// Message shape for search results. Same as `MessageObject` minus the two
 /// voice columns (Node's search query doesn't project them).
 struct SearchMessageObject: Content {
     var id: String

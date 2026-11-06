@@ -3,7 +3,7 @@ import SQLKit
 
 /// Port of `backend/src/controllers/postsController.js` + `postRoutes.js`.
 /// AI side effects (mode-mismatch notification, tag extraction, chunk cleanup)
-/// are deferred to Phase 3/5 — they don't touch the synchronous response.
+/// are deferred to Phase 3/5. They don't touch the synchronous response.
 struct PostsController {
     static func register(routes: any RoutesBuilder) {
         let posts = routes.grouped("posts").grouped(AuthMiddleware())
@@ -27,7 +27,7 @@ struct PostsController {
         posts.post(":id", "share", use: share)
         posts.post(":id", "report", use: report)
 
-        // Nested interactions (like / comments / hide / save) — mergeParams.
+        // Nested interactions (like / comments / hide / save), mergeParams.
         InteractionsController.register(routes: posts.grouped(":id"))
     }
 
@@ -45,9 +45,12 @@ struct PostsController {
         let connections = filter == "connections"
         let limit = clamp(try? req.query.get(Int.self, at: "limit"), 20, 1, 50)
         let offset = max((try? req.query.get(Int.self, at: "offset")) ?? 0, 0)
+        // Home's Connections / Following tabs show items for sale like any post.
+        let homeFeed = (connections || filter == "following") && authorID == nil && tag == nil && search == nil
         let f = PostStore.FeedFilters(mode: mode, authorID: authorID, tag: tag, search: search,
                                       connectionsOnly: connections, followingOnly: filter == "following",
-                                      limit: limit, offset: offset)
+                                      limit: limit, offset: offset,
+                                      includeListings: homeFeed, listingsForSaleOnly: homeFeed)
         async let rows = PostStore.findAll(viewer: req.userID, f, on: db)
         async let total = PostStore.countAll(viewer: req.userID, f, on: db)
         return PaginatedResponse(data: try await rows, pagination: .init(total: try await total, limit: limit, offset: offset))
@@ -91,6 +94,8 @@ struct PostsController {
 
     struct CreateBody: Content {
         var content: String?
+        /// "markdown" when the app wrote the text with Markdown; absent = plain.
+        var content_format: String?
         /// Community posts only: "public" or "members" (the default).
         var community_audience: String?
         var mode: String?
@@ -127,6 +132,8 @@ struct PostsController {
             /// Where it is, picked on a map (both or neither).
             var latitude: Double?
             var longitude: Double?
+            /// Re-up automatically (migration 095); omit for never.
+            var autoReup: PostObject.ListingData.AutoReup?
         }
         struct EventDataIn: Content {
             var title: String?
@@ -202,6 +209,9 @@ struct PostsController {
         if b.image_alts != nil {
             post.image_alts = try await PostStore.setImageAlts(post.id, b.image_alts, on: req.db.sql())
         }
+        if b.content_format != nil {
+            post.content_format = try await PostStore.setContentFormat(post.id, b.content_format, on: req.db.sql())
+        }
 
         if let old = b.replaces_draft {
             // Saved fine, so the version it replaces can go.
@@ -213,7 +223,7 @@ struct PostsController {
         return res
     }
 
-    /// `replaces_draft` must be one of your own drafts or scheduled posts —
+    /// `replaces_draft` must be one of your own drafts or scheduled posts,
     /// checked before saving so a bad id can't leave two copies behind.
     static func checkReplacedDraft(_ id: String?, _ req: Request) async throws {
         guard let id else { return }
@@ -223,7 +233,7 @@ struct PostsController {
         }
     }
 
-    // MARK: drafts — GET /api/posts/drafts, DELETE /api/posts/:id/draft
+    // MARK: drafts, GET /api/posts/drafts, DELETE /api/posts/:id/draft
 
     struct DraftsResponse: Content { var data: [PostObject] }
 
@@ -267,7 +277,7 @@ struct PostsController {
         guard let live = try await PostPublisher.publishNow(id, author: req.userID, on: db) else {
             throw InlineError(.notFound, "Scheduled post not found")
         }
-        await PostPublisher.didGoLive(live, app: req.application, queue: req.queue, logger: req.logger, notify: false)
+        await PostPublisher.didGoLive(live, app: req.application, queue: BackgroundJobs.queue(for: req), logger: req.logger, notify: false)
         guard let post = try await PostStore.findById(id, viewer: req.userID, on: db) else { throw Abort(.internalServerError) }
         return DataResponse(data: post)
     }
@@ -336,6 +346,8 @@ struct PostsController {
 
     struct UpdateBody: Content {
         var content: String?
+        /// Sent with `content`: how the new text is written ("markdown" or "plain").
+        var content_format: String?
         var privacy: String?
         var image_url: String?
         var image_urls: [String]?
@@ -346,12 +358,16 @@ struct PostsController {
         var article_title: String?
         /// Community posts only: "public" or "members".
         var community_audience: String?
+        /// The post's own `#tags`; when present they replace the old ones.
+        var hashtags: [String]?
     }
     static func update(_ req: Request) async throws -> DataResponse<PostObject> {
         let id = req.parameters.get("id")!
         let sdb = req.db.sql()
         guard let meta = try await PostStore.findMeta(id, on: sdb) else { throw Abort(.notFound, reason: "Post not found") }
         guard meta.author_id == req.userID else { throw Abort(.forbidden, reason: "Forbidden") }
+        // A listing is bound to one item: its text and photos change through the listing.
+        guard meta.post_type != "listing" else { throw Abort(.badRequest, reason: "Edit the listing instead") }
         struct Old: Decodable { let content: String?; let image_urls: [String]?; let image_alts: [String]? }
         let old = try await sdb.raw("SELECT content, image_urls, image_alts FROM posts WHERE id = \(uuid: id)").first(decoding: Old.self)
         let oldContent = old?.content
@@ -371,6 +387,13 @@ struct PostsController {
         case .empty: throw Abort(.badRequest, reason: "A post must have a caption, image, or link")
         case .notFound: throw Abort(.notFound, reason: "Post not found or already deleted")
         case .updated(var post):
+            if let tags = b.hashtags {
+                try await PostStore.replaceUserTags(id, tags, on: sdb)
+                if let fresh = try await PostStore.findById(id, viewer: req.userID, on: sdb) { post = fresh }
+            }
+            if contentProvided, b.content_format != nil {
+                post.content_format = try await PostStore.setContentFormat(id, b.content_format, on: sdb)
+            }
             if let a = b.community_audience, post.community != nil {
                 post.community?.audience = try await PostStore.setCommunityAudience(id, a, on: sdb)
             }

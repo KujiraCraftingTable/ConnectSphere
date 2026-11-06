@@ -2,7 +2,7 @@
 import XCTest
 
 /// Interests come from the curated catalogue (migration 080), like Bumble's
-/// badges or Tinder's passions — nothing is added freely.
+/// badges or Tinder's passions. Nothing is added freely.
 final class InterestRulesTests: XCTestCase {
     private let catalog = SearchConceptTests.catalog
 

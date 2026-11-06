@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 077 — "Not interested" / "Show more like this" (feed ranking, phase C)
+-- 077, "Not interested" / "Show more like this" (feed ranking, phase C)
 --
 -- One row per viewer × post. For 30 days the For you feed pushes down
 -- ('less') or lifts ('more') posts similar to it and posts by its author, and

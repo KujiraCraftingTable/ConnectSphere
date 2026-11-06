@@ -29,7 +29,7 @@ final class AppTests: XCTestCase {
         })
     }
 
-    // MARK: JWTHS256 — must stay wire-compatible with `jsonwebtoken`.
+    // MARK: JWTHS256, must stay wire-compatible with `jsonwebtoken`.
 
     func testJWTDurationParsing() {
         XCTAssertEqual(JWTHS256.seconds(from: "90d"), 90 * 86400)
@@ -94,7 +94,7 @@ final class AppTests: XCTestCase {
         }
     }
 
-    // MARK: PostRanking — popularity only nudges AI post search order.
+    // MARK: PostRanking, popularity only nudges AI post search order.
 
     func testRankScoreWithoutEngagementIsPureSimilarity() {
         XCTAssertEqual(PostRanking.rankScore(similarity: 0.72, likes: 0, comments: 0), 0.72, accuracy: 1e-12)
@@ -122,7 +122,7 @@ final class AppTests: XCTestCase {
         XCTAssertEqual(PostRanking.rankScore(similarity: 0.65, likes: -5, comments: -1), 0.65, accuracy: 1e-12)
     }
 
-    // MARK: People search — reactions as evidence, never revealing likes.
+    // MARK: People search. Reactions as evidence, never revealing likes.
 
     private func rawUser(evidence: String) -> SearchStore.RawUser {
         SearchStore.RawUser(

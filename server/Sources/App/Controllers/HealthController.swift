@@ -4,7 +4,7 @@ import NIOCore
 import NIOPosix
 import SQLKit
 
-/// `GET /health` — always 200 (liveness; the Docker healthcheck depends on it).
+/// `GET /health`, always 200 (liveness; the Docker healthcheck depends on it).
 /// `checks` reports best-effort reachability of Postgres, Redis and Ollama,
 /// in the Node `/health` shape `{ status, env, checks }`, plus how far AI-search
 /// embeddings are behind (`embeddings`, nil if the DB can't say).
@@ -20,7 +20,7 @@ struct HealthController {
             var embeddings: Embeddings?
         }
         /// Items whose text changed (or is new) but isn't embedded yet, and how
-        /// long the oldest has waited — must stay under the 6-hour promise.
+        /// long the oldest has waited. Must stay under the 6-hour promise.
         struct Embeddings: Content {
             var out_of_date: Int
             var oldest_out_of_date_minutes: Int?
@@ -60,7 +60,7 @@ struct HealthController {
         }
     }
 
-    /// Minimal RESP PING/PONG over a raw TCP connection — avoids pulling in a
+    /// Minimal RESP PING/PONG over a raw TCP connection. Avoids pulling in a
     /// Redis client just for the health probe.
     private static func pingRedis(host: String, port: Int, on eventLoop: EventLoop) async -> Bool {
         do {

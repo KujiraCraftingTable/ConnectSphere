@@ -2,7 +2,7 @@ import Vapor
 import SQLKit
 
 /// Follow / unfollow (instant, per mode, independent of friendship) and the
-/// followers / following lists (friends excluded — see FollowStore).
+/// followers / following lists (friends excluded. See FollowStore).
 struct FollowsController {
     static func register(routes: any RoutesBuilder) {
         let f = routes.grouped("follows").grouped(AuthMiddleware())

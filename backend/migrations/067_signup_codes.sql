@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 067 — Codes for an email typed at sign-up
+-- 067, Codes for an email typed at sign-up
 --
 -- The email is optional at sign-up; when one is given it's proven with a
 -- 6-digit code before the account exists, so these aren't tied to a user.

@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// `/api/skills` — the curated catalogue the Work skill picker shows
+/// `/api/skills`, the curated catalogue the Work skill picker shows
 /// (`SkillStore`), with skills suggested from a job title, and suggestions for
 /// skills the catalogue lacks.
 struct SkillsController {

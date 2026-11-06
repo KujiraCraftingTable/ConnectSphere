@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 086 — Reading of a search prompt, reused
+-- 086, Reading of a search prompt, reused
 --
 -- Turning a prompt into search criteria is the slowest step of AI search (an
 -- LLM call of up to 60 s while Ollama is busy). The same prompt in the same

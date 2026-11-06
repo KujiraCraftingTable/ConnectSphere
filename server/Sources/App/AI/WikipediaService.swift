@@ -1,9 +1,9 @@
 import Vapor
 import AsyncHTTPClient
 
-/// Port of `backend/src/services/wikipediaService.js` — Tier-3 entity lookup:
+/// Port of `backend/src/services/wikipediaService.js`, Tier-3 entity lookup:
 /// Wikipedia REST summary + MediaWiki langlinks/categories, then an LLM parse
-/// into `{ canonical_name, category, aliases, genre_tags }`. Best-effort — any
+/// into `{ canonical_name, category, aliases, genre_tags }`. Best-effort, any
 /// failure returns nil and the caller falls back to embedding the raw text.
 enum WikipediaService {
     static let genericTags: Set<String> = [
@@ -31,8 +31,8 @@ enum WikipediaService {
         {
           "canonical_name": "official English Wikipedia page title",
           "category": "one of: Anime, Manga, Game, Movie, TVShow, Music, Artist, Book, Sport, Brand, Person, Place, Other",
-          "aliases": ["all name variants — EN title, JA title, VI title, abbreviations, alternate spellings"],
-          "genre_tags": ["lowercase genre/type search tags, e.g. anime, fantasy, action — NOT the entity name itself"]
+          "aliases": ["all name variants, EN title, JA title, VI title, abbreviations, alternate spellings"],
+          "genre_tags": ["lowercase genre/type search tags, e.g. anime, fantasy, action, NOT the entity name itself"]
         }
 
         Rules:

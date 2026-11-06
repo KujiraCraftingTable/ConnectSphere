@@ -61,7 +61,7 @@ enum InterestStore {
             var picks = checked.picks
             for (index, base, specific) in checked.specifics {
                 guard let name = try await knownName(specific, entries: entries, on: db) else {
-                    throw InlineError(.badRequest, "We couldn't find \"\(specific)\" — pick it from the suggestions")
+                    throw InlineError(.badRequest, "We couldn't find \"\(specific)\". Pick it from the suggestions")
                 }
                 picks[index] = base + separator + name
             }
@@ -105,7 +105,7 @@ enum InterestRules {
 
         var message: String {
             switch self {
-            case .notInCatalog(let s): return "\"\(s)\" isn't in the interest list — pick from the list or suggest it"
+            case .notInCatalog(let s): return "\"\(s)\" isn't in the interest list. Pick from the list or suggest it"
             case .noSpecific(let s):   return "\"\(s)\" doesn't take a specific item"
             case .badText:             return "Use 2–\(InterestStore.maxTextLength) characters, including a letter"
             case .blocked:             return "That isn't allowed as an interest"

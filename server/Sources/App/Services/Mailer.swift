@@ -1,7 +1,7 @@
 import Vapor
 
 /// Emails the one-time codes (email verification, deleting a persona or the
-/// account, password reset) through Brevo's HTTP API — Vapor's own client,
+/// account, password reset) through Brevo's HTTP API, Vapor's own client,
 /// no SMTP package. Without `BREVO_API_KEY` (development) the code is logged
 /// instead, so every flow still works locally.
 struct Mailer {
@@ -48,24 +48,24 @@ struct Mailer {
                 ending = "If you didn't ask for it, you can ignore this email."
             case .changeEmail:
                 intro = "Someone asked to change the email on your ConnectSphere account. Enter this code in the app to allow it:"
-                ending = "If this wasn't you, don't share the code — and change your password now, someone may be using your account."
+                ending = "If this wasn't you, don't share the code, and change your password now, someone may be using your account."
             case .deleteHobby, .deleteWork, .deleteAccount:
                 let what = self == .deleteHobby ? "your Hobby profile"
                     : self == .deleteWork ? "your Work profile" : "your whole ConnectSphere account"
                 intro = "Someone asked to delete \(what). Enter this code in the app to confirm:"
-                ending = "If this wasn't you, don't share the code — and change your password now, someone may be using your account."
+                ending = "If this wasn't you, don't share the code, and change your password now, someone may be using your account."
             case .passwordReset:
                 intro = "Use this code to reset your ConnectSphere password:"
                 ending = "If you didn't ask for it, you can ignore this email."
             case .loginCode:
                 intro = "Someone is signing in to your ConnectSphere account. Enter this code to finish:"
-                ending = "If this wasn't you, don't share the code — and change your password now, someone may know it."
+                ending = "If this wasn't you, don't share the code, and change your password now, someone may know it."
             case .signup:
                 intro = "Welcome to ConnectSphere! Enter this code to confirm your email and finish signing up:"
                 ending = "If you didn't sign up, you can ignore this email."
             case .twoFactor:
                 intro = "Use this code to change two-factor sign-in on your ConnectSphere account:"
-                ending = "If this wasn't you, change your password now — someone may be using your account."
+                ending = "If this wasn't you, change your password now. Someone may be using your account."
             }
             return "\(intro)\n\n\(code)\n\nIt expires in \(minutes) minutes.\n\n\(ending)"
         }

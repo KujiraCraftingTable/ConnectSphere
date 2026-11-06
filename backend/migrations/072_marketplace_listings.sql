@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 072 — Marketplace listings
+-- 072, Marketplace listings
 --
 -- A listing is a community post (post_type 'listing') with its details here,
 -- the way a job is (031): it shows in its community's feed and in the

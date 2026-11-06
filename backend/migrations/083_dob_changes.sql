@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 083 — Birthday changes are limited
+-- 083, Birthday changes are limited
 --
 -- Age decides what an account may use (Dating is 16+, and 16–17 only meets
 -- 16–17), so a birthday can't be edited at will: an account gets two changes

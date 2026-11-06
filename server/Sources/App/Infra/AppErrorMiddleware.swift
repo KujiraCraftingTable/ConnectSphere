@@ -1,6 +1,6 @@
 import Vapor
 
-/// Central error handler — the Swift counterpart of
+/// Central error handler. The Swift counterpart of
 /// `backend/src/middlewares/errorHandler.js`. Emits `{status,code,message}` with
 /// 5xx messages scrubbed. Individual handlers that need the inline `{error:"…"}`
 /// shape throw `InlineError` instead (see below).
@@ -93,7 +93,7 @@ struct InlineError: Error {
 }
 
 /// Throw this for routes whose Node original responds with
-/// `{ "status": "error", "message": "…" }` — no `code` (feedController and a
+/// `{ "status": "error", "message": "…" }`, no `code` (feedController and a
 /// few others).
 struct StatusMessageError: Error {
     let status: HTTPResponseStatus

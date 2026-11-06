@@ -74,13 +74,13 @@ final class SocketHub: @unchecked Sendable {
         }
     }
 
-    /// `io.to(room).emit(event, payload)` — encodes once, sends `42[event,payload]`
+    /// `io.to(room).emit(event, payload)`, encodes once, sends `42[event,payload]`
     /// to every socket in `room` (optionally excluding one sender socket).
     func emit<T: Encodable>(room: String, event: String, _ payload: T, except: SocketConn? = nil) {
         let frame = Self.eventFrame(event, SocketJSON.data(payload))
         for c in targets(room, except: except) { c.sendRaw(frame) }
     }
-    /// `emitToUser(id, event, payload)` — the `user:<id>` room.
+    /// `emitToUser(id, event, payload)`. The `user:<id>` room.
     func emitToUser<T: Encodable>(_ userID: String, event: String, _ payload: T) {
         emit(room: "user:\(userID)", event: event, payload)
     }
@@ -91,7 +91,7 @@ final class SocketHub: @unchecked Sendable {
         for c in targets("user:\(userID)", except: nil) { c.sendRaw(frame) }
     }
     /// Fan a chat mutation to the conversation room **and** every participant's
-    /// personal room (the client dedupes by id) — the exact pattern every Node
+    /// personal room (the client dedupes by id). The exact pattern every Node
     /// chat handler uses.
     func emitConversation<T: Encodable>(_ conversationID: String, participants: [String], event: String, _ payload: T, exceptRoomSender: SocketConn? = nil) {
         emit(room: conversationID, event: event, payload, except: exceptRoomSender)
@@ -128,7 +128,7 @@ extension Request {
 
 // MARK: server→client payload shapes (exact key casing preserved from Node)
 
-/// camelCase — presence / typing / read / delivered.
+/// camelCase, presence / typing / read / delivered.
 struct WSPresenceUpdate: Content { var userId: String; var online: Bool }
 struct WSPresenceSnapshot: Content { var userIds: [String] }
 struct WSMessagesRead: Content { var conversationId: String; var readBy: String }
@@ -136,7 +136,7 @@ struct WSUserTyping: Content { var userId: String; var isTyping: Bool }
 /// socket path carries `userId`; the REST catch-up path omits it (see controller).
 struct WSMessageDelivered: Content { var conversationId: String; var messageId: String; var userId: String? }
 
-/// snake_case — chat mutations.
+/// snake_case, chat mutations.
 struct WSReactionUpdated: Content { var conversation_id: String; var message_id: String; var reactions: [String: [String]] }
 struct WSMeetingProposal: Content {
     var conversation_id: String; var message_id: String

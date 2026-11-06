@@ -1,11 +1,11 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 076 — What people actually look at (feed ranking, phase A)
+-- 076, What people actually look at (feed ranking, phase A)
 --
 -- One row per viewer × post, added to every time the post is at least half on
 -- screen in the Home feed or a community feed:
 --   views       how many times it came on screen
 --   view_ms     total time it stayed on screen (each sighting capped at 10 min)
---   fast_skips  sightings shorter than a second — scrolled straight past
+--   fast_skips  sightings shorter than a second. Scrolled straight past
 --   opened_at   when they first tapped into the post (NULL = never)
 --   source      the feed it was last seen in ('home' / 'community')
 -- Ranking reads it from phase B (see FEED_RANKING_REVIEW.md); rows untouched

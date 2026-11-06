@@ -56,7 +56,7 @@ struct CommunitiesController {
 
     static func staff(_ role: String?) -> Bool { role == "admin" || role == "moderator" }
 
-    /// Discovery is per mode — Hobby shows fandom communities, Work shows work
+    /// Discovery is per mode, Hobby shows fandom communities, Work shows work
     /// ones, never both. `mode=hobby|work` (or the stored `type=fandom|work`).
     static func requiredType(_ req: Request) throws -> String {
         switch (try? req.query.get(String.self, at: "mode")) ?? (try? req.query.get(String.self, at: "type")) {
@@ -71,6 +71,8 @@ struct CommunitiesController {
     struct CreateBody: Content {
         var name: String?; var description: String?; var type: String?; var privacy: String?
         var icon_emoji: String?; var cover_color: String?; var avatar_url: String?; var cover_url: String?
+        /// "markdown" when the description was written with Markdown.
+        var description_format: String?
     }
     static func create(_ req: Request) async throws -> Response {
         let b = try req.content.decode(CreateBody.self)
@@ -86,6 +88,7 @@ struct CommunitiesController {
         let icon = b.icon_emoji ?? "👥"
         let cover = b.cover_color ?? "#7F5AF0"
         let desc = b.description?.trimmingCharacters(in: .whitespaces).nilIfEmpty
+        let descFormat = PostStore.contentFormats.contains(b.description_format ?? "") ? b.description_format! : "plain"
         let avatarURL = MediaPath.storable(b.avatar_url)
         let coverURL = MediaPath.storable(b.cover_url)
 
@@ -94,8 +97,8 @@ struct CommunitiesController {
             try await req.db.tx { t in
                 struct R: Decodable { let id: String }
                 newID = try await t.raw("""
-                    INSERT INTO communities (name, description, type, privacy, icon_emoji, avatar_url, cover_url, cover_color, created_by)
-                    VALUES (\(bind: name), \(bind: desc), \(bind: type), \(bind: privacy), \(bind: icon), \(bind: avatarURL),
+                    INSERT INTO communities (name, description, description_format, type, privacy, icon_emoji, avatar_url, cover_url, cover_color, created_by)
+                    VALUES (\(bind: name), \(bind: desc), \(bind: descFormat), \(bind: type), \(bind: privacy), \(bind: icon), \(bind: avatarURL),
                             \(bind: coverURL), \(bind: cover), \(uuid: req.userID))
                     RETURNING id::text AS id
                     """).first(decoding: R.self)!.id
@@ -121,12 +124,13 @@ struct CommunitiesController {
         }
     }
 
-    // MARK: update (avatar/name/description/icon/cover — admin/moderator only)
+    // MARK: update (avatar/name/description/icon/cover, admin/moderator only)
 
     struct UpdateBody: Content {
         var name: String?; var description: String?; var privacy: String?
         var icon_emoji: String?; var cover_color: String?; var avatar_url: String?
         var cover_url: String?; var require_post_approval: Bool?
+        var description_format: String?
     }
     static func update(_ req: Request) async throws -> DataResponse<CommunityStore.CommunityDetail> {
         let id = req.parameters.get("id")!
@@ -145,7 +149,8 @@ struct CommunitiesController {
         if let p = b.privacy, !CommunitiesController.validPrivacy.contains(p) { throw Abort(.badRequest, reason: "privacy must be public or private") }
         guard try await CommunityStore.update(id, name: b.name, description: b.description, privacy: b.privacy,
             iconEmoji: b.icon_emoji, coverColor: b.cover_color, avatarURL: b.avatar_url.map { MediaPath.storable($0) ?? "" },
-            coverURL: b.cover_url.map { MediaPath.storable($0) ?? "" }, requirePostApproval: b.require_post_approval, on: db) else {
+            coverURL: b.cover_url.map { MediaPath.storable($0) ?? "" }, requirePostApproval: b.require_post_approval,
+            descriptionFormat: b.description_format, on: db) else {
             throw Abort(.notFound, reason: "Community not found")
         }
         guard let community = try await CommunityStore.byID(id, viewer: req.userID, on: db) else { throw Abort(.internalServerError) }
@@ -208,7 +213,7 @@ struct CommunitiesController {
             throw Abort(.badRequest, reason: "You are not a member of this community")
         }
         if role == "admin", try await CommunityStore.countAdmins(id, on: db) <= 1 {
-            throw Abort(.badRequest, reason: "You are the sole admin — transfer the role before leaving")
+            throw Abort(.badRequest, reason: "You are the sole admin. Transfer the role before leaving")
         }
         try await req.db.tx { t in
             _ = try await CommunityStore.leaveCommunity(id, req.userID, on: t)
@@ -218,7 +223,7 @@ struct CommunitiesController {
         return OKMsg(message: "Left community")
     }
 
-    // MARK: mute / unmute (feed-visibility only — does not unfollow/leave)
+    // MARK: mute / unmute (feed-visibility only. Does not unfollow/leave)
 
     // MARK: pin / report / info
 
@@ -245,7 +250,7 @@ struct CommunitiesController {
     struct ReportBody: Content { var reason: String?; var detail: String? }
 
     /// A whole community, reported to the app owner (its own admins can't
-    /// judge it) — reviewed with `swift run App community-reports`.
+    /// judge it), reviewed with `swift run App community-reports`.
     static func reportCommunity(_ req: Request) async throws -> OKMsg {
         let id = req.parameters.get("id")!
         let b = try req.content.decode(ReportBody.self)
@@ -261,7 +266,7 @@ struct CommunitiesController {
         guard try await CommunityStore.reportCommunity(id, by: req.userID, reason: reason, detail: detail, on: db) else {
             throw Abort(.conflict, reason: "You already reported this community")
         }
-        return OKMsg(message: "Thanks — we'll review it")
+        return OKMsg(message: "Thanks, we'll review it")
     }
 
     /// The "About this community" page.
@@ -363,6 +368,9 @@ struct CommunitiesController {
         if b.image_alts != nil {
             post.image_alts = try await PostStore.setImageAlts(post.id, b.image_alts, on: req.db.sql())
         }
+        if b.content_format != nil {
+            post.content_format = try await PostStore.setContentFormat(post.id, b.content_format, on: req.db.sql())
+        }
         if let old = b.replaces_draft {
             try await PostStore.deleteUnpublished(old, author: req.userID, on: req.db.sql())
         }
@@ -431,7 +439,7 @@ struct CommunitiesController {
     struct NotifyBody: Content { var level: String? }
     struct NotifyResult: Content { var notify_level: String }
 
-    /// All posts / friends' posts / off — this member's own choice.
+    /// All posts / friends' posts / off. This member's own choice.
     static func setNotifications(_ req: Request) async throws -> NotifyResult {
         let id = req.parameters.get("id")!
         guard let level = try req.content.decode(NotifyBody.self).level, ["all", "friends", "off"].contains(level) else {
@@ -648,14 +656,14 @@ struct CommunitiesController {
             throw Abort(.notFound, reason: "User is not a member of this community")
         }
         if targetRole == "admin" && newRole != "admin", try await CommunityStore.countAdmins(id, on: db) <= 1 {
-            throw Abort(.badRequest, reason: "Cannot demote the only admin — promote another admin first")
+            throw Abort(.badRequest, reason: "Cannot demote the only admin. Promote another admin first")
         }
         guard let result = try await CommunityStore.updateRole(id, targetID, newRole, on: db) else { throw Abort(.internalServerError) }
         // TODO(notify): role_changed
         return DataResponse(data: result)
     }
 
-    // MARK: recommendations / trending / discover — port of recommendationService.js
+    // MARK: recommendations / trending / discover. Port of recommendationService.js
 
     /// getRecommendations: interest-overlap list if the user has interests,
     /// else the trending list. Returns raw JSON since the two paths have

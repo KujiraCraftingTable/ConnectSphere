@@ -3,7 +3,7 @@ import SQLKit
 
 /// Port of `backend/src/services/postService.js`. `clientError` in the Node
 /// original throws with `err.status` → the central handler → `{status,code,
-/// message}` — so these use `Abort` (renders that shape), not `InlineError`.
+/// message}`, so these use `Abort` (renders that shape), not `InlineError`.
 /// The community-only side effects (tag-extraction enqueue, member fan-out
 /// notification, realtime broadcast, interest rebuild) are deferred:
 ///  - tag/embed queue  → Phase 5
@@ -61,7 +61,7 @@ enum PostService {
         return post
     }
 
-    /// Port of `postModel.createCommunityPost` — mode derives from the
+    /// Port of `postModel.createCommunityPost`. Mode derives from the
     /// community's type unless explicitly overridden; hashtags inserted synchronously.
     static func createCommunityPostRow(
         content: String?, authorID: String, communityID: String?, postType: String,
@@ -195,7 +195,7 @@ enum PostService {
                 throw Abort(.forbidden, reason: "You must be a member of this community to post")
             }
         }
-        // Job posts are a Work-mode-only concept — enforced here, not just
+        // Job posts are a Work-mode-only concept. Enforced here, not just
         // hidden from the iOS composer's picker. Feed always passes an
         // explicit, pre-validated `mode`; community posts pass mode: nil and
         // let createCommunityPostRow's own SQL derive it from the community's
@@ -246,6 +246,7 @@ enum PostService {
     ) async throws -> (post: PostObject, liveIn: [String]) {
         let description = content?.trimmedText ?? ""
         if description.count > 2000 { throw Abort(.badRequest, reason: "Post content must be at most 2000 characters") }
+        guard let photos = imageUrls, !photos.isEmpty else { throw Abort(.badRequest, reason: "Add at least one photo") }
         let listing = try ListingStore.validate(details)
         let ids = try ListingStore.communityIDs(communityIDs)
         let links = try await ListingStore.links(ids, seller: authorID, mode: mode, on: db.sql())
@@ -306,7 +307,7 @@ enum PostService {
 
     // MARK: vote / rsvp
 
-    /// Votes for `optionID`, moves the vote there, or — with nil — takes it back.
+    /// Votes for `optionID`, moves the vote there, or, with nil, takes it back.
     static func voteOnPoll(postID: String, userID: String, optionID: String?, on db: AppDatabase) async throws {
         let sdb = db.sql()
         guard let meta = try await PostStore.findMeta(postID, on: sdb) else { throw Abort(.notFound, reason: "Post not found") }

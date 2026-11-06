@@ -2,7 +2,7 @@ import Vapor
 import SQLKit
 
 /// Chat spaces (migrations 038, 041): private, per-mode folders a user puts
-/// people and group chats in to organise Messages. Every query is scoped to the owner — nobody else can
+/// people and group chats in to organise Messages. Every query is scoped to the owner. Nobody else can
 /// see or touch someone's spaces.
 enum SpaceStore {
     static let modes: Set<String> = ["hobby", "work"]
@@ -23,7 +23,7 @@ enum SpaceStore {
         var color: String
         var position: Int
         var member_ids: [String]
-        /// Group chats in the space — only ones the owner is still in.
+        /// Group chats in the space. Only ones the owner is still in.
         var conversation_ids: [String]
         /// The same people with their name/photo for the space's mode, so a
         /// space can show someone you haven't chatted with yet.
@@ -131,7 +131,7 @@ enum SpaceStore {
                                  OR (b.blocker_id = u.id AND b.blocked_id = \(uuid: owner)))
             """).all(decoding: I.self)
         // …and someone you're friends with or whose chat is past the request
-        // stage — a not-yet-accepted stranger can't be filed (or file you) yet.
+        // stage, a not-yet-accepted stranger can't be filed (or file you) yet.
         let strangers = try await MessageRequests.unrelated(owner, ids, mode: mode, on: db)
         return Set(rows.map { $0.id.lowercased() }).subtracting(strangers)
     }

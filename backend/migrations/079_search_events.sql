@@ -1,6 +1,6 @@
 -- AI people search, phase S3 (AI_SEARCH_REVIEW.md): what happens after a
--- search — who was shown, who was tapped, connected with, messaged or
--- dismissed — so ranking can learn from it. Rows older than 90 days are
+-- search, who was shown, who was tapped, connected with, messaged or
+-- dismissed, so ranking can learn from it. Rows older than 90 days are
 -- deleted by the daily cleanup job.
 
 CREATE TABLE IF NOT EXISTS search_sessions (

@@ -1,9 +1,9 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 036 — Photo albums in chat
+-- 036, Photo albums in chat
 --
 -- Several photos sent together arrive as ONE message (Messenger-style album)
 -- instead of one bubble per photo. `media_items` holds the album in order as
--- [{"url": "/uploads/messages/…", "type": "image"}, …] — typed per item so
+-- [{"url": "/uploads/messages/…", "type": "image"}, …], typed per item so
 -- videos could join later without another migration. `media_url` keeps the
 -- first photo, so the existing content_or_media check, conversation previews
 -- and anything reading a single media URL keep working unchanged. An optional

@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 024 — Voice messages in chat
+-- 024, Voice messages in chat
 --
 -- Adds a 'voice' message type, structurally the same "type + optional
 -- media_url + optional extra fields" shape 'image'/'video' already use.

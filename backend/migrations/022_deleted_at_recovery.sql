@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════════════
--- 022_deleted_at_recovery.sql — delete-recovery infrastructure for posts and
+-- 022_deleted_at_recovery.sql, delete-recovery infrastructure for posts and
 -- comments.
 --
 -- Soft-delete already exists (status = 'deleted', row stays in the DB) but
@@ -8,7 +8,7 @@
 -- auto-purge window. deleted_at is set alongside status = 'deleted' and
 -- cleared back to NULL on restore.
 --
--- Partial indexes (WHERE deleted_at IS NOT NULL) keep the index small — only
+-- Partial indexes (WHERE deleted_at IS NOT NULL) keep the index small. Only
 -- soft-deleted rows are ever looked up by deleted_at (list-my-deleted +
 -- purge-job queries); the vast majority of rows (status = 'posted') never
 -- touch this index at all.

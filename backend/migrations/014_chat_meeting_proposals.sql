@@ -1,9 +1,9 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 014 — Chat meeting/appointment proposals
+-- 014, Chat meeting/appointment proposals
 --
 -- Lets a chat participant propose a meetup (title/location/time), the other
 -- participant(s) respond going/maybe/not_going, and the proposer can reschedule
--- (clears prior RSVPs — a response to the old time shouldn't carry over) or
+-- (clears prior RSVPs. A response to the old time shouldn't carry over) or
 -- cancel. Mirrors community_events/event_rsvps' shape, but anchored to a
 -- message instead of a post since this lives inside a chat conversation.
 -- ─────────────────────────────────────────────────────────────────────────────

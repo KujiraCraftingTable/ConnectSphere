@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 068 — A sign-up email is confirmed before the account exists
+-- 068, A sign-up email is confirmed before the account exists
 --
 -- The code is checked on the sign-up screen; the account itself is created
 -- only when onboarding finishes, so the confirmation is remembered here

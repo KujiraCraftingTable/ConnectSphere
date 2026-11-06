@@ -3,8 +3,8 @@ import SQLKit
 
 /// What a people-search prompt asks for (AI_SEARCH_REVIEW.md, phase S6). The
 /// prompt decides who qualifies: every topic it names must be matched, and
-/// taste only orders the people who qualify. Read deterministically first —
-/// catalogue aliases, traits we don't search by, partner-seeking — so slang
+/// taste only orders the people who qualify. Read deterministically first,
+/// catalogue aliases, traits we don't search by, partner-seeking, so slang
 /// and topics the LLM drops ("hút thuốc", "chém gió") still count.
 enum SearchConcepts {
     /// One topic the prompt names.
@@ -158,8 +158,8 @@ enum SearchConcepts {
         options: [.caseInsensitive])
 
     /// ConnectSphere is for finding friends and colleagues, not partners, so
-    /// the partner wording is dropped from a prompt and the rest — gender,
-    /// place, interests — is searched ("a man to date in HCMC" → "a man in
+    /// the partner wording is dropped from a prompt and the rest. Gender,
+    /// place, interests, is searched ("a man to date in HCMC" → "a man in
     /// HCMC"). Unaccented forms are listed only where they can't be another
     /// phrase ("tim bo" is also "tìm bộ phim").
     static func withoutPartnerWords(_ prompt: String) -> String {

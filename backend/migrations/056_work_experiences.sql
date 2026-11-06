@@ -1,8 +1,8 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 056 — Work history (Work mode)
+-- 056, Work history (Work mode)
 --
 -- Each role someone has held: the company (a company page when there is one,
--- otherwise just its name), title, type, place, and the months it ran — an
+-- otherwise just its name), title, type, place, and the months it ran. An
 -- open end means they still work there. Roles at the same company are
 -- grouped on the profile with the total time there. The current role also
 -- keeps users.job_title / company in step (done by the server), and roles
@@ -31,7 +31,7 @@ CREATE INDEX idx_work_experiences_user ON work_experiences (user_id);
 CREATE INDEX idx_work_experiences_company_current ON work_experiences (company_id) WHERE end_month IS NULL;
 
 -- What ChunkService.buildProfileChunk embeds: both bios, job, company,
--- location, interests, skills — and now each role (title at company).
+-- location, interests, skills, and now each role (title at company).
 CREATE OR REPLACE FUNCTION profile_embed_source_hash(u_id UUID) RETURNS TEXT
 LANGUAGE sql STABLE AS $$
   SELECT CASE

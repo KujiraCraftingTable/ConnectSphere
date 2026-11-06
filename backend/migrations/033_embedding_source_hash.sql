@@ -7,7 +7,7 @@
 -- Likes, comments, counts and mode are deliberately not part of it.
 --
 -- Both functions return NULL when there is nothing to embed (post deleted or
--- empty, profile empty or account deleted) — the chunk should then not exist.
+-- empty, profile empty or account deleted). The chunk should then not exist.
 
 ALTER TABLE user_embedding_chunks ADD COLUMN IF NOT EXISTS source_hash TEXT;
 

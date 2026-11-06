@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 050 — Bare upload paths inside notification payloads
+-- 050, Bare upload paths inside notification payloads
 --
 -- 049 stripped the uploader's server address (localhost, LAN IP, *.local) off
 -- the avatar and photo columns. Notification payloads keep a copy of the

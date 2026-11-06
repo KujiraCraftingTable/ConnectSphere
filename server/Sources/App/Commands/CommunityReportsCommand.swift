@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// `swift run App community-reports` — lists open reports about whole
+/// `swift run App community-reports`. Lists open reports about whole
 /// communities; `--resolve <id>` / `--dismiss <id>` closes one. A community's
 /// own admins can't judge reports about it, so the app owner does.
 struct CommunityReportsCommand: AsyncCommand {

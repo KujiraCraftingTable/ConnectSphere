@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// Validated meeting-proposal fields — the output of
+/// Validated meeting-proposal fields. The output of
 /// `MessagesController.validateMeetingProposal`, consumed by the two writes
 /// below. `startsAt` / `endsAt` are passed through as the caller's raw ISO
 /// strings (Postgres parses them), exactly as Node does.
@@ -14,7 +14,7 @@ struct ValidatedMeeting: Sendable {
     var reminderAt: String
 }
 
-/// Phase 4b — group management, group nicknames, alert-only block
+/// Phase 4b, group management, group nicknames, alert-only block
 /// acknowledgement, and meeting-proposal mutation. Ports the remaining
 /// `messageModel.js` functions not covered by the 4a slice.
 extension ChatStore {
@@ -32,7 +32,7 @@ extension ChatStore {
         var created_at: Date
     }
 
-    /// `createGroupConversation` — INSERT the group row, then bulk-INSERT the
+    /// `createGroupConversation`, INSERT the group row, then bulk-INSERT the
     /// creator (`owner`) + members (`member`). One transaction.
     static func createGroupConversation(creatorID: String, memberIDs: [String], mode: String,
                                         name: String, on db: AppDatabase) async throws -> GroupConvRow {
@@ -61,7 +61,7 @@ extension ChatStore {
             .first(decoding: R.self)?.role ?? nil
     }
 
-    /// Participant ids oldest-first — used by `leaveGroup` to pick the
+    /// Participant ids oldest-first. Used by `leaveGroup` to pick the
     /// earliest-joined remaining member for the auto-promote-on-leave case.
     static func participantsByJoin(_ conversationID: String, on db: any SQLDatabase) async throws -> [String] {
         struct R: Decodable { let user_id: String }
@@ -91,7 +91,7 @@ extension ChatStore {
         }
     }
 
-    /// `updateGroupInfo` — dynamic SET over `name` / `avatar_url` / `avatar_color`;
+    /// `updateGroupInfo`, dynamic SET over `name` / `avatar_url` / `avatar_color`;
     /// only the columns the caller lists are touched (nil value = set NULL).
     static func updateGroupInfo(_ conversationID: String, sets: [(String, String?)], on db: any SQLDatabase) async throws {
         guard !sets.isEmpty else { return }
@@ -158,7 +158,7 @@ extension ChatStore {
 
     // MARK: meeting proposals (014_chat_meeting_proposals, 020_meeting_reminders)
 
-    /// `getProposalByMessageId` — proposal + its message's conversation/sender/type,
+    /// `getProposalByMessageId`, proposal + its message's conversation/sender/type,
     /// keyed by message id. Requires the message to not be recalled.
     struct ProposalRow: Decodable {
         let id: String?
@@ -217,7 +217,7 @@ extension ChatStore {
         try await db.raw("UPDATE message_meeting_proposals SET status = 'cancelled', updated_at = NOW() WHERE id = \(uuid: proposalID)").run()
     }
 
-    /// `markMessageDelivered` — upgrade one message to `delivered` for the
+    /// `markMessageDelivered`, upgrade one message to `delivered` for the
     /// caller. Returns the message's id + sender (for the realtime echo), or
     /// nil when nothing was upgraded (already delivered, own message, missing).
     static func markMessageDelivered(_ messageID: String, userID: String, on db: any SQLDatabase) async throws -> DeliveredRow? {
@@ -232,7 +232,7 @@ extension ChatStore {
             """).first(decoding: DeliveredRow.self)
     }
 
-    /// Guarded RSVP upsert — the write only lands while the proposal is still
+    /// Guarded RSVP upsert. The write only lands while the proposal is still
     /// `active` (WHERE EXISTS on the source SELECT). Returns false when nothing
     /// was written (proposal cancelled/rescheduled).
     static func setMeetingRsvp(_ proposalID: String, userID: String, status: String, on db: any SQLDatabase) async throws -> Bool {

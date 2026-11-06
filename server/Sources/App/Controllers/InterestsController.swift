@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// `/api/interests` — the curated catalogue the interest picker shows
+/// `/api/interests`, the curated catalogue the interest picker shows
 /// (`InterestStore`), the check behind a "Category · specific" pick, and
 /// suggestions for entries the catalogue lacks.
 struct InterestsController {

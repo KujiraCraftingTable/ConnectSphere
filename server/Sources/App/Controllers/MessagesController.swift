@@ -9,7 +9,7 @@ import SQLKit
 /// This slice (4a): conversations open/list, messages list/send/recall,
 /// react, read/delivered/unread, clear, settings/mute/media/search, pins.
 /// Group management + meeting-proposal REST + the Socket.IO fan-out are the
-/// next Phase 4 slices — those routes 501 until then.
+/// next Phase 4 slices. Those routes 501 until then.
 struct MessagesController {
     static func register(routes: any RoutesBuilder) {
         let up = routes.grouped("messages")
@@ -71,7 +71,7 @@ struct MessagesController {
         guard role == "owner" else { throw Abort(.forbidden, reason: "Only the group owner can do this") }
     }
 
-    /// 1:1 block guard — no-op for groups (>2 participants). Mirrors
+    /// 1:1 block guard, no-op for groups (>2 participants). Mirrors
     /// `messageService.assertNotBlockedInConversation`.
     static func assertNotBlockedInConversation(_ conversationID: String, _ userID: String, on db: any SQLDatabase) async throws {
         let parts = try await ChatStore.participants(conversationID, on: db)
@@ -168,7 +168,7 @@ struct MessagesController {
 
     struct UploadResult: Content { var data: Inner; struct Inner: Content { var url: String; var message_type: String } }
     static let uploadDir = "../backend/uploads/messages"
-    /// Allowed chat attachments, keyed on the filename extension — because that
+    /// Allowed chat attachments, keyed on the filename extension, because that
     /// is all Vapor's `File` exposes: `File.contentType` is derived from the
     /// extension, not the part's Content-Type header, and it maps "m4a" to
     /// audio/mpeg. Matching on that MIME silently rejected every voice note
@@ -268,7 +268,7 @@ struct MessagesController {
     }
     struct PollIn: Content { var options: [String]?; var ends_at: String? }
     static let maxAlbumPhotos = 10
-    /// One of our own chat uploads, image types only — an album can't point
+    /// One of our own chat uploads, image types only. An album can't point
     /// at another site or at a path outside the uploads folder.
     static let albumPhotoURL = try! NSRegularExpression(
         pattern: "^/uploads/messages/[A-Za-z0-9_-][A-Za-z0-9._-]*\\.(jpg|jpeg|png|webp|heic)$", options: [.caseInsensitive])
@@ -471,7 +471,7 @@ struct MessagesController {
         return CountData(data: .init(count: try await ChatStore.totalUnread(req.userID, mode: mode, on: req.db.sql())))
     }
 
-    /// Cross-conversation search — conversation name AND message content, so
+    /// Cross-conversation search, conversation name AND message content, so
     /// a user who remembers what they said but not which chat it was in can
     /// find it. Scoped to conversations the requester actually participates
     /// in (see `ChatStore.searchAllConversations`), same mode-scoping as
@@ -573,7 +573,7 @@ struct MessagesController {
 
     // MARK: block-alert (group-only; 1:1 → { shouldAlert: false })
 
-    /// `blockedUserIds` is a plain Optional (omitted when nil) — Node only
+    /// `blockedUserIds` is a plain Optional (omitted when nil), Node only
     /// includes the key on the `shouldAlert: true` branch.
     struct BlockAlertData: Content { var data: Inner; struct Inner: Content { var shouldAlert = false; var blockedUserIds: [String]? } }
     static func blockAlertState(_ req: Request) async throws -> BlockAlertData {
@@ -663,7 +663,7 @@ struct MessagesController {
             if !trimmed.isEmpty { groupName = String(trimmed.prefix(100)) }
         }
 
-        // A stranger who hasn't been accepted can't pull you into a group —
+        // A stranger who hasn't been accepted can't pull you into a group,
         // that would put them in your Messages without going through Waiting.
         let memberUUIDs = unique.compactMap(UUID.init(uuidString:))
         if try await !MessageRequests.unrelated(req.userID, memberUUIDs, mode: mode, on: req.db.sql()).isEmpty {
@@ -806,7 +806,7 @@ struct MessagesController {
         return try await ConnectionsController.encode(SettingsData(data: s), req, .ok)
     }
 
-    /// `broadcastGroupUpdated` — `group_updated` to the room + every participant.
+    /// `broadcastGroupUpdated`, `group_updated` to the room + every participant.
     static func broadcastGroupUpdated(_ req: Request, _ conversationID: String,
                                      settings s: ChatStore.GroupSettings, newOwnerID: String? = nil) async throws {
         let payload = WSGroupUpdated(conversation_id: conversationID, name: s.name,

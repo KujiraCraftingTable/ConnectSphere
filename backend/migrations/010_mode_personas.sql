@@ -1,13 +1,13 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 010 — Mode personas: each account has 2 independent "personas" per mode
+-- 010, Mode personas: each account has 2 independent "personas" per mode
 --
 -- Same account (id/username/password) but the display identity is split
 -- per mode: display_name, bio, avatar_url, cover_url.
 --   • Convention: "mode X is set up" = X_display_name IS NOT NULL
---   • bio/avatar/cover are optional — NULL = show the default (initial-letter
+--   • bio/avatar/cover are optional, NULL = show the default (initial-letter
 --     avatar, empty cover/bio)
 --   • location/gender/dob/email remain shared (real-person info)
---   • job_title/company (users) + user_skills/user_interests are unchanged —
+--   • job_title/company (users) + user_skills/user_interests are unchanged,
 --     they were already work/hobby-mode-specific data
 --   • The original display_name/bio/avatar_url/cover_url columns are kept as
 --     a fallback for surfaces that aren't mode-aware

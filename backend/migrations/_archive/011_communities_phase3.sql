@@ -75,7 +75,7 @@ CREATE TABLE community_trending (
     computed_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- ── Community bans (permanent — prevents rejoin) ──────────────────────────────
+-- ── Community bans (permanent. Prevents rejoin) ──────────────────────────────
 
 CREATE TABLE community_bans (
     community_id UUID        NOT NULL REFERENCES communities(id) ON DELETE CASCADE,

@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// Port of `backend/src/services/postTagExtractService.js` — LLM topic/entity
+/// Port of `backend/src/services/postTagExtractService.js`, LLM topic/entity
 /// extraction → entity-registry expansion (Tier-1 exact + Tier-2 confident
 /// vector; the Wikipedia self-learn tier is Phase 8) → dedup → bulk insert into
 /// `post_tags` with `source = 'ai'`.
@@ -13,8 +13,8 @@ enum PostTagExtractService {
 
         ── WHAT TO EXTRACT ──────────────────────────────────────────────────
         Extract TWO layers:
-        1. Specific entities   — exact titles, character names, artist/band names, brand names, franchise names, company names, game titles, series names
-        2. Category tags       — genre (anime, fantasy, action), activity (coffee, travel, coding), domain (fitness, music, cooking)
+        1. Specific entities  , exact titles, character names, artist/band names, brand names, franchise names, company names, game titles, series names
+        2. Category tags      , genre (anime, fantasy, action), activity (coffee, travel, coding), domain (fitness, music, cooking)
 
         ── WHAT NOT TO EXTRACT ──────────────────────────────────────────────
         NEVER extract:

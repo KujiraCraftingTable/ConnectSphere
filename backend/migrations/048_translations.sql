@@ -1,11 +1,11 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 048 — English ↔ Vietnamese translations of posts and comments
+-- 048, English ↔ Vietnamese translations of posts and comments
 --
 -- Translated on the server when content is published (or edited), so the
 -- app's "Show translation" only swaps in text that's already here.
 --   lang            en | vi | other | none (nothing to translate)
 --   translated_text the other of en/vi; NULL for other languages
---   translated_hash sha256 (hex) of the text it was made from — a mismatch
+--   translated_hash sha256 (hex) of the text it was made from. A mismatch
 --                   means the content changed and the translation is stale
 -- ─────────────────────────────────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 -- Migration 024: Phase 2 social features
--- 1. Avatar ảnh thật cho user (trước đây chỉ có avatar_color)
--- 2. Comment nâng cao: reply (parent_comment_id) + like (comment_likes, like_count)
+-- 1. Real avatar image for users (previously only avatar_color)
+-- 2. Richer comments: replies (parent_comment_id) + likes (comment_likes, like_count)
 -- 3. Block user (user_blocks)
 
 -- ── 1. Avatar URL ─────────────────────────────────────────────────────────────

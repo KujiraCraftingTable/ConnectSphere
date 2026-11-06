@@ -1,7 +1,7 @@
 import Foundation
 
 /// Order for AI post search: how well a post matches the query, nudged up by
-/// how much people engaged with it. The nudge is capped small on purpose — it
+/// how much people engaged with it. The nudge is capped small on purpose. It
 /// reorders close matches but can't lift a weak match over a clearly better one
 /// (hits clear the 0.6 similarity bar and rarely pass 0.85). The match % shown
 /// to users stays the pure similarity; only the order uses this.

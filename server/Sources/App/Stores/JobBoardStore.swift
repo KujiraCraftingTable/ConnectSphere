@@ -42,6 +42,8 @@ enum JobBoardStore {
         @NullCoded var application_deadline: String?
         var created_at: Date
         @NullCoded var description: String?
+        /// 'plain' or 'markdown' (the job post's content_format).
+        var description_format: String? = nil
         var skills: [String]
         var saved: Bool
         var interested_count: Int
@@ -59,7 +61,7 @@ enum JobBoardStore {
         let company_name: String?; let company_id: String?; let company_logo_url: String?; let company_verified: Bool
         let location: String?; let employment_type: String?; let work_format: String?; let level: String?
         let salary_min: Int?; let salary_max: Int?; let salary_range: String?; let application_deadline: String?
-        let created_at: Date; let description: String?; let skills: String; let saved: Bool; let interested_count: Int
+        let created_at: Date; let description: String?; let description_format: String?; let skills: String; let saved: Bool; let interested_count: Int
         let poster_id: String; let poster_name: String; let poster_avatar: String?; let poster_color: String?
         let poster_title: String?; let followed_company: Bool; let semantic: Double
         let application_status: String?; let applicant_count: Int?
@@ -78,7 +80,7 @@ enum JobBoardStore {
             SELECT jp.id::text AS id, p.id::text AS post_id, jp.title, COALESCE(jc.name, jp.company) AS company_name,
               jp.company_id::text AS company_id, jc.logo_url AS company_logo_url, COALESCE(jc.is_verified, FALSE) AS company_verified,
               jp.location, jp.employment_type, jp.work_format, jp.level, jp.salary_min, jp.salary_max, jp.salary_range,
-              to_char(jp.application_deadline, 'YYYY-MM-DD') AS application_deadline, p.created_at, p.content AS description,
+              to_char(jp.application_deadline, 'YYYY-MM-DD') AS application_deadline, p.created_at, p.content AS description, p.content_format AS description_format,
               COALESCE((SELECT json_agg(js.skill ORDER BY js.skill) FROM job_skills js WHERE js.job_id = jp.id), '[]')::text AS skills,
               EXISTS(SELECT 1 FROM job_interests ji WHERE ji.job_id = jp.id AND ji.user_id = \(uuid: viewer)) AS saved,
               jp.interested_count,
@@ -167,7 +169,7 @@ enum JobBoardStore {
             company_logo_url: r.company_logo_url, company_verified: r.company_verified, location: r.location,
             employment_type: r.employment_type, work_format: r.work_format, level: r.level,
             salary_min: r.salary_min, salary_max: r.salary_max, salary_range: r.salary_range,
-            application_deadline: r.application_deadline, created_at: r.created_at, description: r.description,
+            application_deadline: r.application_deadline, created_at: r.created_at, description: r.description, description_format: r.description_format,
             skills: skills, saved: r.saved, interested_count: r.interested_count,
             poster: Poster(id: r.poster_id, display_name: r.poster_name, avatar_url: r.poster_avatar,
                            avatar_color: r.poster_color, job_title: r.poster_title),

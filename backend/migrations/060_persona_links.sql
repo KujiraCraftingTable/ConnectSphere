@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 060 — Link between a person's two personas
+-- 060, Link between a person's two personas
 --
 -- Each persona's profile shows a "See Work profile" / "See Hobby profile"
 -- button, on by default; each mode's settings can hide its own button. It's

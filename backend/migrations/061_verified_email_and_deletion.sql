@@ -1,9 +1,9 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 061 — Verified email, one-time codes, and deleting a persona
+-- 061, Verified email, one-time codes, and deleting a persona
 --
 -- An account's email is now verified with a 6-digit code (Google sign-ups
 -- count as verified). Deleting a persona or the whole account needs a code
--- sent to that email — a stolen password alone can't do it.
+-- sent to that email. A stolen password alone can't do it.
 -- ─────────────────────────────────────────────────────────────────────────────
 
 ALTER TABLE users

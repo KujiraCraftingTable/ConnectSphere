@@ -18,7 +18,7 @@ struct EndorsementsController {
     }
 
     /// The skills, and whether the viewer may endorse them (a Work
-    /// connection, not themselves) — so the app only offers it then.
+    /// connection, not themselves), so the app only offers it then.
     struct SkillsResponse: Content {
         var data: [EndorsementStore.Skill]
         var can_endorse: Bool
@@ -61,7 +61,7 @@ struct EndorsementsController {
         if try await EndorsementStore.endorse(skillID, by: req.userID, on: db) {
             let actor = req.userID
             NotifyService.fireAndForget(req) { d, h, l in
-                var payload = (try? await NotifyService.actorPayload(actor, on: d)) ?? ["fromUserId": actor]
+                var payload = (try? await NotifyService.actorPayload(actor, mode: "work", on: d)) ?? ["fromUserId": actor]
                 payload["skill"] = name
                 payload["mode"] = "work"
                 _ = await NotifyService.pushUserNotification(

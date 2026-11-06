@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 047 — Drafts and scheduled posts
+-- 047, Drafts and scheduled posts
 --
 -- A post is a draft → (scheduled) → posted row in `posts`. Only 'posted' rows
 -- ever reach feeds, profiles or search (every listing filters on it), so a

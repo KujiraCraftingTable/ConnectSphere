@@ -7,7 +7,7 @@ import SQLKit
 /// `/api/user-notifications`; every mutation accepts PATCH and POST.
 ///
 /// The notification *creation* / fan-out side (pushUserNotification,
-/// createBulkForCommunity, upsertMessageNotification) is deferred — it's all
+/// createBulkForCommunity, upsertMessageNotification) is deferred, it's all
 /// fire-and-forget from other handlers and doesn't shape any response. The
 /// read/mark/delete/resolve inbox is fully ported here.
 struct NotificationsController {
@@ -57,10 +57,10 @@ struct NotificationsController {
     }
 
     /// Chat activity that's already reflected by the Messages tab's own
-    /// unread badge — redundant to also surface in the Notifications inbox.
+    /// unread badge, redundant to also surface in the Notifications inbox.
     /// Meeting types ("meeting_proposed"/"meeting_updated"/"meeting_rsvp"/
     /// "meeting_reminder") are deliberately NOT included here even though
-    /// they're also `category: "chat"` — those are calendar-like reminders,
+    /// they're also `category: "chat"`, those are calendar-like reminders,
     /// not "someone messaged me," and stay in the inbox per explicit product
     /// direction ("keep the reminder for calendar and similar features").
     static let excludedFromInbox: [String] = ["message", "message_reaction", "group_added", "group_removed"]
@@ -161,12 +161,14 @@ struct NotificationsController {
         let cat = try? req.query.get(String.self, at: "category")
         let typeList = typesForCategory(cat)
         let cursor = decodeCursor(try? req.query.get(String.self, at: "cursor"))
+        let mode = requestedMode(req)
         let db = req.db.sql()
 
         var q: SQLQueryString = "SELECT " + selectColumns + """
              FROM user_notifications n LEFT JOIN communities c ON c.id = n.community_id
             WHERE n.user_id = \(uuid: req.userID) AND NOT (n.type = ANY(\(bind: excludedFromInbox)::text[]))
-            """
+            AND
+            """ + visibleIn(mode)
         if unreadOnly { q = q + " AND n.is_read = FALSE" }
         if let typeList { q = q + " AND n.type = ANY(\(bind: typeList)::text[])" }
         if let cursor {
@@ -177,7 +179,7 @@ struct NotificationsController {
         let hasMore = rows.count > limit
         let page = hasMore ? Array(rows.prefix(limit)) : rows
 
-        let (unread, byCat) = try await summary(req.userID, on: db)
+        let (unread, byCat) = try await summary(req.userID, mode: mode, on: db)
 
         var body = Data(#"{"data":["#.utf8)
         for (i, r) in page.enumerated() { if i > 0 { body.append(Data(",".utf8)) }; body.append(toDTOJSON(r)) }
@@ -188,13 +190,56 @@ struct NotificationsController {
         return Response(status: .ok, headers: ["content-type": "application/json; charset=utf-8"], body: .init(data: body))
     }
 
-    static func summary(_ userID: String, on db: any SQLDatabase) async throws -> (Int, [String: Int]) {
+    /// The mode a request is for (`?mode=hobby|work`); nil = every mode.
+    static func requestedMode(_ req: Request) -> String? {
+        guard let mode = try? req.query.get(String.self, at: "mode"), ["hobby", "work"].contains(mode) else { return nil }
+        return mode
+    }
+
+    /// Hobby and Work are two separate lives, so a notification shows only in
+    /// the mode it was raised in: a post's (or chat's, or community's) own
+    /// mode, the mode a connection is in, Work for endorsements and jobs.
+    /// A sign-in alert, or anything that can't be placed,
+    /// shows in both. Expects the table aliased `n`; `mode` is allowlisted by
+    /// `requestedMode`, so it's safe to bind and compare.
+    static func visibleIn(_ mode: String?) -> SQLQueryString {
+        // Parenthesised: callers glue this straight onto "... AND", and a bare
+        // TRUE became "ANDTRUE", a syntax error on every call without a mode.
+        guard let mode else { return "(TRUE)" }
+        return """
+            (CASE n.type
+               WHEN 'new_login' THEN TRUE
+               WHEN 'skill_endorsed' THEN \(bind: mode) = 'work'
+               WHEN 'job_application' THEN \(bind: mode) = 'work'
+               WHEN 'application_status' THEN \(bind: mode) = 'work'
+               WHEN 'connection_request' THEN EXISTS (\(connectionIn(mode)))
+               WHEN 'connection_accepted' THEN EXISTS (\(connectionIn(mode)))
+               WHEN 'birthday' THEN EXISTS (\(connectionIn(mode)))
+               ELSE COALESCE(
+                 (SELECT p.mode FROM posts p WHERE p.id = n.post_id),
+                 (SELECT cv.mode FROM conversations cv WHERE cv.id = n.conversation_id),
+                 (SELECT CASE WHEN cm.type = 'work' THEN 'work' ELSE 'hobby' END FROM communities cm WHERE cm.id = n.community_id),
+                 \(bind: mode)) = \(bind: mode)
+             END)
+            """
+    }
+
+    /// A connection between the notification's two people in `mode`.
+    private static func connectionIn(_ mode: String) -> SQLQueryString {
+        """
+        SELECT 1 FROM connections cn WHERE cn.mode = \(bind: mode)
+          AND ((cn.requester_id = n.actor_id AND cn.addressee_id = n.user_id)
+            OR (cn.requester_id = n.user_id AND cn.addressee_id = n.actor_id))
+        """
+    }
+
+    static func summary(_ userID: String, mode: String? = nil, on db: any SQLDatabase) async throws -> (Int, [String: Int]) {
         struct C: Decodable { let type: String; let count: Int }
         let rows = try await db.raw("""
-            SELECT type, COUNT(*)::int AS count FROM user_notifications
-            WHERE user_id = \(uuid: userID) AND is_read = FALSE AND NOT (type = ANY(\(bind: excludedFromInbox)::text[]))
-            GROUP BY type
-            """)
+            SELECT n.type, COUNT(*)::int AS count FROM user_notifications n
+            WHERE n.user_id = \(uuid: userID) AND n.is_read = FALSE AND NOT (n.type = ANY(\(bind: excludedFromInbox)::text[]))
+            AND
+            """ + visibleIn(mode) + " GROUP BY n.type")
             .all(decoding: C.self)
         var byCat = ["social": 0, "community": 0, "chat": 0]
         var unread = 0
@@ -209,7 +254,7 @@ struct NotificationsController {
 
     struct UnreadResp: Content { var data: Inner; struct Inner: Content { var count: Int; var byCategory: [String: Int] } }
     static func unreadCount(_ req: Request) async throws -> UnreadResp {
-        let (unread, byCat) = try await summary(req.userID, on: req.db.sql())
+        let (unread, byCat) = try await summary(req.userID, mode: requestedMode(req), on: req.db.sql())
         let scope = try? req.query.get(String.self, at: "scope")
         let count = (scope.flatMap { categories.contains($0) ? byCat[$0] : nil }) ?? unread
         return UnreadResp(data: .init(count: count, byCategory: byCat))
@@ -229,7 +274,7 @@ struct NotificationsController {
             .first(decoding: R.self) != nil else { throw Abort(.notFound, reason: "Notification not found") }
         req.socketHub.emitToUser(req.userID, event: "notification_read", NotifyService.ReadPayload(ids: [nid], isRead: isRead))
         await NotifyService.emitCounts(req.userID, on: db, hub: req.socketHub)
-        return StatusUnread(data: .init(unread: try await summary(req.userID, on: db).0))
+        return StatusUnread(data: .init(unread: try await summary(req.userID, mode: requestedMode(req), on: db).0))
     }
     static func markRead(_ req: Request) async throws -> StatusUnread { try await setRead(req, true) }
     static func markUnread(_ req: Request) async throws -> StatusUnread { try await setRead(req, false) }
@@ -237,10 +282,15 @@ struct NotificationsController {
     static func markAllRead(_ req: Request) async throws -> StatusUnread {
         let db = req.db.sql()
         let typeList = typesForCategory(try? req.query.get(String.self, at: "category"))
-        var q: SQLQueryString = "UPDATE user_notifications SET is_read = TRUE WHERE user_id = \(uuid: req.userID) AND is_read = FALSE"
-        if let typeList { q = q + " AND type = ANY(\(bind: typeList)::text[])" }
+        let mode = requestedMode(req)
+        // Only this mode's: reading everything in Hobby must not clear Work's.
+        var q: SQLQueryString = """
+            UPDATE user_notifications n SET is_read = TRUE
+            WHERE n.user_id = \(uuid: req.userID) AND n.is_read = FALSE AND
+            """ + visibleIn(mode)
+        if let typeList { q = q + " AND n.type = ANY(\(bind: typeList)::text[])" }
         try await db.raw(q).run()
-        return StatusUnread(data: .init(unread: try await summary(req.userID, on: db).0))
+        return StatusUnread(data: .init(unread: try await summary(req.userID, mode: mode, on: db).0))
     }
 
     static func remove(_ req: Request) async throws -> StatusUnread {
@@ -249,7 +299,7 @@ struct NotificationsController {
         let deleted = try await db.raw("DELETE FROM user_notifications WHERE id = \(uuid: req.parameters.get("id")!) AND user_id = \(uuid: req.userID) RETURNING id")
             .all(decoding: R.self)
         guard !deleted.isEmpty else { throw Abort(.notFound, reason: "Notification not found") }
-        return StatusUnread(data: .init(unread: try await summary(req.userID, on: db).0))
+        return StatusUnread(data: .init(unread: try await summary(req.userID, mode: requestedMode(req), on: db).0))
     }
 
     struct ResolveBody: Content { var action: String? }

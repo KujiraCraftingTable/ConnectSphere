@@ -1,6 +1,6 @@
 import Vapor
 
-/// Mirror of `backend/src/config/env.js` — same variable names, same defaults,
+/// Mirror of `backend/src/config/env.js`. Same variable names, same defaults,
 /// so the Swift server reads the identical `.env` the Node backend uses.
 struct AppEnv: Sendable {
     struct DB: Sendable {
@@ -53,7 +53,7 @@ struct AppEnv: Sendable {
     var redis: Redis
     var db: DB
 
-    /// Placeholder secrets — production must never boot with one (matches env.js).
+    /// Placeholder secrets, production must never boot with one (matches env.js).
     static let weakJWTSecrets: Set<String> = [
         "dev_secret",
         "change-me-generate-with-openssl-rand-hex-32",

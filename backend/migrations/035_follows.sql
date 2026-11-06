@@ -1,4 +1,4 @@
--- Follow: one-way, instant (no request), per mode — following someone's Hobby
+-- Follow: one-way, instant (no request), per mode. Following someone's Hobby
 -- persona doesn't follow their Work one. Independent of friendship: becoming
 -- friends starts a mutual follow, but friends may unfollow each other and stay
 -- friends. Profile "followers"/"following" counts exclude friends.

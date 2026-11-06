@@ -3,7 +3,7 @@
 -- gave this member," not the single shared column 1:1 conversations use.
 --
 -- 1:1 keeps its existing conversation_participants.nickname column and
--- behavior completely unchanged — this table is additive, used only when
+-- behavior completely unchanged. This table is additive, used only when
 -- conversations.is_group = true.
 
 CREATE TABLE conversation_nicknames (

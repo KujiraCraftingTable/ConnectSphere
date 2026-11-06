@@ -196,7 +196,7 @@ struct ReportsController {
         return DataResponse(data: updated)
     }
 
-    // MARK: analytics — deferred to Phase 3 tail (analyticsService)
+    // MARK: analytics, deferred to Phase 3 tail (analyticsService)
 
     static func analytics(_ req: Request) async throws -> DataResponse<AnalyticsPayload> {
         let id = req.parameters.get("id")!

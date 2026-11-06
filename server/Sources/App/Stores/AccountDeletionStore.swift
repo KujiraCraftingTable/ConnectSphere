@@ -2,11 +2,11 @@ import Vapor
 import SQLKit
 
 /// Deleting one persona (Hobby or Work) while the account and the other
-/// persona stay — migration 061. The whole account is
+/// persona stay, migration 061. The whole account is
 /// `UserStore.softDeleteAccount`; both remove the person's posts, comments,
 /// likes and stories through `removeActivity`.
 enum AccountDeletionStore {
-    /// `mode` must already be "hobby" or "work" — it's inlined into column names.
+    /// `mode` must already be "hobby" or "work", it's inlined into column names.
     static func deletePersona(_ user: String, mode: String, on db: AppDatabase) async throws {
         precondition(["hobby", "work"].contains(mode), "mode is allowlisted by the caller")
         let other = mode == "work" ? "hobby" : "work"
@@ -44,8 +44,8 @@ enum AccountDeletionStore {
 
             // Chats: what they sent stays and reads "Deleted User" (PersonaSQL,
             // *_deleted_at). They leave that mode's groups; a 1:1 chat keeps
-            // them as its other side — or it would vanish from the other
-            // person's inbox — but is cleared and archived on their end.
+            // them as its other side, or it would vanish from the other
+            // person's inbox, but is cleared and archived on their end.
             try await t.raw("""
                 DELETE FROM conversation_participants cp USING conversations c
                 WHERE cp.conversation_id = c.id AND c.mode = \(bind: mode) AND c.is_group AND cp.user_id = \(uuid: user)
@@ -79,7 +79,7 @@ enum AccountDeletionStore {
     }
 
     /// Their posts (with everything hanging off them), their comments and
-    /// likes on other posts — keeping those posts' counts right — and their
+    /// likes on other posts, keeping those posts' counts right, and their
     /// stories. `mode` nil = both modes (account deletion).
     static func removeActivity(of user: String, mode: String?, on t: any SQLDatabase) async throws {
         // Leading space: it's appended to queries that end mid-line.

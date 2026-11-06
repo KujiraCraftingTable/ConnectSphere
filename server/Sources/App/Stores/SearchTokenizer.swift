@@ -3,7 +3,7 @@ import Foundation
 /// Splits a keyword search into the words it is ranked by (people and posts).
 ///
 /// Only letters and digits survive, so a word can never carry SQL LIKE
-/// wildcards (`%`, `_`) or regex metacharacters into the ranking SQL — it is
+/// wildcards (`%`, `_`) or regex metacharacters into the ranking SQL. It is
 /// still bound as a parameter, this just keeps it inert inside patterns too.
 /// Diacritics are kept here on purpose: accent folding ("meo" ↔ "mèo")
 /// happens in SQL with `unaccent()` on both sides, so it stays consistent

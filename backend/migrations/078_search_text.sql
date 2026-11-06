@@ -1,8 +1,8 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 078 — Keyword leg for AI people search (AI_SEARCH_REVIEW.md, phase S1)
+-- 078, Keyword leg for AI people search (AI_SEARCH_REVIEW.md, phase S1)
 --
 -- Vector search alone misses literal terms the embedding model doesn't weigh
--- ("iOS", "Roblox") — the keyword leg runs full-text search over the same chunk
+-- ("iOS", "Roblox"), the keyword leg runs full-text search over the same chunk
 -- text and the two rankings are fused (RRF). Chunk `content` is already
 -- normalised to English, so the 'english' configuration stems it ("photos" ↔
 -- "photo"). Generated, so every insert/update keeps it in sync.

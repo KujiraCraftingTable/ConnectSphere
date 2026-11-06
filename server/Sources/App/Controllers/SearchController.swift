@@ -2,7 +2,7 @@ import Vapor
 import SQLKit
 
 /// Port of `backend/src/controllers/searchController.js` + `searchRoutes.js`.
-/// `POST /api/search/ai` (rate-limited — folded fix), `GET /api/search/suggestions`,
+/// `POST /api/search/ai` (rate-limited. Folded fix), `GET /api/search/suggestions`,
 /// `POST /api/search/lookup` (exact + vector tiers; the Wikipedia self-learn
 /// tier and venue geocoding land in Phase 8).
 struct SearchController {
@@ -116,7 +116,7 @@ struct SearchController {
     struct AIBody: Content {
         var query: String?; var mode: String?; var radiusKm: Double?
         /// Refining an earlier search of yours (AI_SEARCH_REVIEW.md, phase S4):
-        /// its id, plus what to change — free text ("only in Hanoi"), people
+        /// its id, plus what to change. Free text ("only in Hanoi"), people
         /// more like one of its results, or closer to where you live.
         var session_id: String?
         var refine: String?
@@ -406,7 +406,7 @@ struct SearchController {
 
     /// AI search over posts: the same LLM breakdown and topics as people
     /// search, then the posts about every topic. A post's similarity is its
-    /// average closeness to the topics. Radius/location filters don't apply —
+    /// average closeness to the topics. Radius/location filters don't apply,
     /// posts carry no location.
     static func aiPostSearch(_ req: Request) async throws -> AIPostSearchResponse {
         let b = try req.content.decode(AIBody.self)
@@ -505,13 +505,13 @@ struct SearchController {
                 keyword: name,
                 candidates: grey.map { .init(entity_id: $0.entity_id, canonical_name: $0.canonical_name) }))
         }
-        // No close candidates — the entity may be a new proper noun. Learn it in
+        // No close candidates. The entity may be a new proper noun. Learn it in
         // the background (Wikipedia → interest_entities) so Tier-1 catches it next time.
         selfLearn(name, category: c.entity_type, cfg: cfg, on: db, logger: logger)
         return EntityVecResult(vec: nameVec, suggestion: nil)
     }
 
-    /// Fire-and-forget 3-tier `lookupEntity` — its Tier-2/Tier-3 side effects
+    /// Fire-and-forget 3-tier `lookupEntity`. Its Tier-2/Tier-3 side effects
     /// (alias save, Wikipedia entity insert) make the next search sharper.
     static func selfLearn(_ name: String, category: String?, cfg: OllamaService.Config,
                           on db: any SQLDatabase, logger: Logger) {
@@ -658,7 +658,7 @@ struct SearchController {
         return fused
     }
 
-    /// One list from up to four rankings — meaning (vector), words (full
+    /// One list from up to four rankings. Meaning (vector), words (full
     /// text), names, and the personal vectors ("like me", "More like @x").
     /// Someone found by more than one rises; `score` becomes the fused one.
     static func fuse(semantic: [SearchStore.RawUser], keyword: [SearchStore.RawUser],

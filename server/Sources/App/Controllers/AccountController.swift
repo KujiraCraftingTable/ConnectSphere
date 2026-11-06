@@ -2,7 +2,7 @@ import Vapor
 import SQLKit
 
 /// Verified email and deletion (migration 061). Every deletion needs a code
-/// sent to the account's verified email — a stolen password isn't enough.
+/// sent to the account's verified email. A stolen password isn't enough.
 struct AccountController {
     static func register(routes: any RoutesBuilder) {
         let me = routes.grouped("users", "me").grouped(AuthMiddleware()).grouped(RateLimitMiddleware.accountCodes())
@@ -14,7 +14,7 @@ struct AccountController {
         me.delete("personas", ":mode", use: deletePersona)  // DELETE /users/me/personas/:mode {code}
         me.post("two-factor", "code", use: sendTwoFactorCode) // POST /users/me/two-factor/code
         me.patch("two-factor", use: setTwoFactor)           // PATCH /users/me/two-factor {enabled, code}
-        // DELETE /users/me {code} — UsersController.deleteMe
+        // DELETE /users/me {code}, UsersController.deleteMe
     }
 
     struct StatusOK: Content { var status = "ok" }
@@ -129,7 +129,7 @@ struct AccountController {
         let has = mode == "work" ? work : hobby
         let keeps = mode == "work" ? hobby : work
         guard has else { throw Abort(.badRequest, reason: "You don't have a \(mode == "work" ? "Work" : "Hobby") profile") }
-        guard keeps else { throw Abort(.badRequest, reason: "That's your only profile — delete your account instead") }
+        guard keeps else { throw Abort(.badRequest, reason: "That's your only profile. Delete your account instead") }
     }
 
     private static func purpose(_ scope: Scope) -> AccountCodeStore.Purpose {
@@ -172,7 +172,7 @@ struct AccountController {
     struct TwoFactorBody: Content { var enabled: Bool?; var code: String? }
     struct TwoFactorState: Content { var two_factor_enabled: Bool }
 
-    /// On or off, it takes a code from the verified email — someone already
+    /// On or off, it takes a code from the verified email. Someone already
     /// signed in can't quietly switch it off.
     static func setTwoFactor(_ req: Request) async throws -> TwoFactorState {
         let b = try req.content.decode(TwoFactorBody.self)
@@ -203,7 +203,7 @@ struct AccountController {
         return PersonaDeleted(default_mode: mode == "work" ? "hobby" : "work")
     }
 
-    /// DELETE /users/me — the whole account, confirmed with an emailed code.
+    /// DELETE /users/me, the whole account, confirmed with an emailed code.
     static func deleteAccount(_ req: Request) async throws -> StatusOK {
         let code = (try? req.content.decode(CodeBody.self).code) ?? ""
         _ = try await account(req.userID, on: req.db.sql())

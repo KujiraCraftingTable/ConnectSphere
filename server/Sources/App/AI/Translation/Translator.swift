@@ -36,8 +36,9 @@ struct OllamaChatTranslator: Translator {
         """
         You translate social media posts and comments from \(Translators.languageName(from)) to \(Translators.languageName(to)).
         Translate faithfully and naturally. Do not add, explain, summarise or answer anything.
-        Keep names of people, brands, places, dishes and foods exactly as written — never swap in a local equivalent.
+        Keep names of people, brands, places, dishes and foods exactly as written. Never swap in a local equivalent.
         Keep emojis, #hashtags, @mentions, URLs and line breaks unchanged.
+        Keep Markdown formatting in place (**bold**, _italic_, ~~strike~~, `code`, a line's leading "- ", "1. " or "> ", and the address in [label](address)); translate only the words, link labels included.
         Reply with the translation only.
         """
     }

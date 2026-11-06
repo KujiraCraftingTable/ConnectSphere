@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// `/api/spaces` — the signed-in user's own chat spaces (see `SpaceStore`).
+/// `/api/spaces`, the signed-in user's own chat spaces (see `SpaceStore`).
 /// Another user's space id behaves exactly like a missing one (404).
 struct SpacesController {
     static func register(routes: any RoutesBuilder) {

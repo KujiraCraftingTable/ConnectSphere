@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 046 — Drafts and scheduled posts (status values)
+-- 046, Drafts and scheduled posts (status values)
 --
 -- On its own because a new enum value can't be used in the transaction that
 -- adds it (each migration file runs in one). 047 uses them.

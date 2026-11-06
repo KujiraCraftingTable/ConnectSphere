@@ -35,10 +35,10 @@ func routes(_ app: Application) throws {
     SearchController.register(routes: api)          // + /entities/alias, /locations/clarify
     InterestsController.register(routes: api)       // the interest picker's catalogue
     SkillsController.register(routes: api)          // the Work skill picker's catalogue
-    WardsController.register(routes: api)           // GET /api/wards/* — no auth (matches Node)
-    UploadsController.register(routes: api)         // POST /api/uploads — generic media upload
+    WardsController.register(routes: api)           // GET /api/wards/*. No auth (matches Node)
+    UploadsController.register(routes: api)         // POST /api/uploads. Generic media upload
 
-    // Socket.IO v4 / Engine.IO 4 shim — mounted on `app` (not `api`), auth via
+    // Socket.IO v4 / Engine.IO 4 shim. Mounted on `app` (not `api`), auth via
     // the SIO CONNECT frame's `{token}`, not a header.
     SocketIOShim.register(app)
 }

@@ -2,14 +2,14 @@ import Foundation
 
 /// Our own uploads are stored as a bare path (`/uploads/x.jpg`), never with a
 /// host in front. The host would be whatever address the uploading device
-/// reached the server by — `localhost` from the simulator, a LAN IP or
-/// `*.local` name from a phone — and other devices can't reach that address,
+/// reached the server by, `localhost` from the simulator, a LAN IP or
+/// `*.local` name from a phone, and other devices can't reach that address,
 /// so they'd see a blank photo. Each client puts its own server address in
 /// front when it loads the file.
 enum MediaPath {
     /// `raw` as it should be stored: one of our upload links loses its host
-    /// (and any query, such as a chat media `?token=`); anything else — an
-    /// outside link, a bare path — is kept as is. Blank becomes nil.
+    /// (and any query, such as a chat media `?token=`); anything else. An
+    /// outside link, a bare path. Is kept as is. Blank becomes nil.
     static func storable(_ raw: String?, exists: (String) -> Bool = ownFileExists) -> String? {
         guard let s = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty else { return nil }
         guard let comps = URLComponents(string: s),

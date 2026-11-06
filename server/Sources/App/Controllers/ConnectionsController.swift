@@ -90,7 +90,7 @@ struct ConnectionsController {
         @NullCoded var connection_id: String?
         /// Whether the viewer follows the target in this mode (independent of friendship).
         var is_following = false
-        /// False when the target turned friend requests off — the app offers Follow instead.
+        /// False when the target turned friend requests off. The app offers Follow instead.
         var accepts_requests = true
     }
 

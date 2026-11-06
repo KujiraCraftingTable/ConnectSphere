@@ -9,7 +9,7 @@ import SQLKit
 /// follow, like and comment on real accounts (`real` in the fixtures).
 ///
 /// `seed-demo embed` then builds each seed profile's and post's chunk (with its
-/// translation) and the posts' AI tags — the slow part, kept separate so it can
+/// translation) and the posts' AI tags. The slow part, kept separate so it can
 /// be re-run until everything has a vector.
 extension SeedDemoCommand {
     // MARK: - Fixture
@@ -315,7 +315,7 @@ extension SeedDemoCommand {
             } catch { failed += 1; app.logger.warning("Post \(p.id): \(error)") }
             if (i + 1) % 20 == 0 { context.console.info("posts \(i + 1)/\(posts.count)") }
         }
-        context.console.info(failed == 0 ? "Embedding done." : "Embedding done with \(failed) failures — re-run to retry them.")
+        context.console.info(failed == 0 ? "Embedding done." : "Embedding done with \(failed) failures, re-run to retry them.")
     }
 
     private struct Counted: Decodable { let n: Int }
@@ -523,7 +523,7 @@ extension SeedDemoCommand {
     }
 }
 
-/// SplitMix64 — a fixed seed makes every re-seed draw the same likes and links.
+/// SplitMix64, a fixed seed makes every re-seed draw the same likes and links.
 struct SeededGenerator: RandomNumberGenerator {
     private var state: UInt64
     init(seed: UInt64) { state = seed }

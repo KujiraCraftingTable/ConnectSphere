@@ -24,7 +24,7 @@ enum MutedWordStore {
 
     /// The word to store, or nil when it can't match anything: trimmed, inner
     /// whitespace collapsed, a leading `#` dropped (tags are matched anyway),
-    /// 1–50 characters, and at least one letter or digit — matching ignores
+    /// 1–50 characters, and at least one letter or digit. Matching ignores
     /// punctuation, so "!!!" would never hide a thing.
     static func cleanWord(_ raw: String?) -> String? {
         guard var word = raw?.trimmingCharacters(in: .whitespacesAndNewlines) else { return nil }
@@ -54,7 +54,7 @@ enum MutedWordStore {
     }
 
     /// Adding a word that's already there (any case) sets its new duration
-    /// rather than failing — "mute this for 30 days instead" just works.
+    /// rather than failing, "mute this for 30 days instead" just works.
     static func add(owner: String, mode: String, word: String, seconds: Int?, on db: any SQLDatabase) async throws -> Word {
         let expires = seconds.map { Date().addingTimeInterval(TimeInterval($0)) }
         return try await db.raw("""

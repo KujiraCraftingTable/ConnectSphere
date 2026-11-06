@@ -6,11 +6,16 @@ import NIOConcurrencyHelpers
 
 /// Port of `backend/src/jobs/*` + `queues/*`. BullMQ → Vapor Queues.
 ///
-/// Gated behind `RUN_JOBS=1` — during the parallel-oracle phase the Node
+/// Gated behind `RUN_JOBS=1`. During the parallel-oracle phase the Node
 /// backend owns the schedule; the Swift server only runs jobs once it is the
 /// primary (Phase 6 cutover sets the flag).
 enum BackgroundJobs {
     static var enabled: Bool { Environment.get("RUN_JOBS") == "1" }
+
+    /// The request's job queue, or nil when this server runs no jobs. Reading
+    /// `req.queue` without a Queues driver is a fatal error, not a throw, so a
+    /// server started without RUN_JOBS crashed on its first post.
+    static func queue(for req: Request) -> (any Queue)? { enabled ? req.queue : nil }
 
     static let utc: Calendar = {
         var c = Calendar(identifier: .gregorian)
@@ -25,7 +30,7 @@ enum BackgroundJobs {
         // Vapor's default pool holds 2 connections and waits only 10 ms for a
         // free one (nil `connectionRetryTimeout` → RediStack's floor), while
         // Queues starts a worker per CPU core. Workers starved, logging
-        // `timedOutWaitingForConnection` every few seconds — and one that
+        // `timedOutWaitingForConnection` every few seconds, and one that
         // failed after popping a job lost that job.
         let redis = try RedisConfiguration(url: "redis://\(r.host):\(r.port)", pool: .init(
             maximumConnectionCount: .maximumActiveConnections(4),
@@ -40,7 +45,7 @@ enum BackgroundJobs {
         app.queues.add(SocialNotifyJob())
         app.queues.add(TranslateContentJob())
 
-        // Daily housekeeping — staggered UTC slots, matching the Node crons.
+        // Daily housekeeping, staggered UTC slots, matching the Node crons.
         app.queues.schedule(AnalyticsSnapshotJob()).using(utc).daily().at(0, 5)
         app.queues.schedule(AgeRecomputeJob()).using(utc).daily().at(0, 10)
         app.queues.schedule(BirthdayJob()).using(utc).daily().at(0, 15)
@@ -53,6 +58,7 @@ enum BackgroundJobs {
         app.queues.schedule(ChunkSweepJob()).every(minutes: 30)
         app.queues.schedule(MeetingReminderJob()).every(minutes: 5)   // matches Node's */5 cron; atomic claim makes it idempotent
         app.queues.schedule(PublishScheduledJob()).every(minutes: 1)   // scheduled posts go out within a minute
+        app.queues.schedule(AutoReupJob()).every(minutes: 1)           // auto re-up lands within a minute of its slot
         app.queues.schedule(TranslationSweepJob()).every(minutes: 2)
 
         try app.queues.startInProcessJobs(on: .default)
@@ -137,7 +143,7 @@ enum BackgroundJobs {
         }
     }
 
-    /// Daily birthday greetings — notify each birthday user's accepted
+    /// Daily birthday greetings. Notify each birthday user's accepted
     /// connections, deduped against "already sent today".
     struct BirthdayJob: AsyncScheduledJob {
         func run(context: QueueContext) async throws {
@@ -170,7 +176,7 @@ enum BackgroundJobs {
         }
     }
 
-    /// Every 5 min — send due meeting reminders. Folded review fix: claim the
+    /// Every 5 min. Send due meeting reminders. Folded review fix: claim the
     /// due rows atomically (`UPDATE … reminder_sent_at = NOW() WHERE … IS NULL
     /// RETURNING id`) BEFORE sending, so a concurrent/overlapping run can't
     /// double-send.
@@ -206,12 +212,20 @@ enum BackgroundJobs {
                 } else {
                     recipients = try await ChatStore.participants(p.conversation_id, on: db)
                 }
+                let people = conv.is_group ? [] : recipients
                 for uid in recipients {
+                    // The chat's card (the other person, or the group) is what
+                    // lets a tap on the reminder open that chat.
+                    let peer = conv.is_group ? uid : (people.first { $0 != uid } ?? uid)
+                    var payload = (try? await NotifyService.buildConversationCard(conv, actorID: peer, on: db)) ?? [:]
+                    payload["conversationId"] = p.conversation_id
+                    payload["messageId"] = p.message_id
+                    payload["proposalId"] = p.id
+                    payload["title"] = p.title
+                    payload["startsAt"] = JSONCoding.isoFractional.string(from: p.starts_at)
                     _ = await NotifyService.pushUserNotification(userID: uid, type: "meeting_reminder",
                         conversationID: p.conversation_id, entityID: p.id,
-                        payload: ["conversationId": p.conversation_id, "messageId": p.message_id,
-                                  "proposalId": p.id, "title": p.title,
-                                  "startsAt": JSONCoding.isoFractional.string(from: p.starts_at)],
+                        payload: payload,
                         on: db, hub: app.socketHub, logger: context.logger)
                 }
             }
@@ -230,6 +244,27 @@ enum BackgroundJobs {
                 await PostPublisher.didGoLive(post, app: app, queue: context.queue, logger: context.logger, notify: true)
             }
             if !live.isEmpty { context.logger.info("PublishScheduledJob: \(live.count) scheduled post(s) published") }
+        }
+    }
+
+    /// Re-ups the items whose seller turned on auto re-up (migration 095).
+    /// Each item is claimed first (its next slot moves on), then re-upped like a
+    /// manual tap; one failing item never stops the rest.
+    struct AutoReupJob: AsyncScheduledJob {
+        func run(context: QueueContext) async throws {
+            let app = context.application
+            let due = try await ListingStore.claimDueAutoReups(on: app.db.sql())
+            var done = 0
+            for listingID in due {
+                do {
+                    let postID = try await ListingStore.reup(listingID: listingID, seller: nil, on: app.db)
+                    await TranslationService.enqueue(.post, id: postID, app: app, queue: context.queue, logger: context.logger)
+                    done += 1
+                } catch {
+                    context.logger.warning("AutoReupJob: listing \(listingID) skipped: \(error)")
+                }
+            }
+            if done > 0 { context.logger.info("AutoReupJob: \(done) item(s) re-upped") }
         }
     }
 
@@ -314,7 +349,7 @@ enum BackgroundJobs {
     // MARK: embedding refresh on edit
 
     /// A post's or profile's text just changed: re-embed now instead of waiting
-    /// for the sweep. Never fails the request — a failed dispatch is caught by
+    /// for the sweep. Never fails the request. A failed dispatch is caught by
     /// the next sweep. Calling it when nothing relevant changed is cheap: the
     /// build sees the same source hash and stops before any LLM call.
     static func refreshEmbedding(_ req: Request, _ kind: ChunkEmbedJob.Kind, id: String) async {
@@ -323,7 +358,7 @@ enum BackgroundJobs {
     }
 
     /// A post's content was edited. Its AI tags described the old text and are
-    /// part of what gets embedded, so drop them and re-extract — extraction
+    /// part of what gets embedded, so drop them and re-extract. Extraction
     /// chains into the re-embed.
     static func refreshPostAfterContentEdit(_ req: Request, postID: String, content: String) async {
         guard enabled else { return }
@@ -338,7 +373,7 @@ enum BackgroundJobs {
     // MARK: social notifications (like / comment / reply / comment-like / share / connect)
 
     /// Delivers a "someone interacted with your thing" notification, but only
-    /// after a ~3s delay (see `NotifyService.dispatchSocial`) — long enough that
+    /// after a ~3s delay (see `NotifyService.dispatchSocial`). Long enough that
     /// an accidental like / comment / connection request undone within the
     /// window never reaches the recipient. `dequeue` re-checks that the
     /// triggering state still holds, then applies a 24h unread-dup guard, then
@@ -361,7 +396,7 @@ enum BackgroundJobs {
             var commentID: String? = nil
             var parentCommentID: String? = nil
             var connectionID: String? = nil
-            /// For post_shared: the repost row's id — deleting it inside the
+            /// For post_shared: the repost row's id. Deleting it inside the
             /// delay window cancels the notification.
             var checkID: String? = nil
         }
@@ -421,10 +456,16 @@ enum BackgroundJobs {
                     if let par = p.parentCommentID { payload["parentCommentId"] = par }
                 }
 
+                // A connection is made in one mode; the request shows that persona.
+                var connectionMode: String?
+                if let c = p.connectionID {
+                    struct M: Decodable { let mode: String }
+                    connectionMode = try await db.raw("SELECT mode FROM connections WHERE id = \(uuid: c)").first(decoding: M.self)?.mode
+                }
                 _ = await NotifyService.pushUserNotification(
                     userID: p.recipientID, type: p.type, actorID: p.actorID,
                     postID: p.postID, entityID: entityID, groupTargetID: groupTargetID,
-                    payload: payload, on: db, hub: hub, logger: logger)
+                    payload: payload, actorMode: connectionMode, on: db, hub: hub, logger: logger)
             } catch {
                 logger.warning("SocialNotifyJob \(p.type) failed: \(error)")
             }
@@ -524,14 +565,14 @@ enum BackgroundJobs {
     /// embedded within this many hours.
     static let freshnessDeadlineHours = 6
     /// An out-of-date item still waiting after this long means the queue path
-    /// is failing (Redis down, job lost) — the sweep then builds it itself.
+    /// is failing (Redis down, job lost). The sweep then builds it itself.
     static let directBuildAfter: TimeInterval = 60 * 60
 
     private static let sweepRunning = NIOLockedValueBox(false)
 
     /// Reconciles every embedding with its source (every 30 min + at boot):
     /// drops chunks whose source is gone or emptied, queues everything out of
-    /// date (no batch cap — the hash makes duplicate jobs free), and builds
+    /// date (no batch cap. The hash makes duplicate jobs free), and builds
     /// directly anything the queue hasn't managed within an hour. Items are
     /// tracked in `embedding_backlog`; one still pending past the deadline is
     /// logged as an error.
@@ -594,6 +635,6 @@ enum BackgroundJobs {
                 built += 1
             }
         }
-        app.logger.info("chunkSweep: \(items.count) out of date — queued \(queued), built \(built) directly")
+        app.logger.info("chunkSweep: \(items.count) out of date. Queued \(queued), built \(built) directly")
     }
 }

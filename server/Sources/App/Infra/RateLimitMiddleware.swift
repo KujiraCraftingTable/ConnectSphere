@@ -1,7 +1,7 @@
 import Vapor
 import NIOConcurrencyHelpers
 
-/// In-memory fixed-window rate limiter — the Swift counterpart of the
+/// In-memory fixed-window rate limiter. The Swift counterpart of the
 /// `express-rate-limit` instances in the Node backend. Counts are per-process
 /// and reset on restart, which matches the Node behaviour (no Redis store).
 ///
@@ -9,6 +9,10 @@ import NIOConcurrencyHelpers
 /// - `passwordAuth()`: 10 / 15 min, body `{ "error": "Too many attempts, please try again later" }`.
 /// - `clarify()`: 20 / 15 min.
 struct RateLimitMiddleware: AsyncMiddleware {
+    /// Keeps each limiter's counts apart. They share one store, so without it
+    /// the global limiter and a route's own limiter bumped the same counter and
+    /// every request counted twice (the real limits were half the stated ones).
+    let name: String
     let max: Int
     let windowSeconds: Double
     let inlineErrorBody: Bool
@@ -17,31 +21,31 @@ struct RateLimitMiddleware: AsyncMiddleware {
     private static let store = Store()
 
     static func global() -> RateLimitMiddleware {
-        .init(max: 1000, windowSeconds: 15 * 60, inlineErrorBody: false,
+        .init(name: "global", max: 1000, windowSeconds: 15 * 60, inlineErrorBody: false,
               message: "Too many requests, please try again later")
     }
     static func passwordAuth() -> RateLimitMiddleware {
-        .init(max: 10, windowSeconds: 15 * 60, inlineErrorBody: true,
+        .init(name: "password", max: 10, windowSeconds: 15 * 60, inlineErrorBody: true,
               message: "Too many attempts, please try again later")
     }
     /// Emailed codes (verify email, delete a persona / the account).
     static func accountCodes() -> RateLimitMiddleware {
-        .init(max: 20, windowSeconds: 15 * 60, inlineErrorBody: false,
+        .init(name: "codes", max: 20, windowSeconds: 15 * 60, inlineErrorBody: false,
               message: "Too many attempts, please try again later")
     }
     static func clarify() -> RateLimitMiddleware {
-        .init(max: 20, windowSeconds: 15 * 60, inlineErrorBody: true,
+        .init(name: "clarify", max: 20, windowSeconds: 15 * 60, inlineErrorBody: true,
               message: "Too many requests, please try again later")
     }
     /// Folded review fix: the Ollama-bound `/api/search/ai` is unthrottled in
-    /// Node — cap it per client. Allowlisted divergence.
+    /// Node, cap it per client. Allowlisted divergence.
     static func aiSearch() -> RateLimitMiddleware {
-        .init(max: 30, windowSeconds: 15 * 60, inlineErrorBody: false,
+        .init(name: "ai-search", max: 30, windowSeconds: 15 * 60, inlineErrorBody: false,
               message: "Too many searches, please slow down")
     }
 
     func respond(to request: Request, chainingTo next: any AsyncResponder) async throws -> Response {
-        let key = "\(ObjectIdentifier(Self.store).hashValue):\(request.route?.description ?? request.url.path):\(clientIP(request))"
+        let key = "\(name):\(request.route?.description ?? request.url.path):\(clientIP(request))"
         let (count, resetIn) = Self.store.hit(key: key, windowSeconds: windowSeconds)
         if count > max {
             if inlineErrorBody {
@@ -56,10 +60,18 @@ struct RateLimitMiddleware: AsyncMiddleware {
         return response
     }
 
+    /// Behind a reverse proxy (`TRUST_PROXY=1`) every request comes from the
+    /// proxy, so the client is the first `X-Forwarded-For` entry. Otherwise the
+    /// header is whatever the client chose to send, and trusting it let a new
+    /// value on each attempt get around the login and code limits.
+    private static let trustsProxy = Environment.get("TRUST_PROXY") == "1"
+
     private func clientIP(_ request: Request) -> String {
-        request.headers.first(name: "X-Forwarded-For")?.split(separator: ",").first.map(String.init)
-            ?? request.remoteAddress?.ipAddress
-            ?? "unknown"
+        if Self.trustsProxy,
+           let forwarded = request.headers.first(name: "X-Forwarded-For")?.split(separator: ",").first {
+            return forwarded.trimmingCharacters(in: .whitespaces)
+        }
+        return request.remoteAddress?.ipAddress ?? "unknown"
     }
 
     final class Store: @unchecked Sendable {

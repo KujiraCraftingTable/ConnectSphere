@@ -5,7 +5,7 @@ import SQLKit
 /// `userNotificationModel.js` inserts. The single funnel for creating a
 /// notification: writes the row and pushes `notification` + `notification_count`
 /// over the Socket.IO shim so the two can never drift. Every entry point
-/// swallows its own errors — a notification must never fail the action that
+/// swallows its own errors. A notification must never fail the action that
 /// triggered it.
 ///
 /// Reuses `NotificationsController.types` / `.toDTOJSON` / `.summary` (the read
@@ -62,7 +62,8 @@ enum NotifyService {
     static func pushUserNotification(userID: String, type: String, actorID: String? = nil,
                                      postID: String? = nil, communityID: String? = nil, conversationID: String? = nil,
                                      entityType: String? = nil, entityID: String? = nil, groupTargetID: String? = nil,
-                                     payload: [String: Any] = [:], on db: any SQLDatabase, hub: SocketHub, logger: Logger) async -> Bool {
+                                     payload: [String: Any] = [:], actorMode: String? = nil,
+                                     on db: any SQLDatabase, hub: SocketHub, logger: Logger) async -> Bool {
         guard NotificationsController.types[type] != nil else {
             logger.warning("refusing notification of unknown type \(type)"); return false
         }
@@ -71,7 +72,9 @@ enum NotifyService {
                                    postID: postID, conversationID: conversationID, communityID: communityID)
             var pl = payload
             if let aid = actorID, pl["fromUserId"] == nil {
-                for (k, v) in try await actorPayload(aid, on: db) { pl[k] = v }
+                let mode = await NotifyService.actorMode(type: type, given: actorMode, postID: postID, conversationID: conversationID,
+                                           communityID: communityID, on: db)
+                for (k, v) in try await actorPayload(aid, mode: mode, on: db) { pl[k] = v }
             }
             let plJSON = String(data: (try? JSONSerialization.data(withJSONObject: pl)) ?? Data("{}".utf8), encoding: .utf8) ?? "{}"
             let row = try await db.raw("""
@@ -106,7 +109,9 @@ enum NotifyService {
                                    postID: nil, conversationID: conversationID, communityID: nil)
             var pl = payload
             if let aid = actorID, pl["fromUserId"] == nil {
-                for (k, v) in try await actorPayload(aid, on: db) { pl[k] = v }
+                let mode = await actorMode(type: type, given: nil, postID: nil, conversationID: conversationID,
+                                           communityID: nil, on: db)
+                for (k, v) in try await actorPayload(aid, mode: mode, on: db) { pl[k] = v }
             }
             let plJSON = String(data: (try? JSONSerialization.data(withJSONObject: pl)) ?? Data("{}".utf8), encoding: .utf8) ?? "{}"
             let rows = try await db.raw("""
@@ -129,7 +134,7 @@ enum NotifyService {
 
     // MARK: chat
 
-    /// `notifyNewMessage` — a meeting proposal raises its own `meeting_proposed`
+    /// `notifyNewMessage`, a meeting proposal raises its own `meeting_proposed`
     /// row (with the proposal detail); everything else is the collapsed
     /// per-conversation "new message" row.
     static func notifyNewMessage(conversationID: String, senderID: String, message: MessageObject,
@@ -223,16 +228,46 @@ enum NotifyService {
 
     // MARK: helpers
 
-    static func actorPayload(_ actorID: String, on db: any SQLDatabase) async throws -> [String: Any] {
+    /// Who did it, as they appear in `mode`: a Work notification must show the
+    /// Work name and photo, never the Hobby (or legacy) ones. `mode` nil (not
+    /// known for this notification) falls back to the account's base name.
+    static func actorPayload(_ actorID: String, mode: String?, on db: any SQLDatabase) async throws -> [String: Any] {
         struct A: Decodable { let display_name: String?; let avatar_color: String?; let avatar_url: String? }
-        let a = try await db.raw("SELECT display_name, avatar_color, avatar_url FROM users WHERE id = \(uuid: actorID)")
-            .first(decoding: A.self)
+        // A fixed literal, never user input: `mode` is checked against the two values.
+        let modeRef = mode.flatMap { ["hobby", "work"].contains($0) ? "'\($0)'" : nil }
+        let name = modeRef.map { PersonaSQL.expr("display_name", modeRef: $0) } ?? "u.display_name"
+        let avatar = modeRef.map { PersonaSQL.expr("avatar_url", modeRef: $0) } ?? "u.avatar_url"
+        let a = try await db.raw("""
+            SELECT \(unsafeRaw: name) AS display_name, u.avatar_color, \(unsafeRaw: avatar) AS avatar_url
+            FROM users u WHERE u.id = \(uuid: actorID)
+            """).first(decoding: A.self)
         return [
             "fromUserId": actorID,
             "fromDisplayName": a?.display_name as Any,
             "fromAvatarColor": a?.avatar_color as Any,
             "fromAvatarUrl": a?.avatar_url as Any,
         ]
+    }
+
+    /// Which persona a notification is about: given by the caller, implied by
+    /// a Work-only type, or the mode of the post, chat or community it points at.
+    static func actorMode(type: String, given: String?, postID: String?, conversationID: String?,
+                          communityID: String?, on db: any SQLDatabase) async -> String? {
+        if let given, ["hobby", "work"].contains(given) { return given }
+        if ["skill_endorsed", "job_application", "application_status"].contains(type) { return "work" }
+        struct M: Decodable { let mode: String? }
+        if let postID {
+            return try? await db.raw("SELECT mode FROM posts WHERE id = \(uuid: postID)").first(decoding: M.self)?.mode
+        }
+        if let conversationID {
+            return try? await db.raw("SELECT mode FROM conversations WHERE id = \(uuid: conversationID)").first(decoding: M.self)?.mode
+        }
+        if let communityID {
+            return try? await db.raw("""
+                SELECT CASE WHEN type = 'work' THEN 'work' ELSE 'hobby' END AS mode FROM communities WHERE id = \(uuid: communityID)
+                """).first(decoding: M.self)?.mode
+        }
+        return nil
     }
 
     static func buildConversationCard(_ conv: ChatStore.ConvBasic, actorID: String, on db: any SQLDatabase) async throws -> [String: Any] {
@@ -262,7 +297,7 @@ enum NotifyService {
         return card
     }
 
-    /// Fire-and-forget a notification side effect from a REST handler — Node
+    /// Fire-and-forget a notification side effect from a REST handler, Node
     /// never awaits these, so neither do we (keeps response latency parity).
     static func fireAndForget(_ req: Request, _ work: @escaping @Sendable (any SQLDatabase, SocketHub, Logger) async -> Void) {
         let db = req.application.db, hub = req.application.socketHub, log = req.logger
@@ -274,7 +309,7 @@ enum NotifyService {
     /// connection_request / connection_accepted). Never delivered inline: it
     /// goes onto the queue with a ~3s `delayUntil`, and `SocialNotifyJob`
     /// re-checks that the like / comment / request still exists before writing
-    /// the row — so an accidental tap that's undone within the window notifies
+    /// the row, so an accidental tap that's undone within the window notifies
     /// nobody. With `RUN_JOBS` unset there's no queue, so it falls back to an
     /// immediate fire-and-forget through the same delivery body (still deduped,
     /// just without the cancel window).
@@ -299,7 +334,7 @@ enum NotifyService {
     }
 
     /// A post just went live in a community: tell the members whose level
-    /// asks for it. Detached — it never holds up or fails the post.
+    /// asks for it. Detached, it never holds up or fails the post.
     static func communityNewPost(app: Application, postID: String, communityID: String, authorID: String,
                                  logger: Logger) {
         let db = app.db.sql(), hub = app.socketHub

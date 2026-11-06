@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 065 — Two-factor sign-in, and changing a verified email in two steps
+-- 065, Two-factor sign-in, and changing a verified email in two steps
 --
 -- With 2FA on, every sign-in (password or Google) needs a code emailed to the
 -- verified address. Changing a verified email: a code to the current address

@@ -72,7 +72,7 @@ enum MessageRequests {
     /// The starter's limit, as a pure rule.
     static func decide(sent: Int) -> Gate { sent >= limit ? .limitReached : .open }
 
-    /// Accept a request — only its recipient can.
+    /// Accept a request. Only its recipient can.
     static func accept(conversationID: String, by userID: String, on db: any SQLDatabase) async throws {
         try await db.raw("""
             UPDATE conversations SET request_accepted_at = NOW()
@@ -87,7 +87,7 @@ enum MessageRequests {
     /// Among `ids`, the people `actor` may NOT put in a group or a space in
     /// `mode`: neither friends there, nor in a 1-on-1 chat that's past the
     /// request stage. Until a stranger is accepted, these are how they'd
-    /// otherwise skip Waiting — straight into your Messages via a group.
+    /// otherwise skip Waiting. Straight into your Messages via a group.
     static func unrelated(_ actor: String, _ ids: [UUID], mode: String, on db: any SQLDatabase) async throws -> Set<String> {
         guard !ids.isEmpty, ["hobby", "work"].contains(mode) else { return [] }
         let me = quoted(actor)

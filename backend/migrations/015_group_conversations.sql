@@ -3,7 +3,7 @@
 -- conversation_participants gains a simple owner/member role.
 --
 -- Exactly-one-owner is enforced at the application layer (promote/leave
--- transactions in messageModel.transferOwnership), not a DB constraint —
+-- transactions in messageModel.transferOwnership), not a DB constraint,
 -- mirrors how community_members' role invariants are app-enforced too.
 
 ALTER TABLE conversations

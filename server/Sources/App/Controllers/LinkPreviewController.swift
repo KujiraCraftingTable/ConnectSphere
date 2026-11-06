@@ -2,7 +2,7 @@ import Vapor
 import AsyncHTTPClient
 import NIOCore
 
-/// POST /api/link-preview — port of `backend/src/routes/linkPreviewRoutes.js`.
+/// POST /api/link-preview, port of `backend/src/routes/linkPreviewRoutes.js`.
 /// Keeps the SSRF guard (block localhost / private / link-local / CGNAT /
 /// multicast, re-check every redirect hop), oEmbed-first for known providers,
 /// OG-tag scrape (≤150 KB) as fallback, and "return minimal metadata, still
@@ -82,7 +82,7 @@ struct LinkPreviewController {
             if isPrivateIP(host) { throw BlockedHost() }
             return
         }
-        // Synchronous getaddrinfo via NIO — mirrors Node's `dns.lookup` (one
+        // Synchronous getaddrinfo via NIO. Mirrors Node's `dns.lookup` (one
         // resolved address). Off the event loop.
         let resolved: SocketAddress = try await eventLoop.makeFutureWithTask {
             try SocketAddress.makeAddressResolvingHost(host, port: 80)

@@ -9,7 +9,7 @@ struct UsersController {
 
         users.get(use: listUsers)                                  // GET  /api/users
         users.patch("me", use: updateMe)                           // PATCH /api/users/me
-        // DELETE /api/users/me — confirmed with an emailed code (AccountController).
+        // DELETE /api/users/me, confirmed with an emailed code (AccountController).
         users.grouped(RateLimitMiddleware.accountCodes()).delete("me", use: AccountController.deleteAccount)
         users.post("me", "personas", use: createPersona)           // POST /api/users/me/personas
         users.patch("me", "default-mode", use: updateDefaultMode)  // PATCH /api/users/me/default-mode
@@ -17,6 +17,8 @@ struct UsersController {
         users.post(":id", "block", use: blockUser)                 // POST /api/users/:id/block
         users.delete(":id", "block", use: unblockUser)             // DELETE /api/users/:id/block
         users.get(":id", "blocked", use: blockStatus)              // GET  /api/users/:id/blocked
+        users.put(":id", "hide-posts", use: hideAuthor)            // PUT  /api/users/:id/hide-posts
+        users.delete(":id", "hide-posts", use: unhideAuthor)       // DELETE /api/users/:id/hide-posts
         users.get(":id", use: getUser)                             // GET  /api/users/:id
     }
 
@@ -80,6 +82,25 @@ struct UsersController {
         return BlockedFlagResponse(blocked: false)
     }
 
+    /// "Hide all from this person": their posts leave my feed and lists, with no
+    /// block, we can still see each other's profiles and message.
+    static func hideAuthor(_ req: Request) async throws -> HiddenAuthorResponse {
+        let id = req.parameters.get("id")!
+        guard id != req.userID else { throw InlineError(.badRequest, "Cannot hide yourself") }
+        let db = req.db.sql()
+        struct R: Decodable { let id: String }
+        guard try await db.raw("SELECT id FROM users WHERE id = \(uuid: id) AND deleted_at IS NULL").first(decoding: R.self) != nil else {
+            throw Abort(.notFound, reason: "User not found")
+        }
+        try await db.raw("INSERT INTO hidden_authors (user_id, author_id) VALUES (\(uuid: req.userID), \(uuid: id)) ON CONFLICT DO NOTHING").run()
+        return HiddenAuthorResponse(hidden: true)
+    }
+
+    static func unhideAuthor(_ req: Request) async throws -> HiddenAuthorResponse {
+        try await req.db.sql().raw("DELETE FROM hidden_authors WHERE user_id = \(uuid: req.userID) AND author_id = \(uuid: req.parameters.get("id")!)").run()
+        return HiddenAuthorResponse(hidden: false)
+    }
+
     static func blockStatus(_ req: Request) async throws -> BlockStatusResponse {
         let id = req.parameters.get("id")!
         let db = req.db.sql()
@@ -97,6 +118,8 @@ struct UsersController {
     struct UpdateMeBody: Content {
         var display_name: String?
         var bio: String?
+        /// "markdown" when the bio was written with Markdown; sent with `bio`.
+        var bio_format: String?
         var location: String?
         var job_title: String?
         var company: String?
@@ -174,7 +197,7 @@ struct UsersController {
         }
 
         // The email changes only through a code (AccountController), never
-        // here — or a stolen password could redirect the deletion codes.
+        // here, or a stolen password could redirect the deletion codes.
         if sent("email") {
             struct E: Decodable { let email: String? }
             let current = try await sdb.raw("SELECT email FROM users WHERE id = \(uuid: req.userID)").first(decoding: E.self)?.email
@@ -190,7 +213,11 @@ struct UsersController {
         }
         var fields: [(String, String?)] = []
         if sent("display_name") { fields.append(("display_name", raw.display_name?.trimmingCharacters(in: .whitespaces))) }
-        if sent("bio")          { fields.append(("bio", trimmedOrNil(raw.bio))) }
+        if sent("bio")          {
+            fields.append(("bio", trimmedOrNil(raw.bio)))
+            // New text from an app that doesn't say otherwise is plain.
+            fields.append(("bio_format", PostStore.contentFormats.contains(raw.bio_format ?? "") ? raw.bio_format : "plain"))
+        }
         if sent("location")     { fields.append(("location", trimmedOrNil(raw.location))) }
         if sent("job_title")    { fields.append(("job_title", trimmedOrNil(raw.job_title))) }
         if sent("company")      { fields.append(("company", trimmedOrNil(raw.company))) }

@@ -9,7 +9,7 @@ enum FollowStore {
     static let modes: Set<String> = ["hobby", "work"]
 
     /// SQL: is (a, b) an accepted friendship in `modeRef`? Both arguments and
-    /// `modeRef` are SQL expressions — column refs or an allowlisted literal.
+    /// `modeRef` are SQL expressions. Column refs or an allowlisted literal.
     private static func areFriends(_ a: String, _ b: String, modeRef: String) -> String {
         """
         EXISTS (SELECT 1 FROM connections c WHERE c.status = 'accepted' AND c.mode = \(modeRef)
@@ -75,7 +75,7 @@ enum FollowStore {
     }
 
     /// Followers (`followers == true`) or followees of `userID` in `mode`,
-    /// newest first, friends excluded — the same people the counts count.
+    /// newest first, friends excluded. The same people the counts count.
     static func list(of userID: String, followers: Bool, mode: String, limit: Int, offset: Int,
                      on db: any SQLDatabase) async throws -> [Person] {
         let other = followers ? "f.follower_id" : "f.followee_id"

@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 070 — Community pages (Facebook-group style)
+-- 070, Community pages (Facebook-group style)
 --
 -- Communities get a cover photo (no profile picture any more), optional
 -- post approval and a record of the last rename. Each member gets a

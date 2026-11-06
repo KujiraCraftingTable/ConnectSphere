@@ -21,6 +21,40 @@ enum ListingStore {
         var hideFromFriends: Bool
         var latitude: Double? = nil
         var longitude: Double? = nil
+        var autoReup: PostObject.ListingData.AutoReup? = nil
+    }
+
+    // MARK: auto re-up (migration 095)
+
+    static let autoReupDays = [1, 3, 7]
+    static let autoReupHours = [9, 12, 15, 18, 21, 24]
+    /// The schedule's clock, whatever the seller's phone says.
+    static let vietnam: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "Asia/Ho_Chi_Minh")!
+        return c
+    }()
+
+    static func validateAutoReup(_ a: PostObject.ListingData.AutoReup?) throws {
+        guard let a else { return }
+        guard autoReupDays.contains(a.every_days) else { throw Abort(.badRequest, reason: "Auto re-up must be every 1, 3 or 7 days") }
+        guard autoReupHours.contains(a.hour) else { throw Abort(.badRequest, reason: "Auto re-up hour must be 9, 12, 15, 18, 21 or 24") }
+    }
+
+    /// `days` calendar days on from the day of `from` (Vietnam time), at
+    /// `hour`:00, 24 is that day's following midnight.
+    static func nextAutoReup(from: Date, days: Int, hour: Int, calendar: Calendar = vietnam) -> Date {
+        let day = calendar.startOfDay(for: from)
+        let target = calendar.date(byAdding: .day, value: days, to: day)!
+        return calendar.date(byAdding: .hour, value: hour, to: target)!
+    }
+
+    /// A slot that's already past moves on by whole intervals, so a missed run
+    /// never fires twice.
+    static func advanceAutoReup(_ slot: Date, days: Int, after now: Date, calendar: Calendar = vietnam) -> Date {
+        var next = slot
+        while next <= now { next = calendar.date(byAdding: .day, value: days, to: next)! }
+        return next
     }
 
     /// A place picked on the map: both coordinates or neither, in range.
@@ -56,9 +90,10 @@ enum ListingStore {
             throw Abort(.badRequest, reason: "Auto-reply must be at most \(maxAutoReply) characters")
         }
         let point = try coordinates(d.latitude, d.longitude)
+        try validateAutoReup(d.autoReup)
         return Details(title: title, price: price, condition: condition, location: location,
                        autoReply: autoReply, hideFromFriends: d.hideFromFriends ?? false,
-                       latitude: point?.0, longitude: point?.1)
+                       latitude: point?.0, longitude: point?.1, autoReup: d.autoReup)
     }
 
     /// Returns the listing's id.
@@ -66,10 +101,12 @@ enum ListingStore {
         struct R: Decodable { let id: String }
         return try await db.raw("""
             INSERT INTO listing_posts (post_id, title, price, condition, location, auto_reply, hide_from_friends,
-                                       latitude, longitude)
+                                       latitude, longitude, auto_reup_days, auto_reup_hour, next_auto_reup_at)
             VALUES (\(uuid: postID), \(bind: d.title), \(bind: d.price), \(bind: d.condition),
                     \(bind: d.location), \(bind: d.autoReply), \(bind: d.hideFromFriends),
-                    \(bind: d.latitude), \(bind: d.longitude))
+                    \(bind: d.latitude), \(bind: d.longitude),
+                    \(bind: d.autoReup?.every_days), \(bind: d.autoReup?.hour),
+                    \(bind: d.autoReup.map { nextAutoReup(from: Date(), days: $0.every_days, hour: $0.hour) }))
             RETURNING id::text AS id
             """).first(decoding: R.self)!.id
     }
@@ -175,7 +212,10 @@ enum ListingStore {
           (CASE WHEN p.post_type = 'listing' THEN (
             SELECT json_build_object('id', lp.id, 'title', lp.title, 'price', lp.price, 'condition', lp.condition,
               'location', lp.location, 'latitude', lp.latitude, 'longitude', lp.longitude,
-              'status', lp.status, 'hide_from_friends', lp.hide_from_friends,
+              'status', lp.status, 'reup_count', lp.reup_count, 'hide_from_friends', lp.hide_from_friends,
+              'auto_reup', CASE WHEN p.author_id = \(uuid: v) AND lp.auto_reup_days IS NOT NULL
+                  THEN json_build_object('every_days', lp.auto_reup_days, 'hour', lp.auto_reup_hour) END,
+              'next_auto_reup_at', CASE WHEN p.author_id = \(uuid: v) THEN lp.next_auto_reup_at END,
               'has_auto_reply', lp.auto_reply IS NOT NULL,
               'auto_reply', CASE WHEN p.author_id = \(uuid: v) THEN lp.auto_reply END,
               'communities', COALESCE((SELECT json_agg(json_build_object('id', lc.community_id, 'name', lcc.name,
@@ -189,7 +229,7 @@ enum ListingStore {
 
     // MARK: marketplace
 
-    /// Every available listing in `mode` the viewer may see, newest first —
+    /// Every available listing in `mode` the viewer may see, newest first,
     /// or only those listed in `communityID`. The feed's visibility rules
     /// (privacy and hide-from-friends, blocks, hidden, muted words) apply.
     static func marketplace(viewer: String, mode: String, query: String?, communityID: String?, sellerID: String? = nil,
@@ -240,6 +280,12 @@ enum ListingStore {
         var latitude: Double?
         var longitude: Double?
         var clear_coordinates: Bool?
+        /// The photos, replaced as a whole (1–10); alts line up with them.
+        var image_urls: [String]?
+        var image_alts: [String]?
+        /// Set or change the auto re-up schedule, or `clear_auto_reup` to stop it.
+        var auto_reup: PostObject.ListingData.AutoReup?
+        var clear_auto_reup: Bool?
     }
 
     /// Applies only the fields sent; an empty location or auto-reply clears it.
@@ -280,10 +326,102 @@ enum ListingStore {
             guard statuses.contains(s) else { throw Abort(.badRequest, reason: "Invalid status") }
             sets.append("status = \(bind: s)")
         }
-        guard !sets.isEmpty else { throw Abort(.badRequest, reason: "Nothing to update") }
+        try validateAutoReup(p.auto_reup)
+        // Sold cancels auto re-up for good; otherwise the patch sets or clears it.
+        if p.status == "sold" || p.clear_auto_reup == true {
+            sets.append("auto_reup_days = NULL")
+            sets.append("auto_reup_hour = NULL")
+            sets.append("next_auto_reup_at = NULL")
+        } else if let a = p.auto_reup {
+            sets.append("auto_reup_days = \(bind: a.every_days)")
+            sets.append("auto_reup_hour = \(bind: a.hour)")
+            sets.append("next_auto_reup_at = \(bind: nextAutoReup(from: Date(), days: a.every_days, hour: a.hour))")
+        }
+        let photos = try photoUpdate(p)
+        guard !sets.isEmpty || photos != nil else { throw Abort(.badRequest, reason: "Nothing to update") }
+        if let photos {
+            try await db.raw("""
+                UPDATE posts SET image_urls = \(bind: photos.urls), image_alts = \(bind: photos.alts), updated_at = NOW()
+                WHERE id = (SELECT post_id FROM listing_posts WHERE id = \(uuid: listingID))
+                """).run()
+        }
+        guard !sets.isEmpty else { return }
         var q: SQLQueryString = "UPDATE listing_posts SET updated_at = NOW()"
         for s in sets { q = q + ", " + s }
         try await db.raw(q + " WHERE id = \(uuid: listingID)").run()
+    }
+
+    /// The new photo list from a patch, nil when it doesn't touch photos. A
+    /// listing can never be left without one.
+    static func photoUpdate(_ p: Patch) throws -> (urls: [String], alts: [String]?)? {
+        guard let raw = p.image_urls else { return nil }
+        guard let urls = PostsController.normalizeImageUrls(raw) else { throw Abort(.badRequest, reason: "Add at least one photo") }
+        return (urls, PostStore.cleanAlts(p.image_alts, count: urls.count))
+    }
+
+    // MARK: re-up (migration 093)
+
+    /// Posts the item again as new: a fresh `posts` row takes over the listing
+    /// and the old post is retired as 'replaced'. The new post starts with no
+    /// likes, no comments and today's date; only what's tied to the item itself
+    /// follows it, saves, and "hide" / "not interested". Returns the new post's id.
+    /// `seller` nil = the auto re-up job, which has already picked the row.
+    static func reup(listingID: String, seller: String?, on db: AppDatabase) async throws -> String {
+        var newID = ""
+        try await db.tx { t in
+            struct Row: Decodable { let post_id: String; let author_id: String; let status: String; let post_status: String }
+            // Locking the item row serialises two quick taps into two re-ups, not one lost update.
+            guard let cur = try await t.raw("""
+                SELECT l.post_id::text AS post_id, p.author_id::text AS author_id, l.status, p.status::text AS post_status
+                FROM listing_posts l JOIN posts p ON p.id = l.post_id
+                WHERE l.id = \(uuid: listingID) FOR UPDATE OF l
+                """).first(decoding: Row.self), cur.post_status == "posted" else {
+                throw Abort(.notFound, reason: "Listing not found")
+            }
+            if let seller, cur.author_id != seller { throw Abort(.forbidden, reason: "Only the seller can re-up this listing") }
+            guard cur.status == "available" else { throw Abort(.badRequest, reason: "A sold item can't be re-upped") }
+            struct New: Decodable { let id: String }
+            let new = try await t.raw("""
+                INSERT INTO posts (author_id, content, content_format, mode, privacy, community_id, post_type, image_urls, image_alts,
+                                   lang, translated_text)
+                SELECT author_id, content, content_format, mode, privacy, community_id, post_type, image_urls, image_alts,
+                       lang, translated_text
+                FROM posts WHERE id = \(uuid: cur.post_id)
+                RETURNING id::text AS id
+                """).first(decoding: New.self)!
+            try await t.raw("UPDATE posts SET status = 'replaced' WHERE id = \(uuid: cur.post_id)").run()
+            try await t.raw("UPDATE listing_posts SET post_id = \(uuid: new.id), reup_count = reup_count + 1, updated_at = NOW() WHERE id = \(uuid: listingID)").run()
+            // The new post has none of its own yet, so these can't collide.
+            for table in ["saved_posts", "hidden_posts", "post_feedback"] {
+                try await t.raw("UPDATE \(unsafeRaw: table) SET post_id = \(uuid: new.id) WHERE post_id = \(uuid: cur.post_id)").run()
+            }
+            newID = new.id
+        }
+        return newID
+    }
+
+    /// Items whose auto re-up is due, claimed so no other run takes them: the
+    /// next slot moves ahead first, and only the run that still sees the old
+    /// slot gets the item. A slow run or a restart can't fire one twice.
+    static func claimDueAutoReups(now: Date = Date(), on db: any SQLDatabase) async throws -> [String] {
+        struct Due: Decodable { let id: String; let days: Int; let slot: Date }
+        let due = try await db.raw("""
+            SELECT l.id::text AS id, l.auto_reup_days AS days, l.next_auto_reup_at AS slot
+            FROM listing_posts l JOIN posts p ON p.id = l.post_id
+            WHERE l.next_auto_reup_at <= \(bind: now) AND l.status = 'available' AND p.status = 'posted'
+            ORDER BY l.next_auto_reup_at LIMIT 50
+            """).all(decoding: Due.self)
+        var claimed: [String] = []
+        for d in due {
+            let next = advanceAutoReup(d.slot, days: d.days, after: now)
+            let moved = try await db.raw("""
+                UPDATE listing_posts SET next_auto_reup_at = \(bind: next)
+                WHERE id = \(uuid: d.id) AND next_auto_reup_at = \(bind: d.slot)
+                RETURNING id
+                """).all()
+            if !moved.isEmpty { claimed.append(d.id) }
+        }
+        return claimed
     }
 
     /// The seller of a post that's a sold listing; nil for anything else.

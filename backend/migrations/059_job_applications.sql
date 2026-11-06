@@ -1,9 +1,9 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 059 — Easy Apply (Work mode)
+-- 059, Easy Apply (Work mode)
 --
 -- Applying to a job with your profile, an optional note and an optional CV
--- (a PDF upload). One application per person per job. The poster — or the
--- admins of the company the job is posted as — moves it along:
+-- (a PDF upload). One application per person per job. The poster, or the
+-- admins of the company the job is posted as. Moves it along:
 -- applied → viewed → shortlisted / rejected → hired; every step is kept as an
 -- event so the applicant sees a timeline.
 -- ─────────────────────────────────────────────────────────────────────────────

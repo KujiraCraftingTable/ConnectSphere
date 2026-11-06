@@ -1,6 +1,6 @@
 import Vapor
 
-/// Port of `backend/src/services/postAnalyzeService.js` — classify a post as
+/// Port of `backend/src/services/postAnalyzeService.js`. Classify a post as
 /// hobby / work / neutral. Keyword fast-path first (no LLM), then a constrained
 /// LLM call, then a neutral fallback on any failure.
 enum PostAnalyzeService {
@@ -70,7 +70,7 @@ enum PostAnalyzeService {
                 confidence: conf,
                 reason: j["reason"] as? String ?? "")
         } catch {
-            logger.warning("Post analyze failed — returning neutral: \(error)")
+            logger.warning("Post analyze failed, returning neutral: \(error)")
             return Result(suggestedMode: "neutral", confidence: 0, reason: "")
         }
     }

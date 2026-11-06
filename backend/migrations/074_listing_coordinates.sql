@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 074 — Where a listing is, on the map
+-- 074, Where a listing is, on the map
 --
 -- The seller picks the place on a map; `location` keeps its name and these
 -- its coordinates (both or neither), for the map on the listing's page.

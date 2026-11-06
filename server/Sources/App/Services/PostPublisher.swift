@@ -2,7 +2,7 @@ import Vapor
 import Queues
 import SQLKit
 
-/// What happens when a post goes live — at once, or later from a schedule.
+/// What happens when a post goes live. At once, or later from a schedule.
 /// Kept in one place so a scheduled post gets exactly what an immediate one does.
 enum PostPublisher {
     /// A post that just went live, as `claimScheduled` / `publishNow` return it.
@@ -13,7 +13,7 @@ enum PostPublisher {
         let post_type: String
         let mode: String
         let content: String?
-        /// posted — or pending, when its community approves posts first.
+        /// posted, or pending, when its community approves posts first.
         let status: String
     }
 
@@ -29,14 +29,14 @@ enum PostPublisher {
 
     /// For feed posts (community posts don't have these yet): the AI mode
     /// check, which notifies the author on a mismatch, and tag extraction →
-    /// embedding (or a direct embed for a link/image-only post) — the queue
+    /// embedding (or a direct embed for a link/image-only post). The queue
     /// part only when this server owns the job schedule.
     static func afterPublish(_ req: Request, post: PostObject) async {
-        await afterPublish(req.application, queue: req.queue, logger: req.logger,
+        await afterPublish(req.application, queue: BackgroundJobs.queue(for: req), logger: req.logger,
                            postID: post.id, mode: post.mode, content: post.content ?? "", authorID: req.userID)
     }
 
-    static func afterPublish(_ app: Application, queue: any Queue, logger: Logger,
+    static func afterPublish(_ app: Application, queue: (any Queue)?, logger: Logger,
                              postID: String, mode: String, content: String, authorID: String) async {
         await TranslationService.enqueue(.post, id: postID, app: app, queue: queue, logger: logger)
         if !content.isEmpty {
@@ -55,7 +55,7 @@ enum PostPublisher {
                 }
             }
         }
-        if BackgroundJobs.enabled {
+        if let queue {
             if !content.isEmpty {
                 try? await queue.dispatch(BackgroundJobs.TagExtractionJob.self,
                     .init(postId: postID, content: content), maxRetryCount: 3)
@@ -76,7 +76,7 @@ enum PostPublisher {
         date >= now.addingTimeInterval(minLead) && date <= now.addingTimeInterval(maxLead)
     }
 
-    /// Claims every scheduled post that's due, atomically — two job runs (or
+    /// Claims every scheduled post that's due, atomically. Two job runs (or
     /// two servers) can't both publish one. It takes its publish time as its
     /// date, so it lands in feeds as new.
     static func claimScheduled(on db: any SQLDatabase) async throws -> [Live] {
@@ -99,9 +99,9 @@ enum PostPublisher {
     }
 
     /// The counters a post bumps when it's created live, plus the feed side
-    /// effects and — for a scheduled one — "Your scheduled post is live".
-    static func didGoLive(_ post: Live, app: Application, queue: any Queue, logger: Logger, notify: Bool) async {
-        // Held for approval: nothing is live yet — approving it does the rest.
+    /// effects and, for a scheduled one, "Your scheduled post is live".
+    static func didGoLive(_ post: Live, app: Application, queue: (any Queue)?, logger: Logger, notify: Bool) async {
+        // Held for approval: nothing is live yet. Approving it does the rest.
         guard post.status == "posted" else { return }
         let db = app.db.sql()
         do {

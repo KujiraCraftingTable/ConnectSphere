@@ -3,7 +3,7 @@ import PostgresKit
 import PostgresNIO
 import SQLKit
 
-/// Thin wrapper over a PostgresKit connection pool — the Swift counterpart of
+/// Thin wrapper over a PostgresKit connection pool. The Swift counterpart of
 /// `backend/src/config/db.js`. Exposes raw SQL (`sql()` → `SQLDatabase`) plus a
 /// `withTransaction` helper with the same all-or-nothing contract.
 final class AppDatabase: @unchecked Sendable {
@@ -38,7 +38,7 @@ final class AppDatabase: @unchecked Sendable {
         self.logger = logger
     }
 
-    /// SQLKit query interface — use `db.sql().raw("… \(bind: x) …")` for the
+    /// SQLKit query interface. Use `db.sql().raw("… \(bind: x) …")` for the
     /// ported queries (the `\(bind:)` interpolation emits `$1, $2, …` in order).
     func sql() -> any SQLDatabase {
         pool.database(logger: logger).sql()

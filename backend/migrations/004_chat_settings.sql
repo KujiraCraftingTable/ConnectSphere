@@ -9,7 +9,7 @@ ALTER TABLE conversations
 -- Per-participant fields on conversation_participants (one row = one user in a convo):
 --   nickname    : label FOR this user in this conversation, set by the OTHER person,
 --                 visible to BOTH (NULL → use real display_name).
---   muted_until : this user's own mute setting —
+--   muted_until : this user's own mute setting,
 --                   NULL       → not muted (default),
 --                   future ts  → muted until that moment,
 --                   'infinity' → muted until manually turned back on.

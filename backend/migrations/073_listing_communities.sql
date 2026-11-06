@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 073 — A listing in the Marketplace, optionally listed in communities
+-- 073, A listing in the Marketplace, optionally listed in communities
 --
 -- A listing is now its own post (community_id NULL): it's in the Marketplace
 -- for its mode, and its seller can also list it in up to 5 of their

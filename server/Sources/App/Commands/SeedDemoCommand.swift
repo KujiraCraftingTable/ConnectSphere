@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// `swift run App seed-demo <action>` — manages the demo population.
+/// `swift run App seed-demo <action>`. Manages the demo population.
 ///
 /// `wipe` removes the old seed people (`password_hash = 'SEED_DATA'`), the
 /// contract-test accounts and the hand-made QA accounts, then recounts every
@@ -41,7 +41,7 @@ struct SeedDemoCommand: AsyncCommand {
         "first_username", "coldstart_test1",
     ]
 
-    /// Made by `server/contract/*.sh`.
+    /// Made by the contract tests of the Node port (removed; the accounts can still be in an old database).
     static let contractUsernamePattern = "^p(1|2|3|4|4b|4c|5|u)_[0-9]+_"
 
     /// Hand-made QA accounts from earlier feature checks, confirmed one by one
@@ -98,7 +98,7 @@ struct SeedDemoCommand: AsyncCommand {
         }
         guard !doomed.isEmpty else { context.console.info("Nothing to wipe."); return }
         let groups = Dictionary(grouping: doomed, by: \.grp).mapValues(\.count)
-        context.console.info("Selected \(doomed.count) accounts — seed \(groups["seed"] ?? 0), "
+        context.console.info("Selected \(doomed.count) accounts, seed \(groups["seed"] ?? 0), "
             + "contract \(groups["contract"] ?? 0), QA \(groups["qa"] ?? 0).")
 
         if commit { try backUp(context) }
@@ -118,7 +118,7 @@ struct SeedDemoCommand: AsyncCommand {
             context.console.info("Wipe committed.")
         } catch let dry as DryRun {
             dry.lines.forEach { context.console.info($0) }
-            context.console.warning("Dry run — rolled back. Re-run with --commit to back up and delete.")
+            context.console.warning("Dry run, rolled back. Re-run with --commit to back up and delete.")
         }
     }
 
@@ -134,7 +134,7 @@ struct SeedDemoCommand: AsyncCommand {
             ("reports they resolved (resolver cleared)",
              "UPDATE community_reports SET resolved_by = NULL WHERE resolved_by = ANY(\(bind: ids))"),
             // Their communities cascade away, but `posts.community_id` is SET
-            // NULL — anyone else's posts there would turn into profile posts.
+            // NULL, anyone else's posts there would turn into profile posts.
             ("posts in communities they created",
              "DELETE FROM posts WHERE community_id IN (SELECT id FROM communities WHERE created_by = ANY(\(bind: ids)))"),
             // Participants cascade, conversations don't: a chat whose other
@@ -160,8 +160,8 @@ struct SeedDemoCommand: AsyncCommand {
         return lines
     }
 
-    /// Every denormalized counter set to what its rows say — including back to
-    /// zero where no rows remain. Adapted from `legacy/backend-node/scripts/reconcile-counters.js`;
+    /// Every denormalized counter set to what its rows say. Including back to
+    /// zero where no rows remain. Adapted from `scripts/reconcile-counters.js` of the retired Node backend (tag `node-backend-final`);
     /// each source yields `(id, n)` for every row of the target table.
     static func recountCounters(on t: any SQLDatabase) async throws -> [String] {
         let connections = """
@@ -234,7 +234,7 @@ struct SeedDemoCommand: AsyncCommand {
 
     // MARK: - Backup
 
-    /// `pg_dump` of the Postgres container into `backend/backups/` — never
+    /// `pg_dump` of the Postgres container into `backend/backups/`. Never
     /// overwrites an earlier backup, so a second run can't replace the
     /// pre-wipe copy with a post-wipe one.
     private func backUp(_ context: CommandContext) throws {

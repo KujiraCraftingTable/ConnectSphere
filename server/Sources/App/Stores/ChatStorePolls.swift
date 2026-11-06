@@ -62,8 +62,8 @@ extension ChatStore {
 
     enum PollVoteResult { case changed, unchanged, notFound, invalidOption, ended }
 
-    /// Sets `userID`'s vote to `optionID` — a first vote, or a move from
-    /// another option — or takes it back when `optionID` is nil. Changes stop
+    /// Sets `userID`'s vote to `optionID`. A first vote, or a move from
+    /// another option, or takes it back when `optionID` is nil. Changes stop
     /// once the poll has ended. Run inside a transaction: the poll row is
     /// locked so the vote and the counts change together.
     static func votePoll(messageID: String, optionID: String?, userID: String,

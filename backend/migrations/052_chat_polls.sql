@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 052 — Polls in group chats
+-- 052, Polls in group chats
 --
 -- A poll is a message (message_type 'poll', content = the question) with 2–6
 -- options and an optional end. Like post polls, each member votes once and

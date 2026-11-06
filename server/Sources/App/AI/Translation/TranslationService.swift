@@ -9,7 +9,7 @@ import Queues
 enum TranslationService {
     enum Kind: String, Codable, Sendable {
         case post, comment
-        /// Allowlisted table names — never built from input.
+        /// Allowlisted table names. Never built from input.
         var table: String { self == .post ? "posts" : "comments" }
     }
 
@@ -21,7 +21,7 @@ enum TranslationService {
 
     /// "vi", "en", "other", or nil when there's nothing to translate (emoji,
     /// links, a stray letter). Vietnamese written without accents reads as
-    /// English here — a known limit of a heuristic this cheap.
+    /// English here, a known limit of a heuristic this cheap.
     static func detectLanguage(_ raw: String) -> String? {
         let text = raw.precomposedStringWithCanonicalMapping
             .replacingOccurrences(of: #"https?://\S+|[#@]\S+"#, with: " ", options: .regularExpression)
@@ -67,7 +67,7 @@ enum TranslationService {
         return out
     }
 
-    /// sha256 hex — must match the SQL `hashExpr` below byte for byte.
+    /// sha256 hex, must match the SQL `hashExpr` below byte for byte.
     static func hash(_ text: String) -> String {
         SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
     }
@@ -125,9 +125,9 @@ enum TranslationService {
     }
 
     /// Queue (or, without RUN_JOBS, just start) a translation.
-    static func enqueue(_ kind: Kind, id: String, app: Application, queue: any Queue, logger: Logger) async {
+    static func enqueue(_ kind: Kind, id: String, app: Application, queue: (any Queue)?, logger: Logger) async {
         guard app.appEnv.translation.enabled else { return }
-        if BackgroundJobs.enabled {
+        if let queue {
             try? await queue.dispatch(BackgroundJobs.TranslateContentJob.self, .init(kind: kind, id: id), maxRetryCount: 2)
         } else {
             Task { await translate(kind, id: id, app: app, logger: logger) }
@@ -135,7 +135,7 @@ enum TranslationService {
     }
 
     static func enqueue(_ req: Request, _ kind: Kind, id: String) async {
-        await enqueue(kind, id: id, app: req.application, queue: req.queue, logger: req.logger)
+        await enqueue(kind, id: id, app: req.application, queue: BackgroundJobs.queue(for: req), logger: req.logger)
     }
 
     /// Rows never looked at, or whose content changed since: the backfill,

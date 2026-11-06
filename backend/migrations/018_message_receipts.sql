@@ -1,18 +1,18 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 018 — Message receipts (per-participant delivered/read tracking)
+-- 018, Message receipts (per-participant delivered/read tracking)
 --
 -- Replaces messages.status (a single sent/delivered/read enum) with a side
 -- table, same reasoning as message_reactions (011): a receipt is written by a
 -- different actor at a different time than the message row, and a side table
 -- lets `INSERT ... ON CONFLICT DO NOTHING` give idempotent, upgrade-only
--- semantics without locking `messages`. Also required for groups — a single
+-- semantics without locking `messages`. Also required for groups. A single
 -- column can't represent "read by 3 of 5"; a per-user row can.
 --
 -- Backfill: every message currently 'delivered' or 'read' gets a 'delivered'
 -- receipt for every OTHER participant in its conversation; 'read' additionally
 -- gets a 'read' receipt. This is a lossy approximation of what the old single
--- column meant (it never had per-user granularity in 1:1 either — 'read' meant
--- "the other person read it", nothing finer) — that's exactly why this backfill
+-- column meant (it never had per-user granularity in 1:1 either, 'read' meant
+-- "the other person read it", nothing finer), that's exactly why this backfill
 -- is safe and sufficient, not a data-loss concern.
 -- ─────────────────────────────────────────────────────────────────────────────
 

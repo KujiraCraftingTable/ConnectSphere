@@ -55,7 +55,7 @@ enum SkillStore {
 
     /// The skills most held by people whose job title is like `jobTitle`
     /// (trigram similarity, so "iOS Dev" finds "iOS Developer"), catalogue
-    /// entries only — LinkedIn's "suggested based on your profile".
+    /// entries only, LinkedIn's "suggested based on your profile".
     static func suggested(forJobTitle jobTitle: String, on db: any SQLDatabase) async throws -> [String] {
         let title = jobTitle.trimmingCharacters(in: .whitespaces)
         guard title.count >= 2 else { return [] }
@@ -90,7 +90,7 @@ enum SkillRules {
 
         var message: String {
             switch self {
-            case .notInCatalog(let s): return "\"\(s)\" isn't in the skill list — pick from the list or suggest it"
+            case .notInCatalog(let s): return "\"\(s)\" isn't in the skill list. Pick from the list or suggest it"
             case .tooMany(let n):      return "Pick at most \(n) skills"
             }
         }

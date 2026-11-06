@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// Codes proving an email typed at sign-up (migration 067) — the account
+/// Codes proving an email typed at sign-up (migration 067). The account
 /// doesn't exist yet, so they're keyed by the address. Same rules as
 /// `AccountCodeStore`: 6 digits, bcrypt-hashed, 10 minutes, 5 tries, one a minute.
 enum SignupCodeStore {

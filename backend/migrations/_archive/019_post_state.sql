@@ -1,15 +1,15 @@
 -- 019_post_state.sql
--- Thêm ENUM type post_state và column state vào bảng posts.
--- 'posted'  = bài viết đang hiển thị bình thường
--- 'deleted' = soft-delete, ẩn khỏi feed (không xóa row)
+-- Add the post_state ENUM type and a state column to posts.
+-- 'posted'  = post is shown normally
+-- 'deleted' = soft delete, hidden from the feed (the row is kept)
 
 CREATE TYPE post_state AS ENUM ('posted', 'deleted');
 
 ALTER TABLE posts
   ADD COLUMN state post_state NOT NULL DEFAULT 'posted';
 
--- Migrate toàn bộ bài viết hiện tại sang 'posted'
+-- Migrate all existing posts to 'posted'
 UPDATE posts SET state = 'posted';
 
--- Index để filter nhanh những bài chưa bị xóa
+-- Index to quickly filter out posts that are not deleted
 CREATE INDEX idx_posts_state ON posts (state);

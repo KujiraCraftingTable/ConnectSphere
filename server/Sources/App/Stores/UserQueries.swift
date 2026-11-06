@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// Port of the rest of `backend/src/models/userModel.js` — profile reads,
+/// Port of the rest of `backend/src/models/userModel.js`. Profile reads,
 /// block graph, profile update, and account soft-delete.
 extension UserStore {
 
@@ -21,17 +21,20 @@ extension UserStore {
     /// `'work'` or a bound placeholder already written by the caller) → persona.
     private static func userSelectSQL(modeRef: String?) -> String {
         let identity = modeRef.map { PersonaSQL.cols(modeRef: $0) }
-            ?? "u.display_name, u.bio, u.avatar_url, u.cover_url"
-        // Like connCount in findById below — post_count must be scoped to the
+            ?? "u.display_name, u.bio, u.bio_format, u.avatar_url, u.cover_url"
+        // Like connCount in findById below, post_count must be scoped to the
         // viewed mode (posts.mode), not the legacy global users.post_count
         // column, or switching modes wouldn't change the number shown. Must
         // also mirror PostStore.feedWhere's author-scoped branch exactly:
         // community posts are excluded from a personal profile's feed/count
-        // (they belong on the community's own page — see the comment on
+        // (they belong on the community's own page. See the comment on
         // feedWhere's `p.community_id IS NULL` clause), so without this the
         // stats row overcounts by however many community posts the user has.
+        // Marketplace listings are left out for the same reason: they live on
+        // the Marketplace tab, and the profile's list (`includeListings` off)
+        // doesn't show them, so counting them put "9 posts" over a list of 5.
         let postCount = modeRef.map {
-            "(SELECT COUNT(*)::int FROM posts p WHERE p.author_id = u.id AND p.mode = \($0) AND p.status = 'posted' AND p.community_id IS NULL) AS post_count"
+            "(SELECT COUNT(*)::int FROM posts p WHERE p.author_id = u.id AND p.mode = \($0) AND p.status = 'posted' AND p.community_id IS NULL AND p.post_type <> 'listing') AS post_count"
         } ?? "u.post_count"
         // Mode-scoped and friends-excluded (FollowStore); the legacy
         // users.follower_count/following_count columns only mirrored friends.
@@ -140,7 +143,7 @@ extension UserStore {
     }
 
     /// Users the viewer may see in a list: not deleted, not blocked either
-    /// way, set up in this mode, not already connected — one row per user
+    /// way, set up in this mode, not already connected. One row per user
     /// with `userSelectSQL`'s columns (alias-free; callers wrap it).
     private static func eligibleUsersSQL(_ f: ListFilters) -> SQLQueryString {
         let modeRef = f.mode.map { "'\($0)'" }
@@ -176,14 +179,14 @@ extension UserStore {
             + " AS search_score FROM (" + eligibleUsersSQL(f) + ") c) r WHERE r.search_score > 0"
     }
 
-    /// `unaccent(lower(coalesce(col, '')))` — both sides of every keyword
+    /// `unaccent(lower(coalesce(col, '')))`, both sides of every keyword
     /// comparison are folded this way, so "meo" finds "Mèo".
     private static func folded(_ col: String) -> String { "unaccent(lower(coalesce(\(col), '')))" }
 
     /// Relevance of one `userSelectSQL` row (alias `c`) to a keyword search.
     /// Rewards, in order: an exact name/username match, each word starting the
     /// name or username, each word matching an interest/skill (exactly beats
-    /// contains), location, then bio/job/company — plus a bonus when every
+    /// contains), location, then bio/job/company. Plus a bonus when every
     /// word matched somewhere, and a typo-tolerant trigram nudge on the name.
     /// Words come from `SearchTokenizer` (letters/digits only) and are bound.
     static func peopleRelevance(query: String, words: [String], mode: String?) -> SQLQueryString {
@@ -304,9 +307,9 @@ extension UserStore {
 
     // MARK: updateProfile  (PATCH /api/users/me)
 
-    static let editableColumns = ["display_name", "bio", "location", "job_title", "company",
+    static let editableColumns = ["display_name", "bio", "bio_format", "location", "job_title", "company",
                                   "avatar_url", "cover_url", "dob", "gender", "dob_visibility"]
-    static let personaColumns: Set<String> = ["display_name", "bio", "avatar_url", "cover_url"]
+    static let personaColumns: Set<String> = ["display_name", "bio", "bio_format", "avatar_url", "cover_url"]
 
     /// Partial update. `fields` maps a column name → new value (`String?`; `dob`
     /// as a `yyyy-MM-dd` string). `mode` (validated) chooses which persona the

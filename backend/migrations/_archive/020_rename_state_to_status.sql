@@ -1,8 +1,8 @@
 -- 020_rename_state_to_status.sql
--- 1. Thêm giá trị 'banned' vào ENUM post_state
--- 2. Đổi tên ENUM post_state → post_status
--- 3. Đổi tên column state → status trên bảng posts
--- 4. Thêm column status vào bảng comments
+-- 1. Add the 'banned' value to the post_state ENUM
+-- 2. Rename the ENUM post_state → post_status
+-- 3. Rename the column state → status on posts
+-- 4. Add a status column to comments
 
 ALTER TYPE post_state ADD VALUE IF NOT EXISTS 'banned';
 ALTER TYPE post_state RENAME TO post_status;
