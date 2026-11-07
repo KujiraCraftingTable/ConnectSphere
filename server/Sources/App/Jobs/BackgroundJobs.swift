@@ -426,7 +426,9 @@ enum BackgroundJobs {
                 case "post_commented":  entityID = p.commentID; groupTargetID = p.postID
                 case "comment_replied": entityID = p.commentID; groupTargetID = p.parentCommentID
                 case "post_shared":     entityID = p.postID;    groupTargetID = nil
-                default:                entityID = nil;         groupTargetID = nil   // connection_*
+                // connection_*: keyed by the person, or every request would share the
+                // group "connection_request:none" and collapse into "X and N others".
+                default:                entityID = p.actorID;   groupTargetID = p.actorID
                 }
 
                 // Same formula pushUserNotification uses internally → the dup

@@ -45,53 +45,62 @@ struct MarkdownFormatterTests {
         #expect(plain("5 * 3 = 15 and **half").contains("15"))
     }
 
-    // MARK: Editing
+    // MARK: Live styling
 
-    @Test func boldWrapsTheSelection() {
-        let r = MarkdownFormatter.apply(.bold, to: "make this loud", selection: 5..<9)
-        #expect(r.text == "make **this** loud")
-        #expect(r.selection == 7..<11)
+    private func live(_ text: String) -> [MarkdownFormatter.LiveStyle] { MarkdownFormatter.liveStyles(in: text) }
+
+    @Test func boldWordsAreBoldAndTheStarsAreDimmed() {
+        let s = live("**B**")
+        #expect(s.count == 5)
+        #expect(s[0] == .dim && s[1] == .dim)
+        #expect(s[2] == .bold)
+        #expect(s[3] == .dim && s[4] == .dim)
     }
 
-    @Test func boldAtACaretInsertsAPairAroundIt() {
-        let r = MarkdownFormatter.apply(.bold, to: "hi ", selection: 3..<3)
-        #expect(r.text == "hi ****")
-        #expect(r.selection == 5..<5)
+    @Test func otherInlineStylesGetTheirOwnStyle() {
+        #expect(live("_i_") == [.dim, .italic, .dim])
+        #expect(live("*i*") == [.dim, .italic, .dim])
+        #expect(live("~~s~~") == [.dim, .dim, .strike, .dim, .dim])
+        #expect(live("`c`") == [.dim, .code, .dim])
     }
 
-    @Test func boldTwiceTakesTheMarkersOff() {
-        let on = MarkdownFormatter.apply(.bold, to: "word", selection: 0..<4)
-        let off = MarkdownFormatter.apply(.bold, to: on.text, selection: on.selection)
-        #expect(off.text == "word")
-        #expect(off.selection == 0..<4)
+    @Test func linksDimTheBracketsAndAddressButNotTheLabel() {
+        let s = live("[a](https://x.com)")
+        #expect(s[0] == .dim)
+        #expect(s[1] == .link)
+        #expect(s[2...].allSatisfy { $0 == .dim })
     }
 
-    @Test func listPrefixesEveryTouchedLineAndTogglesOff() {
-        let on = MarkdownFormatter.apply(.bulletList, to: "a\nb\nc", selection: 0..<3)
-        #expect(on.text == "- a\n- b\nc")
-        let off = MarkdownFormatter.apply(.bulletList, to: on.text, selection: on.selection)
-        #expect(off.text == "a\nb\nc")
+    @Test func listAndQuoteMarksAreDimmedAndQuoteWordsStandOut() {
+        #expect(live("- item")[0] == .dim)
+        #expect(live("- item")[2] == [])
+        #expect(live("12. item")[0] == .dim && live("12. item")[1] == .dim && live("12. item")[2] == .dim)
+        let q = live("> hi")
+        #expect(q[0] == .dim)
+        #expect(q[2] == .quote && q[3] == .quote)
     }
 
-    @Test func quotePrefixesTheCaretLine() {
-        let r = MarkdownFormatter.apply(.quote, to: "one\ntwo", selection: 5..<5)
-        #expect(r.text == "one\n> two")
+    @Test func styleCombinesWhenMarksAreNested() {
+        let s = live("**a _b_ c**")
+        #expect(s[5] == [.bold, .italic])
     }
 
-    @Test func linkWrapsTheSelectionAndSelectsTheAddress() {
-        let r = MarkdownFormatter.apply(.link, to: "read docs here", selection: 5..<9)
-        #expect(r.text == "read [docs](https://) here")
-        let chars = Array(r.text)
-        #expect(String(chars[r.selection]) == "https://")
+    @Test func unclosedMarksAndPlainSymbolsAreLeftAlone() {
+        #expect(live("**half").allSatisfy { $0.isEmpty })
+        #expect(live("5 * 3 = 15").allSatisfy { $0.isEmpty })
+        #expect(live("use snake_case_name here").allSatisfy { $0.isEmpty })
     }
 
-    @Test func linkWithNothingSelectedStartsFromAPlaceholder() {
-        let r = MarkdownFormatter.apply(.link, to: "", selection: 0..<0)
-        #expect(r.text == "[link](https://)")
+    @Test func marksInsideCodeAreNotStyled() {
+        let s = live("`**x**`")
+        #expect(s[1] == .code && s[2] == .code && s[3] == .code)
     }
 
-    @Test func editingHandlesEmojiAsOneCharacter() {
-        let r = MarkdownFormatter.apply(.bold, to: "😀 hi", selection: 2..<4)
-        #expect(r.text == "😀 **hi**")
+    @Test func emojiAndVietnameseBeforeAMarkKeepOffsetsRight() {
+        let s = live("😀 **B**")
+        #expect(s.count == 7)
+        #expect(s[4] == .bold)
+        let v = live("Xin chào **B**")
+        #expect(v[10] == .bold)
     }
 }

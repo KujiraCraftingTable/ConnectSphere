@@ -6,7 +6,6 @@ struct OnboardingView: View {
     @Environment(\.appBundle) var bundle
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel: OnboardingViewModel
-    @State private var showProvincePicker = false
     @State private var showDobPicker = false
     @State private var dobDraft = Date()
     /// Bumped on a blocked forward swipe/tap. Drives the shake + haptic.
@@ -214,32 +213,8 @@ struct OnboardingView: View {
 
                 if viewModel.offersPassword { passwordBlock }
 
-                // Province picker (required)
-                Button { showProvincePicker = true } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: "mappin.circle")
-                            .foregroundColor(AppColors.textSecondary(.light))
-                        Text(selectedProvinceDisplay)
-                            .foregroundColor(viewModel.form.location.isEmpty
-                                ? AppColors.textTertiary(.light)
-                                : AppColors.textPrimary(.light))
-                            .scaledFont(15)
-                        Spacer()
-                        Image(systemName: "chevron.down")
-                            .scaledFont(12)
-                            .foregroundColor(AppColors.textSecondary(.light))
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 14)
-                    .background(AppColors.surface(.light))
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                }
-                .buttonStyle(.plain)
-                .sheet(isPresented: $showProvincePicker) {
-                    // Sheets don't inherit the screen's forced light scheme.
-                    ProvincePickerSheet(selectedId: $viewModel.form.location)
-                        .preferredColorScheme(.light)
-                }
+                // Home ward (required): distance search measures from it.
+                WardPickerView(selectedProvinceCode: $viewModel.provinceCode, selectedWardId: $viewModel.wardId)
 
                 // Gender picker (required)
                 VStack(alignment: .leading, spacing: 8) {
@@ -338,10 +313,6 @@ struct OnboardingView: View {
         }
     }
 
-    private var selectedProvinceDisplay: String {
-        guard !viewModel.form.location.isEmpty else { return bundle.loc("Province / City *") }
-        return VietnamProvinces.all.first(where: { $0.id == viewModel.form.location })?.displayName ?? viewModel.form.location
-    }
 
     // MARK: Step 2, Interests / Skills
 
@@ -510,53 +481,6 @@ struct OnboardingCard<Content: View>: View {
             }
         }
         .preferredColorScheme(.light)
-    }
-}
-
-// MARK: - Province picker sheet
-
-struct ProvincePickerSheet: View {
-    @Binding var selectedId: String
-    @Environment(\.dismiss) private var dismiss
-    @Environment(ThemeManager.self) private var themeManager
-    @Environment(\.appBundle) var bundle
-    @State private var searchText = ""
-
-    private var filtered: [Province] {
-        if searchText.isEmpty { return VietnamProvinces.all }
-        let q = searchText.lowercased()
-        return VietnamProvinces.all.filter {
-            $0.displayName.lowercased().contains(q) || $0.id.lowercased().contains(q)
-        }
-    }
-
-    var body: some View {
-        NavigationStack {
-            List(filtered) { province in
-                Button {
-                    selectedId = province.id
-                    dismiss()
-                } label: {
-                    HStack {
-                        Text(province.displayName)
-                            .foregroundColor(.primary)
-                        Spacer()
-                        if selectedId == province.id {
-                            Image(systemName: "checkmark")
-                                .foregroundColor(themeManager.theme.primary)
-                        }
-                    }
-                }
-            }
-            .searchable(text: $searchText, prompt: bundle.loc("Search province / city"))
-            .navigationTitle(bundle.loc("Select province / city"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(bundle.loc("Cancel")) { dismiss() }
-                }
-            }
-        }
     }
 }
 

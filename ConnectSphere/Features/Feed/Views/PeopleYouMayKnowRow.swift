@@ -7,6 +7,7 @@ struct PeopleYouMayKnowRow: View {
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.appBundle) private var bundle
     @Environment(\.colorScheme) private var colorScheme
+    private let interestNames = InterestNames.shared
 
     let viewModel: PeopleSuggestionsViewModel
     let mode: AppMode
@@ -50,6 +51,7 @@ struct PeopleYouMayKnowRow: View {
         // appears: a reload during launch would otherwise mark fresh cards
         // seen before anyone looked, and move them down the feed.
         .onDisappear { viewModel.markSeen(mode) }
+        .task { await interestNames.loadIfNeeded() }
     }
 
     private func card(_ person: PeopleSuggestion) -> some View {
@@ -63,7 +65,8 @@ struct PeopleYouMayKnowRow: View {
                         .scaledFont(14, .semibold)
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                         .lineLimit(1)
-                    Text(PeopleSuggestionText.reason(person.reason, mode: mode, bundle: bundle))
+                    Text(PeopleSuggestionText.reason(person.reason, mode: mode, bundle: bundle,
+                                                     interestName: { interestNames.displayName($0, in: bundle) }))
                         .scaledFont(12)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                         .multilineTextAlignment(.center)
@@ -120,11 +123,12 @@ struct PeopleYouMayKnowRow: View {
 
 /// The card's one-line reason, localised.
 enum PeopleSuggestionText {
-    static func reason(_ reason: PeopleSuggestion.Reason, mode: AppMode, bundle: Bundle) -> String {
+    static func reason(_ reason: PeopleSuggestion.Reason, mode: AppMode, bundle: Bundle,
+                       interestName: (String) -> String = { $0 }) -> String {
         switch reason {
         case .mutual(let n):
             return n == 1 ? bundle.loc("1 mutual friend") : String(format: bundle.loc("%lld mutual friends"), n)
-        case .interest(let x): return String(format: bundle.loc("Also into %@"), x)
+        case .interest(let x): return String(format: bundle.loc("Also into %@"), interestName(x))
         case .skill(let x): return String(format: bundle.loc("Also skilled in %@"), x)
         case .company(let x): return String(format: bundle.loc("Also works at %@"), x)
         case .place(let x): return String(format: bundle.loc("Also in %@"), x)

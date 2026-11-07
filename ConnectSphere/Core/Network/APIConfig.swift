@@ -9,19 +9,39 @@ enum APIConfig {
     /// needed, see Endpoint.swift's baseURL for the one place that still
     /// needs its own fix to stay in sync with this.
     static var serverBase: String {
-        // The simulator runs on the same machine as the backend → always use localhost,
-        // to avoid breaking when APIBaseURL points at a stale WiFi network's LAN IP.
+        resolveServerBase(
+            override: UserDefaults.standard.string(forKey: "devServerOverride"),
+            plistValue: Bundle.main.object(forInfoDictionaryKey: "APIBaseURL") as? String,
+            isSimulator: isSimulator)
+    }
+
+    /// What `serverBase` is when no override is set.
+    static var builtInServerBase: String {
+        resolveServerBase(
+            override: nil,
+            plistValue: Bundle.main.object(forInfoDictionaryKey: "APIBaseURL") as? String,
+            isSimulator: isSimulator)
+    }
+
+    private static var isSimulator: Bool {
         #if targetEnvironment(simulator)
-        return "http://localhost:3000"
+        true
         #else
-        if let override = UserDefaults.standard.string(forKey: "devServerOverride"),
-           !override.isEmpty {
+        false
+        #endif
+    }
+
+    /// An override always wins. Without one, the simulator runs on the same
+    /// machine as the backend, so it uses localhost rather than an
+    /// `APIBaseURL` that may point at a stale WiFi network's LAN IP.
+    static func resolveServerBase(override: String?, plistValue: String?, isSimulator: Bool) -> String {
+        let localhost = "http://localhost:3000"
+        if let override = override?.trimmingCharacters(in: .whitespacesAndNewlines), !override.isEmpty {
             return override
         }
-        return (Bundle.main.object(forInfoDictionaryKey: "APIBaseURL") as? String)
-            .flatMap { $0.isEmpty ? nil : $0 }
-            ?? "http://localhost:3000"
-        #endif
+        if isSimulator { return localhost }
+        if let plistValue, !plistValue.isEmpty { return plistValue }
+        return localhost
     }
 
     static var baseURL: String { "\(serverBase)/api" }

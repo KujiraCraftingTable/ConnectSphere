@@ -9,6 +9,8 @@ struct CommunityRow: View {
     let community: Community
     /// Join or leave; nil hides the button.
     var onToggle: (() -> Void)?
+    /// Leaving is the one destructive tap on the pill, so it asks first.
+    @State private var confirmLeave = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -51,7 +53,9 @@ struct CommunityRow: View {
     }
 
     private func joinButton(_ action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button {
+            if community.isMember { confirmLeave = true } else { action() }
+        } label: {
             Text(community.isMember ? bundle.loc("Joined") : bundle.loc("Join"))
                 .scaledFont(13, .semibold)
                 .foregroundColor(community.isMember ? AppColors.textSecondary(colorScheme) : .white)
@@ -61,5 +65,10 @@ struct CommunityRow: View {
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
+        .confirmationDialog(bundle.loc("Leave this community?"), isPresented: $confirmLeave, titleVisibility: .visible) {
+            Button(bundle.loc("Leave community"), role: .destructive, action: action)
+        } message: {
+            Text("You'll stop seeing its posts. You can join again later.", bundle: bundle)
+        }
     }
 }

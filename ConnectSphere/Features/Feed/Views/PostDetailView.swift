@@ -33,7 +33,6 @@ struct PostDetailView: View {
     @State private var viewModel: PostDetailViewModel
     @State private var commentVM = CommentViewModel()
     @State private var draft = ""
-    @State private var draftSelection: TextSelection?
     /// The screen's width. The top bar's author block fills what the back
     /// and ⋯ buttons leave, so it sits left beside the back button.
     @State private var screenWidth: CGFloat = 0
@@ -99,11 +98,6 @@ struct PostDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .toolbar { topBar }
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                if composerFocused { MarkdownToolbar(text: $draft, selection: $draftSelection) }
-            }
-        }
     }
 
     // MARK: - Top bar
@@ -230,7 +224,7 @@ struct PostDetailView: View {
                     AvatarView(user: me, size: 36)
                 }
 
-                TextField(bundle.loc("Write a comment..."), text: $draft, selection: $draftSelection, axis: .vertical)
+                TextField(bundle.loc("Write a comment..."), text: $draft, axis: .vertical)
                     .scaledFont(15)
                     .lineLimit(4)
                     .focused($composerFocused)

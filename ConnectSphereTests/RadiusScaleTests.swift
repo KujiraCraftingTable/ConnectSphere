@@ -15,9 +15,24 @@ struct RadiusScaleTests {
         #expect(RadiusScale.km(forFraction: 1) == 0)
     }
 
-    @Test func leftEdgeFloorsAtOneKilometre() {
-        #expect(RadiusScale.km(forFraction: 0) == 1)
-        #expect(RadiusScale.km(forFraction: -0.2) == 1)
+    @Test func leftEdgeFloorsAtFiveKilometres() {
+        #expect(RadiusScale.km(forFraction: 0) == 5)
+        #expect(RadiusScale.km(forFraction: -0.2) == 5)
+    }
+
+    @Test func touchesSnapToTheNearestStep() {
+        #expect(RadiusScale.km(forFraction: RadiusScale.fraction(forKm: 7)) == 5)
+        #expect(RadiusScale.km(forFraction: RadiusScale.fraction(forKm: 8)) == 10)
+        #expect(RadiusScale.km(forFraction: RadiusScale.fraction(forKm: 28)) == 30)
+    }
+
+    @Test func oldStoredValuesMoveOntoAStep() {
+        #expect(RadiusScale.snapped(0) == 0)
+        #expect(RadiusScale.snapped(1) == 5)
+        #expect(RadiusScale.snapped(12) == 10)
+        #expect(RadiusScale.snapped(13) == 15)
+        #expect(RadiusScale.snapped(30) == 30)
+        #expect(RadiusScale.snapped(45) == 30)
     }
 
     @Test func gapMidpointDecidesBetweenThirtyAndNoLimit() {
@@ -26,8 +41,8 @@ struct RadiusScaleTests {
         #expect(RadiusScale.km(forFraction: mid + 0.01) == 0)
     }
 
-    @Test func everyWholeKilometreRoundTrips() {
-        for km in 1...30 {
+    @Test func everyStepRoundTrips() {
+        for km in RadiusScale.ticks {
             #expect(RadiusScale.km(forFraction: RadiusScale.fraction(forKm: km)) == km, "\(km)")
         }
     }

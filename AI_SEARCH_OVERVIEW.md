@@ -217,7 +217,7 @@ gets the full amount. The weights are constants at the top of `SearchStore`
 | `location` | `u.location ILIKE '%...%'` |
 | `target_gender` | `u.gender = <gender the user stated>`, **wins** over the dating heuristic |
 | `partner words` | dating words ("to date", "người yêu"…) are dropped from the query; the rest (gender, location, interests) is still searched. There is no longer a reverse-gender filter. |
-| `radius` | Haversine over `vn_wards` when searchCoords + radiusKm are present |
+| `radius` | `radiusKm` ∈ {5,10,15,20,25,30} (else 400). Straight-line (haversine) km from the centre to each person's ward centre (`users.ward_id`, required at sign-up). Centre: the place the prompt names, else the searcher's own ward. Each result carries `distance_km`, rounded up to 5 km |
 | `interest_groups` | AND across groups, OR within a group (two-way substring) |
 | `block / self` | exclude users who blocked each other (both directions) and exclude the searcher |
 

@@ -145,7 +145,6 @@ Summarised from [`KNOWN_GAPS.md`](KNOWN_GAPS.md):
 - **Push notifications** while the app is closed (in-app notifications work).
 - Chat "delivered" receipts are best-effort (read receipts work).
 - No list of your *sent* connection requests yet.
-- A structured ward/commune address picker exists but isn't wired in.
 - Some performance and design-system clean-up deferred past the project.
 
 ## Glossary

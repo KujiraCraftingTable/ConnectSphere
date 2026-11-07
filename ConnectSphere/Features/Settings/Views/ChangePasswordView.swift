@@ -62,7 +62,8 @@ struct ChangePasswordView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         Task {
-                            guard await viewModel.save(token: appState.authToken) else { return }
+                            guard let newToken = await viewModel.save(token: appState.authToken) else { return }
+                            appState.adoptToken(newToken)
                             // A Google account may have just set its first password.
                             appState.currentUser?.hasPassword = true
                             showSuccess = true

@@ -11,8 +11,6 @@ struct CreatePostView: View {
     /// The picked photo/video whose alt text is being written.
     @State private var altTarget: PickedPostMedia?
     @State private var content = ""
-    @State private var contentSelection: TextSelection?
-    @FocusState private var contentFocused: Bool
     @State private var privacy: PostPrivacy = .publicAll
     @State private var showPrivacyPicker = false
 
@@ -232,8 +230,7 @@ struct CreatePostView: View {
                                     .padding(.top, 12)
                                     .padding(.leading, 14)
                             }
-                            TextEditor(text: $content, selection: $contentSelection)
-                                .focused($contentFocused)
+                            TextEditor(text: $content)
                                 .scaledFont(16)
                                 .foregroundColor(AppColors.textPrimary(colorScheme))
                                 .frame(minHeight: 150)
@@ -447,9 +444,6 @@ struct CreatePostView: View {
             .navigationBarTitleDisplayMode(.inline)
             .interactiveDismissDisabled(hasChanges)
             .toolbar {
-                ToolbarItemGroup(placement: .keyboard) {
-                    if contentFocused { MarkdownToolbar(text: $content, selection: $contentSelection) }
-                }
                 ToolbarItem(placement: .navigationBarLeading) {
                     // Nothing changed → nothing to lose, so no question.
                     Button(bundle.loc("Cancel")) {

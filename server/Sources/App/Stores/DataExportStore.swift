@@ -12,10 +12,11 @@ enum DataExportStore {
         return [
             ("account", """
                 SELECT to_jsonb(x) AS j FROM (
-                  SELECT id, username, display_name, email, gender, dob, dob_visibility, age, location, bio,
+                  SELECT u.id, username, display_name, email, gender, dob, dob_visibility, age, location,
+                         w.full_name_en AS ward, bio,
                          job_title, company, default_mode, languages, relationship_status,
-                         hobby_display_name, hobby_bio, work_display_name, work_bio, avatar_url, cover_url, created_at
-                  FROM users WHERE id = \(u)) x
+                         hobby_display_name, hobby_bio, work_display_name, work_bio, avatar_url, cover_url, u.created_at
+                  FROM users u LEFT JOIN vn_wards w ON w.id = u.ward_id WHERE u.id = \(u)) x
                 """),
             ("agreements", "SELECT to_jsonb(c) - 'id' AS j FROM user_consents c WHERE user_id = \(u)"),
             ("interests", "SELECT to_jsonb(t) AS j FROM user_interests t WHERE user_id = \(u)"),

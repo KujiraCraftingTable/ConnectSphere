@@ -48,7 +48,7 @@ struct FollowsController {
             throw InlineError(.badRequest, "type must be followers or following")
         }
         let limit = PostsController.clamp(try? req.query.get(Int.self, at: "limit"), 50, 1, 100)
-        let offset = max((try? req.query.get(Int.self, at: "offset")) ?? 0, 0)
+        let offset = req.pageOffset
         let owner = req.parameters.get("userId")!
         let listMode = try mode(req)
         if UUID(uuidString: owner) != nil,

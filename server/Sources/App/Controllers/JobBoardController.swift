@@ -38,7 +38,7 @@ struct JobBoardController {
             f.salaryMin = s
         }
         f.limit = PostsController.clamp(try? req.query.get(Int.self, at: "limit"), 30, 1, 50)
-        f.offset = max((try? req.query.get(Int.self, at: "offset")) ?? 0, 0)
+        f.offset = req.pageOffset
         return f
     }
 

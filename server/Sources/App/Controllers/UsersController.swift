@@ -33,8 +33,8 @@ struct UsersController {
         let m = try? req.query.get(String.self, at: "mode")
         let mode = ["hobby", "work"].contains(m ?? "") ? m : nil
         let search = (try? req.query.get(String.self, at: "search")).flatMap { $0.isEmpty ? nil : $0 }
-        let limit = (try? req.query.get(Int.self, at: "limit")) ?? 20
-        let offset = (try? req.query.get(Int.self, at: "offset")) ?? 0
+        let limit = req.pageLimit(default: 20, max: 100)
+        let offset = req.pageOffset
 
         async let rows = UserStore.findAll(
             .init(mode: mode, search: search, viewerID: req.userID, limit: limit, offset: offset), on: db)
@@ -51,6 +51,8 @@ struct UsersController {
         if try await UserStore.hasBlocked(id, req.userID, on: db) {
             throw Abort(.notFound, reason: "User not found")
         }
+        // A deleted account's profile is gone, not just anonymised (its username and counts would still show).
+        guard try await UserStore.isActive(id, on: db) else { throw Abort(.notFound, reason: "User not found") }
         let viewMode = mode(from: req)
         guard var user = try await UserStore.findById(id, mode: viewMode, on: db) else {
             throw Abort(.notFound, reason: "User not found")
@@ -66,7 +68,8 @@ struct UsersController {
 
     static func blockUser(_ req: Request) async throws -> BlockedFlagResponse {
         let id = req.parameters.get("id")!
-        guard id != req.userID else { throw InlineError(.badRequest, "Cannot block yourself") }
+        // Compared case-insensitively: req.userID is lowercase, a path id may not be.
+        guard id.caseInsensitiveCompare(req.userID) != .orderedSame else { throw InlineError(.badRequest, "Cannot block yourself") }
         let db = req.db.sql()
         struct R: Decodable { let id: String }
         guard try await db.raw("SELECT id FROM users WHERE id = \(uuid: id)").first(decoding: R.self) != nil else {
@@ -85,7 +88,7 @@ struct UsersController {
     /// block, we can still see each other's profiles and message.
     static func hideAuthor(_ req: Request) async throws -> HiddenAuthorResponse {
         let id = req.parameters.get("id")!
-        guard id != req.userID else { throw InlineError(.badRequest, "Cannot hide yourself") }
+        guard id.caseInsensitiveCompare(req.userID) != .orderedSame else { throw InlineError(.badRequest, "Cannot hide yourself") }
         let db = req.db.sql()
         struct R: Decodable { let id: String }
         guard try await db.raw("SELECT id FROM users WHERE id = \(uuid: id) AND deleted_at IS NULL").first(decoding: R.self) != nil else {
@@ -119,7 +122,9 @@ struct UsersController {
         var bio: String?
         /// "markdown" when the bio was written with Markdown; sent with `bio`.
         var bio_format: String?
-        var location: String?
+        /// The home ward. The public `location` follows it (the ward's province)
+        /// and is never sent on its own.
+        var ward_id: String?
         var job_title: String?
         var company: String?
         var avatar_url: String?
@@ -148,6 +153,7 @@ struct UsersController {
         "open_relationship", "complicated", "separated", "divorced", "widowed",
     ]
     static let maxLanguages = 10
+    static let maxProfileTextLength = 100
 
     /// Trimmed, de-duplicated ignoring case, at most 10 of ≤ 40 characters.
     static func cleanLanguages(_ list: [String]) throws -> [String] {
@@ -191,12 +197,20 @@ struct UsersController {
         if sent("gender"), !["male", "female", "other"].contains(raw.gender ?? "") {
             throw InlineError(.badRequest, "Invalid gender")
         }
-        if sent("dob"), let dob = raw.dob, !dob.isEmpty, !BirthdayRules.isOldEnough(dob) {
-            throw InlineError(.badRequest, BirthdayRules.underageReason)
+        if sent("dob"), let dob = raw.dob, !dob.isEmpty, let why = BirthdayRules.rejection(dob) {
+            throw InlineError(.badRequest, why)
+        }
+        // users.job_title / company are VARCHAR(100): longer is a 500 from the DB.
+        for (key, value) in [("job_title", raw.job_title), ("company", raw.company)] where sent(key) {
+            if let v = value, v.trimmingCharacters(in: .whitespaces).count > maxProfileTextLength {
+                throw InlineError(.badRequest, "\(key) must be at most \(maxProfileTextLength) characters")
+            }
         }
         if sent("dob_visibility"), !["private", "public"].contains(raw.dob_visibility ?? "") {
             throw InlineError(.badRequest, "dob_visibility must be private or public")
         }
+        // Checked before anything is written; a ward can be changed, never removed.
+        let ward = sent("ward_id") ? try await WardStore.require(raw.ward_id, on: sdb) : nil
 
         // The email changes only through a code (AccountController), never
         // here, or a stolen password could redirect the deletion codes.
@@ -220,7 +234,10 @@ struct UsersController {
             // New text from an app that doesn't say otherwise is plain.
             fields.append(("bio_format", PostStore.contentFormats.contains(raw.bio_format ?? "") ? raw.bio_format : "plain"))
         }
-        if sent("location")     { fields.append(("location", trimmedOrNil(raw.location))) }
+        if let ward {
+            fields.append(("location", ward.province))
+            try await sdb.raw("UPDATE users SET ward_id = \(uuid: ward.id) WHERE id = \(uuid: req.userID)").run()
+        }
         if sent("job_title")    { fields.append(("job_title", trimmedOrNil(raw.job_title))) }
         if sent("company")      { fields.append(("company", trimmedOrNil(raw.company))) }
         if sent("avatar_url")   { fields.append(("avatar_url", MediaPath.storable(raw.avatar_url))) }
@@ -271,9 +288,12 @@ struct UsersController {
         struct Priv: Decodable {
             let email: String?; let email_verified: Bool; let two_factor_enabled: Bool
             let dob: Date?; let dob_visibility: String?; let age: Int?; let has_password: Bool; let dob_changes: Int
+            let ward_id: String?; let ward_province_code: String?
         }
         let priv = try await sdb.raw("""
             SELECT email, (email_verified_at IS NOT NULL) AS email_verified, two_factor_enabled, dob, dob_visibility, age, dob_changes,
+                   ward_id::text AS ward_id,
+                   (SELECT w.province_code FROM vn_wards w WHERE w.id = users.ward_id) AS ward_province_code,
                    (password_hash IS NOT NULL AND password_hash <> '' AND password_hash <> 'SEED_DATA') AS has_password
             FROM users WHERE id = \(uuid: req.userID)
             """).first(decoding: Priv.self)!
@@ -281,7 +301,8 @@ struct UsersController {
             pub: pub, email: priv.email, email_verified: priv.email_verified,
             two_factor_enabled: priv.two_factor_enabled, has_password: priv.has_password,
             dob: priv.dob, dob_visibility: priv.dob_visibility, age: priv.age,
-            dob_changes_left: BirthdayRules.changesLeft(used: priv.dob_changes)))
+            dob_changes_left: BirthdayRules.changesLeft(used: priv.dob_changes),
+            ward_id: priv.ward_id, ward_province_code: priv.ward_province_code))
     }
 
     // MARK: POST /api/users/me/personas

@@ -43,6 +43,15 @@ struct AppErrorMiddleware: AsyncMiddleware {
             status = sm.status
             message = sm.reason
             statusMessageOnly = true
+        // Vapor's DecodingError text is Swift's internal wording (key paths,
+        // NSCocoaErrorDomain codes), and an empty or unreadable body is a 422
+        // with no message. The client sees one plain 400 for both.
+        case is DecodingError:
+            status = .badRequest
+            message = "Invalid request body"
+        case let abort as any AbortError where abort.status == .unprocessableEntity:
+            status = .badRequest
+            message = "Invalid request body"
         case let abort as any AbortError:
             status = abort.status
             message = abort.reason

@@ -134,26 +134,31 @@ class ProfileViewModel {
             hasMore = p.count == pageSize
             offset = p.count
         } catch {
-            self.error = error.localizedDescription
+            self.error = friendlyError(error)
         }
         isLoading = false
     }
 
     /// Pull-to-refresh: like `load` but the profile and posts stay on screen
-    /// while it runs (no spinner swap), and a failed pull keeps them.
+    /// while it runs (no spinner swap), and a failed pull keeps them. With
+    /// nothing on screen yet (the first load failed) a failed pull updates the
+    /// error instead, so the screen never sits on a skeleton.
     func refresh(userId: String, mode: String? = nil) async {
         isRefreshing = true
         defer { isRefreshing = false }
-        guard let (u, p) = try? await (
-            repository.fetchUser(userId: userId, mode: mode),
-            repository.fetchPosts(authorId: userId, mode: mode, limit: pageSize, offset: 0)
-        ) else { return }
-        user = u
-        posts = p
-        loadedMode = mode
-        hasMore = p.count == pageSize
-        offset = p.count
-        error = nil
+        do {
+            async let userResult  = repository.fetchUser(userId: userId, mode: mode)
+            async let postsResult = repository.fetchPosts(authorId: userId, mode: mode, limit: pageSize, offset: 0)
+            let (u, p) = try await (userResult, postsResult)
+            user = u
+            posts = p
+            loadedMode = mode
+            hasMore = p.count == pageSize
+            offset = p.count
+            error = nil
+        } catch {
+            if user == nil { self.error = friendlyError(error) }
+        }
     }
 
     func loadMorePosts(userId: String, mode: String?) async {

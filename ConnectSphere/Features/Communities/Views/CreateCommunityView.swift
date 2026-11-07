@@ -50,8 +50,6 @@ struct CreateCommunityView: View {
     @State private var showCustomEmojiInput  = false
     @State private var customEmojiDraft      = ""
     @FocusState private var emojiInputFocused: Bool
-    @State private var descriptionSelection: TextSelection?
-    @FocusState private var descriptionFocused: Bool
 
     @State private var warningIndex      = 0
     @State private var wasWarning        = false
@@ -180,8 +178,7 @@ struct CreateCommunityView: View {
                     nameMessages
 
                     formSection(title: bundle.loc("Description (optional)")) {
-                        TextEditor(text: $viewModel.description, selection: $descriptionSelection)
-                            .focused($descriptionFocused)
+                        TextEditor(text: $viewModel.description)
                             .scaledFont(15)
                             .scrollContentBackground(.hidden)
                             .padding(8)
@@ -315,9 +312,6 @@ struct CreateCommunityView: View {
             .navigationBarTitleDisplayMode(.inline)
             .interactiveDismissDisabled(viewModel.hasChanges)
             .toolbar {
-                ToolbarItemGroup(placement: .keyboard) {
-                    if descriptionFocused { MarkdownToolbar(text: $viewModel.description, selection: $descriptionSelection) }
-                }
                 ToolbarItem(placement: .cancellationAction) {
                     ConfirmCancelButton(hasChanges: viewModel.hasChanges) { dismiss() }
                         .foregroundColor(AppColors.textSecondary(colorScheme))

@@ -25,6 +25,8 @@ struct AuthUserDTO: Decodable {
     let jobTitle: String?
     let company: String?
     let location: String?
+    let wardId: String?
+    let wardProvinceCode: String?
     let gender: String?
     let email: String?
     let hasPassword: Bool?
@@ -54,6 +56,8 @@ struct AuthUserDTO: Decodable {
     enum CodingKeys: String, CodingKey {
         case bioFormat = "bio_format"
         case id, username, bio, location, gender, email, interests, skills, age, dob
+        case wardId         = "ward_id"
+        case wardProvinceCode = "ward_province_code"
         case hasPassword    = "has_password"
         case allowFriendRequests = "allow_friend_requests"
         case showInSuggestions = "show_in_suggestions"
@@ -96,7 +100,9 @@ struct AuthUserDTO: Decodable {
         jobTitle       = try c.decodeIfPresent(String.self, forKey: .jobTitle)
         company        = try c.decodeIfPresent(String.self, forKey: .company)
         location       = try c.decodeIfPresent(String.self, forKey: .location)
-        gender         = try c.decodeIfPresent(String.self, forKey: .gender)
+        wardId         = try c.decodeIfPresent(String.self, forKey: .wardId)
+        wardProvinceCode = try c.decodeIfPresent(String.self, forKey: .wardProvinceCode)
+        gender        = try c.decodeIfPresent(String.self, forKey: .gender)
         email          = try c.decodeIfPresent(String.self, forKey: .email)
         hasPassword    = try c.decodeIfPresent(Bool.self, forKey: .hasPassword)
         allowFriendRequests = try c.decodeIfPresent(Bool.self, forKey: .allowFriendRequests)
@@ -129,6 +135,8 @@ struct AuthUserDTO: Decodable {
             jobTitle: jobTitle, company: company,
             skills: skills, interests: interests,
             location: location,
+            wardId: wardId,
+            wardProvinceCode: wardProvinceCode,
             gender: gender,
             hobbySetup: hobbySetup ?? false,
             workSetup: workSetup ?? false,
@@ -159,7 +167,8 @@ struct OnboardingForm: Encodable {
     var dob: String = ""
     var dob_visibility: String = "private"
     var bio: String = ""
-    var location: String = ""
+    /// Required. The server sets the public location (its province) from it.
+    var ward_id: String = ""
     var gender: String = "other"
     var default_mode: String = "hobby"
     var job_title: String = ""

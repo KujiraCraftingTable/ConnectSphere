@@ -137,10 +137,10 @@ struct PostRepository {
     /// Prefix-match hashtag suggestions for `HashtagInputView`'s debounced dropdown.
     /// `prefix` must be non-empty. The backend returns 400 if it's empty, so the caller
     /// (HashtagInputView) blocks the call itself when the text field is empty.
-    func suggestTags(prefix: String, limit: Int = 8) async throws -> [TagSuggestionDTO] {
+    func suggestTags(prefix: String, limit: Int = 8, mode: AppMode? = nil) async throws -> [TagSuggestionDTO] {
         let response = try await client.fetch(
             DataListResponse<TagSuggestionDTO>.self,
-            from: .suggestTags(prefix: prefix, limit: limit)
+            from: .suggestTags(prefix: prefix, limit: limit, mode: mode)
         )
         return response.data
     }

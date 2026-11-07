@@ -355,7 +355,7 @@ enum ListingStore {
     /// listing can never be left without one.
     static func photoUpdate(_ p: Patch) throws -> (urls: [String], alts: [String]?)? {
         guard let raw = p.image_urls else { return nil }
-        guard let urls = PostsController.normalizeImageUrls(raw) else { throw Abort(.badRequest, reason: "Add at least one photo") }
+        guard let urls = try PostsController.normalizeImageUrls(raw) else { throw Abort(.badRequest, reason: "Add at least one photo") }
         return (urls, PostStore.cleanAlts(p.image_alts, count: urls.count))
     }
 

@@ -111,9 +111,14 @@ struct PrivateUserObject: Content {
     @NullCoded var age: Int?
     /// Birthday changes still allowed (migration 083).
     var dob_changes_left: Int
+    /// The private home ward and its province code (for the picker).
+    var ward_id: String?
+    var ward_province_code: String?
     init(pub: PublicUserObject, email: String?, email_verified: Bool, two_factor_enabled: Bool, has_password: Bool,
-         dob: Date?, dob_visibility: String?, age: Int?, dob_changes_left: Int) {
+         dob: Date?, dob_visibility: String?, age: Int?, dob_changes_left: Int,
+         ward_id: String? = nil, ward_province_code: String? = nil) {
         self.dob_changes_left = dob_changes_left
+        self.ward_id = ward_id; self.ward_province_code = ward_province_code
         self.pub = pub; self._email = .init(wrappedValue: email); self.email_verified = email_verified
         self.two_factor_enabled = two_factor_enabled
         self.has_password = has_password
@@ -132,8 +137,13 @@ struct PrivateUserObject: Content {
         try c.encode(_dob_visibility, forKey: .dob_visibility)
         try c.encode(_age, forKey: .age)
         try c.encode(dob_changes_left, forKey: .dob_changes_left)
+        try c.encode(ward_id, forKey: .ward_id)
+        try c.encode(ward_province_code, forKey: .ward_province_code)
     }
-    enum K: String, CodingKey { case email, email_verified, two_factor_enabled, has_password, dob, dob_visibility, age, dob_changes_left }
+    enum K: String, CodingKey {
+        case email, email_verified, two_factor_enabled, has_password, dob, dob_visibility, age, dob_changes_left
+        case ward_id, ward_province_code
+    }
 }
 
 struct BlockedUserObject: Content {

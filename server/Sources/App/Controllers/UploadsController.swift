@@ -30,7 +30,7 @@ struct UploadsController {
     /// message media, not an explicit fetch call) can't attach custom
     /// headers. So the JWT rides along as `?token=`, exactly like
     /// `APIConfig.mediaURL` on the client already anticipates. Mirrors
-    /// `AuthMiddleware`'s verify + soft-deleted-account rejection, just
+    /// `AuthMiddleware`'s verify + dead-session rejection, just
     /// reading the token from the query string instead of the header.
     static func registerMessageMedia(_ app: Application) {
         app.get("uploads", "messages", ":filename", use: serveMessageMedia)
@@ -44,11 +44,7 @@ struct UploadsController {
         guard let payload = try? JWTHS256.verify(token, secret: secret) else {
             throw Abort(.unauthorized, reason: "Invalid or expired token")
         }
-        struct Row: Decodable { let deleted_at: Date? }
-        let row = try? await req.db.sql()
-            .raw("SELECT deleted_at FROM users WHERE id = \(uuid: payload.sub)")
-            .first(decoding: Row.self)
-        guard let row, row.deleted_at == nil else {
+        guard try await Session.isLive(payload, on: req.db.sql()) else {
             throw Abort(.unauthorized, reason: "Invalid or expired token")
         }
         guard let filename = req.parameters.get("filename") else { throw Abort(.notFound) }

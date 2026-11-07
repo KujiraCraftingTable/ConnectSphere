@@ -13,10 +13,7 @@ struct DevServerSettingsView: View {
 
     @AppStorage("devServerOverride") private var devServerOverride: String = ""
 
-    private var infoPlistDefault: String {
-        (Bundle.main.object(forInfoDictionaryKey: "APIBaseURL") as? String)
-            .flatMap { $0.isEmpty ? nil : $0 } ?? "http://localhost:3000"
-    }
+    private var infoPlistDefault: String { APIConfig.builtInServerBase }
 
     var body: some View {
         List {

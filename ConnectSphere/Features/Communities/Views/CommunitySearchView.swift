@@ -63,6 +63,8 @@ struct CommunitySearchView: View {
                 TextField("", text: $viewModel.query,
                           prompt: Text(String(format: bundle.loc("Search in %@"), communityName)))
                     .textInputAutocapitalization(.never)
+                    // A search is the user's own words; autocorrect once turned "qa" into "as".
+                    .autocorrectionDisabled()
                     .submitLabel(.search)
                     .focused($fieldFocused)
                     .onSubmit {

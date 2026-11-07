@@ -19,6 +19,8 @@ struct AuthUserObject: Content {
     @NullCoded var avatar_url: String?
     @NullCoded var location: String?
     @NullCoded var ward_id: String?
+    /// So Edit Profile can open the ward picker on the right province.
+    var ward_province_code: String? = nil
     @NullCoded var gender: String?
     @NullCoded var dob: Date?
     @NullCoded var job_title: String?

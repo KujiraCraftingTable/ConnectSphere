@@ -28,7 +28,9 @@ struct ExperiencesController {
 
     /// "2024-03" → 1 March 2024 (UTC); nil if it isn't a real month.
     static func month(_ s: String?) -> Date? {
+        // Digits only: `Int` alone takes "+3" and "-1", so "2024-+3" passed as March.
         guard let s, s.count == 7, s[s.index(s.startIndex, offsetBy: 4)] == "-",
+              s.allSatisfy({ $0 == "-" || ("0"..."9").contains($0) }),
               let y = Int(s.prefix(4)), let m = Int(s.suffix(2)), (1900...2200).contains(y), (1...12).contains(m)
         else { return nil }
         var cal = Calendar(identifier: .gregorian)

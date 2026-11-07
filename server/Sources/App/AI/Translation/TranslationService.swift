@@ -67,6 +67,15 @@ enum TranslationService {
         return out
     }
 
+    /// Whether `translated` is just the source again (ignoring case and spacing).
+    static func isUnchanged(_ translated: String, from source: String) -> Bool {
+        func folded(_ t: String) -> String {
+            t.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+                .folding(options: [.caseInsensitive], locale: nil)
+        }
+        return folded(translated) == folded(source)
+    }
+
     /// sha256 hex, must match the SQL `hashExpr` below byte for byte.
     static func hash(_ text: String) -> String {
         SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
@@ -117,6 +126,10 @@ enum TranslationService {
                 return
             }
         }
+        // The model sometimes hands the text back unchanged (names, slang, short
+        // lines). Keep the hash so the sweep doesn't redo it, but store no
+        // translation: the app would label the unchanged text "Translated by AI".
+        if let t = translated, isUnchanged(t, from: text) { translated = nil }
         try? await db.raw("""
             UPDATE \(unsafeRaw: kind.table)
             SET lang = \(bind: lang ?? "none"), translated_text = \(bind: translated), translated_hash = \(bind: digest)

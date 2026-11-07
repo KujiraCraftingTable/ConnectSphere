@@ -24,7 +24,7 @@ enum Endpoint {
     case listComments(postId: String, limit: Int = 100, offset: Int = 0)
     case searchSuggestions(mode: String?)
     /// Prefix-match hashtag suggestions while typing in `HashtagInputView`, GET /tags/suggest.
-    case suggestTags(prefix: String, limit: Int = 8)
+    case suggestTags(prefix: String, limit: Int = 8, mode: AppMode? = nil)
     /// The curated interest catalogue, GET /interests/catalog. Open, so an
     /// email sign-up can pick interests before its account exists.
     case interestCatalog
@@ -140,11 +140,14 @@ enum Endpoint {
             guard let jobTitle, !jobTitle.isEmpty else { return [] }
             return [.init(name: "job_title", value: jobTitle)]
 
-        case .suggestTags(let prefix, let limit):
-            return [
+        case .suggestTags(let prefix, let limit, let mode):
+            var items: [URLQueryItem] = [
                 .init(name: "prefix", value: prefix),
                 .init(name: "limit",  value: "\(limit)"),
             ]
+            // Tags from the other mode's posts are not suggested.
+            if let mode { items.append(.init(name: "mode", value: mode.rawValue)) }
+            return items
 
         case .listPosts(let mode, let authorId, let filter, let tag, let search, let limit, let offset):
             var items: [URLQueryItem] = [

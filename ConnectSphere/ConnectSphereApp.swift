@@ -51,6 +51,11 @@ struct ConnectSphereApp: App {
                         GIDSignIn.sharedInstance.handle(url)
                     }
                 }
+                .task {
+                    // Let the first screen appear: iOS drops a prompt raised before the app is active.
+                    try? await Task.sleep(for: .seconds(1))
+                    await TrackingPermission.requestIfNeeded()
+                }
                 // Keep themeManager.currentMode in sync with the authoritative app mode.
                 .onChange(of: appState.currentMode) { _, newMode in
                     themeManager.switchMode(newMode)
@@ -83,14 +88,11 @@ struct RootView: View {
                 LoginView()
             } else if appState.needsOnboarding {
                 OnboardingView()
-            } else if appState.needsConsent {
-                ConsentGateView()
             } else {
                 MainTabView()
             }
         }
         .task { await appState.restoreSession() }
-        .task(id: appState.isLoggedIn && !appState.needsOnboarding) { await appState.refreshConsent() }
         .onAppear { KeyboardDismissal.install() }
     }
 }

@@ -7,12 +7,14 @@ final class AlbumValidationTests: XCTestCase {
         (0..<n).map { .init(url: "/uploads/messages/1730000000000-abcd\($0).jpg", type: "image") }
     }
 
+    private let present: (String) -> Bool = { _ in true }
+
     func testAlbumNeedsTwoToTenPhotos() throws {
         XCTAssertThrowsError(try MessagesController.validateAlbum(type: "album", items: nil))
         XCTAssertThrowsError(try MessagesController.validateAlbum(type: "album", items: photos(1)))
         XCTAssertThrowsError(try MessagesController.validateAlbum(type: "album", items: photos(11)))
-        XCTAssertEqual(try MessagesController.validateAlbum(type: "album", items: photos(3))?.count, 3)
-        XCTAssertEqual(try MessagesController.validateAlbum(type: "album", items: photos(10))?.count, 10)
+        XCTAssertEqual(try MessagesController.validateAlbum(type: "album", items: photos(3), exists: present)?.count, 3)
+        XCTAssertEqual(try MessagesController.validateAlbum(type: "album", items: photos(10), exists: present)?.count, 10)
     }
 
     func testAlbumOnlyAcceptsOurOwnUploadedPhotos() {
@@ -20,11 +22,18 @@ final class AlbumValidationTests: XCTestCase {
                     "/uploads/x.jpg", "/uploads/messages/clip.mp4", "/uploads/messages/.hidden.jpg"] {
             var items = photos(2)
             items[1].url = url
-            XCTAssertThrowsError(try MessagesController.validateAlbum(type: "album", items: items), url)
+            XCTAssertThrowsError(try MessagesController.validateAlbum(type: "album", items: items, exists: present), url)
         }
         var video = photos(2)
         video[0].type = "video"
-        XCTAssertThrowsError(try MessagesController.validateAlbum(type: "album", items: video))
+        XCTAssertThrowsError(try MessagesController.validateAlbum(type: "album", items: video, exists: present))
+    }
+
+    func testAlbumPhotoMustExistAndMayBeAGif() throws {
+        var items = photos(2)
+        items[1].url = "/uploads/messages/1730000000000-abcd9.gif"
+        XCTAssertEqual(try MessagesController.validateAlbum(type: "album", items: items, exists: present)?.count, 2)
+        XCTAssertThrowsError(try MessagesController.validateAlbum(type: "album", items: items, exists: { $0.hasSuffix(".jpg") }))
     }
 
     func testOtherTypesCannotSmuggleItems() throws {

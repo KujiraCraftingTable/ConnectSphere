@@ -242,7 +242,8 @@ struct SearchView: View {
         // Enter always closes the keyboard; keyword search has already run as they typed.
         isFieldFocused = false
         guard aiEnabled, !trimmedText.isEmpty else { return }
-        let radius = searchRadiusKm > 0 ? searchRadiusKm : nil
+        let km = RadiusScale.snapped(searchRadiusKm)
+        let radius = km > 0 ? km : nil
         Task { await viewModel.submitAI(prompt: trimmedText, mode: appState.currentMode, radiusKm: radius) }
     }
 
@@ -896,6 +897,9 @@ struct FriendSearchCard: View {
                                 HStack(spacing: 3) {
                                     Image(systemName: "mappin.circle.fill").scaledFont(11)
                                     Text(location).scaledFont(12).lineLimit(1)
+                                    if let km = user.distanceKm {
+                                        Text(String(format: bundle.loc("· ~%d km"), km)).scaledFont(12).lineLimit(1)
+                                    }
                                 }
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
                             }
@@ -918,7 +922,7 @@ struct FriendSearchCard: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 6) {
                                 ForEach(user.interests, id: \.self) { interest in
-                                    Text(interest)
+                                    Text(InterestNames.shared.displayName(interest, in: bundle))
                                         .scaledFont(11, .medium)
                                         .foregroundColor(themeManager.theme.primary)
                                         .padding(.horizontal, 8)
@@ -927,6 +931,7 @@ struct FriendSearchCard: View {
                                 }
                             }
                         }
+                        .task { await InterestNames.shared.loadIfNeeded() }
                     }
 
                     HStack(spacing: 4) {
@@ -984,6 +989,9 @@ struct ColleagueSearchCard: View {
                                 HStack(spacing: 3) {
                                     Image(systemName: "mappin.circle.fill").scaledFont(11)
                                     Text(location).scaledFont(12).lineLimit(1)
+                                    if let km = user.distanceKm {
+                                        Text(String(format: bundle.loc("· ~%d km"), km)).scaledFont(12).lineLimit(1)
+                                    }
                                 }
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
                             }

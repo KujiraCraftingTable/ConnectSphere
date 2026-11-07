@@ -10,8 +10,6 @@ struct EditCommunityView: View {
 
     @State private var viewModel: EditCommunityViewModel
     @State private var pickerItem: PhotosPickerItem?
-    @State private var aboutSelection: TextSelection?
-    @FocusState private var aboutFocused: Bool
     let onSaved: (Community) -> Void
 
     init(community: Community, onSaved: @escaping (Community) -> Void) {
@@ -58,8 +56,7 @@ struct EditCommunityView: View {
                 }
 
                 Section {
-                    TextEditor(text: $viewModel.about, selection: $aboutSelection)
-                        .focused($aboutFocused)
+                    TextEditor(text: $viewModel.about)
                         .frame(minHeight: 100)
                 } header: {
                     Text("About", bundle: bundle)
@@ -86,9 +83,6 @@ struct EditCommunityView: View {
             .navigationBarTitleDisplayMode(.inline)
             .interactiveDismissDisabled(viewModel.hasChanges)
             .toolbar {
-                ToolbarItemGroup(placement: .keyboard) {
-                    if aboutFocused { MarkdownToolbar(text: $viewModel.about, selection: $aboutSelection) }
-                }
                 ToolbarItem(placement: .cancellationAction) { ConfirmCancelButton(hasChanges: viewModel.hasChanges) { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     if viewModel.isSaving {

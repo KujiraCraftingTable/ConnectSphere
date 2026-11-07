@@ -191,3 +191,12 @@ got spoken labels.
 - **Contrast of text on photos, coloured chips and theme-coloured buttons** was not
   measured; only the shared text colour tokens were.
 - **Reduce Motion** is honoured in two places only.
+
+## Tracking prompt (App Tracking Transparency)
+- **The "Allow tracking" prompt is built but switched off**
+  (`TrackingPermission.isEnabled = false`). The app has no ads or analytics SDK, so
+  there is nothing to track and Apple does not allow asking. When ads or analytics are
+  added: set the flag to `true`, check the purpose text `NSUserTrackingUsageDescription`
+  in `ConnectSphere-Info.plist`, update the Privacy Policy and `LegalDocs.version`
+  (server and app), and fill in the App Store privacy labels.
+- Analytics is planned, not built: see [`ANALYTICS_PLAN.md`](ANALYTICS_PLAN.md).

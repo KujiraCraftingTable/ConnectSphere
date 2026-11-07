@@ -16,6 +16,12 @@ final class OnboardingViewModel {
             }
         }
     }
+    /// The ward picker's province, and its ward as the optional it binds to.
+    var provinceCode: String?
+    var wardId: String? {
+        get { form.ward_id.isEmpty ? nil : form.ward_id }
+        set { form.ward_id = newValue ?? "" }
+    }
     var selectedInterests: [InterestItem] = []
     private(set) var isLoading = false
     private(set) var errorMessage: String?
@@ -108,7 +114,7 @@ final class OnboardingViewModel {
             missing.append(Bundle.app.loc("a free username"))
         }
         if form.display_name.trimmingCharacters(in: .whitespaces).isEmpty { missing.append(Bundle.app.loc("display name")) }
-        if form.location.isEmpty { missing.append(Bundle.app.loc("province")) }
+        if form.ward_id.isEmpty { missing.append(Bundle.app.loc("ward")) }
         if form.gender.isEmpty { missing.append(Bundle.app.loc("gender")) }
         if form.dob.isEmpty { missing.append(Bundle.app.loc("date of birth")) }
         if asksForPolicy && !acceptsPolicy { missing.append(Bundle.app.loc("your agreement to the Terms and Privacy Policy")) }

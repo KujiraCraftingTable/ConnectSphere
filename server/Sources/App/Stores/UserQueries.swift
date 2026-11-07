@@ -148,7 +148,7 @@ extension UserStore {
         let modeRef = f.mode.map { "'\($0)'" }
         var q: SQLQueryString = """
             \(unsafeRaw: userSelectSQL(modeRef: modeRef))
-            WHERE u.deleted_at IS NULL
+            WHERE u.deleted_at IS NULL AND u.id <> \(uuid: f.viewerID)
               AND NOT EXISTS (SELECT 1 FROM user_blocks ub
                     WHERE (ub.blocker_id = \(uuid: f.viewerID) AND ub.blocked_id = u.id)
                        OR (ub.blocker_id = u.id AND ub.blocked_id = \(uuid: f.viewerID)))
@@ -233,7 +233,7 @@ extension UserStore {
         }
         var q: SQLQueryString = """
             SELECT COUNT(*)::int AS n FROM users
-            WHERE deleted_at IS NULL
+            WHERE deleted_at IS NULL AND id <> \(uuid: viewerID)
               AND NOT EXISTS (SELECT 1 FROM user_blocks ub
                     WHERE (ub.blocker_id = \(uuid: viewerID) AND ub.blocked_id = users.id)
                        OR (ub.blocker_id = users.id AND ub.blocked_id = \(uuid: viewerID)))
@@ -248,6 +248,13 @@ extension UserStore {
     }
 
     // MARK: block graph
+
+    /// Whether a live (not deleted) account has this id.
+    static func isActive(_ id: String, on db: any SQLDatabase) async throws -> Bool {
+        struct R: Decodable { let one: Int }
+        return try await db.raw("SELECT 1 AS one FROM users WHERE id = \(uuid: id) AND deleted_at IS NULL")
+            .first(decoding: R.self) != nil
+    }
 
     static func hasBlocked(_ blocker: String, _ blocked: String, on db: any SQLDatabase) async throws -> Bool {
         try await db.raw("SELECT 1 AS x FROM user_blocks WHERE blocker_id = \(uuid: blocker) AND blocked_id = \(uuid: blocked)")

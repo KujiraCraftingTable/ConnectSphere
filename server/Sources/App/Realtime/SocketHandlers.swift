@@ -129,9 +129,12 @@ enum SocketHandlers {
                 await session.ackError(ackID, "Not a participant"); return
             }
             let type = b.messageType ?? "text"
+            guard MessagesController.messageTypes.contains(type) else {
+                await session.ackError(ackID, "Unsupported message type"); return
+            }
             // These need checks only the REST route makes (a poll's options, a
             // shared post's visibility), so they're sent through it.
-            if ["poll", "post"].contains(type) {
+            if ["poll", "post", "community"].contains(type) {
                 await session.ackError(ackID, "Send this through the API"); return
             }
             if type == "text", (b.content?.trimmedText.isEmpty ?? true) {
@@ -139,8 +142,14 @@ enum SocketHandlers {
             }
             if let c = b.content, c.count > 2000 { await session.ackError(ackID, "Message is too long"); return }
             let album: [MessageObject.MediaItem]?
-            do { album = try MessagesController.validateAlbum(type: type, items: b.mediaItems) }
-            catch { await session.ackError(ackID, reason(error)); return }
+            let mediaURL: String?
+            do {
+                album = try MessagesController.validateAlbum(type: type, items: b.mediaItems)
+                mediaURL = try MediaPath.uploaded(b.mediaUrl, scope: .chat)
+            } catch { await session.ackError(ackID, reason(error)); return }
+            if ["image", "video", "voice"].contains(type), mediaURL == nil {
+                await session.ackError(ackID, "Media URL is required"); return
+            }
             var validated: ValidatedMeeting? = nil
             if type == "meeting" {
                 do {
@@ -163,7 +172,7 @@ enum SocketHandlers {
 
             let stored = b.content?.trimmedText.nilIfEmpty ?? validated?.title
             let newID = try await ChatStore.insertMessage(cid, senderID: conn.userID, content: stored, messageType: type,
-                mediaUrl: album?.first?.url ?? b.mediaUrl, mediaItems: album, replyToMessageID: replyTo,
+                mediaUrl: album?.first?.url ?? mediaURL, mediaItems: album, replyToMessageID: replyTo,
                 voiceDuration: b.voiceDurationSeconds, voiceWaveform: b.voiceWaveform, on: db)
             if let v = validated { try await ChatStore.createMeetingProposalRow(messageID: newID, v, on: db) }
             guard let msg = try await ChatStore.messageByID(newID, on: db) else {

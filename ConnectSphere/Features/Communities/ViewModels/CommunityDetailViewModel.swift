@@ -295,6 +295,12 @@ class CommunityDetailViewModel {
 
     // MARK: - Join / Request
 
+    /// Non-members get a "Join to post" prompt where the post bar would be.
+    /// Pending members see nothing: they already asked and can't act on it.
+    var showsJoinToPost: Bool {
+        community != nil && community?.isMember == false && joinStatus == .notMember
+    }
+
     func requestToJoin() async {
         guard joinStatus == .notMember else { return }
         joinStatus = .loading

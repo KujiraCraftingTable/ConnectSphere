@@ -53,7 +53,7 @@ struct SettingsView: View {
             } footer: {
                 Text(searchRadiusKm == 0
                      ? bundle.loc("No distance limit when searching with location.")
-                     : String(format: bundle.loc("Kujira only suggests people within %dkm when searching with location."), searchRadiusKm))
+                     : String(format: bundle.loc("Search only suggests people within %dkm of your ward, or of the place you name."), searchRadiusKm))
             }
 
             // Account, identity, privacy, activity and deleting live in Manage account

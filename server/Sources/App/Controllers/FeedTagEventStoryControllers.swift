@@ -34,7 +34,7 @@ struct FeedController {
         guard let mode = try? req.query.get(String.self, at: "mode"), ["hobby", "work"].contains(mode) else {
             throw StatusMessageError(.badRequest, "mode must be hobby or work")
         }
-        let limit = min((try? req.query.get(Int.self, at: "limit")) ?? 20, 50)
+        let limit = req.pageLimit(default: 20, max: 50)
         let cursor = try? req.query.get(String.self, at: "cursor")
         let (posts, next) = try await FeedStore.getRecommendedFeed(
             userID: req.userID, mode: mode, cursor: cursor, limit: limit, on: req.db.sql())
@@ -52,26 +52,47 @@ struct TagsController {
     struct TrendingRow: Content { var tag: String; var post_count: Int }
     struct SuggestRow: Content { var tag: String; var usage_count: Int }
 
+    /// The tags of posts this viewer may see, so a tag never reveals another
+    /// person's private post (or a Work post from Hobby, when `mode` is given).
+    private static func visiblePosts(_ viewer: String, mode: String?) -> SQLQueryString {
+        var q: SQLQueryString = "p.status = 'posted' AND " + PostStore.privacyClause(viewer)
+            + " AND " + PostStore.notBlockedClause(viewer) + " AND " + PostStore.communityVisibilityClause(viewer)
+        if let mode { q = q + " AND p.mode = \(bind: mode)" }
+        return q
+    }
+    private static func queryMode(_ req: Request) throws -> String? {
+        guard let mode = try? req.query.get(String.self, at: "mode") else { return nil }
+        guard ["hobby", "work"].contains(mode) else { throw Abort(.badRequest, reason: "mode must be hobby or work") }
+        return mode
+    }
+
     static func trending(_ req: Request) async throws -> DataListResponse<TrendingRow> {
-        let limit = min((try? req.query.get(Int.self, at: "limit")) ?? 10, 30)
-        let rows = try await req.db.sql().raw("""
+        let limit = req.pageLimit(default: 10, max: 30)
+        let visible = visiblePosts(req.userID, mode: try queryMode(req))
+        let q: SQLQueryString = """
             SELECT pt.tag, COUNT(*)::INT AS post_count
             FROM post_tags pt JOIN posts p ON p.id = pt.post_id
-            WHERE pt.source = 'user' AND p.status = 'posted' AND p.created_at >= NOW() - INTERVAL '7 days'
+            WHERE pt.source = 'user' AND p.created_at >= NOW() - INTERVAL '7 days'
+              AND \(visible)
             GROUP BY pt.tag ORDER BY post_count DESC, pt.tag LIMIT \(bind: limit)
-            """).all(decoding: TrendingRow.self)
-        return DataListResponse(data: rows)
+            """
+        return DataListResponse(data: try await req.db.sql().raw(q).all(decoding: TrendingRow.self))
     }
     static func suggest(_ req: Request) async throws -> DataListResponse<SuggestRow> {
         let prefix = ((try? req.query.get(String.self, at: "prefix")) ?? "").trimmingCharacters(in: .whitespaces)
         guard !prefix.isEmpty else { throw InlineError(.badRequest, "prefix is required") }
-        let limit = min((try? req.query.get(Int.self, at: "limit")) ?? 10, 20)
-        let rows = try await req.db.sql().raw("""
-            SELECT tag, COUNT(*)::INT AS usage_count FROM post_tags
-            WHERE source = 'user' AND tag ILIKE \(bind: prefix) || '%'
-            GROUP BY tag ORDER BY usage_count DESC LIMIT \(bind: limit)
-            """).all(decoding: SuggestRow.self)
-        return DataListResponse(data: rows)
+        let limit = req.pageLimit(default: 10, max: 20)
+        // Escaped: a raw `%` or `_` would match every tag.
+        let like = UserStore.escapeLike(prefix) + "%"
+        let visible = visiblePosts(req.userID, mode: try queryMode(req))
+        let q: SQLQueryString = """
+            SELECT pt.tag, COUNT(*)::INT AS usage_count
+            FROM post_tags pt JOIN posts p ON p.id = pt.post_id
+            WHERE pt.source = 'user' AND pt.tag ILIKE \(bind: like)
+              AND \(visible)
+            GROUP BY pt.tag ORDER BY usage_count DESC LIMIT \(bind: limit)
+            """
+        return DataListResponse(data: try await req.db.sql().raw(q).all(decoding: SuggestRow.self))
     }
 }
 

@@ -350,18 +350,30 @@ extension SeedDemoCommand {
 
     // MARK: - Writes
 
+    /// Every demo account lives in a Ho Chi Minh City ward, picked from a hash
+    /// of its username, so distance search has people to find around the
+    /// developer (migration 103 does the same for older accounts).
+    private static func seedWardSQL(_ username: String) -> SQLQueryString {
+        """
+        SELECT h.id FROM (
+          SELECT id, (row_number() OVER (ORDER BY code) - 1) AS n, count(*) OVER () AS total
+          FROM vn_wards WHERE province_name_en = 'Ho Chi Minh City') h
+        WHERE h.n = (hashtext(\(bind: username))::bigint & 2147483647) % h.total
+        """
+    }
+
     private static func insertPerson(_ p: Person, mode: String, color: String, interests: [String], skills: [String],
                                      on t: any SQLDatabase) async throws -> String {
         struct R: Decodable { let id: String }
         let hobby = mode == "hobby"
         let id = try await t.raw("""
             INSERT INTO users (username, password_hash, display_name, bio, email, gender, dob, age, dob_visibility,
-                               location, is_setup, default_mode, avatar_color,
+                               location, ward_id, is_setup, default_mode, avatar_color,
                                hobby_display_name, hobby_bio, work_display_name, work_bio, job_title, company,
                                created_at, updated_at)
             VALUES (\(bind: p.u), 'SEED_DATA', \(bind: p.n), \(bind: p.bio), \(bind: "\(p.u)@\(seedEmailDomain)"),
                     \(bind: p.g), \(bind: p.dob)::date, date_part('year', age(\(bind: p.dob)::date))::int, 'private',
-                    \(bind: p.loc), TRUE, \(bind: mode), \(bind: color),
+                    'Ho Chi Minh', (\(seedWardSQL(p.u))), TRUE, \(bind: mode), \(bind: color),
                     \(bind: hobby ? p.n : nil), \(bind: hobby ? p.bio : nil),
                     \(bind: hobby ? nil : p.n), \(bind: hobby ? nil : p.bio), \(bind: p.title), \(bind: p.company),
                     NOW() - INTERVAL '75 days', NOW() - INTERVAL '75 days')

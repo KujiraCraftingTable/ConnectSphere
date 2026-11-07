@@ -5,7 +5,7 @@ import SQLKit
 /// texts in the app (`StaticInfoView`) change in a way people must agree to
 /// again, everyone is then asked once more.
 enum LegalDocs {
-    static let version = "2026-11-06"
+    static let version = "2026-11-07"
     static let documents = ["terms", "privacy"]
 }
 

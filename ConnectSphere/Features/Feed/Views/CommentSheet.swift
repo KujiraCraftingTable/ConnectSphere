@@ -12,7 +12,6 @@ struct CommentSheet: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var viewModel = CommentViewModel()
     @State private var input = ""
-    @State private var inputSelection: TextSelection?
     @FocusState private var focused: Bool
     /// Local Undo-toast presenter, `CommentSheet` is a `.sheet`, presented
     /// above `MainTabView`'s app-wide toast overlay, so it can't reuse that one
@@ -88,7 +87,7 @@ struct CommentSheet: View {
                             AvatarView(user: me, size: 36)
                         }
 
-                        TextField(bundle.loc("Write a comment..."), text: $input, selection: $inputSelection, axis: .vertical)
+                        TextField(bundle.loc("Write a comment..."), text: $input, axis: .vertical)
                             .scaledFont(15)
                             .lineLimit(4)
                             .focused($focused)
@@ -123,11 +122,6 @@ struct CommentSheet: View {
                     .background(AppColors.surface(colorScheme))
                 }
                 .background(AppColors.base(colorScheme))
-                .toolbar {
-                    ToolbarItemGroup(placement: .keyboard) {
-                        if focused { MarkdownToolbar(text: $input, selection: $inputSelection) }
-                    }
-                }
                 .navigationTitle(bundle.loc("Comments"))
                 .navigationBarTitleDisplayMode(.inline)
             }

@@ -74,9 +74,10 @@ struct AuthViewModelTests {
         #expect(vm.form.username == "kujira" && !vm.needsUsername && !vm.offersPassword)
         #expect(vm.asksForPolicy)                       // a Google-style sign-up that never ticked the box
         #expect(vm.reachableSteps == 2)                 // can't swipe past the basics yet
-        #expect(vm.missingBasics.count == 4)            // name, province, birthday, agreement (gender defaults to "other")
+        #expect(vm.missingBasics.count == 4)            // name, ward, birthday, agreement (gender defaults to "other")
+        #expect(vm.missingBasics.contains(Bundle.app.loc("ward")))
         vm.form.display_name = "Kujira"
-        vm.form.location = "79"
+        vm.wardId = "00000000-0000-0000-0000-000000000079"
         vm.form.gender = "male"
         #expect(vm.missingBasics == [Bundle.app.loc("date of birth"),
                                      Bundle.app.loc("your agreement to the Terms and Privacy Policy")])
@@ -94,7 +95,7 @@ struct AuthViewModelTests {
         vm.next()
         #expect(vm.stillNeeded == nil)
         vm.refusedMove()
-        #expect(vm.stillNeeded?.contains(Bundle.app.loc("province")) == true)
+        #expect(vm.stillNeeded?.contains(Bundle.app.loc("ward")) == true)
     }
 
     @Test func googleSignUpGetsAnOptionalPassword() {
@@ -142,7 +143,7 @@ struct AuthViewModelTests {
         vm.prefill(username: "user_1a2b3c4d", hasPassword: false)
         #expect(vm.needsUsername)
         #expect(vm.form.username.isEmpty)   // the placeholder isn't kept
-        vm.form.display_name = "K"; vm.form.location = "79"; vm.form.gender = "male"; vm.form.dob = "2000-01-01"
+        vm.form.display_name = "K"; vm.wardId = "00000000-0000-0000-0000-000000000079"; vm.form.gender = "male"; vm.form.dob = "2000-01-01"
         vm.username = "Kujira_Dev"
         #expect(vm.form.username == "kujira_dev")
         #expect(!vm.basicsComplete)        // not confirmed available yet

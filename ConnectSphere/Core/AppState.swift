@@ -108,8 +108,6 @@ enum AppearanceMode: String, CaseIterable {
 class AppState {
     var isLoggedIn:   Bool = false
     var needsOnboarding: Bool = false
-    /// The account hasn't agreed to the current Terms and Privacy Policy yet.
-    var needsConsent: Bool = false
     var isCheckingAuth:  Bool = true   // splash while checking Keychain
     var currentMode:  AppMode = .hobby
     var currentUser:  UserProfile? = nil
@@ -301,6 +299,13 @@ class AppState {
         }
     }
 
+    /// The server ends every older session when the password changes and hands
+    /// this device a fresh token; without keeping it the next request would 401.
+    func adoptToken(_ token: String) {
+        KeychainHelper.save(token, forKey: KeychainHelper.tokenKey)
+        authToken = token
+    }
+
     private func finishLogin(token: String, user: AuthUserDTO, isNew: Bool) {
         authToken       = token
         currentUser     = user.toUserProfile()
@@ -397,18 +402,8 @@ class AppState {
         }
     }
 
-    /// Asks the server whether this account has agreed to the current Terms and
-    /// Privacy Policy. Offline or on a server error the app stays open, the
-    /// check runs again next launch.
-    func refreshConsent() async {
-        guard let token = authToken, isLoggedIn, !needsOnboarding else { return }
-        guard let status = try? await AuthService.shared.consentStatus(token: token) else { return }
-        needsConsent = !status.accepted
-    }
-
     func logout() {
         KeychainHelper.delete(forKey: KeychainHelper.tokenKey)
-        needsConsent     = false
         authToken        = nil
         currentUser      = nil
         isLoggedIn       = false

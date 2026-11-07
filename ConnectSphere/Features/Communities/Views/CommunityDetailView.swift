@@ -72,7 +72,11 @@ struct CommunityDetailView: View {
                     .padding(.top, -topInset)
 
                 Section {
-                    if canCompose { createPostBar }
+                    if canCompose {
+                        createPostBar
+                    } else if viewModel.showsJoinToPost {
+                        joinToPostPrompt
+                    }
                     feedContent
                 }
             }
@@ -406,6 +410,27 @@ struct CommunityDetailView: View {
     /// Members only: the bar sits at the top of the feed, so posting means
     /// scrolling back up to it.
     private var canCompose: Bool { viewModel.community?.isMember == true }
+
+    /// Non-members: same slot and shape as the post bar, tapping asks to join.
+    private var joinToPostPrompt: some View {
+        Button {
+            Task<Void, Never>(name: nil) { await viewModel.requestToJoin() }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "square.and.pencil")
+                Text("Join to post", bundle: bundle)
+            }
+            .scaledFont(15, .medium)
+            .foregroundColor(accentColor)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(Capsule().stroke(accentColor.opacity(0.5), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, AppSpacing.sm + 4)
+        .padding(.vertical, 10)
+        .background(AppColors.surface(colorScheme))
+    }
 
     private var createPostBar: some View {
         HStack(spacing: 10) {

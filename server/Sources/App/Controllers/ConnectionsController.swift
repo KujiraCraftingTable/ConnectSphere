@@ -127,10 +127,10 @@ struct ConnectionsController {
         let mode = b.mode ?? "hobby"
         guard let addresseeID = b.addressee_id else { throw InlineError(.badRequest, "addressee_id required") }
         guard ["hobby", "work"].contains(mode) else { throw InlineError(.badRequest, "Invalid mode") }
-        guard req.userID != addresseeID else { throw InlineError(.badRequest, "Cannot connect with yourself") }
+        guard req.userID.caseInsensitiveCompare(addresseeID) != .orderedSame else { throw InlineError(.badRequest, "Cannot connect with yourself") }
         let db = req.db.sql()
         struct I: Decodable { let id: String }
-        guard try await db.raw("SELECT id FROM users WHERE id = \(uuid: addresseeID)").first(decoding: I.self) != nil else {
+        guard try await UserStore.isActive(addresseeID, on: db) else {
             throw InlineError(.notFound, "User not found")
         }
         struct One: Decodable { let one: Int }

@@ -106,6 +106,8 @@ struct ProfileView: View {
                                 HighlightsRow(userId: user.id, isMe: !showingOther)
                             }
                             postsSection.id("posts")
+                        } else if let error = shown.error, !shown.isLoading {
+                            profileLoadErrorState(error)
                         } else {
                             SkeletonPostList(count: 2, colorScheme: colorScheme)
                                 .padding(.horizontal, 8).padding(.top, 24)
@@ -118,7 +120,7 @@ struct ProfileView: View {
                 .trackPull($pull)
                 .refreshable {
                     if let userId = appState.currentUser?.id {
-                        await viewModel.refresh(userId: userId, mode: appState.currentMode.rawValue)
+                        await shown.refresh(userId: userId, mode: mode.rawValue)
                     }
                 }
             }
@@ -320,7 +322,7 @@ struct ProfileView: View {
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .padding(.horizontal, 32)
             Button(bundle.loc("Retry")) {
-                Task { await shown.load(userId: currentUserId, mode: appState.currentMode.rawValue) }
+                Task { await shown.load(userId: currentUserId, mode: mode.rawValue) }
             }
             .scaledFont(14, .semibold)
             .foregroundColor(themeManager.theme.primary)
@@ -328,6 +330,16 @@ struct ProfileView: View {
         .padding(.top, 24)
         .padding(.bottom, 8)
         .frame(maxWidth: .infinity)
+    }
+
+    /// The whole profile failed to load, so there is no header to hang the
+    /// error on. Sits below the cover area, which runs under the status bar.
+    private func profileLoadErrorState(_ message: String) -> some View {
+        postsErrorState(message)
+            .padding(.top, 110)
+            .overlay(alignment: .topTrailing) {
+                if hasOther { FlipButton<AnyView>(flip: flipButton).padding(.top, 110) }
+            }
     }
 
     /// Bare glyph: the toolbar's Liquid Glass is its only background.

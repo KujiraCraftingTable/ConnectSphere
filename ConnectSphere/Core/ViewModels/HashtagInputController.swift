@@ -11,6 +11,8 @@ import Observation
 final class HashtagInputController {
     var currentText = ""
     var suggestions: [TagSuggestionDTO] = []
+    /// The mode the post is written in; suggestions come only from that mode.
+    var mode: AppMode?
     private var suggestTask: Task<Void, Never>? = nil
 
     private let repository = PostRepository()
@@ -99,7 +101,7 @@ final class HashtagInputController {
         suggestTask = Task {
             try? await Task.sleep(nanoseconds: 300_000_000)
             guard !Task.isCancelled else { return }
-            let result = (try? await repository.suggestTags(prefix: prefix, limit: 8)) ?? []
+            let result = (try? await repository.suggestTags(prefix: prefix, limit: 8, mode: mode)) ?? []
             guard !Task.isCancelled else { return }
             suggestions = result
         }

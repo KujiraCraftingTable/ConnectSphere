@@ -73,9 +73,11 @@ struct MessagesController {
     static func assertNotBlockedInConversation(_ conversationID: String, _ userID: String, on db: any SQLDatabase) async throws {
         let parts = try await ChatStore.participants(conversationID, on: db)
         if parts.count > 2 { return }
-        if let other = parts.first(where: { $0 != userID }),
-           try await UserStore.isBlockedEitherWay(userID, other, on: db) {
-            throw Abort(.forbidden, reason: "Cannot message this user")
+        if let other = parts.first(where: { $0 != userID }) {
+            // A deleted account keeps its old chats readable but can't be written to.
+            let blocked = try await UserStore.isBlockedEitherWay(userID, other, on: db)
+            let active = try await UserStore.isActive(other, on: db)
+            if blocked || !active { throw Abort(.forbidden, reason: "Cannot message this user") }
         }
     }
 
@@ -123,15 +125,21 @@ struct MessagesController {
     }
 
     static func validateMeetingProposal(title: String?, location: String?, startsAt: String?, endsAt: String?,
-                                        reminderOffset: String?, reminderAt: String?) throws -> ValidatedMeeting {
+                                        reminderOffset: String?, reminderAt: String?,
+                                        now: Date = Date()) throws -> ValidatedMeeting {
         guard let cleanTitle = title?.trimmingCharacters(in: .whitespaces), !cleanTitle.isEmpty else {
             throw Abort(.badRequest, reason: "Meeting title is required")
+        }
+        // The columns are VARCHAR(200) / VARCHAR(300); longer text was a 500 that left a blank meeting bubble.
+        guard cleanTitle.count <= 200 else { throw Abort(.badRequest, reason: "Meeting title must be at most 200 characters") }
+        if let loc = location, loc.trimmingCharacters(in: .whitespaces).count > 300 {
+            throw Abort(.badRequest, reason: "Meeting location must be at most 300 characters")
         }
         guard let startsAtStr = startsAt, !startsAtStr.isEmpty else {
             throw Abort(.badRequest, reason: "Meeting start time is required")
         }
         guard let start = parseDate(startsAtStr) else { throw Abort(.badRequest, reason: "Invalid meeting start time") }
-        if start <= Date() { throw Abort(.badRequest, reason: "Meeting start time must be in the future") }
+        if start <= now { throw Abort(.badRequest, reason: "Meeting start time must be in the future") }
 
         if let endsAtStr = endsAt, !endsAtStr.isEmpty {
             guard let end = parseDate(endsAtStr) else { throw Abort(.badRequest, reason: "Invalid meeting end time") }
@@ -147,6 +155,9 @@ struct MessagesController {
         let reminderAtOut: String
         if let ra = reminderAt, !ra.isEmpty {
             guard let parsed = parseDate(ra) else { throw Abort(.badRequest, reason: "Invalid reminder time") }
+            // A reminder in the past fires the moment the job runs; one after the start is pointless.
+            guard parsed > now else { throw Abort(.badRequest, reason: "Reminder time must be in the future") }
+            guard parsed <= start else { throw Abort(.badRequest, reason: "Reminder time must be before the meeting starts") }
             reminderAtOut = isoOut.string(from: parsed)
         } else {
             reminderAtOut = defaultReminderAt(start: start, offset: offset)
@@ -208,8 +219,12 @@ struct MessagesController {
         guard let other = b.other_user_id, let mode = b.mode else {
             throw Abort(.badRequest, reason: "other_user_id and mode are required")
         }
-        if req.userID == other { throw Abort(.badRequest, reason: "Cannot start a conversation with yourself") }
+        if req.userID.caseInsensitiveCompare(other) == .orderedSame { throw Abort(.badRequest, reason: "Cannot start a conversation with yourself") }
         guard ["hobby", "work"].contains(mode) else { throw Abort(.badRequest, reason: "Invalid mode") }
+        // Unknown and deleted accounts alike: a chat with them could never be answered.
+        guard UUID(uuidString: other) != nil, try await UserStore.isActive(other, on: req.db.sql()) else {
+            throw Abort(.notFound, reason: "User not found")
+        }
         if try await UserStore.isBlockedEitherWay(req.userID, other, on: req.db.sql()) {
             throw Abort(.forbidden, reason: "Cannot message this user")
         }
@@ -234,7 +249,7 @@ struct MessagesController {
     static func listMessages(_ req: Request) async throws -> DataListResponse<MessageObject> {
         let id = req.parameters.get("id")!
         try await requireParticipant(id, req)
-        let limit = (try? req.query.get(Int.self, at: "limit")) ?? 30
+        let limit = req.pageLimit(default: 30, max: 100)
         let before = try? req.query.get(String.self, at: "before")
         return DataListResponse(data: try await ChatStore.listMessages(id, userID: req.userID, limit: limit, before: before, on: req.db.sql()))
     }
@@ -264,15 +279,18 @@ struct MessagesController {
         var shared_community_id: String?
     }
     struct PollIn: Content { var options: [String]?; var ends_at: String? }
+    /// The `messages_message_type_check` values; anything else would be a 500 from the DB.
+    static let messageTypes: Set<String> = ["text", "image", "video", "voice", "album", "meeting", "poll", "post", "community"]
     static let maxAlbumPhotos = 10
     /// One of our own chat uploads, image types only. An album can't point
     /// at another site or at a path outside the uploads folder.
     static let albumPhotoURL = try! NSRegularExpression(
-        pattern: "^/uploads/messages/[A-Za-z0-9_-][A-Za-z0-9._-]*\\.(jpg|jpeg|png|webp|heic)$", options: [.caseInsensitive])
+        pattern: "^/uploads/messages/[A-Za-z0-9_-][A-Za-z0-9._-]*\\.(jpg|jpeg|png|gif|webp|heic)$", options: [.caseInsensitive])
 
     /// `media_items` is only for albums, and an album is 2–10 of our own
     /// uploaded photos. Returns the items to store (nil for any other type).
-    static func validateAlbum(type: String, items: [MessageObject.MediaItem]?) throws -> [MessageObject.MediaItem]? {
+    static func validateAlbum(type: String, items: [MessageObject.MediaItem]?,
+                              exists: (String) -> Bool = MediaPath.ownFileExists) throws -> [MessageObject.MediaItem]? {
         guard type == "album" else {
             if items != nil { throw Abort(.badRequest, reason: "Only an album can carry several photos") }
             return nil
@@ -281,8 +299,9 @@ struct MessagesController {
             throw Abort(.badRequest, reason: "An album needs 2 to \(maxAlbumPhotos) photos")
         }
         for item in items {
+            // A photo that was never uploaded would show as a blank tile for everyone.
             guard item.type == "image", !item.url.contains(".."),
-                  AuthController.matches(albumPhotoURL, item.url) else {
+                  AuthController.matches(albumPhotoURL, item.url), exists(item.url) else {
                 throw Abort(.badRequest, reason: "Invalid album photo")
             }
         }
@@ -295,10 +314,12 @@ struct MessagesController {
         try await requireParticipant(id, req)
         let b = try req.content.decode(SendBody.self)
         let type = b.message_type ?? "text"
+        guard messageTypes.contains(type) else { throw Abort(.badRequest, reason: "Unsupported message type") }
         if type == "text", (b.content?.trimmedText.isEmpty ?? true) {
             throw Abort(.badRequest, reason: "Message content is required")
         }
-        if ["image", "video", "voice"].contains(type), b.media_url == nil {
+        let mediaURL = try MediaPath.uploaded(b.media_url, scope: .chat)
+        if ["image", "video", "voice"].contains(type), mediaURL == nil {
             throw Abort(.badRequest, reason: "Media URL is required")
         }
         if let c = b.content, c.count > 2000 { throw Abort(.badRequest, reason: "Message is too long") }
@@ -366,7 +387,7 @@ struct MessagesController {
         let storedContent = b.content?.trimmedText.nilIfEmpty ?? validated?.title
         let newID = try await ChatStore.insertMessage(id, senderID: req.userID,
             content: storedContent, messageType: type,
-            mediaUrl: album?.first?.url ?? b.media_url, mediaItems: album, replyToMessageID: replyTo,
+            mediaUrl: album?.first?.url ?? mediaURL, mediaItems: album, replyToMessageID: replyTo,
             voiceDuration: b.voice_duration_seconds, voiceWaveform: b.voice_waveform,
             sharedPostID: sharedPost, sharedCommunityID: sharedCommunity, on: db)
         if let v = validated {
@@ -400,7 +421,15 @@ struct MessagesController {
         let id = req.parameters.get("id")!, mid = req.parameters.get("messageId")!
         let db = req.db.sql()
         try await requireParticipant(id, req)
-        _ = try await ChatStore.recall(mid, conversationID: id, senderID: req.userID, on: db)
+        guard let target = try await ChatStore.messageBasic(mid, on: db),
+              target.conversation_id.caseInsensitiveCompare(id) == .orderedSame else {
+            throw Abort(.notFound, reason: "Message not found")
+        }
+        guard target.sender_id.caseInsensitiveCompare(req.userID) == .orderedSame else {
+            throw Abort(.forbidden, reason: "You can only unsend your own messages")
+        }
+        // Already unsent: nothing changed, so there is nothing to broadcast.
+        guard try await ChatStore.recall(mid, conversationID: id, senderID: req.userID, on: db) else { return StatusOK() }
         let parts = try await ChatStore.participants(id, on: db)
         req.socketHub.emitConversation(id, participants: parts, event: "message_deleted",
             WSMessageDeleted(conversation_id: id, message_id: mid))
@@ -540,10 +569,17 @@ struct MessagesController {
         let db = req.db.sql()
         try await requireParticipant(id, req)
         guard let mid = try req.content.decode(PinBody.self).message_id else { throw Abort(.badRequest, reason: "message_id is required") }
-        let expiresAt = try req.content.decode(PinBody.self).expires_at
+        var expiresAt: String? = nil
+        if let raw = try req.content.decode(PinBody.self).expires_at?.nilIfEmpty {
+            guard let when = parseDate(raw) else { throw Abort(.badRequest, reason: "Invalid pin expiry") }
+            // A pin that is already over would be listed and then vanish.
+            guard when > Date() else { throw Abort(.badRequest, reason: "Pin expiry must be in the future") }
+            expiresAt = raw
+        }
         guard let target = try await ChatStore.messageBasic(mid, on: db), target.conversation_id == id else {
             throw Abort(.notFound, reason: "Message not found")
         }
+        guard !target.is_recalled else { throw Abort(.badRequest, reason: "An unsent message can't be pinned") }
         guard let pin = try await ChatStore.pinMessage(id, messageID: mid, userID: req.userID, expiresAt: expiresAt, on: db) else {
             throw Abort(.badRequest, reason: "This conversation already has \(ChatStore.maxPins) pinned messages")
         }
@@ -630,7 +666,12 @@ struct MessagesController {
     static func acceptRequest(_ req: Request) async throws -> Accepted {
         let id = req.parameters.get("id")!
         try await requireParticipant(id, req)
-        try await MessageRequests.accept(conversationID: id, by: req.userID, on: req.db.sql())
+        let db = req.db.sql()
+        // The sender "accepting" their own request changed nothing yet said 200.
+        let changed = try await MessageRequests.accept(conversationID: id, by: req.userID, on: db)
+        if !changed, try await MessageRequests.isOwnPendingRequest(conversationID: id, by: req.userID, on: db) {
+            throw Abort(.forbidden, reason: "Only the person who received the request can accept it")
+        }
         return Accepted(accepted: true)
     }
 
@@ -834,8 +875,12 @@ struct MessagesController {
         if present.contains("avatar_url") || present.contains("avatar_color") {
             try await requireGroupOwner(id, req.userID, on: db)
             var sets: [(String, String?)] = []
-            if present.contains("avatar_url") { sets.append(("avatar_url", MediaPath.storable(raw.avatar_url))) }
-            if present.contains("avatar_color") { sets.append(("avatar_color", raw.avatar_color)) }
+            if present.contains("avatar_url") { sets.append(("avatar_url", try MediaPath.uploaded(raw.avatar_url, scope: .chat))) }
+            if present.contains("avatar_color") {
+                // VARCHAR(20): a longer value would be a 500 from the DB.
+                if let color = raw.avatar_color, color.count > 20 { throw Abort(.badRequest, reason: "avatar_color is too long") }
+                sets.append(("avatar_color", raw.avatar_color))
+            }
             try await ChatStore.updateGroupInfo(id, sets: sets, on: db)
             settings = try await ChatStore.groupSettings(id, on: db)
         }

@@ -4,5 +4,5 @@ import Foundation
 /// this build shows. Bump it together with `LegalDocs.version` on the server
 /// whenever those texts change in a way people must agree to again.
 enum LegalDocs {
-    static let version = "2026-11-06"
+    static let version = "2026-11-07"
 }

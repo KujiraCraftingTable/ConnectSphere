@@ -12,8 +12,6 @@ struct CreateListingView: View {
 
     @State private var viewModel: CreateListingViewModel
     @State private var showCommunities = false
-    @State private var detailsSelection: TextSelection?
-    @FocusState private var detailsFocused: Bool
     let onCreated: (Post) -> Void
 
     init(mode: AppMode, preselectedCommunityId: String? = nil, onCreated: @escaping (Post) -> Void) {
@@ -39,9 +37,8 @@ struct CreateListingView: View {
                     Text("Listing details", bundle: bundle)
                 }
                 Section {
-                    TextField(bundle.loc("Describe what you're selling…"), text: $viewModel.details, selection: $detailsSelection, axis: .vertical)
+                    TextField(bundle.loc("Describe what you're selling…"), text: $viewModel.details, axis: .vertical)
                         .lineLimit(3...8)
-                        .focused($detailsFocused)
                 } header: {
                     Text("Description", bundle: bundle)
                 }
@@ -61,11 +58,6 @@ struct CreateListingView: View {
                 AutoReupSection(isOn: $viewModel.autoReupOn, days: $viewModel.autoReupDays, hour: $viewModel.autoReupHour)
             }
             .tint(themeManager.theme.primary)
-            .toolbar {
-                ToolbarItemGroup(placement: .keyboard) {
-                    if detailsFocused { MarkdownToolbar(text: $viewModel.details, selection: $detailsSelection) }
-                }
-            }
             .navigationTitle(Text("New listing", bundle: bundle))
             .navigationBarTitleDisplayMode(.inline)
             .interactiveDismissDisabled(viewModel.hasChanges)

@@ -8,6 +8,7 @@ import SQLKit
 struct ReportsController {
     static let validReasons = ["spam", "harassment", "hate_speech", "misinformation", "off_topic", "other"]
     static let autoNotifyThreshold = 5
+    static let maxDetailLength = 500
 
     /// Community-scoped routes (mounted by CommunitiesController).
     static func registerCommunityRoutes(on c: any RoutesBuilder) {
@@ -37,7 +38,8 @@ struct ReportsController {
     static func submit(reporterID: String, targetType: String, targetID: String, communityID: String?, reason: String?, detail: String?, on db: any SQLDatabase) async throws -> ReportRow {
         guard ["post", "member"].contains(targetType) else { throw Abort(.badRequest, reason: "Invalid target type") }
         guard let reason, validReasons.contains(reason) else { throw Abort(.badRequest, reason: "Invalid reason") }
-        if targetType == "member" && targetID == reporterID { throw Abort(.badRequest, reason: "You cannot report yourself") }
+        if targetType == "member" && targetID.caseInsensitiveCompare(reporterID) == .orderedSame { throw Abort(.badRequest, reason: "You cannot report yourself") }
+        if let detail, detail.count > maxDetailLength { throw Abort(.badRequest, reason: "Detail must be at most \(maxDetailLength) characters") }
 
         struct I: Decodable { let id: String }
         if try await db.raw("SELECT id FROM community_reports WHERE reporter_id = \(uuid: reporterID) AND target_type = \(bind: targetType) AND target_id = \(uuid: targetID)")
@@ -47,6 +49,9 @@ struct ReportsController {
         if targetType == "post" {
             guard let meta = try await PostStore.findMeta(targetID, on: db), meta.community_id == communityID else {
                 throw Abort(.notFound, reason: "Post not found in this community")
+            }
+            if meta.author_id.caseInsensitiveCompare(reporterID) == .orderedSame {
+                throw Abort(.badRequest, reason: "You cannot report your own post")
             }
         } else if let communityID {
             guard try await CommunityStore.membership(communityID, targetID, on: db) != nil else {
@@ -105,8 +110,8 @@ struct ReportsController {
             throw Abort(.forbidden, reason: "Only admins and moderators can access the moderation queue")
         }
         let status = (try? req.query.get(String.self, at: "status")) ?? "pending"
-        let limit = (try? req.query.get(Int.self, at: "limit")) ?? 20
-        let offset = (try? req.query.get(Int.self, at: "offset")) ?? 0
+        let limit = req.pageLimit(default: 20, max: 100)
+        let offset = req.pageOffset
 
         var q: SQLQueryString = """
             SELECT r.id::text AS id, r.target_type, r.target_id::text AS target_id, r.reason, r.detail, r.status, r.created_at,

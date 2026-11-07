@@ -22,6 +22,18 @@ enum BirthdayRules {
         return born <= cutoff
     }
 
+    static let invalidReason = "Enter a valid date of birth."
+    static let futureReason = "Date of birth can't be in the future."
+
+    /// Why `value` can't be a birthday, or nil if it can. Checked before a
+    /// change is spent: an unparseable or future date used to reach the
+    /// database (a 500 for "15/01/2000") or count against the two changes.
+    static func rejection(_ value: String, today: Date = Date()) -> String? {
+        guard let born = JSONCoding.dateOnly.date(from: String(value.prefix(10))) else { return invalidReason }
+        if born > today { return futureReason }
+        return isOldEnough(value, today: today) ? nil : underageReason
+    }
+
     static let limitReason = "You've used both birthday changes. To change it again, email support."
 
     /// Edit profile sends the birthday on every save; only a different value

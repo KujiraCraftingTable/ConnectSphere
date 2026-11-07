@@ -14,8 +14,6 @@ struct EditProfileView: View {
 
     @State private var viewModel = EditProfileViewModel()
     @State private var confirmDobChange = false
-    @State private var bioSelection: TextSelection?
-    @FocusState private var bioFocused: Bool
 
     @State private var pickingLanguages = false
 
@@ -91,10 +89,10 @@ struct EditProfileView: View {
                         TextField(bundle.loc("Display name"), text: $viewModel.displayName)
                         CharacterCounter(count: viewModel.displayName.count, limit: DisplayNameRules.maxLength)
                     }
-                    TextField(bundle.loc("About yourself"), text: $viewModel.bio, selection: $bioSelection, axis: .vertical)
+                    TextField(bundle.loc("About yourself"), text: $viewModel.bio, axis: .vertical)
                         .lineLimit(3...5)
-                        .focused($bioFocused)
-                    LocationSearchField(bundle.loc("Location"), text: $viewModel.location)
+                    WardPickerView(selectedProvinceCode: $viewModel.provinceCode, selectedWardId: $viewModel.wardId)
+                        .listRowSeparator(.hidden)
                     DatePicker(bundle.loc("Date of birth"), selection: $viewModel.dobDate,
                                in: ...Date.latestBirthdayFor16Plus, displayedComponents: .date)
                         .disabled(viewModel.isDobLocked)
@@ -181,11 +179,6 @@ struct EditProfileView: View {
             .task {
                 if appState.currentMode == .hobby, let id = appState.currentUser?.id {
                     await schools.load(userId: id, token: appState.authToken ?? "")
-                }
-            }
-            .toolbar {
-                ToolbarItemGroup(placement: .keyboard) {
-                    if bioFocused { MarkdownToolbar(text: $viewModel.bio, selection: $bioSelection) }
                 }
             }
             .navigationTitle(bundle.loc("Edit profile"))

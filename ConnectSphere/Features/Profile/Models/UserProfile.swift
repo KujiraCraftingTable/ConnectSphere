@@ -18,6 +18,10 @@ struct UserProfile: Identifiable {
     // Friend fields
     var interests: [String]
     var location: String?
+    /// Self-only: the private home ward distance search measures from, and
+    /// its province (so the picker opens in the right place).
+    var wardId: String? = nil
+    var wardProvinceCode: String? = nil
     var gender: String?
     // Per-mode persona setup status. Determines whether the user "exists" in
     // that mode (not set up = hidden from that mode's search/feed, switching
@@ -66,6 +70,8 @@ struct UserProfile: Identifiable {
     var mutualCount: Int = 0
     // AI search score. Nil for regular search results
     var score: Double?
+    /// AI search with a radius only: ward to ward, already rounded up to 5 km.
+    var distanceKm: Int? = nil
 }
 
 extension UserProfile {

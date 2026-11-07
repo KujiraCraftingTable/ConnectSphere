@@ -7,6 +7,18 @@ struct AuthController {
     static let bcryptCost = 12
     static let usernameRegex = try! NSRegularExpression(pattern: "^[a-z0-9_]{3,30}$")
     static let minPasswordLen = 8
+    /// bcrypt only reads the first 72 bytes, so a longer password would
+    /// silently match any password sharing those bytes.
+    static let maxPasswordBytes = 72
+
+    static func validatePassword(_ password: String) throws {
+        guard password.count >= minPasswordLen else {
+            throw InlineError(.badRequest, "Password must be at least \(minPasswordLen) characters")
+        }
+        guard password.utf8.count <= maxPasswordBytes else {
+            throw InlineError(.badRequest, "Password must be at most \(maxPasswordBytes) bytes")
+        }
+    }
     static let otpTTLMinutes = 10
 
     static func register(routes: any RoutesBuilder) {
@@ -25,8 +37,6 @@ struct AuthController {
         authed.get("me", use: me)
         authed.get("check-username", use: checkUsername)
         authed.post("setup", use: setup)
-        authed.get("consent", use: consentStatus)
-        authed.post("consent", use: acceptConsent)
         authed.grouped(RateLimitMiddleware.passwordAuth()).post("change-password", use: changePassword)
         limited.post("forgot-password", use: forgotPassword)
         limited.post("reset-password", use: resetPassword)
@@ -56,14 +66,14 @@ struct AuthController {
     struct RegisterBody: Content {
         var username: String?; var password: String?; var email: String?
         var display_name: String?; var dob: String?; var dob_visibility: String?; var bio: String?
-        var location: String?; var default_mode: String?; var job_title: String?; var company: String?
+        var ward_id: String?; var default_mode: String?; var job_title: String?; var company: String?
         var gender: String?; var interests: [String]?; var skills: [String]?
         /// `LegalDocs.version` of the Terms and Privacy Policy the person ticked.
         var accepted_policy_version: String?
 
         var profile: SetupBody {
             SetupBody(username: username, display_name: display_name, dob: dob, dob_visibility: dob_visibility,
-                      bio: bio, location: location, default_mode: default_mode, job_title: job_title,
+                      bio: bio, ward_id: ward_id, default_mode: default_mode, job_title: job_title,
                       company: company, gender: gender, interests: interests, skills: skills,
                       accepted_policy_version: accepted_policy_version)
         }
@@ -145,10 +155,8 @@ struct AuthController {
         let password = body.password ?? ""
         let db = req.db.sql()
         let username = try await newUsername(body.username, on: db)
-        guard password.count >= minPasswordLen else {
-            throw InlineError(.badRequest, "Password must be at least \(minPasswordLen) characters")
-        }
-        var fields = try ProfileFields.validate(body.profile)
+        try validatePassword(password)
+        var fields = try await ProfileFields.validate(body.profile, on: db)
         if let picks = fields.interests { fields.interests = try await InterestStore.cleanPicks(picks, userID: nil, on: db) }
         fields.skills = try await SkillStore.cleanPicks(fields.skills, userID: nil, on: db)
         var email: String?
@@ -199,8 +207,11 @@ struct AuthController {
     }
 
     /// Sign-in by @username or email (usernames never contain "@").
+    /// The app shows handles as "@name", so people type the "@" too; an email never starts with one.
     static func loginIdentifier(_ raw: String?) -> String {
-        (raw ?? "").trimmingCharacters(in: .whitespaces).lowercased()
+        var id = (raw ?? "").trimmingCharacters(in: .whitespaces).lowercased()
+        if id.hasPrefix("@") { id.removeFirst() }
+        return id
     }
 
     struct LoginBody: Content { var email: String?; var username: String?; var password: String? }
@@ -393,28 +404,10 @@ struct AuthController {
         let username = (try? req.query.get(String.self, at: "username"))?
             .trimmingCharacters(in: .whitespaces).lowercased() ?? ""
         guard !username.isEmpty else { throw InlineError(.badRequest, "username is required") }
+        // The app calls this while typing: a name that /setup would refuse isn't available.
+        guard matches(usernameRegex, username) else { return AvailableResponse(available: false) }
         let taken = try await UserStore.usernameTaken(username, excluding: req.userID, on: req.db.sql())
         return AvailableResponse(available: !taken)
-    }
-
-    // MARK: GET/POST /consent
-
-    struct ConsentStatus: Content { var version: String; var accepted: Bool }
-    struct ConsentBody: Content { var version: String? }
-
-    /// Whether this account has agreed to the current Terms and Privacy Policy;
-    /// the app asks again when it hasn't (the texts changed, or the account is
-    /// older than consent records).
-    static func consentStatus(_ req: Request) async throws -> ConsentStatus {
-        ConsentStatus(version: LegalDocs.version,
-                      accepted: try await ConsentStore.hasAcceptedCurrent(req.userID, on: req.db.sql()))
-    }
-
-    static func acceptConsent(_ req: Request) async throws -> ConsentStatus {
-        let body = try req.content.decode(ConsentBody.self)
-        try ConsentStore.requireCurrent(body.version)
-        try await ConsentStore.record(req.userID, on: req.db.sql())
-        return ConsentStatus(version: LegalDocs.version, accepted: true)
     }
 
     // MARK: POST /setup
@@ -425,7 +418,9 @@ struct AuthController {
         var dob: String?
         var dob_visibility: String?
         var bio: String?
-        var location: String?
+        /// Required. The public `location` is derived from it (its province),
+        /// so the app no longer sends a location of its own.
+        var ward_id: String?
         var default_mode: String?
         var job_title: String?
         var company: String?
@@ -440,6 +435,7 @@ struct AuthController {
     /// accounts) and `registerUser` (which creates the account at the end).
     struct ProfileFields {
         var displayName: String
+        var wardID: String
         var location: String
         var dob: String
         var dobVisibility: String
@@ -451,20 +447,16 @@ struct AuthController {
         var interests: [String]?
         var skills: [String]
 
-        static func validate(_ b: SetupBody) throws -> ProfileFields {
+        static func validate(_ b: SetupBody, on db: any SQLDatabase) async throws -> ProfileFields {
             let skills = try EndorsementStore.cleanSkills(b.skills ?? [])
             let displayName = (b.display_name ?? "").trimmingCharacters(in: .whitespaces)
-            let location = (b.location ?? "").trimmingCharacters(in: .whitespaces)
             guard !displayName.isEmpty else { throw InlineError(.badRequest, "display_name is required") }
             guard UserStore.displayNameFits(displayName) else { throw InlineError(.badRequest, UserStore.displayNameTooLong) }
-            guard !location.isEmpty else { throw InlineError(.badRequest, "location is required") }
+            let ward = try await WardStore.require(b.ward_id, on: db)
 
             let dob = (b.dob ?? "").trimmingCharacters(in: .whitespaces)
             guard !dob.isEmpty else { throw InlineError(.badRequest, "dob is required") }
-            guard let dobDate = JSONCoding.dateOnly.date(from: dob) ?? ISO8601DateFormatter().date(from: dob),
-                  dobDate < Date()
-            else { throw InlineError(.badRequest, "dob must be a valid past date") }
-            guard BirthdayRules.isOldEnough(dob) else { throw InlineError(.badRequest, BirthdayRules.underageReason) }
+            if let why = BirthdayRules.rejection(dob) { throw InlineError(.badRequest, why) }
 
             let dobVisibility = b.dob_visibility ?? "private"
             guard ["private", "public"].contains(dobVisibility) else {
@@ -473,8 +465,14 @@ struct AuthController {
             func optional(_ s: String?) -> String? {
                 (s?.trimmingCharacters(in: .whitespaces)).flatMap { $0.isEmpty ? nil : $0 }
             }
+            // Same limits as PATCH /users/me; both are VARCHAR(100) columns.
+            guard (optional(b.job_title)?.count ?? 0) <= UsersController.maxProfileTextLength,
+                  (optional(b.company)?.count ?? 0) <= UsersController.maxProfileTextLength else {
+                throw InlineError(.badRequest, "job_title and company must be at most \(UsersController.maxProfileTextLength) characters")
+            }
+            guard (optional(b.bio)?.count ?? 0) <= 500 else { throw InlineError(.badRequest, "bio must be at most 500 characters") }
             return ProfileFields(
-                displayName: displayName, location: location, dob: dob, dobVisibility: dobVisibility,
+                displayName: displayName, wardID: ward.id, location: ward.province, dob: dob, dobVisibility: dobVisibility,
                 mode: ["hobby", "work"].contains(b.default_mode ?? "") ? b.default_mode! : "hobby",
                 gender: ["male", "female", "other"].contains(b.gender ?? "") ? b.gender! : "other",
                 bio: optional(b.bio), jobTitle: optional(b.job_title), company: optional(b.company),
@@ -494,6 +492,7 @@ struct AuthController {
               bio          = \(bind: f.bio),
               \(unsafeRaw: f.mode)_bio = \(bind: f.bio),
               location     = \(bind: f.location),
+              ward_id      = \(uuid: f.wardID),
               default_mode = \(bind: f.mode),
               job_title    = \(bind: f.jobTitle),
               company      = \(bind: f.company),
@@ -511,14 +510,14 @@ struct AuthController {
     /// Onboarding for an account that already exists (a Google sign-up).
     static func setup(_ req: Request) async throws -> MeResponse {
         let b = try req.content.decode(SetupBody.self)
-        var fields = try ProfileFields.validate(b)
+        let db = req.db.sql()
+        var fields = try await ProfileFields.validate(b, on: db)
         let username = (b.username ?? "").trimmingCharacters(in: .whitespaces).lowercased()
         guard !username.isEmpty else { throw InlineError(.badRequest, "username is required") }
         // Same format as /register. A Google account picks its name here.
         guard matches(usernameRegex, username) else {
             throw InlineError(.badRequest, "Username must be 3-30 characters: lowercase letters, numbers, underscore")
         }
-        let db = req.db.sql()
         if try await UserStore.usernameTaken(username, excluding: req.userID, on: db) {
             throw InlineError(.conflict, "Username already taken")
         }
@@ -547,14 +546,13 @@ struct AuthController {
     // MARK: POST /change-password
 
     struct ChangePwBody: Content { var current_password: String?; var new_password: String? }
-    struct ChangePwResponse: Content { var status = "ok"; var has_password = true }
+    /// `token` replaces the one the caller sent: every older session ends with the change.
+    struct ChangePwResponse: Content { var status = "ok"; var has_password = true; var token: String }
 
     static func changePassword(_ req: Request) async throws -> ChangePwResponse {
         let b = try req.content.decode(ChangePwBody.self)
         let newPassword = b.new_password ?? ""
-        guard newPassword.count >= minPasswordLen else {
-            throw InlineError(.badRequest, "Password must be at least \(minPasswordLen) characters")
-        }
+        try validatePassword(newPassword)
         let db = req.db.sql()
         struct HRow: Decodable { let password_hash: String? }
         guard let row = try await db.raw("SELECT password_hash FROM users WHERE id = \(uuid: req.userID)")
@@ -567,9 +565,11 @@ struct AuthController {
             else { throw InlineError(.unauthorized, "Current password is incorrect") }
         }
         let hash = try Bcrypt.hash(newPassword, cost: bcryptCost)
-        try await db.raw("UPDATE users SET password_hash = \(bind: hash), updated_at = NOW() WHERE id = \(uuid: req.userID)").run()
+        // Same as a reset: a stolen session must not outlive the password. The
+        // caller's own token dies too, which is why a fresh one is returned.
+        try await db.raw("UPDATE users SET password_hash = \(bind: hash), sessions_valid_after = NOW(), updated_at = NOW() WHERE id = \(uuid: req.userID)").run()
         req.logger.info("auth: password changed \(req.userID)")
-        return ChangePwResponse()
+        return ChangePwResponse(token: signToken(req.userID, req))
     }
 
     // MARK: POST /forgot-password
@@ -622,9 +622,7 @@ struct AuthController {
         guard !identifier.isEmpty, !otp.isEmpty else {
             throw InlineError(.badRequest, "identifier and otp are required")
         }
-        guard newPassword.count >= minPasswordLen else {
-            throw InlineError(.badRequest, "Password must be at least \(minPasswordLen) characters")
-        }
+        try validatePassword(newPassword)
         let invalid = InlineError(.unauthorized, "Invalid or expired code")
 
         let db = req.db.sql()
@@ -635,17 +633,22 @@ struct AuthController {
             .first(decoding: URow.self)
         else { throw invalid }
 
-        struct RRow: Decodable { let id: String; let otp_hash: String }
+        struct RRow: Decodable { let id: String; let otp_hash: String; let attempts: Int }
         guard let reset = try await db.raw("""
-            SELECT id, otp_hash FROM password_resets
+            SELECT id, otp_hash, attempts FROM password_resets
             WHERE user_id = \(uuid: user.id) AND used_at IS NULL AND expires_at > NOW()
             ORDER BY created_at DESC LIMIT 1
-            """).first(decoding: RRow.self),
-            (try? Bcrypt.verify(otp, created: reset.otp_hash)) == true
+            """).first(decoding: RRow.self), reset.attempts < AccountCodeStore.maxAttempts
         else { throw invalid }
+        guard (try? Bcrypt.verify(otp, created: reset.otp_hash)) == true else {
+            let attempts = reset.attempts + 1
+            try await db.raw("UPDATE password_resets SET attempts = \(bind: attempts) WHERE id = \(uuid: reset.id)").run()
+            throw InlineError(.unauthorized, AccountCodeStore.wrongCodeMessage(triesLeft: AccountCodeStore.maxAttempts - attempts))
+        }
 
         let hash = try Bcrypt.hash(newPassword, cost: bcryptCost)
-        try await db.raw("UPDATE users SET password_hash = \(bind: hash), updated_at = NOW() WHERE id = \(uuid: user.id)").run()
+        // Ends every session: whoever reset the password may have lost the device, or the old password.
+        try await db.raw("UPDATE users SET password_hash = \(bind: hash), sessions_valid_after = NOW(), updated_at = NOW() WHERE id = \(uuid: user.id)").run()
         try await db.raw("UPDATE password_resets SET used_at = NOW() WHERE id = \(uuid: reset.id)").run()
         req.logger.info("auth: password reset via OTP \(user.id)")
         return StatusOKResponse()

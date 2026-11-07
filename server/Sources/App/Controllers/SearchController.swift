@@ -94,6 +94,9 @@ struct SearchController {
         var score: Double
         var mutual_count: Int
         var match_evidence: [EvidenceItem]
+        /// Ward to ward, rounded up to the next 5 km so it never reads more
+        /// precise than a ward is. Null when the search had no radius.
+        @NullCoded var distance_km: Int?
     }
     struct EntitySuggestion: Content {
         var keyword: String
@@ -123,6 +126,18 @@ struct SearchController {
         var closer: Bool?
     }
     static let maxRefineLength = 200
+    static let maxQueryLength = 500
+
+    /// The typed query, trimmed. Newlines and tabs count as blanks: a
+    /// whitespace-only query that got through made the model invent a search.
+    /// The cap keeps one request from tying up Ollama for everyone.
+    static func cleanQuery(_ raw: String?) throws -> String {
+        let q = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard q.count <= maxQueryLength else {
+            throw StatusMessageError(.badRequest, "query must be \(maxQueryLength) characters or fewer")
+        }
+        return q
+    }
     /// Taste vectors used as extra queries for a "like me" prompt.
     static let maxLikeMeVectors = 3
     /// Profiles all read alike to the embedding model (0.6 matches most of
@@ -139,7 +154,7 @@ struct SearchController {
         let searcher = req.userID
         let log = req.logger
 
-        var userQuery = b.query?.trimmingCharacters(in: .whitespaces) ?? ""
+        var userQuery = try cleanQuery(b.query)
         if let sid = b.session_id {
             guard UUID(uuidString: sid) != nil, let prev = try await SearchStore.session(sid, userID: searcher, on: db) else {
                 throw StatusMessageError(.notFound, "Search not found")
@@ -164,6 +179,9 @@ struct SearchController {
         }
         if let ml = b.more_like, UUID(uuidString: ml) == nil {
             throw StatusMessageError(.badRequest, "more_like must be a user id")
+        }
+        if let r = b.radiusKm, !SearchStore.radiusStepsKm.contains(r) {
+            throw StatusMessageError(.badRequest, "radiusKm must be 5, 10, 15, 20, 25 or 30")
         }
 
         var criteria = await OllamaService.extractSearchCriteria(cfg, userQuery, mode: b.mode, logger: log, db: db)
@@ -214,7 +232,9 @@ struct SearchController {
 
         var warnings: [Warning] = []
         var searchCoords: (lat: Double, lng: Double)? = nil
-        if b.closer == true, criteria.location == nil, criteria.place_name == nil, let home = ctx?.location {
+        // "Closer to me" with a radius is measured from your ward (below);
+        // without one it narrows to your province.
+        if b.closer == true, b.radiusKm == nil, criteria.location == nil, criteria.place_name == nil, let home = ctx?.location {
             criteria.location = home
         }
         if let place = criteria.place_name, criteria.location == nil {
@@ -229,6 +249,9 @@ struct SearchController {
                   let g = await VenueLocationService.resolveVenueToCity(loc, client: HTTPClient.shared, on: db, logger: log),
                   let la = g.lat, let ln = g.lng {
             searchCoords = (la, ln)
+        } else if b.radiusKm != nil, criteria.place_name == nil, criteria.location == nil {
+            // No place named: the radius is measured from your own ward.
+            searchCoords = try await WardStore.centre(ofUser: searcher, on: db)
         }
 
         let entityVec = entityResult.vec
@@ -409,9 +432,8 @@ struct SearchController {
     /// posts carry no location.
     static func aiPostSearch(_ req: Request) async throws -> AIPostSearchResponse {
         let b = try req.content.decode(AIBody.self)
-        guard let userQuery = b.query?.trimmingCharacters(in: .whitespaces), !userQuery.isEmpty else {
-            throw StatusMessageError(.badRequest, "query is required")
-        }
+        let userQuery = try cleanQuery(b.query)
+        guard !userQuery.isEmpty else { throw StatusMessageError(.badRequest, "query is required") }
         if let m = b.mode, !["hobby", "work"].contains(m) {
             throw StatusMessageError(.badRequest, "mode must be hobby or work")
         }
@@ -737,7 +759,8 @@ struct SearchController {
                 follower_count: u.follower_count, following_count: u.following_count, post_count: u.post_count,
                 interests: (try? dec.decode([String].self, from: Data(u.interests.utf8))) ?? [],
                 skills: (try? dec.decode([String].self, from: Data(u.skills.utf8))) ?? [],
-                score: u.score, mutual_count: u.mutual_count, match_evidence: evidence)
+                score: u.score, mutual_count: u.mutual_count, match_evidence: evidence,
+                distance_km: u.distance_km)
         }
     }
 

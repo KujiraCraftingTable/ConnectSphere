@@ -15,7 +15,7 @@ struct ActivityController {
             throw Abort(.badRequest, reason: "type must be comments or reactions")
         }
         let limit = PostsController.clamp(try? req.query.get(Int.self, at: "limit"), 30, 1, 50)
-        let offset = max((try? req.query.get(Int.self, at: "offset")) ?? 0, 0)
+        let offset = req.pageOffset
         let db = req.db.sql()
         let items = type == "comments"
             ? try await ActivityStore.comments(of: req.userID, offset: offset, limit: limit, on: db)

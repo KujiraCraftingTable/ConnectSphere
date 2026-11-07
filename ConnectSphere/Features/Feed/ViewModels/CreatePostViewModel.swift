@@ -307,7 +307,19 @@ class CreatePostViewModel {
         // Respect the "AI post suggestions" toggle in Notification settings
         let aiNotifsEnabled = (UserDefaults.standard.object(forKey: "aiSuggestionNotifsEnabled") as? Bool) ?? true
         guard aiNotifsEnabled else { return }
-        guard let notif = try? await notifRepository.fetchMismatchFor(postId: postId, token: token) else { return }
+        // Best-effort and invisible to the user (the post is already live), so a
+        // failure is only logged: it was once swallowed whole, which hid a server
+        // 500 that kept this banner from ever showing.
+        let found: UserNotificationDTO?
+        do {
+            found = try await notifRepository.fetchMismatchFor(postId: postId, token: token)
+        } catch {
+            #if DEBUG
+            print("Mode-mismatch check failed: \(error)")
+            #endif
+            return
+        }
+        guard let notif = found else { return }
 
         let center = UNUserNotificationCenter.current()
         guard (try? await center.requestAuthorization(options: [.alert, .sound])) == true else { return }
@@ -326,7 +338,13 @@ class CreatePostViewModel {
             content: content,
             trigger: nil // deliver immediately
         )
-        try? await center.add(request)
+        do {
+            try await center.add(request)
+        } catch {
+            #if DEBUG
+            print("Mode-mismatch banner not delivered: \(error)")
+            #endif
+        }
     }
 }
 

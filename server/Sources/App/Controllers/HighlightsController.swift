@@ -28,16 +28,10 @@ struct HighlightsController {
         return title
     }
 
-    /// An upload path we can show to anyone on a profile.
-    static func isPublicUpload(_ path: String) -> Bool {
-        path.hasPrefix("/uploads/") && !path.contains("..")
-            && !path.hasPrefix("/uploads/messages/") && !path.hasPrefix("/uploads/cv/")
-    }
-
     private static func photos(_ b: PhotosBody, user: String, on db: any SQLDatabase) async throws -> [String] {
         var images: [String] = []
         for raw in b.image_urls ?? [] {
-            guard let path = MediaPath.storable(raw), isPublicUpload(path), MediaPath.ownFileExists(path) else {
+            guard let path = MediaPath.storable(raw), MediaPath.isPublicUpload(path), MediaPath.ownFileExists(path) else {
                 throw Abort(.badRequest, reason: "Invalid photo")
             }
             images.append(path)
@@ -97,7 +91,7 @@ struct HighlightsController {
         let title = try b.title.map { try cleanTitle($0) }
         var cover: String?? = nil
         if let raw = b.cover_url {
-            guard let path = MediaPath.storable(raw), isPublicUpload(path), MediaPath.ownFileExists(path) else {
+            guard let path = MediaPath.storable(raw), MediaPath.isPublicUpload(path), MediaPath.ownFileExists(path) else {
                 throw Abort(.badRequest, reason: "Invalid photo")
             }
             cover = .some(path)

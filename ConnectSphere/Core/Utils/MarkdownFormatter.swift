@@ -1,8 +1,7 @@
 import SwiftUI
 
-/// Markdown in user-written text: reading it (`attributed`) and the editing
-/// moves behind the composer toolbar (`apply`). Pure, so the post card, the
-/// composers and the tests all treat the syntax the same way.
+/// Markdown in user-written text: turns it into styled text (`attributed`) or into
+/// plain words (`plain`). Pure, so every screen and the tests treat the syntax the same way.
 ///
 /// Supported: **bold**, _italic_, ~~strikethrough~~, `code`, [links](url),
 /// `- ` / `1. ` lists and `> ` quotes. Headings, code blocks and images are
@@ -92,78 +91,84 @@ enum MarkdownFormatter {
         }
     }
 
-    // MARK: Editing
+    // MARK: Live styling (while typing)
 
-    enum Edit: CaseIterable {
-        case bold, italic, strikethrough, code, bulletList, quote, link
+    /// How one typed character looks in the text box: the words between Markdown
+    /// marks are styled, the marks themselves are dimmed but stay visible.
+    struct LiveStyle: OptionSet, Equatable {
+        let rawValue: Int
+        static let bold = LiveStyle(rawValue: 1)
+        static let italic = LiveStyle(rawValue: 2)
+        static let strike = LiveStyle(rawValue: 4)
+        static let code = LiveStyle(rawValue: 8)
+        static let link = LiveStyle(rawValue: 16)
+        /// A Markdown mark (`**`, `_`, `` ` ``, `[`, `](url)`, a list bullet, `>`).
+        static let dim = LiveStyle(rawValue: 32)
+        /// The words of a `> ` quote line.
+        static let quote = LiveStyle(rawValue: 64)
     }
 
-    /// A text with the part that is selected, as character offsets
-    /// (`lowerBound == upperBound` is a caret).
-    struct Edited: Equatable {
-        var text: String
-        var selection: Range<Int>
+    private static func regex(_ pattern: String, _ options: NSRegularExpression.Options = []) -> NSRegularExpression {
+        try! NSRegularExpression(pattern: pattern, options: options)
     }
 
-    /// What a toolbar button does to `text` around `selection`.
-    static func apply(_ edit: Edit, to text: String, selection: Range<Int>) -> Edited {
+    private static let liveCode = regex(#"`([^`\n]+)`"#)
+    private static let liveBold = regex(#"\*\*(?! )([^*\n]+?)(?<! )\*\*"#)
+    private static let liveStrike = regex(#"~~(?! )([^~\n]+?)(?<! )~~"#)
+    private static let liveItalicUnderscore = regex(#"(?<![\p{L}\p{N}_])_(?![\s_])([^_\n]+?)(?<!\s)_(?![\p{L}\p{N}_])"#)
+    private static let liveItalicStar = regex(#"(?<![\p{L}\p{N}*])\*(?![\s*])([^*\n]+?)(?<![\s*])\*(?![\p{L}\p{N}*])"#)
+    private static let liveLink = regex(#"\[([^\]\n]+)\]\(([^)\n\s]*)\)"#)
+    private static let liveListMarker = regex(#"^[ \t]*([-*•]|\d{1,3}[.)])[ \t]"#, .anchorsMatchLines)
+    private static let liveQuote = regex(#"^[ \t]*(>)[ \t]?([^\n]*)$"#, .anchorsMatchLines)
+
+    /// One style per character of `text` (same count as `Array(text)`), so the
+    /// text box can color the marks and style the words as they are typed. Unclosed
+    /// marks (`**half`) and plain uses of `*` or `_` (`5 * 3`, `snake_case`) get nothing.
+    static func liveStyles(in text: String) -> [LiveStyle] {
         let chars = Array(text)
-        let lower = min(max(selection.lowerBound, 0), chars.count)
-        let upper = min(max(selection.upperBound, lower), chars.count)
-        switch edit {
-        case .bold: return wrap(chars, lower, upper, with: "**")
-        case .italic: return wrap(chars, lower, upper, with: "_")
-        case .strikethrough: return wrap(chars, lower, upper, with: "~~")
-        case .code: return wrap(chars, lower, upper, with: "`")
-        case .bulletList: return prefixLines(chars, lower, upper, marker: "- ")
-        case .quote: return prefixLines(chars, lower, upper, marker: "> ")
-        case .link: return link(chars, lower, upper)
+        var styles = [LiveStyle](repeating: [], count: chars.count)
+        guard !chars.isEmpty else { return styles }
+
+        // UTF-16 offsets (what NSRegularExpression reports) to character offsets.
+        var toChar: [Int] = []
+        toChar.reserveCapacity(text.utf16.count + 1)
+        for (index, ch) in chars.enumerated() { toChar.append(contentsOf: repeatElement(index, count: ch.utf16.count)) }
+        toChar.append(chars.count)
+        func span(_ r: NSRange) -> Range<Int> { toChar[r.location]..<toChar[r.location + r.length] }
+        func add(_ style: LiveStyle, _ range: Range<Int>) { for i in range { styles[i].formUnion(style) } }
+
+        let whole = NSRange(text.startIndex..., in: text)
+        var inCode = [Bool](repeating: false, count: chars.count)
+
+        // Inline pairs: (open mark)(words)(close mark).
+        func pairs(_ re: NSRegularExpression, _ style: LiveStyle, skipCode: Bool = true) {
+            for m in re.matches(in: text, range: whole) {
+                let all = span(m.range), words = span(m.range(at: 1))
+                if skipCode && all.contains(where: { inCode[$0] }) { continue }
+                add(.dim, all.lowerBound..<words.lowerBound)
+                add(.dim, words.upperBound..<all.upperBound)
+                add(style, words)
+                if style == .code { for i in words { inCode[i] = true } }
+            }
         }
-    }
+        pairs(liveCode, .code, skipCode: false)
+        pairs(liveBold, .bold)
+        pairs(liveStrike, .strike)
+        pairs(liveItalicUnderscore, .italic)
+        pairs(liveItalicStar, .italic)
 
-    /// Adds the marker on both sides of the selection, or takes it off when the
-    /// selection already sits inside one. A caret gets an empty pair with the
-    /// caret between.
-    private static func wrap(_ chars: [Character], _ lower: Int, _ upper: Int, with marker: String) -> Edited {
-        let m = Array(marker)
-        let before = lower >= m.count && Array(chars[(lower - m.count)..<lower]) == m
-        let after = upper + m.count <= chars.count && Array(chars[upper..<(upper + m.count)]) == m
-        if before && after {
-            var next = chars
-            next.removeSubrange(upper..<(upper + m.count))
-            next.removeSubrange((lower - m.count)..<lower)
-            return Edited(text: String(next), selection: (lower - m.count)..<(upper - m.count))
+        for m in liveLink.matches(in: text, range: whole) {
+            let all = span(m.range), label = span(m.range(at: 1))
+            if all.contains(where: { inCode[$0] }) { continue }
+            add(.dim, all.lowerBound..<label.lowerBound)
+            add(.dim, label.upperBound..<all.upperBound)
+            add(.link, label)
         }
-        var next = chars
-        next.insert(contentsOf: m, at: upper)
-        next.insert(contentsOf: m, at: lower)
-        return Edited(text: String(next), selection: (lower + m.count)..<(upper + m.count))
-    }
-
-    /// Starts every line the selection touches with `marker`; when they all
-    /// have it already, takes it off again.
-    private static func prefixLines(_ chars: [Character], _ lower: Int, _ upper: Int, marker: String) -> Edited {
-        let m = Array(marker)
-        var start = lower
-        while start > 0 && chars[start - 1] != "\n" { start -= 1 }
-        var end = upper
-        while end < chars.count && chars[end] != "\n" { end += 1 }
-        let lines = String(chars[start..<end]).components(separatedBy: "\n")
-        let allMarked = lines.allSatisfy { $0.hasPrefix(marker) }
-        let changed = lines.map { allMarked ? String($0.dropFirst(m.count)) : marker + $0 }.joined(separator: "\n")
-        var next = chars
-        next.replaceSubrange(start..<end, with: Array(changed))
-        let delta = Array(changed).count - (end - start)
-        return Edited(text: String(next), selection: start..<(end + delta))
-    }
-
-    /// `[selection](https://)` with the address selected, ready to be typed over.
-    private static func link(_ chars: [Character], _ lower: Int, _ upper: Int) -> Edited {
-        let label = lower == upper ? "link" : String(chars[lower..<upper])
-        let address = "https://"
-        var next = chars
-        next.replaceSubrange(lower..<upper, with: Array("[\(label)](\(address))"))
-        let addressStart = lower + label.count + 3
-        return Edited(text: String(next), selection: addressStart..<(addressStart + address.count))
+        for m in liveListMarker.matches(in: text, range: whole) { add(.dim, span(m.range(at: 1))) }
+        for m in liveQuote.matches(in: text, range: whole) {
+            add(.dim, span(m.range(at: 1)))
+            add(.quote, span(m.range(at: 2)))
+        }
+        return styles
     }
 }

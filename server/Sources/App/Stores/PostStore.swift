@@ -547,7 +547,7 @@ enum PostStore {
     }
 
     static func create(_ a: CreateArgs, on db: AppDatabase) async throws -> PostObject? {
-        let validPrivacy = ["public", "friends", "only_me"].contains(a.privacy) ? a.privacy : "public"
+        let validPrivacy = privacies.contains(a.privacy) ? a.privacy : "public"
         let urls: [String]? = (a.imageUrls?.isEmpty == false) ? a.imageUrls : (a.imageUrl.map { [$0] })
         var newID = ""
         try await db.tx { t in
@@ -578,6 +578,17 @@ enum PostStore {
 
     // MARK: update / delete / restore / lists
 
+    static let privacies: Set<String> = ["public", "friends", "only_me"]
+
+    /// A requested privacy, checked. `create` quietly turns an unknown value
+    /// into "public", so a typo (or "private") would publish a post the author
+    /// meant to hide; refuse it instead. Blank/absent = nil (use the default).
+    static func validatedPrivacy(_ raw: String?) throws -> String? {
+        guard let p = raw?.nilIfEmpty else { return nil }
+        guard privacies.contains(p) else { throw Abort(.badRequest, reason: "privacy must be public, friends or only_me") }
+        return p
+    }
+
     /// Returns `.updated(post)`, `.notFound`, or `.empty`.
     enum UpdateResult { case updated(PostObject); case notFound; case empty }
 
@@ -586,7 +597,7 @@ enum PostStore {
         imageUrl: String?, imageUrls: [String]?, linkUrl: String?, articleTitle: String?,
         on db: any SQLDatabase
     ) async throws -> UpdateResult {
-        let validPrivacy = ["public", "friends", "only_me"].contains(privacy ?? "") ? privacy : nil
+        let validPrivacy = privacies.contains(privacy ?? "") ? privacy : nil
         let urls: [String]? = (imageUrls?.isEmpty == false) ? imageUrls : (imageUrl.map { [$0] })
 
         struct C: Decodable { let content: String? }

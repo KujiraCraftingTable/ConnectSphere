@@ -108,6 +108,50 @@ enum JobStore {
     static let levels: Set<String> = ["intern", "fresher", "junior", "mid", "senior", "lead", "manager"]
     static let maxSkills = SkillStore.maxJob
 
+    /// `job_posts.employment_type` CHECK values (migration 031).
+    static let employmentTypes: Set<String> = ["full_time", "part_time", "contract", "internship", "remote"]
+
+    /// The headline fields of a job, checked before the post row is written so
+    /// a rejected job can't leave a bare post in the feed. Lengths are the
+    /// column sizes; a longer value would be a 500 from the DB.
+    struct Basics: Equatable {
+        var title: String
+        var company: String?
+        var location: String?
+        var employmentType: String?
+        var salaryRange: String?
+        /// `yyyy-MM-dd`.
+        var applicationDeadline: String?
+    }
+
+    static func validateBasics(title: String?, company: String?, location: String?, employmentType: String?,
+                               salaryRange: String?, applicationDeadline: String?) throws -> Basics {
+        func text(_ raw: String?, max: Int, _ label: String) throws -> String? {
+            let t = raw?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+            if let t, t.count > max { throw Abort(.badRequest, reason: "\(label) must be at most \(max) characters") }
+            return t
+        }
+        guard let title = try text(title, max: 150, "Job title") else { throw Abort(.badRequest, reason: "Job title is required") }
+        var type: String?
+        if let t = employmentType?.nilIfEmpty {
+            guard employmentTypes.contains(t) else { throw Abort(.badRequest, reason: "Invalid employment type") }
+            type = t
+        }
+        var deadline: String?
+        if let raw = applicationDeadline?.nilIfEmpty {
+            // Normalised to the calendar day so the later `::date` cast can't fail.
+            let day = String(raw.prefix(10))
+            // The formatter is lenient ("2027-02-30" parses as March 2); the round trip catches that.
+            guard let parsed = PostService.dayFormatter.date(from: day), PostService.dayFormatter.string(from: parsed) == day else {
+                throw Abort(.badRequest, reason: "Invalid application deadline")
+            }
+            deadline = day
+        }
+        return Basics(title: title, company: try text(company, max: 150, "Company"),
+                      location: try text(location, max: 150, "Location"), employmentType: type,
+                      salaryRange: try text(salaryRange, max: 100, "Salary range"), applicationDeadline: deadline)
+    }
+
     /// The Jobs-tab details of a job, checked.
     struct Extra {
         var companyID: String?

@@ -48,6 +48,13 @@ final class EmailVerificationViewModel {
     /// A verified email starts on its overview; otherwise straight to adding one.
     init(replacingVerifiedEmail: Bool) { stage = replacingVerifiedEmail ? .overview : .newEmail }
 
+    /// An address or code typed in a step that isn't the read-only overview.
+    /// Closing would lose it, so Cancel asks.
+    var hasChanges: Bool {
+        stage != .overview
+            && (!email.trimmingCharacters(in: .whitespaces).isEmpty || !code.isEmpty || !currentCode.isEmpty)
+    }
+
     var canConfirmCurrent: Bool { currentSent && currentCode.count == 6 && !isVerifying }
     var canVerify: Bool { stage == .newEmail && sentTo != nil && code.count == 6 && !isVerifying }
 

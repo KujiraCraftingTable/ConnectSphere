@@ -19,7 +19,8 @@ final class CreateCommunityViewModel {
     var type: CommunityType = .fandom
     var privacy: CommunityPrivacy = .public
     var selectedEmoji: String
-    var selectedColor = "#7F5AF0"
+    static let defaultColor = "#7F5AF0"
+    var selectedColor = CreateCommunityViewModel.defaultColor
     private(set) var pickedImage: UIImage?
     private(set) var isCreating = false
     private(set) var errorMessage: String?
@@ -27,7 +28,10 @@ final class CreateCommunityViewModel {
     private let communityRepository = CommunityRepository()
     private let postRepository = PostRepository()   // owns the image-upload endpoint
 
+    private let defaultEmoji: String
+
     init(defaultEmoji: String) {
+        self.defaultEmoji = defaultEmoji
         selectedEmoji = defaultEmoji
     }
 
@@ -35,9 +39,16 @@ final class CreateCommunityViewModel {
 
     var canCreate: Bool { trimmedName.count >= 3 }
 
-    /// Anything entered or picked. Closing would lose it, so Cancel asks.
+    /// Anything entered, picked or switched away from its default. Closing
+    /// would lose it, so Cancel asks. A form still at its defaults just closes.
     var hasChanges: Bool {
-        !trimmedName.isEmpty || !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || pickedImage != nil
+        !trimmedName.isEmpty
+            || !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || pickedImage != nil
+            || type != .fandom
+            || privacy != .public
+            || selectedEmoji != defaultEmoji
+            || selectedColor != Self.defaultColor
     }
 
     /// Same name and type as a community the user can already see.

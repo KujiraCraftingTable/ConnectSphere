@@ -19,7 +19,9 @@ final class EditProfileViewModel {
     private var openedBioFormat: String?
     var jobTitle = ""
     var company = ""
-    var location = ""
+    /// The home ward (private) and the province the picker shows it under.
+    var wardId: String?
+    var provinceCode: String?
     /// "yyyy-MM-dd", the same format onboarding uses; empty = not set.
     var dob = ""
     var dobVisibility = "private"
@@ -69,7 +71,7 @@ final class EditProfileViewModel {
     /// Every field as it was when the form opened.
     private var openedSignature: [String] = []
     private var signature: [String] {
-        [displayName, bio, jobTitle, company, location, dob, dobVisibility, relationship?.rawValue ?? "",
+        [displayName, bio, jobTitle, company, wardId ?? "", dob, dobVisibility, relationship?.rawValue ?? "",
          selectedInterests.map { "\($0.category)|\($0.rawInput)" }.joined(separator: ";"),
          languages.joined(separator: ";"), skills.joined(separator: ";"),
          pickedImage == nil ? "" : "avatar", pickedCover == nil ? "" : "cover"]
@@ -86,7 +88,8 @@ final class EditProfileViewModel {
         openedBioFormat = user.bioFormat
         jobTitle    = user.jobTitle ?? ""
         company     = user.company ?? ""
-        location    = user.location ?? ""
+        wardId      = user.wardId
+        provinceCode = user.wardProvinceCode
         skills      = user.skills
         languages   = user.languages
         relationship = user.relationshipStatus.flatMap(RelationshipStatus.init(rawValue:))
@@ -147,7 +150,7 @@ final class EditProfileViewModel {
             display_name:   displayName.trimmingCharacters(in: .whitespaces),
             bio:            bio.trimmingCharacters(in: .whitespaces),
             bio_format:     bio.trimmingCharacters(in: .whitespaces) == openedBio ? (openedBioFormat ?? "plain") : PostRepository.contentFormat,
-            location:       location.trimmingCharacters(in: .whitespaces),
+            ward_id:        wardId,
             dob:            dob.isEmpty ? nil : dob,
             dob_visibility: dobVisibility,
             job_title:      jobTitle.trimmingCharacters(in: .whitespaces),

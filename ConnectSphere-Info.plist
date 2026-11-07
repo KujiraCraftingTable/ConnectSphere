@@ -73,6 +73,8 @@
 	<string>ConnectSphere cần quyền thêm vào thư viện ảnh để lưu ảnh và video bạn chọn.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>ConnectSphere cần truy cập thư viện ảnh để bạn có thể đăng ảnh và video lên bài viết.</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>ConnectSphere dùng lựa chọn này để hiển thị quảng cáo phù hợp hơn với bạn. Bạn có thể thay đổi bất cứ lúc nào trong Cài đặt.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

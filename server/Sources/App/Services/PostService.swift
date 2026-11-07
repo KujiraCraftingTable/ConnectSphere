@@ -187,8 +187,9 @@ enum PostService {
         let trimmedContent = content?.trimmedText ?? ""
         if trimmedContent.isEmpty { throw Abort(.badRequest, reason: "Post content is required") }
         if trimmedContent.count > 2000 { throw Abort(.badRequest, reason: "Post content must be at most 2000 characters") }
-        let title = jobTitle?.trimmingCharacters(in: .whitespaces) ?? ""
-        if title.isEmpty { throw Abort(.badRequest, reason: "Job title is required") }
+        let basics = try JobStore.validateBasics(
+            title: jobTitle, company: jobCompany, location: jobLocation, employmentType: employmentType,
+            salaryRange: salaryRange, applicationDeadline: applicationDeadline)
         if let communityID {
             guard try await CommunityMemberStore.membership(communityID, authorID, on: db.sql()) != nil else {
                 throw Abort(.forbidden, reason: "You must be a member of this community to post")
@@ -214,8 +215,8 @@ enum PostService {
         guard effectiveMode == "work" else { throw Abort(.badRequest, reason: "Job posts are only available in Work mode") }
         let extra = try await JobStore.validateDetails(details, author: authorID, on: db.sql())
         // A deadline is a calendar day: it may fall on the day the post goes out.
-        if let after = publishing.datesAfter, let deadline = applicationDeadline?.nilIfEmpty,
-           let day = Self.dayFormatter.date(from: String(deadline.prefix(10))),
+        if let after = publishing.datesAfter, let deadline = basics.applicationDeadline,
+           let day = Self.dayFormatter.date(from: deadline),
            day < Calendar(identifier: .gregorian).startOfDay(for: after) {
             throw Abort(.badRequest, reason: "Application deadline can't be before the post goes out")
         }
@@ -223,11 +224,15 @@ enum PostService {
             content: trimmedContent, authorID: authorID, communityID: communityID, postType: "job",
             imageUrls: nil, linkUrl: nil, articleTitle: nil,
             hashtags: hashtags, mode: mode, privacy: privacy, publishing: publishing, on: db)
-        try await JobStore.create(postID: id, title: title,
-            company: jobCompany?.trimmingCharacters(in: .whitespaces).nilIfEmpty,
-            location: jobLocation?.trimmingCharacters(in: .whitespaces).nilIfEmpty,
-            employmentType: employmentType?.nilIfEmpty, salaryRange: salaryRange?.trimmingCharacters(in: .whitespaces).nilIfEmpty,
-            applicationDeadline: applicationDeadline?.nilIfEmpty, extra: extra, on: db.sql())
+        do {
+            try await JobStore.create(postID: id, title: basics.title, company: basics.company, location: basics.location,
+                employmentType: basics.employmentType, salaryRange: basics.salaryRange,
+                applicationDeadline: basics.applicationDeadline, extra: extra, on: db.sql())
+        } catch {
+            // Without its details the post would be a bare job; take it back out.
+            try? await db.sql().raw("DELETE FROM posts WHERE id = \(uuid: id)").run()
+            throw error
+        }
         if let communityID, publishing.isLive { try await CommunityMemberStore.incrementPostCount(communityID, 1, on: db.sql()) }
         guard let post = try await PostStore.findById(id, viewer: authorID, includeOwnUnpublished: !publishing.isLive, on: db.sql()) else { throw Abort(.internalServerError) }
         return post

@@ -80,6 +80,7 @@ struct CommunitiesController {
         guard let type = b.type, validTypes.contains(type) else { throw Abort(.badRequest, reason: "type must be fandom or work") }
         if let p = b.privacy, !validPrivacy.contains(p) { throw Abort(.badRequest, reason: "privacy must be public or private") }
         try validateDescription(b.description)
+        try validateAppearance(icon: b.icon_emoji, color: b.cover_color)
 
         let privacy = b.privacy ?? "public"
         let icon = b.icon_emoji ?? "👥"
@@ -112,6 +113,27 @@ struct CommunitiesController {
 
     /// A community's description: up to 200 words (and 2,000 characters).
     static let maxDescriptionWords = 200
+    static let colorRegex = try! NSRegularExpression(pattern: "^#[0-9A-Fa-f]{6}$")
+
+    /// `icon_emoji` is VARCHAR(10) (counted in code points, which is what a
+    /// multi-part emoji adds up to) and `cover_color` VARCHAR(7); a longer value
+    /// was a 500, and any 7-character text passed as a colour.
+    static func validateAppearance(icon: String?, color: String?) throws {
+        if let icon {
+            let count = icon.unicodeScalars.count
+            // Emoji only: no ASCII at all ("<b>", "abc"), and at least one real
+            // emoji scalar (digits and "#" carry the emoji property too).
+            let isEmoji = !icon.unicodeScalars.contains { $0.isASCII }
+                && icon.unicodeScalars.contains { $0.properties.isEmoji }
+            guard count >= 1, count <= 10, isEmoji, icon.trimmingCharacters(in: .whitespacesAndNewlines) == icon else {
+                throw Abort(.badRequest, reason: "icon_emoji must be a single emoji")
+            }
+        }
+        if let color, !AuthController.matches(colorRegex, color) {
+            throw Abort(.badRequest, reason: "cover_color must be a hex colour like #7F5AF0")
+        }
+    }
+
     static func validateDescription(_ d: String?) throws {
         guard let d else { return }
         if d.count > 2000 { throw Abort(.badRequest, reason: "Description is too long") }
@@ -143,6 +165,7 @@ struct CommunitiesController {
             }
         }
         try validateDescription(b.description)
+        try validateAppearance(icon: b.icon_emoji, color: b.cover_color)
         if let p = b.privacy, !CommunitiesController.validPrivacy.contains(p) { throw Abort(.badRequest, reason: "privacy must be public or private") }
         guard try await CommunityStore.update(id, name: b.name, description: b.description, privacy: b.privacy,
             iconEmoji: b.icon_emoji, coverColor: b.cover_color, avatarURL: b.avatar_url.map { MediaPath.storable($0) ?? "" },
@@ -162,8 +185,8 @@ struct CommunitiesController {
         let tags = ((try? req.query.get(String.self, at: "tags")) ?? "").split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         let sortQ = (try? req.query.get(String.self, at: "sort")) ?? "members"
         let sort = ["members", "newest", "trending"].contains(sortQ) ? sortQ : "members"
-        let limit = min((try? req.query.get(Int.self, at: "limit")) ?? 20, 50)
-        let offset = (try? req.query.get(Int.self, at: "offset")) ?? 0
+        let limit = req.pageLimit(default: 20, max: 50)
+        let offset = req.pageOffset
         return DataListResponse(data: try await CommunityStore.search(
             searchQuery: sq, type: type, tags: tags, sort: sort, limit: limit, offset: offset,
             viewer: req.userID, on: req.db.sql()))
@@ -302,8 +325,8 @@ struct CommunitiesController {
         if community.privacy == "private", try await CommunityStore.membership(id, req.userID, on: db) == nil {
             throw Abort(.forbidden, reason: "You must be a member to view the member list")
         }
-        let limit = (try? req.query.get(Int.self, at: "limit")) ?? 20
-        let offset = (try? req.query.get(Int.self, at: "offset")) ?? 0
+        let limit = req.pageLimit(default: 20, max: 100)
+        let offset = req.pageOffset
         return DataListResponse(data: try await CommunityStore.members(id, communityType: community.type, viewer: req.userID,
                                                                        limit: limit, offset: offset, on: db))
     }
@@ -316,8 +339,8 @@ struct CommunitiesController {
         if community.privacy == "private" && !(community.is_member ?? false) {
             throw Abort(.forbidden, reason: "You must be a member to view this community")
         }
-        let limit = (try? req.query.get(Int.self, at: "limit")) ?? 20
-        let offset = (try? req.query.get(Int.self, at: "offset")) ?? 0
+        let limit = req.pageLimit(default: 20, max: 100)
+        let offset = req.pageOffset
         let tag = (try? req.query.get(String.self, at: "tag")).flatMap { $0.isEmpty ? nil : $0 }
         let search = (try? req.query.get(String.self, at: "search")).flatMap { $0.isEmpty ? nil : $0 }
         return DataListResponse(data: try await PostStore.getPostsByCommunity(id, viewer: req.userID, tag: tag, search: search, limit: limit, offset: offset, on: req.db.sql()))
@@ -358,7 +381,7 @@ struct CommunitiesController {
             throw Abort(.badRequest, reason: "Listings are created from the Marketplace")
         } else {
             post = try await PostService.createTextCommunityPost(userID: req.userID, content: b.content, communityID: id,
-                imageUrls: PostsController.normalizeImageUrls(b.image_urls), linkUrl: b.link_url?.nilIfEmpty,
+                imageUrls: try PostsController.normalizeImageUrls(b.image_urls), linkUrl: b.link_url?.nilIfEmpty,
                 articleTitle: b.article_title?.nilIfEmpty, hashtags: hashtags, mode: nil, privacy: nil, publishing: publishing, on: req.db)
         }
         post.community?.audience = try await PostStore.setCommunityAudience(post.id, audience, on: req.db.sql())
@@ -388,8 +411,9 @@ struct CommunitiesController {
     static func shareToFeed(_ req: Request) async throws -> Response {
         let id = req.parameters.get("id")!
         let b = try req.content.decode(ShareBody.self)
-        let privacy = b.privacy ?? "public"
-        guard ["public", "friends", "private"].contains(privacy) else { throw Abort(.badRequest, reason: "Invalid privacy") }
+        // "private" is this route's older spelling of a post's "only_me"; stored
+        // as-is it fell back to "public" and published a post meant to be hidden.
+        let privacy = try PostStore.validatedPrivacy(b.privacy == "private" ? "only_me" : b.privacy) ?? "public"
         if let c = b.content, c.count > 2000 { throw Abort(.badRequest, reason: "Post content must be at most 2000 characters") }
         let db = req.db.sql()
         guard let community = try await CommunityStore.byID(id, viewer: req.userID, on: db),
@@ -416,7 +440,7 @@ struct CommunitiesController {
         guard let userID = req.parameters.get("userId").flatMap({ UUID(uuidString: $0) != nil ? $0.lowercased() : nil }) else {
             throw Abort(.badRequest, reason: "Invalid user")
         }
-        let offset = max((try? req.query.get(Int.self, at: "offset")) ?? 0, 0)
+        let offset = req.pageOffset
         let db = req.db.sql()
         guard let community = try await CommunityStore.byID(id, viewer: req.userID, on: db) else {
             throw Abort(.notFound, reason: "Community not found")
@@ -522,8 +546,8 @@ struct CommunitiesController {
         guard ["all", "published", "pending", "declined"].contains(status) else {
             throw Abort(.badRequest, reason: "status must be all, published, pending or declined")
         }
-        let limit = min((try? req.query.get(Int.self, at: "limit")) ?? 20, 50)
-        let offset = max((try? req.query.get(Int.self, at: "offset")) ?? 0, 0)
+        let limit = req.pageLimit(default: 20, max: 50)
+        let offset = req.pageOffset
         let db = req.db.sql()
         guard try await CommunityStore.membership(id, req.userID, on: db) != nil else {
             throw Abort(.forbidden, reason: "You are not a member of this community")
@@ -563,8 +587,8 @@ struct CommunitiesController {
         guard staff(try await CommunityStore.membership(id, req.userID, on: db)) else {
             throw Abort(.forbidden, reason: "Only admins and moderators can view join requests")
         }
-        let limit = (try? req.query.get(Int.self, at: "limit")) ?? 20
-        let offset = (try? req.query.get(Int.self, at: "offset")) ?? 0
+        let limit = req.pageLimit(default: 20, max: 100)
+        let offset = req.pageOffset
         return DataListResponse(data: try await CommunityStore.pendingRequests(id, limit: limit, offset: offset, on: db))
     }
 
@@ -674,13 +698,13 @@ struct CommunitiesController {
 
     static func recommendations(_ req: Request) async throws -> Response {
         let type = try requiredType(req)
-        let limit = min((try? req.query.get(Int.self, at: "limit")) ?? 10, 50)
+        let limit = req.pageLimit(default: 10, max: 50)
         let inner = try await recommendedJSON(req.userID, limit: limit, type: type, on: req.db.sql())
         return jsonWrapped("data", inner)
     }
     static func trending(_ req: Request) async throws -> DataListResponse<CommunityStore.CommunityRow> {
         let type = try requiredType(req)
-        let limit = min((try? req.query.get(Int.self, at: "limit")) ?? 20, 50)
+        let limit = req.pageLimit(default: 20, max: 50)
         return DataListResponse(data: try await CommunityStore.trendingCommunities(type: type, limit: limit, viewer: req.userID, on: req.db.sql()))
     }
     static func discover(_ req: Request) async throws -> Response {

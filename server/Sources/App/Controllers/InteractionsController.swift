@@ -100,7 +100,7 @@ struct InteractionsController {
         let postID = req.parameters.get("id")!
         let db = req.db.sql()
         let limit = clampLimit(try? req.query.get(Int.self, at: "limit"), 50, 100)
-        let offset = max((try? req.query.get(Int.self, at: "offset")) ?? 0, 0)
+        let offset = req.pageOffset
         guard try await visibleMeta(postID, viewer: req.userID, db) != nil else {
             throw InlineError(.notFound, "Post not found")
         }
@@ -140,6 +140,16 @@ struct InteractionsController {
         return CommentsListResponse(data: comments, total: total)
     }
 
+    static let maxCommentLength = 1000
+
+    /// `comments.content` has CHECK (char_length(content) <= 1000), which
+    /// counts code points, not the grapheme clusters Swift's `count` does.
+    static func validateCommentLength(_ content: String) throws {
+        guard content.unicodeScalars.count <= maxCommentLength else {
+            throw InlineError(.badRequest, "Comment must be at most \(maxCommentLength) characters")
+        }
+    }
+
     struct AddCommentBody: Content { var content: String?; var parent_comment_id: String?; var image_url: String?; var content_format: String? }
 
     static func addComment(_ req: Request) async throws -> Response {
@@ -147,6 +157,7 @@ struct InteractionsController {
         let db = req.db.sql()
         let b = try req.content.decode(AddCommentBody.self)
         let content = b.content?.trimmedText ?? ""
+        try validateCommentLength(content)
         // Only a photo uploaded here, not a link to someone else's image.
         let imageURL = MediaPath.storable(b.image_url)
         if let imageURL, !imageURL.hasPrefix("/uploads/") || imageURL.hasPrefix("/uploads/messages/") {
@@ -265,6 +276,7 @@ struct InteractionsController {
         let db = req.db.sql()
         let body = try req.content.decode(EditCommentBody.self)
         let content = body.content?.trimmedText ?? ""
+        try validateCommentLength(content)
         let newFormat: String? = PostStore.contentFormats.contains(body.content_format ?? "") ? body.content_format : nil
         guard let meta = try await visibleMeta(postID, viewer: req.userID, db) else { throw InlineError(.notFound, "Post not found") }
         struct C: Decodable { let author_id: String; let image_url: String? }

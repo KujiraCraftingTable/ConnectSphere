@@ -43,7 +43,7 @@ struct PostsController {
         let filter = try? req.query.get(String.self, at: "filter")
         let connections = filter == "connections"
         let limit = clamp(try? req.query.get(Int.self, at: "limit"), 20, 1, 50)
-        let offset = max((try? req.query.get(Int.self, at: "offset")) ?? 0, 0)
+        let offset = req.pageOffset
         // Home's Connections / Following tabs show items for sale like any post.
         let homeFeed = (connections || filter == "following") && authorID == nil && tag == nil && search == nil
         let f = PostStore.FeedFilters(mode: mode, authorID: authorID, tag: tag, search: search,
@@ -165,6 +165,7 @@ struct PostsController {
             throw InlineError(.badRequest, "mode must be hobby or work")
         }
         let mode = b.mode!
+        _ = try PostStore.validatedPrivacy(b.privacy)
         let postType = b.post_type ?? "text"
         let publishing = try Publishing.from(b.publish, at: b.publish_at)
         try await checkReplacedDraft(b.replaces_draft, req)
@@ -188,7 +189,7 @@ struct PostsController {
                 applicationDeadline: b.jobData?.applicationDeadline, details: b.jobData,
                 hashtags: hashtags, mode: mode, privacy: b.privacy, publishing: publishing, on: req.db)
         } else {
-            let imageUrls = normalizeImageUrls(b.image_urls)
+            let imageUrls = try normalizeImageUrls(b.image_urls)
             let hasContent = !(b.content?.trimmedText.isEmpty ?? true)
             if !hasContent && (b.link_url?.isEmpty ?? true) && imageUrls == nil {
                 throw InlineError(.badRequest, "content, link_url or image_urls is required")
@@ -199,7 +200,7 @@ struct PostsController {
             guard let created = try await PostStore.create(.init(
                 authorID: req.userID, content: b.content?.trimmedText ?? "",
                 mode: mode, privacy: b.privacy ?? "public",
-                imageUrl: MediaPath.storable(b.image_url), imageUrls: imageUrls, linkUrl: b.link_url?.nilIfEmpty,
+                imageUrl: try MediaPath.thumbnail(b.image_url, hasLink: b.link_url?.nilIfEmpty != nil), imageUrls: imageUrls, linkUrl: b.link_url?.nilIfEmpty,
                 articleTitle: b.article_title?.nilIfEmpty, sharedPostID: nil,
                 hashtags: hashtags, publishing: publishing), on: req.db)
             else { throw Abort(.internalServerError) }
@@ -281,9 +282,9 @@ struct PostsController {
         return DataResponse(data: post)
     }
 
-    /// Cleans the image list: stored paths only, at most 10.
-    static func normalizeImageUrls(_ urls: [String]?) -> [String]? {
-        guard let clean = MediaPath.storable(urls)?.prefix(10), !clean.isEmpty else { return nil }
+    /// Cleans the image list: our own uploads only (400 otherwise), at most 10.
+    static func normalizeImageUrls(_ urls: [String]?) throws -> [String]? {
+        guard let clean = try MediaPath.uploaded(urls)?.prefix(10), !clean.isEmpty else { return nil }
         return Array(clean)
     }
 
@@ -296,8 +297,13 @@ struct PostsController {
         guard ["hobby", "work"].contains(b.mode ?? "") else {
             throw InlineError(.badRequest, "mode must be hobby or work")
         }
+        let privacy = try PostStore.validatedPrivacy(b.privacy) ?? "public"
         guard let original = try await PostStore.findById(req.parameters.get("id")!, viewer: req.userID, on: req.db.sql()) else {
             throw Abort(.notFound, reason: "Post not found")
+        }
+        // Hobby and Work are separate datasets: a post can't be carried across.
+        guard original.mode == b.mode else {
+            throw Abort(.badRequest, reason: "A post can only be shared in the mode it was posted in")
         }
         // Marketplace items are passed on by message only, never reposted.
         guard original.post_type != "listing" else {
@@ -306,7 +312,7 @@ struct PostsController {
         let rootID = original.shared_post_id ?? original.id
         guard let post = try await PostStore.create(.init(
             authorID: req.userID, content: b.content?.trimmedText ?? "",
-            mode: b.mode!, privacy: b.privacy ?? "public",
+            mode: b.mode!, privacy: privacy,
             imageUrl: nil, imageUrls: nil, linkUrl: nil, articleTitle: nil,
             sharedPostID: rootID, hashtags: []), on: req.db)
         else { throw Abort(.internalServerError) }
@@ -375,12 +381,15 @@ struct PostsController {
         if let a = b.community_audience, !PostStore.communityAudiences.contains(a) {
             throw Abort(.badRequest, reason: "community_audience must be public or members")
         }
+        let privacy = try PostStore.validatedPrivacy(b.privacy)
+        // Same cap as create; the content column is TEXT, so only this stops a huge edit.
+        if let c = b.content, c.count > 2000 { throw InlineError(.badRequest, "content must be at most 2000 characters") }
         let contentProvided = (try? req.content.decode([String: AnyCodableValue].self))?.keys.contains("content") ?? false
-        let imageUrls = normalizeImageUrls(b.image_urls)
+        let imageUrls = try normalizeImageUrls(b.image_urls)
         let result = try await PostStore.updatePost(
             id, content: contentProvided ? (b.content ?? "").trimmedText : nil,
-            contentProvided: contentProvided, privacy: b.privacy?.nilIfEmpty,
-            imageUrl: MediaPath.storable(b.image_url), imageUrls: imageUrls,
+            contentProvided: contentProvided, privacy: privacy,
+            imageUrl: try MediaPath.thumbnail(b.image_url, hasLink: b.link_url?.nilIfEmpty != nil), imageUrls: imageUrls,
             linkUrl: b.link_url?.nilIfEmpty, articleTitle: b.article_title?.nilIfEmpty, on: sdb)
         switch result {
         case .empty: throw Abort(.badRequest, reason: "A post must have a caption, image, or link")
@@ -419,13 +428,13 @@ struct PostsController {
 
     static func listDeleted(_ req: Request) async throws -> PagedNoTotal<PostObject> {
         let limit = clamp(try? req.query.get(Int.self, at: "limit"), 20, 1, 50)
-        let offset = max((try? req.query.get(Int.self, at: "offset")) ?? 0, 0)
+        let offset = req.pageOffset
         return PagedNoTotal(data: try await PostStore.listDeleted(req.userID, limit: limit, offset: offset, on: req.db.sql()),
                             pagination: .init(limit: limit, offset: offset))
     }
     static func listSaved(_ req: Request) async throws -> PagedNoTotal<PostObject> {
         let limit = clamp(try? req.query.get(Int.self, at: "limit"), 20, 1, 50)
-        let offset = max((try? req.query.get(Int.self, at: "offset")) ?? 0, 0)
+        let offset = req.pageOffset
         // Saved posts and saved Marketplace items are listed separately.
         let kind = (try? req.query.get(String.self, at: "kind")) ?? "posts"
         guard ["posts", "listings"].contains(kind) else { throw Abort(.badRequest, reason: "kind must be posts or listings") }
@@ -447,7 +456,7 @@ struct PostsController {
     }
     static func listDeletedComments(_ req: Request) async throws -> PagedNoTotal<DeletedComment> {
         let limit = clamp(try? req.query.get(Int.self, at: "limit"), 20, 1, 50)
-        let offset = max((try? req.query.get(Int.self, at: "offset")) ?? 0, 0)
+        let offset = req.pageOffset
         let rows = try await req.db.sql().raw("""
             SELECT c.id, c.post_id, c.content, c.created_at, c.deleted_at, c.parent_comment_id, c.like_count
             FROM comments c JOIN posts p ON p.id = c.post_id

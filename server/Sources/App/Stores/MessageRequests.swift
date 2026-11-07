@@ -72,13 +72,25 @@ enum MessageRequests {
     /// The starter's limit, as a pure rule.
     static func decide(sent: Int) -> Gate { sent >= limit ? .limitReached : .open }
 
-    /// Accept a request. Only its recipient can.
-    static func accept(conversationID: String, by userID: String, on db: any SQLDatabase) async throws {
-        try await db.raw("""
+    /// Accept a request. Only its recipient can. False when nothing changed.
+    @discardableResult
+    static func accept(conversationID: String, by userID: String, on db: any SQLDatabase) async throws -> Bool {
+        struct R: Decodable { let id: String }
+        return try await db.raw("""
             UPDATE conversations SET request_accepted_at = NOW()
             WHERE id = \(uuid: conversationID) AND request_from IS NOT NULL AND request_from <> \(uuid: userID)
               AND request_accepted_at IS NULL
-            """).run()
+            RETURNING id::text AS id
+            """).first(decoding: R.self) != nil
+    }
+
+    /// Whether `userID` sent this chat's request and it hasn't been accepted yet.
+    static func isOwnPendingRequest(conversationID: String, by userID: String, on db: any SQLDatabase) async throws -> Bool {
+        struct R: Decodable { let one: Int }
+        return try await db.raw("""
+            SELECT 1 AS one FROM conversations
+            WHERE id = \(uuid: conversationID) AND request_from = \(uuid: userID) AND request_accepted_at IS NULL
+            """).first(decoding: R.self) != nil
     }
 
     static let limitReason = "You can send up to 3 messages until they accept your request"

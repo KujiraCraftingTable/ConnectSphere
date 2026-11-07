@@ -113,7 +113,8 @@ actor SocketSession {
         struct Auth: Decodable { var token: String? }
         let token = (try? JSONDecoder().decode(Auth.self, from: Data(body.utf8)))?.token
         guard let token, !token.isEmpty,
-              let payload = try? JWTHS256.verify(token, secret: jwtSecret) else {
+              let payload = try? JWTHS256.verify(token, secret: jwtSecret),
+              (try? await Session.isLive(payload, on: db.sql())) == true else {
             sendRaw(#"44{"message":"Invalid token"}"#)
             ws.close(promise: nil)
             return

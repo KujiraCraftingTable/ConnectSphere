@@ -27,7 +27,7 @@ struct MarketplaceController {
         let sellerID = (try? req.query.get(String.self, at: "seller_id"))?.nilIfEmpty
         if let sellerID, UUID(uuidString: sellerID) == nil { throw Abort(.badRequest, reason: "Invalid seller") }
         let limit = PostsController.clamp(try? req.query.get(Int.self, at: "limit"), 30, 1, 50)
-        let offset = max((try? req.query.get(Int.self, at: "offset")) ?? 0, 0)
+        let offset = req.pageOffset
         return DataListResponse(data: try await ListingStore.marketplace(
             viewer: req.userID, mode: mode, query: q, communityID: communityID, sellerID: sellerID,
             limit: limit, offset: offset, on: req.db.sql()))
@@ -53,7 +53,7 @@ struct MarketplaceController {
         }
         var (post, liveIn) = try await PostService.createListingPost(
             authorID: req.userID, mode: mode, content: b.content,
-            imageUrls: PostsController.normalizeImageUrls(b.image_urls), details: b.listingData,
+            imageUrls: try PostsController.normalizeImageUrls(b.image_urls), details: b.listingData,
             communityIDs: b.community_ids, on: req.db)
         if b.image_alts != nil {
             post.image_alts = try await PostStore.setImageAlts(post.id, b.image_alts, on: req.db.sql())

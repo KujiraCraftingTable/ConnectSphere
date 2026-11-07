@@ -154,8 +154,8 @@ struct NotificationsController {
     // MARK: GET /
 
     static func list(_ req: Request) async throws -> Response {
-        let limit = min((try? req.query.get(Int.self, at: "limit")) ?? defaultLimit, maxLimit)
-        let offset = (try? req.query.get(Int.self, at: "offset")) ?? 0
+        let limit = req.pageLimit(default: defaultLimit, max: maxLimit)
+        let offset = req.pageOffset
         let unreadOnly = (try? req.query.get(String.self, at: "filter")) == "unread"
         let cat = try? req.query.get(String.self, at: "category")
         let typeList = typesForCategory(cat)
@@ -329,8 +329,8 @@ struct NotificationsController {
         @NullCoded var ref_id: String?; var is_read: Bool; var created_at: Date; @NullCoded var community_name: String?
     }
     static func listCommunityShim(_ req: Request) async throws -> DataListResponse<CommShimRow> {
-        let limit = min((try? req.query.get(Int.self, at: "limit")) ?? 20, maxLimit)
-        let offset = (try? req.query.get(Int.self, at: "offset")) ?? 0
+        let limit = req.pageLimit(default: 20, max: maxLimit)
+        let offset = req.pageOffset
         let commTypes = typesForCategory("community")!
         let rows = try await req.db.sql().raw("""
             SELECT n.id::text AS id, n.community_id::text AS community_id, n.type,

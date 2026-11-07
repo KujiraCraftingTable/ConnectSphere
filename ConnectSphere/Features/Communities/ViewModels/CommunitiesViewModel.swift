@@ -40,7 +40,12 @@ class CommunitiesViewModel {
         do {
             discoverCommunities = try await repository.fetchCommunities(query: query, type: type, token: token)
         } catch {
-            errorMessage = friendlyError(error)
+            // No alert: this list only feeds the duplicate-name hint, and the
+            // screen already shows the connection error inline with Retry
+            // (`myError`). An alert on top made the user dismiss it to reach Retry.
+            #if DEBUG
+            print("Discover list failed: \(error)")
+            #endif
         }
         isLoading = false
     }

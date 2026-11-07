@@ -223,6 +223,20 @@ enum SearchStore {
         var name_match: Double
         var match_evidence: String                  // ::text jsonb
         var mutual_count: Int
+        var distance_km: Int? = nil
+    }
+
+    /// The radius steps the app offers; anything else is refused.
+    static let radiusStepsKm: Set<Double> = [5, 10, 15, 20, 25, 30]
+
+    /// Straight-line km from a point to the centre of ward `w` (haversine).
+    /// `LEAST` keeps rounding from pushing acos past 1 when both points match.
+    static func kmToWard(lat: Double, lng: Double) -> SQLQueryString {
+        """
+        (6371 * acos(LEAST(1.0, cos(radians(\(bind: lat))) * cos(radians(w.lat))
+           * cos(radians(w.lng) - radians(\(bind: lng)))
+           + sin(radians(\(bind: lat))) * sin(radians(w.lat)))))
+        """
     }
 
     private static func jsNorm(_ s: String) -> String {
@@ -310,17 +324,16 @@ enum SearchStore {
                     """)
             }
         }
-        if let loc = p.location {
+        // With a radius the distance decides, so a neighbour just over a
+        // province border still matches; the province name is only the
+        // fallback when there's no radius.
+        var distanceSelect: SQLQueryString = "NULL::int"
+        if let lat = p.searchLat, let lng = p.searchLng, let rad = p.radiusKm {
+            wheres.append("EXISTS (SELECT 1 FROM vn_wards w WHERE w.id = u.ward_id AND " + kmToWard(lat: lat, lng: lng) + " <= \(bind: rad))")
+            distanceSelect = "(SELECT GREATEST(5, CEIL(" + kmToWard(lat: lat, lng: lng) + " / 5) * 5)::int FROM vn_wards w WHERE w.id = u.ward_id)"
+        } else if let loc = p.location {
             let norm = jsNorm(loc)
             wheres.append("REPLACE(REPLACE(REPLACE(LOWER(u.location), ' city', ''), ' province', ''), ' ', '') LIKE \(bind: "%\(norm)%")")
-        }
-        if let lat = p.searchLat, let lng = p.searchLng, let rad = p.radiusKm {
-            wheres.append("""
-                EXISTS (SELECT 1 FROM vn_wards w WHERE w.id = u.ward_id
-                  AND (6371 * acos(cos(radians(\(bind: lat))) * cos(radians(w.lat))
-                     * cos(radians(w.lng) - radians(\(bind: lng)))
-                     + sin(radians(\(bind: lat))) * sin(radians(w.lat)))) <= \(bind: rad))
-                """)
         }
         // Share of interest groups this person matches (0…1), lifting the score
         // by `wGroup`, see `wGroup` for why it no longer filters.
@@ -489,7 +502,7 @@ enum SearchStore {
               s.retrieval_score AS retrieval, s.name_match,
               COALESCE(e.match_evidence, '[]'::jsonb)::text AS match_evidence,
             """
-        sql = sql + mutualSelect + " AS mutual_count\n"
+        sql = sql + mutualSelect + " AS mutual_count,\n" + distanceSelect + " AS distance_km\n"
         sql = sql + """
             FROM user_scores s
             JOIN users u ON u.id = s.user_id

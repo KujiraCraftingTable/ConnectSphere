@@ -15,6 +15,7 @@ struct ProfileHeaderCard<Actions: View>: View {
     @Environment(\.openURL) private var openURL
     @State private var inAppBrowserURL: URL?
     @Environment(\.appBundle) private var bundle
+    private let interestNames = InterestNames.shared
     @Environment(\.colorScheme) private var colorScheme
     @Environment(ThemeManager.self) private var themeManager
 
@@ -190,7 +191,7 @@ struct ProfileHeaderCard<Actions: View>: View {
         let items = mode == .hobby ? user.interests : []
         if !items.isEmpty {
             let row = HStack(spacing: AppSpacing.sm) {
-                ForEach(items, id: \.self) { Chip(text: $0, style: .neutral) }
+                ForEach(items, id: \.self) { Chip(text: interestNames.displayName($0, in: bundle), style: .neutral) }
             }
             // Always one line: centred when it fits, otherwise it scrolls
             // sideways instead of wrapping onto more lines. Clipped to the
@@ -200,6 +201,7 @@ struct ProfileHeaderCard<Actions: View>: View {
                 ScrollView(.horizontal, showsIndicators: false) { row }
             }
             .padding(.top, 4)
+            .task { await interestNames.loadIfNeeded() }
         }
     }
 }

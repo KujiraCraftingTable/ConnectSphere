@@ -138,9 +138,14 @@ struct EmailVerificationView: View {
             .animation(.snappy, value: viewModel.stage)
             .navigationTitle(bundle.loc("Email"))
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled(viewModel.hasChanges)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(bundle.loc(viewModel.stage == .overview ? "Done" : "Cancel")) { dismiss() }
+                    if viewModel.stage == .overview {
+                        Button(bundle.loc("Done")) { dismiss() }
+                    } else {
+                        ConfirmCancelButton(hasChanges: viewModel.hasChanges) { dismiss() }
+                    }
                 }
             }
         }

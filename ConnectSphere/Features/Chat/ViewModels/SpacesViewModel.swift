@@ -19,7 +19,12 @@ final class SpacesViewModel {
             spaces = try await repository.list(mode: mode, token: token)
             hasLoaded = true
         } catch {
-            if !hasLoaded { self.error = Self.message(for: error) }
+            // No alert: the inbox already shows the connection error inline with
+            // Retry, and an alert on top made the user dismiss it to reach Retry.
+            // The spaces bar just stays empty until the next load.
+            #if DEBUG
+            print("Spaces load failed: \(error)")
+            #endif
         }
     }
 

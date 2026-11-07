@@ -1166,15 +1166,24 @@ class ChatViewModel {
         guard !isForwarding else { return }
         isForwarding = true
         defer { isForwarding = false }
-        _ = try? await repository.sendMessage(
-            conversationId: targetConversationId,
-            content: message.content,
-            messageType: message.messageType,
-            mediaUrl: message.mediaUrl,
-            mediaItems: message.mediaItems,
-            replyToMessageId: nil,
-            voiceDurationSeconds: message.voiceDurationSeconds,
-            voiceWaveform: message.voiceWaveform,
-            token: token)
+        // The server refuses some forwards (polls, shared posts, community cards,
+        // blocked chats, request limit); surface its reason instead of failing silently.
+        do {
+            _ = try await repository.sendMessage(
+                conversationId: targetConversationId,
+                content: message.content,
+                messageType: message.messageType,
+                mediaUrl: message.mediaUrl,
+                mediaItems: message.mediaItems,
+                replyToMessageId: nil,
+                voiceDurationSeconds: message.voiceDurationSeconds,
+                voiceWaveform: message.voiceWaveform,
+                token: token)
+        } catch {
+            #if DEBUG
+            print("Forward failed: \(error)")
+            #endif
+            self.error = friendlyError(error)
+        }
     }
 }

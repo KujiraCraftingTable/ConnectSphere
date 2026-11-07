@@ -31,24 +31,24 @@ final class ChangePasswordViewModel {
             && !isSaving
     }
 
-    /// Returns true on success; the caller then marks the session user as
-    /// having a password (it may have just set its first one).
-    func save(token: String?) async -> Bool {
-        guard let token else { return false }
+    /// Returns the new session token on success: the change ends every older
+    /// session, this device's included. The caller keeps the token and marks the
+    /// user as having a password (it may have just set its first one).
+    func save(token: String?) async -> String? {
+        guard let token else { return nil }
         isSaving = true
         errorMessage = nil
         defer { isSaving = false }
         do {
-            try await AuthService.shared.changePassword(
+            return try await AuthService.shared.changePassword(
                 token: token,
                 currentPassword: hasPassword ? currentPassword : nil,
                 newPassword: newPassword)
-            return true
         } catch {
             errorMessage = (error as NSError).code == 401
                 ? Bundle.app.loc("Current password is incorrect")
                 : Bundle.app.loc("Couldn't change password, please try again")
-            return false
+            return nil
         }
     }
 }

@@ -43,6 +43,11 @@ struct UserDTO: Decodable {
     let skills: [String]
     let score: Double?
     let matchEvidence: [MatchEvidenceDTO]?   // only present in the AI search response (mini CV)
+    /// AI search with a radius only (rounded up to 5 km).
+    let distanceKm: Int?
+    /// The owner's own response only: the private home ward and its province.
+    let wardId: String?
+    let wardProvinceCode: String?
 
     enum CodingKeys: String, CodingKey {
         case bioFormat = "bio_format"
@@ -71,6 +76,9 @@ struct UserDTO: Decodable {
         case connectionCount = "connection_count"
         case mutualCount     = "mutual_count"
         case matchEvidence   = "match_evidence"
+        case distanceKm      = "distance_km"
+        case wardId          = "ward_id"
+        case wardProvinceCode = "ward_province_code"
     }
 
     func toUserProfile() -> UserProfile {
@@ -88,6 +96,8 @@ struct UserDTO: Decodable {
             skills:         skills,
             interests:      interests,
             location:       location,
+            wardId:         wardId,
+            wardProvinceCode: wardProvinceCode,
             gender:         gender,
             hobbySetup:     hobbySetup ?? false,
             workSetup:      workSetup ?? false,
@@ -109,7 +119,8 @@ struct UserDTO: Decodable {
             postCount:      postCount,
             connectionCount: connectionCount ?? 0,
             mutualCount:    mutualCount ?? 0,
-            score:          score
+            score:          score,
+            distanceKm:     distanceKm
         )
     }
 }

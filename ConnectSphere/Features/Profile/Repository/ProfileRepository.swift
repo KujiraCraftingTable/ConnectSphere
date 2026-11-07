@@ -33,7 +33,8 @@ struct ProfileRepository {
         var bio: String?          = nil
         /// How `bio` is written ("markdown" or "plain"); always sent with `bio`.
         var bio_format: String?   = nil
-        var location: String?     = nil
+        /// The home ward; the server sets the public location from it.
+        var ward_id: String?      = nil
         var dob: String?          = nil
         var dob_visibility: String? = nil
         var job_title: String?    = nil
