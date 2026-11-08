@@ -231,43 +231,6 @@ struct CommunityRepository {
                                           token: token, bodyData: body)
         return res.data.toCommunity()
     }
-
-    // MARK: - Reports
-
-    func reportPost(postId: String, communityId: String, reason: String, token: String) async throws {
-        let body = try? JSONSerialization.data(withJSONObject: ["reason": reason, "communityId": communityId])
-        _ = try await client.fetch(OKResponse.self,
-                                    path: "/posts/\(postId)/report",
-                                    method: "POST", token: token, bodyData: body)
-    }
-
-    func reportMember(communityId: String, userId: String, reason: String, token: String) async throws {
-        let body = try? JSONSerialization.data(withJSONObject: ["reason": reason])
-        _ = try await client.fetch(OKResponse.self,
-                                    path: "/communities/\(communityId)/members/\(userId)/report",
-                                    method: "POST", token: token, bodyData: body)
-    }
-
-    // MARK: - Reports
-
-    /// Reports a community member, or a post in the community
-    /// (`targetType == "post"`). `detail` is optional free text.
-    func report(targetType: String, targetId: String, communityId: String,
-                reason: String, detail: String?, token: String) async throws {
-        var body: [String: Any] = ["reason": reason]
-        if let detail { body["detail"] = detail }
-        let path: String
-        if targetType == "post" {
-            path = "/posts/\(targetId)/report"
-            body["communityId"] = communityId
-        } else if targetType == "community" {
-            path = "/communities/\(communityId)/report"
-        } else {
-            path = "/communities/\(communityId)/members/\(targetId)/report"
-        }
-        _ = try await client.fetch(OKResponse.self, path: path, method: "POST", token: token,
-                                   bodyData: try? JSONSerialization.data(withJSONObject: body))
-    }
 }
 
 // MARK: - Pin / info

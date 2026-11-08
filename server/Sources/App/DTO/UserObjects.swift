@@ -24,6 +24,8 @@ struct UserCore: Content {
     var follower_count: Int
     var following_count: Int
     var post_count: Int
+    /// The official @connectsphere account, the app's only admin (migration 104).
+    var is_official: Bool? = nil
     var created_at: Date
     var interests: [String]
     var skills: [String]
@@ -77,22 +79,13 @@ struct PublicUserObject: Content {
     }
     enum K: String, CodingKey { case connection_count, links_other_mode, is_locked, can_view }
 
-    /// What someone locked out still sees: who it is, the avatar and cover.
+    /// Someone locked out keeps the card and the About details (bio, job,
+    /// interests, skills, real counts), like a locked Facebook profile; only
+    /// age and relationship status stay private. The other-persona link stays
+    /// hidden too: a lock shouldn't point strangers at the second identity.
     mutating func trimForLockedOut() {
-        core.bio = nil
-        core.bio_format = nil
-        core.location = nil
         core.age = nil
-        core.job_title = nil
-        core.company = nil
-        core.interests = []
-        core.skills = []
-        core.languages = []
         core.relationship_status = nil
-        core.post_count = 0
-        core.follower_count = 0
-        core.following_count = 0
-        connection_count = 0
         links_other_mode = false
     }
 }

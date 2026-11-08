@@ -24,7 +24,7 @@ struct ListingPostCard: View {
 
                 if viewModel.isSeller(appState.currentUser?.id) {
                     ListingSellerBar(viewModel: viewModel, showsShare: false)
-                } else if !listing.isSold {
+                } else if !listing.isSold && !(appState.currentUser?.isOfficial ?? false) {
                     Button {
                         Task<Void, Never>(name: nil) { chatId = await viewModel.messageSeller(token: appState.authToken ?? "") }
                     } label: {
@@ -180,7 +180,9 @@ struct ListingDetailView: View {
 
     @State private var viewModel: ListingViewModel
     @State private var chatId: String?
+    @State private var showReport = false
     @State private var showShare = false
+    @State private var showModerate = false
     @State private var showSeller = false
     @State private var confirmCancelAuto = false
 
@@ -322,6 +324,23 @@ struct ListingDetailView: View {
             HStack(spacing: 10) {
                 if isSeller {
                     ListingSellerBar(viewModel: viewModel) { dismiss() }
+                } else if appState.currentUser?.isOfficial ?? false {
+                    // The admin only monitors the Marketplace: no buying, saving,
+                    // sharing or reporting. Warn or ban also takes the item down.
+                    Button { showModerate = true } label: {
+                        Label(bundle.loc("Warn or ban"), systemImage: "hand.raised.slash")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(ListingButtonStyle(fill: AppColors.danger(colorScheme)))
+                    .sheet(isPresented: $showModerate, onDismiss: {
+                        if viewModel.wasTakenDown() { dismiss() }
+                    }) {
+                        AdminBanSheet(target: ModerationTarget(type: "post", id: viewModel.post.id,
+                                                               userId: viewModel.post.author.id,
+                                                               userName: viewModel.post.author.name,
+                                                               mode: viewModel.post.mode.rawValue))
+                            .environment(themeManager)
+                    }
                 } else {
                     if listing.isSold {
                         Label(bundle.loc("This item has been sold"), systemImage: "checkmark.seal")
@@ -345,6 +364,14 @@ struct ListingDetailView: View {
                         Task<Void, Never>(name: nil) { await viewModel.toggleSave() }
                     }
                     squareButton("square.and.arrow.up", label: "Share") { showShare = true }
+                    squareButton("flag", label: "Report") { showReport = true }
+                        .sheet(isPresented: $showReport) {
+                            // A listing is reported as the post it lives in.
+                            // The listing stays open after a report, like any post.
+                            ReportSheet(subject: .content(.post, id: viewModel.post.id),
+                                        blockUser: (viewModel.post.author.id, viewModel.post.author.name))
+                                .environment(themeManager)
+                        }
                 }
             }
             .disabled(viewModel.isWorking)

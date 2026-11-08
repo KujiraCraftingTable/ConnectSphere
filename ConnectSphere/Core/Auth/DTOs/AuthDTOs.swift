@@ -47,11 +47,18 @@ struct AuthUserDTO: Decodable {
     let followerCount: Int
     let followingCount: Int
     let postCount: Int
+    /// You are the official @connectsphere account, the app's only admin.
+    let isOfficial: Bool
     let isSetup: Bool
     let hobbySetup: Bool?
     let workSetup: Bool?
     let interests: [String]
     let skills: [String]
+    /// The account's palette ids per mode (ThemeManager).
+    let hobbyTheme: String?
+    let workTheme: String?
+
+    var accountTheme: AccountTheme { AccountTheme(userID: id, hobby: hobbyTheme, work: workTheme) }
 
     enum CodingKeys: String, CodingKey {
         case bioFormat = "bio_format"
@@ -79,9 +86,12 @@ struct AuthUserDTO: Decodable {
         case followerCount  = "follower_count"
         case followingCount = "following_count"
         case postCount      = "post_count"
+        case isOfficial     = "is_official"
         case isSetup        = "is_setup"
         case hobbySetup     = "hobby_setup"
         case workSetup      = "work_setup"
+        case hobbyTheme     = "hobby_theme"
+        case workTheme      = "work_theme"
     }
 
     // A pre-onboarding /auth/me (or a Google first-login) can omit half of
@@ -121,11 +131,14 @@ struct AuthUserDTO: Decodable {
         followerCount  = try c.decodeIfPresent(Int.self, forKey: .followerCount) ?? 0
         followingCount = try c.decodeIfPresent(Int.self, forKey: .followingCount) ?? 0
         postCount      = try c.decodeIfPresent(Int.self, forKey: .postCount) ?? 0
+        isOfficial     = try c.decodeIfPresent(Bool.self, forKey: .isOfficial) ?? false
         isSetup        = try c.decodeIfPresent(Bool.self, forKey: .isSetup) ?? false
         hobbySetup     = try c.decodeIfPresent(Bool.self, forKey: .hobbySetup)
         workSetup      = try c.decodeIfPresent(Bool.self, forKey: .workSetup)
         interests      = try c.decodeIfPresent([String].self, forKey: .interests) ?? []
         skills         = try c.decodeIfPresent([String].self, forKey: .skills) ?? []
+        hobbyTheme     = try c.decodeIfPresent(String.self, forKey: .hobbyTheme)
+        workTheme      = try c.decodeIfPresent(String.self, forKey: .workTheme)
     }
 
     func toUserProfile() -> UserProfile {
@@ -156,7 +169,8 @@ struct AuthUserDTO: Decodable {
             dobChangesLeft: dobChangesLeft,
             followerCount: followerCount,
             followingCount: followingCount,
-            postCount: postCount
+            postCount: postCount,
+            isOfficial: isOfficial
         )
     }
 }

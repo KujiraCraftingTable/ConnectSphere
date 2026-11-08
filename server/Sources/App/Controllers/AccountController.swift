@@ -51,6 +51,7 @@ struct AccountController {
         guard try await !emailTaken(email, by: req.userID, on: db) else {
             throw Abort(.conflict, reason: "That email is used by another account")
         }
+        try await AccountBans.refuseBannedIdentity(email: email, googleID: nil, on: db)
         let code = try await AccountCodeStore.issue(user: req.userID, purpose: .verifyEmail, email: email, on: db)
         try await Mailer(req).sendCode(code, to: email, kind: .verifyEmail, minutes: AccountCodeStore.ttlMinutes)
         return SentResponse(email: email)
@@ -234,6 +235,7 @@ struct AccountController {
             throw Abort(.badRequest, reason: "mode must be hobby or work")
         }
         let db = req.db.sql()
+        try await OfficialAccount.refuse(req.userID, "can't be deleted", on: db)
         let a = try await account(req.userID, on: db)
         try checkPersona(mode, hobby: a.hobby, work: a.work)
         let code = try req.content.decode(CodeBody.self).code ?? ""
@@ -249,6 +251,7 @@ struct AccountController {
     static func deleteAccount(_ req: Request) async throws -> StatusOK {
         let body = try? req.content.decode(DeleteAccountBody.self)
         let db = req.db.sql()
+        try await OfficialAccount.refuse(req.userID, "can't be deleted", on: db)
         try await confirmSensitive(req.userID, purpose: .deleteAccount, code: body?.code, password: body?.password, on: db)
         try await UserStore.softDeleteAccount(req.userID, on: req.db, logger: req.logger)
         req.logger.info("account soft-deleted \(req.userID)")

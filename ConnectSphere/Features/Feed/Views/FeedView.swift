@@ -32,7 +32,9 @@ struct FeedView: View {
                     StoriesRow()
                         .cardStyle()
 
-                    feedScopeRow
+                    // The official account has no connections and follows no one:
+                    // For you is its only feed, so there's nothing to pick.
+                    if !isOfficial { feedScopeRow }
 
                     if viewModel.isLoading && viewModel.posts(for: appState.currentMode).isEmpty {
                         SkeletonPostList(count: 3, colorScheme: colorScheme)
@@ -69,12 +71,12 @@ struct FeedView: View {
                         let posts = viewModel.posts(for: appState.currentMode)
                         let slots = people.slots(for: appState.currentMode, postCount: posts.count)
                         ForEach(Array(posts.enumerated()), id: \.element.id) { index, post in
-                            if let appearance = slots.firstIndex(of: index) {
+                            if !isOfficial, let appearance = slots.firstIndex(of: index) {
                                 PeopleYouMayKnowRow(viewModel: people, mode: appState.currentMode, appearance: appearance)
                             }
                             feedPostCard(post, isLast: post.id == posts.last?.id)
                         }
-                        if let appearance = slots.firstIndex(of: posts.count) {
+                        if !isOfficial, let appearance = slots.firstIndex(of: posts.count) {
                             PeopleYouMayKnowRow(viewModel: people, mode: appState.currentMode, appearance: appearance)
                         }
 
@@ -233,6 +235,9 @@ struct FeedView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(label)
     }
+
+    /// Signed in as the official account: no suggestions, no feed scopes.
+    private var isOfficial: Bool { appState.currentUser?.isOfficial ?? false }
 
     // MARK: Feed Scope Row ("For you" / "Connections" / "Following")
 

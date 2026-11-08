@@ -18,6 +18,7 @@ struct StoryViewerView: View {
     @State private var showViewers = false
     @State private var showDeleteConfirm = false
     @State private var addingToHighlight = false
+    @State private var reportingStory: StoryDTO?
 
     private let tick: Double = 0.05
     private let timer = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
@@ -31,7 +32,9 @@ struct StoryViewerView: View {
     private var isOwn: Bool { viewModel.isOwn }
 
     /// Timer pauses while the viewers sheet / delete dialog is open
-    private var isPaused: Bool { showViewers || showDeleteConfirm || viewModel.isDeleting || addingToHighlight }
+    private var isPaused: Bool {
+        showViewers || showDeleteConfirm || viewModel.isDeleting || addingToHighlight || reportingStory != nil
+    }
 
     private var currentStory: StoryDTO? { viewModel.currentStory }
 
@@ -125,6 +128,17 @@ struct StoryViewerView: View {
                             Button(bundle.loc("Cancel"), role: .cancel) {}
                         }
                     }
+                    if !isOwn, let story = currentStory {
+                        Button {
+                            reportingStory = story
+                        } label: {
+                            Image(systemName: "flag")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(8)
+                        }
+                        .accessibilityLabel(Text(bundle.loc("Report story")))
+                    }
                     Button {
                         close()
                     } label: {
@@ -163,6 +177,10 @@ struct StoryViewerView: View {
         }
         .statusBarHidden()
         .onAppear { viewModel.start(authorId: group.author.id, currentUserId: appState.currentUser?.id) }
+        .sheet(item: $reportingStory) { story in
+            ReportSheet(subject: .content(.story, id: story.id),
+                        blockUser: (group.author.id, group.author.name)) { close() }
+        }
         .sheet(isPresented: $addingToHighlight) {
             if let story = currentStory { AddToHighlightSheet(storyId: story.id) }
         }

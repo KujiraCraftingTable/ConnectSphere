@@ -89,25 +89,28 @@ struct EditProfileView: View {
                         TextField(bundle.loc("Display name"), text: $viewModel.displayName)
                         CharacterCounter(count: viewModel.displayName.count, limit: DisplayNameRules.maxLength)
                     }
-                    TextField(bundle.loc("About yourself"), text: $viewModel.bio, axis: .vertical)
-                        .lineLimit(3...5)
-                    WardPickerView(selectedProvinceCode: $viewModel.provinceCode, selectedWardId: $viewModel.wardId)
-                        .listRowSeparator(.hidden)
-                    DatePicker(bundle.loc("Date of birth"), selection: $viewModel.dobDate,
-                               in: ...Date.latestBirthdayFor16Plus, displayedComponents: .date)
-                        .disabled(viewModel.isDobLocked)
-                    dobNote
+                    // The official account keeps only its name and pictures.
+                    if !isOfficial {
+                        MarkdownTextEditor(text: $viewModel.bio, placeholder: bundle.loc("About yourself"),
+                                           minHeight: 70, maxHeight: 140)
+                        WardPickerView(selectedProvinceCode: $viewModel.provinceCode, selectedWardId: $viewModel.wardId)
+                            .listRowSeparator(.hidden)
+                        DatePicker(bundle.loc("Date of birth"), selection: $viewModel.dobDate,
+                                   in: ...Date.latestBirthdayFor16Plus, displayedComponents: .date)
+                            .disabled(viewModel.isDobLocked)
+                        dobNote
 
-                    DobVisibilityToggle(
-                        visibility: $viewModel.dobVisibility,
-                        accentColor: themeManager.theme.primary,
-                        colorScheme: colorScheme
-                    )
-                    .padding(.vertical, 4)
+                        DobVisibilityToggle(
+                            visibility: $viewModel.dobVisibility,
+                            accentColor: themeManager.theme.primary,
+                            colorScheme: colorScheme
+                        )
+                        .padding(.vertical, 4)
+                    }
                 }
 
                 // ── Interests / Skills. Based on the current mode, same as onboarding ─
-                if appState.currentMode == .hobby {
+                if appState.currentMode == .hobby && !isOfficial {
                     Section(bundle.loc("Interests")) {
                         InterestPickerView(selectedInterests: $viewModel.selectedInterests, colorScheme: colorScheme)
                             .padding(.vertical, 4)
@@ -155,7 +158,7 @@ struct EditProfileView: View {
                 }
 
                 // Work only, Hobby never talks about work.
-                if appState.currentMode == .work {
+                if appState.currentMode == .work && !isOfficial {
                     Section(bundle.loc("Work")) {
                         TextField(bundle.loc("Job title"), text: $viewModel.jobTitle)
                         TextField(bundle.loc("Company"), text: $viewModel.company)
@@ -238,6 +241,9 @@ struct EditProfileView: View {
             dismiss()
         }
     }
+
+    /// The official account: only name and pictures are editable.
+    private var isOfficial: Bool { appState.currentUser?.isOfficial ?? false }
 
     /// A birthday can only change twice; after that, support has to do it.
     @ViewBuilder

@@ -17,11 +17,6 @@ final class PostActionsViewModel {
     /// the shared registry (not in the card) so scrolling away doesn't lose it.
     var hiddenKind: HiddenKind? { HiddenPostsRegistry.shared.kind(for: postId) }
     var isHidden: Bool { hiddenKind != nil }
-    /// Set after a report goes through: the "Thanks for letting us know" sheet
-    /// offering to block or hide all from the author.
-    var showReportFollowUp = false
-    /// Outcome of a report that failed, shown as an alert.
-    var reportResultMessage: String?
     /// A delete / hide / restore failure, shown as an alert.
     var actionErrorMessage: String?
 
@@ -195,6 +190,7 @@ final class PostActionsViewModel {
             case .lessLikeThis:         try await repository.removeFeedback(postId: postId)
             case .hiddenAuthor:         try await userRepository.unhideAuthorPosts(userId: authorId)
             case .blocked:              try await userRepository.unblockUser(userId: authorId)
+            case .moderated:            break
             }
         } catch {
             HiddenPostsRegistry.shared.set(kind, for: postId)
@@ -202,14 +198,4 @@ final class PostActionsViewModel {
         }
     }
 
-    // MARK: Report
-
-    func report(postId: String, reason: ReportReason) async {
-        do {
-            try await repository.reportPost(postId: postId, reason: reason)
-            showReportFollowUp = true
-        } catch {
-            reportResultMessage = Bundle.app.loc("Could not submit report. Please try again.")
-        }
-    }
 }

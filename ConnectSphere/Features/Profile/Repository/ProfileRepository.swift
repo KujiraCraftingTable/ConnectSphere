@@ -78,6 +78,16 @@ struct ProfileRepository {
                                    bodyData: NetworkClient.encode(Body(mode: mode.rawValue, locked: locked)))
     }
 
+    /// The account's colour palette for one mode (users.hobby_theme / work_theme).
+    func setTheme(_ paletteId: String, mode: AppMode) async throws {
+        guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
+            throw APIError.serverError(statusCode: 401, message: "Not authenticated")
+        }
+        let body: [String: String] = [mode == .work ? "work_theme" : "hobby_theme": paletteId]
+        _ = try await client.fetch(SingleResponse<UserDTO>.self, path: "/users/me", method: "PATCH", token: token,
+                                   bodyData: NetworkClient.encode(body))
+    }
+
     func setShowInSuggestions(_ show: Bool) async throws {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")

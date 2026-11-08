@@ -32,6 +32,9 @@ struct ConnectSphereApp: App {
                 .environment(floatingChatPresenter)
                 .environment(\.appBundle, appState.bundle)
                 .preferredColorScheme(appState.appearanceMode.colorScheme)
+                // Scrolling anywhere closes the keyboard, like tapping outside the box.
+                // Screens that set their own style (chat, search) keep it.
+                .scrollDismissesKeyboard(.immediately)
                 .onOpenURL { url in
                     // connectsphere://community/<id>, community share link (Phase 5).
                     // Google Sign-In uses its own reversed-client-id scheme, so branching
@@ -60,6 +63,10 @@ struct ConnectSphereApp: App {
                 .onChange(of: appState.currentMode) { _, newMode in
                     themeManager.switchMode(newMode)
                 }
+                // The palette follows the signed-in account, not the device.
+                .onChange(of: appState.accountTheme) { _, account in
+                    if let account { themeManager.apply(account) }
+                }
         }
     }
 }
@@ -86,6 +93,8 @@ struct RootView: View {
                 }
             } else if !appState.isLoggedIn {
                 LoginView()
+            } else if appState.isCurrentModeSuspended {
+                SuspendedView()
             } else if appState.needsOnboarding {
                 OnboardingView()
             } else {
@@ -93,6 +102,13 @@ struct RootView: View {
             }
         }
         .task { await appState.restoreSession() }
+        .onReceive(NotificationCenter.default.publisher(for: .accountSuspended)) { _ in
+            if appState.isLoggedIn { appState.isSuspended = true }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .modeSuspended)) { _ in
+            // The request was made in the current mode: that mode is banned.
+            if appState.isLoggedIn { appState.suspendedModes.insert(appState.currentMode.rawValue) }
+        }
         .onAppear { KeyboardDismissal.install() }
     }
 }

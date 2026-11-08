@@ -74,29 +74,11 @@ struct CommentSheet: View {
                         .background(themeManager.theme.primary.opacity(0.06))
                     }
 
-                    if viewModel.attachedPhoto != nil {
-                        CommentPhotoPreview(viewModel: viewModel)
-                            .padding(.horizontal, 14)
-                            .padding(.top, 8)
-                            .background(AppColors.surface(colorScheme))
-                    }
-
                     // ── Input bar ───────────────────────────────────────────────
-                    HStack(spacing: 10) {
-                        if let me = appState.currentUser {
-                            AvatarView(user: me, size: 36)
-                        }
-
-                        TextField(bundle.loc("Write a comment..."), text: $input, axis: .vertical)
-                            .scaledFont(15)
-                            .lineLimit(4)
+                    HStack(alignment: CommentInputBox.isExpanded(text: input, hasPhoto: viewModel.attachedPhoto != nil)
+                               ? .bottom : .center, spacing: 10) {
+                        CommentInputBox(text: $input, viewModel: viewModel)
                             .focused($focused)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(AppColors.base(colorScheme))
-                            .clipShape(RoundedRectangle(cornerRadius: 20))
-
-                        CommentPhotoButton(viewModel: viewModel)
 
                         Button {
                             Task {
@@ -115,6 +97,8 @@ struct CommentSheet: View {
                                                  ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
                         }
                         .accessibilityLabel(Bundle.app.loc("Send"))
+                        // Level with the camera, which sits above the taller box's bottom edge.
+                        .padding(.bottom, CommentInputBox.isExpanded(text: input, hasPhoto: viewModel.attachedPhoto != nil) ? 12 : 0)
                         .disabled(!viewModel.canSend(input))
                     }
                     .padding(.horizontal, 12)
@@ -126,6 +110,7 @@ struct CommentSheet: View {
                 .navigationBarTitleDisplayMode(.inline)
             }
         }
+        .confirmBeforePosting(viewModel, text: $input) { onCommentCountChange?(1) }
         .undoToastOverlay(toastPresenter)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)

@@ -104,7 +104,11 @@ struct CommunityAnalyticsView: View {
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .lineLimit(2)
                 HStack(spacing: 12) {
-                    Label("\(post.likeCount)", systemImage: "heart")
+                    Label {
+                        Text("\(post.likeCount)")
+                    } icon: {
+                        LikeIcon(isLiked: false, color: AppColors.textSecondary(colorScheme), size: 13)
+                    }
                     Label("\(post.commentCount)", systemImage: "bubble.right")
                 }
                 .scaledFont(12)

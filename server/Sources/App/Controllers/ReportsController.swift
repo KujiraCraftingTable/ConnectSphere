@@ -18,6 +18,97 @@ struct ReportsController {
         c.get(":id", "analytics", use: analytics)
     }
 
+    // MARK: app-wide reports (migration 089)
+
+    /// `POST /api/reports` — report anything; see `ReportTarget` for what and why.
+    static func register(routes: any RoutesBuilder) {
+        routes.grouped("reports").grouped(AuthMiddleware()).grouped(RateLimitMiddleware.reports())
+            .post(use: fileReport)
+    }
+
+    struct FileBody: Content {
+        var target_type: String?; var target_id: String?; var reason: String?
+        var detail: String?; var mode: String?
+    }
+    struct Filed: Content { var received: Bool }
+
+    static func fileReport(_ req: Request) async throws -> Response {
+        let b = try req.content.decode(FileBody.self)
+        let type: ReportTarget, reason: ModerationPolicy, detail: String?
+        do {
+            (type, reason, detail) = try ReportRules.validate(target: b.target_type, reason: b.reason, detail: b.detail)
+        } catch ReportRules.Problem.badTarget {
+            throw InlineError(.badRequest, "Invalid target type")
+        } catch ReportRules.Problem.badReason {
+            throw InlineError(.badRequest, "Invalid reason")
+        } catch {
+            throw InlineError(.badRequest, "Details can be up to \(ReportRules.maxDetail) characters")
+        }
+        guard let id = b.target_id.flatMap(UUID.init(uuidString:))?.uuidString.lowercased() else {
+            throw InlineError(.badRequest, "Invalid target id")
+        }
+        var mode: String?
+        if type == .user {
+            guard let m = b.mode, ["hobby", "work"].contains(m) else { throw InlineError(.badRequest, "mode must be hobby or work") }
+            mode = m
+        }
+        let db = req.db.sql()
+        guard let target = try await ModerationStore.target(type, id, mode: mode, reporter: req.userID, on: db) else {
+            throw InlineError(.notFound, "This content is no longer available")
+        }
+        if target.author_id == req.userID { throw InlineError(.badRequest, "You can't report your own content") }
+        try await OfficialAccount.refuse(target.author_id, "can't be reported", on: db)
+        if try await ModerationStore.hasReported(req.userID, type, id, on: db) {
+            throw InlineError(.conflict, "You've already reported this")
+        }
+
+        // A post in a community: its staff always see the report, and judge
+        // house-rule reasons alone. Harm also goes to the app's moderators.
+        let inCommunity = type == .post && target.community_id != nil
+        if inCommunity, let cid = target.community_id {
+            try await ModerationStore.fileCommunityReport(reporter: req.userID, postID: id, communityID: cid,
+                                                          reason: reason, detail: detail, on: db)
+            NotifyService.fireAndForget(req) { db, hub, log in await notifyStaffIfBusy(cid, on: db, hub: hub, logger: log) }
+        }
+        if !(inCommunity && ReportRules.communityOnly.contains(reason)) {
+            do {
+                let filed = try await ModerationStore.fileReport(reporter: req.userID, type: type, id: id, target: target,
+                                                                 reason: reason, detail: detail, on: db)
+                if filed.opened {
+                    try await ModerationStore.log(caseID: filed.case_id, actor: nil, action: "case_opened",
+                                                  detail: ["source": "report", "policy": reason.rawValue], on: db)
+                }
+            } catch where PGError.isUniqueViolation(error) {
+                throw InlineError(.conflict, "You've already reported this")
+            }
+        }
+        let reporter = req.userID
+        NotifyService.fireAndForget(req) { db, hub, log in
+            await ModerationNotices.reportReceived(reporter: reporter, type: type, on: db, hub: hub, logger: log)
+        }
+        return try await ConnectionsController.encode(DataResponse(data: Filed(received: true)), req, .created)
+    }
+
+    /// Tells a community's admins and moderators once reports pile up: from
+    /// the 5th pending one, and stops at 10 so a brigade isn't a flood. The
+    /// notices collapse into one per community.
+    static func notifyStaffIfBusy(_ communityID: String, on db: any SQLDatabase, hub: SocketHub, logger: Logger) async {
+        struct N: Decodable { let n: Int }
+        struct U: Decodable { let user_id: String }
+        guard let pending = try? await db.raw("""
+                SELECT COUNT(*)::int AS n FROM community_reports WHERE community_id = \(uuid: communityID) AND status = 'pending'
+                """).first(decoding: N.self)?.n,
+              pending >= autoNotifyThreshold && pending < autoNotifyThreshold * 2,
+              let staff = try? await db.raw("""
+                SELECT user_id::text AS user_id FROM community_members
+                WHERE community_id = \(uuid: communityID) AND role IN ('admin', 'moderator')
+                """).all(decoding: U.self) else { return }
+        for s in staff {
+            await NotifyService.pushUserNotification(userID: s.user_id, type: "new_report", communityID: communityID,
+                                                     payload: ["pendingCount": pending], on: db, hub: hub, logger: logger)
+        }
+    }
+
     // MARK: submit
 
     struct ReportBody: Content { var reason: String?; var detail: String?; var communityId: String? }
@@ -39,6 +130,7 @@ struct ReportsController {
         guard ["post", "member"].contains(targetType) else { throw Abort(.badRequest, reason: "Invalid target type") }
         guard let reason, validReasons.contains(reason) else { throw Abort(.badRequest, reason: "Invalid reason") }
         if targetType == "member" && targetID.caseInsensitiveCompare(reporterID) == .orderedSame { throw Abort(.badRequest, reason: "You cannot report yourself") }
+        if targetType == "member" { try await OfficialAccount.refuse(targetID, "can't be reported", on: db) }
         if let detail, detail.count > maxDetailLength { throw Abort(.badRequest, reason: "Detail must be at most \(maxDetailLength) characters") }
 
         struct I: Decodable { let id: String }
@@ -53,6 +145,7 @@ struct ReportsController {
             if meta.author_id.caseInsensitiveCompare(reporterID) == .orderedSame {
                 throw Abort(.badRequest, reason: "You cannot report your own post")
             }
+            try await OfficialAccount.refuse(meta.author_id, "can't be reported", on: db)
         } else if let communityID {
             guard try await CommunityStore.membership(communityID, targetID, on: db) != nil else {
                 throw Abort(.notFound, reason: "Member not found in this community")
@@ -64,8 +157,12 @@ struct ReportsController {
             RETURNING id::text AS id, reporter_id::text AS reporter_id, target_type, target_id::text AS target_id,
               community_id::text AS community_id, reason, detail, status, resolved_by::text AS resolved_by, resolved_at, created_at
             """).first(decoding: ReportRow.self)!
-        // TODO(notify): if communityID and pending count in [5,10) → fanOut new_report to admin/mod
         return row
+    }
+
+    private static func afterCommunityReport(_ row: ReportRow, _ req: Request) {
+        guard let cid = row.community_id else { return }
+        NotifyService.fireAndForget(req) { db, hub, log in await notifyStaffIfBusy(cid, on: db, hub: hub, logger: log) }
     }
 
     /// POST /api/posts/:id/report  (mounted under /api/posts by PostsController)
@@ -74,6 +171,7 @@ struct ReportsController {
         let communityID = (try? req.query.get(String.self, at: "communityId")) ?? b.communityId
         let row = try await submit(reporterID: req.userID, targetType: "post", targetID: req.parameters.get("id")!,
                                    communityID: communityID, reason: b.reason, detail: b.detail, on: req.db.sql())
+        afterCommunityReport(row, req)
         return try await ConnectionsController.encode(DataResponse(data: row), req, .created)
     }
 
@@ -81,6 +179,7 @@ struct ReportsController {
         let b = try req.content.decode(ReportBody.self)
         let row = try await submit(reporterID: req.userID, targetType: "member", targetID: req.parameters.get("userId")!,
                                    communityID: req.parameters.get("id")!, reason: b.reason, detail: b.detail, on: req.db.sql())
+        afterCommunityReport(row, req)
         return try await ConnectionsController.encode(DataResponse(data: row), req, .created)
     }
 
@@ -153,8 +252,8 @@ struct ReportsController {
               ["remove_content", "ban_member", "dismiss"].contains(action) else {
             throw Abort(.badRequest, reason: "action must be remove_content, ban_member, or dismiss")
         }
-        struct RR: Decodable { let id: String; let community_id: String?; let status: String; let target_type: String; let target_id: String }
-        guard let report = try await db.raw("SELECT id::text AS id, community_id::text AS community_id, status, target_type, target_id::text AS target_id FROM community_reports WHERE id = \(uuid: reportID)")
+        struct RR: Decodable { let id: String; let community_id: String?; let status: String; let target_type: String; let target_id: String; let reason: String }
+        guard let report = try await db.raw("SELECT id::text AS id, community_id::text AS community_id, status, target_type, target_id::text AS target_id, reason FROM community_reports WHERE id = \(uuid: reportID)")
             .first(decoding: RR.self) else { throw Abort(.notFound, reason: "Report not found") }
         if report.status != "pending" { throw Abort(.conflict, reason: "Report has already been reviewed") }
         guard let cid = report.community_id else { throw Abort(.badRequest, reason: "Report has no community") }
@@ -170,10 +269,18 @@ struct ReportsController {
         }
 
         if action == "remove_content" {
-            if let deleted = try await PostStore.softDelete(report.target_id, on: db), let dcid = deleted.community_id {
-                try await CommunityStore.incrementPostCount(dcid, -1, on: db)
+            // Removed by staff, so the author can't restore it from Recently Deleted.
+            struct A: Decodable { let author_id: String }
+            let author = try await db.raw("SELECT author_id::text AS author_id FROM posts WHERE id = \(uuid: report.target_id)")
+                .first(decoding: A.self)?.author_id
+            try await ModerationService.banPost(report.target_id, on: db)
+            if let author {
+                let reason = report.reason
+                NotifyService.fireAndForget(req) { db, hub, log in
+                    await NotifyService.pushUserNotification(userID: author, type: "content_removed", communityID: cid,
+                                                             payload: ["reason": reason], on: db, hub: hub, logger: log)
+                }
             }
-            // TODO(notify): content_removed
         } else if action == "ban_member" {
             let target = try await CommunityStore.membership(cid, report.target_id, on: db)
             if target == "admin" && reviewerRole != "admin" {

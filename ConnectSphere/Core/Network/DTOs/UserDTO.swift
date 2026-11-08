@@ -45,6 +45,7 @@ struct UserDTO: Decodable {
     let matchEvidence: [MatchEvidenceDTO]?   // only present in the AI search response (mini CV)
     /// AI search with a radius only (rounded up to 5 km).
     let distanceKm: Int?
+    let isOfficial: Bool?
     /// The owner's own response only: the private home ward and its province.
     let wardId: String?
     let wardProvinceCode: String?
@@ -77,6 +78,7 @@ struct UserDTO: Decodable {
         case mutualCount     = "mutual_count"
         case matchEvidence   = "match_evidence"
         case distanceKm      = "distance_km"
+        case isOfficial      = "is_official"
         case wardId          = "ward_id"
         case wardProvinceCode = "ward_province_code"
     }
@@ -120,7 +122,8 @@ struct UserDTO: Decodable {
             connectionCount: connectionCount ?? 0,
             mutualCount:    mutualCount ?? 0,
             score:          score,
-            distanceKm:     distanceKm
+            distanceKm:     distanceKm,
+            isOfficial:     isOfficial ?? false
         )
     }
 }

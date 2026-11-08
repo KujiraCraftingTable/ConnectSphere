@@ -76,6 +76,14 @@ struct UserNotificationPayloadDTO: Decodable {
     let newRole: String?
     let previousRole: String?
     let reportCount: Int?
+
+    // Moderation (report_outcome / moderation_decision / appeal_outcome)
+    let outcome: String?
+    let policy: String?
+    let decision: String?
+    let targetType: String?
+    let restrictedDays: Int?
+    let hours: Int?
 }
 
 /// Where tapping a notification should take the user. Computed server-side, so

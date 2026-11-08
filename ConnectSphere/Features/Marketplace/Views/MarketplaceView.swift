@@ -21,7 +21,8 @@ struct MarketplaceView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                scopeBar
+                // The official account sells nothing, so "Yours" would always be empty.
+                if !(appState.currentUser?.isOfficial ?? false) { scopeBar }
                 chips
                 if viewModel.listings.isEmpty && !viewModel.isLoading {
                     empty

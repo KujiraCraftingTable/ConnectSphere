@@ -109,8 +109,19 @@ class AppState {
     var isLoggedIn:   Bool = false
     var needsOnboarding: Bool = false
     var isCheckingAuth:  Bool = true   // splash while checking Keychain
-    var currentMode:  AppMode = .hobby
+    /// The server says this account is banned (migration 089): the app shows
+    /// only Account status, to see why and appeal, until sign-out.
+    var isSuspended: Bool = false
+    var currentMode:  AppMode = .hobby {
+        didSet { NetworkClient.appMode = currentMode.rawValue }
+    }
+    /// Modes this account is banned in (migration 106): the root shows the ban
+    /// notice instead of the app while the current mode is one of them.
+    var suspendedModes: Set<String> = []
+    var isCurrentModeSuspended: Bool { isSuspended || suspendedModes.contains(currentMode.rawValue) }
     var currentUser:  UserProfile? = nil
+    /// The signed-in account's colour theme; ConnectSphereApp hands it to ThemeManager.
+    var accountTheme: AccountTheme? = nil
     /// Mode the user wants to switch to but hasn't set up a persona for yet. Triggers the
     /// PersonaSetupView sheet; only completing the form actually switches, canceling keeps the old mode
     var pendingPersonaMode: AppMode? = nil
@@ -118,6 +129,9 @@ class AppState {
     var shouldResetSearch: Bool = false
     /// Home tab re-tapped: the feed scrolls to the top and reloads.
     var shouldResetFeed: Bool = false
+    /// Bumped when the Notifications / Community tab is re-tapped: that list reloads.
+    var notificationsReloadTick = 0
+    var communitiesReloadTick = 0
     var chatUnreadCount: Int = 0
     /// Unread notifications, shared so the Notifications tab badge and the
     /// notification list can never disagree. Reading a row decrements it
@@ -142,6 +156,29 @@ class AppState {
     var appLanguage: AppLanguage = .english {
         didSet { UserDefaults.standard.set(appLanguage.rawValue, forKey: "appLanguage") }
     }
+    /// The home-screen icon's colour: a `ThemePalette` id. Amber is the primary
+    /// icon; the others are alternate icons named `AppIcon-<id>` in the asset
+    /// catalog (built by `scripts/app-icon/make.py`).
+    private(set) var appIconId: String = AppState.primaryAppIconId
+    /// Set when iOS refused the icon change; the view shows it and clears it.
+    var appIconError: String? = nil
+    static let primaryAppIconId = "amber"
+
+    /// Switches the home-screen icon. iOS shows its own one-time alert; the
+    /// choice is kept so the picker stays in step after a relaunch.
+    func selectAppIcon(_ id: String) {
+        guard id != appIconId else { return }
+        let previous = appIconId
+        appIconId = id
+        UserDefaults.standard.set(id, forKey: "appIconId")
+        let name = id == Self.primaryAppIconId ? nil : "AppIcon-\(id)"
+        UIApplication.shared.setAlternateIconName(name) { [weak self] error in
+            guard let self, error != nil else { return }
+            self.appIconId = previous
+            UserDefaults.standard.set(previous, forKey: "appIconId")
+            self.appIconError = self.bundle.loc("The app icon couldn't be changed.")
+        }
+    }
 
     /// The Bundle matching the currently selected in-app language.
     /// Views read this via the `\.appBundle` EnvironmentKey.
@@ -157,6 +194,9 @@ class AppState {
         if let raw = UserDefaults.standard.string(forKey: "appearanceMode"),
            let saved = AppearanceMode(rawValue: raw) {
             appearanceMode = saved
+        }
+        if let saved = UserDefaults.standard.string(forKey: "appIconId") {
+            appIconId = saved
         }
         if let raw = UserDefaults.standard.string(forKey: "appLanguage"),
            let saved = AppLanguage(rawValue: raw) {
@@ -200,7 +240,9 @@ class AppState {
         // Open straight from the last-known profile and check with the server
         // behind it, so a slow or busy server never holds the splash.
         if let cached = AuthService.shared.cachedMe(), cached.isSetup {
-            await MainActor.run { finishLogin(token: token, user: cached, isNew: false) }
+            // The cached profile can predate a theme picked since, so its theme
+            // waits for the server; ThemeManager's own copy shows meanwhile.
+            await MainActor.run { finishLogin(token: token, user: cached, isNew: false, themeFromServer: false) }
             Task { await refreshSession(token: token) }
             return
         }
@@ -236,7 +278,10 @@ class AppState {
             let user = try await AuthService.shared.fetchMe(token: token, cacheFallback: false)
             await MainActor.run {
                 guard authToken == token else { return }
-                if user.isSetup { currentUser = user.toUserProfile() } else { logout() }
+                if user.isSetup {
+                    currentUser = user.toUserProfile()
+                    accountTheme = user.accountTheme
+                } else { logout() }
             }
         } catch {
             guard (error as? URLError)?.code == .userAuthenticationRequired else { return }
@@ -306,9 +351,10 @@ class AppState {
         authToken = token
     }
 
-    private func finishLogin(token: String, user: AuthUserDTO, isNew: Bool) {
+    private func finishLogin(token: String, user: AuthUserDTO, isNew: Bool, themeFromServer: Bool = true) {
         authToken       = token
         currentUser     = user.toUserProfile()
+        accountTheme    = themeFromServer ? user.accountTheme : AccountTheme(userID: user.id, hobby: nil, work: nil)
         currentMode     = AppMode(rawValue: user.defaultMode) ?? .hobby
         isLoggedIn      = true
         needsOnboarding = isNew || !user.isSetup
@@ -406,8 +452,11 @@ class AppState {
         KeychainHelper.delete(forKey: KeychainHelper.tokenKey)
         authToken        = nil
         currentUser      = nil
+        accountTheme     = nil
         isLoggedIn       = false
         needsOnboarding  = false
+        isSuspended      = false
+        suspendedModes   = []
         chatUnreadCount  = 0
         notificationUnreadCount = 0
         WebSocketClient.shared.disconnect()

@@ -305,6 +305,7 @@ enum SearchStore {
         }
         if let sid = p.excludeUserID {
             wheres.append("u.id != \(uuid: sid)")
+            if let m = p.mode { wheres.append(AccountBans.visible(userRef: "u.id", mode: m, viewer: sid)) }
             wheres.append("""
                 NOT EXISTS (SELECT 1 FROM user_blocks ub
                   WHERE (ub.blocker_id = \(uuid: sid) AND ub.blocked_id = u.id)

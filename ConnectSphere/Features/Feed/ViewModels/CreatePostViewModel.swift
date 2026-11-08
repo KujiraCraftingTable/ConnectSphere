@@ -236,6 +236,7 @@ class CreatePostViewModel {
         hashtags: [String] = [],
         publish: PublishChoice = .now,
         replacesDraft: String? = nil,
+        alsoOtherMode: Bool = false,
         onSuccess: @escaping (Post) -> Void
     ) {
         var finalContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -280,7 +281,8 @@ class CreatePostViewModel {
                 articleTitle: capturedPreview?.title,
                 hashtags: hashtags,
                 publish: publish,
-                replacesDraft: replacesDraft
+                replacesDraft: replacesDraft,
+                alsoOtherMode: alsoOtherMode
             ) else {
                 errorMessage = Bundle.app.loc(publish.isLive ? "Could not post. Please try again." : "Couldn't save the draft. Please try again.")
                 return

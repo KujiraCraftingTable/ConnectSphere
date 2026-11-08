@@ -30,6 +30,14 @@ struct PostsController {
         InteractionsController.register(routes: posts.grouped(":id"))
     }
 
+    /// Every piece of text on a new post (migration 089's word rules).
+    static func checkText(_ b: CreateBody) throws {
+        try ModerationGate.check([b.content, b.article_title, b.eventData?.title, b.eventData?.location,
+                                  b.jobData?.title, b.jobData?.company, b.jobData?.location,
+                                  b.listingData?.title, b.listingData?.location, b.listingData?.autoReply]
+                                 + (b.options ?? []).map { Optional($0) }, .text)
+    }
+
     static func clamp(_ v: Int?, _ def: Int, _ lo: Int, _ hi: Int) -> Int { min(max(v ?? def, lo), hi) }
 
     // MARK: GET /api/posts
@@ -61,7 +69,7 @@ struct PostsController {
         // Authors can open their own posts that aren't public yet (pending
         // approval, declined) from Manage your content.
         guard let post = try await PostStore.findById(req.parameters.get("id")!, viewer: req.userID,
-                                                      includeOwnUnpublished: true, on: req.db.sql()) else {
+                                                      includeOwnUnpublished: true, officialReads: true, on: req.db.sql()) else {
             throw Abort(.notFound, reason: "Post not found")
         }
         return DataResponse(data: post)
@@ -98,6 +106,8 @@ struct PostsController {
         /// Community posts only: "public" or "members" (the default).
         var community_audience: String?
         var mode: String?
+        /// The official account only: also publish this post in the other mode.
+        var also_other_mode: Bool?
         var privacy: String?
         var post_type: String?
         var image_url: String?
@@ -158,18 +168,9 @@ struct PostsController {
         }
     }
 
-    static func create(_ req: Request) async throws -> Response {
-        let b = try req.content.decode(CreateBody.self)
-        let hashtags = b.hashtags ?? []
-        guard ["hobby", "work"].contains(b.mode ?? "") else {
-            throw InlineError(.badRequest, "mode must be hobby or work")
-        }
-        let mode = b.mode!
-        _ = try PostStore.validatedPrivacy(b.privacy)
-        let postType = b.post_type ?? "text"
-        let publishing = try Publishing.from(b.publish, at: b.publish_at)
-        try await checkReplacedDraft(b.replaces_draft, req)
-
+    /// One post of `create`, in `mode`.
+    private static func createOne(_ b: CreateBody, mode: String, postType: String, hashtags: [String],
+                                  publishing: Publishing, _ req: Request) async throws -> PostObject {
         var post: PostObject
         if postType == "poll" {
             post = try await PostService.createPollPost(
@@ -212,12 +213,41 @@ struct PostsController {
         if b.content_format != nil {
             post.content_format = try await PostStore.setContentFormat(post.id, b.content_format, on: req.db.sql())
         }
+        return post
+    }
+
+    static func create(_ req: Request) async throws -> Response {
+        try req.requireNotRestricted(spending: .post)
+        let b = try req.content.decode(CreateBody.self)
+        try checkText(b)
+        let hashtags = b.hashtags ?? []
+        guard ["hobby", "work"].contains(b.mode ?? "") else {
+            throw InlineError(.badRequest, "mode must be hobby or work")
+        }
+        let mode = b.mode!
+        _ = try PostStore.validatedPrivacy(b.privacy)
+        let postType = b.post_type ?? "text"
+        let publishing = try Publishing.from(b.publish, at: b.publish_at)
+        try await checkReplacedDraft(b.replaces_draft, req)
+
+        let post = try await createOne(b, mode: mode, postType: postType, hashtags: hashtags, publishing: publishing, req)
+        // The official account can publish the same post in Hobby and Work at
+        // once (a cross-post); the two are separate posts, one per mode.
+        var crossPosted: PostObject?
+        if b.also_other_mode == true {
+            try await OfficialAccount.requireOfficial(req.userID, on: req.db.sql())
+            crossPosted = try await createOne(b, mode: mode == "hobby" ? "work" : "hobby", postType: postType,
+                                              hashtags: hashtags, publishing: publishing, req)
+        }
 
         if let old = b.replaces_draft {
             // Saved fine, so the version it replaces can go.
             try await PostStore.deleteUnpublished(old, author: req.userID, on: req.db.sql())
         }
-        if publishing.isLive { await PostPublisher.afterPublish(req, post: post) }
+        if publishing.isLive {
+            await PostPublisher.afterPublish(req, post: post)
+            if let crossPosted { await PostPublisher.afterPublish(req, post: crossPosted) }
+        }
         let res = try await DataResponse(data: post).encodeResponse(for: req)
         res.status = .created
         return res
@@ -293,12 +323,17 @@ struct PostsController {
     struct ShareBody: Content { var content: String?; var mode: String?; var privacy: String? }
 
     static func share(_ req: Request) async throws -> Response {
+        try req.requireNotRestricted(spending: .post)
         let b = try req.content.decode(ShareBody.self)
+        try ModerationGate.check([b.content], .text)
         guard ["hobby", "work"].contains(b.mode ?? "") else {
             throw InlineError(.badRequest, "mode must be hobby or work")
         }
         let privacy = try PostStore.validatedPrivacy(b.privacy) ?? "public"
-        guard let original = try await PostStore.findById(req.parameters.get("id")!, viewer: req.userID, on: req.db.sql()) else {
+        // The official account may share a community post without joining;
+        // the shared post's own rules still hide a private one from outsiders.
+        guard let original = try await PostStore.findById(req.parameters.get("id")!, viewer: req.userID,
+                                                          officialReads: true, on: req.db.sql()) else {
             throw Abort(.notFound, reason: "Post not found")
         }
         // Hobby and Work are separate datasets: a post can't be carried across.
@@ -378,6 +413,7 @@ struct PostsController {
         let oldContent = old?.content
 
         let b = try req.content.decode(UpdateBody.self)
+        try ModerationGate.check([b.content, b.article_title], .text)
         if let a = b.community_audience, !PostStore.communityAudiences.contains(a) {
             throw Abort(.badRequest, reason: "community_audience must be public or members")
         }
@@ -415,6 +451,7 @@ struct PostsController {
             if (post.content ?? "") != (oldContent ?? "") {
                 await BackgroundJobs.refreshPostAfterContentEdit(req, postID: post.id, content: post.content ?? "")
                 await TranslationService.enqueue(req, .post, id: post.id)
+                await ModerationScan.enqueue(req, .post, id: post.id)
             } else {
                 await BackgroundJobs.refreshEmbedding(req, .post, id: post.id)   // e.g. article title
             }

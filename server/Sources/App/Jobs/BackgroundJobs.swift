@@ -42,6 +42,8 @@ enum BackgroundJobs {
         app.queues.add(ChunkEmbedJob())
         app.queues.add(SocialNotifyJob())
         app.queues.add(TranslateContentJob())
+        app.queues.add(ModerationScanJob())
+        app.queues.add(MediaScanJob())
 
         // Daily housekeeping, staggered UTC slots, matching the Node crons.
         app.queues.schedule(AnalyticsSnapshotJob()).using(utc).daily().at(0, 5)
@@ -58,6 +60,7 @@ enum BackgroundJobs {
         app.queues.schedule(PublishScheduledJob()).every(minutes: 1)   // scheduled posts go out within a minute
         app.queues.schedule(AutoReupJob()).every(minutes: 1)           // auto re-up lands within a minute of its slot
         app.queues.schedule(TranslationSweepJob()).every(minutes: 2)
+        app.queues.schedule(AdminDigestJob()).every(minutes: 10)       // "N reports / appeals waiting"
 
         try app.queues.startInProcessJobs(on: .default)
         try app.queues.startScheduledJobs()
@@ -137,6 +140,35 @@ enum BackgroundJobs {
 
     struct AnalyticsSnapshotJob: AsyncScheduledJob {
         func run(context: QueueContext) async throws { try await recordAllSnapshots(context.application) }
+    }
+
+    /// Every 10 minutes, while there's anything to look at, tells the official
+    /// account how many reports and appeals are waiting. Each count replaces its
+    /// previous unread notice, so the inbox shows one up-to-date number, not a pile.
+    struct AdminDigestJob: AsyncScheduledJob {
+        func run(context: QueueContext) async throws {
+            let app = context.application, db = app.db.sql()
+            struct A: Decodable { let id: String }
+            guard let admin = try await db.raw("""
+                SELECT id::text AS id FROM users WHERE app_role = 'admin' AND deleted_at IS NULL LIMIT 1
+                """).first(decoding: A.self) else { return }
+            struct N: Decodable { let reports: Int; let appeals: Int }
+            guard let n = try await db.raw("""
+                SELECT (SELECT COUNT(*) FROM moderation_cases WHERE status = 'open')::int AS reports,
+                       (SELECT COUNT(*) FROM moderation_appeals WHERE status = 'pending')::int AS appeals
+                """).first(decoding: N.self) else { return }
+            for (kind, count) in [("reports", n.reports), ("appeals", n.appeals)] where count > 0 {
+                try await db.raw("""
+                    DELETE FROM user_notifications
+                    WHERE user_id = \(uuid: admin.id) AND type = 'admin_digest' AND is_read = FALSE
+                      AND payload->>'reason' = \(bind: kind)
+                    """).run()
+                await NotifyService.pushUserNotification(
+                    userID: admin.id, type: "admin_digest", groupTargetID: kind,
+                    payload: ["reason": kind, "reportCount": count],
+                    on: db, hub: app.socketHub, logger: context.logger)
+            }
+        }
     }
 
     struct ChunkSweepJob: AsyncScheduledJob {
@@ -459,6 +491,8 @@ enum BackgroundJobs {
                     if let cid = p.commentID { payload["commentId"] = cid }
                     if let par = p.parentCommentID { payload["parentCommentId"] = par }
                 }
+                // A whale on a comment opens the post at that comment, like a reply does.
+                if p.type == "comment_liked", let cid = p.commentID { payload["commentId"] = cid }
 
                 // A connection is made in one mode; the request shows that persona.
                 var connectionMode: String?

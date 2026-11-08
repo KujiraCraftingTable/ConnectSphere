@@ -96,9 +96,6 @@ struct MainTabView: View {
         .onChange(of: appState.currentMode) {
             Task { await notificationBadge.refresh(appState: appState) }
         }
-        .onChange(of: selectedTab) { _, newTab in
-            resetTabState(newTab)
-        }
         // Warm launch: link tapped while MainTabView is already showing. The `.task` above
         // only runs once on appearance, so onChange is needed to catch subsequent times.
         .onChange(of: appState.pendingDeepLink) { _, _ in
@@ -216,9 +213,8 @@ struct MainTabView: View {
             .accessibilityLabel(Text(title, bundle: bundle))
     }
 
-    /// Resets tab state to its default. Runs both when SWITCHING to this tab (onChange)
-    /// and when RE-TAPPING the tab while it's already active (custom binding), for a
-    /// consistent feel: re-tapping any tab behaves like opening it for the first time.
+    /// Resets tab state to its default. Runs only when RE-TAPPING the tab while it's
+    /// already active (custom binding): switching to a tab shows it as you left it.
     private func resetTabState(_ tab: Int) {
         switch tab {
         case 0:
@@ -228,8 +224,10 @@ struct MainTabView: View {
             appState.shouldResetSearch = true
         case 2:
             communityNavPath = NavigationPath()
+            appState.communitiesReloadTick += 1
         case 3:
             Task { await notificationBadge.refresh(appState: appState) }
+            appState.notificationsReloadTick += 1
         case 4:
             profileNavPath = NavigationPath()
         default:
@@ -247,16 +245,8 @@ struct MainTabView: View {
         selectedTab = 2
         // In Work mode that tab is Jobs; the community opens over it.
         if appState.currentMode == .work { showCommunities = true }
-        // Same race as `pushProfilePath` below: `selectedTab = 2` triggers
-        // `.onChange(of: selectedTab)` → `resetTabState(2)`, which resets
-        // `communityNavPath` to root AFTER this function returns (SwiftUI
-        // coalesces the state changes), silently wiping the push that
-        // follows synchronously here. Defer it to the next run loop tick so
-        // it lands after that reset instead of before it.
-        Task { @MainActor in
-            communityNavPath = NavigationPath()
-            communityNavPath.append(id)
-        }
+        communityNavPath = NavigationPath()
+        communityNavPath.append(id)
     }
 
     /// Navigates based on a signal from the AI assistant ("go to Communities," "open
@@ -296,18 +286,8 @@ struct MainTabView: View {
     /// back button walks Privacy & Security → Settings → Profile).
     private func pushProfilePath(_ routes: [ProfileRoute]) {
         selectedTab = 4
-        // Setting `selectedTab` above triggers `.onChange(of: selectedTab)` →
-        // `resetTabState(4)`, which resets `profileNavPath` to root, SwiftUI
-        // coalesces state changes into the next view-update pass, so that
-        // reset actually runs AFTER this function returns, silently wiping
-        // out a path pushed synchronously here (the real bug behind "Take me
-        // there" landing on the bare Profile tab instead of the intended
-        // screen). Defer the push to the next run loop tick so it lands
-        // after that reset has already happened, not before it.
-        Task { @MainActor in
-            profileNavPath = NavigationPath()
-            for route in routes { profileNavPath.append(route) }
-        }
+        profileNavPath = NavigationPath()
+        for route in routes { profileNavPath.append(route) }
     }
 
 }

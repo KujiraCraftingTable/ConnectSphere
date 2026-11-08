@@ -17,6 +17,10 @@ struct Community: Identifiable {
     var memberCount: Int
     var postCount: Int
     var isMember: Bool
+    /// The server's answer to "may this viewer read the posts and members"
+    /// (`can_view`): also true for the official account looking into a report,
+    /// read only. nil from older servers and list endpoints.
+    var canView: Bool? = nil
     /// Feed-visibility mute, this community's posts are hidden from the
     /// viewer's main Feed while true, but its own page is unaffected.
     var isMuted: Bool = false
@@ -268,4 +272,12 @@ enum CommunityDescription {
         }
         return text
     }
+}
+
+extension Community {
+    /// Posts and members are readable: the server says so, else member-or-public.
+    var viewerCanRead: Bool { canView ?? (privacy != .private || isMember) }
+    /// Reading without being a member: the official account investigating a
+    /// private community. It can look, not post, join as staff or moderate.
+    var isReadOnlyVisit: Bool { privacy == .private && !isMember && viewerCanRead }
 }

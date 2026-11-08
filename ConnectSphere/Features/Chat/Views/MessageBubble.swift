@@ -5,7 +5,7 @@ struct MessageBubble: View {
     let isOwn: Bool
     let palette: ThemePalette
     /// Needed to derive "my RSVP" from a meeting proposal's status→user-ids map
-    /// (same convention as `Message.myReaction(userId:)`).
+    /// (and whether this viewer whaled the message).
     var currentUserId: String = ""
     /// Every other participant in this conversation (excludes the current
     /// user), a 1:1 chat has exactly one id here, a group has N. Drives
@@ -23,8 +23,7 @@ struct MessageBubble: View {
     /// RSVPs. The read-receipts glyph below still keys off participant count
     /// on purpose, that's cosmetic (which glyph), not a lost feature.
     var isGroup: Bool = false
-    /// Hobby mode = rounder bubble + bigger reaction pills; Work mode = crisper
-    /// bubble + today's tighter reaction-pill sizing. Threaded in from ChatView
+    /// Hobby mode = rounder bubble; Work mode = crisper bubble. Threaded in from ChatView
     /// (`appState.currentMode == .hobby`), same convention as `palette`.
     var isPlayful: Bool = false
     /// Whether this bubble shows its time + read receipt. `ChatView` turns it
@@ -32,7 +31,10 @@ struct MessageBubble: View {
     /// (`ChatTimeline.endsRun`), so a burst of messages carries one time
     /// instead of a stamp on every line.
     var showsMeta: Bool = true
-    /// Tapping the image/video in the bubble. The parent opens the fullscreen viewer
+    /// True while this chat is a message request the person hasn't accepted:
+    /// the other side's photos and videos stay blurred until tapped.
+    var coversStrangerMedia: Bool = false
+    /// Tapping the image/video in the bubble, the parent opens the fullscreen viewer
     var onMediaTap: ((Message) -> Void)? = nil
     /// Tapping the quoted preview. The parent jumps to the original message (jump-to-message)
     var onReplyPreviewTap: ((String) -> Void)? = nil
@@ -48,9 +50,12 @@ struct MessageBubble: View {
     var sharedPost: ChatViewModel.SharedPostState? = nil
     var onSharedPostAppear: (() -> Void)? = nil
     var onOpenSharedPost: ((Post) -> Void)? = nil
+    /// Double-tap: whale the message, or take the whale back.
+    var onDoubleTap: (() -> Void)? = nil
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.appBundle) var bundle
     @State private var showCancelConfirm = false
+    @State private var revealedStrangerMedia = false
 
     private var bubbleShape: BubbleShape { BubbleShape(isOwn: isOwn, isPlayful: isPlayful) }
 
@@ -62,10 +67,21 @@ struct MessageBubble: View {
                 if let replyToId = message.replyToMessageId, let replied = message.repliedMessage {
                     replyPreview(replied, replyToId: replyToId)
                 }
-                bubbleContent
-                if !message.reactions.isEmpty {
-                    reactionRow
+                if message.isForwarded && !message.isDeleted {
+                    forwardedLabel
                 }
+                bubbleContent
+                    // Simultaneous, so single taps on photos, links and cards stay instant.
+                    .simultaneousGesture(TapGesture(count: 2).onEnded {
+                        if !message.isDeleted { onDoubleTap?() }
+                    })
+                    .overlay(alignment: isOwn ? .bottomLeading : .bottomTrailing) {
+                        if message.whaleCount > 0 { whaleBadge }
+                    }
+                    // The whale hangs below the bubble; make room so it never covers
+                    // the time or the next message.
+                    .padding(.bottom, message.whaleCount > 0 ? 14 : 0)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: message.whaleCount)
                 if showsMeta {
                     metaRow
                 }
@@ -134,29 +150,39 @@ struct MessageBubble: View {
     private static let replyChipName = Color(white: 0.15)
     private static let replyChipText = Color(white: 0.32)
 
-    // MARK: - Reaction pills
+    // MARK: - Whale and forwarded
 
-    /// Small pill row below the bubble summarising reactions (emoji + count).
-    /// The current user's own reaction (if any) is highlighted in the palette
-    /// color so it reads distinctly from everyone else's.
-    private var reactionRow: some View {
-        let mine = message.myReaction(userId: currentUserId)
-        return HStack(spacing: 4) {
-            ForEach(message.reactionSummary, id: \.emoji) { item in
-                let isMine = item.emoji == mine
-                HStack(spacing: 2) {
-                    Text(item.emoji).font(.system(size: isPlayful ? 13 : 11))
-                    if item.count > 1 {
-                        Text("\(item.count)")
-                            .scaledFont(10, .medium)
-                            .foregroundColor(isMine ? .white : AppColors.textSecondary(colorScheme))
-                    }
-                }
-                .padding(.horizontal, isPlayful ? 7 : 6)
-                .padding(.vertical, isPlayful ? 4 : 3)
-                .background(isMine ? AnyShapeStyle(palette.primary) : AnyShapeStyle(AppColors.elevated(colorScheme)), in: Capsule())
+    /// The whale on the bubble's corner once someone whaled it, with a count in a
+    /// group. The theme colour when this viewer whaled it, grey otherwise.
+    private var whaleBadge: some View {
+        let mine = message.isWhaled(by: currentUserId)
+        return HStack(spacing: 2) {
+            LikeIcon(isLiked: mine, color: mine ? palette.primary : AppColors.textSecondary(colorScheme), size: 16)
+            if message.whaleCount > 1 {
+                Text("\(message.whaleCount)")
+                    .scaledFont(10, .semibold)
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
             }
         }
+        .padding(.horizontal, 5)
+        .padding(.vertical, 3)
+        .background(AppColors.elevated(colorScheme), in: Capsule())
+        .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
+        .offset(x: isOwn ? -8 : 8, y: 10)
+        .transition(.scale.combined(with: .opacity))
+        .accessibilityLabel(Text(mine ? "You whaled this" : "Whaled", bundle: bundle))
+    }
+
+    /// "Forwarded" and nothing else: who wrote it originally is never shown or stored.
+    private var forwardedLabel: some View {
+        Label {
+            Text("Forwarded", bundle: bundle)
+        } icon: {
+            Image(systemName: "arrowshape.turn.up.right")
+        }
+        .scaledFont(11)
+        .foregroundColor(AppColors.textSecondary(colorScheme))
+        .labelStyle(.titleAndIcon)
     }
 
     // MARK: - Bubble content
@@ -175,6 +201,9 @@ struct MessageBubble: View {
                 .clipShape(bubbleShape)
         } else {
             normalBubbleContent
+                .sensitiveMediaCover(
+                    coversStrangerMedia && !isOwn && !revealedStrangerMedia && [.image, .album, .video].contains(message.messageType),
+                    onReveal: { revealedStrangerMedia = true })
         }
     }
 

@@ -16,6 +16,8 @@ extension ChatStore {
         @NullCoded var other_user_avatar_url: String?
         @NullCoded var other_user_job_title: String?
         @NullCoded var other_user_nickname: String?
+        /// The other person is the official account (shows its seal).
+        var other_user_is_official: Bool
         @NullCoded var name: String?
         @NullCoded var avatar_url: String?
         @NullCoded var avatar_color: String?
@@ -47,12 +49,15 @@ extension ChatStore {
                 u.id::text AS other_user_id, u.username AS other_user_username,
                 \(unsafeRaw: dn) AS other_user_name, u.avatar_color AS other_user_avatar_color,
                 \(unsafeRaw: av) AS other_user_avatar_url, u.job_title AS other_user_job_title,
-                other_cp.nickname AS other_user_nickname,
+                other_cp.nickname AS other_user_nickname, COALESCE(u.app_role = 'admin', false) AS other_user_is_official,
                 NULL::text AS name, NULL::text AS avatar_url, NULL::text AS avatar_color, NULL::int AS member_count,
                 my_cp.muted_until AS muted_until, my_cp.pinned_at, my_cp.archived_at,
                 CASE WHEN \(unsafeRaw: pending) THEN
-                  CASE WHEN c.request_from = \(uuid: userID) THEN 'sent' ELSE 'waiting' END END AS request_state,
-                CASE WHEN \(unsafeRaw: pending) AND c.request_from = \(uuid: userID) THEN
+                  CASE WHEN c.request_from = \(uuid: userID) THEN (CASE WHEN u.app_role = 'admin' THEN NULL ELSE 'sent' END)
+                    -- Messages to the official account go straight to its inbox.
+                    WHEN EXISTS (SELECT 1 FROM users me WHERE me.id = \(uuid: userID) AND me.app_role = 'admin') THEN NULL
+                    ELSE 'waiting' END END AS request_state,
+                CASE WHEN \(unsafeRaw: pending) AND c.request_from = \(uuid: userID) AND u.app_role <> 'admin' THEN
                   GREATEST(0, \(unsafeRaw: String(MessageRequests.limit)) - (SELECT COUNT(*)::int FROM messages mm
                     WHERE mm.conversation_id = c.id AND mm.sender_id = \(uuid: userID))) END AS requests_left,
                 lm.content AS last_message_content, lm.message_type AS last_message_type,
@@ -82,7 +87,7 @@ extension ChatStore {
               SELECT c.id::text AS id, c.mode, c.is_group, c.theme, c.updated_at,
                 NULL::text AS other_user_id, NULL::text AS other_user_username, NULL::text AS other_user_name,
                 NULL::text AS other_user_avatar_color, NULL::text AS other_user_avatar_url, NULL::text AS other_user_job_title,
-                NULL::text AS other_user_nickname,
+                NULL::text AS other_user_nickname, false AS other_user_is_official,
                 c.name AS name, c.avatar_url AS avatar_url, c.avatar_color AS avatar_color,
                 (SELECT COUNT(*)::INT FROM conversation_participants cp2 WHERE cp2.conversation_id = c.id) AS member_count,
                 my_cp.muted_until AS muted_until, my_cp.pinned_at, my_cp.archived_at,
@@ -142,6 +147,8 @@ extension ChatStore {
         /// Same meaning as in the conversation list: "waiting", "sent" or null.
         @NullCoded var request_state: String?
         @NullCoded var requests_left: Int?
+        /// The official account is on either side: messages here can't be unsent.
+        var with_official: Bool
     }
     static func settings1to1(_ conversationID: String, userID: String, on db: any SQLDatabase) async throws -> Settings1to1? {
         let pending = MessageRequests.pendingSQL(me: MessageRequests.quoted(userID), other: "u.id")
@@ -152,10 +159,14 @@ extension ChatStore {
               u.avatar_color AS other_user_avatar_color, u.job_title AS other_user_job_title,
               other.nickname AS other_user_nickname,
               CASE WHEN \(unsafeRaw: pending) THEN
-                CASE WHEN c.request_from = \(uuid: userID) THEN 'sent' ELSE 'waiting' END END AS request_state,
-              CASE WHEN \(unsafeRaw: pending) AND c.request_from = \(uuid: userID) THEN
+                CASE WHEN c.request_from = \(uuid: userID) THEN (CASE WHEN u.app_role = 'admin' THEN NULL ELSE 'sent' END)
+                    -- Messages to the official account go straight to its inbox.
+                    WHEN EXISTS (SELECT 1 FROM users me WHERE me.id = \(uuid: userID) AND me.app_role = 'admin') THEN NULL
+                    ELSE 'waiting' END END AS request_state,
+              CASE WHEN \(unsafeRaw: pending) AND c.request_from = \(uuid: userID) AND u.app_role <> 'admin' THEN
                 GREATEST(0, \(unsafeRaw: String(MessageRequests.limit)) - (SELECT COUNT(*)::int FROM messages mm
-                  WHERE mm.conversation_id = c.id AND mm.sender_id = \(uuid: userID))) END AS requests_left
+                  WHERE mm.conversation_id = c.id AND mm.sender_id = \(uuid: userID))) END AS requests_left,
+              (u.app_role = 'admin' OR EXISTS (SELECT 1 FROM users me WHERE me.id = \(uuid: userID) AND me.app_role = 'admin')) AS with_official
             FROM conversations c
             JOIN conversation_participants my ON my.conversation_id = c.id AND my.user_id = \(uuid: userID)
             JOIN conversation_participants other ON other.conversation_id = c.id AND other.user_id != \(uuid: userID)

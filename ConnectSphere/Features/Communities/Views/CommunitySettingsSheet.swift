@@ -47,8 +47,7 @@ struct CommunitySettingsSheet: View {
                 ToolbarItem(placement: .confirmationAction) { Button(bundle.loc("Done")) { dismiss() } }
             }
             .sheet(isPresented: $showReport) {
-                ReportSheet(targetType: "community", targetId: community?.id ?? "",
-                            communityId: community?.id ?? "", token: appState.authToken ?? "")
+                ReportSheet(subject: .content(.community, id: community?.id ?? ""))
             }
             .confirmationDialog(bundle.loc("Leave this community?"), isPresented: $confirmLeave, titleVisibility: .visible) {
                 Button(bundle.loc("Leave community"), role: .destructive) {

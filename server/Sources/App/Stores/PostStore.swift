@@ -95,7 +95,7 @@ enum PostStore {
           COALESCE(json_agg(DISTINCT pt.tag) FILTER (WHERE pt.tag IS NOT NULL AND pt.source = 'user'), '[]')::text AS tags,
           json_build_object('id', u.id, 'username', u.username, 'display_name', \(unsafeRaw: dnP),
             'avatar_color', u.avatar_color, 'avatar_url', \(unsafeRaw: avP),
-            'job_title', u.job_title, 'company', u.company)::text AS author,
+            'job_title', u.job_title, 'company', u.company, 'is_official', u.app_role = 'admin')::text AS author,
           \(typeDataColumns(v))
           (CASE WHEN p.community_id IS NOT NULL THEN (
             SELECT json_build_object('id', co.id, 'name', co.name, 'icon_emoji', co.icon_emoji, 'avatar_url', co.avatar_url,
@@ -110,16 +110,17 @@ enum PostStore {
 
     /// Who may see a post. A locked persona (migration 064) turns its public
     /// posts into "connections in this mode" ones, except in communities,
-    /// whose own visibility rules apply. A listing hidden from friends (072)
-    /// is hidden from the seller's connections on top of that.
+    /// whose own visibility rules apply, and listings, which are there to be
+    /// found by buyers. A listing hidden from friends (072) is hidden from the
+    /// seller's connections on top of that.
     static func privacyClause(_ v: String) -> SQLQueryString {
         ListingStore.notHiddenFromFriendClause(v) + " AND " + audienceClause(v)
     }
 
-    private static func audienceClause(_ v: String) -> SQLQueryString {
+    static func audienceClause(_ v: String) -> SQLQueryString {
         """
         (p.author_id = \(uuid: v)
-         OR (p.privacy = 'public' AND (p.community_id IS NOT NULL OR NOT COALESCE(
+         OR (p.privacy = 'public' AND (p.community_id IS NOT NULL OR p.post_type = 'listing' OR NOT COALESCE(
               (SELECT CASE WHEN p.mode = 'work' THEN lu.work_locked ELSE lu.hobby_locked END
                FROM users lu WHERE lu.id = p.author_id), FALSE)))
          OR (p.privacy = 'public' AND EXISTS (SELECT 1 FROM connections c WHERE c.status = 'accepted' AND c.mode = p.mode
@@ -149,12 +150,18 @@ enum PostStore {
 
     /// A community post shows to its members and author; to anyone else only
     /// when the poster chose Public and the community is (still) public.
-    static func communityVisibilityClause(_ v: String) -> SQLQueryString {
-        """
+    /// `officialReads`: also to the official account, read only, so it can look
+    /// into a report. Only a community's own page and a single post pass it,
+    /// never the feed or search, so private communities don't fill its Home.
+    static func communityVisibilityClause(_ v: String, officialReads: Bool = false) -> SQLQueryString {
+        let official: SQLQueryString = officialReads
+            ? "\n OR EXISTS (SELECT 1 FROM users ou WHERE ou.id = \(uuid: v) AND ou.app_role = 'admin' AND ou.deleted_at IS NULL)"
+            : ""
+        return """
         (p.community_id IS NULL OR p.author_id = \(uuid: v)
          OR EXISTS (SELECT 1 FROM communities co WHERE co.id = p.community_id AND co.privacy = 'public' AND p.community_audience = 'public')
-         OR EXISTS (SELECT 1 FROM community_members cm WHERE cm.community_id = p.community_id AND cm.user_id = \(uuid: v)))
-        """
+         OR EXISTS (SELECT 1 FROM community_members cm WHERE cm.community_id = p.community_id AND cm.user_id = \(uuid: v))
+        """ + official + ")"
     }
     /// Feed-only suppression: a community you've muted still exists (its own
     /// page, findById, listSaved are all unaffected. This is deliberately
@@ -167,12 +174,14 @@ enum PostStore {
           WHERE cmMute.community_id = p.community_id AND cmMute.user_id = \(uuid: v) AND cmMute.muted = TRUE))
         """
     }
+    /// Not blocked either way, and not by an author banned in the post's mode
+    /// (migration 106; the official account still sees those).
     static func notBlockedClause(_ v: String) -> SQLQueryString {
         """
         NOT EXISTS (SELECT 1 FROM user_blocks ub
           WHERE (ub.blocker_id = \(uuid: v) AND ub.blocked_id = p.author_id)
              OR (ub.blocker_id = p.author_id AND ub.blocked_id = \(uuid: v)))
-        """
+        """ + " AND " + AccountBans.visible(userRef: "p.author_id", modeColumn: "p.mode", viewer: v)
     }
     /// Authors the viewer chose "Hide all from" (migration 096). Not applied on
     /// a profile page, that person's own page still shows their posts.
@@ -327,7 +336,11 @@ enum PostStore {
     static func feedWhere(_ v: String, _ f: FeedFilters) -> SQLQueryString {
         var w: SQLQueryString = "WHERE p.status = 'posted' AND "
         w = w + communityVisibilityClause(v) + " AND " + notMutedClause(v) + " AND "
-        w = w + privacyClause(v) + " AND " + notBlockedClause(v) + " AND " + notHiddenClause(v)
+        // A profile's own list opens to the official account even when locked
+        // or friends-only; every other list keeps the viewer's rules.
+        let audience: SQLQueryString = f.authorID != nil
+            ? "(" + privacyClause(v) + " OR " + AccountBans.adminViewer(v) + ")" : privacyClause(v)
+        w = w + audience + " AND " + notBlockedClause(v) + " AND " + notHiddenClause(v)
         w = w + " AND " + notMutedWordsClause(v)
         if f.authorID == nil { w = w + " AND " + notHiddenAuthorClause(v) }
         if f.includeListings {
@@ -465,14 +478,22 @@ enum PostStore {
 
     /// `includeOwnUnpublished`: also return the viewer's own draft, scheduled,
     /// pending (awaiting approval) or declined post. Only to its author.
+    /// `officialReads`: the official account may open a post in a community it
+    /// isn't in (GET only). Every other caller is a visibility check before an
+    /// action (like, comment, share) and keeps it off, so it can't act there.
     static func findById(_ id: String, viewer: String, includeOwnUnpublished: Bool = false,
-                         on db: any SQLDatabase) async throws -> PostObject? {
+                         officialReads: Bool = false, on db: any SQLDatabase) async throws -> PostObject? {
+        // The official account reviews reports: it can open a post the check
+        // hid or a moderator took down, not just live ones.
+        let reviewStatus: SQLQueryString = officialReads
+            ? " OR (p.status IN ('pending', 'banned') AND " + AccountBans.adminViewer(viewer) + ")" : ""
         let status: SQLQueryString = includeOwnUnpublished
             ? "(p.status = 'posted' OR (p.author_id = \(uuid: viewer) AND p.status IN ('draft', 'scheduled', 'pending', 'declined')))"
             : "p.status = 'posted'"
         let q = buildPostSelect(viewer)
-            + " WHERE p.id = \(uuid: id) AND " + status + " AND "
-            + privacyClause(viewer) + " AND " + notBlockedClause(viewer) + " AND " + communityVisibilityClause(viewer)
+            + " WHERE p.id = \(uuid: id) AND (" + status + reviewStatus + ") AND "
+            + (officialReads ? "(" + privacyClause(viewer) + " OR " + AccountBans.adminViewer(viewer) + ")" : privacyClause(viewer))
+            + " AND " + notBlockedClause(viewer) + " AND " + communityVisibilityClause(viewer, officialReads: officialReads)
             + " GROUP BY p.id, u.id"
         guard let row = try await db.raw(q).first(decoding: PostRow.self) else { return nil }
         return try map(row)
@@ -680,7 +701,7 @@ enum PostStore {
             + " AND " + ListingStore.notHiddenFromFriendClause(viewer)
             // The same rules as opening one post: a members-only post stays
             // with members, and blocked people's posts don't show.
-            + " AND " + communityVisibilityClause(viewer) + " AND " + notBlockedClause(viewer)
+            + " AND " + communityVisibilityClause(viewer, officialReads: true) + " AND " + notBlockedClause(viewer)
         if let tag {
             q = q + " AND EXISTS (SELECT 1 FROM post_tags ptf WHERE ptf.post_id = p.id AND LOWER(ptf.tag) = LOWER(\(bind: tag)) AND ptf.source = 'user')"
         }

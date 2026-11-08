@@ -76,6 +76,7 @@ struct PostObject: Content {
         @NullCoded var avatar_url: String?
         @NullCoded var job_title: String?
         @NullCoded var company: String?
+        var is_official: Bool? = nil
     }
     struct SharedPost: Content {
         var id: String

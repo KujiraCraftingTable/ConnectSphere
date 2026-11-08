@@ -7,6 +7,9 @@ enum HiddenKind: Equatable {
     case lessLikeThis
     case hiddenAuthor(name: String, authorId: String)
     case blocked(name: String, authorId: String)
+    /// The official account warned or banned over this post, which took it
+    /// down. Nothing to undo: it's reversed only by an appeal.
+    case moderated(banned: Bool)
 }
 
 /// Posts the person hid, said they aren't interested in, or hid/blocked the

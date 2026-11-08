@@ -32,6 +32,13 @@ struct ManageAccountView: View {
                 Text("Sign in with your @username or email and your password. Deleting a profile or the account needs a code sent to your verified email.", bundle: bundle)
             }
             Section {
+                // Warnings and bans per profile, so people can see why and take care.
+                NavigationLink {
+                    AccountStatusView().environment(themeManager)
+                } label: {
+                    SettingsRowLabel(icon: "checkmark.shield.fill", label: bundle.loc("Account status"),
+                                     color: Color(hex: "#43A047"), showsChevron: false)
+                }
                 NavigationLink {
                     PrivacySecurityView()
                 } label: {

@@ -5,6 +5,14 @@ import Observation
 @Observable
 class ProfileViewModel {
     var user: UserProfile?
+
+    /// Follow or unfollow tapped on this profile: move the shown count at once
+    /// instead of waiting for the next reload.
+    func adjustFollowerCount(by delta: Int) {
+        guard delta != 0, var shown = user else { return }
+        shown.followerCount = max(0, shown.followerCount + delta)
+        user = shown
+    }
     var posts: [Post] = []
     var isLoading = false
     var isLoadingMore = false
@@ -17,6 +25,20 @@ class ProfileViewModel {
     /// Block/unblock failure, shown as an alert (load errors use `error`).
     var actionError: String?
     private(set) var isOpeningChat = false
+
+    /// Unlocks your own profile for `mode`. Optimistic: the badge goes at once and
+    /// comes back if saving fails.
+    func unlock(mode: AppMode, appState: AppState) async {
+        user?.isLocked = false
+        appState.currentUser?.isLocked = false
+        do {
+            try await repository.setLocked(false, mode: mode)
+        } catch {
+            user?.isLocked = true
+            appState.currentUser?.isLocked = true
+            actionError = Bundle.app.loc("Couldn't update this setting, please try again")
+        }
+    }
 
     private let repository = ProfileRepository()
     private let userRepository = UserRepository()

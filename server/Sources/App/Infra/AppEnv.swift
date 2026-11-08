@@ -39,6 +39,17 @@ struct AppEnv: Sendable {
         var host: String
         var port: Int
     }
+    /// Automatic content checks (`Moderation/`). `shadow` records what the AI
+    /// thinks and opens cases for people to judge, but hides nothing;
+    /// `enforce` also hides what it's sure about until a moderator decides.
+    struct Moderation: Sendable {
+        var enforcing: Bool
+        /// A Qwen3Guard build served by the same Ollama.
+        var guardModel: String
+        /// Empty = no second opinion; unsure items go to the review queue.
+        var openAIKey: String
+        var openAIModel: String
+    }
 
     var port: Int
     var nodeEnv: String
@@ -49,6 +60,7 @@ struct AppEnv: Sendable {
     var mail: Mail
     var ollama: Ollama
     var translation: Translation
+    var moderation: Moderation
     var redis: Redis
     var db: DB
 
@@ -106,6 +118,12 @@ struct AppEnv: Sendable {
                 model: get("TRANSLATION_MODEL") ?? get("OLLAMA_MODEL") ?? "qwen2.5:7b-instruct-q4_k_m",
                 timeoutSeconds: int("TRANSLATION_TIMEOUT", 60),
                 enabled: (get("TRANSLATION_ENABLED") ?? "1") != "0"
+            ),
+            moderation: Moderation(
+                enforcing: get("MODERATION_MODE") == "enforce",
+                guardModel: get("MODERATION_GUARD_MODEL") ?? "huggingface.co/mradermacher/Qwen3Guard-Gen-4B-GGUF:Q4_K_M",
+                openAIKey: get("OPENAI_API_KEY") ?? "",
+                openAIModel: get("OPENAI_MODERATION_MODEL") ?? "omni-moderation-latest"
             ),
             redis: Redis(
                 host: get("REDIS_HOST") ?? "localhost",

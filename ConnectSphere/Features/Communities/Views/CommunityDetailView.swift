@@ -58,7 +58,7 @@ struct CommunityDetailView: View {
     /// endpoints are 403-gated server-side, so show a "request to join" prompt
     /// rather than the misleading "No posts yet" / empty roster.
     private var isPrivateLockedOut: Bool {
-        viewModel.community?.privacy == .private && viewModel.community?.isMember == false
+        viewModel.community.map { !$0.viewerCanRead } ?? false
     }
 
     // MARK: - Body
@@ -148,8 +148,7 @@ struct CommunityDetailView: View {
             }
         }
         .sheet(isPresented: $showReportCommunity) {
-            ReportSheet(targetType: "community", targetId: communityId,
-                        communityId: communityId, token: appState.authToken ?? "")
+            ReportSheet(subject: .content(.community, id: communityId))
         }
         .navigationDestination(isPresented: $showMyContent) {
             ManageCommunityContentView(communityId: communityId)
@@ -272,7 +271,17 @@ struct CommunityDetailView: View {
     private var communityHeader: some View {
         if let community = viewModel.community {
             CommunityHeaderCard(community: community, topInset: topInset, onInfo: { showInfo = true }) {
-                if !community.isMember {
+                if community.isReadOnlyVisit || (!community.isMember && (appState.currentUser?.isOfficial ?? false)) {
+                    // The official account visiting without joining: it can like,
+                    // comment and share here, but not post or moderate.
+                    Label(bundle.loc("Visiting as ConnectSphere"), systemImage: "checkmark.seal")
+                        .scaledFont(13, .medium)
+                        .foregroundColor(AppColors.textSecondary(colorScheme))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(AppColors.surface(colorScheme), in: Capsule())
+                        .padding(.top, 6)
+                } else if !community.isMember {
                     joinButton.padding(.top, 6)
                 }
             }

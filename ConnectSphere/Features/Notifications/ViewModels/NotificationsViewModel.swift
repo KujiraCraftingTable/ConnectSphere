@@ -174,10 +174,6 @@ final class NotificationsViewModel {
         }, isRead: true, token: token, appState: appState)
     }
 
-    func toggleRead(group: NotificationGroup, token: String, appState: AppState?) async {
-        await setRead(ids: group.ids, isRead: !group.isRead, token: token, appState: appState)
-    }
-
     private func setRead(ids: [String], isRead: Bool, token: String, appState: AppState?) async {
         guard !ids.isEmpty else { return }
         let previous = notifications
@@ -226,26 +222,6 @@ final class NotificationsViewModel {
             notifications = previous
             await load(token: token, appState: appState)
         }
-    }
-
-    func delete(group: NotificationGroup, token: String, appState: AppState?) async {
-        let previous = notifications
-        let ids = Set(group.ids)
-        let removedUnread = group.members.filter { !$0.isRead }.count
-        notifications.removeAll { ids.contains($0.id) }
-        adjustUnread(by: -removedUnread, appState: appState)
-
-        var failed: [String] = []
-        for id in group.ids {
-            do { try await repo.delete(notificationId: id, token: token) }
-            catch { failed.append(id) }
-        }
-        guard !failed.isEmpty else { return }
-        // Re-insert only the rows that failed to delete, in their original order.
-        let failedSet = Set(failed)
-        let restored = previous.filter { failedSet.contains($0.id) }
-        notifications = (notifications + restored).sorted { $0.sortDate > $1.sortDate }
-        adjustUnread(by: restored.filter { !$0.isRead }.count, appState: appState)
     }
 
     func resolve(notification: UserNotificationDTO, action: String, token: String, appState: AppState?) async {

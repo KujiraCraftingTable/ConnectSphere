@@ -47,7 +47,7 @@ struct ChatMessageSearchView: View {
                 .scaledFont(15)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
                 .lineLimit(3)
-            Text(message.createdAt.formatted(.dateTime.day().month().hour().minute()))
+            Text(message.createdAt.dayMonthTime)
                 .scaledFont(12)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
         }

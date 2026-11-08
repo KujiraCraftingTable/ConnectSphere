@@ -86,13 +86,11 @@ struct ExperiencesController {
         var id = req.parameters.get("id")!
         if id == "me" { id = req.userID }
         guard UUID(uuidString: id) != nil else { throw Abort(.notFound) }
-        if try await ProfileLock.lockedOut(viewer: req.userID, owner: id, mode: "work", on: req.db.sql()) {
-            return DataListResponse(data: [])
-        }
         return DataListResponse(data: try await ExperienceStore.list(of: id, on: req.db.sql()))
     }
 
     static func create(_ req: Request) async throws -> Response {
+        try await OfficialAccount.refuse(req.userID, "keeps no education or work history", on: req.db.sql())
         let db = req.db.sql()
         let b = try req.content.decode(Body.self)
         let fields = try validate(b, companyName: try await pageName(b, on: db))
@@ -104,6 +102,7 @@ struct ExperiencesController {
     }
 
     static func update(_ req: Request) async throws -> DataListResponse<ExperienceStore.Experience> {
+        try await OfficialAccount.refuse(req.userID, "keeps no education or work history", on: req.db.sql())
         let db = req.db.sql()
         let b = try req.content.decode(Body.self)
         let fields = try validate(b, companyName: try await pageName(b, on: db))

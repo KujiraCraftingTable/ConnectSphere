@@ -42,6 +42,8 @@ enum MessageRequests {
         case open
         /// The starter has used up their messages; the reason to show.
         case limitReached
+        /// The starter is under a moderation restriction (migration 089).
+        case restricted
     }
 
     /// Checks a send before it's stored. The recipient writing back counts as
@@ -62,11 +64,24 @@ enum MessageRequests {
               !r.is_group, !r.accepted, let starter = r.request_from, let other = r.other_id
         else { return .open }
         if try await areConnected(senderID, other, mode: r.mode, on: db) { return .open }
+        // Writing to the official account (a support inbox) has no message limit.
+        if try await OfficialAccount.isOfficial(other, on: db) { return .open }
         if starter.caseInsensitiveCompare(senderID) == .orderedSame {
+            if try await isRestricted(senderID, on: db) { return .restricted }
             return decide(sent: r.sent)
         }
         try await accept(conversationID: conversationID, by: senderID, on: db)
         return .open
+    }
+
+    /// Whether someone other than `senderID` has written in this chat (a group
+    /// counts too). The official account may only reply, never write first.
+    static func otherHasWritten(conversationID: String, senderID: String, on db: any SQLDatabase) async throws -> Bool {
+        struct R: Decodable { let one: Int }
+        return try await db.raw("""
+            SELECT 1 AS one FROM messages
+            WHERE conversation_id = \(uuid: conversationID) AND sender_id <> \(uuid: senderID) LIMIT 1
+            """).first(decoding: R.self) != nil
     }
 
     /// The starter's limit, as a pure rule.
@@ -116,5 +131,30 @@ enum MessageRequests {
                   AND NOT \(unsafeRaw: pendingSQL(me: me, other: "u.id")))
             """).all(decoding: I.self)
         return Set(rows.map { $0.id.lowercased() })
+    }
+
+    static func isRestricted(_ userID: String, on db: any SQLDatabase) async throws -> Bool {
+        struct R: Decodable { let r: Bool }
+        return try await db.raw("""
+            SELECT COALESCE(restricted_until > NOW(), FALSE) AS r FROM users WHERE id = \(uuid: userID)
+            """).first(decoding: R.self)?.r ?? false
+    }
+
+    static let restrictedReason = "Your account can't message new people right now"
+
+    static let newAccountLinkReason = "Links aren't available to new accounts yet. Try again in a couple of days."
+
+    /// A brand-new account (under 48 hours) can't send a link to someone who
+    /// hasn't accepted its chat: the commonest way spam and scams start.
+    static func blocksNewAccountLink(conversationID: String, senderID: String, content: String?,
+                                     on db: any SQLDatabase) async throws -> Bool {
+        guard let content, ModerationRules.containsLink(content) else { return false }
+        struct X: Decodable { let x: Int }
+        return try await db.raw("""
+            SELECT 1 AS x FROM conversations c, users u
+            WHERE c.id = \(uuid: conversationID) AND u.id = \(uuid: senderID)
+              AND NOT c.is_group AND c.request_from IS NOT NULL AND c.request_accepted_at IS NULL
+              AND u.created_at > NOW() - make_interval(secs => \(bind: UserRateLimiter.newAccountAge)::float8)
+            """).first(decoding: X.self) != nil
     }
 }

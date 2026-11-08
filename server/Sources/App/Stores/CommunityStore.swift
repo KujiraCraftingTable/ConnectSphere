@@ -28,6 +28,10 @@ enum CommunityStore {
         var require_post_approval: Bool
         var created_by: String
         var is_member: Bool
+        /// Whether the viewer may read the posts and members: a member, a
+        /// public community, or the official account looking into a report
+        /// (read only; it never becomes a member or staff).
+        var can_view: Bool? = nil
         @NullCoded var role: String?
         @NullCoded var join_request_status: String?
         /// Feed-visibility mute, false for a non-member (nothing to mute).
@@ -74,11 +78,13 @@ enum CommunityStore {
                   c.member_count, c.post_count, c.created_by::text AS created_by, c.created_at, c.name_changed_at,
                   c.require_post_approval,
                   (cm.user_id IS NOT NULL) AS is_member, cm.role, jr.status AS join_request_status,
+                  (cm.user_id IS NOT NULL OR c.privacy = 'public'
+                   OR EXISTS (SELECT 1 FROM users a WHERE a.id = \(uuid: viewer) AND a.app_role = 'admin' AND a.deleted_at IS NULL)) AS can_view,
                   COALESCE(cm.muted, false) AS is_muted, (cm.pinned_at IS NOT NULL) AS is_pinned, cm.notify_level
                 FROM communities c
                 LEFT JOIN community_members cm ON cm.community_id = c.id AND cm.user_id = \(uuid: viewer)
                 LEFT JOIN community_join_requests jr ON jr.community_id = c.id AND jr.user_id = \(uuid: viewer)
-                WHERE c.id = \(uuid: id)
+                WHERE c.id = \(uuid: id) AND c.suspended_at IS NULL
                 """
         } else {
             q = """
@@ -86,8 +92,9 @@ enum CommunityStore {
                   c.member_count, c.post_count, c.created_by::text AS created_by, c.created_at, c.name_changed_at,
                   c.require_post_approval,
                   false AS is_member, NULL::VARCHAR AS role, NULL::VARCHAR AS join_request_status,
+                  (c.privacy = 'public') AS can_view,
                   false AS is_muted, false AS is_pinned, NULL::VARCHAR AS notify_level
-                FROM communities c WHERE c.id = \(uuid: id)
+                FROM communities c WHERE c.id = \(uuid: id) AND c.suspended_at IS NULL
                 """
         }
         return try await db.raw(q).first(decoding: CommunityDetail.self)
@@ -459,7 +466,7 @@ enum CommunityStore {
             FROM communities c
             LEFT JOIN community_trending tr ON tr.community_id = c.id
             LEFT JOIN community_members cm ON cm.community_id = c.id AND cm.user_id = \(uuid: viewer)
-            WHERE c.privacy = 'public' AND c.type = \(bind: type)
+            WHERE c.privacy = 'public' AND c.type = \(bind: type) AND c.suspended_at IS NULL
             ORDER BY COALESCE(tr.score, 0) DESC, c.member_count DESC LIMIT \(bind: limit)
             """).all(decoding: CommunityRow.self)
     }
@@ -504,7 +511,7 @@ enum CommunityStore {
             JOIN user_tags ut ON ut.tag = ct.tag
             LEFT JOIN community_trending tr ON tr.community_id = c.id
             WHERE c.id NOT IN (SELECT community_id FROM community_members WHERE user_id = \(uuid: userID)) AND c.privacy = 'public'
-              AND c.type = \(bind: type)
+              AND c.type = \(bind: type) AND c.suspended_at IS NULL
             """
         return try await db.raw(q + " GROUP BY c.id, tr.score ORDER BY rec_score DESC LIMIT \(bind: limit)")
             .all(decoding: RecommendedRow.self)
@@ -518,7 +525,7 @@ enum CommunityStore {
               (cm.pinned_at IS NOT NULL) AS is_pinned
             FROM communities c JOIN community_members cm ON cm.community_id = c.id
             LEFT JOIN community_trending tr ON tr.community_id = c.id
-            WHERE cm.user_id = \(uuid: userID)
+            WHERE cm.user_id = \(uuid: userID) AND c.suspended_at IS NULL
             ORDER BY (cm.pinned_at IS NULL), cm.pinned_at, cm.joined_at DESC
             """).all(decoding: CommunityRow.self)
     }
@@ -532,7 +539,7 @@ enum CommunityStore {
             LEFT JOIN community_members cm ON cm.community_id = c.id AND cm.user_id = \(uuid: viewer)
             LEFT JOIN community_trending tr ON tr.community_id = c.id
             WHERE (c.name ILIKE \(bind: like) OR c.description ILIKE \(bind: like)) AND c.privacy = 'public'
-              AND c.type = \(bind: type)
+              AND c.type = \(bind: type) AND c.suspended_at IS NULL
             """
         if !tags.isEmpty {
             q = q + " AND EXISTS (SELECT 1 FROM community_tags ct WHERE ct.community_id = c.id AND ct.tag = ANY(\(bind: tags)::text[]))"
@@ -667,4 +674,9 @@ enum CommunityStore {
             RETURNING community_id::text AS community_id, user_id::text AS user_id, role, joined_at
             """).first(decoding: RoleRow.self)
     }
+}
+
+extension CommunityStore.CommunityDetail {
+    /// `can_view` when the query computed it, else the member-or-public rule.
+    var viewerCanRead: Bool { can_view ?? (privacy != "private" || is_member) }
 }

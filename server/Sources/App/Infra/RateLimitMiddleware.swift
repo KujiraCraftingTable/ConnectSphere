@@ -36,6 +36,18 @@ struct RateLimitMiddleware: AsyncMiddleware {
         .init(name: "clarify", max: 20, windowSeconds: 15 * 60, inlineErrorBody: true,
               message: "Too many requests, please try again later")
     }
+    /// Reports: generous for a real user, but stops one account flooding the
+    /// moderation queue against someone.
+    static func reports() -> RateLimitMiddleware {
+        .init(name: "reports", max: 30, windowSeconds: 15 * 60, inlineErrorBody: true,
+              message: "Too many reports, please try again later")
+    }
+    /// The admin's stats and account lookup: plenty for one person, but a
+    /// stolen admin token can't page through every account.
+    static func admin() -> RateLimitMiddleware {
+        .init(name: "admin", max: 120, windowSeconds: 15 * 60, inlineErrorBody: true,
+              message: "Too many requests, please try again later")
+    }
     /// The Ollama-bound `/api/search/ai` is capped per client.
     static func aiSearch() -> RateLimitMiddleware {
         .init(name: "ai-search", max: 30, windowSeconds: 15 * 60, inlineErrorBody: false,

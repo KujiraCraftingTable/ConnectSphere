@@ -4,6 +4,9 @@ import Foundation
 /// Pass a `token` for authenticated requests; omit for public endpoints.
 final class NetworkClient {
     static let shared = NetworkClient()
+    /// The mode the app is in, sent as `X-App-Mode` on every request: bans are
+    /// per mode, so the server refuses only what's done in a banned mode.
+    nonisolated(unsafe) static var appMode = AppMode.hobby.rawValue
     /// Path-based calls; endpoint-based ones carry their own (`Endpoint.timeoutInterval`).
     static let pathTimeout: TimeInterval = 30
 
@@ -27,6 +30,7 @@ final class NetworkClient {
         request.httpMethod = endpoint.httpMethod
         if let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.setValue(Self.appMode, forHTTPHeaderField: "X-App-Mode")
         }
         if let body = endpoint.httpBody {
             request.httpBody = body
@@ -52,6 +56,7 @@ final class NetworkClient {
         var request = URLRequest(url: url, timeoutInterval: Self.pathTimeout)
         request.httpMethod = method
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(Self.appMode, forHTTPHeaderField: "X-App-Mode")
         if let bodyData {
             request.httpBody = bodyData
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -70,6 +75,7 @@ final class NetworkClient {
         request.httpMethod = endpoint.httpMethod
         if let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.setValue(Self.appMode, forHTTPHeaderField: "X-App-Mode")
         }
         if let body = endpoint.httpBody {
             request.httpBody = body
@@ -92,6 +98,7 @@ final class NetworkClient {
         var request = URLRequest(url: url, timeoutInterval: Self.pathTimeout)
         request.httpMethod = method
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(Self.appMode, forHTTPHeaderField: "X-App-Mode")
         if let bodyData {
             request.httpBody = bodyData
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -120,6 +127,7 @@ final class NetworkClient {
 
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             let msg = (try? JSONDecoder().decode(ErrorResponse.self, from: data))?.message ?? "Unknown error"
+            AccountSuspension.check(statusCode: http.statusCode, message: msg)
             throw APIError.serverError(statusCode: http.statusCode, message: msg)
         }
         do { return (try JSONDecoder.makeISO8601().decode(type, from: data), data) }

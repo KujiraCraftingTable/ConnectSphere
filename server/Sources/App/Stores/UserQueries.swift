@@ -55,6 +55,7 @@ extension UserStore {
           u.hobby_theme, u.work_theme,
           \(hobbyDetails),
           \(followCounts), \(postCount),
+          u.app_role = 'admin' AS is_official,
           u.created_at,
           COALESCE(array_agg(DISTINCT ui.interest) FILTER (WHERE ui.interest IS NOT NULL), ARRAY[]::text[]) AS interests,
           COALESCE(array_agg(DISTINCT us.skill)    FILTER (WHERE us.skill    IS NOT NULL), ARRAY[]::text[]) AS skills
@@ -134,9 +135,13 @@ extension UserStore {
                 + " ORDER BY r.search_score DESC, r.created_at DESC LIMIT \(bind: f.limit) OFFSET \(bind: f.offset)"
                 + ") base ORDER BY base.search_score DESC, base.created_at DESC"
         } else {
-            q = q + eligibleUsersSQL(f)
-                + " ORDER BY u.created_at DESC LIMIT \(bind: f.limit) OFFSET \(bind: f.offset)"
-                + ") base ORDER BY base.created_at DESC"
+            // Nothing typed: the people most like the viewer first, by profile
+            // vector. The score only orders the list and is never sent, so no
+            // match % shows here. No vector on either side falls back to newest.
+            q = q + "SELECT s.* FROM (SELECT c.*, " + profileSimilaritySQL(viewer: f.viewerID)
+                + " AS similarity_score FROM (" + eligibleUsersSQL(f) + ") c) s"
+                + " ORDER BY s.similarity_score DESC NULLS LAST, s.created_at DESC LIMIT \(bind: f.limit) OFFSET \(bind: f.offset)"
+                + ") base ORDER BY base.similarity_score DESC NULLS LAST, base.created_at DESC"
         }
         return try await db.raw(q).all(decoding: SearchUserObject.self)
     }
@@ -153,6 +158,7 @@ extension UserStore {
                     WHERE (ub.blocker_id = \(uuid: f.viewerID) AND ub.blocked_id = u.id)
                        OR (ub.blocker_id = u.id AND ub.blocked_id = \(uuid: f.viewerID)))
             """
+        if let m = f.mode { q = q + " AND " + AccountBans.visible(userRef: "u.id", mode: m, viewer: f.viewerID) }
         if let m = f.mode {
             q = q + " AND \(unsafeRaw: PersonaSQL.setupClause(modeRef: "'\(m)'"))"
         }
@@ -167,6 +173,18 @@ extension UserStore {
              GROUP BY u.id
             """
         return q
+    }
+
+    /// Cosine similarity between row `c`'s profile vector and the viewer's,
+    /// NULL when either has none yet.
+    private static func profileSimilaritySQL(viewer: String) -> SQLQueryString {
+        """
+        (SELECT (1 - (pc.embedding <=> mv.embedding))::float
+           FROM user_embedding_chunks pc, user_embedding_chunks mv
+          WHERE pc.user_id = c.id::uuid AND pc.source_type = 'user_profile' AND pc.chunk_index = 0
+            AND mv.user_id = \(uuid: viewer) AND mv.source_type = 'user_profile' AND mv.chunk_index = 0
+          LIMIT 1)
+        """
     }
 
     /// Eligible users that match `query`, each with a `search_score`, aliased
@@ -238,6 +256,7 @@ extension UserStore {
                     WHERE (ub.blocker_id = \(uuid: viewerID) AND ub.blocked_id = users.id)
                        OR (ub.blocker_id = users.id AND ub.blocked_id = \(uuid: viewerID)))
             """
+        if let m = mode { q = q + " AND " + AccountBans.visible(userRef: "users.id", mode: m, viewer: viewerID) }
         if let m = mode {
             q = q + " AND \(unsafeRaw: PersonaSQL.setupClause(modeRef: "'\(m)'", alias: "users"))"
         }
@@ -398,52 +417,7 @@ extension UserStore {
         // Listed first: the rows that name the files are gone after the scrub.
         let files = try await AccountDeletionStore.uploadPaths(of: userID, on: db.sql())
         try await db.tx { t in
-            // Their posts, comments, likes and stories go (both modes).
-            try await AccountDeletionStore.removeActivity(of: userID, mode: nil, on: t)
-            try await AccountDeletionStore.removePersonalData(of: userID, on: t)
-            try await t.raw("""
-                WITH gone AS (
-                  DELETE FROM connections
-                  WHERE status = 'accepted' AND (requester_id = \(uuid: userID) OR addressee_id = \(uuid: userID))
-                  RETURNING CASE WHEN requester_id = \(uuid: userID) THEN addressee_id ELSE requester_id END AS other_id
-                )
-                UPDATE users SET
-                  follower_count  = GREATEST(follower_count  - g.cnt, 0),
-                  following_count = GREATEST(following_count - g.cnt, 0)
-                FROM (SELECT other_id, COUNT(*)::int AS cnt FROM gone GROUP BY other_id) g
-                WHERE users.id = g.other_id
-                """).run()
-            try await t.raw("DELETE FROM connections WHERE requester_id = \(uuid: userID) OR addressee_id = \(uuid: userID)").run()
-            try await t.raw("""
-                WITH sole_admin AS (
-                  SELECT cm.community_id FROM community_members cm
-                  WHERE cm.user_id = \(uuid: userID) AND cm.role = 'admin'
-                    AND NOT EXISTS (SELECT 1 FROM community_members o
-                      WHERE o.community_id = cm.community_id AND o.user_id <> \(uuid: userID) AND o.role = 'admin')
-                ),
-                successor AS (
-                  SELECT DISTINCT ON (m.community_id) m.community_id, m.user_id
-                  FROM community_members m JOIN sole_admin s ON s.community_id = m.community_id
-                  WHERE m.user_id <> \(uuid: userID)
-                  ORDER BY m.community_id, CASE m.role WHEN 'moderator' THEN 0 ELSE 1 END, m.joined_at ASC
-                )
-                UPDATE community_members cm SET role = 'admin'
-                FROM successor su
-                WHERE cm.community_id = su.community_id AND cm.user_id = su.user_id
-                """).run()
-            try await t.raw("""
-                WITH gone AS (DELETE FROM community_members WHERE user_id = \(uuid: userID) RETURNING community_id)
-                UPDATE communities SET member_count = GREATEST(member_count - 1, 0)
-                WHERE id IN (SELECT community_id FROM gone)
-                """).run()
-            try await t.raw("DELETE FROM user_embedding_chunks WHERE user_id = \(uuid: userID)").run()
-            try await t.raw("DELETE FROM user_interests  WHERE user_id = \(uuid: userID)").run()
-            try await t.raw("DELETE FROM user_skills     WHERE user_id = \(uuid: userID)").run()
-            try await t.raw("DELETE FROM stories         WHERE author_id = \(uuid: userID)").run()
-            try await t.raw("DELETE FROM user_blocks     WHERE blocker_id = \(uuid: userID) OR blocked_id = \(uuid: userID)").run()
-            try await t.raw("DELETE FROM password_resets WHERE user_id = \(uuid: userID)").run()
-            try await t.raw("DELETE FROM account_codes   WHERE user_id = \(uuid: userID)").run()
-            try await t.raw("DELETE FROM user_notifications WHERE user_id = \(uuid: userID)").run()
+            try await scrubAccountData(userID, on: t)
             // The username is kept: it's the account's ID, so it stays taken
             // for good (usernameTaken matches deleted rows too).
             try await t.raw("""
@@ -461,6 +435,57 @@ extension UserStore {
                 """).run()
         }
         AccountDeletionStore.deleteUploads(files, logger: logger)
+    }
+
+    /// Everything an account owns except its `users` row. Shared by account
+    /// deletion and by `OfficialAccountCommand`, which keeps the row and its login.
+    static func scrubAccountData(_ userID: String, on t: any SQLDatabase) async throws {
+        // Their posts, comments, likes and stories go (both modes).
+        try await AccountDeletionStore.removeActivity(of: userID, mode: nil, on: t)
+        try await AccountDeletionStore.removePersonalData(of: userID, on: t)
+        try await t.raw("""
+            WITH gone AS (
+              DELETE FROM connections
+              WHERE status = 'accepted' AND (requester_id = \(uuid: userID) OR addressee_id = \(uuid: userID))
+              RETURNING CASE WHEN requester_id = \(uuid: userID) THEN addressee_id ELSE requester_id END AS other_id
+            )
+            UPDATE users SET
+              follower_count  = GREATEST(follower_count  - g.cnt, 0),
+              following_count = GREATEST(following_count - g.cnt, 0)
+            FROM (SELECT other_id, COUNT(*)::int AS cnt FROM gone GROUP BY other_id) g
+            WHERE users.id = g.other_id
+            """).run()
+        try await t.raw("DELETE FROM connections WHERE requester_id = \(uuid: userID) OR addressee_id = \(uuid: userID)").run()
+        try await t.raw("""
+            WITH sole_admin AS (
+              SELECT cm.community_id FROM community_members cm
+              WHERE cm.user_id = \(uuid: userID) AND cm.role = 'admin'
+                AND NOT EXISTS (SELECT 1 FROM community_members o
+                  WHERE o.community_id = cm.community_id AND o.user_id <> \(uuid: userID) AND o.role = 'admin')
+            ),
+            successor AS (
+              SELECT DISTINCT ON (m.community_id) m.community_id, m.user_id
+              FROM community_members m JOIN sole_admin s ON s.community_id = m.community_id
+              WHERE m.user_id <> \(uuid: userID)
+              ORDER BY m.community_id, CASE m.role WHEN 'moderator' THEN 0 ELSE 1 END, m.joined_at ASC
+            )
+            UPDATE community_members cm SET role = 'admin'
+            FROM successor su
+            WHERE cm.community_id = su.community_id AND cm.user_id = su.user_id
+            """).run()
+        try await t.raw("""
+            WITH gone AS (DELETE FROM community_members WHERE user_id = \(uuid: userID) RETURNING community_id)
+            UPDATE communities SET member_count = GREATEST(member_count - 1, 0)
+            WHERE id IN (SELECT community_id FROM gone)
+            """).run()
+        try await t.raw("DELETE FROM user_embedding_chunks WHERE user_id = \(uuid: userID)").run()
+        try await t.raw("DELETE FROM user_interests  WHERE user_id = \(uuid: userID)").run()
+        try await t.raw("DELETE FROM user_skills     WHERE user_id = \(uuid: userID)").run()
+        try await t.raw("DELETE FROM stories         WHERE author_id = \(uuid: userID)").run()
+        try await t.raw("DELETE FROM user_blocks     WHERE blocker_id = \(uuid: userID) OR blocked_id = \(uuid: userID)").run()
+        try await t.raw("DELETE FROM password_resets WHERE user_id = \(uuid: userID)").run()
+        try await t.raw("DELETE FROM account_codes   WHERE user_id = \(uuid: userID)").run()
+        try await t.raw("DELETE FROM user_notifications WHERE user_id = \(uuid: userID)").run()
     }
 }
 

@@ -36,6 +36,11 @@ func routes(_ app: Application) throws {
     SkillsController.register(routes: api)          // the Work skill picker's catalogue
     WardsController.register(routes: api)           // GET /api/wards/*. No auth (matches Node)
     UploadsController.register(routes: api)         // POST /api/uploads. Generic media upload
+    ReportsController.register(routes: api)         // POST /api/reports. Report anything (migration 089)
+    AppealsController.register(routes: api)         // POST /api/appeals. Ask for a review of a decision
+    AccountStatusController.register(routes: api)   // GET /api/account-status. Strikes, decisions, your reports
+    AdminModerationController.register(routes: api) // /api/admin/moderation. The app-wide review queue
+    AdminController.register(routes: api)           // /api/admin/stats, /users/lookup. Official account only (migration 104)
 
     // Socket.IO v4 / Engine.IO 4 shim. Mounted on `app` (not `api`), auth via
     // the SIO CONNECT frame's `{token}`, not a header.

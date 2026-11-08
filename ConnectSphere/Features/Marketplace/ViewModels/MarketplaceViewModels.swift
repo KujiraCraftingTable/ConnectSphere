@@ -264,6 +264,16 @@ final class ListingViewModel {
         }
     }
 
+    /// After the admin's Warn or ban sheet closes: true when the listing was taken
+    /// down (the server bans the post with the warning), and the Marketplace grids
+    /// drop it like a deleted item.
+    func wasTakenDown() -> Bool {
+        guard case .moderated = HiddenPostsRegistry.shared.kind(for: post.id) else { return false }
+        NotificationCenter.default.post(name: .postDeleted, object: nil,
+                                        userInfo: ["id": post.id, "authorId": post.author.id])
+        return true
+    }
+
     /// Deletes the listing's post. True when gone.
     func delete() async -> Bool {
         isWorking = true

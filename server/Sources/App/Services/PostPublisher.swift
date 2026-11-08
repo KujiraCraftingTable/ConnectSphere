@@ -39,6 +39,7 @@ enum PostPublisher {
     static func afterPublish(_ app: Application, queue: (any Queue)?, logger: Logger,
                              postID: String, mode: String, content: String, authorID: String) async {
         await TranslationService.enqueue(.post, id: postID, app: app, queue: queue, logger: logger)
+        await ModerationScan.enqueue(app, queue: queue, logger: logger, .post, id: postID)
         if !content.isEmpty {
             let cfg = app.ollama, db = app.db.sql(), hub = app.socketHub
             // Background priority: nobody is waiting on this check, and the
@@ -118,6 +119,7 @@ enum PostPublisher {
                                content: post.content ?? "", authorID: post.author_id)
         } else {
             await TranslationService.enqueue(.post, id: post.id, app: app, queue: queue, logger: logger)
+            await ModerationScan.enqueue(app, queue: queue, logger: logger, .post, id: post.id)
             if let community = post.community_id {
                 NotifyService.communityNewPost(app: app, postID: post.id, communityID: community,
                                                authorID: post.author_id, logger: logger)

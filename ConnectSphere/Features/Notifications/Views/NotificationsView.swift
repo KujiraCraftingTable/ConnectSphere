@@ -13,6 +13,9 @@ enum NotificationDestination: Identifiable, Hashable {
     case community(id: String)
     case job(id: String)
     case jobApplicants(jobId: String)
+    case accountStatus
+    /// The official account's digest: open Admin tools.
+    case adminTools
 
     var id: String {
         switch self {
@@ -23,6 +26,8 @@ enum NotificationDestination: Identifiable, Hashable {
         case .community(let id):            return "community:\(id)"
         case .job(let id):                  return "job:\(id)"
         case .jobApplicants(let id):        return "applicants:\(id)"
+        case .accountStatus:                return "accountStatus"
+        case .adminTools:                   return "adminTools"
         }
     }
 
@@ -68,6 +73,12 @@ enum NotificationDestination: Identifiable, Hashable {
         case "jobApplicants":
             guard let jobId = dest.jobId else { return nil }
             return .jobApplicants(jobId: jobId)
+
+        case "accountStatus":
+            return .accountStatus
+
+        case "adminTools":
+            return .adminTools
 
         default:
             return nil
@@ -143,24 +154,6 @@ struct NotificationsView: View {
                                             : unreadTint(for: group)
                                     )
                                     .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
-                                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                                        Button {
-                                            Task { await viewModel.toggleRead(group: group, token: token, appState: appState) }
-                                        } label: {
-                                            Label(
-                                                group.isRead ? bundle.loc("Mark unread") : bundle.loc("Mark read"),
-                                                systemImage: group.isRead ? "envelope.badge" : "envelope.open"
-                                            )
-                                        }
-                                        .tint(themeManager.theme.primary)
-                                    }
-                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                        Button(role: .destructive) {
-                                            Task { await viewModel.delete(group: group, token: token, appState: appState) }
-                                        } label: {
-                                            Label(bundle.loc("Delete"), systemImage: "trash")
-                                        }
-                                    }
                                     .task {
                                         await viewModel.loadMoreIfNeeded(currentGroup: group, token: token)
                                     }
@@ -240,6 +233,10 @@ struct NotificationsView: View {
                 await viewModel.load(token: token, appState: appState)
                 viewModel.startListening(token: token, appState: appState)
             }
+            // Tab re-tapped: reload the list.
+            .onChange(of: appState.notificationsReloadTick) {
+                Task { await viewModel.load(token: token, appState: appState) }
+            }
             // The other mode has its own notifications.
             .onChange(of: appState.currentMode) {
                 Task { await viewModel.load(token: token, appState: appState) }
@@ -250,13 +247,17 @@ struct NotificationsView: View {
 
     // MARK: - Pieces
 
-    private var filterPicker: some View {
-        Picker("", selection: Binding(
+    private var filterBinding: Binding<NotificationFilter> {
+        Binding(
             get: { viewModel.filter },
             set: { newValue in
                 Task { await viewModel.setFilter(newValue, token: token, appState: appState) }
             }
-        )) {
+        )
+    }
+
+    private var filterPicker: some View {
+        Picker("", selection: filterBinding) {
             Text("All", bundle: bundle).tag(NotificationFilter.all)
             Text("Unread", bundle: bundle).tag(NotificationFilter.unread)
         }
@@ -336,6 +337,10 @@ struct NotificationsView: View {
             JobDetailView(jobId: id) { _ in }
         case .jobApplicants(let jobId):
             ApplicantsView(jobId: jobId)
+        case .accountStatus:
+            AccountStatusView()
+        case .adminTools:
+            AdminToolsView()
         }
     }
 
@@ -401,7 +406,8 @@ struct ActorNotifRow: View {
             return String(format: bundle.loc(notif.payload.method == "google"
                     ? "New sign-in to your account with Google on %@. Not you? Secure your Google account."
                     : "New sign-in to your account with your password on %@. Not you? Change your password."),
-                          notif.payload.device ?? "")
+                          // The stored device is "iPhone 17 · iOS 27.0"; the alert names only the phone.
+                          (notif.payload.device ?? "").components(separatedBy: " · ").first ?? "")
         case "application_status":
             let job = notif.payload.jobTitle ?? ""
             switch notif.payload.status {
@@ -460,8 +466,7 @@ struct ActorNotifRow: View {
         case "meeting_reminder":
             return String(format: bundle.loc("Reminder: %@"), notif.payload.title ?? "")
         case "message_reaction":
-            return String(format: bundle.loc("%@ reacted %@ to your message"),
-                          senderName, notif.payload.emoji ?? "")
+            return String(format: bundle.loc("%@ whaled your message"), senderName)
         case "group_added":
             return String(format: bundle.loc("%@ added you to a group chat"), senderName)
         case "group_removed":
@@ -484,6 +489,40 @@ struct ActorNotifRow: View {
             return String(format: bundle.loc("Content in %@ needs review"), communityLabel)
         case "content_removed":
             return String(format: bundle.loc("Your post in %@ was removed by a moderator"), communityLabel)
+
+        // ── Moderation (migration 089) — names no reporter ─────────────────
+        case "account_limited":
+            return String(format: bundle.loc("Your account looked like spam, so some features are paused for %lld hours. A moderator will review it."),
+                          notif.payload.hours ?? 24)
+        case "content_held":
+            return String(format: bundle.loc("We're reviewing your %@. It's hidden until a moderator has looked at it."),
+                          bundle.loc((notif.payload.targetType ?? "post").reportTargetLabel).lowercased())
+        case "admin_digest":
+            let n = notif.payload.reportCount ?? 0
+            return String(format: bundle.loc(notif.payload.reason == "appeals"
+                                             ? "There are %lld appeals waiting. Check them in Admin tools."
+                                             : "There are %lld reports waiting. Check them in Admin tools."), n)
+        case "report_received":
+            return bundle.loc("Thanks for your report. We'll let you know what we decide.")
+        case "report_outcome":
+            return bundle.loc(notif.payload.outcome == "removed"
+                              ? "We removed something you reported. Thanks for helping keep ConnectSphere safe."
+                              : "We looked at something you reported and it doesn't break our rules. You can block or mute them.")
+        case "moderation_decision":
+            let rule = bundle.loc((notif.payload.policy ?? "other").policyLabel)
+            if notif.payload.decision == "ban" {
+                return String(format: bundle.loc("Your account was suspended for breaking our rules on %@. You can ask for a review."), rule)
+            }
+            if let days = notif.payload.restrictedDays {
+                return String(format: bundle.loc("We removed your %@ for breaking our rules on %@. You can't post, comment or message new people for %lld days. You can ask for a review."),
+                              bundle.loc((notif.payload.targetType ?? "post").reportTargetLabel).lowercased(), rule, days)
+            }
+            return String(format: bundle.loc("We removed your %@ for breaking our rules on %@. You can ask for a review."),
+                          bundle.loc((notif.payload.targetType ?? "post").reportTargetLabel).lowercased(), rule)
+        case "appeal_outcome":
+            return bundle.loc(notif.payload.outcome == "overturned"
+                              ? "We looked again and put your content back."
+                              : "We looked again and the decision stands.")
 
         default:
             // Unknown type, show something rather than nothing.
@@ -548,6 +587,12 @@ struct ActorNotifRow: View {
         case "role_changed":        return "shield.lefthalf.filled"
         case "new_report":          return "exclamationmark.triangle.fill"
         case "content_removed":     return "trash.fill"
+        case "report_received", "report_outcome": return "flag.fill"
+        case "content_held":        return "eye.slash.fill"
+        case "account_limited":     return "pause.circle.fill"
+        case "moderation_decision": return "exclamationmark.shield.fill"
+        case "admin_digest":        return "hammer.fill"
+        case "appeal_outcome":      return "checkmark.shield.fill"
         default:                    return "bell.fill"
         }
     }
@@ -573,9 +618,13 @@ struct ActorNotifRow: View {
                 senderAvatar
                 ZStack {
                     Circle().fill(themeManager.theme.primary).frame(width: 20, height: 20)
-                    Image(systemName: badgeIcon)
-                        .scaledFont(10, .bold)
-                        .foregroundColor(.white)
+                    if ["post_liked", "comment_liked", "message_reaction"].contains(notif.type) {
+                        LikeIcon(isLiked: true, color: .white, size: 13)
+                    } else {
+                        Image(systemName: badgeIcon)
+                            .scaledFont(10, .bold)
+                            .foregroundColor(.white)
+                    }
                 }
                 .offset(x: 2, y: 2)
             }

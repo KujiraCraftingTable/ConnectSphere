@@ -48,20 +48,68 @@ extension ThemePalette {
     static let workPalettes:   [ThemePalette] = [.navy, .slate, .forest, .charcoal, .blueShared, .deepPurple]
 }
 
+// MARK: - AccountTheme
+
+/// The signed-in account's palette per mode, as the server stores it
+/// (users.hobby_theme / work_theme). nil = not known yet: use this device's
+/// cached copy for that account.
+struct AccountTheme: Equatable {
+    let userID: String
+    let hobby: String?
+    let work: String?
+}
+
 // MARK: - ThemeManager
 
+/// The palette belongs to the account, not the device: AppState publishes the
+/// account's `AccountTheme` and `apply` shows it. UserDefaults keeps a copy per
+/// user id only so the right colour is up on the splash before the server answers.
 @Observable
 final class ThemeManager {
+    static let defaultPaletteId = "blue"
+
     var currentMode: AppMode = .hobby
-    var socialPaletteId: String
-    var workPaletteId: String
+    private(set) var socialPaletteId: String
+    private(set) var workPaletteId: String
+    private var userID: String?
 
-    private let socialKey = "themeManager.socialPaletteId"
-    private let workKey   = "themeManager.workPaletteId"
+    private let defaults: UserDefaults
+    private static let lastUserKey = "themeManager.lastUserID"
+    private static func key(_ mode: AppMode, _ userID: String) -> String { "themeManager.\(userID).\(mode.rawValue)" }
 
-    init() {
-        socialPaletteId = UserDefaults.standard.string(forKey: "themeManager.socialPaletteId") ?? "blue"
-        workPaletteId   = UserDefaults.standard.string(forKey: "themeManager.workPaletteId")   ?? "blue"
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        let last = defaults.string(forKey: Self.lastUserKey)
+        userID = last
+        socialPaletteId = last.flatMap { defaults.string(forKey: Self.key(.hobby, $0)) } ?? Self.defaultPaletteId
+        workPaletteId   = last.flatMap { defaults.string(forKey: Self.key(.work, $0)) } ?? Self.defaultPaletteId
+    }
+
+    /// Shows an account's palettes. A value from the server wins and is cached;
+    /// a missing one falls back to this account's cached copy, then the default.
+    func apply(_ account: AccountTheme) {
+        userID = account.userID
+        defaults.set(account.userID, forKey: Self.lastUserKey)
+        socialPaletteId = resolve(account.hobby, mode: .hobby, userID: account.userID)
+        workPaletteId   = resolve(account.work, mode: .work, userID: account.userID)
+    }
+
+    private func resolve(_ id: String?, mode: AppMode, userID: String) -> String {
+        let key = Self.key(mode, userID)
+        if let id, Self.isKnown(id, mode: mode) {
+            defaults.set(id, forKey: key)
+            return id
+        }
+        if let cached = defaults.string(forKey: key), Self.isKnown(cached, mode: mode) { return cached }
+        return Self.defaultPaletteId
+    }
+
+    static func isKnown(_ id: String, mode: AppMode) -> Bool {
+        (mode == .hobby ? ThemePalette.socialPalettes : ThemePalette.workPalettes).contains { $0.id == id }
+    }
+
+    func paletteId(for mode: AppMode) -> String {
+        mode == .hobby ? socialPaletteId : workPaletteId
     }
 
     /// Active palette based on currentMode and selected id.
@@ -79,15 +127,14 @@ final class ThemeManager {
         currentMode = mode
     }
 
-    /// Persists palette selection for the current mode.
-    func selectPalette(id: String) {
-        switch currentMode {
-        case .hobby:
-            socialPaletteId = id
-            UserDefaults.standard.set(id, forKey: socialKey)
-        case .work:
-            workPaletteId = id
-            UserDefaults.standard.set(id, forKey: workKey)
+    /// Shows a palette for one mode at once and caches it for the signed-in
+    /// account. Saving it to the account is ThemePickerViewModel's job.
+    func selectPalette(id: String, for mode: AppMode) {
+        guard Self.isKnown(id, mode: mode) else { return }
+        switch mode {
+        case .hobby: socialPaletteId = id
+        case .work:  workPaletteId = id
         }
+        if let userID { defaults.set(id, forKey: Self.key(mode, userID)) }
     }
 }

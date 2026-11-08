@@ -115,14 +115,4 @@ struct UserNotificationRepository {
             queryItems: mode.map { [URLQueryItem(name: "mode", value: $0.rawValue)] } ?? []
         )
     }
-
-    func delete(notificationId: String, token: String) async throws {
-        struct Empty: Decodable {}
-        _ = try await client.fetch(
-            Empty.self,
-            path: "/user-notifications/\(notificationId)",
-            method: "DELETE",
-            token: token
-        )
-    }
 }

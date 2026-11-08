@@ -139,25 +139,10 @@ enum InterestRules {
     }
 
     /// Whole words only, so "cockatiel" or "Sussex" aren't caught. Vietnamese
-    /// is matched with its accents: folded, "các" (a plural) and "lợn" (pig)
-    /// would read as swear words.
-    static func isBlocked(_ text: String) -> Bool {
-        let words = text.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
-        let joined = " " + words.joined(separator: " ") + " "
-        return words.contains(where: blockedWords.contains)
-            || blockedPhrases.contains { joined.contains(" \($0) ") }
-    }
-
-    /// Profanity, slurs, sexual content and hard drugs, in Vietnamese and English.
-    static let blockedWords: Set<String> = [
-        "địt", "đụ", "lồn", "cặc", "buồi", "đéo", "đĩ", "dm", "đm", "dcm", "đcm", "vcl", "vkl", "clgt", "dmm", "djt",
-        "fuck", "fucking", "shit", "bitch", "cunt", "dick", "pussy", "nigger", "nigga", "faggot", "retard",
-        "porn", "porno", "sex", "nude", "nudes", "hentai", "xxx", "nsfw", "onlyfans",
-        "cocaine", "heroin", "meth", "ketamine", "mdma", "ecstasy",
-    ]
-    static let blockedPhrases: [String] = [
-        "ma túy", "ma tuý", "thuốc lắc", "cần sa", "hàng trắng", "phim sex", "làm tình", "gái gọi", "trai bao",
-    ]
+    /// is matched with its accents where folding would collide ("các" is a
+    /// plural, "lợn" a pig). The lists live in `ModerationRules`, shared with
+    /// the checks on posts, comments and messages.
+    static func isBlocked(_ text: String) -> Bool { ModerationRules.isListedForInterests(text) }
 
     /// Catalogue spelling, duplicates dropped, at most `maxPicks`. Each
     /// "Category · specific" pick also comes back with its index, for the

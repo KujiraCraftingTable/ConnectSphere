@@ -275,6 +275,9 @@ struct ConversationListView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(Text(bundle.loc("Archived chats")))
 
+                // The official account is a support inbox: anyone's message lands
+                // straight in its inbox, so it has no Waiting list.
+                if !(appState.currentUser?.isOfficial ?? false) {
                 NavigationLink {
                     WaitingChatsView(viewModel: viewModel, onOpen: open)
                 } label: {
@@ -293,6 +296,7 @@ struct ConversationListView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(Text(String(format: bundle.loc("Waiting, %lld"), viewModel.waiting.count)))
+                }
 
                 Spacer()
 
@@ -813,6 +817,7 @@ struct ConversationRow: View {
                         .font(.system(size: 15, weight: conversation.hasUnread ? .semibold : .regular))
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                         .lineLimit(1)
+                    if conversation.isOfficialPeer { OfficialBadge(compact: true).padding(.leading, -5) }
 
                     ForEach(spaces.prefix(2)) { space in
                         SpaceTag(space: space)

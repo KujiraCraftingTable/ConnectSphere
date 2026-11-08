@@ -107,6 +107,35 @@ struct Mailer {
         try await send(to: email, subject: "New sign-in to your ConnectSphere account", text: text)
     }
 
+    /// A warning or a ban from the official account (migration 106).
+    func sendModerationNotice(to email: String, ban: Bool, reason: String, mode: String?,
+                              until: Date?, warnings: Int) async throws {
+        let profile = mode.map { $0 == "work" ? "Work profile" : "Hobby profile" } ?? "account"
+        let text: String
+        if ban {
+            let length = until.map { "until \($0.formatted(.dateTime.day().month(.wide).year()))" } ?? "permanently"
+            text = """
+                Your ConnectSphere \(profile) has been banned \(length) for breaking our Community Standards (\(reason)).
+
+                While it's banned, nobody can find or message that profile, and what you shared there is hidden.
+                Open the app to see what this was about. If you think we got it wrong, ask for a review there or reply to this email.
+                """
+        } else {
+            text = """
+                Your ConnectSphere \(profile) received a warning for breaking our Community Standards (\(reason)).
+
+                This is warning \(warnings) of 3. A third warning within 90 days means a ban, so please take care with what you share.
+                Open the app (Settings › Manage account › Account status) to see what this was about.
+                """
+        }
+        guard !mail.brevoKey.isEmpty, !mail.from.isEmpty else {
+            logger.warning("[DEV MAIL] moderation notice for \(email): \(ban ? "ban" : "warning") (\(reason))")
+            return
+        }
+        try await send(to: email, subject: ban ? "Your ConnectSphere \(profile) has been banned"
+                                                : "A warning on your ConnectSphere \(profile)", text: text)
+    }
+
     private func send(to email: String, subject: String, text: String) async throws {
         struct Address: Content { var email: String; var name: String? }
         struct Body: Content {

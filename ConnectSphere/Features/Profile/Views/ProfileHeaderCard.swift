@@ -25,6 +25,8 @@ struct ProfileHeaderCard<Actions: View>: View {
     /// The round button at the card's top-right that flips to the person's
     /// other persona (and back).
     var flip: Flip? = nil
+    /// Makes the "Locked profile" badge a button (your own profile only).
+    var onLockedBadgeTap: (() -> Void)? = nil
     @ViewBuilder let actions: () -> Actions
 
     struct Flip {
@@ -50,7 +52,8 @@ struct ProfileHeaderCard<Actions: View>: View {
                 .padding(.top, -avatarSize / 2)
 
             identity
-            if user.lockedOut { lockedNote } else { stats }
+            stats
+            if user.lockedOut { lockedNote }
             if !user.bio.isEmpty {
                 Text(user.isBioMarkdown
                      ? MarkdownFormatter.attributed(user.bio, linkColor: themeManager.theme.primary,
@@ -87,10 +90,13 @@ struct ProfileHeaderCard<Actions: View>: View {
 
     private var identity: some View {
         VStack(spacing: 4) {
-            Text(user.name)
-                .scaledFont(26, .bold)
-                .foregroundColor(AppColors.textPrimary(colorScheme))
-                .multilineTextAlignment(.center)
+            HStack(spacing: 6) {
+                Text(user.name)
+                    .scaledFont(26, .bold)
+                    .foregroundColor(AppColors.textPrimary(colorScheme))
+                    .multilineTextAlignment(.center)
+                if user.isOfficial { OfficialBadge().padding(.leading, -3) }
+            }
             // The same on both personas: it's the account's handle.
             if !user.username.isEmpty {
                 Text("@\(user.username)")
@@ -113,7 +119,17 @@ struct ProfileHeaderCard<Actions: View>: View {
     }
 
     /// Top-left of the card, where it's seen first, in the theme colour.
+    @ViewBuilder
     private var lockedBadge: some View {
+        if let onLockedBadgeTap {
+            Button(action: onLockedBadgeTap) { lockedBadgeLabel }
+                .buttonStyle(.plain)
+        } else {
+            lockedBadgeLabel
+        }
+    }
+
+    private var lockedBadgeLabel: some View {
         HStack(spacing: 4) {
             Image(systemName: "lock.fill")
             Text("Locked profile", bundle: bundle)
@@ -137,51 +153,63 @@ struct ProfileHeaderCard<Actions: View>: View {
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
-    /// What a locked-out viewer sees instead of the counts.
+    /// Under the counts for a locked-out viewer: why they don't open.
     private var lockedNote: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "lock.shield.fill")
-                .scaledFont(22)
-                .foregroundColor(AppColors.textSecondary(colorScheme))
+        Label {
             Text(String(format: bundle.loc(mode == .work
-                    ? "%@ locked their profile. Only their connections can see their posts and details."
-                    : "%@ locked their profile. Only their friends can see their posts and details."), user.name))
-                .scaledFont(14)
-                .foregroundColor(AppColors.textSecondary(colorScheme))
-                .fixedSize(horizontal: false, vertical: true)
+                    ? "Only connections can see %@'s posts and lists."
+                    : "Only friends can see %@'s posts and lists."), user.name))
+        } icon: {
+            Image(systemName: "lock.fill")
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 14))
+        .scaledFont(12)
+        .foregroundColor(AppColors.textSecondary(colorScheme))
+        .multilineTextAlignment(.center)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private var stats: some View {
         HStack(spacing: 0) {
             stat(user.postCount, bundle.loc("Posts"), .posts)
-            stat(user.connectionCount, bundle.loc(mode == .hobby ? "Friends" : "Connections"), .friends)
+            // The official account has followers only: no friends, follows no one.
+            if !user.isOfficial {
+                stat(user.connectionCount, bundle.loc(mode == .hobby ? "Friends" : "Connections"), .friends)
+            }
             stat(user.followerCount, bundle.loc("Followers"), .followers)
-            stat(user.followingCount, bundle.loc("Following"), .following)
+            if !user.isOfficial {
+                stat(user.followingCount, bundle.loc("Following"), .following)
+            }
         }
         .padding(.vertical, 4)
     }
 
+    /// A locked-out viewer sees the real counts, but the lists behind them
+    /// stay closed (the server returns them empty), so they aren't buttons.
+    @ViewBuilder
     private func stat(_ count: Int, _ label: String, _ kind: ProfileStat) -> some View {
-        Button { onStatTap(kind) } label: {
-            VStack(spacing: 2) {
-                Text("\(count)")
-                    .scaledFont(18, .bold)
-                    .foregroundColor(AppColors.textPrimary(colorScheme))
-                Text(label)
-                    .scaledFont(12)
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
+        if user.lockedOut {
+            statLabel(count, label)
+                .accessibilityElement(children: .combine)
+        } else {
+            Button { onStatTap(kind) } label: { statLabel(count, label) }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("\(count) \(label)"))
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text("\(count) \(label)"))
+    }
+
+    private func statLabel(_ count: Int, _ label: String) -> some View {
+        VStack(spacing: 2) {
+            Text("\(count)")
+                .scaledFont(18, .bold)
+                .foregroundColor(AppColors.textPrimary(colorScheme))
+            Text(label)
+                .scaledFont(12)
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
     }
 
     /// Interests in Hobby. Work skills have their own section below, with

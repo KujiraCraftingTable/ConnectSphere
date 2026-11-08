@@ -349,6 +349,7 @@ enum FeedStore {
     struct FeedRow: Decodable {
         var id: String
         var content: String?
+        var content_format: String?
         var mode: String
         var privacy: String
         var image_url: String?
@@ -543,7 +544,7 @@ enum FeedStore {
                 json_build_object('id', u.id, 'username', u.username,
                   'display_name', \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "p.mode")),
                   'avatar_color', u.avatar_color, 'avatar_url', \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: "p.mode")),
-                  'job_title', u.job_title, 'company', u.company)::text AS author,
+                  'job_title', u.job_title, 'company', u.company, 'is_official', u.app_role = 'admin')::text AS author,
                 COALESCE(json_agg(DISTINCT pt.tag) FILTER (WHERE pt.tag IS NOT NULL AND pt.source = 'user'), '[]')::text AS tags,
                 \(PostStore.typeDataColumns(userID))
                 (CASE WHEN p.community_id IS NOT NULL THEN (
@@ -580,14 +581,16 @@ enum FeedStore {
                 AND NOT EXISTS (SELECT 1 FROM user_blocks ub
                   WHERE (ub.blocker_id = \(uuid: userID) AND ub.blocked_id = p.author_id)
                      OR (ub.blocker_id = p.author_id AND ub.blocked_id = \(uuid: userID)))
+                AND \(AccountBans.visible(userRef: "p.author_id", modeColumn: "p.mode", viewer: userID))
                 AND NOT EXISTS (SELECT 1 FROM hidden_posts hp WHERE hp.user_id = \(uuid: userID) AND hp.post_id = p.id)
                 AND \(PostStore.notHiddenAuthorClause(userID))
                 AND NOT EXISTS (SELECT 1 FROM post_feedback pf
                   WHERE pf.user_id = \(uuid: userID) AND pf.post_id = p.id AND pf.kind = 'less')
                 AND \(PostStore.notMutedWordsClause(userID))
-                AND (p.privacy = 'public' OR (p.privacy = 'friends' AND EXISTS (SELECT 1 FROM connections cf
-                  WHERE cf.status = 'accepted' AND cf.mode = p.mode AND ((cf.requester_id = p.author_id AND cf.addressee_id = \(uuid: userID))
-                    OR (cf.addressee_id = p.author_id AND cf.requester_id = \(uuid: userID))))))
+                -- Who may see it: public, or friends-only for friends, and a locked
+                -- persona's posts only for its friends (the same rule as opening one).
+                -- The official account sees them all.
+                AND (\(PostStore.audienceClause(userID)) OR \(AccountBans.adminViewer(userID)))
               GROUP BY p.id, u.id, c.id
             ),
             ranked AS (
@@ -687,7 +690,7 @@ enum FeedStore {
         }
         let posts = try page.map { r -> FeedPostObject in
             FeedPostObject(
-                id: r.id, content: r.content, mode: r.mode, privacy: r.privacy,
+                id: r.id, content: r.content, content_format: r.content_format, mode: r.mode, privacy: r.privacy,
                 image_url: r.image_url, image_urls: r.image_urls, image_alts: r.image_alts, lang: r.lang, translated_text: r.translated_text, article_title: r.article_title, link_url: r.link_url,
                 like_count: r.like_count, comment_count: r.comment_count, share_count: r.share_count,
                 created_at: r.created_at, post_type: r.post_type, is_pinned: r.is_pinned, pinned_at: r.pinned_at,
@@ -719,6 +722,8 @@ enum FeedStore {
 struct FeedPostObject: Content {
     var id: String
     @NullCoded var content: String?
+    /// "markdown" or "plain"; without it the app showed Markdown posts as raw text.
+    var content_format: String? = nil
     var mode: String
     var privacy: String
     @NullCoded var image_url: String?

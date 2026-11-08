@@ -37,8 +37,8 @@ struct CreateListingView: View {
                     Text("Listing details", bundle: bundle)
                 }
                 Section {
-                    TextField(bundle.loc("Describe what you're selling…"), text: $viewModel.details, axis: .vertical)
-                        .lineLimit(3...8)
+                    MarkdownTextEditor(text: $viewModel.details, placeholder: bundle.loc("Describe what you're selling…"),
+                                       minHeight: 80, maxHeight: 200)
                 } header: {
                     Text("Description", bundle: bundle)
                 }

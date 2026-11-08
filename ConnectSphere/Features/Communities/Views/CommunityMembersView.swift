@@ -18,7 +18,7 @@ struct CommunityMembersView: View {
     private var currentUserRole: MemberRole? { viewModel.community?.role }
     private var isStaff: Bool { currentUserRole == .admin || currentUserRole == .moderator }
     private var isPrivateLockedOut: Bool {
-        viewModel.community?.privacy == .private && viewModel.community?.isMember == false
+        viewModel.community.map { !$0.viewerCanRead } ?? false
     }
 
     var body: some View {
@@ -30,12 +30,7 @@ struct CommunityMembersView: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showReportMember) {
             if let memberId = reportTargetId {
-                ReportSheet(
-                    targetType:  "member",
-                    targetId:    memberId,
-                    communityId: communityId,
-                    token:       appState.authToken ?? ""
-                )
+                ReportSheet(subject: .communityMember(communityId: communityId, userId: memberId))
             }
         }
     }

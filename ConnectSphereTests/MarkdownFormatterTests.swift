@@ -101,6 +101,6 @@ struct MarkdownFormatterTests {
         #expect(s.count == 7)
         #expect(s[4] == .bold)
         let v = live("Xin chào **B**")
-        #expect(v[10] == .bold)
+        #expect(v[11] == .bold)
     }
 }

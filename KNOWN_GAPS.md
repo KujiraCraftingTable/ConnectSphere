@@ -12,8 +12,9 @@ These exist in code but are not wired end-to-end. They are acceptable as
 prototype surface for the project; finishing them is post-submission work.
 
 - **Interest suggestions have no review screen** (`interest_suggestions`,
-  migration 080): there is no app-wide admin role, so suggestions are reviewed
-  in the database and added to `interest_catalog` by hand.
+  migration 080): app admins exist now (migration 089) but their queue covers
+  reports only, so suggestions are still reviewed in the database and added to
+  `interest_catalog` by hand.
 - **Dating is archived, not running.** The app is for friends and colleagues;
   finding a partner is deliberately out of scope. The code lives in
   `legacy/dating/` (see its README to restore it). The database keeps the
@@ -82,6 +83,113 @@ screen in the 2026-11 review). `AppState.restoreSession` now keeps the saved
 login on a network error and opens from the cached profile.
 
 ---
+
+## The official account: one admin, made from the command line
+
+`@connectsphere` is the app's only admin (`users.app_role = 'admin'`, at most
+one by migration 104), with the seal and an "Admin" capsule beside its name
+(comments show the "Admin" capsule, like "Author"). It can't be reported,
+blocked or deleted (`OfficialAccount`). Its rules:
+
+- **Followers, no connections.** Anyone can follow it; it follows no one and
+  sends or accepts no friend requests. Its app has no UI for any of it: no
+  Add friend, Follow, People you may know, Connections/Following feeds,
+  Join or Create community, or friend-request setting.
+- **Communities without joining.** It reads any community, public or private,
+  and can like, comment and share there, but not join, post, save or moderate; each
+  community's own admins and moderators keep those (`can_view`,
+  `officialReads`). Its Home feed and search never show private communities.
+- **Posts per mode, with cross-posting.** Its composer has "Post in Hobby and
+  Work" (text posts on its own feed), which publishes one post in each mode.
+- **Least information.** Only its name and pictures can change; no location,
+  birthday, about, work, education, interests or skills (`official-account
+  tidy` resets them, and `PATCH /users/me` drops those fields).
+- **Support inbox, replies only.** Anyone can message it, with no 3-message
+  limit; it lands in its Waiting requests. It never writes first: no new
+  chats, no groups, and no message into a chat until the other person wrote.
+- **Admin tools**, its own section at the top of Settings: Review reports (the
+  moderation queue), counts per mode, and looking up one account (no email,
+  phone, birthday or messages).
+- **Warns and bans, never reports or blocks.** Wherever people see Report
+  (post, comment, message, profile), the official account sees "Warn or ban".
+  Both go through a case, so the person gets a notification, an email (if
+  their email is verified) and can appeal.
+- **Bans are per mode** (`account_bans`, migration 106): permanent or 7, 30,
+  90 or 365 days, lifting themselves when they end. Banned in a mode, that
+  persona disappears there (profile, posts, comments, stories, search,
+  suggestions) and nobody can follow, connect with or message it; old
+  messages stay. The app sends `X-App-Mode`, and the person sees only the
+  ban notice in that mode (reason, until when, the content it was about,
+  email and in-app appeal, switch to the other mode). Banned in both modes
+  is the whole account; permanent in both also blocks that email and Google
+  account from signing up again (`banned_identities`).
+- **Warnings** count in their mode for 90 days; a third must be a ban, and
+  the admin picks how long. People see their warnings, with the content, in
+  Settings > Manage account > Account status ("Healthy" when there are none).
+- **Locked profiles stay out of other people's feeds.** A locked persona's
+  posts reach only its friends; the official account still sees and opens
+  everything (locked, friends-only, private communities, banned personas).
+
+Deliberately left out:
+
+- **No sign-up for it.** `swift run App official-account claim --user <name>
+  --commit` turns an existing account into it, erasing everything that account
+  had but keeping its email, password and 2FA. Without `--commit` it's a dry
+  run. Moderators can still be added with `moderator grant`.
+- **No boost in the feed.** Its posts are ranked like anyone's; people see
+  them by following it.
+- **Cross-posting covers text posts only**; polls, events and jobs go to one
+  mode. The two copies are separate posts, published one after the other.
+- **One admin is one point of failure.** A lost password goes through the
+  normal password reset; there is no second admin to step in.
+
+## Moderation: reports, admins, appeals, and automatic text checks
+
+Users report anything; app moderators and the one admin decide in
+Settings › Moderation or with
+`swift run App moderation`; authors get strikes, restrictions or bans and can
+appeal from Settings › Account status. Text is checked automatically: word
+rules before saving (with an "Are you sure?" for rude wording in comments and
+chat), per-account rate limits, a local Qwen3Guard check after publishing, and
+behaviour-based spam signals in chat (`ModerationRules`, `UserRateLimiter`,
+`ModerationScan`, `SpamSignals`). Deliberately not done yet:
+
+- **The AI check starts in `shadow` mode** (`MODERATION_MODE`): it opens cases
+  in Held by AI but hides nothing. `swift run App moderation-eval
+  server/Tests/Fixtures/moderation_eval.jsonl` scores it; on the 198-item
+  hand-made set the 4B model wrongly flagged 0 of 90 ordinary messages and
+  caught 92% of 108 harmful ones. That set is small and was written by one
+  person, so check Held by AI on real data for a while before `enforce`.
+  Known misses: threats and self-harm typed without accents ("may lieu hon"),
+  and "hàng trắng" for drugs.
+- **Photo checks need `OPENAI_API_KEY`** (migration 090): every uploaded
+  photo is sent to OpenAI's free moderation endpoint (sexual, graphic violence,
+  self-harm), and content using a flagged photo is held like a flagged text.
+  Without a key every photo is recorded as `unscanned`. **The OpenAI call was
+  never run against the real service** (no key during development); the rest
+  of the flow — the verdict set by hand — was tested. Not covered: videos and
+  HEIC/HEIF files (marked `unscanned`), chat photos (never scanned; reports and
+  the blur for strangers in Waiting), minors in images (OpenAI doesn't judge
+  them in photos), outside link-preview pictures on link posts, and
+  re-encoded copies of a removed photo (only the exact same bytes are refused).
+  Dating profiles are shown only once every photo has been checked, and only
+  while `MODERATION_MODE=enforce` and a key are set.
+- **Photos must be our own uploads** (posts, comments, stories, avatars,
+  covers, communities, group photos): a link to another site is refused, except
+  the preview picture of a link post, and an old post keeps the image it has.
+- **Chat is never read by the AI** — only reports, the word rules before
+  sending, and spam signals — and the OpenAI second opinion (needs
+  `OPENAI_API_KEY`) never sees chat text.
+- **Rate limits and spam counters live in the server process**, so a restart
+  resets them; sharing them needs a Redis client (a new dependency).
+- **Profanity in a post isn't nudged**, only refused when it is a threat or
+  slur: milder wording waits for a report.
+- **A suspended community's posts stay in feeds**; only the community itself
+  drops out of lists and search.
+- **No push for notices**, like every notification (see below).
+- **Restriction isn't checked on every write**: posting, sharing, comments,
+  stories, communities, listings and new message requests refuse it; edits
+  and replies in existing chats don't.
 
 ## Upload metadata, the server's safety net covers JPEG/PNG only
 

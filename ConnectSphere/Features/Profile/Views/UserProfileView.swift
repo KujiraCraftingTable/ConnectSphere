@@ -28,6 +28,9 @@ struct UserProfileView: View {
 
     // Block state
     @State private var showBlockConfirm = false
+    @State private var showReport = false
+    /// Signed in as the official account: it bans instead of reporting or blocking.
+    @State private var showBan = false
     /// Relationship (friend / request / follow) with this person. Shared by
     /// the card's buttons and the ••• menu's Follow item.
     @State private var connect = ConnectViewModel()
@@ -85,19 +88,20 @@ struct UserProfileView: View {
                                 AnyView(actions(for: user))
                             }
                             .rotation3DEffect(.degrees(flipAngle), axis: (x: 0, y: 1, z: 0), perspective: 0.5)
-                            // Locked out: only the card (name, avatar, cover).
-                            if !user.lockedOut {
-                                if mode == .hobby {
-                                    HobbyAboutSection(user: user, isMe: user.id == appState.currentUser?.id)
+                            // The official account keeps no about, education, work or skills.
+                            // Locked out, the About parts stay; Highlights and posts don't.
+                            if mode == .hobby && !user.isOfficial {
+                                HobbyAboutSection(user: user, isMe: user.id == appState.currentUser?.id)
+                                if !user.lockedOut {
                                     HighlightsRow(userId: user.id, isMe: user.id == appState.currentUser?.id)
                                 }
-                                if mode == .work {
-                                    ExperienceSection(userId: user.id, isMe: user.id == appState.currentUser?.id)
-                                    SkillsSection(userId: user.id, isMe: user.id == appState.currentUser?.id,
-                                                  allowsEndorsing: !showingOther)
-                                }
-                                postsSection.id("posts")
                             }
+                            if mode == .work && !user.isOfficial {
+                                ExperienceSection(userId: user.id, isMe: user.id == appState.currentUser?.id)
+                                SkillsSection(userId: user.id, isMe: user.id == appState.currentUser?.id,
+                                              allowsEndorsing: !showingOther)
+                            }
+                            if user.lockedOut { lockedPostsNote(user) } else { postsSection.id("posts") }
                         } else {
                             ProgressView().padding(.top, 120)
                         }
@@ -129,7 +133,7 @@ struct UserProfileView: View {
             if !isSelf {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
-                        if !viewModel.isBlocked && !showingOther {
+                        if !viewModel.isBlocked && !showingOther && !(appState.currentUser?.isOfficial ?? false) {
                             Button {
                                 Task { await connect.setFollowing(!connect.isFollowing, targetId: userId,
                                                                   mode: mode.rawValue) }
@@ -139,17 +143,30 @@ struct UserProfileView: View {
                                                                        : "person.crop.circle.badge.plus")
                             }
                         }
-                        if viewModel.isBlocked {
-                            Button {
-                                Task { await viewModel.toggleBlock(userId: userId) }
-                            } label: {
-                                Label(bundle.loc("Unblock"), systemImage: "person.crop.circle.badge.checkmark")
+                        if appState.currentUser?.isOfficial ?? false {
+                            // The admin doesn't report or block: it bans, through a case.
+                            Button(role: .destructive) { showBan = true } label: {
+                                Label(bundle.loc("Warn or ban"), systemImage: "hand.raised.slash")
                             }
-                        } else {
-                            Button(role: .destructive) {
-                                showBlockConfirm = true
+                        } else if !(user?.isOfficial ?? false) {
+                            // The official account can't be reported or blocked (the server refuses too).
+                            Button {
+                                showReport = true
                             } label: {
-                                Label(bundle.loc("Block user"), systemImage: "nosign")
+                                Label(bundle.loc("Report profile"), systemImage: "flag")
+                            }
+                            if viewModel.isBlocked {
+                                Button {
+                                    Task { await viewModel.toggleBlock(userId: userId) }
+                                } label: {
+                                    Label(bundle.loc("Unblock"), systemImage: "person.crop.circle.badge.checkmark")
+                                }
+                            } else {
+                                Button(role: .destructive) {
+                                    showBlockConfirm = true
+                                } label: {
+                                    Label(bundle.loc("Block user"), systemImage: "nosign")
+                                }
                             }
                         }
                     } label: {
@@ -159,6 +176,17 @@ struct UserProfileView: View {
                     }
                 }
             }
+        }
+        .sheet(isPresented: $showBan) {
+            // The persona being looked at: bans and warnings are per mode.
+            AdminBanSheet(target: ModerationTarget(type: "user", id: userId, userId: userId,
+                                                   userName: user?.name ?? "", mode: mode.rawValue))
+                .environment(themeManager)
+        }
+        .sheet(isPresented: $showReport) {
+            // The profile of the mode being looked at — Hobby and Work are reported apart.
+            ReportSheet(subject: .content(.user, id: userId, mode: mode.rawValue))
+                .environment(themeManager)
         }
         .alert(
             bundle.loc("Block this user?"),
@@ -171,6 +199,8 @@ struct UserProfileView: View {
         } message: {
             Text("You two will no longer see each other's posts, all connections will be removed, and you won't be able to message each other.", bundle: bundle)
         }
+        // Follow/Unfollow on this profile moves the follower count right away.
+        .onChange(of: connect.followDelta) { old, new in viewModel.adjustFollowerCount(by: new - old) }
         .alert(bundle.loc("Error"), isPresented: .constant(viewModel.actionError != nil)) {
             Button(bundle.loc("OK")) { viewModel.actionError = nil }
         } message: {
@@ -238,7 +268,7 @@ struct UserProfileView: View {
                             in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
         } else {
             ProfileActionBar(targetUserId: userId, targetName: user.name, connect: connect,
-                             isOpeningChat: viewModel.isOpeningChat) { openChat() }
+                             isOpeningChat: viewModel.isOpeningChat, targetIsOfficial: user.isOfficial) { openChat() }
         }
     }
 
@@ -278,6 +308,30 @@ struct UserProfileView: View {
     }
 
     // MARK: Posts
+
+    /// In place of the posts for someone outside a locked persona.
+    private func lockedPostsNote(_ user: UserProfile) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: "lock.shield.fill")
+                .scaledFont(28)
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+            Text("This profile is locked", bundle: bundle)
+                .scaledFont(16, .semibold)
+                .foregroundColor(AppColors.textPrimary(colorScheme))
+            Text(String(format: bundle.loc(mode == .work
+                    ? "Connect with %@ to see their posts."
+                    : "Add %@ as a friend to see their posts."), user.name))
+                .scaledFont(14)
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity)
+        .cardStyle()
+        .padding(.horizontal, AppSpacing.sm)
+        .padding(.bottom, 16)
+    }
 
     @ViewBuilder
     private var postsSection: some View {

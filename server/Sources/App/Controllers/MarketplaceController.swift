@@ -47,7 +47,10 @@ struct MarketplaceController {
 
     /// POST /api/listings, a new listing in the Marketplace.
     static func create(_ req: Request) async throws -> Response {
+        try req.requireNotRestricted(spending: .post)
+        try await OfficialAccount.refuse(req.userID, "can't sell in the Marketplace", on: req.db.sql())
         let b = try req.content.decode(CreateBody.self)
+        try ModerationGate.check([b.content, b.listingData?.title, b.listingData?.location, b.listingData?.autoReply], .text)
         guard let mode = b.mode, ["hobby", "work"].contains(mode) else {
             throw Abort(.badRequest, reason: "mode must be hobby or work")
         }
@@ -62,6 +65,7 @@ struct MarketplaceController {
             post.content_format = try await PostStore.setContentFormat(post.id, b.content_format, on: req.db.sql())
         }
         await TranslationService.enqueue(req, .post, id: post.id)
+        await ModerationScan.enqueue(req, .post, id: post.id)
         for communityID in liveIn {
             NotifyService.communityNewPost(app: req.application, postID: post.id, communityID: communityID,
                                            authorID: req.userID, logger: req.logger)

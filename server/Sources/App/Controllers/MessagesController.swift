@@ -228,11 +228,15 @@ struct MessagesController {
         if try await UserStore.isBlockedEitherWay(req.userID, other, on: req.db.sql()) {
             throw Abort(.forbidden, reason: "Cannot message this user")
         }
+        try await AccountBans.refuseIfBanned(other, mode: mode, on: req.db.sql())
         if let existing = try await ChatStore.findConversation(req.userID, other, mode: mode, on: req.db.sql()) {
             return IDData(data: .init(id: existing))
         }
+        // The official account is a support inbox: it answers, it never writes first.
+        try await OfficialAccount.refuse(req.userID, "only replies to people who message it first", on: req.db.sql())
         // Not friends in this mode → the chat waits for them to accept.
         let connected = try await MessageRequests.areConnected(req.userID, other, mode: mode, on: req.db.sql())
+        if !connected { try req.requireNotRestricted(spending: .newChat) }
         let id = try await ChatStore.createConversation(req.userID, other, mode: mode,
                                                         requestFrom: connected ? nil : req.userID, on: req.db)
         return IDData(data: .init(id: id))
@@ -271,12 +275,16 @@ struct MessagesController {
         var meeting_proposal: MeetingProposalIn?
         var voice_duration_seconds: Int?
         var voice_waveform: [Double]?
+        /// The person saw "Are you sure?" and sent it anyway.
+        var confirm: Bool?
         /// For `message_type == "poll"`; the question is `content`.
         var poll: PollIn?
         /// For `message_type == "post"`; `content` is the sender's optional note.
         var shared_post_id: String?
         /// For `message_type == "community"`; `content` is the sender's optional note.
         var shared_community_id: String?
+        /// Sent by the app's Forward action; shows as "Forwarded" with no source.
+        var is_forwarded: Bool?
     }
     struct PollIn: Content { var options: [String]?; var ends_at: String? }
     /// The `messages_message_type_check` values; anything else would be a 500 from the DB.
@@ -323,6 +331,7 @@ struct MessagesController {
             throw Abort(.badRequest, reason: "Media URL is required")
         }
         if let c = b.content, c.count > 2000 { throw Abort(.badRequest, reason: "Message is too long") }
+        try ModerationGate.check([b.content, b.meeting_proposal?.title, b.meeting_proposal?.location], .chat, confirm: b.confirm ?? false)
         let album = try validateAlbum(type: type, items: b.media_items)
 
         var validated: ValidatedMeeting? = nil
@@ -380,8 +389,19 @@ struct MessagesController {
             replyTo = rid
         }
         try await assertNotBlockedInConversation(id, req.userID, on: db)
-        if try await MessageRequests.gate(conversationID: id, senderID: req.userID, on: db) == .limitReached {
-            throw Abort(.forbidden, reason: MessageRequests.limitReason)
+        try await AccountBans.refuseIfPeerBanned(conversationID: id, sender: req.userID, on: db)
+        if try await OfficialAccount.isOfficial(req.userID, on: db),
+           try await !MessageRequests.otherHasWritten(conversationID: id, senderID: req.userID, on: db) {
+            throw Abort(.forbidden, reason: "The official ConnectSphere account only replies to people who message it first")
+        }
+        switch try await MessageRequests.gate(conversationID: id, senderID: req.userID, on: db) {
+        case .limitReached: throw Abort(.forbidden, reason: MessageRequests.limitReason)
+        case .restricted: throw Abort(.forbidden, reason: MessageRequests.restrictedReason)
+        case .open: break
+        }
+
+        if try await MessageRequests.blocksNewAccountLink(conversationID: id, senderID: req.userID, content: b.content, on: db) {
+            throw Abort(.forbidden, reason: MessageRequests.newAccountLinkReason)
         }
 
         let storedContent = b.content?.trimmedText.nilIfEmpty ?? validated?.title
@@ -389,7 +409,8 @@ struct MessagesController {
             content: storedContent, messageType: type,
             mediaUrl: album?.first?.url ?? mediaURL, mediaItems: album, replyToMessageID: replyTo,
             voiceDuration: b.voice_duration_seconds, voiceWaveform: b.voice_waveform,
-            sharedPostID: sharedPost, sharedCommunityID: sharedCommunity, on: db)
+            sharedPostID: sharedPost, sharedCommunityID: sharedCommunity,
+            isForwarded: b.is_forwarded ?? false, on: db)
         if let v = validated {
             try await ChatStore.createMeetingProposalRow(messageID: newID, v, on: db)
         }
@@ -400,6 +421,9 @@ struct MessagesController {
         let parts = try await ChatStore.participants(id, on: db)
         req.socketHub.emitConversation(id, participants: parts, event: "new_message", msg)
         let uid = req.userID
+        let (appDB, hub, log) = (req.application.db, req.socketHub, req.logger)
+        let sentText = storedContent
+        Task { await SpamSignals.afterSend(senderID: uid, conversationID: id, content: sentText, mode: nil, db: appDB, hub: hub, logger: log) }
         if parts.count == 2, let other = parts.first(where: { $0 != uid }) {
             SearchController.creditOutcome(req, to: other, column: "messaged_at")
         }
@@ -428,9 +452,14 @@ struct MessagesController {
         guard target.sender_id.caseInsensitiveCompare(req.userID) == .orderedSame else {
             throw Abort(.forbidden, reason: "You can only unsend your own messages")
         }
+        // Support chats with the official account are a record of what was said:
+        // neither side can take a message back.
+        if try await OfficialAccount.isInConversation(id, on: db) {
+            throw Abort(.forbidden, reason: "Messages in a chat with ConnectSphere can't be unsent")
+        }
+        let parts = try await ChatStore.participants(id, on: db)
         // Already unsent: nothing changed, so there is nothing to broadcast.
         guard try await ChatStore.recall(mid, conversationID: id, senderID: req.userID, on: db) else { return StatusOK() }
-        let parts = try await ChatStore.participants(id, on: db)
         req.socketHub.emitConversation(id, participants: parts, event: "message_deleted",
             WSMessageDeleted(conversation_id: id, message_id: mid))
         return StatusOK()
@@ -568,6 +597,7 @@ struct MessagesController {
         let id = req.parameters.get("id")!
         let db = req.db.sql()
         try await requireParticipant(id, req)
+        try await OfficialAccount.refuseInSupportChat(id, "messages can't be pinned", on: db)
         guard let mid = try req.content.decode(PinBody.self).message_id else { throw Abort(.badRequest, reason: "message_id is required") }
         var expiresAt: String? = nil
         if let raw = try req.content.decode(PinBody.self).expires_at?.nilIfEmpty {
@@ -685,6 +715,7 @@ struct MessagesController {
         }
         guard let mode = b.mode else { throw Abort(.badRequest, reason: "mode is required") }
         guard ["hobby", "work"].contains(mode) else { throw Abort(.badRequest, reason: "Invalid mode") }
+        try ModerationGate.check([b.name], .name)
 
         var seen = Set<String>(); var unique: [String] = []
         for x in memberIDs where seen.insert(x).inserted { unique.append(x) }
@@ -693,6 +724,8 @@ struct MessagesController {
         // Two people is just the 1-on-1 chat they already have.
         if unique.count < 2 { throw Abort(.badRequest, reason: "A group needs at least 3 people, including you") }
         if unique.count + 1 > 100 { throw Abort(.badRequest, reason: "A group cannot have more than 100 members") }
+        // A group would let it write to people who never wrote to it.
+        try await OfficialAccount.refuse(req.userID, "only replies to people who message it first", on: req.db.sql())
 
         var groupName = "New group"
         if let n = b.name {
@@ -732,6 +765,7 @@ struct MessagesController {
         }
 
         if present.contains("nickname") {
+            try await OfficialAccount.refuseInSupportChat(id, "nicknames can't be set", on: db)
             var value: String? = nil
             if let nn = raw.nickname {
                 let t = String(nn.trimmingCharacters(in: .whitespaces).prefix(50))
@@ -858,6 +892,7 @@ struct MessagesController {
         let db = req.db.sql()
         try await requireParticipant(id, req)
         let raw = try req.content.decode(GroupPatchBody.self)
+        try ModerationGate.check([raw.name], .name)
         let present: Set<String> = {
             guard let dict = try? req.content.decode([String: AnyCodableValue].self) else { return [] }
             return Set(dict.keys)

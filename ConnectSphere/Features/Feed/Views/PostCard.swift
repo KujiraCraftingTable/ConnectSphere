@@ -503,9 +503,12 @@ struct PostCard: View {
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                     }
                     .buttonStyle(.plain)
+                    if post.author.isOfficial { OfficialBadge(compact: true).padding(.leading, -5) }
 
                     // Only show Connect if this isn't the current user
-                    if showConnectButton && post.author.id != appState.currentUser?.id {
+                    // The official account neither connects nor is connected with.
+                    if showConnectButton && post.author.id != appState.currentUser?.id && !post.author.isOfficial
+                        && !(appState.currentUser?.isOfficial ?? false) {
                         ConnectButton(targetUserId: post.author.id, compact: true)
                     }
                 }
@@ -614,13 +617,13 @@ struct PostCard: View {
                     Task { await actions.toggleLike(postId: post.id) }
                 } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: actions.isLiked ? "hand.thumbsup.fill" : "hand.thumbsup")
-                            .scaledFont(20)
-                            .foregroundColor(actions.isLiked ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
+                        LikeIcon(isLiked: actions.isLiked,
+                                 color: actions.isLiked ? themeManager.theme.primary : AppColors.textSecondary(colorScheme),
+                                 size: 22)
                         actionCount(actions.likeCount)
                     }
                 }
-                .accessibilityLabel(Bundle.app.loc("Like"))
+                .accessibilityLabel(Bundle.app.loc("Whale"))
 
                 Button {
                     if let onOpenDetail { onOpenDetail(true) } else if let onCommentTap { onCommentTap() } else { showComments = true }
@@ -639,15 +642,20 @@ struct PostCard: View {
 
             // Save + Share. Bottom right
             HStack(spacing: 16) {
-                Button {
-                    Task { await actions.toggleSave(post: post) }
-                } label: {
-                    Image(systemName: actions.isSaved ? "bookmark.fill" : "bookmark")
-                        .scaledFont(20)
-                        .foregroundColor(actions.isSaved ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
+                // The official account visits communities and the Marketplace without saving.
+                if !((post.community != nil || post.postType == .listing) && (appState.currentUser?.isOfficial ?? false)) {
+                    Button {
+                        Task { await actions.toggleSave(post: post) }
+                    } label: {
+                        Image(systemName: actions.isSaved ? "bookmark.fill" : "bookmark")
+                            .scaledFont(20)
+                            .foregroundColor(actions.isSaved ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
+                    }
+                    .accessibilityLabel(actions.isSaved ? Bundle.app.loc("Unsave") : Bundle.app.loc("Save"))
                 }
-                .accessibilityLabel(actions.isSaved ? Bundle.app.loc("Unsave") : Bundle.app.loc("Save"))
 
+                // The official account monitors the Marketplace without sharing items.
+                if !(post.postType == .listing && (appState.currentUser?.isOfficial ?? false)) {
                 Button { showShareSheet = true } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "arrowshape.turn.up.right")
@@ -657,6 +665,7 @@ struct PostCard: View {
                     }
                 }
                 .accessibilityLabel(Bundle.app.loc("Share"))
+                }
             }
         }
         .padding(.horizontal, 14)

@@ -44,13 +44,11 @@ struct EducationsController {
         var id = req.parameters.get("id")!
         if id == "me" { id = req.userID }
         guard UUID(uuidString: id) != nil else { throw Abort(.notFound) }
-        if try await ProfileLock.lockedOut(viewer: req.userID, owner: id, mode: "hobby", on: req.db.sql()) {
-            return DataListResponse(data: [])
-        }
         return DataListResponse(data: try await EducationStore.list(of: id.lowercased(), on: req.db.sql()))
     }
 
     static func create(_ req: Request) async throws -> DataListResponse<EducationStore.Education> {
+        try await OfficialAccount.refuse(req.userID, "keeps no education or work history", on: req.db.sql())
         let fields = try validate(try req.content.decode(Body.self))
         let db = req.db.sql()
         guard try await EducationStore.count(of: req.userID, on: db) < EducationStore.maxEntries else {
@@ -62,6 +60,7 @@ struct EducationsController {
     }
 
     static func update(_ req: Request) async throws -> DataListResponse<EducationStore.Education> {
+        try await OfficialAccount.refuse(req.userID, "keeps no education or work history", on: req.db.sql())
         guard let id = req.parameters.get("educationId"), UUID(uuidString: id) != nil else { throw Abort(.notFound) }
         let fields = try validate(try req.content.decode(Body.self))
         let db = req.db.sql()

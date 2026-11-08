@@ -82,6 +82,7 @@ struct ChatView: View {
     @State private var messageToRecall: Message?
     // "Forward", pick a target conversation, re-send this message's content there.
     @State private var forwardingMessage: Message?
+    @State private var reportingMessage: Message?
     @State private var connectVM = ConnectViewModel()
     @AppStorage("messageSoundEnabled") private var messageSoundEnabled = true
     private let bottomID = "chatBottom"
@@ -223,6 +224,9 @@ struct ChatView: View {
                             Text(headerName)
                                 .scaledFont(17, .semibold)
                                 .foregroundColor(AppColors.textPrimary(colorScheme))
+                            if viewModel.withOfficial && !(appState.currentUser?.isOfficial ?? false) {
+                                OfficialBadge(compact: true).padding(.leading, -3)
+                            }
                             if viewModel.isMuted {
                                 Image(systemName: "bell.slash.fill")
                                     .scaledFont(12)
@@ -389,6 +393,7 @@ struct ChatView: View {
         .sheet(item: $pinningMessage) { message in
             pinExpirySheet(for: message)
         }
+        .sheet(item: $reportingMessage) { message in reportSheet(for: message) }
         .sheet(item: $forwardingMessage) { message in
             ForwardMessagePickerView(excludeConversationId: conversationId) { targetConversationId in
                 Task { await viewModel.forward(message, to: targetConversationId) }
@@ -413,6 +418,15 @@ struct ChatView: View {
         // Surfaces both socket-ack rejections (send/react/reply/meeting actions)
         // and REST-fallback failures. Previously `viewModel.error` was set but
         // never read anywhere, so every one of those failures was silent.
+        .alert(bundle.loc("Are you sure you want to send this?"),
+               isPresented: Binding(get: { viewModel.held != nil }, set: { _ in })) {
+            Button(bundle.loc("Send anyway")) { Task { await viewModel.sendHeld() } }
+            Button(bundle.loc("Edit"), role: .cancel) {
+                if let held = viewModel.takeHeldText() { inputText = held }
+            }
+        } message: {
+            Text("This may hurt someone. You can edit it first.", bundle: bundle)
+        }
         .alert(bundle.loc("Error"), isPresented: .constant(viewModel.error != nil)) {
             Button(bundle.loc("OK")) { viewModel.error = nil }
         } message: {
@@ -782,40 +796,14 @@ struct ChatView: View {
                         // One view per row (separator + bubble) so `scrollTo` and the
                         // appear animation keep targeting a single thing per message id.
                         let messages = viewModel.messages
+                        let coversStrangerMedia = viewModel.requestState == .waiting
                         ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
                             let isOwn = message.isOwn(userId: appState.currentUser?.id ?? "")
                             VStack(spacing: 0) {
                                 if ChatTimeline.showsSeparator(before: index, in: messages) {
                                     timeSeparator(for: message.createdAt)
                                 }
-                                MessageBubble(message: message, isOwn: isOwn, palette: chatPalette,
-                                              currentUserId: appState.currentUser?.id ?? "",
-                                              otherParticipantIds: otherParticipantIds,
-                                              isGroup: viewModel.isGroup,
-                                              isPlayful: appState.currentMode == .hobby,
-                                              showsMeta: ChatTimeline.endsRun(at: index, in: messages),
-                                              onMediaTap: openMediaViewer,
-                                              onReplyPreviewTap: { messageId in
-                                                  Task { await jumpToMessage(messageId) }
-                                              },
-                                              onMeetingRespond: { msg, status in
-                                                  Task { await viewModel.respondToMeeting(messageId: msg.id, status: status) }
-                                              },
-                                              onMeetingEdit: { msg in
-                                                  openMeetingEditor(for: msg)
-                                              },
-                                              onMeetingCancel: { msg in
-                                                  Task { await viewModel.cancelMeeting(messageId: msg.id) }
-                                              },
-                                              onPollVote: { msg, optionId in
-                                                  Task { await viewModel.tapPollOption(messageId: msg.id, optionId: optionId) }
-                                              },
-                                              sharedPost: message.sharedPostId.flatMap { viewModel.sharedPosts[$0] }
-                                                  ?? (message.messageType == .post && message.sharedPostId == nil ? .unavailable : nil),
-                                              onSharedPostAppear: {
-                                                  Task { await viewModel.loadSharedPost(message.sharedPostId) }
-                                              },
-                                              onOpenSharedPost: { openedSharedPost = OpenedSharedPost(id: $0.id) })
+                                bubble(for: message, at: index, in: messages, isOwn: isOwn, coversStrangerMedia: coversStrangerMedia)
                                     .modifier(MessageAppearModifier(
                                         id: message.id,
                                         appearedIDs: $appearedMessageIDs,
@@ -834,82 +822,7 @@ struct ChatView: View {
                                         isEnabled: !message.isDeleted && !(viewModel.isBlocked && !viewModel.isGroup),
                                         onReply: { beginReply(to: message) }
                                     ))
-                                    .contextMenu {
-                                        // The quick-react row must be a true top-level, unconditional
-                                        // first item, a ControlGroup wrapped inside an `if` (as this
-                                        // was previously) can lose iOS's "first ControlGroup renders as
-                                        // its own horizontal strip, separate from the vertical action
-                                        // list below" behavior, since the menu content is then a
-                                        // conditional-content node rather than a plain ControlGroup.
-                                        // Reactions become an empty (so effectively invisible) group
-                                        // for a deleted message instead of wrapping the whole thing.
-                                        ControlGroup {
-                                            let myReaction = message.myReaction(userId: appState.currentUser?.id ?? "")
-                                            // Hobby keeps the full set (already the max the server
-                                            // allows); Work is curated to the two most professional-
-                                            // reading emoji in that same allowlist (server:
-                                            // ChatStore.reactionEmoji). Deleted messages get none.
-                                            let quickReactions: [ReactionEmoji] = message.isDeleted ? [] :
-                                                (appState.currentMode == .hobby ? ReactionEmoji.allCases : [.thumbsUp, .heart])
-                                            ForEach(quickReactions, id: \.rawValue) { r in
-                                                // Distinguish the current user's own reaction (if any)
-                                                // in the quick-react row, mirroring MessageBubble's
-                                                // highlighted pill for the same reaction.
-                                                Button(r.rawValue == myReaction ? "\(r.rawValue) ✓" : r.rawValue) {
-                                                    Task { await viewModel.sendReaction(messageId: message.id, emoji: r.rawValue) }
-                                                }
-                                            }
-                                        }
-
-                                        if !message.isDeleted {
-                                            Button {
-                                                beginReply(to: message)
-                                            } label: {
-                                                Label(bundle.loc("Reply"), systemImage: "arrowshape.turn.up.left")
-                                            }
-
-                                            // Meeting proposals carry RSVP/reminder state tied to this
-                                            // specific conversation, forwarding one as-is wouldn't
-                                            // make sense, so it's excluded here.
-                                            if message.messageType != .meeting {
-                                                Button {
-                                                    forwardingMessage = message
-                                                } label: {
-                                                    Label(bundle.loc("Forward"), systemImage: "arrowshape.turn.up.right")
-                                                }
-                                            }
-
-                                            if !saveItems(for: message).isEmpty {
-                                                Button {
-                                                    let items = saveItems(for: message)
-                                                    Task { await mediaSaver.save(items) }
-                                                } label: {
-                                                    Label(bundle.loc("Save to Photos"), systemImage: "square.and.arrow.down")
-                                                }
-                                            }
-
-                                            if viewModel.pinnedMessageIds.contains(message.id) {
-                                                Button {
-                                                    Task { await viewModel.unpinMessage(message.id) }
-                                                } label: {
-                                                    Label(bundle.loc("Unpin"), systemImage: "pin.slash")
-                                                }
-                                            } else {
-                                                Button {
-                                                    beginPinning(message)
-                                                } label: {
-                                                    Label(bundle.loc("Pin"), systemImage: "pin")
-                                                }
-                                            }
-                                        }
-                                        if isOwn && !message.isDeleted {
-                                            Button(role: .destructive) {
-                                                messageToRecall = message
-                                            } label: {
-                                                Label(bundle.loc("Unsend message"), systemImage: "arrow.uturn.backward")
-                                            }
-                                        }
-                                    }
+                                    .contextMenu { messageMenu(for: message, isOwn: isOwn) }
                             }
                         }
                     }
@@ -1425,6 +1338,120 @@ struct ChatView: View {
         let replyTo = replyingTo?.id
         replyingTo = nil
         Task { await viewModel.sendText(quickEmoji, replyTo: replyTo) }
+    }
+
+    // MARK: - Message row
+
+    /// One message's bubble and what it does. Built here, not inline in the
+    /// list, which was already near the limit of what the compiler can
+    /// type-check in reasonable time.
+    private func bubble(for message: Message, at index: Int, in messages: [Message], isOwn: Bool,
+                        coversStrangerMedia: Bool) -> MessageBubble {
+        let sharedPost: ChatViewModel.SharedPostState? = message.sharedPostId.flatMap { viewModel.sharedPosts[$0] }
+            ?? (message.messageType == .post && message.sharedPostId == nil ? .unavailable : nil)
+        return MessageBubble(
+            message: message, isOwn: isOwn, palette: chatPalette,
+            currentUserId: appState.currentUser?.id ?? "",
+            otherParticipantIds: otherParticipantIds,
+            isGroup: viewModel.isGroup,
+            isPlayful: appState.currentMode == .hobby,
+            showsMeta: ChatTimeline.endsRun(at: index, in: messages),
+            coversStrangerMedia: coversStrangerMedia,
+            onMediaTap: openMediaViewer,
+            onReplyPreviewTap: { messageId in Task { await jumpToMessage(messageId) } },
+            onMeetingRespond: { msg, status in Task { await viewModel.respondToMeeting(messageId: msg.id, status: status) } },
+            onMeetingEdit: { msg in openMeetingEditor(for: msg) },
+            onMeetingCancel: { msg in Task { await viewModel.cancelMeeting(messageId: msg.id) } },
+            onPollVote: { msg, optionId in Task { await viewModel.tapPollOption(messageId: msg.id, optionId: optionId) } },
+            sharedPost: sharedPost,
+            onSharedPostAppear: { Task { await viewModel.loadSharedPost(message.sharedPostId) } },
+            onOpenSharedPost: { openedSharedPost = OpenedSharedPost(id: $0.id) },
+            onDoubleTap: { Task { await viewModel.toggleWhale(messageId: message.id) } })
+    }
+
+    // MARK: - Message long-press menu
+
+    /// Reply, forward, save, pin, unsend, report. A function of its own
+    /// because inline it pushed the message list past what the compiler can
+    /// type-check in reasonable time.
+    /// Report for everyone; the official account warns or bans instead. A
+    /// message has no mode on the server, so its warning counts in both.
+    @ViewBuilder
+    private func reportSheet(for message: Message) -> some View {
+        if appState.currentUser?.isOfficial ?? false {
+            AdminBanSheet(target: ModerationTarget(type: "message", id: message.id, userId: message.senderId,
+                                                   userName: peer.name, mode: nil))
+                .environment(themeManager)
+        } else {
+            ReportSheet(subject: .content(.message, id: message.id))
+                .environment(themeManager)
+        }
+    }
+
+    @ViewBuilder
+    private func messageMenu(for message: Message, isOwn: Bool) -> some View {
+        if !message.isDeleted {
+            Button {
+                beginReply(to: message)
+            } label: {
+                Label(bundle.loc("Reply"), systemImage: "arrowshape.turn.up.left")
+            }
+
+            // Meeting proposals carry RSVP/reminder state tied to this
+            // specific conversation, forwarding one as-is wouldn't
+            // make sense, so it's excluded here.
+            if message.messageType != .meeting {
+                Button {
+                    forwardingMessage = message
+                } label: {
+                    Label(bundle.loc("Forward"), systemImage: "arrowshape.turn.up.right")
+                }
+            }
+
+            if !saveItems(for: message).isEmpty {
+                Button {
+                    let items = saveItems(for: message)
+                    Task { await mediaSaver.save(items) }
+                } label: {
+                    Label(bundle.loc("Save to Photos"), systemImage: "square.and.arrow.down")
+                }
+            }
+
+            // Nobody pins in a chat with ConnectSphere.
+            if viewModel.withOfficial {
+                EmptyView()
+            } else if viewModel.pinnedMessageIds.contains(message.id) {
+                Button {
+                    Task { await viewModel.unpinMessage(message.id) }
+                } label: {
+                    Label(bundle.loc("Unpin"), systemImage: "pin.slash")
+                }
+            } else {
+                Button {
+                    beginPinning(message)
+                } label: {
+                    Label(bundle.loc("Pin"), systemImage: "pin")
+                }
+            }
+        }
+        if isOwn && !message.isDeleted && !viewModel.withOfficial && !(appState.currentUser?.isOfficial ?? false) {
+            Button(role: .destructive) {
+                messageToRecall = message
+            } label: {
+                Label(bundle.loc("Unsend message"), systemImage: "arrow.uturn.backward")
+            }
+        }
+        if !isOwn && !message.isDeleted {
+            Button {
+                reportingMessage = message
+            } label: {
+                if appState.currentUser?.isOfficial ?? false {
+                    Label(bundle.loc("Warn or ban"), systemImage: "hand.raised.slash")
+                } else {
+                    Label(bundle.loc("Report message"), systemImage: "flag")
+                }
+            }
+        }
     }
 
     // MARK: - Helpers

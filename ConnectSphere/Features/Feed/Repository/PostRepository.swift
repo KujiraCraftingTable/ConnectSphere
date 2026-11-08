@@ -160,7 +160,8 @@ struct PostRepository {
         articleTitle: String? = nil,
         hashtags: [String] = [],
         publish: PublishChoice = .now,
-        replacesDraft: String? = nil
+        replacesDraft: String? = nil,
+        alsoOtherMode: Bool = false
     ) async throws -> Post {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")
@@ -178,6 +179,7 @@ struct PostRepository {
         if let lnk = linkUrl       { body["link_url"]      = lnk }
         if let ttl = articleTitle  { body["article_title"] = ttl }
         if !hashtags.isEmpty       { body["hashtags"]      = hashtags }
+        if alsoOtherMode           { body["also_other_mode"] = true }
         publish.apply(to: &body, replacing: replacesDraft)
 
         let bodyData = try? JSONSerialization.data(withJSONObject: body)
@@ -295,8 +297,9 @@ struct PostRepository {
 
     /// Posts a comment, or a reply when `parentCommentId` is set, and returns
     /// the created comment. `POST /posts/:id/comments` → 201 `{ data: CommentDTO }`.
+    /// `confirmed`: the person saw "Are you sure?" about rude wording and sent it anyway.
     func addComment(postId: String, content: String, parentCommentId: String? = nil,
-                    imageUrl: String? = nil) async throws -> CommentDTO {
+                    imageUrl: String? = nil, confirmed: Bool = false) async throws -> CommentDTO {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")
         }
@@ -304,6 +307,7 @@ struct PostRepository {
         var body: [String: Any] = ["content": content, "content_format": Self.contentFormat]
         if let parentCommentId { body["parent_comment_id"] = parentCommentId }
         if let imageUrl { body["image_url"] = imageUrl }
+        if confirmed { body["confirm"] = true }
         let response = try await client.fetch(
             AddCommentResponse.self,
             path: "/posts/\(postId)/comments",
@@ -447,31 +451,6 @@ struct PostRepository {
             ]
         )
         return response.data.map { $0.toPost() }
-    }
-
-    /// Reports a post for a violation (spam, harassment, etc.).
-    /// The backend endpoint /posts/:id/report is shared between community posts and
-    /// regular Feed posts; the service matches the post's `community_id` against the
-    /// `communityId` sent up using strict equality, so `communityId: null` must be sent
-    /// explicitly (not omitted) to match Feed posts, which always have community_id =
-    /// NULL in the DB.
-    func reportPost(postId: String, reason: ReportReason, detail: String? = nil) async throws {
-        guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
-            throw APIError.serverError(statusCode: 401, message: "Not authenticated")
-        }
-        var body: [String: Any] = ["reason": reason.rawValue, "communityId": NSNull()]
-        if let detail, !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            body["detail"] = detail
-        }
-        let bodyData = try? JSONSerialization.data(withJSONObject: body)
-        struct Empty: Decodable {}
-        _ = try await client.fetch(
-            Empty.self,
-            path: "/posts/\(postId)/report",
-            method: "POST",
-            token: token,
-            bodyData: bodyData
-        )
     }
 
     /// Updates a post's content, privacy, and images; returns the updated Post

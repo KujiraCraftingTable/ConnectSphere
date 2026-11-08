@@ -13,6 +13,8 @@ struct CreatePostView: View {
     @State private var content = ""
     @State private var privacy: PostPrivacy = .publicAll
     @State private var showPrivacyPicker = false
+    /// The official account's cross-post: the same post in Hobby and Work.
+    @State private var postInBothModes = false
 
     // Post type (Phase 2: Feed can now post polls/events, not just text),
     // hidden entirely in edit mode, which only supports editing text posts.
@@ -174,6 +176,12 @@ struct CreatePostView: View {
                                         .background(Capsule().fill(themeManager.theme.softFill))
                                     }
                                     .buttonStyle(.plain)
+                                    if canCrossPost {
+                                        Toggle(bundle.loc("Post in Hobby and Work"), isOn: $postInBothModes)
+                                            .scaledFont(13, .semibold)
+                                            .tint(themeManager.theme.primary)
+                                            .fixedSize()
+                                    }
                                 }
                             }
 
@@ -222,23 +230,14 @@ struct CreatePostView: View {
                         }
 
                         // ── Row 2: Text box ────────────────────────────────────
-                        ZStack(alignment: .topLeading) {
-                            if content.isEmpty {
-                                Text(placeholderText)
-                                    .scaledFont(16)
-                                    .foregroundColor(AppColors.textTertiary(colorScheme))
-                                    .padding(.top, 12)
-                                    .padding(.leading, 14)
-                            }
-                            TextEditor(text: $content)
-                                .scaledFont(16)
-                                .foregroundColor(AppColors.textPrimary(colorScheme))
-                                .frame(minHeight: 150)
-                                .scrollContentBackground(.hidden)
-                                .background(Color.clear)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                        }
+                        // Same size and line width as the text in a post card (15pt body,
+                        // 8pt card margin + 12pt padding, so 20pt in from the screen edge
+                        // with the editor's own 5pt inset), so it wraps exactly like the post.
+                        MarkdownTextEditor(text: $content, placeholder: placeholderText,
+                                           size: AppFont.body.spec.size,
+                                           minHeight: 150, maxHeight: 360)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 6)
                         .background(
                             RoundedRectangle(cornerRadius: 16)
                                 .fill(AppColors.surface(colorScheme))
@@ -255,7 +254,7 @@ struct CreatePostView: View {
                                 .foregroundColor(remaining < 50 ? AppColors.danger(colorScheme) : AppColors.textTertiary(colorScheme))
                                 .padding(10)
                         }
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, 8)
 
                         // ── Poll/Event/Job inline sections, @Binding-only
                         // components, already post-type-agnostic. ────────────
@@ -593,6 +592,7 @@ struct CreatePostView: View {
                 hashtags: hashtags,
                 publish: publish,
                 replacesDraft: draftId,
+                alsoOtherMode: canCrossPost && postInBothModes,
                 onSuccess: finish
             )
         } else {
@@ -608,6 +608,12 @@ struct CreatePostView: View {
                 ) { communityPost in finish(feedPost(from: communityPost)) }
             }
         }
+    }
+
+    /// Only the official account cross-posts, and only a text post on its own
+    /// feed (a community post belongs to that community's mode).
+    private var canCrossPost: Bool {
+        (appState.currentUser?.isOfficial ?? false) && target == nil && postType == .text
     }
 
     /// A community takes every post type through its own endpoint, text

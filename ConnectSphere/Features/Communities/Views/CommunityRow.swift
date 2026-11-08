@@ -6,6 +6,7 @@ struct CommunityRow: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.appBundle) var bundle
     @Environment(ThemeManager.self) var themeManager
+    @Environment(AppState.self) private var appState
     let community: Community
     /// Join or leave; nil hides the button.
     var onToggle: (() -> Void)?
@@ -44,7 +45,8 @@ struct CommunityRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            if let onToggle { joinButton(onToggle) }
+            // The official account visits communities but never joins one.
+            if let onToggle, !(appState.currentUser?.isOfficial ?? false) { joinButton(onToggle) }
         }
         .padding(12)
         .surfaceBackground()

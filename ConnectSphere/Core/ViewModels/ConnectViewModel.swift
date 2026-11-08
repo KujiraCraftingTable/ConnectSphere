@@ -173,15 +173,23 @@ class ConnectViewModel {
 
     private let followRepository = ConnectionRepository()
 
+    /// Net follows made here since the screen opened (+1 follow, -1 unfollow).
+    /// Changes only on a tap, never on loading, so the profile can move its
+    /// follower count by the difference.
+    private(set) var followDelta = 0
+
     /// Optimistic; rolled back with an error if the server refuses.
     func setFollowing(_ follow: Bool, targetId: String, mode: String) async {
         let previous = isFollowing
+        guard follow != previous else { return }
         isFollowing = follow
+        followDelta += follow ? 1 : -1
         do {
             if follow { try await followRepository.follow(userId: targetId, mode: mode) }
             else      { try await followRepository.unfollow(userId: targetId, mode: mode) }
         } catch {
             isFollowing = previous
+            followDelta -= follow ? 1 : -1
             errorMessage = friendlyError(error)
         }
     }

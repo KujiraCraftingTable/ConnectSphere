@@ -37,7 +37,7 @@ enum UserStore {
               (SELECT w.province_code FROM vn_wards w WHERE w.id = u.ward_id) AS ward_province_code,
               u.gender, u.dob,
               u.job_title, u.company, u.phone, u.email,
-              u.is_setup, u.default_mode, u.hobby_theme, u.work_theme,
+              u.is_setup, u.default_mode, u.hobby_theme, u.work_theme, u.app_role = 'admin' AS is_official,
               u.follower_count, u.following_count,
               -- This persona's own posts, never ones made in a community or
               -- marketplace listings (each has its own page): the profile list's rule.

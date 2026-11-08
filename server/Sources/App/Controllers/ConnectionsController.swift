@@ -123,6 +123,7 @@ struct ConnectionsController {
     struct ConnResult: Content { var connection_id: String; var status: String }
 
     static func request(_ req: Request) async throws -> Response {
+        try req.requireNotRestricted(spending: .friendRequest)
         let b = try req.content.decode(RequestBody.self)
         let mode = b.mode ?? "hobby"
         guard let addresseeID = b.addressee_id else { throw InlineError(.badRequest, "addressee_id required") }
@@ -141,6 +142,10 @@ struct ConnectionsController {
             """).first(decoding: One.self) != nil {
             throw InlineError(.forbidden, "Cannot send request to this user")
         }
+        try await AccountBans.refuseIfBanned(addresseeID, mode: mode, on: db)
+        // The official account has followers, never connections, in either direction.
+        try await OfficialAccount.refuse(req.userID, "doesn't make connections", on: db)
+        try await OfficialAccount.refuse(addresseeID, "doesn't make connections. Follow it instead", on: db)
         let existingConnection = try await findConnection(req.userID, addresseeID, mode: mode, on: db)
         // Turned off → strangers can only follow. A request they already
         // sent us can still be answered (that's handled as "pending_received").

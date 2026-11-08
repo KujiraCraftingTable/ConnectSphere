@@ -29,6 +29,9 @@ struct PostOptionsMenu: View {
     @State private var showDeleteAlert = false
     @State private var showEditSheet = false
     @State private var showEditListing = false
+    @State private var showReport = false
+    /// The official account warns or bans instead of reporting.
+    @State private var showModerate = false
 
     var body: some View {
         menu
@@ -68,21 +71,17 @@ struct PostOptionsMenu: View {
             } message: {
                 Text("This post won't be shown in the app. You can restore it from Recently Deleted within 30 days.", bundle: bundle)
             }
-            // After a report: thanks, and the optional block / hide-all steps.
-            // Done leaves the post exactly as it was.
-            .sheet(isPresented: Binding(get: { actions.showReportFollowUp }, set: { actions.showReportFollowUp = $0 })) {
-                ReportFollowUpSheet(
-                    authorName: actions.authorName,
-                    onBlock: { Task { await actions.blockAuthor() }; onPostHidden?() },
-                    onHideAll: { Task { await actions.hideAuthor() }; onPostHidden?() }
-                )
-                .environment(themeManager)
+            .sheet(isPresented: $showModerate) {
+                AdminBanSheet(target: ModerationTarget(type: "post", id: post.id, userId: post.author.id,
+                                                       userName: post.author.name, mode: post.mode.rawValue))
+                    .environment(themeManager)
             }
-            .alert(actions.reportResultMessage ?? "", isPresented: Binding(
-                get: { actions.reportResultMessage != nil },
-                set: { if !$0 { actions.reportResultMessage = nil } }
-            )) {
-                Button(bundle.loc("Done")) {}
+            .sheet(isPresented: $showReport) {
+                // Reporting doesn't hide the post: it stays where it is until a
+                // moderator decides (the reporter can still Hide it themselves).
+                ReportSheet(subject: .content(.post, id: post.id),
+                            blockUser: (post.author.id, post.author.name))
+                .environment(themeManager)
             }
             // Delete/hide/restore failures
             .alert(actions.actionErrorMessage ?? "", isPresented: Binding(
@@ -128,6 +127,13 @@ struct PostOptionsMenu: View {
                 } label: {
                     Label(bundle.loc("Delete post"), systemImage: "trash")
                 }
+            } else if appState.currentUser?.isOfficial ?? false {
+                // The admin doesn't tune its feed or report: it warns or bans.
+                if !post.author.isOfficial {
+                    Button(role: .destructive) { showModerate = true } label: {
+                        Label(bundle.loc("Warn or ban"), systemImage: "hand.raised.slash")
+                    }
+                }
             } else {
                 // Teach the For you feed: more or less like this (and from this person).
                 Button {
@@ -152,17 +158,10 @@ struct PostOptionsMenu: View {
                 } label: {
                     Label(bundle.loc("Hide post"), systemImage: "eye.slash")
                 }
-                // The reasons open beside the item, inside the same menu.
-                Menu {
-                    Section(bundle.loc("Why are you reporting this content?")) {
-                        ForEach(ReportReason.allCases, id: \.self) { reason in
-                            Button(reason.displayName) {
-                                Task { await actions.report(postId: post.id, reason: reason) }
-                            }
-                        }
+                if !post.author.isOfficial {
+                    Button { showReport = true } label: {
+                        Label(bundle.loc("Report post"), systemImage: "flag")
                     }
-                } label: {
-                    Label(bundle.loc("Report post"), systemImage: "flag")
                 }
             }
         } label: {

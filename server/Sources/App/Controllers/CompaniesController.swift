@@ -30,6 +30,8 @@ struct CompaniesController {
 
     /// Trims and checks the fields; blank optional fields become nil.
     static func validate(_ b: Body, now: Date = Date()) throws -> CompanyStore.Fields {
+        try ModerationGate.check([b.name, b.industry, b.website], .name)
+        try ModerationGate.check([b.about], .text)
         let name = (b.name ?? "").trimmedText
         guard (2...100).contains(name.count) else {
             throw Abort(.badRequest, reason: "Company name must be 2 to 100 characters")
@@ -92,6 +94,7 @@ struct CompaniesController {
             throw Abort(.conflict, reason: "A page for this company already exists")
         }
         let id = try await CompanyStore.create(fields, owner: req.userID, on: req.db)
+        await ModerationScan.enqueue(req, .company, id: id)
         guard let made = try await CompanyStore.byID(id, viewer: req.userID, on: db) else { throw Abort(.internalServerError) }
         return try await ConnectionsController.encode(DataResponse(data: made), req, .created)
     }
@@ -107,6 +110,7 @@ struct CompaniesController {
             throw Abort(.conflict, reason: "A page for this company already exists")
         }
         try await CompanyStore.update(id, fields, on: db)
+        await ModerationScan.enqueue(req, .company, id: id)
         return DataResponse(data: try await company(req))
     }
 

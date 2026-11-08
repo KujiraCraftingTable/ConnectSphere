@@ -160,3 +160,5 @@ Summarised from [`KNOWN_GAPS.md`](KNOWN_GAPS.md):
 | **Highlight** | A saved collection of stories on a profile |
 | **Space** | A folder that groups chat conversations |
 | **Meeting proposal** | A chat message proposing a time and place to meet, with a reminder |
+| **Official account** | `@connectsphere`, with the seal badge: announces new features and is the app's only admin. Can't be reported, blocked or deleted |
+| **Whale** | The app's word for a like, after the whale mascot: tap the whale to whale a post or comment ("Kujira whaled your post"). It is grey until you whale, then takes your theme colour |

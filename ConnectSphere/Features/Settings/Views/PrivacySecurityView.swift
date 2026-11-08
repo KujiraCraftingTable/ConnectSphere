@@ -50,29 +50,31 @@ struct PrivacySecurityView: View {
                 }
             }
 
-            // Who can send friend requests
-            Section {
-                SettingToggleRow(isOn: Binding(
-                    get: { appState.currentUser?.allowFriendRequests ?? true },
-                    set: { allow in Task { await friendRequests.set(allow, appState: appState) } }
-                )) {
-                    HStack(spacing: 12) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 7)
-                                .fill(themeManager.theme.primary)
-                                .frame(width: 30, height: 30)
-                            Image(systemName: "person.badge.plus")
-                                .scaledFont(14)
-                                .foregroundColor(.white)
+            // Who can send friend requests. The official account has no friends.
+            if !(appState.currentUser?.isOfficial ?? false) {
+                Section {
+                    SettingToggleRow(isOn: Binding(
+                        get: { appState.currentUser?.allowFriendRequests ?? true },
+                        set: { allow in Task { await friendRequests.set(allow, appState: appState) } }
+                    )) {
+                        HStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 7)
+                                    .fill(themeManager.theme.primary)
+                                    .frame(width: 30, height: 30)
+                                Image(systemName: "person.badge.plus")
+                                    .scaledFont(14)
+                                    .foregroundColor(.white)
+                            }
+                            Text("Allow friend requests", bundle: bundle)
+                                .scaledFont(16)
+                                .foregroundColor(AppColors.textPrimary(colorScheme))
                         }
-                        Text("Allow friend requests", bundle: bundle)
-                            .scaledFont(16)
-                            .foregroundColor(AppColors.textPrimary(colorScheme))
                     }
+                    .disabled(friendRequests.isSaving)
+                } footer: {
+                    Text("When off, people who aren't your friends can only follow you. You can still send friend requests yourself.", bundle: bundle)
                 }
-                .disabled(friendRequests.isSaving)
-            } footer: {
-                Text("When off, people who aren't your friends can only follow you. You can still send friend requests yourself.", bundle: bundle)
             }
 
             // Whether I'm suggested to others
@@ -153,8 +155,8 @@ struct PrivacySecurityView: View {
                 .disabled(profileLock.isSaving)
             } footer: {
                 Text(bundle.loc(appState.currentMode == .work
-                    ? "Only your Work connections can see your posts and profile details. Others see your name, photo and cover."
-                    : "Only your friends can see your posts and profile details. Others see your name, photo and cover."))
+                    ? "Only your Work connections can see your profile posts and lists. Others still see your About, experience, skills and listings."
+                    : "Only your friends can see your profile posts, highlights and lists. Others still see your About, education and listings, but not your age or relationship status."))
             }
 
             // This mode's profile → my other persona (each mode has its own switch)
@@ -228,8 +230,8 @@ struct PrivacySecurityView: View {
             Button(bundle.loc("Cancel"), role: .cancel) {}
         } message: {
             Text(bundle.loc(appState.currentMode == .work
-                ? "People who aren't your Work connections will only see your name, photo, cover and username, not your posts, experience, skills or lists."
-                : "People who aren't your friends will only see your name, photo, cover and username, not your posts, highlights, details or lists."))
+                ? "People who aren't your Work connections won't see your profile posts or lists, and your public posts won't reach them in feeds or search. They still see your About, experience, skills, listings and community posts."
+                : "People who aren't your friends won't see your profile posts, highlights, lists, age or relationship status, and your public posts won't reach them in feeds or search. They still see your About, education, listings and community posts."))
         }
         .alert(profileLock.errorMessage ?? "", isPresented: Binding(
             get: { profileLock.errorMessage != nil },

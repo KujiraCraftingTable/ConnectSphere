@@ -17,6 +17,7 @@ struct HiddenPostPlaceholder: View {
         case .hidden, .hiddenAuthor: return "eye.slash.fill"
         case .lessLikeThis:          return "hand.thumbsdown.fill"
         case .blocked:               return "person.fill.xmark"
+        case .moderated:             return "hand.raised.fill"
         }
     }
 
@@ -26,6 +27,7 @@ struct HiddenPostPlaceholder: View {
         case .lessLikeThis:                  return bundle.loc("Got it")
         case .hiddenAuthor(let name, _):     return String(format: bundle.loc("Hidden all from %@"), name)
         case .blocked(let name, _):          return String(format: bundle.loc("You blocked %@"), name)
+        case .moderated:                     return bundle.loc("Post removed")
         }
     }
 
@@ -35,6 +37,8 @@ struct HiddenPostPlaceholder: View {
         case .lessLikeThis:  return bundle.loc("You'll see fewer posts like this.")
         case .hiddenAuthor:  return bundle.loc("You won't see their posts in your feed.")
         case .blocked:       return bundle.loc("You won't be able to see or contact each other.")
+        case .moderated(let banned):
+            return bundle.loc(banned ? "The author was banned and told why." : "The author got a warning and was told why.")
         }
     }
 
@@ -54,6 +58,7 @@ struct HiddenPostPlaceholder: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            if case .moderated = kind {} else {
             Button(action: onUndo) {
                 Text("Undo", bundle: bundle)
                     .font(.system(size: 15, weight: .semibold))
@@ -62,6 +67,7 @@ struct HiddenPostPlaceholder: View {
                     .background(RoundedRectangle(cornerRadius: 10).fill(AppColors.base(colorScheme)))
             }
             .buttonStyle(.plain)
+            }
         }
         .padding(14)
         .frame(maxWidth: .infinity)

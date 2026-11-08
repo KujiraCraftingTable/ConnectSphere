@@ -178,14 +178,12 @@ struct CreateCommunityView: View {
                     nameMessages
 
                     formSection(title: bundle.loc("Description (optional)")) {
-                        TextEditor(text: $viewModel.description)
-                            .scaledFont(15)
-                            .scrollContentBackground(.hidden)
+                        MarkdownTextEditor(text: $viewModel.description, placeholder: "", size: 15,
+                                           minHeight: 80, maxHeight: 80)
                             .padding(8)
                             .background(AppColors.surface(colorScheme))
                             .clipShape(RoundedRectangle(cornerRadius: 10))
                             .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
-                            .frame(height: 80)
                         Text(String(format: bundle.loc("%lld/%lld words"),
                                     CommunityDescription.wordCount(viewModel.description), CommunityDescription.maxWords))
                             .scaledFont(12)

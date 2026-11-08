@@ -13,6 +13,8 @@ struct ProfileActionBar: View {
     let targetName: String
     @Bindable var connect: ConnectViewModel
     let isOpeningChat: Bool
+    /// The official account has followers, never friends or connections.
+    var targetIsOfficial = false
     let onMessage: () -> Void
 
     @State private var showSheet = false
@@ -20,13 +22,19 @@ struct ProfileActionBar: View {
 
     private var mode: String { appState.currentMode.rawValue }
     private var isHobby: Bool { appState.currentMode == .hobby }
+    /// Signed in as the official account: it follows and connects with no one.
+    private var viewerIsOfficial: Bool { appState.currentUser?.isOfficial ?? false }
 
     var body: some View {
         HStack(spacing: AppSpacing.sm) {
-            primaryButton
-            ProfileCardButton(title: bundle.loc("Message"), icon: "message.fill",
-                              prominent: connect.status == .accepted, isLoading: isOpeningChat,
-                              action: onMessage)
+            // The official account neither connects nor writes first: it
+            // answers from its inbox when someone messages it.
+            if !viewerIsOfficial {
+                primaryButton
+                ProfileCardButton(title: bundle.loc("Message"), icon: "message.fill",
+                                  prominent: connect.status == .accepted, isLoading: isOpeningChat,
+                                  action: onMessage)
+            }
         }
         .sheet(isPresented: $showSheet) { actionSheet }
         .alert(String(format: bundle.loc("Unfriend %@?"), targetName),
@@ -53,6 +61,26 @@ struct ProfileActionBar: View {
 
     @ViewBuilder
     private var primaryButton: some View {
+        if targetIsOfficial {
+            followButton
+        } else {
+            connectionButton
+        }
+    }
+
+    @ViewBuilder
+    private var followButton: some View {
+        if connect.isFollowing {
+            ProfileCardButton(title: bundle.loc("Following"), icon: "checkmark") { showSheet = true }
+        } else {
+            ProfileCardButton(title: bundle.loc("Follow"), icon: "plus", prominent: true) {
+                Task { await connect.setFollowing(true, targetId: targetUserId, mode: mode) }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var connectionButton: some View {
         switch connect.status {
         case .accepted:
             ProfileCardButton(title: bundle.loc(isHobby ? "Friends" : "Connected"),
@@ -70,13 +98,7 @@ struct ProfileActionBar: View {
             }
         case .none:
             // They turned friend requests off: following is what's on offer.
-            if connect.isFollowing {
-                ProfileCardButton(title: bundle.loc("Following"), icon: "checkmark") { showSheet = true }
-            } else {
-                ProfileCardButton(title: bundle.loc("Follow"), icon: "plus", prominent: true) {
-                    Task { await connect.setFollowing(true, targetId: targetUserId, mode: mode) }
-                }
-            }
+            followButton
         case .self:
             EmptyView()
         }

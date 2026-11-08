@@ -49,6 +49,8 @@ struct Conversation: Identifiable, Decodable, Equatable {
     /// How many more messages I can send before they accept (`.sent` only).
     var requestsLeft: Int?
     let peer: ConversationPeer
+    /// 1:1 with the official account: its seal shows beside the name.
+    let isOfficialPeer: Bool
 
     let lastMessageContent: String?
     let lastMessageType: String?
@@ -76,6 +78,7 @@ struct Conversation: Identifiable, Decodable, Equatable {
         case otherUserAvatarUrl   = "other_user_avatar_url"
         case otherUserJobTitle    = "other_user_job_title"
         case otherUserNickname    = "other_user_nickname"
+        case otherUserIsOfficial  = "other_user_is_official"
 
         case name
         case avatarUrl   = "avatar_url"
@@ -133,6 +136,7 @@ struct Conversation: Identifiable, Decodable, Equatable {
         lastMessageSenderId = try c.decodeIfPresent(String.self, forKey: .lastMessageSenderId)
         lastMessageAt = try c.decodeIfPresent(Date.self, forKey: .lastMessageAt)
         unreadCount = try c.decodeIfPresent(Int.self, forKey: .unreadCount) ?? 0
+        isOfficialPeer = try c.decodeIfPresent(Bool.self, forKey: .otherUserIsOfficial) ?? false
     }
 
     /// True when the current user has unread messages in this conversation.

@@ -72,7 +72,12 @@ struct CommunitiesController {
         var description_format: String?
     }
     static func create(_ req: Request) async throws -> Response {
+        try req.requireNotRestricted()
+        // Creating one would make it that community's admin and member.
+        try await OfficialAccount.refuse(req.userID, "doesn't join communities", on: req.db.sql())
         let b = try req.content.decode(CreateBody.self)
+        try ModerationGate.check([b.name], .name)
+        try ModerationGate.check([b.description], .text)
         let name = (b.name ?? "").trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { throw Abort(.badRequest, reason: "Community name is required") }
         guard name.count >= 3 else { throw Abort(.badRequest, reason: "Community name must be at least 3 characters") }
@@ -108,6 +113,7 @@ struct CommunitiesController {
             throw error
         }
         guard let community = try await CommunityStore.byID(newID, viewer: req.userID, on: req.db.sql()) else { throw Abort(.internalServerError) }
+        await ModerationScan.enqueue(req, .community, id: newID)
         return try await ConnectionsController.encode(DataResponse(data: community), req, .created)
     }
 
@@ -158,6 +164,8 @@ struct CommunitiesController {
             throw Abort(.forbidden, reason: "Only admins and moderators can edit this community")
         }
         let b = try req.content.decode(UpdateBody.self)
+        try ModerationGate.check([b.name], .name)
+        try ModerationGate.check([b.description], .text)
         if let name = b.name {
             let trimmed = name.trimmingCharacters(in: .whitespaces)
             guard trimmed.count >= 3, trimmed.count <= 100 else {
@@ -174,6 +182,7 @@ struct CommunitiesController {
             throw Abort(.notFound, reason: "Community not found")
         }
         guard let community = try await CommunityStore.byID(id, viewer: req.userID, on: db) else { throw Abort(.internalServerError) }
+        if b.name != nil || b.description != nil { await ModerationScan.enqueue(req, .community, id: id) }
         return DataResponse(data: community)
     }
 
@@ -200,7 +209,7 @@ struct CommunitiesController {
         guard var community = try await CommunityStore.byID(id, viewer: req.userID, on: req.db.sql()) else {
             throw Abort(.notFound, reason: "Community not found")
         }
-        if community.privacy == "private" && !(community.is_member ?? false) { community.description = nil }
+        if !community.viewerCanRead { community.description = nil }
         return community
     }
     static func getOne(_ req: Request) async throws -> DataResponse<CommunityStore.CommunityDetail> {
@@ -214,6 +223,8 @@ struct CommunitiesController {
     static func join(_ req: Request) async throws -> OKMsg {
         let id = req.parameters.get("id")!
         let db = req.db.sql()
+        // It visits every community without joining (it can read, like, comment and share).
+        try await OfficialAccount.refuse(req.userID, "doesn't join communities", on: db)
         guard let community = try await CommunityStore.byID(id, viewer: nil, on: db) else { throw Abort(.notFound, reason: "Community not found") }
         if community.privacy == "private" { throw Abort(.forbidden, reason: "This community requires a request to join") }
         if try await CommunityStore.isBanned(id, req.userID, on: db) { throw Abort(.forbidden, reason: "You are banned from this community") }
@@ -321,8 +332,8 @@ struct CommunitiesController {
     static func members(_ req: Request) async throws -> DataListResponse<CommunityStore.MemberRow> {
         let id = req.parameters.get("id")!
         let db = req.db.sql()
-        guard let community = try await CommunityStore.byID(id, viewer: nil, on: db) else { throw Abort(.notFound, reason: "Community not found") }
-        if community.privacy == "private", try await CommunityStore.membership(id, req.userID, on: db) == nil {
+        guard let community = try await CommunityStore.byID(id, viewer: req.userID, on: db) else { throw Abort(.notFound, reason: "Community not found") }
+        if !community.viewerCanRead {
             throw Abort(.forbidden, reason: "You must be a member to view the member list")
         }
         let limit = req.pageLimit(default: 20, max: 100)
@@ -336,7 +347,7 @@ struct CommunitiesController {
     static func posts(_ req: Request) async throws -> DataListResponse<PostObject> {
         let id = req.parameters.get("id")!
         let community = try await loadForView(id, req)
-        if community.privacy == "private" && !(community.is_member ?? false) {
+        if !community.viewerCanRead {
             throw Abort(.forbidden, reason: "You must be a member to view this community")
         }
         let limit = req.pageLimit(default: 20, max: 100)
@@ -347,8 +358,10 @@ struct CommunitiesController {
     }
 
     static func createPost(_ req: Request) async throws -> Response {
+        try req.requireNotRestricted(spending: .post)
         let id = req.parameters.get("id")!
         let b = try req.content.decode(PostsController.CreateBody.self)
+        try PostsController.checkText(b)
         let hashtags = b.hashtags ?? []
         let postType = b.post_type ?? "text"
         // Who sees it: members only unless the poster chose Public.
@@ -396,6 +409,7 @@ struct CommunitiesController {
         }
         if publishing.isLive {
             await TranslationService.enqueue(req, .post, id: post.id)
+            await ModerationScan.enqueue(req, .post, id: post.id)
             NotifyService.communityNewPost(app: req.application, postID: post.id, communityID: id,
                                            authorID: req.userID, logger: req.logger)
         }
@@ -411,6 +425,7 @@ struct CommunitiesController {
     static func shareToFeed(_ req: Request) async throws -> Response {
         let id = req.parameters.get("id")!
         let b = try req.content.decode(ShareBody.self)
+        try ModerationGate.check([b.content], .text)
         // "private" is this route's older spelling of a post's "only_me"; stored
         // as-is it fell back to "public" and published a post meant to be hidden.
         let privacy = try PostStore.validatedPrivacy(b.privacy == "private" ? "only_me" : b.privacy) ?? "public"
@@ -445,7 +460,7 @@ struct CommunitiesController {
         guard let community = try await CommunityStore.byID(id, viewer: req.userID, on: db) else {
             throw Abort(.notFound, reason: "Community not found")
         }
-        if community.privacy == "private" && !community.is_member {
+        if !community.viewerCanRead {
             throw Abort(.forbidden, reason: "This community is private")
         }
         guard let profile = try await CommunityStore.memberProfile(userID, in: id, type: community.type,
@@ -517,6 +532,7 @@ struct CommunitiesController {
         if action == "approve" {
             try await CommunityStore.incrementPostCount(id, 1, on: db)
             await TranslationService.enqueue(req, .post, id: postID)
+            await ModerationScan.enqueue(req, .post, id: postID)
             NotifyService.communityNewPost(app: req.application, postID: postID, communityID: id,
                                            authorID: reviewed.author_id, logger: req.logger)
         }
@@ -562,6 +578,7 @@ struct CommunitiesController {
     static func requestJoin(_ req: Request) async throws -> Response {
         let id = req.parameters.get("id")!
         let db = req.db.sql()
+        try await OfficialAccount.refuse(req.userID, "doesn't join communities", on: db)
         guard let community = try await CommunityStore.byID(id, viewer: nil, on: db) else { throw Abort(.notFound, reason: "Community not found") }
         if try await CommunityStore.membership(id, req.userID, on: db) != nil { throw Abort(.conflict, reason: "You are already a member of this community") }
         if try await CommunityStore.isBanned(id, req.userID, on: db) { throw Abort(.forbidden, reason: "You are banned from this community") }

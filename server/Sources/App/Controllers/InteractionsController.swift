@@ -20,8 +20,11 @@ struct InteractionsController {
 
     struct VisibleMeta { let id: String; let authorID: String; let mode: String; let communityID: String? }
 
-    static func visibleMeta(_ postID: String, viewer: String, _ db: any SQLDatabase) async throws -> VisibleMeta? {
-        guard let post = try await PostStore.findById(postID, viewer: viewer, on: db) else { return nil }
+    /// `officialReads`: the official account may read, like and comment on a
+    /// community post without joining (it still can't post or save there).
+    static func visibleMeta(_ postID: String, viewer: String, officialReads: Bool = false,
+                            _ db: any SQLDatabase) async throws -> VisibleMeta? {
+        guard let post = try await PostStore.findById(postID, viewer: viewer, officialReads: officialReads, on: db) else { return nil }
         let meta = try await PostStore.findMeta(postID, on: db)
         return VisibleMeta(id: post.id, authorID: post.author.id, mode: post.mode, communityID: meta?.community_id)
     }
@@ -45,7 +48,7 @@ struct InteractionsController {
     static func likePost(_ req: Request) async throws -> LikeResponse {
         let postID = req.parameters.get("id")!
         let db = req.db.sql()
-        guard let meta = try await visibleMeta(postID, viewer: req.userID, db) else {
+        guard let meta = try await visibleMeta(postID, viewer: req.userID, officialReads: true, db) else {
             throw InlineError(.notFound, "Post not found")
         }
         var liked = false
@@ -101,7 +104,7 @@ struct InteractionsController {
         let db = req.db.sql()
         let limit = clampLimit(try? req.query.get(Int.self, at: "limit"), 50, 100)
         let offset = req.pageOffset
-        guard try await visibleMeta(postID, viewer: req.userID, db) != nil else {
+        guard try await visibleMeta(postID, viewer: req.userID, officialReads: true, db) != nil else {
             throw InlineError(.notFound, "Post not found")
         }
         struct Row: Decodable {
@@ -114,7 +117,8 @@ struct InteractionsController {
             SELECT c.id, c.content, c.created_at, c.parent_comment_id, c.like_count,
               EXISTS(SELECT 1 FROM comment_likes cl WHERE cl.comment_id = c.id AND cl.user_id = \(uuid: req.userID)) AS is_liked,
               json_build_object('id', u.id, 'display_name', \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "p.mode")),
-                'avatar_color', u.avatar_color, 'avatar_url', \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: "p.mode")))::text AS author,
+                'avatar_color', u.avatar_color, 'avatar_url', \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: "p.mode")),
+                'is_official', u.app_role = 'admin')::text AS author,
               CASE WHEN rc.id IS NULL THEN NULL ELSE json_build_object('id', ru.id,
                 'display_name', \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "p.mode", alias: "ru")))::text END AS reply_to,
               (c.author_id <> \(uuid: req.userID) AND \(PostStore.mutedWordHit(req.userID, textSQL: "c.content", modeRef: "p.mode"))) AS muted,
@@ -123,6 +127,7 @@ struct InteractionsController {
             LEFT JOIN comments rc ON rc.id = COALESCE(c.reply_to_comment_id, c.parent_comment_id)
             LEFT JOIN users ru ON ru.id = rc.author_id
             WHERE c.post_id = \(uuid: postID) AND c.status = 'posted'
+              AND \(AccountBans.visible(userRef: "c.author_id", modeColumn: "p.mode", viewer: req.userID))
             ORDER BY c.created_at ASC LIMIT \(bind: limit) OFFSET \(bind: offset)
             """).all(decoding: Row.self)
         struct N: Decodable { let n: Int }
@@ -150,14 +155,17 @@ struct InteractionsController {
         }
     }
 
-    struct AddCommentBody: Content { var content: String?; var parent_comment_id: String?; var image_url: String?; var content_format: String? }
+    struct AddCommentBody: Content { var content: String?; var parent_comment_id: String?; var image_url: String?; var content_format: String?; var confirm: Bool? }
 
     static func addComment(_ req: Request) async throws -> Response {
+        try req.requireNotRestricted(spending: .comment)
         let postID = req.parameters.get("id")!
         let db = req.db.sql()
         let b = try req.content.decode(AddCommentBody.self)
         let content = b.content?.trimmedText ?? ""
         try validateCommentLength(content)
+        try ModerationGate.check([content], .chat, confirm: b.confirm ?? false)
+        try req.requireNoLinkToStrangers(in: content)
         // Only a photo uploaded here, not a link to someone else's image.
         let imageURL = MediaPath.storable(b.image_url)
         if let imageURL, !imageURL.hasPrefix("/uploads/") || imageURL.hasPrefix("/uploads/messages/") {
@@ -166,7 +174,7 @@ struct InteractionsController {
         guard !content.isEmpty || imageURL != nil else {
             throw InlineError(.badRequest, "content or image_url is required")
         }
-        guard let meta = try await visibleMeta(postID, viewer: req.userID, db) else {
+        guard let meta = try await visibleMeta(postID, viewer: req.userID, officialReads: true, db) else {
             throw InlineError(.notFound, "Post not found")
         }
         // `parent_comment_id` in the body is the comment being answered; where
@@ -226,6 +234,7 @@ struct InteractionsController {
                 postID: postID, commentID: created.id, parentCommentID: placement.replyToID))
         }
         await TranslationService.enqueue(req, .comment, id: created.id)
+        await ModerationScan.enqueue(req, .comment, id: created.id)
         // TODO(phase 4): community_post_commented socket emit for open community viewers
         let res = try await DataResponse(data: payload).encodeResponse(for: req)
         res.status = .created
@@ -236,7 +245,7 @@ struct InteractionsController {
     static func deleteComment(_ req: Request) async throws -> DeleteCommentResponse {
         let postID = req.parameters.get("id")!, commentID = req.parameters.get("commentId")!
         let db = req.db.sql()
-        guard let meta = try await visibleMeta(postID, viewer: req.userID, db) else { throw InlineError(.notFound, "Post not found") }
+        guard let meta = try await visibleMeta(postID, viewer: req.userID, officialReads: true, db) else { throw InlineError(.notFound, "Post not found") }
         struct C: Decodable { let author_id: String }
         // `::text` matters: a raw `uuid` column decodes to Swift's uppercase
         // `UUID.uuidString` form, while `req.userID` is the lowercased JWT
@@ -277,8 +286,11 @@ struct InteractionsController {
         let body = try req.content.decode(EditCommentBody.self)
         let content = body.content?.trimmedText ?? ""
         try validateCommentLength(content)
+        // An edit is only refused for threats and slurs: asking "Are you sure?"
+        // again would need a second prompt for little gain.
+        try ModerationGate.check([content], .text)
         let newFormat: String? = PostStore.contentFormats.contains(body.content_format ?? "") ? body.content_format : nil
-        guard let meta = try await visibleMeta(postID, viewer: req.userID, db) else { throw InlineError(.notFound, "Post not found") }
+        guard let meta = try await visibleMeta(postID, viewer: req.userID, officialReads: true, db) else { throw InlineError(.notFound, "Post not found") }
         struct C: Decodable { let author_id: String; let image_url: String? }
         guard let c = try await db.raw("""
             SELECT author_id::text AS author_id, image_url FROM comments
@@ -301,6 +313,7 @@ struct InteractionsController {
             .first(decoding: L.self)!.is_liked
         let author = try await personaAuthor(req.userID, mode: meta.mode, db)
         await TranslationService.enqueue(req, .comment, id: u.id)
+        await ModerationScan.enqueue(req, .comment, id: u.id)
         return DataResponse(data: CommentObject(id: u.id, content: u.content, created_at: u.created_at,
             parent_comment_id: u.parent_comment_id, like_count: u.like_count, is_liked: liked, author: author,
             image_url: u.image_url, content_format: u.content_format))
@@ -309,7 +322,7 @@ struct InteractionsController {
     static func restoreComment(_ req: Request) async throws -> RestoreCommentResponse {
         let postID = req.parameters.get("id")!, commentID = req.parameters.get("commentId")!
         let db = req.db.sql()
-        guard let meta = try await visibleMeta(postID, viewer: req.userID, db) else { throw InlineError(.notFound, "Post not found") }
+        guard let meta = try await visibleMeta(postID, viewer: req.userID, officialReads: true, db) else { throw InlineError(.notFound, "Post not found") }
         struct C: Decodable { let author_id: String }
         guard let c = try await db.raw("SELECT author_id::text AS author_id FROM comments WHERE id = \(uuid: commentID) AND post_id = \(uuid: postID) AND status = 'deleted'")
             .first(decoding: C.self) else { throw InlineError(.notFound, "Comment not found or not deleted") }
@@ -343,7 +356,7 @@ struct InteractionsController {
     static func likeComment(_ req: Request) async throws -> LikeResponse {
         let postID = req.parameters.get("id")!, commentID = req.parameters.get("commentId")!
         let db = req.db.sql()
-        guard try await visibleMeta(postID, viewer: req.userID, db) != nil else { throw InlineError(.notFound, "Post not found") }
+        guard try await visibleMeta(postID, viewer: req.userID, officialReads: true, db) != nil else { throw InlineError(.notFound, "Post not found") }
         struct C: Decodable { let author_id: String }
         guard let comment = try await db.raw("SELECT author_id::text AS author_id FROM comments WHERE id = \(uuid: commentID) AND post_id = \(uuid: postID) AND status = 'posted'")
             .first(decoding: C.self) else { throw InlineError(.notFound, "Comment not found") }
@@ -424,8 +437,14 @@ struct InteractionsController {
 
     static func save(_ req: Request) async throws -> SavedResponse {
         let postID = req.parameters.get("id")!
-        guard try await visibleMeta(postID, viewer: req.userID, req.db.sql()) != nil else { throw InlineError(.notFound, "Post not found") }
-        try await req.db.sql().raw("INSERT INTO saved_posts (user_id, post_id) VALUES (\(uuid: req.userID), \(uuid: postID)) ON CONFLICT DO NOTHING").run()
+        let db = req.db.sql()
+        guard let meta = try await visibleMeta(postID, viewer: req.userID, db) else { throw InlineError(.notFound, "Post not found") }
+        // The official account visits communities without joining; saving
+        // their posts isn't part of that.
+        if let cid = meta.communityID, try await CommunityStore.membership(cid, req.userID, on: db) == nil {
+            try await OfficialAccount.refuse(req.userID, "doesn't save community posts", on: db)
+        }
+        try await db.raw("INSERT INTO saved_posts (user_id, post_id) VALUES (\(uuid: req.userID), \(uuid: postID)) ON CONFLICT DO NOTHING").run()
         return SavedResponse(saved: true)
     }
     static func unsave(_ req: Request) async throws -> SavedResponse {
@@ -464,6 +483,7 @@ struct CommentObject: Content {
         var display_name: String
         @NullCoded var avatar_color: String?
         @NullCoded var avatar_url: String?
+        var is_official: Bool? = nil
     }
 }
 struct CommentsListResponse: Content { var data: [CommentObject]; var total: Int }

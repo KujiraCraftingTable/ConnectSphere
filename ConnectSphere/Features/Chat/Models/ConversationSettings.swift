@@ -35,12 +35,15 @@ struct ConversationSettings: Decodable, Equatable {
     /// 1-on-1 only: whether this chat is still a message request.
     let requestState: MessageRequestState?
     let requestsLeft: Int?
+    /// 1-on-1 with the official account (either side): messages can't be unsent.
+    let withOfficial: Bool
 
     enum CodingKeys: String, CodingKey {
         case id, theme, members
         case mutedUntil           = "muted_until"
         case requestState         = "request_state"
         case requestsLeft         = "requests_left"
+        case withOfficial         = "with_official"
         case otherUserId          = "other_user_id"
         case otherUserUsername    = "other_user_username"
         case otherUserName        = "other_user_name"
@@ -57,6 +60,7 @@ struct ConversationSettings: Decodable, Equatable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         requestState = try? c.decodeIfPresent(MessageRequestState.self, forKey: .requestState)
         requestsLeft = try c.decodeIfPresent(Int.self, forKey: .requestsLeft)
+        withOfficial = try c.decodeIfPresent(Bool.self, forKey: .withOfficial) ?? false
         theme = try c.decodeIfPresent(String.self, forKey: .theme)
         mutedUntil = try c.decodeIfPresent(Date.self, forKey: .mutedUntil)
 

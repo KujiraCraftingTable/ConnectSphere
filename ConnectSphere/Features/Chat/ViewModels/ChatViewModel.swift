@@ -24,6 +24,8 @@ class ChatViewModel {
     var requestState: MessageRequestState?
     /// Messages I can still send before they accept (`.sent` only).
     var requestsLeft: Int?
+    /// A support chat with the official account: nobody can unsend in it.
+    private(set) var withOfficial = false
     /// I started this chat with someone who isn't a friend and used up my messages.
     var isWaitingForAcceptance: Bool { requestState == .sent && (requestsLeft ?? 1) <= 0 }
 
@@ -206,6 +208,7 @@ class ChatViewModel {
             otherNickname = s.otherUserNickname
             requestState = s.requestState
             requestsLeft = s.requestsLeft
+            withOfficial = s.withOfficial
         }
     }
 
@@ -288,7 +291,28 @@ class ChatViewModel {
 
     // MARK: - Send text
 
-    func sendText(_ content: String, replyTo replyToMessageId: String? = nil) async {
+    /// A message the server asked "Are you sure?" about (rude wording): kept
+    /// until the person sends it anyway or edits it.
+    struct HeldMessage {
+        let text: String
+        let replyTo: String?
+    }
+    private(set) var held: HeldMessage?
+
+    /// "Send anyway" after "Are you sure?".
+    func sendHeld() async {
+        guard let h = held else { return }
+        held = nil
+        await sendText(h.text, replyTo: h.replyTo, confirmed: true)
+    }
+
+    /// "Edit": the text goes back to the field.
+    func takeHeldText() -> String? {
+        defer { held = nil }
+        return held?.text
+    }
+
+    func sendText(_ content: String, replyTo replyToMessageId: String? = nil, confirmed: Bool = false) async {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         isSending = true
@@ -301,7 +325,12 @@ class ChatViewModel {
                 "messageType": "text"
             ]
             if let replyToMessageId { payload["replyToMessageId"] = replyToMessageId }
+            if confirmed { payload["confirm"] = true }
             if case .failure(let err) = await emitWithAck("send_message", payload) {
+                if ModerationMessage.isConfirmRequired(err) {
+                    held = HeldMessage(text: trimmed, replyTo: replyToMessageId)
+                    return
+                }
                 // Server reasons (e.g. the message-request limit) have vi entries.
                 self.error = Bundle.app.loc(friendlyError(err))
             } else {
@@ -314,13 +343,18 @@ class ChatViewModel {
                     content: trimmed,
                     messageType: .text,
                     replyToMessageId: replyToMessageId,
+                    confirmed: confirmed,
                     token: token
                 )
                 messages.append(msg)
                 noteMessageSent()
             } catch {
-                if case APIError.serverError(403, _) = error {
+                if ModerationMessage.isConfirmRequired(error) {
+                    held = HeldMessage(text: trimmed, replyTo: replyToMessageId)
+                } else if case APIError.serverError(403, _) = error {
                     self.error = Bundle.app.loc(friendlyError(error))
+                } else if case APIError.serverError(422, _) = error {
+                    self.error = friendlyError(error)
                 } else {
                     self.error = Bundle.app.loc("Failed to send message")
                 }
@@ -947,6 +981,12 @@ class ChatViewModel {
     /// Prefers the socket (server also fans out `reaction_updated` to the other side);
     /// falls back to REST when disconnected, applying the result locally since no
     /// socket broadcast will arrive to update this bubble.
+    /// Double-tap: whale the message, or take the whale back. The server toggles
+    /// the same reaction off, so one call does both.
+    func toggleWhale(messageId: String) async {
+        await sendReaction(messageId: messageId, emoji: Message.whale)
+    }
+
     func sendReaction(messageId: String, emoji: String) async {
         if ws.connectionState == .connected {
             let result = await emitWithAck("react_message", [
@@ -1178,6 +1218,7 @@ class ChatViewModel {
                 replyToMessageId: nil,
                 voiceDurationSeconds: message.voiceDurationSeconds,
                 voiceWaveform: message.voiceWaveform,
+                isForwarded: true,
                 token: token)
         } catch {
             #if DEBUG

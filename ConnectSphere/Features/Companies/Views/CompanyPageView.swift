@@ -12,6 +12,7 @@ struct CompanyPageView: View {
     @State private var viewModel: CompanyPageViewModel
     @State private var tab: Tab = .about
     @State private var showEditor = false
+    @State private var showReport = false
     var onChanged: ((Company) -> Void)? = nil
 
     enum Tab: Hashable { case about, jobs, people }
@@ -59,6 +60,22 @@ struct CompanyPageView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(bundle.loc("Edit")) { showEditor = true }
                 }
+            } else if viewModel.company != nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button { showReport = true } label: {
+                            Label(bundle.loc("Report page"), systemImage: "flag")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showReport) {
+            if let company = viewModel.company {
+                ReportSheet(subject: .content(.company, id: company.id))
+                    .environment(themeManager)
             }
         }
         .sheet(isPresented: $showEditor) {
@@ -202,7 +219,8 @@ struct CompanyPageView: View {
     }
 }
 
-/// "✓ Official" next to a verified company's name.
+/// "✓ Official" next to a verified company's name, and next to the official
+/// @connectsphere account wherever its name appears.
 struct OfficialBadge: View {
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.appBundle) private var bundle

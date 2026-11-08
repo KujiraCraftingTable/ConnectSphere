@@ -154,6 +154,8 @@ struct AuthController {
         try ConsentStore.requireCurrent(body.accepted_policy_version)
         let password = body.password ?? ""
         let db = req.db.sql()
+        // A permanently banned account's email can't come back (migration 106).
+        try await AccountBans.refuseBannedIdentity(email: body.email, googleID: nil, on: db)
         let username = try await newUsername(body.username, on: db)
         try validatePassword(password)
         var fields = try await ProfileFields.validate(body.profile, on: db)
@@ -281,6 +283,8 @@ struct AuthController {
                 try await db.raw("UPDATE users SET google_id = \(bind: googleId), email_verified_at = COALESCE(email_verified_at, NOW()) WHERE id = \(uuid: existing.id)").run()
                 user = existing
             } else {
+                // A new account: not with a permanently banned email or Google account.
+                try await AccountBans.refuseBannedIdentity(email: email, googleID: googleId, on: db)
                 let username = "user_\(googleId.suffix(8))"
                 user = try await db.raw("""
                     INSERT INTO users (google_id, email, email_verified_at, display_name, username, password_hash, avatar_color, is_setup)
@@ -449,6 +453,8 @@ struct AuthController {
 
         static func validate(_ b: SetupBody, on db: any SQLDatabase) async throws -> ProfileFields {
             let skills = try EndorsementStore.cleanSkills(b.skills ?? [])
+            try ModerationGate.check([b.username, b.display_name, b.job_title, b.company], .name)
+            try ModerationGate.check([b.bio], .text)
             let displayName = (b.display_name ?? "").trimmingCharacters(in: .whitespaces)
             guard !displayName.isEmpty else { throw InlineError(.badRequest, "display_name is required") }
             guard UserStore.displayNameFits(displayName) else { throw InlineError(.badRequest, UserStore.displayNameTooLong) }

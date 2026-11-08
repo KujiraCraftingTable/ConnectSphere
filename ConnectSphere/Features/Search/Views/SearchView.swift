@@ -73,12 +73,17 @@ struct SearchView: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
+            // Swipe the results to switch People / Posts (/ Companies in Work).
+            .swipeBetween(appState.currentMode == .work ? [.people, .posts, .companies] : [.people, .posts],
+                          selection: Bindable(viewModel).scope)
             .safeAreaInset(edge: .top, spacing: 0) { searchHeader }
-            .background(AppColors.base(colorScheme))
+            // Not under the top safe area: the title and header sit on white like
+            // Community's, and only the results area is the grey page colour.
+            .background(AppColors.base(colorScheme), ignoresSafeAreaEdges: [.horizontal, .bottom])
             .navigationTitle(bundle.loc("Search"))
             // Large, like the Notifications tab's title.
             .navigationBarTitleDisplayMode(.large)
-            .toolbarBackground(AppColors.base(colorScheme), for: .navigationBar)
+            .toolbarBackground(AppColors.surface(colorScheme), for: .navigationBar)
             .overlay {
                 // The Kujira loading scene, shown while an AI search runs.
                 if viewModel.isLoading && showsAIResults {
@@ -176,10 +181,10 @@ struct SearchView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
-                .background(AppColors.elevated(colorScheme), in: Capsule())
+                // Grey pill on the white header, like Community's search field.
+                .background(AppColors.base(colorScheme), in: Capsule())
                 .overlay(
-                    Capsule().stroke(aiEnabled ? themeManager.theme.primary : AppColors.borderDefault(colorScheme),
-                                     lineWidth: aiEnabled ? 1.5 : 1)
+                    Capsule().stroke(aiEnabled ? themeManager.theme.primary : .clear, lineWidth: 1.5)
                 )
 
                 aiToggle
@@ -201,7 +206,8 @@ struct SearchView: View {
         // `.background(color)` extends into the safe area by default, so this
         // pinned header painted up behind the navigation bar and hid the large
         // "Search" title.
-        .background(AppColors.base(colorScheme), ignoresSafeAreaEdges: [])
+        .background(AppColors.surface(colorScheme), ignoresSafeAreaEdges: [])
+        .overlay(alignment: .bottom) { Divider() }
         .animation(.easeInOut(duration: 0.15), value: aiEnabled)
     }
 
@@ -218,7 +224,7 @@ struct SearchView: View {
             .foregroundColor(aiEnabled ? .white : AppColors.textSecondary(colorScheme))
             .padding(.horizontal, 12)
             .frame(height: 40)
-            .background(aiEnabled ? AnyShapeStyle(themeManager.theme.primary) : AnyShapeStyle(AppColors.elevated(colorScheme)),
+            .background(aiEnabled ? AnyShapeStyle(themeManager.theme.primary) : AnyShapeStyle(AppColors.base(colorScheme)),
                         in: Capsule())
             .overlay(Capsule().stroke(aiEnabled ? .clear : AppColors.borderDefault(colorScheme), lineWidth: 1))
         }
@@ -907,7 +913,9 @@ struct FriendSearchCard: View {
 
                         Spacer(minLength: 8)
 
-                        if connect.status != .pendingReceived {
+                        // No connections to or from the official account.
+                        if connect.status != .pendingReceived && !user.isOfficial
+                            && !(appState.currentUser?.isOfficial ?? false) {
                             ConnectButton(targetUserId: user.id, sharedVM: connect)
                                 .environment(appState)
                         }
@@ -999,7 +1007,9 @@ struct ColleagueSearchCard: View {
 
                         Spacer(minLength: 8)
 
-                        if connect.status != .pendingReceived {
+                        // No connections to or from the official account.
+                        if connect.status != .pendingReceived && !user.isOfficial
+                            && !(appState.currentUser?.isOfficial ?? false) {
                             ConnectButton(targetUserId: user.id, sharedVM: connect)
                                 .environment(appState)
                         }

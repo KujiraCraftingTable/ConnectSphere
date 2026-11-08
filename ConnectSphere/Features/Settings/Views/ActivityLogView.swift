@@ -58,9 +58,13 @@ struct ActivityLogView: View {
 
     private func row(_ item: ActivityItem) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: item.kind == .comment ? "bubble.left.fill" : "hand.thumbsup.fill")
-                .scaledFont(14)
-                .foregroundColor(.white)
+            Group {
+                if item.kind == .comment {
+                    Image(systemName: "bubble.left.fill").scaledFont(14).foregroundColor(.white)
+                } else {
+                    LikeIcon(isLiked: true, color: .white, size: 18)
+                }
+            }
                 .frame(width: 32, height: 32)
                 .background(item.kind == .comment ? Color(hex: "#43A047") : themeManager.theme.primary, in: Circle())
             VStack(alignment: .leading, spacing: 4) {

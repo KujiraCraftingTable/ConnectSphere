@@ -32,6 +32,8 @@ struct AuthUserObject: Content {
     @NullCoded var hobby_theme: String?
     @NullCoded var work_theme: String?
     var follower_count: Int
+    /// You are the official @connectsphere account, the only admin (migration 104).
+    var is_official: Bool? = nil
     var following_count: Int
     var post_count: Int
     var created_at: Date

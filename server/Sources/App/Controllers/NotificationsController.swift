@@ -30,6 +30,16 @@ struct NotificationsController {
         "job_application":     .init(category: "social", destination: "jobApplicants"),
         "application_status":  .init(category: "social", destination: "job"),
         "scheduled_post_live": .init(category: "social", destination: "post"),
+        "dating_match":        .init(category: "social", destination: "conversation"),
+        // Moderation (migration 089): all open Settings › Account status.
+        "content_held":        .init(category: "social", destination: "accountStatus"),
+        "account_limited":     .init(category: "social", destination: "accountStatus"),
+        "report_received":     .init(category: "social", destination: "accountStatus"),
+        "report_outcome":      .init(category: "social", destination: "accountStatus"),
+        "moderation_decision": .init(category: "social", destination: "accountStatus"),
+        // The official account: "There are 67 reports waiting" (every 10 minutes).
+        "admin_digest":        .init(category: "social", destination: "adminTools"),
+        "appeal_outcome":      .init(category: "social", destination: "accountStatus"),
         "message":             .init(category: "chat", destination: "conversation"),
         "meeting_proposed":    .init(category: "chat", destination: "conversation"),
         "meeting_updated":     .init(category: "chat", destination: "conversation"),
@@ -131,6 +141,7 @@ struct NotificationsController {
         case "profile": return "{\"kind\":\"profile\",\"userId\":\(j(r.actor_id ?? ps("fromUserId")))}"
         case "conversation": return "{\"kind\":\"conversation\",\"conversationId\":\(j(r.conversation_id ?? ps("conversationId"))),\"messageId\":\(j(ps("messageId")))}"
         case "conversations": return "{\"kind\":\"conversations\"}"
+        case "accountStatus": return "{\"kind\":\"accountStatus\",\"caseId\":\(j(ps("caseId")))}"
         case "job", "jobApplicants": return "{\"kind\":\"\(kind)\",\"jobId\":\(j(ps("jobId")))}"
         case "communityPost": return "{\"kind\":\"communityPost\",\"communityId\":\(j(r.community_id)),\"postId\":\(j(r.post_id ?? ps("refId")))}"
         case "communityJoinRequests", "communityReports", "community":

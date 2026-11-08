@@ -8,9 +8,11 @@ struct PostAuthorDTO: Decodable {
     let avatarUrl: String?
     let jobTitle: String?
     let company: String?
+    let isOfficial: Bool
 
     enum CodingKeys: String, CodingKey {
         case id, username, company
+        case isOfficial  = "is_official"
         case displayName = "display_name"
         case avatarColor = "avatar_color"
         case avatarUrl   = "avatar_url"
@@ -28,6 +30,7 @@ struct PostAuthorDTO: Decodable {
         avatarUrl   = try c.decodeIfPresent(String.self, forKey: .avatarUrl)
         jobTitle    = try c.decodeIfPresent(String.self, forKey: .jobTitle)
         company     = try c.decodeIfPresent(String.self, forKey: .company)
+        isOfficial  = try c.decodeIfPresent(Bool.self, forKey: .isOfficial) ?? false
     }
 
     /// Fallback for a post/comment whose `author` object is entirely absent.
@@ -40,7 +43,7 @@ struct PostAuthorDTO: Decodable {
                  avatarUrl: String?, jobTitle: String?, company: String?) {
         self.id = id; self.username = username; self.displayName = displayName
         self.avatarColor = avatarColor; self.avatarUrl = avatarUrl
-        self.jobTitle = jobTitle; self.company = company
+        self.jobTitle = jobTitle; self.company = company; self.isOfficial = false
     }
 
     func toUserProfile() -> UserProfile {
@@ -58,7 +61,8 @@ struct PostAuthorDTO: Decodable {
             location:       nil,
             followerCount:  0,
             followingCount: 0,
-            postCount:      0
+            postCount:      0,
+            isOfficial:     isOfficial
         )
     }
 }

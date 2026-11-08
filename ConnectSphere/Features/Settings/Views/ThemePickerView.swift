@@ -10,6 +10,7 @@ struct ThemePickerView: View {
     @Environment(\.appBundle) var bundle
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) private var dismiss
+    @State private var viewModel = ThemePickerViewModel()
 
     /// The signed-in person, so the preview shows their own name and tags
     /// (sample data only if there's somehow no profile loaded).
@@ -49,6 +50,12 @@ struct ThemePickerView: View {
                 // The preview may have switched themeManager to a mode whose switch is blocked
                 // (persona not set up yet) → leaving this screen re-syncs it to the app's real mode
                 themeManager.switchMode(appState.currentMode)
+            }
+            .alert(viewModel.errorMessage ?? "", isPresented: Binding(
+                get: { viewModel.errorMessage != nil },
+                set: { if !$0 { viewModel.errorMessage = nil } }
+            )) {
+                Button(bundle.loc("OK")) {}
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -215,8 +222,8 @@ struct ThemePickerView: View {
                 // the persona-creation form instead; that mode's theme is still saved normally.
                 appState.requestModeSwitch(to: targetMode)
                 themeManager.switchMode(targetMode)
-                themeManager.selectPalette(id: palette.id)
             }
+            Task { await viewModel.select(palette.id, mode: targetMode, themeManager: themeManager) }
         } label: {
             VStack(spacing: 8) {
                 ZStack {

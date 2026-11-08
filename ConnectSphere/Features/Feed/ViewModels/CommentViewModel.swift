@@ -33,6 +33,19 @@ class CommentViewModel {
 
     private let repository = PostRepository()
 
+    /// A comment the server asked "Are you sure?" about (rude wording): kept
+    /// until the person sends it anyway or edits it.
+    struct HeldComment {
+        let postId: String
+        let text: String
+        /// Already uploaded, so sending anyway doesn't upload the photo twice.
+        let imageUrl: String?
+    }
+    private(set) var held: HeldComment?
+    /// Why the last comment was refused outright (threats, slurs).
+    var refusal: String?
+    private var refusedText: String?
+
     /// Muted comments the user chose to show anyway (this screen only).
     private(set) var revealed: Set<String> = []
 
@@ -117,15 +130,47 @@ class CommentViewModel {
             guard let url = try? await repository.uploadImage(attachedPhotoData) else { return false }
             imageUrl = url
         }
-        let parentId = replyingTo?.id
-        guard let created = try? await repository.addComment(postId: postId, content: trimmed, parentCommentId: parentId,
-                                                              imageUrl: imageUrl) else {
+        return await send(postId: postId, text: trimmed, imageUrl: imageUrl, confirmed: false)
+    }
+
+    private func send(postId: String, text: String, imageUrl: String?, confirmed: Bool) async -> Bool {
+        do {
+            let created = try await repository.addComment(postId: postId, content: text, parentCommentId: replyingTo?.id,
+                                                          imageUrl: imageUrl, confirmed: confirmed)
+            comments.append(created)
+            replyingTo = nil
+            removePhoto()
+            return true
+        } catch {
+            if ModerationMessage.isConfirmRequired(error) {
+                held = HeldComment(postId: postId, text: text, imageUrl: imageUrl)
+            } else if case APIError.serverError(422, _) = error {
+                refusal = friendlyError(error)
+                refusedText = text
+            }
             return false
         }
-        comments.append(created)
-        replyingTo = nil
-        removePhoto()
-        return true
+    }
+
+    /// "Post anyway" after "Are you sure?".
+    func postHeld() async -> Bool {
+        guard let h = held else { return false }
+        held = nil
+        isSending = true
+        defer { isSending = false }
+        return await send(postId: h.postId, text: h.text, imageUrl: h.imageUrl, confirmed: true)
+    }
+
+    /// "Edit": the text goes back to the field.
+    func takeHeldText() -> String? {
+        defer { held = nil }
+        return held?.text
+    }
+
+    /// The refused text, for the field, once the person has read why.
+    func takeRefusedText() -> String? {
+        defer { refusedText = nil; refusal = nil }
+        return refusedText
     }
 
     /// Deletes one of your own comments (or one on your own post). Backend

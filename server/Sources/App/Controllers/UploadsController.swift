@@ -86,7 +86,13 @@ struct UploadsController {
         let name = "\(UUID().uuidString).\(ext)"
         try FileManager.default.createDirectory(atPath: uploadDir, withIntermediateDirectories: true)
         // GPS, camera and other identifying metadata never reach the disk.
-        let cleaned = ByteBuffer(bytes: MetadataStripper.strip(Array(file.data.readableBytesView)))
+        let cleanedBytes = MetadataStripper.strip(Array(file.data.readableBytesView))
+        let cleaned = ByteBuffer(bytes: cleanedBytes)
+        // A photo a moderator removed for nudity, child safety or violence can't be sent again.
+        let hash = MediaScan.sha256Hex(cleanedBytes)
+        if try await MediaScan.isBanned(sha256: hash, on: req.db.sql()) {
+            throw InlineError(.unprocessableEntity, "This file can't be uploaded.")
+        }
         try await req.fileio.writeFile(cleaned, at: "\(uploadDir)/\(name)")
         if mime.hasPrefix("image/"), let thumb = upload?.thumbnail,
            thumb.contentType.map({ "\($0.type)/\($0.subType)" }) == "image/jpeg",
@@ -96,6 +102,10 @@ struct UploadsController {
             try await req.fileio.writeFile(cleanThumb, at: "\(uploadDir)/\(base)_t.jpg")
         }
         let size = cleaned.readableBytes
+        if mime.hasPrefix("image/") {
+            await MediaScan.record(path: "/uploads/\(name)", sha256: hash, app: req.application,
+                                   queue: BackgroundJobs.enabled ? req.queue : nil, logger: req.logger)
+        }
         return UploadResponse(
             url: "/uploads/\(name)", filename: name,
             type: mime.hasPrefix("video/") ? "video" : "image",

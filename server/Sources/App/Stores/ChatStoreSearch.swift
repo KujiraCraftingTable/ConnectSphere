@@ -18,6 +18,7 @@ extension ChatStore {
         var other_user_avatar_url: String?
         var other_user_job_title: String?
         var other_user_nickname: String?
+        var other_user_is_official: Bool
         var name: String?
         var avatar_url: String?
         var avatar_color: String?
@@ -47,6 +48,7 @@ extension ChatStore {
             other_user_avatar_url = s.other_user_avatar_url
             other_user_job_title = s.other_user_job_title
             other_user_nickname = s.other_user_nickname
+            other_user_is_official = s.other_user_is_official
             name = s.name
             avatar_url = s.avatar_url
             avatar_color = s.avatar_color

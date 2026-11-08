@@ -40,6 +40,7 @@ struct CommentsSection: View {
     var onCommentCountChange: (Int) -> Void = { _ in }
 
     @State private var pendingDeleteCommentId: String? = nil
+    @State private var reportingComment: CommentDTO? = nil
     @State private var editingCommentId: String? = nil
     @State private var editingText: String = ""
 
@@ -88,6 +89,21 @@ struct CommentsSection: View {
             Button(bundle.loc("Cancel"), role: .cancel) {}
         } message: {
             Text("This comment won't be shown in the app. You can restore it from Recently Deleted within 30 days.", bundle: bundle)
+        }
+        .sheet(item: $reportingComment, onDismiss: {
+            // A warned or banned comment is taken down: show the list without it.
+            if appState.currentUser?.isOfficial ?? false { Task { await viewModel.load(postId: postId) } }
+        }) { comment in
+            if appState.currentUser?.isOfficial ?? false {
+                // The official account warns or bans instead of reporting.
+                AdminBanSheet(target: ModerationTarget(type: "comment", id: comment.id, userId: comment.author.id,
+                                                       userName: comment.author.displayName,
+                                                       mode: appState.currentMode.rawValue))
+                    .environment(themeManager)
+            } else {
+                ReportSheet(subject: .content(.comment, id: comment.id),
+                            blockUser: (comment.author.id, comment.author.displayName))
+            }
         }
     }
 
@@ -232,6 +248,7 @@ struct CommentsSection: View {
                 onReplyRequested()
             },
             onDelete: { pendingDeleteCommentId = comment.id },
+            onReport: { reportingComment = comment },
             onEdit: { beginEditing(comment) },
             onSaveEdit: { Task { await saveEdit(commentId: comment.id) } },
             onCancelEdit: { editingCommentId = nil }
@@ -290,6 +307,8 @@ struct CommentRow: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.openURL) private var openURL
     @State private var inAppBrowserURL: URL?
+    /// The admin acts in Review reports instead of reporting comments.
+    private var viewerIsOfficial: Bool { appState.currentUser?.isOfficial ?? false }
 
     let comment: CommentDTO
     /// Set under a community post: names open the person's community profile.
@@ -312,6 +331,7 @@ struct CommentRow: View {
     var onLike:   (() -> Void)? = nil
     var onReply:  (() -> Void)? = nil
     var onDelete: (() -> Void)? = nil
+    var onReport: (() -> Void)? = nil
     var onEdit:   (() -> Void)? = nil
     var onSaveEdit:   (() -> Void)? = nil
     var onCancelEdit: (() -> Void)? = nil
@@ -357,7 +377,18 @@ struct CommentRow: View {
                                     Label(bundle.loc("Delete comment"), systemImage: "trash")
                                 }
                             }
+                            if !isOwn, !comment.author.isOfficial, let onReport {
+                                Button(role: viewerIsOfficial ? .destructive : nil, action: onReport) {
+                                    Label(bundle.loc(viewerIsOfficial ? "Warn or ban" : "Report comment"),
+                                          systemImage: viewerIsOfficial ? "hand.raised.slash" : "flag")
+                                }
+                            }
                         }
+                    // The photo is its own part, right under the text bubble, not inside it.
+                    if let photo = comment.imageUrl {
+                        CommentPhoto(path: photo)
+                            .padding(.top, 2)
+                    }
                 }
                 metaRow
             }
@@ -384,6 +415,7 @@ struct CommentRow: View {
                         profileLink(comment.author.id) {
                             nameText(comment.author.displayName, scale: scale)
                         }
+                        if comment.author.isOfficial { OfficialBadge(compact: true).padding(.leading, -2) }
                         if isPostAuthor { authorBadge }
                     }
                 }
@@ -405,7 +437,7 @@ struct CommentRow: View {
                 }
             }
 
-            // A photo-only comment has no text line.
+            // A photo-only comment has no text line (its photo sits below the bubble).
             if !comment.content.isEmpty {
                 let shown = showsTranslation ? (comment.translatedText ?? comment.content) : comment.content
                 Text(comment.isMarkdown
@@ -416,10 +448,6 @@ struct CommentRow: View {
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .fixedSize(horizontal: false, vertical: true)
                     .environment(\.openURL, OpenURLAction { url in openCommentLink(url); return .handled })
-            }
-            if let photo = comment.imageUrl {
-                CommentPhoto(path: photo)
-                    .padding(.top, 4)
             }
             if canTranslate {
                 TranslationToggle(showingTranslation: showsTranslation, fontSize: 12) {
@@ -461,13 +489,14 @@ struct CommentRow: View {
             if let onLike {
                 Button(action: onLike) {
                     HStack(spacing: 3) {
-                        Image(systemName: comment.isLiked ? "heart.fill" : "heart")
-                            .scaledFont(12)
+                        LikeIcon(isLiked: comment.isLiked,
+                                 color: comment.isLiked ? themeManager.theme.primary : AppColors.textSecondary(colorScheme),
+                                 size: 14)
                         if comment.likeCount > 0 {
                             Text("\(comment.likeCount)").scaledFont(12)
                         }
                     }
-                    .foregroundColor(comment.isLiked ? AppColors.danger(colorScheme) : AppColors.textSecondary(colorScheme))
+                    .foregroundColor(comment.isLiked ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
                 }
                 .buttonStyle(.plain)
             }
@@ -487,9 +516,8 @@ struct CommentRow: View {
     /// `isEditing` is true. Single-line-ish; not a full-screen composer.
     private var editRow: some View {
         HStack(spacing: 8) {
-            TextField(bundle.loc("Write a comment..."), text: editingText, axis: .vertical)
-                .scaledFont(14)
-                .lineLimit(4)
+            MarkdownTextEditor(text: editingText, placeholder: bundle.loc("Write a comment..."), size: 14,
+                               minHeight: 22, maxHeight: 96)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .background(AppColors.base(colorScheme))

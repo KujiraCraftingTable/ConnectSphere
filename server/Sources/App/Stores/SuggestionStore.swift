@@ -137,6 +137,7 @@ enum SuggestionStore {
               AND NOT EXISTS (SELECT 1 FROM user_blocks ub
                     WHERE (ub.blocker_id = \(uuid: me) AND ub.blocked_id = u.id)
                        OR (ub.blocker_id = u.id AND ub.blocked_id = \(uuid: me)))
+              AND \(AccountBans.visible(userRef: "u.id", mode: mode, viewer: me))
               -- Already friends, a request either way, or one they turned
               -- down: none of those belong in "you may know".
               AND NOT EXISTS (SELECT 1 FROM connections cx WHERE cx.mode = \(bind: mode)

@@ -31,6 +31,9 @@ struct FollowsController {
         guard try await !UserStore.isBlockedEitherWay(req.userID, target, on: db) else {
             throw InlineError(.forbidden, "Cannot follow this user")
         }
+        try await AccountBans.refuseIfBanned(target, mode: mode, on: db)
+        // Anyone can follow the official account; it follows no one.
+        try await OfficialAccount.refuse(req.userID, "doesn't follow accounts", on: db)
         try await FollowStore.follow(req.userID, target, mode: mode, on: db)
         return FollowState(is_following: true)
     }

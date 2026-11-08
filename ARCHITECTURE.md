@@ -123,7 +123,8 @@ layered instead:
 | **Jobs** | `Jobs/` | Background work on Redis via Vapor Queues (only when `RUN_JOBS=1`): tag extraction, chunk embedding and its 30-minute sweep, social notifications, translation, scheduled-post publishing, auto re-up, meeting reminders, daily housekeeping |
 | **Realtime** | `Realtime/` | The Socket.IO-compatible hub the app's `WebSocketClient` talks to |
 | **Infra** | `Infra/` | Environment, error middleware (`{ status, code, message }`), rate limiting, security headers, the migration runner (`RUN_MIGRATIONS=1`), upload metadata stripping |
-| **Commands** | `Commands/` | One-off maintenance commands: `seed-demo`, `strip-upload-metadata`, `verify-company`, `community-reports` |
+| **Commands** | `Commands/` | One-off maintenance commands: `seed-demo`, `strip-upload-metadata`, `verify-company`, `community-reports`, `moderator`, `moderation`, `moderation-eval`, `official-account` |
+| **Moderation** | `Moderation/` | Reports, cases, decisions, strikes and appeals (migration 089): `ModerationPolicy` (the shared rule list), `ModerationStore`/`ModerationQueue` (SQL), `ModerationService` (decisions), `ModerationNotices` |
 
 The database schema lives in `backend/migrations/` (92 files, `001`–`097`) and is replayed at boot when `RUN_MIGRATIONS=1`.
 The AI search design is described in `AI_SEARCH_OVERVIEW.md`.

@@ -118,6 +118,7 @@ enum SocketHandlers {
         var mediaUrl: String?; var mediaItems: [MessageObject.MediaItem]?
         var replyToMessageId: String?; var meetingProposal: MeetingArg?
         var voiceDurationSeconds: Int?; var voiceWaveform: [Double]?
+        var confirm: Bool?
     }
     private static func sendMessage(_ arg: Any?, ackID: Int?, conn: SocketConn, session: SocketSession) async {
         guard let b = decode(arg, SendArg.self), let cid = b.conversationId else {
@@ -141,6 +142,10 @@ enum SocketHandlers {
                 await session.ackError(ackID, "Content required"); return
             }
             if let c = b.content, c.count > 2000 { await session.ackError(ackID, "Message is too long"); return }
+            if let why = ModerationGate.rejection([b.content, b.meetingProposal?.title, b.meetingProposal?.location],
+                                                  .chat, confirm: b.confirm ?? false) {
+                await session.ackError(ackID, why); return
+            }
             let album: [MessageObject.MediaItem]?
             let mediaURL: String?
             do {
@@ -166,8 +171,14 @@ enum SocketHandlers {
             do {
                 try await MessagesController.assertNotBlockedInConversation(cid, conn.userID, on: db)
             } catch { await session.ackError(ackID, "Cannot message this user"); return }
-            if try await MessageRequests.gate(conversationID: cid, senderID: conn.userID, on: db) == .limitReached {
-                await session.ackError(ackID, MessageRequests.limitReason); return
+            switch try await MessageRequests.gate(conversationID: cid, senderID: conn.userID, on: db) {
+            case .limitReached: await session.ackError(ackID, MessageRequests.limitReason); return
+            case .restricted: await session.ackError(ackID, MessageRequests.restrictedReason); return
+            case .open: break
+            }
+
+            if try await MessageRequests.blocksNewAccountLink(conversationID: cid, senderID: conn.userID, content: b.content, on: db) {
+                await session.ackError(ackID, MessageRequests.newAccountLinkReason); return
             }
 
             let stored = b.content?.trimmedText.nilIfEmpty ?? validated?.title
@@ -180,6 +191,8 @@ enum SocketHandlers {
             }
             let parts = try await ChatStore.participants(cid, on: db)
             session.hub.emitConversation(cid, participants: parts, event: "new_message", msg)
+            let (sender, sentText, appDB, hub, log) = (conn.userID, stored, session.db, session.hub, session.logger)
+            Task { await SpamSignals.afterSend(senderID: sender, conversationID: cid, content: sentText, mode: nil, db: appDB, hub: hub, logger: log) }
             Task { await NotifyService.notifyNewMessage(conversationID: cid, senderID: conn.userID, message: msg,
                 on: session.db.sql(), hub: session.hub, logger: session.logger) }
             await ackData(session, ackID, msg)

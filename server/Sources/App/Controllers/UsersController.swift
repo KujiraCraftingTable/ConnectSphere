@@ -54,6 +54,11 @@ struct UsersController {
         // A deleted account's profile is gone, not just anonymised (its username and counts would still show).
         guard try await UserStore.isActive(id, on: db) else { throw Abort(.notFound, reason: "User not found") }
         let viewMode = mode(from: req)
+        // A persona banned in this mode is gone for everyone but the official account.
+        if let m = viewMode, try await AccountBans.activeModes(id, on: db).contains(m),
+           try await !OfficialAccount.isOfficial(req.userID, on: db) {
+            throw Abort(.notFound, reason: "User not found")
+        }
         guard var user = try await UserStore.findById(id, mode: viewMode, on: db) else {
             throw Abort(.notFound, reason: "User not found")
         }
@@ -75,6 +80,7 @@ struct UsersController {
         guard try await db.raw("SELECT id FROM users WHERE id = \(uuid: id)").first(decoding: R.self) != nil else {
             throw Abort(.notFound, reason: "User not found")
         }
+        try await OfficialAccount.refuse(id, "can't be blocked", on: db)
         try await UserStore.block(req.userID, id, on: req.db)
         return BlockedFlagResponse(blocked: true)
     }
@@ -146,6 +152,18 @@ struct UsersController {
         /// Hobby-only (migration 062).
         var languages: [String]?
         var relationship_status: String?
+        /// The account's palette per mode; ids from the app's ThemeManager.
+        var hobby_theme: String?
+        var work_theme: String?
+    }
+
+    /// Palette ids the app offers per mode (ThemeManager.socialPalettes / workPalettes).
+    static let hobbyThemes: Set<String> = ["sunset", "tropical", "candy", "amber", "blue", "rose"]
+    static let workThemes: Set<String> = ["navy", "slate", "forest", "charcoal", "blue", "deep-purple"]
+
+    static func isValidTheme(_ id: String?, mode: String) -> Bool {
+        guard let id else { return false }
+        return (mode == "work" ? workThemes : hobbyThemes).contains(id)
     }
 
     static let relationshipStatuses: Set<String> = [
@@ -166,14 +184,21 @@ struct UsersController {
     }
 
     static func updateMe(_ req: Request) async throws -> DataResponse<PrivateUserObject> {
-        let raw = try req.content.decode(UpdateMeBody.self)
+        var raw = try req.content.decode(UpdateMeBody.self)
+        // The official account keeps the least information: only its name and
+        // pictures change. Other fields are dropped, not refused, so a full
+        // Edit profile save still goes through.
+        let isOfficial = try await OfficialAccount.isOfficial(req.userID, on: req.db.sql())
+        if isOfficial { raw.interests = nil; raw.skills = nil }
+        try ModerationGate.check([raw.display_name, raw.job_title, raw.company], .name)
+        try ModerationGate.check([raw.bio], .text)
         // Before anything is written, so a bad list doesn't leave half an update.
         var skills = raw.skills
         if let picks = skills { skills = try await SkillStore.cleanPicks(picks, userID: req.userID, on: req.db.sql()) }
         // Which keys were actually present in the JSON body.
         let presentKeys: Set<String> = {
             guard let dict = try? req.content.decode([String: AnyCodableValue].self) else { return [] }
-            return Set(dict.keys)
+            return isOfficial ? OfficialAccount.editableProfileKeys(Set(dict.keys)) : Set(dict.keys)
         }()
         func sent(_ key: String) -> Bool { presentKeys.contains(key) }
 
@@ -209,6 +234,12 @@ struct UsersController {
         if sent("dob_visibility"), !["private", "public"].contains(raw.dob_visibility ?? "") {
             throw InlineError(.badRequest, "dob_visibility must be private or public")
         }
+        if sent("hobby_theme"), !isValidTheme(raw.hobby_theme, mode: "hobby") {
+            throw InlineError(.badRequest, "Invalid hobby_theme")
+        }
+        if sent("work_theme"), !isValidTheme(raw.work_theme, mode: "work") {
+            throw InlineError(.badRequest, "Invalid work_theme")
+        }
         // Checked before anything is written; a ward can be changed, never removed.
         let ward = sent("ward_id") ? try await WardStore.require(raw.ward_id, on: sdb) : nil
 
@@ -240,14 +271,20 @@ struct UsersController {
         }
         if sent("job_title")    { fields.append(("job_title", trimmedOrNil(raw.job_title))) }
         if sent("company")      { fields.append(("company", trimmedOrNil(raw.company))) }
-        if sent("avatar_url")   { fields.append(("avatar_url", MediaPath.storable(raw.avatar_url))) }
-        if sent("cover_url")    { fields.append(("cover_url", MediaPath.storable(raw.cover_url))) }
+        if sent("avatar_url")   { fields.append(("avatar_url", try MediaPath.uploaded(raw.avatar_url))) }
+        if sent("cover_url")    { fields.append(("cover_url", try MediaPath.uploaded(raw.cover_url))) }
         if sent("dob")          { fields.append(("dob", (raw.dob?.isEmpty ?? true) ? nil : raw.dob)) }
         if sent("gender")       { fields.append(("gender", raw.gender)) }
         if sent("dob_visibility") { fields.append(("dob_visibility", raw.dob_visibility)) }
 
         if sent("allow_friend_requests"), let allow = raw.allow_friend_requests {
             try await sdb.raw("UPDATE users SET allow_friend_requests = \(bind: allow) WHERE id = \(uuid: req.userID)").run()
+        }
+        if sent("hobby_theme"), let theme = raw.hobby_theme {
+            try await sdb.raw("UPDATE users SET hobby_theme = \(bind: theme) WHERE id = \(uuid: req.userID)").run()
+        }
+        if sent("work_theme"), let theme = raw.work_theme {
+            try await sdb.raw("UPDATE users SET work_theme = \(bind: theme) WHERE id = \(uuid: req.userID)").run()
         }
         if sent("show_in_suggestions"), let show = raw.show_in_suggestions {
             try await sdb.raw("UPDATE users SET show_in_suggestions = \(bind: show) WHERE id = \(uuid: req.userID)").run()
@@ -281,6 +318,7 @@ struct UsersController {
             userID: req.userID, fields: fields,
             interests: interests, skills: skills, mode: mode, on: req.db)
         await BackgroundJobs.refreshEmbedding(req, .profile, id: req.userID)
+        if sent("display_name") || sent("bio") || sent("avatar_url") || sent("cover_url") { await ModerationScan.enqueue(req, .profile, id: req.userID, mode: mode) }
 
         guard let pub = try await UserStore.findById(req.userID, mode: mode, on: sdb) else {
             throw Abort(.internalServerError)
@@ -319,6 +357,10 @@ struct UsersController {
 
     static func createPersona(_ req: Request) async throws -> Response {
         let b = try req.content.decode(CreatePersonaBody.self)
+        // It already has both profiles (`official-account tidy`).
+        try await OfficialAccount.refuse(req.userID, "already has both profiles", on: req.db.sql())
+        try ModerationGate.check([b.display_name, b.job_title, b.company], .name)
+        try ModerationGate.check([b.bio], .text)
         guard let mode = b.mode, ["hobby", "work"].contains(mode) else {
             throw InlineError(.badRequest, "mode must be hobby or work")
         }
@@ -381,6 +423,7 @@ struct UsersController {
 
         guard let user = try await UserStore.findById(req.userID, mode: mode, on: sdb) else { throw Abort(.internalServerError) }
         await BackgroundJobs.refreshEmbedding(req, .profile, id: req.userID)
+        await ModerationScan.enqueue(req, .profile, id: req.userID, mode: mode)
         let res = try await DataResponse(data: user).encodeResponse(for: req)
         res.status = .created
         return res

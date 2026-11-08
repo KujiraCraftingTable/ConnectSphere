@@ -13,28 +13,27 @@ extension Date {
         if days < 8        { return String(format: b.loc("%dd ago"), days) }
         if days < 15       { return b.loc("1w ago") }
 
-        // Absolute date: formatted according to the currently selected language.
-        // Falls back to the device locale (not a hardcoded "vi") before the
-        // setting is first persisted. Same convention as AppState.init() and
-        // Bundle.app, which both derive from Locale.current rather than
-        // assuming Vietnamese.
-        let savedLanguage = UserDefaults.standard.string(forKey: "appLanguage")
-            ?? Locale.current.language.languageCode?.identifier ?? "en"
-        let isVi = savedLanguage == "vi"
-        return Self.shortDateFormatter(
-            locale: isVi ? "vi_VN" : "en_US",
-            format: isVi ? "dd/MM/yyyy" : "MM/dd/yyyy"
-        ).string(from: self)
+        // Absolute date: day first (dd/MM/yyyy) in both languages, the Vietnamese
+        // convention the app's users read.
+        return dayMonthYear
     }
 
-    private static var dateFormatterCache: [String: DateFormatter] = [:]
+    /// "08/11/2026". Numeric dates are always day first, whatever the language;
+    /// the system's English style would put the month first.
+    var dayMonthYear: String { Self.dayMonthYearFormatter.string(from: self) }
 
-    private static func shortDateFormatter(locale: String, format: String) -> DateFormatter {
-        if let cached = dateFormatterCache[locale] { return cached }
+    /// "08/11, 3:05 PM": day first, with the time in the device's own style.
+    var dayMonthTime: String {
+        Self.dayMonthFormatter.string(from: self) + ", " + formatted(date: .omitted, time: .shortened)
+    }
+
+    private static let dayMonthYearFormatter = fixedFormatter("dd/MM/yyyy")
+    private static let dayMonthFormatter = fixedFormatter("dd/MM")
+
+    private static func fixedFormatter(_ format: String) -> DateFormatter {
         let f = DateFormatter()
-        f.locale = Locale(identifier: locale)
+        f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = format
-        dateFormatterCache[locale] = f
         return f
     }
 }

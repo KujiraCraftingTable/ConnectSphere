@@ -156,8 +156,9 @@ struct StoriesController {
     struct CreateBody: Content { var image_url: String?; var mode: String? }
 
     static func create(_ req: Request) async throws -> Response {
+        try req.requireNotRestricted()
         let body = try req.content.decode(CreateBody.self)
-        guard let url = MediaPath.storable(body.image_url) else {
+        guard let url = try MediaPath.uploaded(body.image_url) else {
             throw InlineError(.badRequest, "image_url is required")
         }
         guard let mode = body.mode, ["hobby", "work"].contains(mode) else {
@@ -167,6 +168,9 @@ struct StoriesController {
             INSERT INTO stories (author_id, image_url, mode) VALUES (\(uuid: req.userID), \(bind: url), \(bind: mode))
             RETURNING id, author_id, image_url, created_at, expires_at
             """).first(decoding: StoryRow.self)!
+        // The photo may have been checked before the story existed.
+        let (app, logger) = (req.application, req.logger)
+        Task { await MediaScan.reconcile(path: url, app: app, logger: logger) }
         let res = try await DataResponse(data: row).encodeResponse(for: req)
         res.status = .created
         return res
@@ -194,6 +198,7 @@ struct StoriesController {
               AND NOT EXISTS (SELECT 1 FROM user_blocks ub
                 WHERE (ub.blocker_id = \(uuid: req.userID) AND ub.blocked_id = s.author_id)
                    OR (ub.blocker_id = s.author_id AND ub.blocked_id = \(uuid: req.userID)))
+              AND \(AccountBans.visible(userRef: "s.author_id", modeColumn: "s.mode", viewer: req.userID))
             ORDER BY (s.author_id = \(uuid: req.userID)) DESC, s.author_id, s.created_at ASC
             """).all(decoding: Row.self)
         let dec = JSONCoding.makeDecoder()

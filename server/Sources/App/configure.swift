@@ -8,6 +8,7 @@ public func configure(_ app: Application) async throws {
     //    point the process at `../backend/.env` in entrypoint before this runs.
     let env = try AppEnv.load()
     app.appEnv = env
+    SpamSignals.enforcing = env.moderation.enforcing
     app.http.server.configuration.port = env.port
     app.http.server.configuration.hostname = "0.0.0.0"
     // JSON lists (feed, search) shrink several times over; only applied when
@@ -36,6 +37,10 @@ public func configure(_ app: Application) async throws {
     app.asyncCommands.use(StripUploadMetadataCommand(), as: "strip-upload-metadata")
     app.asyncCommands.use(VerifyCompanyCommand(), as: "verify-company")
     app.asyncCommands.use(CommunityReportsCommand(), as: "community-reports")
+    app.asyncCommands.use(ModeratorCommand(), as: "moderator")
+    app.asyncCommands.use(OfficialAccountCommand(), as: "official-account")
+    app.asyncCommands.use(ModerationCommand(), as: "moderation")
+    app.asyncCommands.use(ModerationEvalCommand(), as: "moderation-eval")
     app.asyncCommands.use(SeedDemoCommand(), as: "seed-demo")
 
     // 5. Routes.

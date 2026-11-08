@@ -5,7 +5,9 @@ import SQLKit
 /// shaping), settings, mute, media, search, reactions, pins, receipts. Group
 /// management and meeting proposals live in `ChatStoreGroups`.
 enum ChatStore {
-    static let reactionEmoji = ["❤️", "👍", "😂", "😮", "😢", "🔥"]
+    /// The only reaction left is the whale (the app's word for a like). Older
+    /// emoji reactions stay in the table but are no longer accepted or shown.
+    static let reactionEmoji = ["🐳"]
     static let maxPins = 10
 
     /// `MESSAGE_EMBED_SELECT`: the reply preview, reaction map, embedded meeting
@@ -57,6 +59,7 @@ enum ChatStore {
         var poll: String?; var shared_post_id: String?; var shared_community_id: String?
         var is_pinned: Bool; var delivered_to: String; var read_by: String
         var is_auto_reply: Bool
+        var is_forwarded: Bool
     }
 
     static func mapMessage(_ r: MessageRow) throws -> MessageObject {
@@ -79,7 +82,7 @@ enum ChatStore {
             read_by: obj(r.read_by, [String].self) ?? [],
             poll: obj(r.poll, MessageObject.Poll.self),
             shared_post_id: r.shared_post_id, shared_community_id: r.shared_community_id,
-            is_auto_reply: r.is_auto_reply)
+            is_auto_reply: r.is_auto_reply, is_forwarded: r.is_forwarded)
     }
 
     static let msgSelect: SQLQueryString = """
@@ -92,7 +95,7 @@ enum ChatStore {
           CASE WHEN m.deleted_at IS NULL THEN m.shared_post_id::text ELSE NULL END AS shared_post_id,
           CASE WHEN m.deleted_at IS NULL THEN m.shared_community_id::text ELSE NULL END AS shared_community_id,
           m.created_at, m.reply_to_message_id::text AS reply_to_message_id, (m.deleted_at IS NOT NULL) AS is_deleted,
-          m.is_auto_reply,
+          m.is_auto_reply, m.is_forwarded,
         """
 
     static let msgFrom: SQLQueryString = """
@@ -180,15 +183,15 @@ enum ChatStore {
                               mediaUrl: String?, mediaItems: [MessageObject.MediaItem]? = nil,
                               replyToMessageID: String?, voiceDuration: Int?, voiceWaveform: [Double]?,
                               sharedPostID: String? = nil, sharedCommunityID: String? = nil,
-                              isAutoReply: Bool = false,
+                              isAutoReply: Bool = false, isForwarded: Bool = false,
                               on db: any SQLDatabase) async throws -> String {
         struct R: Decodable { let id: String }
         let itemsJSON = try mediaItems.map { String(decoding: try JSONEncoder().encode($0), as: UTF8.self) }
         let id = try await db.raw("""
-            INSERT INTO messages (conversation_id, sender_id, content, message_type, media_url, media_items, reply_to_message_id, voice_duration_seconds, voice_waveform, shared_post_id, shared_community_id, is_auto_reply)
+            INSERT INTO messages (conversation_id, sender_id, content, message_type, media_url, media_items, reply_to_message_id, voice_duration_seconds, voice_waveform, shared_post_id, shared_community_id, is_auto_reply, is_forwarded)
             VALUES (\(uuid: conversationID), \(uuid: senderID), \(bind: content), \(bind: messageType), \(bind: mediaUrl),
                     \(bind: itemsJSON)::jsonb, \(uuid: replyToMessageID), \(bind: voiceDuration), \(bind: voiceWaveform),
-                    \(uuid: sharedPostID), \(uuid: sharedCommunityID), \(bind: isAutoReply))
+                    \(uuid: sharedPostID), \(uuid: sharedCommunityID), \(bind: isAutoReply), \(bind: isForwarded))
             RETURNING id::text AS id
             """).first(decoding: R.self)!.id
         try await db.raw("UPDATE conversations SET updated_at = NOW() WHERE id = \(uuid: conversationID)").run()
@@ -433,6 +436,8 @@ struct MessageObject: Content {
     @NullCoded var shared_community_id: String? = nil
     /// Sent for the sender by their listing's auto-reply (migration 072).
     var is_auto_reply: Bool = false
+    /// Forwarded from another chat (migration 107); the source is never stored.
+    var is_forwarded: Bool = false
 
     struct MediaItem: Content, Equatable {
         var url: String

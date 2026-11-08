@@ -5,9 +5,11 @@ struct CommentAuthorDTO: Decodable {
     let displayName: String
     let avatarColor: String
     let avatarUrl: String?
+    let isOfficial: Bool
 
     enum CodingKeys: String, CodingKey {
         case id
+        case isOfficial  = "is_official"
         case avatarColor = "avatar_color"
         case avatarUrl   = "avatar_url"
         case displayName = "display_name"
@@ -20,11 +22,12 @@ struct CommentAuthorDTO: Decodable {
         displayName = try c.decodeIfPresent(String.self, forKey: .displayName) ?? "Deleted User"
         avatarColor = try c.decodeIfPresent(String.self, forKey: .avatarColor) ?? "#9E9E9E"
         avatarUrl   = try c.decodeIfPresent(String.self, forKey: .avatarUrl)
+        isOfficial  = try c.decodeIfPresent(Bool.self, forKey: .isOfficial) ?? false
     }
 
     static let deleted = CommentAuthorDTO()
     private init() {
-        id = ""; displayName = "Deleted User"; avatarColor = "#9E9E9E"; avatarUrl = nil
+        id = ""; displayName = "Deleted User"; avatarColor = "#9E9E9E"; avatarUrl = nil; isOfficial = false
     }
 }
 

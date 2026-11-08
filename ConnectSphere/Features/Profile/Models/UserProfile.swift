@@ -72,6 +72,9 @@ struct UserProfile: Identifiable {
     var score: Double?
     /// AI search with a radius only: ward to ward, already rounded up to 5 km.
     var distanceKm: Int? = nil
+    /// The official @connectsphere account, the app's only admin: shown with a
+    /// badge, and never offered Report or Block.
+    var isOfficial: Bool = false
 }
 
 extension UserProfile {

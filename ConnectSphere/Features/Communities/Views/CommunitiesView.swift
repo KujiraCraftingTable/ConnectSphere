@@ -56,12 +56,16 @@ struct CommunitiesView: View {
                     MarketplaceView(sellRequest: $sellRequest)
                 }
             }
+            // Swipe the content to move between the three segments.
+            .swipeBetween(CommunityTab.allCases, selection: $selectedTab)
             .appBackground()
             .navigationTitle(bundle.loc(selectedTab == .marketplace ? "Marketplace" : "Community"))
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if selectedTab == .marketplace {
+                        // The official account only monitors the Marketplace: no Sell.
+                        if !(appState.currentUser?.isOfficial ?? false) {
                         // Icon and word spelled out: the toolbar shows a Label as its icon alone.
                         Button { sellRequest += 1 } label: {
                             HStack(spacing: 4) {
@@ -72,7 +76,9 @@ struct CommunitiesView: View {
                             .foregroundColor(themeManager.theme.primary)
                             .padding(.horizontal, 6)
                         }
-                    } else {
+                        }
+                    } else if !(appState.currentUser?.isOfficial ?? false) {
+                        // Creating a community would make the official account its member.
                         Button { showCreate = true } label: {
                             // Plain glyph, a filled disc read as a button inside the glass.
                             Image(systemName: "plus")
@@ -86,6 +92,13 @@ struct CommunitiesView: View {
             .task {
                 await viewModel.fetchInitial(token: appState.authToken ?? "",
                                              type: appState.currentMode == .hobby ? .fandom : .work)
+            }
+            // Tab re-tapped: reload the lists.
+            .onChange(of: appState.communitiesReloadTick) {
+                // Back to My communities from Marketplace or Discover.
+                withAnimation { selectedTab = .myCommunities }
+                Task { await viewModel.fetchInitial(token: appState.authToken ?? "",
+                                                    type: appState.currentMode == .hobby ? .fandom : .work) }
             }
             // Joined, left, pinned or edited elsewhere: refresh the list.
             .onReceive(NotificationCenter.default.publisher(for: .communitiesChanged)) { _ in

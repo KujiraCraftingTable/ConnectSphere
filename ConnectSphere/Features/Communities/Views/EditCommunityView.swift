@@ -56,8 +56,8 @@ struct EditCommunityView: View {
                 }
 
                 Section {
-                    TextEditor(text: $viewModel.about)
-                        .frame(minHeight: 100)
+                    MarkdownTextEditor(text: $viewModel.about, placeholder: "", size: 16,
+                                       minHeight: 100, maxHeight: 220)
                 } header: {
                     Text("About", bundle: bundle)
                 } footer: {

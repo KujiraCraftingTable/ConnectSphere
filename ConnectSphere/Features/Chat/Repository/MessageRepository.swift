@@ -206,6 +206,10 @@ struct MessageRepository {
         replyToMessageId: String? = nil,
         voiceDurationSeconds: Int? = nil,
         voiceWaveform: [Float]? = nil,
+        /// The person saw "Are you sure?" about rude wording and sent it anyway.
+        confirmed: Bool = false,
+        /// Sent by Forward: the receiver sees "Forwarded" and nothing about the source.
+        isForwarded: Bool = false,
         token: String
     ) async throws -> Message {
         struct Body: Encodable {
@@ -216,6 +220,8 @@ struct MessageRepository {
             let reply_to_message_id: String?
             let voice_duration_seconds: Int?
             let voice_waveform: [Float]?
+            let confirm: Bool?
+            let is_forwarded: Bool?
         }
         let body = try JSONEncoder().encode(Body(
             content: content,
@@ -224,7 +230,9 @@ struct MessageRepository {
             media_items: mediaItems,
             reply_to_message_id: replyToMessageId,
             voice_duration_seconds: voiceDurationSeconds,
-            voice_waveform: voiceWaveform
+            voice_waveform: voiceWaveform,
+            confirm: confirmed ? true : nil,
+            is_forwarded: isForwarded ? true : nil
         ))
         let response = try await client.fetch(
             DataResponse<Message>.self,

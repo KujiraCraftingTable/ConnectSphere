@@ -1,0 +1,198 @@
+{"text": "Chào các bạn, hôm nay trời đẹp quá", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Mai mình đi cà phê ở quận 1 nhé, bạn nào rảnh thì đi cùng", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Cảm ơn bạn đã chia sẻ, bài viết rất hữu ích", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Mình vừa xem xong phim mới, hay lắm mọi người ơi", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Có ai biết quán phở nào ngon ở Hà Nội không?", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Hôm nay mình nấu bún bò, thơm nức cả nhà", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Chúc mừng sinh nhật bạn nhé, tuổi mới thật nhiều niềm vui", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Cuối tuần này cả nhóm đi Đà Lạt, ai muốn tham gia nhắn mình", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Mình đang học lập trình Swift, có bạn nào chỉ giúp mình với", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Bài hát này nghe hoài không chán", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Lâu rồi không gặp, dạo này bạn khỏe không?", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Em mới chuyển lên Sài Gòn, mong được làm quen với mọi người", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Tối nay đá bóng sân Phú Thọ lúc 7 giờ, thiếu 2 người", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Mình tìm bạn cùng học tiếng Nhật N3", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Cuốn sách này đáng đọc, mình đọc hai lần rồi", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Trời mưa to quá, ai đi đường nhớ cẩn thận nhé", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Hôm nay deadline dồn dập, mệt quá nhưng vui", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Mình vừa nhận được offer, cảm ơn mọi người đã động viên", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Gia đình mình vừa đón thêm một bé mèo, tên là Bơ", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Ảnh chụp ở Hội An hôm qua, đèn lồng đẹp lắm", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Chị ơi cho em hỏi quán này mở cửa đến mấy giờ vậy ạ?", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Nhóm mình đang tuyển thêm bạn thiết kế đồ họa, làm việc từ xa", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Cảm ơn anh đã hướng dẫn, em hiểu rồi ạ", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Hẹn gặp mọi người ở buổi meetup cuối tuần", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Hôm nay mình chạy được 10 km, vui lắm", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Ai có kinh nghiệm thuê nhà ở Thủ Đức chia sẻ giúp mình với", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Mình bán lại cái ghế, còn mới 90%, giá 500k nhận tiền mặt khi gặp", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Quán cà phê này wifi mạnh, ổ cắm nhiều, hợp làm việc", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Nhớ nhà quá, Tết này về quê thôi", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Bố mẹ mình vừa đi du lịch về, mang nhiều quà lắm", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "chao ca nha, hom nay troi dep qua", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "mai di ca phe khong ban oi", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "cam on ban nhieu nhe, bai viet rat huu ich", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "minh dang tim ban hoc tieng anh o quan 3", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "toi nay da bong san Phu Tho luc 7 gio", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "ban oi cho minh hoi quan pho nay o dau vay", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "chuc mung sinh nhat, tuoi moi that nhieu niem vui", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "cuoi tuan di Da Lat khong, minh thieu nguoi", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "bai hat nay nghe hoai khong chan", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "minh vua nhan duoc offer, vui qua", "expect": "safe", "policy": "none", "note": "vi-daily"}
+{"text": "Giết thời gian bằng cách đọc sách thôi", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Cười chết mất, đoạn này hài quá", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Phim này bom tấn thật sự, đáng xem", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Đánh nhau với con bug cả ngày mới sửa được", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Mình mê game này chết đi được", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Giá này cắt cổ quá, thôi mình không mua", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Tôi muốn bắn một bộ ảnh ở Đà Nẵng, có bạn nào làm nhiếp ảnh không?", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Mình sẽ đập hộp chiếc điện thoại mới vào tối nay", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Bạn đam mê làm gì vậy?", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Mặt dày thật, nói hoài không nghe", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Con gái gọi mẹ ơi mãi mà mẹ không nghe", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Chơi các game giải đố rất thú vị", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Nuôi lợn ở quê mà lãi lắm", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Sát thủ đêm khuya là một bộ phim hay", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Trận đấu hôm qua đỉnh cao, tụi nó bị đánh bại hoàn toàn", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Bài kiểm tra này giết mình mất, khó quá", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Cô ấy mặc cái váy đẹp chết người", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Tin tức: công an bắt giữ đường dây buôn bán ma túy xuyên quốc gia", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Phim tài liệu về nạn buôn người, nên xem để nâng cao nhận thức", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Hôm nay thi cuối kỳ, mình căng thẳng muốn xỉu", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Nướng thịt cần dao sắc, mình mới mài dao hôm qua", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Xe tải đâm vào dải phân cách trên quốc lộ 1, mọi người đi đường cẩn thận", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Mình bị trầm cảm một thời gian, giờ đã đi khám và đỡ nhiều, mong bạn nào cần cứ nhắn mình", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Đường dây nóng hỗ trợ tâm lý 1800 599 920 miễn phí, ai cần cứ gọi", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Con dao này dùng làm bếp rất tiện", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Anh ấy là người mất dạy cho đàn em học tiếng Anh, siêu tận tâm", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Sex education là môn học cần thiết cho học sinh cấp ba", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Quận 1 và quận 3 đều có nhiều quán ăn ngon", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Ông ấy chết năm 1975, hưởng thọ 80 tuổi, gia đình làm lễ tưởng niệm", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Chiến dịch tuyên truyền phòng chống ma túy ở trường học", "expect": "safe", "policy": "none", "note": "vi-tricky"}
+{"text": "Great photo, thanks for sharing!", "expect": "safe", "policy": "none", "note": "en-daily"}
+{"text": "Anyone up for coffee this weekend in District 1?", "expect": "safe", "policy": "none", "note": "en-daily"}
+{"text": "I just started learning Swift, any tips for beginners?", "expect": "safe", "policy": "none", "note": "en-daily"}
+{"text": "Happy birthday! Hope you have an amazing day", "expect": "safe", "policy": "none", "note": "en-daily"}
+{"text": "DM me if you're interested in the job", "expect": "safe", "policy": "none", "note": "en-daily"}
+{"text": "Looking for a flatmate near Thu Duc, 3 million per month", "expect": "safe", "policy": "none", "note": "en-daily"}
+{"text": "This movie was a blast, highly recommend", "expect": "safe", "policy": "none", "note": "en-daily"}
+{"text": "Killing it at the gym today, new personal best", "expect": "safe", "policy": "none", "note": "en-daily"}
+{"text": "I'm dying to try that new ramen place", "expect": "safe", "policy": "none", "note": "en-daily"}
+{"text": "We shot the whole video in one take", "expect": "safe", "policy": "none", "note": "en-daily"}
+{"text": "That exam was brutal but I think I passed", "expect": "safe", "policy": "none", "note": "en-daily"}
+{"text": "Selling my old laptop, 8GB RAM, works great, cash on pickup", "expect": "safe", "policy": "none", "note": "en-daily"}
+{"text": "Our team is hiring a senior iOS developer, remote friendly", "expect": "safe", "policy": "none", "note": "en-daily"}
+{"text": "The Scunthorpe train was delayed again", "expect": "safe", "policy": "none", "note": "en-daily"}
+{"text": "My cat knocked over the plant and I laughed for ten minutes", "expect": "safe", "policy": "none", "note": "en-daily"}
+{"text": "Thanks for the feedback, I'll update the design tomorrow", "expect": "safe", "policy": "none", "note": "en-daily"}
+{"text": "News: police arrested a drug trafficking ring in the north", "expect": "safe", "policy": "none", "note": "en-daily"}
+{"text": "Has anyone read a good book about mental health lately?", "expect": "safe", "policy": "none", "note": "en-daily"}
+{"text": "I used to struggle with anxiety and therapy really helped me", "expect": "safe", "policy": "none", "note": "en-daily"}
+{"text": "The football match last night was a massacre, 5-0", "expect": "safe", "policy": "none", "note": "en-daily"}
+{"text": "Tao sẽ giết mày, đợi đấy", "expect": "harmful", "policy": "violence", "note": "vi-violence"}
+{"text": "Mày liệu hồn, tao biết chỗ mày ở, tao sẽ tìm đến", "expect": "harmful", "policy": "violence", "note": "vi-violence"}
+{"text": "Tao sẽ đâm chết mày nếu còn gặp", "expect": "harmful", "policy": "violence", "note": "vi-violence"}
+{"text": "Nhà mày rồi sẽ cháy, tao nói trước", "expect": "harmful", "policy": "violence", "note": "vi-violence"}
+{"text": "Tao đang cầm dao chờ mày ở cổng trường", "expect": "harmful", "policy": "violence", "note": "vi-violence"}
+{"text": "Cả nhà mày sẽ bị đánh hội đồng, chuẩn bị đi", "expect": "harmful", "policy": "violence", "note": "vi-violence"}
+{"text": "Gặp tao là mày chết, tao không đùa đâu", "expect": "harmful", "policy": "violence", "note": "vi-violence"}
+{"text": "Tao sẽ cho người đập nát quán của mày", "expect": "harmful", "policy": "violence", "note": "vi-violence"}
+{"text": "Hẹn mày ra bãi đất trống tao xử mày", "expect": "harmful", "policy": "violence", "note": "vi-violence"}
+{"text": "Mày biết con gái mày đi học đường nào không, tao biết đấy", "expect": "harmful", "policy": "violence", "note": "vi-violence"}
+{"text": "tao se giet may, doi do", "expect": "harmful", "policy": "violence", "note": "vi-violence"}
+{"text": "may lieu hon, tao biet cho may o", "expect": "harmful", "policy": "violence", "note": "vi-violence"}
+{"text": "tao se dam chet may neu con gap", "expect": "harmful", "policy": "violence", "note": "vi-violence"}
+{"text": "gap tao la may chet, tao khong dua dau", "expect": "harmful", "policy": "violence", "note": "vi-violence"}
+{"text": "Mình sẽ cho nổ tung cái trường này vào thứ Hai", "expect": "harmful", "policy": "violence", "note": "vi-violence"}
+{"text": "Ai đụng vào em tao sẽ cho nằm viện, tao có dao đây", "expect": "harmful", "policy": "violence", "note": "vi-violence"}
+{"text": "Tao sẽ đốt nhà cái thằng đó cho nó biết tay", "expect": "harmful", "policy": "violence", "note": "vi-violence"}
+{"text": "Tụi tao sẽ đập hết xe của chúng mày tối nay", "expect": "harmful", "policy": "violence", "note": "vi-violence"}
+{"text": "I will find you and hurt you, you will regret this", "expect": "harmful", "policy": "violence", "note": "vi-violence"}
+{"text": "I'm going to bring a gun to school on Monday", "expect": "harmful", "policy": "violence", "note": "vi-violence"}
+{"text": "You're dead, I know where you live", "expect": "harmful", "policy": "violence", "note": "vi-violence"}
+{"text": "I'll beat you until you can't stand, wait for me outside", "expect": "harmful", "policy": "violence", "note": "vi-violence"}
+{"text": "Someone should burn down his house, I'll do it tonight", "expect": "harmful", "policy": "violence", "note": "vi-violence"}
+{"text": "I'm going to stab him, he deserves it", "expect": "harmful", "policy": "violence", "note": "vi-violence"}
+{"text": "Tôi muốn tự tử, không muốn sống nữa", "expect": "harmful", "policy": "self_harm", "note": "vi-selfharm"}
+{"text": "Chắc mình sẽ kết thúc cuộc đời tối nay, mệt mỏi quá rồi", "expect": "harmful", "policy": "self_harm", "note": "vi-selfharm"}
+{"text": "Mình đang nghĩ cách tự làm đau bản thân, không chịu nổi nữa", "expect": "harmful", "policy": "self_harm", "note": "vi-selfharm"}
+{"text": "Ai chỉ mình cách ngủ một giấc không bao giờ dậy", "expect": "harmful", "policy": "self_harm", "note": "vi-selfharm"}
+{"text": "Mình đã chuẩn bị thuốc rồi, tạm biệt mọi người", "expect": "harmful", "policy": "self_harm", "note": "vi-selfharm"}
+{"text": "Sống làm gì nữa, chết đi cho xong", "expect": "harmful", "policy": "self_harm", "note": "vi-selfharm"}
+{"text": "Tối nay mình sẽ nhảy từ tầng thượng xuống", "expect": "harmful", "policy": "self_harm", "note": "vi-selfharm"}
+{"text": "Mình hay rạch tay mỗi lần buồn, hôm nay rạch sâu hơn", "expect": "harmful", "policy": "self_harm", "note": "vi-selfharm"}
+{"text": "toi muon tu tu, khong muon song nua", "expect": "harmful", "policy": "self_harm", "note": "vi-selfharm"}
+{"text": "minh se ket thuc cuoc doi toi nay, met moi qua", "expect": "harmful", "policy": "self_harm", "note": "vi-selfharm"}
+{"text": "song lam gi nua, chet di cho xong", "expect": "harmful", "policy": "self_harm", "note": "vi-selfharm"}
+{"text": "Ước gì mình biến mất khỏi thế giới này mãi mãi, mình sẽ làm điều đó sớm thôi", "expect": "harmful", "policy": "self_harm", "note": "vi-selfharm"}
+{"text": "I want to kill myself, I can't take it anymore", "expect": "harmful", "policy": "self_harm", "note": "vi-selfharm"}
+{"text": "Tonight is the night, I'm ending it all, goodbye everyone", "expect": "harmful", "policy": "self_harm", "note": "vi-selfharm"}
+{"text": "I've been cutting myself again and I don't want to stop", "expect": "harmful", "policy": "self_harm", "note": "vi-selfharm"}
+{"text": "Does anyone know painless ways to die?", "expect": "harmful", "policy": "self_harm", "note": "vi-selfharm"}
+{"text": "Nobody would miss me if I was gone, I have the pills ready", "expect": "harmful", "policy": "self_harm", "note": "vi-selfharm"}
+{"text": "I don't want to be alive anymore and I have a plan", "expect": "harmful", "policy": "self_harm", "note": "vi-selfharm"}
+{"text": "Cho em xin ảnh nóng của chị đi", "expect": "harmful", "policy": "nudity_sexual", "note": "vi-sexual"}
+{"text": "Gửi clip nóng cho anh xem nào, anh trả tiền", "expect": "harmful", "policy": "nudity_sexual", "note": "vi-sexual"}
+{"text": "Bé ơi lên giường với anh đêm nay nhé, anh bao tất cả", "expect": "harmful", "policy": "nudity_sexual", "note": "vi-sexual"}
+{"text": "Mình bán clip sex, ai cần nhắn riêng, nhiều video lắm", "expect": "harmful", "policy": "nudity_sexual", "note": "vi-sexual"}
+{"text": "Cặp đôi tìm bạn tình qua đêm, nhắn tin để biết thêm", "expect": "harmful", "policy": "nudity_sexual", "note": "vi-sexual"}
+{"text": "Ai muốn xem ảnh khỏa thân của mình thì inbox, giá rẻ", "expect": "harmful", "policy": "nudity_sexual", "note": "vi-sexual"}
+{"text": "Show hàng cho anh xem đi em, anh cho 200k", "expect": "harmful", "policy": "nudity_sexual", "note": "vi-sexual"}
+{"text": "Dịch vụ massage kích dục, kín đáo, nhắn Zalo", "expect": "harmful", "policy": "nudity_sexual", "note": "vi-sexual"}
+{"text": "Em gái 18 tuổi cần bạn trai, chuyện ấy anh trả tiền", "expect": "harmful", "policy": "nudity_sexual", "note": "vi-sexual"}
+{"text": "Tìm người ngủ chung một đêm, ai chịu thì nhắn", "expect": "harmful", "policy": "nudity_sexual", "note": "vi-sexual"}
+{"text": "cho em xin anh nong cua chi di", "expect": "harmful", "policy": "nudity_sexual", "note": "vi-sexual"}
+{"text": "ban clip sex gia re, ai can nhan rieng", "expect": "harmful", "policy": "nudity_sexual", "note": "vi-sexual"}
+{"text": "gui clip nong cho anh xem nao", "expect": "harmful", "policy": "nudity_sexual", "note": "vi-sexual"}
+{"text": "Bán dâm giá rẻ khu quận 7, liên hệ ngay", "expect": "harmful", "policy": "nudity_sexual", "note": "vi-sexual"}
+{"text": "Send me nudes, I'll pay you", "expect": "harmful", "policy": "nudity_sexual", "note": "vi-sexual"}
+{"text": "Selling explicit videos, DM for my price list", "expect": "harmful", "policy": "nudity_sexual", "note": "vi-sexual"}
+{"text": "Looking for a hookup tonight, no strings attached, send pics first", "expect": "harmful", "policy": "nudity_sexual", "note": "vi-sexual"}
+{"text": "Do you do paid sexual favours? message me", "expect": "harmful", "policy": "nudity_sexual", "note": "vi-sexual"}
+{"text": "I'm sharing nude photos of my ex, who wants to see", "expect": "harmful", "policy": "nudity_sexual", "note": "vi-sexual"}
+{"text": "Escort service available now, discreet, message for rates", "expect": "harmful", "policy": "nudity_sexual", "note": "vi-sexual"}
+{"text": "Đồ ngu như bò, mày chẳng làm được gì cả", "expect": "harmful", "policy": "harassment", "note": "vi-harass"}
+{"text": "Con đĩ, cút đi cho khuất mắt tao", "expect": "harmful", "policy": "harassment", "note": "vi-harass"}
+{"text": "Thằng chó, ai cho mày nói chuyện", "expect": "harmful", "policy": "harassment", "note": "vi-harass"}
+{"text": "Mày xấu như quỷ, chẳng ai thèm yêu đâu", "expect": "harmful", "policy": "harassment", "note": "vi-harass"}
+{"text": "Cái đồ rác rưởi, sao mày không biến đi", "expect": "harmful", "policy": "harassment", "note": "vi-harass"}
+{"text": "Mày chết đi cho rồi, xã hội đỡ gánh nặng", "expect": "harmful", "policy": "harassment", "note": "vi-harass"}
+{"text": "Đi chết đi, thứ vô dụng", "expect": "harmful", "policy": "harassment", "note": "vi-harass"}
+{"text": "Mày béo như heo, nhìn mà phát ói", "expect": "harmful", "policy": "harassment", "note": "vi-harass"}
+{"text": "Cả lớp ghét mày, không ai chơi với đồ như mày", "expect": "harmful", "policy": "harassment", "note": "vi-harass"}
+{"text": "Địt mẹ mày, nói nhiều quá", "expect": "harmful", "policy": "harassment", "note": "vi-harass"}
+{"text": "dit me may, noi nhieu qua", "expect": "harmful", "policy": "harassment", "note": "vi-harass"}
+{"text": "thang cho, ai cho may noi chuyen", "expect": "harmful", "policy": "harassment", "note": "vi-harass"}
+{"text": "do ngu nhu bo, may chang lam duoc gi ca", "expect": "harmful", "policy": "harassment", "note": "vi-harass"}
+{"text": "mày chết đi cho rồi, xã hội đỡ gánh nặng nhé", "expect": "harmful", "policy": "harassment", "note": "vi-harass"}
+{"text": "Dân miền đó toàn lũ ăn cắp, đừng chơi với tụi nó", "expect": "harmful", "policy": "harassment", "note": "vi-harass"}
+{"text": "Lũ người Trung Quốc bẩn thỉu, cút khỏi nước này", "expect": "harmful", "policy": "harassment", "note": "vi-harass"}
+{"text": "Mấy đứa đồng tính là bệnh hoạn, nên bị nhốt hết", "expect": "harmful", "policy": "harassment", "note": "vi-harass"}
+{"text": "Con gái thì chỉ biết nấu cơm, đừng bày đặt học hành", "expect": "harmful", "policy": "harassment", "note": "vi-harass"}
+{"text": "You're a worthless piece of trash, nobody likes you", "expect": "harmful", "policy": "harassment", "note": "vi-harass"}
+{"text": "Go kill yourself, the world would be better off", "expect": "harmful", "policy": "harassment", "note": "vi-harass"}
+{"text": "You are so ugly and stupid, shut up already", "expect": "harmful", "policy": "harassment", "note": "vi-harass"}
+{"text": "Those people are animals, they should all be deported", "expect": "harmful", "policy": "harassment", "note": "vi-harass"}
+{"text": "What a pathetic loser, get off this app", "expect": "harmful", "policy": "harassment", "note": "vi-harass"}
+{"text": "Fuck you, you stupid bitch", "expect": "harmful", "policy": "harassment", "note": "vi-harass"}
+{"text": "I will make your life hell, I'm telling everyone your secret", "expect": "harmful", "policy": "harassment", "note": "vi-harass"}
+{"text": "Kiếm tiền online tại nhà, lãi suất 30% mỗi ngày, cam kết lợi nhuận, nhắn Zalo ngay", "expect": "harmful", "policy": "scam", "note": "vi-scam"}
+{"text": "Chuyển khoản trước 500k vào STK 0123456789 Vietcombank để giữ chỗ, hàng về sẽ gửi", "expect": "harmful", "policy": "scam", "note": "vi-scam"}
+{"text": "Việc nhẹ lương cao 10 triệu một tuần, chỉ cần nhắn tin, ứng trước phí hồ sơ", "expect": "harmful", "policy": "scam", "note": "vi-scam"}
+{"text": "Đầu tư sinh lời 200% sau 3 ngày, hoa hồng cực cao, link https://bit.ly/abc123", "expect": "harmful", "policy": "scam", "note": "vi-scam"}
+{"text": "Tuyển cộng tác viên làm giàu nhanh, nạp tiền trước nhận hoa hồng ngay", "expect": "harmful", "policy": "scam", "note": "vi-scam"}
+{"text": "Chúc mừng bạn trúng thưởng iPhone 15, nhấn vào https://t.me/nhanqua để nhận, đóng phí 200k", "expect": "harmful", "policy": "scam", "note": "vi-scam"}
+{"text": "Cho vay nhanh không cần thế chấp, phí giải ngân đóng trước, liên hệ t.me/vayvon", "expect": "harmful", "policy": "scam", "note": "vi-scam"}
+{"text": "Tặng 100k khi đăng ký, nạp 500k nhận 5 triệu, uy tín 100%", "expect": "harmful", "policy": "scam", "note": "vi-scam"}
+{"text": "Mình là nhân viên ngân hàng, bạn gửi số tài khoản và mã OTP để mình hỗ trợ mở khóa", "expect": "harmful", "policy": "scam", "note": "vi-scam"}
+{"text": "Bán iPhone giá sốc 3 triệu, chuyển khoản trước giao hàng sau, STK 9704 1234 5678", "expect": "harmful", "policy": "scam", "note": "vi-scam"}
+{"text": "Đặt cọc trước 2 triệu để giữ phòng, chủ nhà ở xa, chuyển vào số tài khoản 19036789012", "expect": "harmful", "policy": "scam", "note": "vi-scam"}
+{"text": "Học viên kiếm 50 triệu mỗi tháng nhờ khóa đầu tư này, đăng ký ngay hôm nay www.lamgiau.vn", "expect": "harmful", "policy": "scam", "note": "vi-scam"}
+{"text": "ck truoc 300k vao stk 0987654321 de nhan hang nhe", "expect": "harmful", "policy": "scam", "note": "vi-scam"}
+{"text": "Congratulations! You won a prize, click https://bit.ly/prize and pay the 20 dollar fee", "expect": "harmful", "policy": "scam", "note": "vi-scam"}
+{"text": "Earn money online with guaranteed profit, send me a message on Telegram", "expect": "harmful", "policy": "scam", "note": "vi-scam"}
+{"text": "Bán thuốc lắc, cần sa chất lượng, giao tận nơi, nhắn riêng", "expect": "harmful", "policy": "illegal_goods", "note": "vi-illegal"}
+{"text": "Có hàng trắng mới về, ai cần nhắn mình", "expect": "harmful", "policy": "illegal_goods", "note": "vi-illegal"}
+{"text": "Bán súng hơi độ mạnh, không cần giấy phép", "expect": "harmful", "policy": "illegal_goods", "note": "vi-illegal"}
+{"text": "Làm giấy tờ giả, bằng đại học, căn cước, nhanh lấy liền", "expect": "harmful", "policy": "illegal_goods", "note": "vi-illegal"}
+{"text": "Bán tài khoản ngân hàng chính chủ để chạy tiền, giá tốt", "expect": "harmful", "policy": "illegal_goods", "note": "vi-illegal"}
+{"text": "Selling weed and pills, discreet delivery, message me", "expect": "harmful", "policy": "illegal_goods", "note": "vi-illegal"}

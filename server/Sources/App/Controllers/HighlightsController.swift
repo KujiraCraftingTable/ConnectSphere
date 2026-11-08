@@ -58,6 +58,7 @@ struct HighlightsController {
 
     static func create(_ req: Request) async throws -> DataListResponse<HighlightStore.Highlight> {
         let b = try req.content.decode(PhotosBody.self)
+        try ModerationGate.check([b.title], .name)
         let title = try cleanTitle(b.title)
         let db = req.db.sql()
         let images = try await photos(b, user: req.userID, on: db)
@@ -88,6 +89,7 @@ struct HighlightsController {
     static func update(_ req: Request) async throws -> DataListResponse<HighlightStore.Highlight> {
         guard let hid = req.parameters.get("highlightId"), UUID(uuidString: hid) != nil else { throw Abort(.notFound) }
         let b = try req.content.decode(UpdateBody.self)
+        try ModerationGate.check([b.title], .name)
         let title = try b.title.map { try cleanTitle($0) }
         var cover: String?? = nil
         if let raw = b.cover_url {

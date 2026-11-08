@@ -10,6 +10,7 @@ struct SettingsView: View {
 
     @State private var showThemePicker = false
     @State private var showLogoutConfirm = false
+    @State private var moderationEntry = ModerationEntryViewModel()
     @AppStorage("searchRadiusKm") private var searchRadiusKm: Int = 0
 
 
@@ -21,12 +22,28 @@ struct SettingsView: View {
 
     var body: some View {
         List {
-            // Two sections, not one: the theme color is per mode, Light/Dark
-            // is app-wide.
+            // The official account's own section, first and apart from Safety:
+            // review reports, stats and account lookup.
+            if moderationEntry.isAdmin {
+                Section {
+                    NavigationLink {
+                        AdminToolsView().environment(themeManager)
+                    } label: {
+                        settingsRow(icon: "checkmark.seal.fill", label: bundle.loc("Admin tools"),
+                                    color: Color(hex: "#1E88E5"), showsChevron: false)
+                    }
+                } header: {
+                    Text("Admin", bundle: bundle)
+                }
+            }
+
+            // Theme color (per mode) and app icon (app-wide) share a section; Light/Dark
+            // is its own, below.
             Section {
                 themePickerRow
+                AppIconRow()
             } header: {
-                Text(String(format: bundle.loc("Theme color · %@"), appState.currentMode == .hobby ? bundle.loc("Hobby Mode") : bundle.loc("Work Mode")))
+                Text("App theme", bundle: bundle)
             }
 
             Section {
@@ -91,12 +108,15 @@ struct SettingsView: View {
                 } label: {
                     settingsRow(icon: "bookmark.fill", label: bundle.loc("Saved"), color: Color(hex: "#795548"), showsChevron: false)
                 }
-                NavigationLink {
-                    MarketplaceMyItemsView(mode: appState.currentMode, sellerId: appState.currentUser?.id ?? "")
-                        .environment(appState)
-                        .environment(themeManager)
-                } label: {
-                    settingsRow(icon: "bag.fill", label: bundle.loc("Marketplace"), color: Color(hex: "#E67E22"), showsChevron: false)
+                // The official account can't sell, so it has no items to manage.
+                if !(appState.currentUser?.isOfficial ?? false) {
+                    NavigationLink {
+                        MarketplaceMyItemsView(mode: appState.currentMode, sellerId: appState.currentUser?.id ?? "")
+                            .environment(appState)
+                            .environment(themeManager)
+                    } label: {
+                        settingsRow(icon: "bag.fill", label: bundle.loc("Marketplace"), color: Color(hex: "#E67E22"), showsChevron: false)
+                    }
                 }
                 NavigationLink {
                     RecentlyDeletedView()
@@ -108,6 +128,27 @@ struct SettingsView: View {
                 Text("Account", bundle: bundle)
             } footer: {
                 Text("Your username, email, privacy, activity and deleting your account are in Manage account.", bundle: bundle)
+            }
+
+            // Safety: the review queue for app moderators and a way to reach us
+            // (App Store rule 1.2). Account status lives in Manage account.
+            Section {
+                // The admin reviews reports inside Admin tools; moderators come here.
+                if moderationEntry.isStaff && !moderationEntry.isAdmin {
+                    NavigationLink {
+                        AppModerationQueueView().environment(themeManager)
+                    } label: {
+                        settingsRow(icon: "hammer.fill", label: bundle.loc("Moderation"),
+                                    color: Color(hex: "#E53935"), showsChevron: false)
+                    }
+                }
+                Link(destination: URL(string: "mailto:\(Self.safetyEmail)")!) {
+                    settingsRow(icon: "envelope.fill", label: bundle.loc("Safety & contact"), color: Color(hex: "#455A64"))
+                }
+            } header: {
+                Text("Safety", bundle: bundle)
+            } footer: {
+                Text(String(format: bundle.loc("To report something urgent or ask about a decision, email %@."), Self.safetyEmail))
             }
 
             #if DEBUG
@@ -181,6 +222,7 @@ struct SettingsView: View {
                 }
             }
         }
+        .task { await moderationEntry.load() }
         // .alert (not .confirmationDialog). Always a centered box regardless
         // of action count, matching the familiar Facebook-style "Log out of
         // your account?" pattern. .confirmationDialog with just one
@@ -196,6 +238,14 @@ struct SettingsView: View {
         .listStyle(.insetGrouped)
         .navigationTitle(bundle.loc("Settings"))
         .navigationBarTitleDisplayMode(.large)
+        .alert(bundle.loc("Error"), isPresented: Binding(
+            get: { appState.appIconError != nil },
+            set: { if !$0 { appState.appIconError = nil } }
+        )) {
+            Button(bundle.loc("OK")) { appState.appIconError = nil }
+        } message: {
+            Text(appState.appIconError ?? "")
+        }
         .sheet(isPresented: $showThemePicker) {
             ThemePickerView()
         }
@@ -268,10 +318,18 @@ struct SettingsView: View {
                 Circle()
                     .fill(themeManager.theme.primary)
                     .frame(width: 28, height: 28)
-                Text(themeManager.theme.name)
-                    .scaledFont(16)
-                    .foregroundColor(AppColors.textPrimary(colorScheme))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Theme color", bundle: bundle)
+                        .scaledFont(16)
+                        .foregroundColor(AppColors.textPrimary(colorScheme))
+                    Text(appState.currentMode == .hobby ? bundle.loc("Hobby Mode") : bundle.loc("Work Mode"))
+                        .scaledFont(12)
+                        .foregroundColor(AppColors.textSecondary(colorScheme))
+                }
                 Spacer()
+                Text(themeManager.theme.name)
+                    .scaledFont(15)
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
                 Image(systemName: "chevron.right")
                     .scaledFont(13)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
@@ -301,6 +359,9 @@ struct SettingsView: View {
     }
 
     // MARK: Settings Row
+
+    /// Shown in the app so anyone can reach the team about safety.
+    static let safetyEmail = "kujira.gwer@gmail.com"
 
     private func settingsRow(icon: String, label: String, color: Color, showsChevron: Bool = true) -> some View {
         SettingsRowLabel(icon: icon, label: label, color: color, showsChevron: showsChevron)

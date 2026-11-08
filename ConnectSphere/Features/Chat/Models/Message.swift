@@ -292,6 +292,8 @@ struct Message: Identifiable, Decodable, Equatable {
     /// record time, so every viewer renders the identical waveform with no
     /// audio re-analysis on the receiving end.
     var voiceWaveform: [Float]?
+    /// Forwarded from another chat. Only the flag exists, never the source.
+    var isForwarded: Bool = false
     /// Optional because the insert response doesn't return this field. Nil means not recalled
     private var deletedFlag: Bool?
 
@@ -324,6 +326,7 @@ struct Message: Identifiable, Decodable, Equatable {
         case sharedCommunityId = "shared_community_id"
         case voiceDurationSeconds = "voice_duration_seconds"
         case voiceWaveform        = "voice_waveform"
+        case isForwarded          = "is_forwarded"
     }
 
     init(from decoder: Decoder) throws {
@@ -350,6 +353,7 @@ struct Message: Identifiable, Decodable, Equatable {
         sharedCommunityId = try c.decodeIfPresent(String.self, forKey: .sharedCommunityId)
         voiceDurationSeconds = try c.decodeIfPresent(Int.self, forKey: .voiceDurationSeconds)
         voiceWaveform = try c.decodeIfPresent([Float].self, forKey: .voiceWaveform)
+        isForwarded = try c.decodeIfPresent(Bool.self, forKey: .isForwarded) ?? false
     }
 
     /// True when this message was sent by the given user.
@@ -381,14 +385,14 @@ struct Message: Identifiable, Decodable, Equatable {
 
     /// The current user's own reaction emoji on this message, if any. Used to
     /// highlight the selected emoji in the picker and drive toggle behaviour.
-    func myReaction(userId: String) -> String? {
-        reactions.first { _, userIds in userIds.contains(userId) }?.key
-    }
+    /// The one reaction left: a whale (the app's word for a like). Older emoji
+    /// reactions may still come back from the server and are ignored.
+    static let whale = "🐳"
 
-    /// Reactions as a stable, display-ordered list of (emoji, count).
-    var reactionSummary: [(emoji: String, count: Int)] {
-        reactions.map { ($0.key, $0.value.count) }.sorted { $0.emoji < $1.emoji }
-    }
+    /// How many people whaled this message.
+    var whaleCount: Int { reactions[Self.whale]?.count ?? 0 }
+
+    func isWhaled(by userId: String) -> Bool { reactions[Self.whale]?.contains(userId) ?? false }
 
     // MARK: - Delivery / read receipts
 

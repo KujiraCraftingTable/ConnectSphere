@@ -62,7 +62,8 @@ struct ReportItemCard: View {
     // MARK: - Subviews
 
     private var typeIcon: some View {
-        Image(systemName: item.targetType == "post" ? "doc.text" : "person.fill")
+        Image(systemName: item.targetType == "post" ? "doc.text"
+                          : item.targetType == "community" ? "person.3.fill" : "person.fill")
             .scaledFont(14)
             .foregroundColor(Color(hex: coverColor))
             .frame(width: 32, height: 32)
@@ -101,7 +102,8 @@ struct ReportItemCard: View {
     @ViewBuilder
     private var targetPreview: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(bundle.loc(item.targetType == "post" ? "Reported post" : "Reported member"))
+            Text(bundle.loc(item.targetType == "post" ? "Reported post"
+                            : item.targetType == "community" ? "Reported community" : "Reported member"))
                 .scaledFont(12, .medium)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
 
@@ -144,9 +146,11 @@ struct ReportItemCard: View {
 
     private var actionButtons: some View {
         HStack(spacing: 8) {
+            // A report about the community itself is the app's moderators' to
+            // judge, not the community's own staff: they can only dismiss it.
             if item.targetType == "post" {
                 actionBtn(label: bundle.loc("Remove"), icon: "trash", color: .red, action: onRemove)
-            } else {
+            } else if item.targetType == "member" {
                 actionBtn(label: bundle.loc("Ban"),    icon: "person.crop.circle.badge.xmark", color: .red, action: onBan)
             }
             actionBtn(label: bundle.loc("Dismiss"), icon: "xmark", color: .gray, action: onDismiss)
@@ -168,6 +172,6 @@ struct ReportItemCard: View {
     }
 
     private var reasonLabel: String {
-        ReportReason(rawValue: item.reason)?.displayName ?? item.reason.capitalized
+        ModerationReason(communityValue: item.reason)?.displayName ?? item.reason.capitalized
     }
 }

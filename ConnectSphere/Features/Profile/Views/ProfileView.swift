@@ -31,6 +31,7 @@ struct ProfileView: View {
     @State private var pull: CGFloat = 0
     @State private var showCreatePost = false
     @State private var showEditProfile = false
+    @State private var confirmUnlock = false
     // Tap-to-open-post-detail, same PostRoute/PostDetailView navigation Feed uses.
     @State private var detailRoute: PostRoute?
 
@@ -92,16 +93,18 @@ struct ProfileView: View {
                                 case .followers: if !showingOther { navPath.append(ProfileRoute.followers) }
                                 case .following: if !showingOther { navPath.append(ProfileRoute.following) }
                                 }
-                            }, flip: flipButton) {
+                            }, flip: flipButton,
+                            onLockedBadgeTap: showingOther ? nil : { confirmUnlock = true }) {
                                 AnyView(cardActions)
                             }
                             .rotation3DEffect(.degrees(flipAngle), axis: (x: 0, y: 1, z: 0), perspective: 0.5)
                             // Your other side is a preview: nothing to edit there.
-                            if mode == .work {
+                            // The official account keeps no about, education, work or skills.
+                            if mode == .work && !user.isOfficial {
                                 ExperienceSection(userId: user.id, isMe: !showingOther)
                                 SkillsSection(userId: user.id, isMe: !showingOther, refreshKey: user.skills)
                             }
-                            if mode == .hobby {
+                            if mode == .hobby && !user.isOfficial {
                                 HobbyAboutSection(user: user, isMe: !showingOther)
                                 HighlightsRow(userId: user.id, isMe: !showingOther)
                             }
@@ -153,6 +156,21 @@ struct ProfileView: View {
                 case .following:
                     FollowListView(userId: currentUserId, showsFollowers: false)
                 }
+            }
+            .alert(bundle.loc("Unlock your profile?"), isPresented: $confirmUnlock) {
+                Button(bundle.loc("Unlock")) {
+                    Task { await viewModel.unlock(mode: appState.currentMode, appState: appState) }
+                }
+                Button(bundle.loc("Cancel"), role: .cancel) {}
+            } message: {
+                Text(bundle.loc(appState.currentMode == .work
+                    ? "Anyone will be able to see your posts, experience, skills and lists again."
+                    : "Anyone will be able to see your posts, highlights, details and lists again."))
+            }
+            .alert(bundle.loc("Error"), isPresented: .constant(viewModel.actionError != nil)) {
+                Button(bundle.loc("OK")) { viewModel.actionError = nil }
+            } message: {
+                Text(viewModel.actionError ?? "")
             }
             .sheet(isPresented: $showCreatePost) {
                 CreatePostView(onPostCreated: { _ in

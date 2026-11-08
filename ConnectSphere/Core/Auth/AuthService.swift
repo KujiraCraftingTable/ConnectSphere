@@ -148,6 +148,9 @@ class AuthService {
             // Distinguish 401 (genuinely invalid token) from other errors (server trouble),
             // the caller should only delete the Keychain token on a 401
             guard http.statusCode != 401 else { throw URLError(.userAuthenticationRequired) }
+            if http.statusCode == 403 {
+                AccountSuspension.check(statusCode: 403, message: (try? JSONDecoder().decode(ErrorResponse.self, from: data))?.message)
+            }
             guard http.statusCode == 200 else { throw URLError(.badServerResponse) }
             let user = try JSONDecoder.makeISO8601().decode(MeResponse.self, from: data).user
             // The cold-launch cache is the default-mode profile; a per-mode

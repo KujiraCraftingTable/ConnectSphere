@@ -1,8 +1,10 @@
 import Vapor
 import SQLKit
 
-/// Lock profile (migration 064): a locked persona shows only name, avatar
-/// and cover to people who aren't its connections in that mode.
+/// Lock profile (migration 064): to people who aren't its connections in that
+/// mode, a locked persona shows its card and About details but not its own
+/// public posts, Highlights, follow lists, age or relationship status.
+/// Listings and community posts stay public (see `PostStore.audienceClause`).
 enum ProfileLock {
     /// The rule, on its own: locked, and you're neither them nor connected.
     static func isLockedOut(locked: Bool, isSelf: Bool, connected: Bool) -> Bool {
@@ -13,6 +15,8 @@ enum ProfileLock {
     static func lockedOut(viewer: String, owner: String, mode: String, on db: any SQLDatabase) async throws -> Bool {
         guard ["hobby", "work"].contains(mode) else { return false }
         if viewer.lowercased() == owner.lowercased() { return false }
+        // The official account sees every profile, locked or not.
+        if try await OfficialAccount.isOfficial(viewer, on: db) { return false }
         struct R: Decodable { let locked: Bool; let connected: Bool }
         guard let r = try await db.raw("""
             SELECT \(unsafeRaw: mode)_locked AS locked,

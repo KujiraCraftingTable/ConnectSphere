@@ -87,6 +87,7 @@ struct PostDetailView: View {
                 .scrollDismissesKeyboard(.interactively)
                 .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
                 .task { await loadAll(proxy: proxy) }
+                .confirmBeforePosting(commentVM, text: $draft) { adjustCommentCount(by: 1) }
 
                 if post != nil {
                     composerBar(proxy: proxy)
@@ -214,26 +215,10 @@ struct PostDetailView: View {
                 .padding(.horizontal, AppSpacing.sm)
             }
 
-            if commentVM.attachedPhoto != nil {
-                CommentPhotoPreview(viewModel: commentVM)
-                    .padding(.horizontal, AppSpacing.md)
-            }
-
-            HStack(spacing: 10) {
-                if let me = appState.currentUser {
-                    AvatarView(user: me, size: 36)
-                }
-
-                TextField(bundle.loc("Write a comment..."), text: $draft, axis: .vertical)
-                    .scaledFont(15)
-                    .lineLimit(4)
+            HStack(alignment: CommentInputBox.isExpanded(text: draft, hasPhoto: commentVM.attachedPhoto != nil)
+                       ? .bottom : .center, spacing: 10) {
+                CommentInputBox(text: $draft, viewModel: commentVM)
                     .focused($composerFocused)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 9)
-                    .background(AppColors.surface(colorScheme), in: Capsule())
-                    .overlay(Capsule().stroke(AppColors.borderDefault(colorScheme), lineWidth: 1))
-
-                CommentPhotoButton(viewModel: commentVM)
 
                 Button {
                     Task {
@@ -255,6 +240,8 @@ struct PostDetailView: View {
                                          ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
                 }
                 .accessibilityLabel(Bundle.app.loc("Send"))
+                // Level with the camera, which sits above the taller box's bottom edge.
+                .padding(.bottom, CommentInputBox.isExpanded(text: draft, hasPhoto: commentVM.attachedPhoto != nil) ? 12 : 0)
                 .disabled(!commentVM.canSend(draft))
             }
             .padding(.horizontal, AppSpacing.md)

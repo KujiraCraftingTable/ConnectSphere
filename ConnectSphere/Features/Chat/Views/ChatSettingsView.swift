@@ -92,6 +92,8 @@ struct ChatSettingsView: View {
     }
 
     private var isGroup: Bool { peer.isGroup }
+    /// A chat with the official account: no nicknames, pins or blocking on either side.
+    private var isSupportChat: Bool { viewModel.settings?.withOfficial ?? false }
     private var displayName: String { viewModel.settings?.displayName ?? peer.name }
     private var isOwner: Bool { viewModel.isOwner(currentUserId: appState.currentUser?.id ?? "") }
 
@@ -228,13 +230,15 @@ struct ChatSettingsView: View {
                     }
                     .buttonStyle(.plain)
                 } else {
-                    Button {
-                        nicknameDraft = viewModel.settings?.otherUserNickname ?? ""
-                        showNicknameEditor = true
-                    } label: {
-                        pill(icon: "pencil", title: bundle.loc("Nickname"))
+                    if !isSupportChat {
+                        Button {
+                            nicknameDraft = viewModel.settings?.otherUserNickname ?? ""
+                            showNicknameEditor = true
+                        } label: {
+                            pill(icon: "pencil", title: bundle.loc("Nickname"))
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
 
                     NavigationLink {
                         UserProfileView(userId: peer.otherUserId ?? "").environment(appState)
@@ -324,7 +328,8 @@ struct ChatSettingsView: View {
                                                                 ?? themeManager.theme.primary, size: 24)))
             }
             .buttonStyle(.plain)
-            if !isGroup {
+            // The official account only replies; it never starts a group.
+            if !isGroup && !(appState.currentUser?.isOfficial ?? false) {
                 divider
                 Button { showGroupPicker = true } label: {
                     SettingsRow(icon: "person.3.fill", iconColor: themeManager.theme.primary,
@@ -469,24 +474,27 @@ struct ChatSettingsView: View {
             .buttonStyle(.plain)
             divider
 
-            // Menus, not dialogs: the choices drop down from the row tapped.
-            Menu {
-                ForEach(PinAutoDeleteOption.allCases.filter { $0 != .custom }) { option in
-                    Button(bundle.loc(option.label)) { pinAutoDeleteRaw = option.rawValue }
+            // Nobody pins in a chat with ConnectSphere.
+            if !isSupportChat {
+                // Menus, not dialogs: the choices drop down from the row tapped.
+                Menu {
+                    ForEach(PinAutoDeleteOption.allCases.filter { $0 != .custom }) { option in
+                        Button(bundle.loc(option.label)) { pinAutoDeleteRaw = option.rawValue }
+                    }
+                    Button(bundle.loc("Custom date")) {
+                        pinCustomDateDraft = pinAutoDeleteCustomDateRaw > 0
+                            ? Date(timeIntervalSince1970: pinAutoDeleteCustomDateRaw)
+                            : Date().addingTimeInterval(60 * 60 * 24 * 7)
+                        showPinCustomDatePicker = true
+                    }
+                } label: {
+                    SettingsRow(icon: "timer", iconColor: themeManager.theme.primary,
+                                title: bundle.loc("Default auto-delete time"), colorScheme: colorScheme,
+                                subtitle: pinAutoDeleteSubtitle)
                 }
-                Button(bundle.loc("Custom date")) {
-                    pinCustomDateDraft = pinAutoDeleteCustomDateRaw > 0
-                        ? Date(timeIntervalSince1970: pinAutoDeleteCustomDateRaw)
-                        : Date().addingTimeInterval(60 * 60 * 24 * 7)
-                    showPinCustomDatePicker = true
-                }
-            } label: {
-                SettingsRow(icon: "timer", iconColor: themeManager.theme.primary,
-                            title: bundle.loc("Default auto-delete time"), colorScheme: colorScheme,
-                            subtitle: pinAutoDeleteSubtitle)
+                .buttonStyle(.plain)
+                divider
             }
-            .buttonStyle(.plain)
-            divider
 
             Button { showQuickEmojiOptions = true } label: {
                 SettingsRow(icon: "hand.thumbsup.fill", iconColor: themeManager.theme.primary,
@@ -517,7 +525,7 @@ struct ChatSettingsView: View {
             // No single block target from this screen for groups, per-member
             // block is still reachable via each member's profile in
             // `GroupParticipantsView`, using `UserProfileView`'s block flow unchanged.
-            if !isGroup {
+            if !isGroup && !isSupportChat {
                 Button {
                     if viewModel.isBlocked {
                         Task { await toggleBlock() }
@@ -573,7 +581,7 @@ struct ChatSettingsView: View {
     private var pinAutoDeleteSubtitle: String {
         let option = PinAutoDeleteOption(rawValue: pinAutoDeleteRaw) ?? .never
         if option == .custom, pinAutoDeleteCustomDateRaw > 0 {
-            return Date(timeIntervalSince1970: pinAutoDeleteCustomDateRaw).formatted(.dateTime.day().month().year())
+            return Date(timeIntervalSince1970: pinAutoDeleteCustomDateRaw).dayMonthYear
         }
         return bundle.loc(option.label)
     }

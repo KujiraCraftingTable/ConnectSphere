@@ -76,11 +76,11 @@ struct ChatPinnedMessagesView: View {
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .lineLimit(2)
                 Text(String(format: bundle.loc("Pinned by %@"), pinnedByName(pin))
-                     + " · " + pin.pinnedAt.formatted(.dateTime.day().month().hour().minute()))
+                     + " · " + pin.pinnedAt.dayMonthTime)
                     .scaledFont(11)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
                 if let expiresAt = pin.expiresAt {
-                    Text(String(format: bundle.loc("Expires %@"), expiresAt.formatted(.dateTime.day().month().year())))
+                    Text(String(format: bundle.loc("Expires %@"), expiresAt.dayMonthYear))
                         .scaledFont(11)
                         .foregroundColor(AppColors.textTertiary(colorScheme))
                 }
