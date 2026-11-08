@@ -11,6 +11,11 @@ struct CommunityDetailView: View {
     @State private var showModeration    = false
     @State private var showAnalytics     = false
     @State private var showSettings      = false
+    @State private var showMembers       = false
+    @State private var showManageRoles   = false
+    @State private var showModLog        = false
+    @State private var showDisband       = false
+    @State private var disbandName       = ""
     @State private var showEdit          = false
     @State private var showReportCommunity = false
     @State private var showInfo          = false
@@ -23,7 +28,6 @@ struct CommunityDetailView: View {
     @State private var barsHidden        = false
     /// Status bar + navigation bar: the cover runs up under both.
     @State private var topInset: CGFloat = 0
-    @State private var pull: CGFloat = 0
     @Environment(\.dismiss) private var dismiss
     // Tap-to-open-post-detail, same PostRoute/PostDetailView navigation Feed uses.
     @State private var detailRoute: PostRoute?
@@ -72,6 +76,9 @@ struct CommunityDetailView: View {
                     .padding(.top, -topInset)
 
                 Section {
+                    if let deletion = viewModel.community?.deletionDate {
+                        disbandedBanner(deletion)
+                    }
                     if canCompose {
                         createPostBar
                     } else if viewModel.showsJoinToPost {
@@ -81,10 +88,11 @@ struct CommunityDetailView: View {
                 }
             }
         }
-        .hidesBarsOnScroll($barsHidden)
+        // Inside a community the tab bar stays away; its own top bar still
+        // slides with the scroll.
+        .hidesBarsOnScroll($barsHidden, tabBarAlwaysHidden: true)
         // Back, search and "..." slide away with the tab bar while reading down.
         .toolbar(barsHidden ? .hidden : .visible, for: .navigationBar)
-        .trackPull($pull)
         // Measured with the bars showing only: hiding them shrinks the inset,
         // and the header (long scrolled past by then) shouldn't move.
         .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { if !barsHidden { topInset = $0 } }
@@ -112,10 +120,12 @@ struct CommunityDetailView: View {
         }
         .task { await viewModel.fetchAll() }
         .refreshable { await viewModel.refresh() }
-        .overlay(alignment: .top) { PullRefreshIndicator(pull: pull, isRefreshing: viewModel.isRefreshing) }
         .onAppear { viewModel.joinCommunityRoom() }
         .onDisappear {
-            viewModel.leaveCommunityRoom()
+            // A screen pushed from here (Members, Manage roles…) hides this
+            // page but still shows its data, so stay in the room for live
+            // updates; leave only when the page itself goes away.
+            if !isCoveredByPush { viewModel.leaveCommunityRoom() }
             impressions.pause()
         }
         .onChange(of: scenePhase) { _, phase in if phase != .active { impressions.pause() } }
@@ -140,7 +150,13 @@ struct CommunityDetailView: View {
             CommunityNotificationsSheet(viewModel: viewModel)
         }
         .sheet(isPresented: $showSettings) {
-            CommunitySettingsSheet(viewModel: viewModel) { dismiss() }
+            CommunitySettingsSheet(viewModel: viewModel, onLeft: { dismiss() },
+                                   onChooseNewAdmin: { showMembers = true },
+                                   onDisband: {
+                                       disbandName = ""
+                                       // After the sheet has gone, so the alert sits on the page.
+                                       Task { try? await Task.sleep(for: .milliseconds(450)); showDisband = true }
+                                   })
         }
         .sheet(isPresented: $showEdit) {
             if let community = viewModel.community {
@@ -150,11 +166,47 @@ struct CommunityDetailView: View {
         .sheet(isPresented: $showReportCommunity) {
             ReportSheet(subject: .content(.community, id: communityId))
         }
+        // Screens opened from a community keep the tab bar hidden too.
+        .navigationDestination(isPresented: $showMembers) {
+            CommunityMembersView(viewModel: viewModel).toolbar(.hidden, for: .tabBar)
+        }
+        .navigationDestination(isPresented: $showManageRoles) {
+            ManageRolesView(communityId: communityId) {
+                Task { await viewModel.adminTransferredElsewhere() }
+            }
+            .toolbar(.hidden, for: .tabBar)
+        }
+        // Disband confirmation (opened from Community settings, which closes first).
+            .alert(bundle.loc("Disband this community?"), isPresented: $showDisband) {
+                TextField(viewModel.community?.name ?? "", text: $disbandName)
+                Button(bundle.loc("Cancel"), role: .cancel) {}
+                Button(bundle.loc("Disband"), role: .destructive) {
+                    Task {
+                        if await viewModel.disband(confirmName: disbandName.trimmingCharacters(in: .whitespacesAndNewlines)) {
+                            dismiss()
+                        }
+                    }
+                }
+                .disabled(disbandName.trimmingCharacters(in: .whitespacesAndNewlines) != viewModel.community?.name)
+            } message: {
+                Text(String(format: bundle.loc("Type \"%@\" to confirm. Members are told it was disbanded; you can restore it for 7 days."),
+                            viewModel.community?.name ?? ""))
+            }
+        .navigationDestination(isPresented: $showModLog) {
+            ModerationLogView(communityId: communityId).toolbar(.hidden, for: .tabBar)
+        }
+        .alert(bundle.loc("This community was disbanded"), isPresented: Binding(
+            get: { viewModel.wasDisbanded }, set: { if !$0 { viewModel.wasDisbanded = false } }
+        )) {
+            Button(bundle.loc("OK")) { dismiss() }
+        } message: {
+            Text("Its admin disbanded it, so it's no longer available.", bundle: bundle)
+        }
         .navigationDestination(isPresented: $showMyContent) {
-            ManageCommunityContentView(communityId: communityId)
+            ManageCommunityContentView(communityId: communityId).toolbar(.hidden, for: .tabBar)
         }
         .navigationDestination(isPresented: $showPendingPosts) {
-            PendingPostsView(communityId: communityId)
+            PendingPostsView(communityId: communityId).toolbar(.hidden, for: .tabBar)
         }
         .alert(bundle.loc("Your post is waiting for approval"), isPresented: $viewModel.awaitingApprovalNotice) {
             Button(bundle.loc("OK")) {}
@@ -164,8 +216,9 @@ struct CommunityDetailView: View {
         .navigationDestination(isPresented: $showInfo) {
             if let community = viewModel.community {
                 CommunityInfoView(community: community, roster: viewModel.members) {
-                    CommunityMembersView(viewModel: viewModel)
+                    CommunityMembersView(viewModel: viewModel).toolbar(.hidden, for: .tabBar)
                 }
+                .toolbar(.hidden, for: .tabBar)
             }
         }
         .fullScreenCover(isPresented: $showSearch) {
@@ -190,6 +243,7 @@ struct CommunityDetailView: View {
                 communityId: viewModel.community?.id ?? "",
                 token: appState.authToken ?? ""
             )
+            .toolbar(.hidden, for: .tabBar)
         }
         .navigationDestination(isPresented: $showModeration) {
             ModerationQueueView(
@@ -197,6 +251,7 @@ struct CommunityDetailView: View {
                 token:       appState.authToken ?? "",
                 coverColor:  viewModel.community?.coverColor ?? "#7F5AF0"
             )
+            .toolbar(.hidden, for: .tabBar)
         }
         .navigationDestination(isPresented: $showAnalytics) {
             CommunityAnalyticsView(
@@ -204,12 +259,40 @@ struct CommunityDetailView: View {
                 token:       appState.authToken ?? "",
                 coverColor:  viewModel.community?.coverColor ?? "#7F5AF0"
             )
+            .toolbar(.hidden, for: .tabBar)
         }
         .alert(bundle.loc("Error"), isPresented: .constant(viewModel.errorMessage != nil)) {
             Button(bundle.loc("OK")) { viewModel.errorMessage = nil }
         } message: {
             Text(viewModel.errorMessage ?? "")
         }
+    }
+
+    /// The admin's own disbanded community: when it goes for good, and Restore.
+    private func disbandedBanner(_ deletion: Date) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "archivebox.fill").foregroundColor(.red)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Disbanded", bundle: bundle).scaledFont(15, .semibold)
+                Text(String(format: bundle.loc("Members can't see it. It's deleted for good on %@."),
+                            deletion.formatted(date: .long, time: .omitted)))
+                    .scaledFont(13)
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
+            }
+            Spacer()
+            Button(bundle.loc("Restore")) { Task { await viewModel.restore() } }
+                .buttonStyle(.borderedProminent)
+        }
+        .padding(14)
+        .surfaceBackground()
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .padding(.horizontal, 12)
+        .padding(.top, 10)
+    }
+
+    private var isCoveredByPush: Bool {
+        showMembers || showManageRoles || showModLog || showInfo || showMyContent || showPendingPosts
+            || showJoinRequests || showModeration || showAnalytics || detailRoute != nil
     }
 
     // MARK: - "..." menu
@@ -227,15 +310,19 @@ struct CommunityDetailView: View {
                 Label(bundle.loc("Your community profile"), systemImage: "person.crop.square")
             }
             Button { showNotifications = true } label: {
-                Label(bundle.loc("Manage notifications"), systemImage: "bell")
+                Label(bundle.loc("Manage\nnotifications"), systemImage: "bell")
             }
             Button { showSettings = true } label: {
                 Label(bundle.loc("Community settings"), systemImage: "gearshape")
             }
             if isStaff {
-                Section {
-                    Button { showEdit = true } label: {
-                        Label(bundle.loc("Edit community"), systemImage: "pencil")
+                // Staff tools sit in one submenu, so the "..." menu stays short
+                // enough that nothing is cut off at the bottom.
+                Menu {
+                    if currentUserRole == .admin {
+                        Button { showEdit = true } label: {
+                            Label(bundle.loc("Edit community"), systemImage: "pencil")
+                        }
                     }
                     Button { showPendingPosts = true } label: {
                         Label(bundle.loc("Pending posts"), systemImage: "hourglass")
@@ -249,10 +336,19 @@ struct CommunityDetailView: View {
                         }
                     }
                     if currentUserRole == .admin {
+                        Button { showManageRoles = true } label: {
+                            Label(bundle.loc("Manage roles"), systemImage: "person.2.badge.gearshape")
+                        }
+                        Button { showModLog = true } label: {
+                            Label(bundle.loc("Moderation log"), systemImage: "list.bullet.rectangle")
+                        }
                         Button { showAnalytics = true } label: {
                             Label(bundle.loc("Analytics"), systemImage: "chart.xyaxis.line")
                         }
                     }
+                } label: {
+                    // Breaks between the words: the menu otherwise hyphenates "commu-nity".
+                    Label(bundle.loc("Manage\ncommunity"), systemImage: "slider.horizontal.3")
                 }
             }
         } else {
@@ -304,6 +400,7 @@ struct CommunityDetailView: View {
                 )
             }
             .buttonStyle(.plain)
+            .disabledWhenRestricted()
 
         case .loading:
             ProgressView()
@@ -418,7 +515,8 @@ struct CommunityDetailView: View {
 
     /// Members only: the bar sits at the top of the feed, so posting means
     /// scrolling back up to it.
-    private var canCompose: Bool { viewModel.community?.isMember == true }
+    /// A disbanded community takes no new posts (the server refuses them too).
+    private var canCompose: Bool { viewModel.community?.isMember == true && viewModel.community?.disbandedAt == nil }
 
     /// Non-members: same slot and shape as the post bar, tapping asks to join.
     private var joinToPostPrompt: some View {
@@ -455,6 +553,7 @@ struct CommunityDetailView: View {
                     .padding(.vertical, 10)
                     .background(Capsule().stroke(AppColors.borderDefault(colorScheme), lineWidth: 1))
             }
+            .disabledWhenRestricted()
         }
         .padding(.horizontal, AppSpacing.sm + 4)
         .padding(.vertical, 10)

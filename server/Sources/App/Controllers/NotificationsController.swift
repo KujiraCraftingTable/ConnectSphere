@@ -60,6 +60,8 @@ struct NotificationsController {
         "role_changed":        .init(category: "community", destination: "community"),
         "new_report":          .init(category: "community", destination: "communityReports"),
         "content_removed":     .init(category: "community", destination: "community"),
+        "community_disbanded": .init(category: "community", destination: "community"),
+        "community_restored":  .init(category: "community", destination: "community"),
     ]
 
     static func typesForCategory(_ cat: String?) -> [String]? {

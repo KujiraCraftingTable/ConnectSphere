@@ -25,6 +25,7 @@ struct CommunityDTO: Decodable {
     let requirePostApproval: Bool
     let isPinned: Bool
     let notifyLevel: String?
+    let disbandedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case id, name, description, type, privacy, role
@@ -36,6 +37,7 @@ struct CommunityDTO: Decodable {
         case requirePostApproval = "require_post_approval"
         case isPinned           = "is_pinned"
         case notifyLevel        = "notify_level"
+        case disbandedAt        = "disbanded_at"
         case coverColor         = "cover_color"
         case memberCount        = "member_count"
         case postCount          = "post_count"
@@ -61,6 +63,7 @@ struct CommunityDTO: Decodable {
         requirePostApproval = try c.decodeIfPresent(Bool.self, forKey: .requirePostApproval) ?? false
         isPinned    = try c.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
         notifyLevel = try c.decodeIfPresent(String.self, forKey: .notifyLevel)
+        disbandedAt = try c.decodeIfPresent(Date.self, forKey: .disbandedAt)
         coverColor  = try c.decode(String.self, forKey: .coverColor)
         memberCount = try c.decode(Int.self, forKey: .memberCount)
         postCount   = try c.decode(Int.self, forKey: .postCount)
@@ -95,7 +98,8 @@ struct CommunityDTO: Decodable {
             nameChangedAt: nameChangedAt,
             requirePostApproval: requirePostApproval,
             isPinned:    isPinned,
-            notifyLevel: notifyLevel.flatMap { CommunityNotifyLevel(rawValue: $0) }
+            notifyLevel: notifyLevel.flatMap { CommunityNotifyLevel(rawValue: $0) },
+            disbandedAt: disbandedAt
         )
     }
 }

@@ -14,6 +14,10 @@ enum KeyboardDismissal {
                 let tap = UITapGestureRecognizer(target: handler, action: #selector(Handler.tapped(_:)))
                 tap.name = name
                 tap.cancelsTouchesInView = false
+                // Hand the lift-off to the control at once: held back (the
+                // default), a quick tap on a switch arrived late and was
+                // ignored, so toggles only flipped on a long press.
+                tap.delaysTouchesEnded = false
                 tap.delegate = handler
                 window.addGestureRecognizer(tap)
             }
@@ -26,6 +30,13 @@ enum KeyboardDismissal {
         }
 
         func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            // Never on a control (a switch, slider, segmented picker): sharing
+            // the touch made switches ignore taps and only flip when dragged.
+            var c = touch.view
+            while let cur = c {
+                if cur is UIControl { return false }
+                c = cur.superview
+            }
             guard let window = g.view, let responder = UIResponder.currentFirst as? UIView else { return false }
             // Tapping a field (this one or another) just moves the focus.
             var v = touch.view

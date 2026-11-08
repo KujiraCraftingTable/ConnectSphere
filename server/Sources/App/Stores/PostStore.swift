@@ -158,10 +158,11 @@ enum PostStore {
             ? "\n OR EXISTS (SELECT 1 FROM users ou WHERE ou.id = \(uuid: v) AND ou.app_role = 'admin' AND ou.deleted_at IS NULL)"
             : ""
         return """
-        (p.community_id IS NULL OR p.author_id = \(uuid: v)
+        (NOT EXISTS (SELECT 1 FROM communities cd WHERE cd.id = p.community_id AND cd.disbanded_at IS NOT NULL)
+         AND (p.community_id IS NULL OR p.author_id = \(uuid: v)
          OR EXISTS (SELECT 1 FROM communities co WHERE co.id = p.community_id AND co.privacy = 'public' AND p.community_audience = 'public')
          OR EXISTS (SELECT 1 FROM community_members cm WHERE cm.community_id = p.community_id AND cm.user_id = \(uuid: v))
-        """ + official + ")"
+        """ + official + "))"
     }
     /// Feed-only suppression: a community you've muted still exists (its own
     /// page, findById, listSaved are all unaffected. This is deliberately
@@ -711,6 +712,18 @@ enum PostStore {
 
     /// A community's posts, pinned post first. `buildPostSelect` already
     /// projects `community`, so there is no outer wrapper to merge it in.
+    /// Community search also finds posts by name: every word typed must appear
+    /// in the author's display name or @username, and the author must still be
+    /// a member. Capped at 5 words so a long query can't grow the SQL.
+    private static func authorNameMatch(_ search: String, _ communityID: String) -> SQLQueryString {
+        let words = search.split(whereSeparator: \.isWhitespace).prefix(5).map { UserStore.escapeLike(String($0)) }
+        var clause: SQLQueryString = "(EXISTS (SELECT 1 FROM community_members cmx WHERE cmx.community_id = \(uuid: communityID) AND cmx.user_id = p.author_id)"
+        for word in words {
+            clause = clause + " AND (u.display_name ILIKE '%' || \(bind: word) || '%' OR u.username ILIKE '%' || \(bind: word) || '%')"
+        }
+        return clause + ")"
+    }
+
     static func getPostsByCommunity(_ communityID: String, viewer: String, tag: String?, search: String? = nil, limit: Int, offset: Int, on db: any SQLDatabase) async throws -> [PostObject] {
         var q = buildPostSelect(viewer)
         // The community's own posts, plus Marketplace listings tied to it.
@@ -724,7 +737,7 @@ enum PostStore {
             q = q + " AND EXISTS (SELECT 1 FROM post_tags ptf WHERE ptf.post_id = p.id AND LOWER(ptf.tag) = LOWER(\(bind: tag)) AND ptf.source = 'user')"
         }
         if let search {
-            q = q + " AND p.content ILIKE '%' || \(bind: UserStore.escapeLike(search)) || '%'"
+            q = q + " AND (p.content ILIKE '%' || \(bind: UserStore.escapeLike(search)) || '%' OR " + authorNameMatch(search, communityID) + ")"
         }
         q = q + " GROUP BY p.id, u.id ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT \(bind: limit) OFFSET \(bind: offset)"
         return try await db.raw(q).all(decoding: PostRow.self).map(map)

@@ -17,11 +17,12 @@ class CommunityDetailViewModel {
     var errorMessage: String?
     var canLoadMorePosts = true
     var joinStatus: JoinStatus = .notMember
-    private(set) var isRefreshing = false
 
     private let communityId: String
     private let token: String
     private let currentUserId: String
+    /// In the `community:<id>` room with live listeners registered.
+    private var isInRoom = false
     private let repository = CommunityRepository()
     private let ws = WebSocketClient.shared
     private let pageSize = 20
@@ -62,11 +63,9 @@ class CommunityDetailViewModel {
         _ = await (feed, roster)
     }
 
-    /// Pull-to-refresh: drives the page's own spinner, since the cover hides
-    /// the system one.
+    /// Pull-to-refresh. The system spinner shows above the cover; the page
+    /// used to draw its own as well, which stacked into a double spinner.
     func refresh() async {
-        isRefreshing = true
-        defer { isRefreshing = false }
         await fetchAll()
     }
 
@@ -81,13 +80,16 @@ class CommunityDetailViewModel {
             } else {
                 joinStatus = .notMember
             }
-        } catch {
+        } catch where !error.isCancellation {
             errorMessage = friendlyError(error)
-        }
+        } catch {}
     }
 
     func fetchPosts(reset: Bool = false) async {
-        if reset { postOffset = 0; canLoadMorePosts = true; posts = [] }
+        // A refresh keeps the current posts on screen until the new page is in:
+        // emptying them first showed a second spinner, and "No posts yet" if the
+        // refresh was cut short.
+        if reset { postOffset = 0; canLoadMorePosts = true }
         // One in-flight page at a time. Several CommunityPostCard `.task`
         // callbacks fire loadMorePostsIfNeeded concurrently, and without this
         // they all read the same postOffset and duplicate / skip a page.
@@ -98,12 +100,12 @@ class CommunityDetailViewModel {
             let newPosts = try await repository.fetchPosts(
                 communityId: communityId, limit: pageSize, offset: postOffset, token: token
             )
-            posts.append(contentsOf: newPosts)
+            if reset { posts = newPosts } else { posts.append(contentsOf: newPosts) }
             postOffset += newPosts.count
             canLoadMorePosts = newPosts.count == pageSize
-        } catch {
+        } catch where !error.isCancellation {
             errorMessage = friendlyError(error)
-        }
+        } catch {}
         isLoadingPosts = false
     }
 
@@ -116,9 +118,9 @@ class CommunityDetailViewModel {
         isLoadingMembers = true
         do {
             members = try await repository.fetchMembers(communityId: communityId, token: token)
-        } catch {
+        } catch where !error.isCancellation {
             errorMessage = friendlyError(error)
-        }
+        } catch {}
         isLoadingMembers = false
     }
 
@@ -130,6 +132,9 @@ class CommunityDetailViewModel {
     /// `join_community`/`leave_community` (which additionally ack, unlike
     /// `join_conversation`).
     func joinCommunityRoom() {
+        // Coming back from a screen pushed on top finds the room still open.
+        guard !isInRoom else { return }
+        isInRoom = true
         emitJoinCommunity()
 
         // Re-emit `join_community` after a socket reconnect, server-side room
@@ -195,6 +200,30 @@ class CommunityDetailViewModel {
             }
         }
 
+        // Someone's role changed (promote, demote, admin hand-over): update
+        // the badges and, when it's the viewer, their staff menu.
+        ws.on("community_role_changed", tag: "community") { [weak self] payload in
+            guard let self,
+                  let dict = payload as? [String: Any],
+                  (dict["community_id"] as? String) == self.communityId,
+                  let changes = dict["changes"] as? [[String: Any]] else { return }
+            for change in changes {
+                guard let userId = change["user_id"] as? String,
+                      let role = (change["role"] as? String).flatMap(MemberRole.init(rawValue:)) else { continue }
+                self.setMemberRole(userId, role)
+                if userId == self.currentUserId { self.community?.role = role }
+            }
+        }
+
+        // The admin disbanded it while this page was open.
+        ws.on("community_disbanded", tag: "community") { [weak self] payload in
+            guard let self,
+                  let dict = payload as? [String: Any],
+                  (dict["community_id"] as? String) == self.communityId,
+                  self.community?.role != .admin else { return }
+            self.wasDisbanded = true
+        }
+
         // A comment was added to a post. Patch the count only; the comment
         // list itself is fetched fresh by `CommentSheet` when it's opened.
         ws.on("community_post_commented", tag: "community") { [weak self] payload in
@@ -210,6 +239,8 @@ class CommunityDetailViewModel {
     /// Leave this community's realtime room and deregister listeners. Call
     /// from the detail view's `.onDisappear`.
     func leaveCommunityRoom() {
+        guard isInRoom else { return }
+        isInRoom = false
         if let reconnectObserver {
             NotificationCenter.default.removeObserver(reconnectObserver)
             self.reconnectObserver = nil
@@ -226,6 +257,8 @@ class CommunityDetailViewModel {
         ws.off("community_post_created", tag: "community")
         ws.off("community_post_liked", tag: "community")
         ws.off("community_post_commented", tag: "community")
+        ws.off("community_role_changed", tag: "community")
+        ws.off("community_disbanded", tag: "community")
     }
 
     /// Emits `join_community` for this community's room. Factored out of
@@ -430,18 +463,80 @@ class CommunityDetailViewModel {
             try await repository.updateMemberRole(
                 communityId: communityId, userId: userId, role: newRole, token: token
             )
-            if let idx = members.firstIndex(where: { $0.id == userId }) {
-                let m = members[idx]
-                members[idx] = CommunityMember(
-                    id: m.id, username: m.username, displayName: m.displayName,
-                    avatarColor: m.avatarColor, jobTitle: m.jobTitle, company: m.company,
-                    role: newRole, joinedAt: m.joinedAt,
-                    avatarUrl: m.avatarUrl, isFriend: m.isFriend
-                )
-            }
+            setMemberRole(userId, newRole)
         } catch {
             errorMessage = friendlyError(error)
         }
+    }
+
+    /// Makes `userId` the admin; the viewer steps down to moderator.
+    func transferAdmin(to userId: String, currentUserId: String) async {
+        do {
+            try await repository.transferAdmin(communityId: communityId, userId: userId, token: token)
+            setMemberRole(userId, .admin)
+            setMemberRole(currentUserId, .moderator)
+            community?.role = .moderator
+            NotificationCenter.default.post(name: .communitiesChanged, object: nil)
+        } catch {
+            errorMessage = friendlyError(error)
+        }
+    }
+
+    // MARK: - Disband / restore / ban (admin)
+
+    /// The community was disbanded while open here (someone else is admin).
+    var wasDisbanded = false
+
+    /// True once disbanded; the page closes.
+    func disband(confirmName: String) async -> Bool {
+        do {
+            try await repository.disband(communityId: communityId, confirmName: confirmName, token: token)
+            community?.disbandedAt = Date()
+            NotificationCenter.default.post(name: .communitiesChanged, object: nil)
+            return true
+        } catch {
+            errorMessage = friendlyError(error)
+            return false
+        }
+    }
+
+    func restore() async {
+        do {
+            try await repository.restore(communityId: communityId, token: token)
+            community?.disbandedAt = nil
+            NotificationCenter.default.post(name: .communitiesChanged, object: nil)
+        } catch {
+            errorMessage = friendlyError(error)
+        }
+    }
+
+    /// Removes the member and keeps them out for good.
+    func banMember(_ userId: String) async {
+        do {
+            try await repository.banMember(communityId: communityId, userId: userId, token: token)
+            members.removeAll { $0.id == userId }
+            community?.memberCount = max(0, (community?.memberCount ?? 1) - 1)
+        } catch {
+            errorMessage = friendlyError(error)
+        }
+    }
+
+    /// Manage roles handed the admin role on: the viewer is a moderator now.
+    func adminTransferredElsewhere() async {
+        community?.role = .moderator
+        NotificationCenter.default.post(name: .communitiesChanged, object: nil)
+        await fetchMembers()
+    }
+
+    private func setMemberRole(_ userId: String, _ role: MemberRole) {
+        guard let idx = members.firstIndex(where: { $0.id == userId }) else { return }
+        let m = members[idx]
+        members[idx] = CommunityMember(
+            id: m.id, username: m.username, displayName: m.displayName,
+            avatarColor: m.avatarColor, jobTitle: m.jobTitle, company: m.company,
+            role: role, joinedAt: m.joinedAt,
+            avatarUrl: m.avatarUrl, isFriend: m.isFriend
+        )
     }
 }
 

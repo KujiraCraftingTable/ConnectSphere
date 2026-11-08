@@ -109,11 +109,12 @@ struct CommunityRepository {
 
     // MARK: - Members
 
-    func fetchMembers(communityId: String, limit: Int = 50, token: String) async throws -> [CommunityMember] {
-        let items: [URLQueryItem] = [
+    func fetchMembers(communityId: String, search: String? = nil, limit: Int = 50, token: String) async throws -> [CommunityMember] {
+        var items: [URLQueryItem] = [
             .init(name: "limit",  value: "\(limit)"),
             .init(name: "offset", value: "0"),
         ]
+        if let search, !search.isEmpty { items.append(.init(name: "search", value: search)) }
         let res = try await client.fetch(DataListResponse<CommunityMemberDTO>.self,
                                           path: "/communities/\(communityId)/members",
                                           token: token, queryItems: items)
@@ -128,9 +129,52 @@ struct CommunityRepository {
 
     func updateMemberRole(communityId: String, userId: String, role: MemberRole, token: String) async throws {
         let body = NetworkClient.encode(["role": role.rawValue])
-        _ = try await client.fetch(OKResponse.self,
+        // The route answers `{data: {…role row}}`, with no `status`, so
+        // decoding OKResponse failed after the role had already changed.
+        _ = try await client.fetch(RoleUpdated.self,
                                     path: "/communities/\(communityId)/members/\(userId)/role",
                                     method: "PATCH", token: token, bodyData: body)
+    }
+
+    private struct RoleUpdated: Decodable {}
+
+    // MARK: - Admin: disband, bans, moderation log
+
+    func disband(communityId: String, confirmName: String, token: String) async throws {
+        _ = try await client.fetch(OKResponse.self, path: "/communities/\(communityId)/disband",
+                                   method: "POST", token: token, bodyData: NetworkClient.encode(["name": confirmName]))
+    }
+
+    func restore(communityId: String, token: String) async throws {
+        _ = try await client.fetch(OKResponse.self, path: "/communities/\(communityId)/restore", method: "POST", token: token)
+    }
+
+    func banMember(communityId: String, userId: String, token: String) async throws {
+        _ = try await client.fetch(OKResponse.self, path: "/communities/\(communityId)/members/\(userId)/ban",
+                                   method: "POST", token: token)
+    }
+
+    func unbanMember(communityId: String, userId: String, token: String) async throws {
+        _ = try await client.fetch(OKResponse.self, path: "/communities/\(communityId)/members/\(userId)/ban",
+                                   method: "DELETE", token: token)
+    }
+
+    func fetchBans(communityId: String, token: String) async throws -> [BannedMember] {
+        try await client.fetch(DataListResponse<BannedMember>.self, path: "/communities/\(communityId)/bans", token: token).data
+    }
+
+    func fetchModLog(communityId: String, offset: Int, limit: Int = 30, token: String) async throws -> [ModLogEntry] {
+        let items: [URLQueryItem] = [.init(name: "limit", value: "\(limit)"), .init(name: "offset", value: "\(offset)")]
+        return try await client.fetch(DataListResponse<ModLogEntry>.self, path: "/communities/\(communityId)/mod-log",
+                                      token: token, queryItems: items).data
+    }
+
+    /// Hands the admin role to another member; the caller becomes a moderator.
+    func transferAdmin(communityId: String, userId: String, token: String) async throws {
+        let body = NetworkClient.encode(["user_id": userId])
+        _ = try await client.fetch(OKResponse.self,
+                                    path: "/communities/\(communityId)/transfer-admin",
+                                    method: "POST", token: token, bodyData: body)
     }
 
     // MARK: - Admin: Analytics

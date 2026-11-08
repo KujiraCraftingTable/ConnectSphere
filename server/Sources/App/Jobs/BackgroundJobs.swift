@@ -52,6 +52,7 @@ enum BackgroundJobs {
         app.queues.schedule(PinExpiryJob()).using(utc).daily().at(0, 20)
         app.queues.schedule(PostPurgeJob()).using(utc).daily().at(0, 25)
         app.queues.schedule(DataCleanupJob()).using(utc).daily().at(0, 30)
+        app.queues.schedule(DisbandPurgeJob()).using(utc).daily().at(0, 35)
         // Sub-daily.
         app.queues.schedule(TrendingJob()).using(utc).hourly().at(0)
         // Safety net for the 6-hour freshness promise (see `chunkSweep`).
@@ -105,6 +106,13 @@ enum BackgroundJobs {
             let db = context.application.db.sql()
             try await db.raw("DELETE FROM posts WHERE status = 'deleted' AND deleted_at < NOW() - INTERVAL '30 days'").run()
             try await db.raw("DELETE FROM comments WHERE status = 'deleted' AND deleted_at < NOW() - INTERVAL '30 days'").run()
+        }
+    }
+
+    /// Communities disbanded 7+ days ago are deleted for good.
+    struct DisbandPurgeJob: AsyncScheduledJob {
+        func run(context: QueueContext) async throws {
+            try await CommunityStore.purgeDisbanded(on: context.application.db.sql())
         }
     }
 

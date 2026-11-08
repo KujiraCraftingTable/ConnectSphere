@@ -10,6 +10,8 @@ enum CommunityStore {
     /// (null when not a member) and `join_request_status` (null when none).
     struct CommunityDetail: Content {
         var id: String
+        /// Set while a disbanded community waits out its 7 days (admin only sees it).
+        var disbanded_at: Date? = nil
         @NullCoded var description: String?
         /// 'plain' or 'markdown' (migration 099).
         var description_format: String? = nil
@@ -76,7 +78,7 @@ enum CommunityStore {
             q = """
                 SELECT c.id::text AS id, c.name, c.description, c.description_format, c.type, c.privacy, c.icon_emoji, c.avatar_url, c.cover_url, c.cover_color,
                   c.member_count, c.post_count, c.created_by::text AS created_by, c.created_at, c.name_changed_at,
-                  c.require_post_approval,
+                  c.require_post_approval, c.disbanded_at,
                   (cm.user_id IS NOT NULL) AS is_member, cm.role, jr.status AS join_request_status,
                   (cm.user_id IS NOT NULL OR c.privacy = 'public'
                    OR EXISTS (SELECT 1 FROM users a WHERE a.id = \(uuid: viewer) AND a.app_role = 'admin' AND a.deleted_at IS NULL)) AS can_view,
@@ -85,16 +87,19 @@ enum CommunityStore {
                 LEFT JOIN community_members cm ON cm.community_id = c.id AND cm.user_id = \(uuid: viewer)
                 LEFT JOIN community_join_requests jr ON jr.community_id = c.id AND jr.user_id = \(uuid: viewer)
                 WHERE c.id = \(uuid: id) AND c.suspended_at IS NULL
+                  -- Disbanded: only its admin still opens it (to restore). Banned: gone.
+                  AND (c.disbanded_at IS NULL OR cm.role = 'admin')
+                  AND NOT EXISTS (SELECT 1 FROM community_bans bx WHERE bx.community_id = c.id AND bx.user_id = \(uuid: viewer))
                 """
         } else {
             q = """
                 SELECT c.id::text AS id, c.name, c.description, c.description_format, c.type, c.privacy, c.icon_emoji, c.avatar_url, c.cover_url, c.cover_color,
                   c.member_count, c.post_count, c.created_by::text AS created_by, c.created_at, c.name_changed_at,
-                  c.require_post_approval,
+                  c.require_post_approval, c.disbanded_at,
                   false AS is_member, NULL::VARCHAR AS role, NULL::VARCHAR AS join_request_status,
                   (c.privacy = 'public') AS can_view,
                   false AS is_muted, false AS is_pinned, NULL::VARCHAR AS notify_level
-                FROM communities c WHERE c.id = \(uuid: id) AND c.suspended_at IS NULL
+                FROM communities c WHERE c.id = \(uuid: id) AND c.suspended_at IS NULL AND c.disbanded_at IS NULL
                 """
         }
         return try await db.raw(q).first(decoding: CommunityDetail.self)
@@ -439,8 +444,15 @@ enum CommunityStore {
         var is_friend: Bool
     }
     /// `communityType` is the community's own `type` ("work" or "hobby").
-    static func members(_ communityID: String, communityType: String, viewer: String,
+    static func members(_ communityID: String, communityType: String, viewer: String, search: String? = nil,
                         limit: Int, offset: Int, on db: any SQLDatabase) async throws -> [MemberRow] {
+        // Name search for Manage roles: every word must be in the display
+        // name or @username, the same rule as the community post search.
+        var nameFilter: SQLQueryString = ""
+        for word in (search ?? "").split(whereSeparator: \.isWhitespace).prefix(5) {
+            let w = UserStore.escapeLike(String(word))
+            nameFilter = nameFilter + " AND (u.display_name ILIKE '%' || \(bind: w) || '%' OR u.username ILIKE '%' || \(bind: w) || '%')"
+        }
         // A fixed literal, as in `info`.
         let mode = communityType == "work" ? "'work'" : "'hobby'"
         let modeValue = communityType == "work" ? "work" : "hobby"
@@ -451,7 +463,7 @@ enum CommunityStore {
                 AND ((k.requester_id = \(uuid: viewer) AND k.addressee_id = u.id)
                   OR (k.addressee_id = \(uuid: viewer) AND k.requester_id = u.id))) AS is_friend
             FROM community_members cm JOIN users u ON u.id = cm.user_id
-            WHERE cm.community_id = \(uuid: communityID)
+            WHERE cm.community_id = \(uuid: communityID)\(nameFilter)
             ORDER BY CASE cm.role WHEN 'admin' THEN 0 WHEN 'moderator' THEN 1 ELSE 2 END, cm.joined_at ASC
             LIMIT \(bind: limit) OFFSET \(bind: offset)
             """).all(decoding: MemberRow.self)
@@ -466,7 +478,8 @@ enum CommunityStore {
             FROM communities c
             LEFT JOIN community_trending tr ON tr.community_id = c.id
             LEFT JOIN community_members cm ON cm.community_id = c.id AND cm.user_id = \(uuid: viewer)
-            WHERE c.privacy = 'public' AND c.type = \(bind: type) AND c.suspended_at IS NULL
+            WHERE c.privacy = 'public' AND c.type = \(bind: type) AND c.suspended_at IS NULL AND c.disbanded_at IS NULL
+              AND NOT EXISTS (SELECT 1 FROM community_bans bx WHERE bx.community_id = c.id AND bx.user_id = \(uuid: viewer))
             ORDER BY COALESCE(tr.score, 0) DESC, c.member_count DESC LIMIT \(bind: limit)
             """).all(decoding: CommunityRow.self)
     }
@@ -511,7 +524,8 @@ enum CommunityStore {
             JOIN user_tags ut ON ut.tag = ct.tag
             LEFT JOIN community_trending tr ON tr.community_id = c.id
             WHERE c.id NOT IN (SELECT community_id FROM community_members WHERE user_id = \(uuid: userID)) AND c.privacy = 'public'
-              AND c.type = \(bind: type) AND c.suspended_at IS NULL
+              AND c.type = \(bind: type) AND c.suspended_at IS NULL AND c.disbanded_at IS NULL
+              AND NOT EXISTS (SELECT 1 FROM community_bans bx WHERE bx.community_id = c.id AND bx.user_id = \(uuid: userID))
             """
         return try await db.raw(q + " GROUP BY c.id, tr.score ORDER BY rec_score DESC LIMIT \(bind: limit)")
             .all(decoding: RecommendedRow.self)
@@ -526,6 +540,7 @@ enum CommunityStore {
             FROM communities c JOIN community_members cm ON cm.community_id = c.id
             LEFT JOIN community_trending tr ON tr.community_id = c.id
             WHERE cm.user_id = \(uuid: userID) AND c.suspended_at IS NULL
+              AND (c.disbanded_at IS NULL OR cm.role = 'admin')
             ORDER BY (cm.pinned_at IS NULL), cm.pinned_at, cm.joined_at DESC
             """).all(decoding: CommunityRow.self)
     }
@@ -539,7 +554,8 @@ enum CommunityStore {
             LEFT JOIN community_members cm ON cm.community_id = c.id AND cm.user_id = \(uuid: viewer)
             LEFT JOIN community_trending tr ON tr.community_id = c.id
             WHERE (c.name ILIKE \(bind: like) OR c.description ILIKE \(bind: like)) AND c.privacy = 'public'
-              AND c.type = \(bind: type) AND c.suspended_at IS NULL
+              AND c.type = \(bind: type) AND c.suspended_at IS NULL AND c.disbanded_at IS NULL
+              AND NOT EXISTS (SELECT 1 FROM community_bans bx WHERE bx.community_id = c.id AND bx.user_id = \(uuid: viewer))
             """
         if !tags.isEmpty {
             q = q + " AND EXISTS (SELECT 1 FROM community_tags ct WHERE ct.community_id = c.id AND ct.tag = ANY(\(bind: tags)::text[]))"
@@ -679,4 +695,123 @@ enum CommunityStore {
 extension CommunityStore.CommunityDetail {
     /// `can_view` when the query computed it, else the member-or-public rule.
     var viewerCanRead: Bool { can_view ?? (privacy != "private" || is_member) }
+}
+
+// MARK: - Disband, bans, moderation log
+
+extension CommunityStore {
+    static let modActions: Set<String> = [
+        "approve_member", "deny_member", "approve_post", "decline_post", "resolve_report", "remove_content",
+        "remove_member", "ban", "unban", "role_change", "transfer_admin", "pin", "disband", "restore",
+    ]
+
+    /// Records a staff action. A failed write never fails the action itself.
+    static func logAction(_ communityID: String, actor: String, _ action: String,
+                          targetUser: String? = nil, targetPost: String? = nil, detail: String? = nil,
+                          on db: any SQLDatabase) async {
+        guard modActions.contains(action) else { return }
+        try? await db.raw("""
+            INSERT INTO community_mod_log (community_id, actor_id, action, target_user_id, target_post_id, detail)
+            VALUES (\(uuid: communityID), \(uuid: actor), \(bind: action), \(uuid: targetUser), \(uuid: targetPost), \(bind: detail))
+            """).run()
+    }
+
+    struct ModLogRow: Content {
+        var id: String
+        var action: String
+        var actor_id: String?
+        var actor_name: String?
+        var target_user_id: String?
+        var target_name: String?
+        var target_post_id: String?
+        var post_snippet: String?
+        var detail: String?
+        var created_at: Date
+    }
+
+    static func modLog(_ communityID: String, limit: Int, offset: Int, on db: any SQLDatabase) async throws -> [ModLogRow] {
+        try await db.raw("""
+            SELECT l.id::text AS id, l.action, l.actor_id::text AS actor_id, a.display_name AS actor_name,
+              l.target_user_id::text AS target_user_id, t.display_name AS target_name,
+              l.target_post_id::text AS target_post_id, LEFT(p.content, 80) AS post_snippet, l.detail, l.created_at
+            FROM community_mod_log l
+            LEFT JOIN users a ON a.id = l.actor_id
+            LEFT JOIN users t ON t.id = l.target_user_id
+            LEFT JOIN posts p ON p.id = l.target_post_id
+            WHERE l.community_id = \(uuid: communityID)
+            ORDER BY l.created_at DESC LIMIT \(bind: limit) OFFSET \(bind: offset)
+            """).all(decoding: ModLogRow.self)
+    }
+
+    static func ban(_ communityID: String, _ userID: String, by actor: String, on db: any SQLDatabase) async throws {
+        try await db.raw("""
+            INSERT INTO community_bans (community_id, user_id, banned_by)
+            VALUES (\(uuid: communityID), \(uuid: userID), \(uuid: actor))
+            ON CONFLICT (community_id, user_id) DO NOTHING
+            """).run()
+    }
+
+    static func unban(_ communityID: String, _ userID: String, on db: any SQLDatabase) async throws -> Bool {
+        struct R: Decodable { let user_id: String }
+        return try await db.raw("""
+            DELETE FROM community_bans WHERE community_id = \(uuid: communityID) AND user_id = \(uuid: userID)
+            RETURNING user_id::text AS user_id
+            """).first(decoding: R.self) != nil
+    }
+
+    struct BanRow: Content {
+        var id: String
+        var username: String
+        var display_name: String
+        var avatar_color: String?
+        var avatar_url: String?
+        var banned_at: Date
+    }
+
+    static func bans(_ communityID: String, on db: any SQLDatabase) async throws -> [BanRow] {
+        try await db.raw("""
+            SELECT u.id::text AS id, u.username, u.display_name, u.avatar_color, u.avatar_url, b.banned_at
+            FROM community_bans b JOIN users u ON u.id = b.user_id
+            WHERE b.community_id = \(uuid: communityID)
+            ORDER BY b.banned_at DESC
+            """).all(decoding: BanRow.self)
+    }
+
+    struct DisbandInfo: Decodable { let name: String; let disbanded_at: Date? }
+
+    static func disbandInfo(_ communityID: String, on db: any SQLDatabase) async throws -> DisbandInfo? {
+        try await db.raw("SELECT name, disbanded_at FROM communities WHERE id = \(uuid: communityID)")
+            .first(decoding: DisbandInfo.self)
+    }
+
+    static func setDisbanded(_ communityID: String, _ disbanded: Bool, on db: any SQLDatabase) async throws {
+        if disbanded {
+            try await db.raw("UPDATE communities SET disbanded_at = NOW() WHERE id = \(uuid: communityID) AND disbanded_at IS NULL").run()
+        } else {
+            try await db.raw("UPDATE communities SET disbanded_at = NULL WHERE id = \(uuid: communityID)").run()
+        }
+    }
+
+    static func memberIDs(_ communityID: String, except: String, on db: any SQLDatabase) async throws -> [String] {
+        struct R: Decodable { let user_id: String }
+        return try await db.raw("""
+            SELECT user_id::text AS user_id FROM community_members
+            WHERE community_id = \(uuid: communityID) AND user_id <> \(uuid: except)
+            """).all(decoding: R.self).map(\.user_id)
+    }
+
+    /// Deletes communities disbanded over 7 days ago. Their posts go first:
+    /// `posts.community_id` is ON DELETE SET NULL, so deleting only the
+    /// community would turn its posts into ordinary posts.
+    @discardableResult
+    static func purgeDisbanded(on db: any SQLDatabase) async throws -> Int {
+        struct R: Decodable { let id: String }
+        let ids = try await db.raw("""
+            SELECT id::text AS id FROM communities WHERE disbanded_at < NOW() - INTERVAL '7 days'
+            """).all(decoding: R.self).map(\.id)
+        guard !ids.isEmpty else { return 0 }
+        try await db.raw("DELETE FROM posts WHERE community_id = ANY(\(bind: ids)::uuid[])").run()
+        try await db.raw("DELETE FROM communities WHERE id = ANY(\(bind: ids)::uuid[])").run()
+        return ids.count
+    }
 }

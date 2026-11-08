@@ -12,6 +12,7 @@ struct CommunityRow: View {
     var onToggle: (() -> Void)?
     /// Leaving is the one destructive tap on the pill, so it asks first.
     @State private var confirmLeave = false
+    @State private var adminMustHandOver = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -56,7 +57,8 @@ struct CommunityRow: View {
 
     private func joinButton(_ action: @escaping () -> Void) -> some View {
         Button {
-            if community.isMember { confirmLeave = true } else { action() }
+            if community.role == .admin { adminMustHandOver = true }
+            else if community.isMember { confirmLeave = true } else { action() }
         } label: {
             Text(community.isMember ? bundle.loc("Joined") : bundle.loc("Join"))
                 .scaledFont(13, .semibold)
@@ -67,10 +69,16 @@ struct CommunityRow: View {
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
+        .disabledWhenRestricted(!community.isMember)
         .confirmationDialog(bundle.loc("Leave this community?"), isPresented: $confirmLeave, titleVisibility: .visible) {
             Button(bundle.loc("Leave community"), role: .destructive, action: action)
         } message: {
             Text("You'll stop seeing its posts. You can join again later.", bundle: bundle)
+        }
+        .alert(bundle.loc("Make someone else admin first"), isPresented: $adminMustHandOver) {
+            Button(bundle.loc("OK")) {}
+        } message: {
+            Text("Open the community, go to Members and choose Make admin on someone. Then you can leave.", bundle: bundle)
         }
     }
 }

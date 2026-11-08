@@ -14,8 +14,10 @@ enum NotifyService {
 
     // MARK: row insert (RETURNING the read-side Row shape)
 
+    // Leads with a space: appended straight after `... AS uid` in pushToMany,
+    // where "uidRETURNING" was a syntax error that dropped every bulk notification.
     private static let returningRow: SQLQueryString = """
-        RETURNING id::text AS id, user_id::text AS user_id, type, actor_id::text AS actor_id,
+         RETURNING id::text AS id, user_id::text AS user_id, type, actor_id::text AS actor_id,
           post_id::text AS post_id, community_id::text AS community_id, conversation_id::text AS conversation_id,
           entity_type, entity_id::text AS entity_id,
           COALESCE(group_key, type || ':' || id::text) AS group_key,
@@ -43,7 +45,8 @@ enum NotifyService {
         case "community": return ["new_post": "post", "pinned_post": "post", "post_approved": "post",
                                  "post_declined": "community", "join_request": "join_request",
                                  "join_approved": "join_request", "join_rejected": "join_request",
-                                 "role_changed": "community", "new_report": "report", "content_removed": "community"][type]
+                                 "role_changed": "community", "new_report": "report", "content_removed": "community",
+                                 "community_disbanded": "community", "community_restored": "community"][type]
         default: return nil
         }
     }

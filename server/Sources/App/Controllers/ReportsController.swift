@@ -282,10 +282,8 @@ struct ReportsController {
                 }
             }
         } else if action == "ban_member" {
-            let target = try await CommunityStore.membership(cid, report.target_id, on: db)
-            if target == "admin" && reviewerRole != "admin" {
-                throw Abort(.forbidden, reason: "Only admins can ban other admins")
-            }
+            // Banning is the admin's alone; moderators remove or dismiss.
+            guard reviewerRole == "admin" else { throw Abort(.forbidden, reason: "Only the admin can ban members") }
             try await req.db.tx { t in
                 if try await CommunityStore.kickMember(cid, report.target_id, on: t) {
                     try await CommunityStore.incrementMemberCount(cid, -1, on: t)
@@ -297,6 +295,11 @@ struct ReportsController {
                     """).run()
             }
         }
+        await CommunityStore.logAction(cid, actor: req.userID,
+                                       action == "remove_content" ? "remove_content" : action == "ban_member" ? "ban" : "resolve_report",
+                                       targetUser: report.target_type == "member" ? report.target_id : nil,
+                                       targetPost: report.target_type == "post" ? report.target_id : nil,
+                                       detail: action, on: db)
         let finalStatus = action == "dismiss" ? "dismissed" : "resolved"
         let updated = try await db.raw("""
             UPDATE community_reports SET status = \(bind: finalStatus), resolved_by = \(uuid: req.userID), resolved_at = NOW()

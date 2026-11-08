@@ -12,6 +12,15 @@ struct CommunityMembersView: View {
     let viewModel: CommunityDetailViewModel
     @State private var reportTargetId: String? = nil
     @State private var showReportMember = false
+    @State private var newAdmin: CommunityMember? = nil
+    /// Promote to moderator / demote to member, waiting for its confirmation.
+    @State private var roleChange: RoleChange? = nil
+    /// Remove (or remove and ban), waiting for its confirmation.
+    @State private var removal: Removal? = nil
+
+    private struct Removal { let member: CommunityMember; let ban: Bool }
+
+    private struct RoleChange { let member: CommunityMember; let role: MemberRole }
 
     private var communityId: String { viewModel.community?.id ?? "" }
     private var accentColor: Color { themeManager.theme.primary }
@@ -28,6 +37,61 @@ struct CommunityMembersView: View {
         .appBackground()
         .navigationTitle(Text("Members", bundle: bundle))
         .navigationBarTitleDisplayMode(.inline)
+        .alert(
+            String(format: bundle.loc("Make %@ the admin?"), newAdmin?.displayName ?? ""),
+            isPresented: Binding(get: { newAdmin != nil }, set: { if !$0 { newAdmin = nil } }),
+            presenting: newAdmin
+        ) { member in
+            Button(bundle.loc("Cancel"), role: .cancel) {}
+            Button(bundle.loc("Make admin")) {
+                Task<Void, Never>(name: nil) {
+                    await viewModel.transferAdmin(to: member.id, currentUserId: appState.currentUser?.id ?? "")
+                }
+            }
+        } message: { _ in
+            Text("A community has one admin. You'll become a moderator.", bundle: bundle)
+        }
+        .alert(
+            roleChange.map { change in
+                String(format: bundle.loc(change.role == .moderator ? "Make %@ a moderator?" : "Remove %@ as moderator?"),
+                       change.member.displayName)
+            } ?? "",
+            isPresented: Binding(get: { roleChange != nil }, set: { if !$0 { roleChange = nil } }),
+            presenting: roleChange
+        ) { change in
+            Button(bundle.loc("Cancel"), role: .cancel) {}
+            Button(bundle.loc("Confirm")) {
+                Task<Void, Never>(name: nil) { await viewModel.updateRole(userId: change.member.id, newRole: change.role) }
+            }
+        } message: { change in
+            Text(change.role == .moderator
+                 ? bundle.loc("Moderators can review posts, handle reports and remove members.")
+                 : bundle.loc("They'll stay in the community as a member."))
+        }
+        .alert(
+            removal.map { r in
+                String(format: bundle.loc(r.ban ? "Remove and ban %@?" : "Remove %@ from the community?"), r.member.displayName)
+            } ?? "",
+            isPresented: Binding(get: { removal != nil }, set: { if !$0 { removal = nil } }),
+            presenting: removal
+        ) { r in
+            Button(bundle.loc("Cancel"), role: .cancel) {}
+            Button(bundle.loc(r.ban ? "Remove and ban" : "Remove"), role: .destructive) {
+                Task<Void, Never>(name: nil) {
+                    if r.ban { await viewModel.banMember(r.member.id) } else { await viewModel.kickMember(r.member.id) }
+                }
+            }
+        } message: { r in
+            Text(r.ban ? bundle.loc("They'll be removed, can't join again, and won't see this community anywhere.")
+                       : bundle.loc("They can join again later."))
+        }
+        .alert(bundle.loc("Error"), isPresented: Binding(
+            get: { viewModel.errorMessage != nil }, set: { if !$0 { viewModel.errorMessage = nil } }
+        )) {
+            Button(bundle.loc("OK")) {}
+        } message: {
+            Text(viewModel.errorMessage ?? "")
+        }
         .sheet(isPresented: $showReportMember) {
             if let memberId = reportTargetId {
                 ReportSheet(subject: .communityMember(communityId: communityId, userId: memberId))
@@ -129,16 +193,21 @@ struct CommunityMembersView: View {
         // Staff actions (not on self)
         if isStaff && !isSelf {
             // Role change, admin only
+            if currentUserRole == .admin {
+                Button { newAdmin = member } label: {
+                    Label(bundle.loc("Make admin"), systemImage: "crown")
+                }
+            }
             if currentUserRole == .admin && member.role == .member {
                 Button {
-                    Task<Void, Never>(name: nil) { await viewModel.updateRole(userId: member.id, newRole: .moderator) }
+                    roleChange = RoleChange(member: member, role: .moderator)
                 } label: {
                     Label(bundle.loc("Promote to moderator"), systemImage: "person.badge.shield.checkmark")
                 }
             }
             if currentUserRole == .admin && member.role == .moderator {
                 Button {
-                    Task<Void, Never>(name: nil) { await viewModel.updateRole(userId: member.id, newRole: .member) }
+                    roleChange = RoleChange(member: member, role: .member)
                 } label: {
                     Label(bundle.loc("Demote to member"), systemImage: "person.badge.minus")
                 }
@@ -148,9 +217,17 @@ struct CommunityMembersView: View {
             if canKick {
                 Divider()
                 Button(role: .destructive) {
-                    Task<Void, Never>(name: nil) { await viewModel.kickMember(member.id) }
+                    removal = Removal(member: member, ban: false)
                 } label: {
                     Label(bundle.loc("Remove from community"), systemImage: "person.crop.circle.badge.xmark")
+                }
+                // Banning is the admin's alone.
+                if currentUserRole == .admin {
+                    Button(role: .destructive) {
+                        removal = Removal(member: member, ban: true)
+                    } label: {
+                        Label(bundle.loc("Remove and ban"), systemImage: "nosign")
+                    }
                 }
             }
         }

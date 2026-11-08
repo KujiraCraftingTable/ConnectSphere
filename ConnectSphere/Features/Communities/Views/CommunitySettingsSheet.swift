@@ -9,8 +9,13 @@ struct CommunitySettingsSheet: View {
     let viewModel: CommunityDetailViewModel
     /// Left the community. The page closes too.
     let onLeft: () -> Void
+    /// The admin tapped Leave and chose to pick a successor first.
+    let onChooseNewAdmin: () -> Void
+    /// The admin tapped Disband: this sheet closes and the page asks to confirm.
+    let onDisband: () -> Void
     @State private var showReport = false
     @State private var confirmLeave = false
+    @State private var adminMustHandOver = false
 
     private var community: Community? { viewModel.community }
 
@@ -32,12 +37,30 @@ struct CommunitySettingsSheet: View {
                 Section {
                     Button { showReport = true } label: { row("flag", bundle.loc("Report community")) }
                         .buttonStyle(.plain)
-                    Button(role: .destructive) { confirmLeave = true } label: {
+                    Button(role: .destructive) {
+                        if community?.role == .admin { adminMustHandOver = true } else { confirmLeave = true }
+                    } label: {
                         HStack(spacing: 12) {
                             Image(systemName: "rectangle.portrait.and.arrow.right").frame(width: 24)
                             Text("Leave community", bundle: bundle)
                         }
                         .foregroundStyle(.red)
+                    }
+                }
+                if community?.role == .admin {
+                    Section {
+                        Button(role: .destructive) {
+                            dismiss()
+                            onDisband()
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "archivebox").frame(width: 24)
+                                Text("Disband community", bundle: bundle)
+                            }
+                            .foregroundStyle(.red)
+                        }
+                    } footer: {
+                        Text("Hides the community for everyone and tells its members. You can restore it for 7 days, then it's deleted for good.", bundle: bundle)
                     }
                 }
             }
@@ -61,6 +84,15 @@ struct CommunitySettingsSheet: View {
             } message: {
                 Text("You'll stop seeing its posts. You can join again later.", bundle: bundle)
             }
+            .alert(bundle.loc("Make someone else admin first"), isPresented: $adminMustHandOver) {
+                Button(bundle.loc("Choose new admin")) {
+                    dismiss()
+                    onChooseNewAdmin()
+                }
+                Button(bundle.loc("Cancel"), role: .cancel) {}
+            } message: {
+                Text("You're this community's admin. Make another member admin, then you can leave.", bundle: bundle)
+            }
             .alert(bundle.loc("Error"), isPresented: Binding(
                 get: { viewModel.errorMessage != nil }, set: { if !$0 { viewModel.errorMessage = nil } }
             )) {
@@ -69,7 +101,8 @@ struct CommunitySettingsSheet: View {
                 Text(viewModel.errorMessage ?? "")
             }
         }
-        .presentationDetents([.medium, .large])
+        // A pop-up that opens at full height.
+        .presentationDetents([.large])
     }
 
     /// Plain HStack: Label text disappears inside Form rows.

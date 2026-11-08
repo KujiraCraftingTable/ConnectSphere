@@ -497,6 +497,10 @@ struct ActorNotifRow: View {
             return String(format: bundle.loc("Content in %@ needs review"), communityLabel)
         case "content_removed":
             return String(format: bundle.loc("Your post in %@ was removed by a moderator"), communityLabel)
+        case "community_disbanded":
+            return String(format: bundle.loc("%@ was disbanded by its admin"), communityLabel)
+        case "community_restored":
+            return String(format: bundle.loc("%@ is back: its admin restored it"), communityLabel)
 
         // ── Moderation (migration 089) — names no reporter ─────────────────
         case "account_limited":
@@ -597,6 +601,8 @@ struct ActorNotifRow: View {
         case "role_changed":        return "shield.lefthalf.filled"
         case "new_report":          return "exclamationmark.triangle.fill"
         case "content_removed":     return "trash.fill"
+        case "community_disbanded": return "archivebox.fill"
+        case "community_restored":  return "arrow.uturn.backward.circle.fill"
         case "report_received", "report_outcome": return "flag.fill"
         case "content_held":        return "eye.slash.fill"
         case "account_limited":     return "pause.circle.fill"
@@ -615,7 +621,7 @@ struct ActorNotifRow: View {
              "meeting_rsvp", "meeting_reminder", "group_added", "group_removed":
             return chatTitle
         case "new_post", "pinned_post", "join_approved", "join_rejected",
-             "role_changed", "new_report", "content_removed":
+             "role_changed", "new_report", "content_removed", "community_disbanded", "community_restored":
             return communityLabel
         default:
             return senderName

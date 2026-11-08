@@ -33,6 +33,13 @@ struct CommunitiesController {
         c.delete(":id", "posts", ":postId", "pin", use: unpinPost)
         c.delete(":id", "members", ":userId", use: kickMember)
         c.patch(":id", "members", ":userId", "role", use: updateRole)
+        c.post(":id", "transfer-admin", use: transferAdmin)
+        c.post(":id", "members", ":userId", "ban", use: banMember)
+        c.delete(":id", "members", ":userId", "ban", use: unbanMember)
+        c.get(":id", "bans", use: listBans)
+        c.post(":id", "disband", use: disband)
+        c.post(":id", "restore", use: restore)
+        c.get(":id", "mod-log", use: modLog)
         c.post(":id", "tags", use: setTags)
         c.patch(":id", use: update)
         c.put(":id", "mute", use: mute)
@@ -160,8 +167,8 @@ struct CommunitiesController {
     static func update(_ req: Request) async throws -> DataResponse<CommunityStore.CommunityDetail> {
         let id = req.parameters.get("id")!
         let db = req.db.sql()
-        guard staff(try await CommunityStore.membership(id, req.userID, on: db)) else {
-            throw Abort(.forbidden, reason: "Only admins and moderators can edit this community")
+        guard try await CommunityStore.membership(id, req.userID, on: db) == "admin" else {
+            throw Abort(.forbidden, reason: "Only the admin can edit this community")
         }
         let b = try req.content.decode(UpdateBody.self)
         try ModerationGate.check([b.name], .name)
@@ -221,6 +228,7 @@ struct CommunitiesController {
     struct OKMsg: Content { var status = "ok"; var message: String }
 
     static func join(_ req: Request) async throws -> OKMsg {
+        try req.requireNotRestricted()
         let id = req.parameters.get("id")!
         let db = req.db.sql()
         // It visits every community without joining (it can read, like, comment and share).
@@ -244,7 +252,7 @@ struct CommunitiesController {
             throw Abort(.badRequest, reason: "You are not a member of this community")
         }
         if role == "admin", try await CommunityStore.countAdmins(id, on: db) <= 1 {
-            throw Abort(.badRequest, reason: "You are the sole admin. Transfer the role before leaving")
+            throw Abort(.badRequest, reason: "Make another member admin before you leave")
         }
         try await req.db.tx { t in
             _ = try await CommunityStore.leaveCommunity(id, req.userID, on: t)
@@ -338,8 +346,11 @@ struct CommunitiesController {
         }
         let limit = req.pageLimit(default: 20, max: 100)
         let offset = req.pageOffset
+        let search = (try? req.query.get(String.self, at: "search"))
+            .map { String($0.trimmingCharacters(in: .whitespacesAndNewlines).prefix(100)) }
+            .flatMap { $0.isEmpty ? nil : $0 }
         return DataListResponse(data: try await CommunityStore.members(id, communityType: community.type, viewer: req.userID,
-                                                                       limit: limit, offset: offset, on: db))
+                                                                       search: search, limit: limit, offset: offset, on: db))
     }
 
     // MARK: posts
@@ -368,6 +379,9 @@ struct CommunitiesController {
         let audience = b.community_audience ?? "members"
         guard PostStore.communityAudiences.contains(audience) else {
             throw Abort(.badRequest, reason: "community_audience must be public or members")
+        }
+        if try await CommunityStore.disbandInfo(id, on: req.db.sql())?.disbanded_at != nil {
+            throw Abort(.forbidden, reason: "This community was disbanded")
         }
         var publishing = try Publishing.from(b.publish, at: b.publish_at)
         // A community that approves posts holds a member's live post as pending.
@@ -536,6 +550,8 @@ struct CommunitiesController {
             NotifyService.communityNewPost(app: req.application, postID: postID, communityID: id,
                                            authorID: reviewed.author_id, logger: req.logger)
         }
+        await CommunityStore.logAction(id, actor: req.userID, action == "approve" ? "approve_post" : "decline_post",
+                                       targetUser: reviewed.author_id, targetPost: postID, detail: reason, on: db)
         let author = reviewed.author_id
         let reviewer = req.userID
         NotifyService.fireAndForget(req) { d, h, l in
@@ -576,6 +592,7 @@ struct CommunitiesController {
 
     struct RequestJoinResult: Content { var status: String; @NullCoded var requestId: String? }
     static func requestJoin(_ req: Request) async throws -> Response {
+        try req.requireNotRestricted()
         let id = req.parameters.get("id")!
         let db = req.db.sql()
         try await OfficialAccount.refuse(req.userID, "doesn't join communities", on: db)
@@ -630,6 +647,9 @@ struct CommunitiesController {
             }
         }
         guard let u = updated else { throw Abort(.conflict, reason: "This request has already been reviewed") }
+        await CommunityStore.logAction(request.community_id, actor: req.userID,
+                                       status == "approved" ? "approve_member" : "deny_member",
+                                       targetUser: request.user_id, on: db)
         // TODO(notify): join_approved/join_rejected + join_request_reviewed / community_joined emits
         return DataResponse(data: u)
     }
@@ -645,7 +665,7 @@ struct CommunitiesController {
         guard try await CommunityStore.pinPost(postID, id, adminID: req.userID, on: db) else {
             throw Abort(.notFound, reason: "Post not found in this community")
         }
-        // TODO(notify): pinned_post fan-out
+        await CommunityStore.logAction(id, actor: req.userID, "pin", targetPost: postID, on: db)
         return OKMsg(message: "Post pinned")
     }
     static func unpinPost(_ req: Request) async throws -> OKMsg {
@@ -677,6 +697,7 @@ struct CommunitiesController {
             try await CommunityStore.incrementMemberCount(id, -1, on: t)
             try await CommunityStore.deleteRequest(id, targetID, on: t)
         }
+        await CommunityStore.logAction(id, actor: req.userID, "remove_member", targetUser: targetID, on: db)
         return OKMsg(message: "Member removed")
     }
 
@@ -693,12 +714,158 @@ struct CommunitiesController {
         guard let targetRole = try await CommunityStore.membership(id, targetID, on: db) else {
             throw Abort(.notFound, reason: "User is not a member of this community")
         }
-        if targetRole == "admin" && newRole != "admin", try await CommunityStore.countAdmins(id, on: db) <= 1 {
-            throw Abort(.badRequest, reason: "Cannot demote the only admin. Promote another admin first")
+        // A community has exactly one admin, so the admin seat only moves
+        // through transferAdmin, which swaps both rows in one transaction.
+        if newRole == "admin" || targetRole == "admin" {
+            throw Abort(.badRequest, reason: "Use transfer admin to change the admin")
         }
         guard let result = try await CommunityStore.updateRole(id, targetID, newRole, on: db) else { throw Abort(.internalServerError) }
-        // TODO(notify): role_changed
+        emitRoleChanged(req, id, [RoleChange(user_id: targetID, role: newRole)])
+        await CommunityStore.logAction(id, actor: req.userID, "role_change", targetUser: targetID, detail: newRole, on: db)
         return DataResponse(data: result)
+    }
+
+    struct RoleChange: Content { var user_id: String; var role: String }
+    struct RoleChangedEvent: Content { var community_id: String; var changes: [RoleChange] }
+    /// Open community pages (and the people whose role moved) update without
+    /// a refresh: members' badges, and the viewer's own staff menu.
+    static func emitRoleChanged(_ req: Request, _ communityID: String, _ changes: [RoleChange]) {
+        let event = RoleChangedEvent(community_id: communityID, changes: changes)
+        req.socketHub.emit(room: "community:\(communityID)", event: "community_role_changed", event)
+        for change in changes { req.socketHub.emitToUser(change.user_id, event: "community_role_changed", event) }
+    }
+
+    struct TransferAdminBody: Content { var user_id: String? }
+    /// The admin hands the role to another member and becomes a moderator.
+    static func transferAdmin(_ req: Request) async throws -> OKMsg {
+        let id = req.parameters.get("id")!
+        guard let raw = try req.content.decode(TransferAdminBody.self).user_id, let target = UUID(uuidString: raw) else {
+            throw Abort(.badRequest, reason: "Invalid user")
+        }
+        let targetID = target.uuidString.lowercased()
+        if targetID == req.userID { throw Abort(.badRequest, reason: "You are already the admin") }
+        let db = req.db.sql()
+        guard try await CommunityStore.membership(id, req.userID, on: db) == "admin" else {
+            throw Abort(.forbidden, reason: "Only the admin can transfer the role")
+        }
+        guard try await CommunityStore.membership(id, targetID, on: db) != nil else {
+            throw Abort(.notFound, reason: "User is not a member of this community")
+        }
+        try await req.db.tx { t in
+            // Step down first: the one-admin unique index (migration 115)
+            // would reject a second admin row even inside the transaction.
+            _ = try await CommunityStore.updateRole(id, req.userID, "moderator", on: t)
+            _ = try await CommunityStore.updateRole(id, targetID, "admin", on: t)
+        }
+        emitRoleChanged(req, id, [RoleChange(user_id: req.userID, role: "moderator"), RoleChange(user_id: targetID, role: "admin")])
+        await CommunityStore.logAction(id, actor: req.userID, "transfer_admin", targetUser: targetID, on: db)
+        return OKMsg(message: "Admin transferred")
+    }
+
+    // MARK: ban / unban (admin only)
+
+    private static func requireAdmin(_ id: String, _ req: Request, on db: any SQLDatabase) async throws {
+        guard try await CommunityStore.membership(id, req.userID, on: db) == "admin" else {
+            throw Abort(.forbidden, reason: "Only the admin can do this")
+        }
+    }
+
+    /// Removes the member and keeps them out: they can't rejoin, and the
+    /// community no longer shows up for them anywhere.
+    static func banMember(_ req: Request) async throws -> OKMsg {
+        let id = req.parameters.get("id")!
+        guard let target = UUID(uuidString: req.parameters.get("userId")!)?.uuidString.lowercased() else {
+            throw Abort(.badRequest, reason: "Invalid user")
+        }
+        let db = req.db.sql()
+        try await requireAdmin(id, req, on: db)
+        if target == req.userID { throw Abort(.badRequest, reason: "You cannot ban yourself") }
+        try await req.db.tx { t in
+            if try await CommunityStore.kickMember(id, target, on: t) {
+                try await CommunityStore.incrementMemberCount(id, -1, on: t)
+            }
+            try await CommunityStore.deleteRequest(id, target, on: t)
+            try await CommunityStore.ban(id, target, by: req.userID, on: t)
+        }
+        await CommunityStore.logAction(id, actor: req.userID, "ban", targetUser: target, on: db)
+        return OKMsg(message: "Member banned")
+    }
+
+    static func unbanMember(_ req: Request) async throws -> OKMsg {
+        let id = req.parameters.get("id")!
+        guard let target = UUID(uuidString: req.parameters.get("userId")!)?.uuidString.lowercased() else {
+            throw Abort(.badRequest, reason: "Invalid user")
+        }
+        let db = req.db.sql()
+        try await requireAdmin(id, req, on: db)
+        guard try await CommunityStore.unban(id, target, on: db) else { throw Abort(.notFound, reason: "This person isn't banned") }
+        await CommunityStore.logAction(id, actor: req.userID, "unban", targetUser: target, on: db)
+        return OKMsg(message: "Ban lifted")
+    }
+
+    static func listBans(_ req: Request) async throws -> DataListResponse<CommunityStore.BanRow> {
+        let id = req.parameters.get("id")!
+        let db = req.db.sql()
+        try await requireAdmin(id, req, on: db)
+        return DataListResponse(data: try await CommunityStore.bans(id, on: db))
+    }
+
+    // MARK: disband / restore (admin only)
+
+    struct DisbandBody: Content { var name: String? }
+    struct DisbandEvent: Content { var community_id: String }
+
+    /// Hidden from everyone at once; deleted for good by the daily job after
+    /// 7 days, until then the admin can restore it.
+    static func disband(_ req: Request) async throws -> OKMsg {
+        let id = req.parameters.get("id")!
+        let db = req.db.sql()
+        try await requireAdmin(id, req, on: db)
+        guard let info = try await CommunityStore.disbandInfo(id, on: db) else { throw Abort(.notFound, reason: "Community not found") }
+        if info.disbanded_at != nil { throw Abort(.conflict, reason: "This community is already disbanded") }
+        let typed = (try? req.content.decode(DisbandBody.self).name)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard typed == info.name else { throw Abort(.badRequest, reason: "Type the community's name to confirm") }
+        try await CommunityStore.setDisbanded(id, true, on: db)
+        await CommunityStore.logAction(id, actor: req.userID, "disband", on: db)
+        req.socketHub.emit(room: "community:\(id)", event: "community_disbanded", DisbandEvent(community_id: id))
+        let members = try await CommunityStore.memberIDs(id, except: req.userID, on: db)
+        let admin = req.userID, name = info.name
+        // The name rides in the payload, not a community link: the community
+        // (and anything linked to it) is deleted in 7 days.
+        NotifyService.fireAndForget(req) { db, hub, log in
+            await NotifyService.pushToMany(userIDs: members, type: "community_disbanded", actorID: admin,
+                                           payload: ["communityName": name], on: db, hub: hub, logger: log)
+        }
+        return OKMsg(message: "Community disbanded")
+    }
+
+    static func restore(_ req: Request) async throws -> OKMsg {
+        let id = req.parameters.get("id")!
+        let db = req.db.sql()
+        try await requireAdmin(id, req, on: db)
+        guard let info = try await CommunityStore.disbandInfo(id, on: db), let at = info.disbanded_at else {
+            throw Abort(.conflict, reason: "This community isn't disbanded")
+        }
+        guard at > Date().addingTimeInterval(-7 * 86_400) else { throw Abort(.gone, reason: "This community can no longer be restored") }
+        try await CommunityStore.setDisbanded(id, false, on: db)
+        await CommunityStore.logAction(id, actor: req.userID, "restore", on: db)
+        let members = try await CommunityStore.memberIDs(id, except: req.userID, on: db)
+        let admin = req.userID, name = info.name
+        NotifyService.fireAndForget(req) { db, hub, log in
+            await NotifyService.pushToMany(userIDs: members, type: "community_restored", actorID: admin,
+                                           payload: ["communityName": name, "communityId": id], on: db, hub: hub, logger: log)
+        }
+        return OKMsg(message: "Community restored")
+    }
+
+    // MARK: moderation log (admin only)
+
+    static func modLog(_ req: Request) async throws -> DataListResponse<CommunityStore.ModLogRow> {
+        let id = req.parameters.get("id")!
+        let db = req.db.sql()
+        try await requireAdmin(id, req, on: db)
+        return DataListResponse(data: try await CommunityStore.modLog(id, limit: req.pageLimit(default: 30, max: 100),
+                                                                      offset: req.pageOffset, on: db))
     }
 
     // MARK: recommendations / trending / discover

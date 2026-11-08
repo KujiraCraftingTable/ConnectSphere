@@ -37,6 +37,11 @@ struct Community: Identifiable {
     var isPinned = false
     /// The viewer's notification level; nil when not a member.
     var notifyLevel: CommunityNotifyLevel?
+    /// Disbanded and waiting out its 7 days; only its admin still sees it.
+    var disbandedAt: Date? = nil
+
+    /// When a disbanded community is deleted for good.
+    var deletionDate: Date? { disbandedAt.map { $0.addingTimeInterval(7 * 86_400) } }
 }
 
 /// Which new posts in a community notify a member.
@@ -80,7 +85,7 @@ enum MemberRole: String {
     var label: String {
         switch self {
         case .admin:     return "Admin"
-        case .moderator: return "Mod"
+        case .moderator: return "Moderator"
         case .member:    return "Member"
         }
     }
@@ -280,4 +285,41 @@ extension Community {
     /// Reading without being a member: the official account investigating a
     /// private community. It can look, not post, join as staff or moderate.
     var isReadOnlyVisit: Bool { privacy == .private && !isMember && viewerCanRead }
+}
+
+/// Someone the admin banned: removed and kept out of the community.
+struct BannedMember: Decodable, Identifiable {
+    let id: String
+    let username: String
+    let displayName: String
+    let avatarColor: String?
+    let avatarUrl: String?
+    let bannedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id, username
+        case displayName = "display_name"
+        case avatarColor = "avatar_color"
+        case avatarUrl = "avatar_url"
+        case bannedAt = "banned_at"
+    }
+}
+
+/// One line of the community's moderation log (admin only).
+struct ModLogEntry: Decodable, Identifiable {
+    let id: String
+    let action: String
+    let actorName: String?
+    let targetName: String?
+    let postSnippet: String?
+    let detail: String?
+    let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id, action, detail
+        case actorName = "actor_name"
+        case targetName = "target_name"
+        case postSnippet = "post_snippet"
+        case createdAt = "created_at"
+    }
 }

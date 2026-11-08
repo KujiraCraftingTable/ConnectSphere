@@ -576,6 +576,7 @@ enum FeedStore {
                   OR EXISTS (SELECT 1 FROM communities co2 WHERE co2.id = p.community_id AND co2.privacy = 'public'
                     AND p.community_audience = 'public')
                   OR EXISTS (SELECT 1 FROM community_members cm2 WHERE cm2.community_id = p.community_id AND cm2.user_id = \(uuid: userID)))
+                AND NOT EXISTS (SELECT 1 FROM communities cdis WHERE cdis.id = p.community_id AND cdis.disbanded_at IS NOT NULL)
                 AND NOT EXISTS (SELECT 1 FROM community_members cmMute
                   WHERE cmMute.community_id = p.community_id AND cmMute.user_id = \(uuid: userID) AND cmMute.muted = TRUE)
                 AND p.author_id <> \(uuid: userID)

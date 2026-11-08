@@ -5,6 +5,9 @@ import SwiftUI
 /// it back. Shared by the Home feed and community pages.
 private struct HidesBarsOnScroll: ViewModifier {
     @Binding var hidden: Bool
+    /// The page never shows the tab bar (inside a community), so only the
+    /// screen's own bars follow the scroll.
+    var tabBarAlwaysHidden = false
     /// Distance scrolled in the current direction (+ down, − up); a short run
     /// is needed before anything moves, so finger jitter and the bounce at
     /// either end don't make the bars flicker.
@@ -37,7 +40,7 @@ private struct HidesBarsOnScroll: ViewModifier {
             }
             // `.automatic`, not `.visible`: a screen pushed from here (a post)
             // hides the tab bar itself, and a forced `.visible` here overrides it.
-            .toolbar(hidden ? .hidden : .automatic, for: .tabBar)
+            .toolbar(hidden || tabBarAlwaysHidden ? .hidden : .automatic, for: .tabBar)
     }
 
     private func follow(from old: Metrics, to new: Metrics) {
@@ -70,7 +73,7 @@ private struct HidesBarsOnScroll: ViewModifier {
 extension View {
     /// Put on the page's `ScrollView`; `hidden` also drives any bars of the
     /// screen's own that should go with the tab bar.
-    func hidesBarsOnScroll(_ hidden: Binding<Bool>) -> some View {
-        modifier(HidesBarsOnScroll(hidden: hidden))
+    func hidesBarsOnScroll(_ hidden: Binding<Bool>, tabBarAlwaysHidden: Bool = false) -> some View {
+        modifier(HidesBarsOnScroll(hidden: hidden, tabBarAlwaysHidden: tabBarAlwaysHidden))
     }
 }
