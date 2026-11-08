@@ -279,10 +279,15 @@ class FeedViewModel {
         WebSocketClient.shared.on("new_message", tag: "feedBadge") { [weak self, appState] _ in
             Task { @MainActor in await self?.refreshChatUnread(appState: appState) }
         }
+        // Theme/nickname/accept notes count as unread too.
+        WebSocketClient.shared.on("conversation_event", tag: "feedBadge") { [weak self, appState] _ in
+            Task { @MainActor in await self?.refreshChatUnread(appState: appState) }
+        }
         Task { await refreshChatUnread(appState: appState) }
     }
 
     func stopChatBadge() {
         WebSocketClient.shared.off("new_message", tag: "feedBadge")
+        WebSocketClient.shared.off("conversation_event", tag: "feedBadge")
     }
 }

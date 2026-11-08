@@ -12,19 +12,33 @@ struct AccountStatusView: View {
     var body: some View {
         List {
             if let status = viewModel.status {
-                Section { standing(status) }
-                // Each profile's health: warnings (3 within 90 days is a ban) and any ban.
-                ForEach(["hobby", "work"], id: \.self) { mode in
-                    modeSection(status, mode: mode)
-                }
+                // One card: the account as a whole, then each profile's health
+                // (warnings, where 3 within 90 days is a ban, and any ban).
                 Section {
-                    if status.decisions.isEmpty {
+                    standing(status)
+                    ForEach(["hobby", "work"], id: \.self) { mode in
+                        modeRows(status, mode: mode)
+                    }
+                }
+                // A review that overturned the decision put the content back, so
+                // it isn't "removed" any more: it gets its own section.
+                let removed = status.decisions.filter { $0.appealStatus != "overturned" }
+                let restored = status.decisions.filter { $0.appealStatus == "overturned" }
+                Section {
+                    if removed.isEmpty {
                         Text("Nothing of yours has been removed.", bundle: bundle)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
-                    ForEach(status.decisions) { decision in decisionRow(decision) }
+                    ForEach(removed) { decision in decisionRow(decision) }
                 } header: {
                     Text("Removed content", bundle: bundle)
+                }
+                if !restored.isEmpty {
+                    Section {
+                        ForEach(restored) { decision in decisionRow(decision) }
+                    } header: {
+                        Text("Put back after review", bundle: bundle)
+                    }
                 }
                 Section {
                     if status.reports.isEmpty {
@@ -32,6 +46,7 @@ struct AccountStatusView: View {
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                     }
                     ForEach(Array(status.reports.enumerated()), id: \.offset) { _, report in
+                        NavigationLink { MyReportDetailView(report: report) } label: {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(bundle.loc(report.targetType.reportTargetLabel)).font(.system(size: 15, weight: .medium))
@@ -43,6 +58,7 @@ struct AccountStatusView: View {
                             Text(bundle.loc(outcomeLabel(report.outcome)))
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundColor(report.outcome == "removed" ? .green : AppColors.textSecondary(colorScheme))
+                        }
                         }
                     }
                 } header: {
@@ -90,7 +106,7 @@ struct AccountStatusView: View {
         } else {
             Label {
                 Text("Your account is in good standing", bundle: bundle).font(.system(size: 16, weight: .semibold))
-            } icon: { Image(systemName: "checkmark.seal.fill").foregroundColor(.green) }
+            } icon: { Image(systemName: "checkmark.shield.fill").foregroundColor(.green) }
         }
     }
 
@@ -158,53 +174,51 @@ struct AccountStatusView: View {
     }
 
     @ViewBuilder
-    private func modeSection(_ status: AccountStatus, mode: String) -> some View {
+    private func modeRows(_ status: AccountStatus, mode: String) -> some View {
         let warnings = status.warnings(in: mode)
-        Section {
-            if let ban = status.ban(in: mode) {
-                Label {
-                    Text(ban.bannedUntil.map {
-                        String(format: bundle.loc("Banned until %@"), $0.formatted(date: .abbreviated, time: .omitted))
-                    } ?? bundle.loc("Banned permanently"))
-                } icon: {
-                    Image(systemName: "hand.raised.fill").foregroundColor(AppColors.danger(colorScheme))
-                }
-                .font(.system(size: 15, weight: .semibold))
-            } else if warnings.isEmpty {
-                Label {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Healthy", bundle: bundle).font(.system(size: 15, weight: .semibold))
+        let ban = status.ban(in: mode)
+        Label {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(bundle.loc(mode == "work" ? "Work profile" : "Hobby profile"))
+                    .font(.system(size: 15, weight: .semibold))
+                Group {
+                    if let ban {
+                        Text(ban.bannedUntil.map {
+                            String(format: bundle.loc("Banned until %@"), $0.formatted(date: .abbreviated, time: .omitted))
+                        } ?? bundle.loc("Banned permanently"))
+                    } else if warnings.isEmpty {
                         Text("No warnings", bundle: bundle)
-                            .font(.system(size: 13)).foregroundColor(AppColors.textSecondary(colorScheme))
-                    }
-                } icon: {
-                    Image(systemName: "checkmark.seal.fill").foregroundColor(.green)
-                }
-            }
-            ForEach(warnings, id: \.self) { warning in
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Image(systemName: "exclamationmark.triangle.fill").foregroundColor(.orange)
-                        Text(bundle.loc(warning.policy.policyLabel)).font(.system(size: 15, weight: .medium))
-                    }
-                    Text(String(format: bundle.loc("Given %@ · counts until %@"),
-                                warning.createdAt.formatted(date: .abbreviated, time: .omitted),
-                                warning.expiresAt.formatted(date: .abbreviated, time: .omitted)))
-                        .font(.system(size: 13))
-                        .foregroundColor(AppColors.textSecondary(colorScheme))
-                    if let snapshot = warning.snapshot, warning.targetType != "user" {
-                        CaseSnapshotView(snapshot: snapshot)
+                    } else {
+                        Text(String(format: bundle.loc("%lld of 3 warnings. A third warning within 90 days means a ban, so take care with what you share."),
+                                    warnings.count))
                     }
                 }
-                .padding(.vertical, 2)
+                .font(.system(size: 13))
+                .foregroundColor(ban != nil ? AppColors.danger(colorScheme) : AppColors.textSecondary(colorScheme))
             }
-        } header: {
-            Text(bundle.loc(mode == "work" ? "Work profile" : "Hobby profile"))
-        } footer: {
-            if !warnings.isEmpty && status.ban(in: mode) == nil {
-                Text(String(format: bundle.loc("%lld of 3 warnings. A third warning within 90 days means a ban, so take care with what you share."),
-                            warnings.count))
+        } icon: {
+            if ban != nil {
+                Image(systemName: "hand.raised.fill").foregroundColor(AppColors.danger(colorScheme))
+            } else if warnings.isEmpty {
+                Image(systemName: "checkmark.shield.fill").foregroundColor(.green)
+            } else {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundColor(.orange)
             }
+        }
+        ForEach(warnings, id: \.self) { warning in
+            VStack(alignment: .leading, spacing: 6) {
+                Text(bundle.loc(warning.policy.policyLabel)).font(.system(size: 15, weight: .medium))
+                Text(String(format: bundle.loc("Given %@ · counts until %@"),
+                            warning.createdAt.formatted(date: .abbreviated, time: .omitted),
+                            warning.expiresAt.formatted(date: .abbreviated, time: .omitted)))
+                    .font(.system(size: 13))
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
+                if let snapshot = warning.snapshot, warning.targetType != "user" {
+                    CaseSnapshotView(snapshot: snapshot)
+                }
+            }
+            .padding(.vertical, 2)
+            .padding(.leading, 36)
         }
     }
 
@@ -353,5 +367,82 @@ struct SuspendedView: View {
             URLQueryItem(name: "body", value: "Account: \(who)\nProfile: \(mode)\nCase: \(ban?.caseId ?? "-")\n\nWhy we should look again:\n")
         ]
         return c.url
+    }
+}
+
+/// One of your reports: what you reported, what moderators decided and why,
+/// and a way to open the content while it's still up.
+private struct MyReportDetailView: View {
+    let report: AccountStatus.MyReport
+    @Environment(AppState.self) private var appState
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.appBundle) private var bundle
+
+    var body: some View {
+        List {
+            if let snapshot = report.snapshot {
+                Section {
+                    CaseSnapshotView(snapshot: snapshot)
+                } header: {
+                    Text("What you reported", bundle: bundle)
+                }
+            }
+            Section {
+                row(bundle.loc("Reason"), bundle.loc(report.reason.policyLabel))
+                row(bundle.loc("Decision"), bundle.loc(outcomeLabel))
+                if let note = report.decisionNote, !note.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Moderator's comment", bundle: bundle)
+                            .font(.system(size: 13))
+                            .foregroundColor(AppColors.textSecondary(colorScheme))
+                        Text(note).font(.system(size: 15))
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+            // Removed content is gone, so there's nothing to open.
+            if report.outcome != "removed", let link = openLink {
+                Section { link }
+            }
+        }
+        .navigationTitle(bundle.loc(report.targetType.reportTargetLabel))
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var outcomeLabel: String {
+        switch report.outcome {
+        case "removed": "Removed"
+        case "kept": "Didn't break the rules"
+        default: "Under review"
+        }
+    }
+
+    private var openLink: AnyView? {
+        switch report.targetType {
+        case "post", "comment":
+            guard let postId = report.postId else { return nil }
+            return AnyView(NavigationLink(bundle.loc("View post")) {
+                PostDetailView(postId: postId, scrollToCommentId: report.targetType == "comment" ? report.targetId : nil)
+            })
+        case "user":
+            guard let id = report.targetId else { return nil }
+            return AnyView(NavigationLink(bundle.loc("View profile")) { UserProfileView(userId: id) })
+        case "community":
+            guard let id = report.targetId else { return nil }
+            return AnyView(NavigationLink(bundle.loc("View community")) {
+                CommunityDetailView(communityId: id, token: appState.authToken ?? "",
+                                    currentUserId: appState.currentUser?.id ?? "")
+            })
+        default:
+            return nil
+        }
+    }
+
+    private func row(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label).font(.system(size: 15))
+            Spacer()
+            Text(value).font(.system(size: 15)).foregroundColor(AppColors.textSecondary(colorScheme))
+        }
     }
 }

@@ -23,29 +23,9 @@ private struct Entry: ChatTimelineEntry {
 private let now = at(2026, 10, 5, 16, 0)
 
 struct ChatTimelineTests {
-    // MARK: - Runs
-
-    @Test func onlyTheLastOfAFiveMessageRunEndsIt() {
-        let run = (0..<5).map { Entry(senderId: "kujira", createdAt: at(2026, 10, 5, 15, 49 + $0 / 4)) }
-        let ends = run.indices.map { ChatTimeline.endsRun(at: $0, in: run, calendar: utc) }
-        #expect(ends == [false, false, false, false, true])
-    }
-
-    @Test func alternatingSendersEachEndTheirOwnRun() {
-        let entries = (0..<4).map { Entry(senderId: $0.isMultiple(of: 2) ? "me" : "them",
-                                          createdAt: at(2026, 10, 5, 15, 40 + $0)) }
-        #expect(entries.indices.allSatisfy { ChatTimeline.endsRun(at: $0, in: entries, calendar: utc) })
-    }
-
-    @Test func separatorEndsARunEvenForTheSameSender() {
-        let entries = [Entry(senderId: "me", createdAt: at(2026, 10, 5, 14, 43)),
-                       Entry(senderId: "me", createdAt: at(2026, 10, 5, 15, 38))]
-        #expect(ChatTimeline.endsRun(at: 0, in: entries, calendar: utc))
-    }
-
-    @Test func outOfRangeIndexIsNeitherRunEndNorSeparator() {
+    @Test func outOfRangeIndexGetsNoSeparator() {
         let entries = [Entry(senderId: "me", createdAt: now)]
-        #expect(!ChatTimeline.endsRun(at: 3, in: entries, calendar: utc))
+        #expect(!ChatTimeline.showsSeparator(before: 3, in: entries, calendar: utc))
         #expect(!ChatTimeline.showsSeparator(before: -1, in: entries, calendar: utc))
     }
 
@@ -56,20 +36,19 @@ struct ChatTimelineTests {
         #expect(ChatTimeline.showsSeparator(before: 0, in: entries, calendar: utc))
     }
 
-    @Test func twentyNineMinutesIsNotEnoughThirtyIs() {
+    @Test func nineteenMinutesIsNotEnoughTwentyIs() {
         let short = [Entry(senderId: "a", createdAt: at(2026, 10, 5, 10, 0)),
-                     Entry(senderId: "b", createdAt: at(2026, 10, 5, 10, 29))]
+                     Entry(senderId: "b", createdAt: at(2026, 10, 5, 10, 19))]
         let long = [Entry(senderId: "a", createdAt: at(2026, 10, 5, 10, 0)),
-                    Entry(senderId: "b", createdAt: at(2026, 10, 5, 10, 30))]
+                    Entry(senderId: "b", createdAt: at(2026, 10, 5, 10, 20))]
         #expect(!ChatTimeline.showsSeparator(before: 1, in: short, calendar: utc))
         #expect(ChatTimeline.showsSeparator(before: 1, in: long, calendar: utc))
     }
 
-    @Test func crossingMidnightForcesASeparatorUnderThirtyMinutes() {
+    @Test func crossingMidnightForcesASeparatorUnderTwentyMinutes() {
         let entries = [Entry(senderId: "a", createdAt: at(2026, 10, 4, 23, 50)),
                        Entry(senderId: "a", createdAt: at(2026, 10, 5, 0, 5))]
         #expect(ChatTimeline.showsSeparator(before: 1, in: entries, calendar: utc))
-        #expect(ChatTimeline.endsRun(at: 0, in: entries, calendar: utc))
     }
 
     // MARK: - Labels

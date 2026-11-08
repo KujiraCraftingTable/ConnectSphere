@@ -28,7 +28,11 @@ struct ChatMediaViewerView: View {
     private var pullProgress: CGFloat { min(max(pull / Self.closeDistance, 0), 1) }
     private static let closeDistance: CGFloat = 120
 
-    init(items: [ChatMediaViewerItem], startIndex: Int = 0) {
+    /// Shown along the bottom, e.g. a post's whale / comment / save / share.
+    var bottomBar: AnyView? = nil
+
+    init(items: [ChatMediaViewerItem], startIndex: Int = 0, bottomBar: AnyView? = nil) {
+        self.bottomBar = bottomBar
         self.items = items
         _currentIndex = State(initialValue: min(max(0, startIndex), max(0, items.count - 1)))
     }
@@ -96,6 +100,7 @@ struct ChatMediaViewerView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
                 Spacer()
+                if let bottomBar { bottomBar }
             }
             .opacity(1 - pullProgress)
         }

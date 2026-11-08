@@ -28,7 +28,10 @@ struct ProfileView: View {
     @State private var showingOther = false
     @State private var flipAngle: Double = 0
     @Environment(\.colorScheme) var colorScheme
-    @State private var pull: CGFloat = 0
+    /// Status bar height: the cover is pulled up under it instead of the
+    /// scroll view ignoring the safe area, so the system refresh spinner shows
+    /// below the Dynamic Island (as on a community page).
+    @State private var topInset: CGFloat = 0
     @State private var showCreatePost = false
     @State private var showEditProfile = false
     @State private var confirmUnlock = false
@@ -116,18 +119,17 @@ struct ProfileView: View {
                                 .padding(.horizontal, 8).padding(.top, 24)
                         }
                     }
+                    // The cover runs up under the status bar; its own fade keeps
+                    // the clock and the floating nav button legible.
+                    .padding(.top, -topInset)
                 }
-                // The cover runs up under the status bar; its own fade keeps
-                // the clock and the floating nav button legible.
-                .ignoresSafeArea(edges: .top)
-                .trackPull($pull)
+                .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { topInset = $0 }
                 .refreshable {
                     if let userId = appState.currentUser?.id {
                         await shown.refresh(userId: userId, mode: mode.rawValue)
                     }
                 }
             }
-            .overlay(alignment: .top) { PullRefreshIndicator(pull: pull, isRefreshing: viewModel.isRefreshing) }
             .background(AppColors.base(colorScheme))
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)

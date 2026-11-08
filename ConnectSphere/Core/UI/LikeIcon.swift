@@ -21,11 +21,16 @@ struct LikeIcon: View {
 
     var body: some View {
         ZStack {
-            layer("WhaleBody").foregroundStyle(color)
-            // White under the tint keeps the belly pastel on dark backgrounds too.
-            layer("WhaleBelly").foregroundStyle(.white)
-            layer("WhaleBelly").foregroundStyle(color.opacity(0.35))
-            layer("WhaleEye").foregroundStyle(Color(hex: "#1C1C1C"))
+            if isLiked {
+                layer("WhaleBody").foregroundStyle(color)
+                // White under the tint keeps the belly pastel on dark backgrounds too.
+                layer("WhaleBelly").foregroundStyle(.white)
+                layer("WhaleBelly").foregroundStyle(color.opacity(0.35))
+                layer("WhaleEye").foregroundStyle(Color(hex: "#1C1C1C"))
+            } else {
+                // Not whaled: just the outline, like an unfilled heart.
+                layer("WhaleOutline").foregroundStyle(color)
+            }
         }
         .frame(width: size, height: size)
         .keyframeAnimator(initialValue: 1.0, trigger: bounces) { content, scale in

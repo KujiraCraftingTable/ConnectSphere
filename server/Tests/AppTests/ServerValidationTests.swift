@@ -174,6 +174,18 @@ final class ServerValidationTests: XCTestCase {
         XCTAssertThrowsError(try meeting(reminder: nil, location: String(repeating: "l", count: 301)))
     }
 
+    func testAMeetingMinutesAwayCanBeProposedWithAShortReminder() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)   // 2027-01-15T08:00:00Z
+        func meeting(_ offset: String) throws -> ValidatedMeeting {
+            try MessagesController.validateMeetingProposal(
+                title: "Call", location: nil, startsAt: "2027-01-15T08:10:00Z", endsAt: nil,
+                reminderOffset: offset, reminderAt: nil, now: now)
+        }
+        XCTAssertEqual(try meeting("at_start").reminderAt, "2027-01-15T08:10:00.000Z")
+        XCTAssertEqual(try meeting("1_hour_before").reminderAt, "2027-01-15T07:10:00.000Z")
+        XCTAssertThrowsError(try meeting("2_hours_before"), "not a preset")
+    }
+
     // MARK: translation
 
     func testAnEchoedTranslationIsNotATranslation() {

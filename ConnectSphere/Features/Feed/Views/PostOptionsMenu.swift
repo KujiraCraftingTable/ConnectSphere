@@ -32,6 +32,7 @@ struct PostOptionsMenu: View {
     @State private var showReport = false
     /// The official account warns or bans instead of reporting.
     @State private var showModerate = false
+    @State private var showEditHistory = false
 
     var body: some View {
         menu
@@ -71,6 +72,10 @@ struct PostOptionsMenu: View {
             } message: {
                 Text("This post won't be shown in the app. You can restore it from Recently Deleted within 30 days.", bundle: bundle)
             }
+            .sheet(isPresented: $showEditHistory) {
+                EditHistoryView(subject: .post(id: post.id))
+                    .environment(themeManager)
+            }
             .sheet(isPresented: $showModerate) {
                 AdminBanSheet(target: ModerationTarget(type: "post", id: post.id, userId: post.author.id,
                                                        userName: post.author.name, mode: post.mode.rawValue))
@@ -106,6 +111,13 @@ struct PostOptionsMenu: View {
                     onUnpin()
                 } label: {
                     Label(bundle.loc("Unpin post"), systemImage: "pin.slash")
+                }
+            }
+
+            // Anyone who can see an edited post can see what it said before.
+            if post.editedAt != nil {
+                Button { showEditHistory = true } label: {
+                    Label(bundle.loc("View edit history"), systemImage: "clock.arrow.circlepath")
                 }
             }
 

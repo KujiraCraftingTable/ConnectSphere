@@ -118,6 +118,14 @@ struct AccountStatusController {
         var target_type: String; var reason: String; var created_at: Date
         /// pending, removed or kept.
         var outcome: String
+        /// What was reported, so the app can open it: the post (a comment's
+        /// post too), profile or community.
+        var target_id: String
+        @NullCoded var post_id: String?
+        /// The content as moderators saw it, for when it's been removed.
+        @NullCoded var snapshot: JSONValue?
+        /// Why moderators decided as they did, once they have.
+        @NullCoded var decision_note: String?
     }
     struct Status: Content {
         /// user, moderator or admin — the app shows its Moderation screen to staff.
@@ -184,12 +192,25 @@ struct AccountStatusController {
                          appeal_status: $0.appeal_status,
                          can_appeal: $0.appeal_status == nil && Enforcement.canAppeal(decidedAt: $0.decided_at))
             }
+        struct R: Decodable {
+            let target_type: String; let reason: String; let created_at: Date; let outcome: String
+            let target_id: String; let post_id: String?; let snapshot: String?; let decision_note: String?
+        }
         let reports = try await db.raw("""
             SELECT r.target_type, r.reason, r.created_at,
-              CASE mc.status WHEN 'actioned' THEN 'removed' WHEN 'dismissed' THEN 'kept' ELSE 'pending' END AS outcome
+              CASE mc.status WHEN 'actioned' THEN 'removed' WHEN 'dismissed' THEN 'kept' ELSE 'pending' END AS outcome,
+              r.target_id::text AS target_id,
+              CASE r.target_type WHEN 'post' THEN r.target_id::text
+                WHEN 'comment' THEN (SELECT cm.post_id::text FROM comments cm WHERE cm.id = r.target_id) END AS post_id,
+              mc.snapshot::text AS snapshot,
+              CASE WHEN mc.status IN ('actioned', 'dismissed') THEN NULLIF(btrim(mc.decision_note), '') END AS decision_note
             FROM content_reports r JOIN moderation_cases mc ON mc.id = r.case_id
             WHERE r.reporter_id = \(uuid: me) ORDER BY r.created_at DESC LIMIT 50
-            """).all(decoding: MyReport.self)
+            """).all(decoding: R.self).map {
+                MyReport(target_type: $0.target_type, reason: $0.reason, created_at: $0.created_at, outcome: $0.outcome,
+                         target_id: $0.target_id, post_id: $0.post_id, snapshot: json($0.snapshot),
+                         decision_note: $0.decision_note)
+            }
         return DataResponse(data: Status(app_role: u?.app_role ?? "user", restricted_until: u?.restricted_until, banned_at: u?.banned_at, ban_reason: u?.ban_reason,
                                          strikes: strikes, bans: bans, decisions: decisions, reports: reports))
     }

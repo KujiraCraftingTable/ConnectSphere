@@ -64,6 +64,8 @@ struct AuthUserObject: Content {
     var email_verified: Bool
     /// This mode's profile is locked (migration 064).
     var is_locked: Bool
+    /// A moderation restriction is running until then: no posting, commenting or joining.
+    var restricted_until: Date? = nil
     /// Every sign-in needs an emailed code (migration 065).
     var two_factor_enabled: Bool
     /// Hobby-only details (migration 062).

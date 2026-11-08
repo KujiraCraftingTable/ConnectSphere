@@ -270,7 +270,7 @@ struct ChatSettingsView: View {
             } else {
                 ZStack {
                     Circle().fill(Color(hex: peer.avatarColor))
-                    Text(String(displayName.prefix(1)))
+                    Text(String((viewModel.settings?.avatarName ?? peer.name).prefix(1)))
                         .scaledFont(34, .bold)
                         .foregroundColor(.white)
                 }

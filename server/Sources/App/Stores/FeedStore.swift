@@ -363,6 +363,7 @@ enum FeedStore {
         var comment_count: Int
         var share_count: Int
         var created_at: Date
+        var edited_at: Date?
         var post_type: String
         var is_pinned: Bool
         var pinned_at: Date?
@@ -497,7 +498,7 @@ enum FeedStore {
             scored AS (
               SELECT p.id::text AS id, p.content, p.content_format, p.mode, p.privacy, p.image_urls[1] AS image_url, p.image_urls, p.image_alts, p.article_title, p.link_url,
                 p.lang, \(unsafeRaw: TranslationService.translatedColumn("p")) AS translated_text,
-                p.like_count, p.comment_count, p.share_count, p.created_at, p.post_type, p.is_pinned, p.pinned_at, p.shared_post_id::text AS shared_post_id,
+                p.like_count, p.comment_count, p.share_count, p.created_at, p.edited_at, p.post_type, p.is_pinned, p.pinned_at, p.shared_post_id::text AS shared_post_id,
                 EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = \(uuid: userID)) AS is_liked,
                 EXISTS(SELECT 1 FROM connections co WHERE co.status = 'accepted' AND co.mode = \(bind: mode)
                   AND ((co.requester_id = p.author_id AND co.addressee_id = \(uuid: userID))
@@ -693,7 +694,7 @@ enum FeedStore {
                 id: r.id, content: r.content, content_format: r.content_format, mode: r.mode, privacy: r.privacy,
                 image_url: r.image_url, image_urls: r.image_urls, image_alts: r.image_alts, lang: r.lang, translated_text: r.translated_text, article_title: r.article_title, link_url: r.link_url,
                 like_count: r.like_count, comment_count: r.comment_count, share_count: r.share_count,
-                created_at: r.created_at, post_type: r.post_type, is_pinned: r.is_pinned, pinned_at: r.pinned_at,
+                created_at: r.created_at, edited_at: r.edited_at, post_type: r.post_type, is_pinned: r.is_pinned, pinned_at: r.pinned_at,
                 shared_post_id: r.shared_post_id, is_liked: r.is_liked, is_connection: r.is_connection,
                 semantic: r.semantic, recency: r.recency, engagement: r.engagement,
                 shared_post: (r.shared_post != nil && r.shared_post != "null") ? try dec.decode(PostObject.SharedPost.self, from: Data(r.shared_post!.utf8)) : nil,
@@ -737,6 +738,7 @@ struct FeedPostObject: Content {
     var comment_count: Int
     var share_count: Int
     var created_at: Date
+    @NullCoded var edited_at: Date? = nil
     var post_type: String
     var is_pinned: Bool
     @NullCoded var pinned_at: Date?

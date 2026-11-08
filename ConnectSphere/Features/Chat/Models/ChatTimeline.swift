@@ -1,25 +1,23 @@
 import Foundation
 
-/// The two fields the chat timeline rules read. `Message` conforms; tests use
-/// a two-field stand-in, since `Message` itself can only be built by decoding.
+/// What the chat timeline rules read. `Message` conforms; tests use a small
+/// stand-in, since `Message` itself can only be built by decoding.
 protocol ChatTimelineEntry {
-    var senderId: String { get }
     var createdAt: Date { get }
 }
 
 extension Message: ChatTimelineEntry {}
 
 /// Messenger-style chat timeline rules: when a centered time separator goes
-/// between two messages, and which message in a same-sender run carries the
-/// time + read receipt. Kept free of SwiftUI so the rules are unit-tested
+/// between two messages (bubbles carry no time of their own). Kept free of SwiftUI so the rules are unit-tested
 /// directly (`ChatTimelineTests`) rather than only by eye in the simulator.
 enum ChatTimeline {
     /// Silence long enough to earn a centered time label.
-    static let separatorGap: TimeInterval = 30 * 60
+    static let separatorGap: TimeInterval = 20 * 60
 
     /// Whether a centered time label goes above `entries[i]`: the first
-    /// message, 30+ minutes of silence from both sides, or a calendar-day
-    /// change. The day change applies even under 30 minutes, otherwise a
+    /// message, 20+ minutes since the one before it, or a calendar-day
+    /// change. The day change applies even under 20 minutes, otherwise a
     /// 23:50 → 00:05 exchange sits under one label naming the wrong day.
     static func showsSeparator<E: ChatTimelineEntry>(before i: Int, in entries: [E],
                                                      calendar: Calendar = .current) -> Bool {
@@ -31,19 +29,6 @@ enum ChatTimeline {
             || !calendar.isDate(previous, inSameDayAs: current)
     }
 
-    /// Whether `entries[i]` closes its run, so it alone shows its time and
-    /// read receipt. A separator also ends a run: without that, the last
-    /// message before a two-hour gap would lose its time just because the
-    /// same person speaks again afterwards.
-    static func endsRun<E: ChatTimelineEntry>(at i: Int, in entries: [E],
-                                              calendar: Calendar = .current) -> Bool {
-        guard entries.indices.contains(i) else { return false }
-        let next = i + 1
-        guard entries.indices.contains(next) else { return true }
-        return entries[next].senderId != entries[i].senderId
-            || showsSeparator(before: next, in: entries, calendar: calendar)
-    }
-
     /// The separator's text: "15:49" today, "Yesterday 15:49", "Mon 15:49"
     /// within the week, "Sep 12 15:49" earlier this year, "Sep 12, 2025 15:49"
     /// before that (English; Vietnamese orders day before month).
@@ -52,8 +37,8 @@ enum ChatTimeline {
     /// language setting (`dayLocale`), like `Date.timeAgoString`. The device
     /// may be English while the app is set to Vietnamese. The time follows
     /// `timeLocale`, the device's, so it carries the user's 12/24-hour choice
-    /// and matches the time shown under each run's last bubble; a locale built
-    /// from an identifier would drop that override.
+    /// a locale built from an identifier would
+    /// drop that override.
     static func separatorLabel(for date: Date, now: Date = .now, calendar: Calendar = .current,
                                dayLocale: Locale = appLanguageLocale,
                                timeLocale: Locale = .autoupdatingCurrent,

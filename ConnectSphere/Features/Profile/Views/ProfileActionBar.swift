@@ -18,7 +18,10 @@ struct ProfileActionBar: View {
     let onMessage: () -> Void
 
     @State private var showSheet = false
+    /// The options sheet is as tall as its rows, whatever the text size.
+    @State private var sheetHeight: CGFloat = 160
     @State private var confirmUnfriend = false
+    @State private var confirmUnsend = false
 
     private var mode: String { appState.currentMode.rawValue }
     private var isHobby: Bool { appState.currentMode == .hobby }
@@ -40,6 +43,10 @@ struct ProfileActionBar: View {
         .alert(String(format: bundle.loc("Unfriend %@?"), targetName),
                             isPresented: $confirmUnfriend) {
             Button(bundle.loc("Unfriend"), role: .destructive) { Task { await connect.remove() } }
+            Button(bundle.loc("Cancel"), role: .cancel) {}
+        }
+        .alert(bundle.loc("Unsend friend request?"), isPresented: $confirmUnsend) {
+            Button(bundle.loc("Unsend"), role: .destructive) { Task { await connect.cancel() } }
             Button(bundle.loc("Cancel"), role: .cancel) {}
         }
         .task {
@@ -96,6 +103,7 @@ struct ProfileActionBar: View {
                               prominent: true, isLoading: connect.isLoading) {
                 Task { await connect.sendRequest(targetId: targetUserId, mode: mode) }
             }
+            .disabledWhenRestricted()
         case .none:
             // They turned friend requests off: following is what's on offer.
             followButton
@@ -131,7 +139,7 @@ struct ProfileActionBar: View {
         case .pendingSent:
             return [
                 SheetAction(title: bundle.loc("Cancel request"), icon: "xmark.circle") {
-                    Task { await connect.cancel() }
+                    confirmUnsend = true
                 },
                 follow,
             ]
@@ -174,8 +182,10 @@ struct ProfileActionBar: View {
             }
         }
         .padding(.horizontal, AppSpacing.xl)
-        .padding(.top, AppSpacing.xl)
-        .presentationDetents([.height(CGFloat(actions.count) * 60 + 56)])
+        // Just clear of the drag indicator; the sheet adds the bottom safe area itself.
+        .padding(.top, 20)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { sheetHeight = $0 }
+        .presentationDetents([.height(sheetHeight)])
         .presentationDragIndicator(.visible)
     }
 }

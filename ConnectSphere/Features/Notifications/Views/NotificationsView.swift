@@ -375,6 +375,14 @@ struct ActorNotifRow: View {
 
     private var notif: UserNotificationDTO { group.representative }
 
+    /// The message, with the official seal right after the sender's name when
+    /// the official account sent it, as next to its name everywhere else.
+    private func messageText(_ text: String) -> Text {
+        guard notif.actorIsOfficial == true, text.hasPrefix(senderName) else { return Text(text) }
+        let seal = Text(Image(systemName: "checkmark.seal.fill")).foregroundColor(themeManager.theme.primary)
+        return Text(senderName) + Text(" ") + seal + Text(String(text.dropFirst(senderName.count)))
+    }
+
     private var senderName: String {
         notif.payload.fromDisplayName ?? bundle.loc("Someone")
     }
@@ -505,9 +513,11 @@ struct ActorNotifRow: View {
         case "report_received":
             return bundle.loc("Thanks for your report. We'll let you know what we decide.")
         case "report_outcome":
-            return bundle.loc(notif.payload.outcome == "removed"
-                              ? "We removed something you reported. Thanks for helping keep ConnectSphere safe."
-                              : "We looked at something you reported and it doesn't break our rules. You can block or mute them.")
+            let result = bundle.loc(notif.payload.outcome == "removed"
+                                    ? "We removed something you reported. Thanks for helping keep ConnectSphere safe."
+                                    : "We looked at something you reported and it doesn't break our rules. You can block or mute them.")
+            guard let note = notif.payload.note, !note.isEmpty else { return result }
+            return result + "\n" + String(format: bundle.loc("Moderator's comment: %@"), note)
         case "moderation_decision":
             let rule = bundle.loc((notif.payload.policy ?? "other").policyLabel)
             if notif.payload.decision == "ban" {
@@ -630,7 +640,7 @@ struct ActorNotifRow: View {
             }
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(message)
+                messageText(message)
                     .scaledFont(15)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .lineLimit(3)

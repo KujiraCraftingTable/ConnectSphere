@@ -21,6 +21,8 @@ struct FloatingChatComposerBar: View {
     @Environment(\.appBundle) var bundle
 
     let bubble: FloatingBubbleState
+    /// This chat's own theme (shared by everyone in it), like the full chat.
+    private var chatAccent: Color { (ThemePalette.byId(bubble.viewModel.chatThemeId) ?? themeManager.theme).primary }
     let presenter: FloatingChatPresenter
 
     @State private var pickerItems: [PhotosPickerItem] = []
@@ -53,7 +55,7 @@ struct FloatingChatComposerBar: View {
                          matching: .any(of: [.images, .videos])) {
                 Image(systemName: "photo.on.rectangle.angled")
                     .scaledFont(22)
-                    .foregroundColor(themeManager.theme.primary)
+                    .foregroundColor(chatAccent)
                     .padding(.bottom, 6)
             }
 
@@ -105,7 +107,7 @@ struct FloatingChatComposerBar: View {
                 if canSend {
                     Image(systemName: "arrow.up.circle.fill")
                         .scaledFont(32)
-                        .foregroundColor(themeManager.theme.primary)
+                        .foregroundColor(chatAccent)
                 } else {
                     Text(quickEmoji)
                         .scaledFont(27)

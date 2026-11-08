@@ -18,6 +18,7 @@ struct PostsController {
         posts.post(":id", "publish", use: publishScheduled)
         posts.get("comments", "deleted", use: listDeletedComments)
         posts.get(":id", use: getOne)
+        posts.get(":id", "history", use: history)
         posts.delete(":id", use: softDelete)
         posts.patch(":id", use: update)
         posts.post(":id", "restore", use: restore)
@@ -73,6 +74,38 @@ struct PostsController {
             throw Abort(.notFound, reason: "Post not found")
         }
         return DataResponse(data: post)
+    }
+
+    // MARK: GET /api/posts/:id/history
+
+    struct PostRevision: Content {
+        var id: String
+        @NullCoded var content: String?
+        var content_format: String
+        @NullCoded var image_urls: [String]?
+        @NullCoded var image_alts: [String]?
+        @NullCoded var article_title: String?
+        @NullCoded var link_url: String?
+        /// When this version was replaced by an edit.
+        var created_at: Date
+    }
+
+    /// Earlier versions of a post, newest first. Whoever can open the post can
+    /// read its history, through the same check as `getOne`.
+    static func history(_ req: Request) async throws -> DataResponse<[PostRevision]> {
+        let id = req.parameters.get("id")!
+        let sdb = req.db.sql()
+        guard try await PostStore.findById(id, viewer: req.userID, includeOwnUnpublished: true,
+                                           officialReads: true, on: sdb) != nil else {
+            throw Abort(.notFound, reason: "Post not found")
+        }
+        let rows = try await sdb.raw("""
+            SELECT id::text AS id, content, COALESCE(content_format, 'plain') AS content_format,
+              image_urls, image_alts, article_title, link_url, created_at
+            FROM post_revisions WHERE post_id = \(uuid: id)
+            ORDER BY created_at DESC LIMIT 50
+            """).all(decoding: PostRevision.self)
+        return DataResponse(data: rows)
     }
 
     // MARK: POST /api/posts/analyze

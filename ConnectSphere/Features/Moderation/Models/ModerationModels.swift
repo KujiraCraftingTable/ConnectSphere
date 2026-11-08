@@ -105,8 +105,16 @@ struct AccountStatus: Decodable {
         let createdAt: Date
         /// pending, removed or kept.
         let outcome: String
+        let targetId: String?
+        /// The post to open: the reported post, or a reported comment's post.
+        let postId: String?
+        /// The content as moderators saw it.
+        let snapshot: CaseSnapshot?
+        /// Why moderators decided as they did, once they have.
+        let decisionNote: String?
         enum CodingKeys: String, CodingKey {
-            case reason, outcome, targetType = "target_type", createdAt = "created_at"
+            case reason, outcome, snapshot, targetType = "target_type", createdAt = "created_at"
+            case targetId = "target_id", postId = "post_id", decisionNote = "decision_note"
         }
     }
 
@@ -227,11 +235,38 @@ enum ModerationDecisionKind: String, CaseIterable {
     /// Localization key.
     var label: String {
         switch self {
-        case .keep: "Keep — doesn't break the rules"
+        case .keep: "Keep, doesn't break the rules"
         case .remove: "Remove"
         case .removeStrike: "Remove and give a strike"
         case .restrict: "Restrict the account"
         case .ban: "Ban the account"
+        }
+    }
+
+    /// What an admin picks from on an open case. "Remove and give a strike" is
+    /// no longer offered (Restrict for chosen days is the middle step); the case
+    /// stays so past decisions still read correctly.
+    static let pickable: [ModerationDecisionKind] = [.keep, .remove, .restrict, .ban]
+
+    /// Localization key: the choice's short name in the picker.
+    var shortLabel: String {
+        switch self {
+        case .keep: "Keep"
+        case .remove: "Remove"
+        case .removeStrike: "Remove and give a strike"
+        case .restrict: "Restrict"
+        case .ban: "Ban"
+        }
+    }
+
+    /// Localization key: one line on what the choice does.
+    var summary: String {
+        switch self {
+        case .keep: "The content stays up and the reporters are told."
+        case .remove: "The content is taken down. The author is told and can ask for a review."
+        case .removeStrike: "The content is taken down and the author gets a strike."
+        case .restrict: "Removes the content and pauses posting, commenting and messaging new people."
+        case .ban: "Removes the content and bans the account."
         }
     }
 

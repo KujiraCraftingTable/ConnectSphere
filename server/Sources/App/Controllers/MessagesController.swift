@@ -21,6 +21,7 @@ struct MessagesController {
         m.post("conversations", ":id", "accept", use: acceptRequest)
         m.get("conversations", ":id", "settings", use: getSettings)
         m.patch("conversations", ":id", "settings", use: updateSettings)
+        m.get("conversations", ":id", "events", use: listEvents)
         m.put("conversations", ":id", "mute", use: setMute)
         m.get("conversations", ":id", "media", use: listMedia)
         m.get("conversations", ":id", "messages", "search", use: searchMessages)
@@ -38,6 +39,7 @@ struct MessagesController {
         m.post("conversations", ":id", "messages", use: sendMessage)
         m.delete("conversations", ":id", "messages", use: clearConversation)
         m.delete("conversations", ":id", "messages", ":messageId", use: recallMessage)
+        m.patch("conversations", ":id", "messages", ":messageId", use: editMessage)
         m.post("conversations", ":id", "messages", ":messageId", "reactions", use: reactToMessage)
         m.patch("conversations", ":id", "messages", ":messageId", "meeting-proposal", use: updateMeetingProposal)
         m.post("conversations", ":id", "messages", ":messageId", "meeting-proposal", "cancel", use: cancelMeetingProposal)
@@ -93,7 +95,7 @@ struct MessagesController {
 
     // MARK: meeting-proposal validation (messageService.validateMeetingProposal)
 
-    static let allowedReminderOffsets = ["on_day", "1_day_before", "2_days_before", "1_week_before"]
+    static let allowedReminderOffsets = ["at_start", "1_hour_before", "on_day", "1_day_before", "2_days_before", "1_week_before"]
     static let reminderOffsetDays: [String: Int] = ["on_day": 0, "1_day_before": 1, "2_days_before": 2, "1_week_before": 7]
 
     private static let isoIn: [ISO8601DateFormatter] = {
@@ -113,6 +115,9 @@ struct MessagesController {
     }
 
     static func defaultReminderAt(start: Date, offset: String) -> String {
+        // The two short ones are timed from the start, not 7am on a day.
+        if offset == "at_start" { return isoOut.string(from: start) }
+        if offset == "1_hour_before" { return isoOut.string(from: start.addingTimeInterval(-3600)) }
         let days = reminderOffsetDays[offset] ?? reminderOffsetDays["1_day_before"]!
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone(identifier: "UTC")!
@@ -465,6 +470,46 @@ struct MessagesController {
         return StatusOK()
     }
 
+    struct EditBody: Content { var content: String?; var confirm: Bool? }
+
+    /// Edits a text message: only its sender, only within 15 minutes of
+    /// sending (`ChatStore.editWindowMinutes`). The edited message goes to
+    /// every participant so open chats swap it in place.
+    static func editMessage(_ req: Request) async throws -> DataResponse<MessageObject> {
+        let id = req.parameters.get("id")!, mid = req.parameters.get("messageId")!
+        let db = req.db.sql()
+        try await requireParticipant(id, req)
+        let b = try req.content.decode(EditBody.self)
+        guard let content = b.content?.trimmedText.nilIfEmpty else {
+            throw Abort(.badRequest, reason: "Message content is required")
+        }
+        // Same cap as a new message.
+        guard content.count <= 2000 else { throw Abort(.badRequest, reason: "Message is too long") }
+        try ModerationGate.check([content], .chat, confirm: b.confirm ?? false)
+        guard let target = try await ChatStore.messageBasic(mid, on: db),
+              target.conversation_id.caseInsensitiveCompare(id) == .orderedSame else {
+            throw Abort(.notFound, reason: "Message not found")
+        }
+        guard target.sender_id.caseInsensitiveCompare(req.userID) == .orderedSame else {
+            throw Abort(.forbidden, reason: "You can only edit your own messages")
+        }
+        // Support chats with the official account are a record of what was said.
+        if try await OfficialAccount.isInConversation(id, on: db) {
+            throw Abort(.forbidden, reason: "Messages in a chat with ConnectSphere can't be edited")
+        }
+        try await assertNotBlockedInConversation(id, req.userID, on: db)
+        guard let current = try await ChatStore.messageByID(mid, on: db) else { throw Abort(.notFound, reason: "Message not found") }
+        // Saving the same text is a no-op, not an error.
+        if current.content == content { return DataResponse(data: current) }
+        guard try await ChatStore.editText(mid, conversationID: id, senderID: req.userID, content: content, on: db) else {
+            throw Abort(.forbidden, reason: "This message can no longer be edited")
+        }
+        guard let msg = try await ChatStore.messageByID(mid, on: db) else { throw Abort(.internalServerError) }
+        let parts = try await ChatStore.participants(id, on: db)
+        req.socketHub.emitConversation(id, participants: parts, event: "message_edited", msg)
+        return DataResponse(data: msg)
+    }
+
     struct ReactBody: Content { var emoji: String? }
     struct ReactionsResponse: Content { var data: Inner; struct Inner: Content { var reactions: [String: [String]] } }
     static func reactToMessage(_ req: Request) async throws -> ReactionsResponse {
@@ -698,12 +743,24 @@ struct MessagesController {
         try await requireParticipant(id, req)
         let db = req.db.sql()
         // The sender "accepting" their own request changed nothing yet said 200.
-        let changed = try await MessageRequests.accept(conversationID: id, by: req.userID, on: db)
-        if !changed, try await MessageRequests.isOwnPendingRequest(conversationID: id, by: req.userID, on: db) {
+        let acceptance = try await MessageRequests.accept(conversationID: id, by: req.userID, on: db)
+        if acceptance == nil, try await MessageRequests.isOwnPendingRequest(conversationID: id, by: req.userID, on: db) {
             throw Abort(.forbidden, reason: "Only the person who received the request can accept it")
+        }
+        // The starter's open chat drops its "N messages left" banner and shows
+        // the accepted note; the accepter's other devices do the same.
+        if let acceptance {
+            let payload = WSRequestAccepted(conversation_id: id, accepted_at: acceptance.request_accepted_at)
+            // Also a chat note, so the starter gets it as an unread chat with an inbox preview.
+            let note = try await ConversationEvents.record(conversationID: id, actorID: req.userID, kind: "accepted", on: db)
+            for uid in [acceptance.request_from, req.userID] {
+                req.socketHub.emitToUser(uid, event: "message_request_accepted", payload)
+                if let note { req.socketHub.emitToUser(uid, event: "conversation_event", note) }
+            }
         }
         return Accepted(accepted: true)
     }
+    struct WSRequestAccepted: Content { var conversation_id: String; var accepted_at: Date }
 
     // MARK: group conversations
 
@@ -757,11 +814,16 @@ struct MessagesController {
             return Set(dict.keys)
         }()
         let parts = try await ChatStore.participants(id, on: db)
+        var events: [ConversationEvents.Event?] = []
 
         if present.contains("theme") {
             if let t = raw.theme, t.count > 20 { throw Abort(.badRequest, reason: "Invalid theme") }
             let value = (raw.theme?.isEmpty ?? true) ? nil : raw.theme
             try await ChatStore.updateTheme(id, theme: value, on: db)
+            if value != conv.theme {
+                events.append(try await ConversationEvents.record(
+                    conversationID: id, actorID: req.userID, kind: "theme", theme: value, on: db))
+            }
         }
 
         if present.contains("nickname") {
@@ -781,9 +843,19 @@ struct MessagesController {
                 } else {
                     try await ChatStore.deleteGroupNickname(id, setterID: req.userID, targetID: target, on: db)
                 }
+                events.append(try await ConversationEvents.record(
+                    conversationID: id, actorID: req.userID, kind: "nickname", targetID: target, nickname: value, on: db))
             } else if let other = parts.first(where: { $0 != req.userID }) {
                 try await ChatStore.setNickname(id, targetUserID: other, nickname: value, on: db)
+                events.append(try await ConversationEvents.record(
+                    conversationID: id, actorID: req.userID, kind: "nickname", targetID: other, nickname: value, on: db))
             }
+        }
+
+        // The note shows live in everyone's open chat; a group nickname only in the setter's.
+        for event in events.compactMap({ $0 }) {
+            let audience = (conv.is_group && event.kind == "nickname") ? [req.userID] : parts
+            for uid in audience { req.socketHub.emitToUser(uid, event: "conversation_event", event) }
         }
 
         if conv.is_group {
@@ -798,6 +870,13 @@ struct MessagesController {
             for uid in parts { req.socketHub.emitToUser(uid, event: "conversation_settings_updated", payload) }
             return try await ConnectionsController.encode(SettingsData(data: s), req, .ok)
         }
+    }
+
+    /// `GET .../events`: the chat's theme and nickname notes, oldest first.
+    static func listEvents(_ req: Request) async throws -> DataListResponse<ConversationEvents.Event> {
+        let id = req.parameters.get("id")!
+        try await requireParticipant(id, req)
+        return DataListResponse(data: try await ConversationEvents.list(conversationID: id, viewerID: req.userID, on: req.db.sql()))
     }
 
     struct MemberIDsBody: Content { var member_ids: [String]? }

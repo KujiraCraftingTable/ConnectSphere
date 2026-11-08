@@ -1,8 +1,13 @@
 import SwiftUI
 
-/// Sharing a post, Facebook-style: a note, the post, a row of your 20 most
-/// recent chats to send it straight to (one tap each, "Sent" with a short
-/// Undo; "⋯" opens every chat), and Share to Feed to repost it.
+/// Sharing a post, Facebook-style, in three steps inside one sheet:
+/// - **Start**: you, "Say something about this…" and Share now; below it, your
+///   recent chats.
+/// - **Post**: tapping "Say something" opens the note to write before sharing to
+///   your feed. Back returns to Start.
+/// - **Send**: tapping a chat picks it and opens the message step: the chats
+///   (tap more to add them), a message, and Send. Back returns to Start.
+/// Marketplace items are passed on by message only, so they skip the feed part.
 struct SharePostSheet: View {
     @Environment(AppState.self) var appState
     @Environment(ThemeManager.self) var themeManager
@@ -13,81 +18,142 @@ struct SharePostSheet: View {
     let post: Post
     var onShared: (() -> Void)? = nil
 
+    private enum Step { case start, post, send }
+
     @State private var viewModel = SharePostViewModel()
+    @State private var step: Step = .start
     @State private var showAllChats = false
+    /// The sheet is as tall as what it shows: no empty full-screen sheet.
+    @State private var contentHeight: CGFloat = 320
+    @FocusState private var noteFocused: Bool
 
     private var token: String { appState.authToken ?? "" }
+    private var isListing: Bool { post.postType == .listing }
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    TextField(bundle.loc(post.postType == .listing ? "Say something about this item..." : "Say something about this post..."), text: $viewModel.comment, axis: .vertical)
-                        .scaledFont(15)
-                        .lineLimit(1...4)
-                        .padding(12)
-                        .background(AppColors.base(colorScheme))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-
-                    postPreview
-
-                    sendRow
-
-                    ShareSendButton(viewModel: viewModel) {
-                        guard await viewModel.sendSelected(.post(post.id), token: token) else { return }
-                        onShared?()
-                        dismiss()
-                    }
-
-                    // Marketplace items are passed on by message only, never reposted.
-                    if post.postType != .listing {
-                        Button {
-                            Task {
-                                guard await viewModel.share(.post(post.id), mode: appState.currentMode, token: token) else { return }
-                                onShared?()
-                                dismiss()
-                            }
-                        } label: {
-                            HStack(spacing: 8) {
-                                if viewModel.isSharing {
-                                    ProgressView().tint(.white)
-                                } else {
-                                    Image(systemName: "square.and.pencil")
-                                }
-                                Text("Share to Feed", bundle: bundle).fontWeight(.semibold)
-                            }
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 13)
-                            .background(themeManager.theme.primary, in: RoundedRectangle(cornerRadius: 14))
+                VStack(alignment: .leading, spacing: 18) {
+                    switch step {
+                    case .start:
+                        if !isListing { composerCard(writing: false) }
+                        sendSection
+                    case .post:
+                        header(bundle.loc("Share"))
+                        composerCard(writing: true)
+                    case .send:
+                        header(bundle.loc("Send in a message"))
+                        recipientRow
+                        messageField
+                        ShareSendButton(viewModel: viewModel) {
+                            guard await viewModel.sendSelected(.post(post.id), token: token) else { return }
+                            onShared?()
+                            dismiss()
                         }
-                        .buttonStyle(.plain)
-                        .disabled(viewModel.isSharing)
-                    }
-
-                    if viewModel.shareFailed {
-                        Text("Couldn't share, please try again", bundle: bundle)
-                            .scaledFont(13)
-                            .foregroundColor(.red)
                     }
                 }
-                .padding(16)
+                .padding(.horizontal, 16)
+                .padding(.top, 28)
+                .padding(.bottom, 8)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+                .animation(.easeInOut(duration: 0.2), value: step)
             }
-            .background(AppColors.surface(colorScheme))
-            .navigationTitle(bundle.loc(post.postType == .listing ? "Send in a message" : "Share post"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(bundle.loc("Done")) { dismiss() }
-                }
-            }
+            .background(AppColors.base(colorScheme))
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(isPresented: $showAllChats) {
                 ShareRecipientsView(viewModel: viewModel)
             }
             .task { await viewModel.loadRecipients(mode: appState.currentMode.rawValue, token: token) }
         }
-        .presentationDetents([.medium, .large])
+        // The sheet already adds room for the drag indicator and the bottom
+        // safe area, so the content height alone is about right.
+        .presentationDetents([.height(contentHeight)])
         .presentationDragIndicator(.visible)
+    }
+
+    // MARK: - Steps
+
+    private func go(to next: Step) {
+        // A note started for the feed isn't a message, and the other way round.
+        if next == .start { viewModel.comment = "" }
+        step = next
+        noteFocused = next != .start
+    }
+
+    /// "< Share" / "< Send in a message": back to the start.
+    private func header(_ title: String) -> some View {
+        Button { go(to: .start) } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "chevron.left").scaledFont(18, .semibold)
+                Text(title).scaledFont(20, .bold)
+            }
+            .foregroundColor(AppColors.textPrimary(colorScheme))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(bundle.loc("Back")))
+    }
+
+    /// You, the note, Share now. On the start step the note is a placeholder
+    /// that opens the post step; on the post step it's the real field.
+    private func composerCard(writing: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if let me = appState.currentUser {
+                HStack(spacing: 12) {
+                    AvatarView(user: me, size: 44)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(me.name).scaledFont(16, .semibold)
+                            .foregroundColor(AppColors.textPrimary(colorScheme))
+                        Text("Feed", bundle: bundle).scaledFont(13)
+                            .foregroundColor(AppColors.textSecondary(colorScheme))
+                    }
+                }
+            }
+            if writing {
+                TextField(bundle.loc("Say something about this..."), text: $viewModel.comment, axis: .vertical)
+                    .scaledFont(16)
+                    .lineLimit(1...6)
+                    .focused($noteFocused)
+            } else {
+                Button { go(to: .post) } label: {
+                    Text("Say something about this...", bundle: bundle)
+                        .scaledFont(16)
+                        .foregroundColor(AppColors.textTertiary(colorScheme))
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            // Only while writing: on the start step it would push the chats off a half sheet.
+            if writing { postPreview }
+            HStack {
+                Spacer()
+                Button {
+                    Task {
+                        guard await viewModel.share(.post(post.id), mode: appState.currentMode, token: token) else { return }
+                        onShared?()
+                        dismiss()
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        if viewModel.isSharing { ProgressView().tint(.white) }
+                        Text("Share now", bundle: bundle).scaledFont(16, .semibold)
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 11)
+                    .background(themeManager.theme.primary, in: RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
+                .disabled(viewModel.isSharing)
+            }
+            if viewModel.shareFailed {
+                Text("Couldn't share, please try again", bundle: bundle)
+                    .scaledFont(13)
+                    .foregroundColor(.red)
+            }
+        }
+        .padding(16)
+        .background(AppColors.surface(colorScheme), in: RoundedRectangle(cornerRadius: 16))
     }
 
     /// The original post, condensed.
@@ -99,7 +165,9 @@ struct SharePostSheet: View {
                     .scaledFont(14, .semibold)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
             }
-            let previewText = post.sharedPost?.content ?? post.content
+            let rawText = post.sharedPost?.content ?? post.content
+            // Markdown posts show their words, not the ** and _ marks.
+            let previewText = (post.sharedPost?.isMarkdown ?? post.isMarkdown) ? MarkdownFormatter.plain(rawText) : rawText
             if !previewText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(previewText)
                     .scaledFont(14)
@@ -112,44 +180,66 @@ struct SharePostSheet: View {
         .background(RoundedRectangle(cornerRadius: 10).fill(AppColors.base(colorScheme)))
     }
 
+    /// Start step: "Send in a message" and the chats. Tapping one picks it and
+    /// moves to the send step.
+    private var sendSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Send in a message", bundle: bundle)
+                .scaledFont(18, .bold)
+                .foregroundColor(AppColors.textPrimary(colorScheme))
+            recipientRow
+        }
+    }
+
+    private var messageField: some View {
+        TextField(bundle.loc("Write a message..."), text: $viewModel.comment, axis: .vertical)
+            .scaledFont(16)
+            .lineLimit(1...4)
+            .focused($noteFocused)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(AppColors.surface(colorScheme), in: Capsule())
+    }
+
     /// The 20 most recent chats, then "⋯" for every chat.
     @ViewBuilder
-    private var sendRow: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Send to", bundle: bundle)
-                .scaledFont(16, .bold)
-                .foregroundColor(AppColors.textPrimary(colorScheme))
-            if viewModel.isLoadingRecipients && viewModel.recipients.isEmpty {
-                ProgressView().frame(maxWidth: .infinity, minHeight: 90)
-            } else if viewModel.recipients.isEmpty {
-                Text("No conversations yet", bundle: bundle)
-                    .scaledFont(14)
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(alignment: .top, spacing: 14) {
-                        ForEach(viewModel.recent) { conversation in
-                            ShareRecipientTile(conversation: conversation,
-                                               isSelected: viewModel.isSelected(conversation),
-                                               onTap: { viewModel.toggle(conversation) })
-                        }
-                        Button { showAllChats = true } label: {
-                            VStack(spacing: 6) {
-                                Image(systemName: "ellipsis")
-                                    .scaledFont(20, .semibold)
-                                    .foregroundColor(AppColors.textPrimary(colorScheme))
-                                    .frame(width: Avatar.Size.lg.rawValue, height: Avatar.Size.lg.rawValue)
-                                    .background(AppColors.elevated(colorScheme), in: Circle())
-                                Text("More", bundle: bundle)
-                                    .scaledFont(12)
-                                    .foregroundColor(AppColors.textSecondary(colorScheme))
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(Text(bundle.loc("All chats")))
+    private var recipientRow: some View {
+        if viewModel.isLoadingRecipients && viewModel.recipients.isEmpty {
+            ProgressView().frame(maxWidth: .infinity, minHeight: 90)
+        } else if viewModel.recipients.isEmpty {
+            Text("No conversations yet", bundle: bundle)
+                .scaledFont(14)
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+        } else {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 14) {
+                    ForEach(viewModel.recent) { conversation in
+                        ShareRecipientTile(conversation: conversation,
+                                           isSelected: viewModel.isSelected(conversation),
+                                           onTap: {
+                                               viewModel.toggle(conversation)
+                                               if step == .start { go(to: .send) }
+                                           })
                     }
-                    .padding(.vertical, 2)
+                    Button {
+                        if step == .start { go(to: .send) }
+                        showAllChats = true
+                    } label: {
+                        VStack(spacing: 6) {
+                            Image(systemName: "ellipsis")
+                                .scaledFont(20, .semibold)
+                                .foregroundColor(AppColors.textPrimary(colorScheme))
+                                .frame(width: Avatar.Size.lg.rawValue, height: Avatar.Size.lg.rawValue)
+                                .background(AppColors.elevated(colorScheme), in: Circle())
+                            Text("More", bundle: bundle)
+                                .scaledFont(12)
+                                .foregroundColor(AppColors.textSecondary(colorScheme))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text(bundle.loc("All chats")))
                 }
+                .padding(.vertical, 2)
             }
         }
     }
@@ -169,7 +259,7 @@ struct ShareRecipientTile: View {
     var body: some View {
         Button(action: onTap) {
             VStack(spacing: 6) {
-                Avatar(name: conversation.displayName, colorHex: conversation.avatarColor,
+                Avatar(name: conversation.avatarName, colorHex: conversation.avatarColor,
                        imageURL: conversation.avatarUrl, size: .lg)
                     .padding(3)
                     .overlay(Circle().stroke(isSelected ? themeManager.theme.primary : .clear, lineWidth: 2.5))
@@ -246,7 +336,7 @@ struct ShareRecipientsView: View {
     var body: some View {
         List(viewModel.searched) { conversation in
             HStack(spacing: 12) {
-                Avatar(name: conversation.displayName, colorHex: conversation.avatarColor,
+                Avatar(name: conversation.avatarName, colorHex: conversation.avatarColor,
                        imageURL: conversation.avatarUrl, size: .md)
                 Text(conversation.displayName)
                     .scaledFont(15, .semibold)

@@ -247,7 +247,7 @@ struct VoiceRecorderControl: View {
             session.start()
         } label: {
             Image(systemName: "mic")
-                .scaledFont(22)
+                .scaledFont(26)
                 .foregroundColor(tint)
                 .padding(.bottom, 6)
         }

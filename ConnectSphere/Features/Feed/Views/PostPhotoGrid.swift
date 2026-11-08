@@ -19,6 +19,10 @@ struct PostPhotoGrid: View {
     var alts: [String] = []
     /// Total height of the grid (embedded shared posts use a smaller value)
     var gridHeight: CGFloat = 300
+    /// The bar under the full-screen photo. It gets `closeThen`: close the viewer,
+    /// then run the action, for actions that open a sheet of their own.
+    var viewerBar: ((_ closeThen: @escaping (@escaping () -> Void) -> Void) -> AnyView)? = nil
+    @State private var afterViewerCloses: (() -> Void)?
 
     @State private var viewerTarget: ViewerTarget?
     /// Tiles whose image failed to load: tapping retries instead of opening the viewer.
@@ -69,8 +73,15 @@ struct PostPhotoGrid: View {
         }
         .clipped()
         .mediaSaveStatus(saver)
-        .fullScreenCover(item: $viewerTarget) { target in
-            ChatMediaViewerView(items: viewerItems, startIndex: target.index)
+        .fullScreenCover(item: $viewerTarget, onDismiss: {
+            afterViewerCloses?()
+            afterViewerCloses = nil
+        }) { target in
+            ChatMediaViewerView(items: viewerItems, startIndex: target.index,
+                                bottomBar: viewerBar?({ action in
+                                    afterViewerCloses = action
+                                    viewerTarget = nil
+                                }))
         }
     }
 

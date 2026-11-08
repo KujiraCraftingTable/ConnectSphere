@@ -33,6 +33,8 @@ struct PostDetailView: View {
     @State private var viewModel: PostDetailViewModel
     @State private var commentVM = CommentViewModel()
     @State private var draft = ""
+    /// A comment is being edited in place: the composer steps aside.
+    @State private var isEditingComment = false
     /// The screen's width. The top bar's author block fills what the back
     /// and ⋯ buttons leave, so it sits left beside the back button.
     @State private var screenWidth: CGFloat = 0
@@ -89,7 +91,7 @@ struct PostDetailView: View {
                 .task { await loadAll(proxy: proxy) }
                 .confirmBeforePosting(commentVM, text: $draft) { adjustCommentCount(by: 1) }
 
-                if post != nil {
+                if post != nil && !isEditingComment {
                     composerBar(proxy: proxy)
                 }
             }
@@ -168,7 +170,8 @@ struct PostDetailView: View {
                 // for this same tap and would otherwise win.
                 onReplyRequested: { Task { @MainActor in composerFocused = true } },
                 highlightedCommentId: highlightedCommentId,
-                onCommentCountChange: { delta in adjustCommentCount(by: delta) }
+                onCommentCountChange: { delta in adjustCommentCount(by: delta) },
+                onEditingChange: { isEditingComment = $0 }
             )
         }
         .frame(maxWidth: .infinity, alignment: .leading)

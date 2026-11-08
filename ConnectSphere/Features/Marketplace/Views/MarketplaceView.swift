@@ -95,7 +95,7 @@ struct MarketplaceView: View {
                         await viewModel.pickCommunity(nil, mode: mode, token: token)
                     }
                     ForEach(viewModel.communities) { c in
-                        chip(c.iconEmoji + " " + c.name, selected: viewModel.communityId == c.id) {
+                        chip(c.name, selected: viewModel.communityId == c.id) {
                             await viewModel.pickCommunity(c.id, mode: mode, token: token)
                         }
                     }

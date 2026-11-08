@@ -38,9 +38,13 @@ struct CommentsSection: View {
     /// instead of waiting on a full refetch. The server's own count is
     /// already updated durably and remains the eventual source of truth.
     var onCommentCountChange: (Int) -> Void = { _ in }
+    /// Told when a comment starts or stops being edited in place, so the host
+    /// hides its "Write a comment" composer meanwhile (as Facebook does).
+    var onEditingChange: (Bool) -> Void = { _ in }
 
     @State private var pendingDeleteCommentId: String? = nil
     @State private var reportingComment: CommentDTO? = nil
+    @State private var historySubject: EditHistorySubject? = nil
     @State private var editingCommentId: String? = nil
     @State private var editingText: String = ""
 
@@ -89,6 +93,11 @@ struct CommentsSection: View {
             Button(bundle.loc("Cancel"), role: .cancel) {}
         } message: {
             Text("This comment won't be shown in the app. You can restore it from Recently Deleted within 30 days.", bundle: bundle)
+        }
+        .onChange(of: editingCommentId) { _, id in onEditingChange(id != nil) }
+        .sheet(item: $historySubject) { subject in
+            EditHistoryView(subject: subject)
+                .environment(themeManager)
         }
         .sheet(item: $reportingComment, onDismiss: {
             // A warned or banned comment is taken down: show the list without it.
@@ -241,6 +250,7 @@ struct CommentsSection: View {
             isPostAuthor: comment.author.id == postAuthorId,
             isEditing: editingCommentId == comment.id,
             editingText: $editingText,
+            editHasChanges: editingCommentId == comment.id && editingText != comment.content,
             replyTarget: target,
             onLike:   { Task { await viewModel.toggleLike(postId: postId, commentId: comment.id) } },
             onReply:  {
@@ -250,6 +260,9 @@ struct CommentsSection: View {
             onDelete: { pendingDeleteCommentId = comment.id },
             onReport: { reportingComment = comment },
             onEdit: { beginEditing(comment) },
+            onViewHistory: comment.editedAt == nil ? nil : {
+                historySubject = .comment(postId: postId, commentId: comment.id)
+            },
             onSaveEdit: { Task { await saveEdit(commentId: comment.id) } },
             onCancelEdit: { editingCommentId = nil }
         )
@@ -325,6 +338,8 @@ struct CommentRow: View {
     /// Shared editing-text binding, owned by the host. Only meaningful while
     /// `isEditing` is true.
     var editingText: Binding<String> = .constant("")
+    /// The edit differs from the saved text, so Cancel asks before discarding.
+    var editHasChanges: Bool = false
     /// Set on every reply. Renders "replied to [name]" on its own line under
     /// this row's name, each tappable to its own profile.
     var replyTarget: CommentReplyTarget? = nil
@@ -333,6 +348,8 @@ struct CommentRow: View {
     var onDelete: (() -> Void)? = nil
     var onReport: (() -> Void)? = nil
     var onEdit:   (() -> Void)? = nil
+    /// Set only when the comment has been edited.
+    var onViewHistory: (() -> Void)? = nil
     var onSaveEdit:   (() -> Void)? = nil
     var onCancelEdit: (() -> Void)? = nil
 
@@ -358,7 +375,8 @@ struct CommentRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: Self.avatarSpacing) {
-            avatar
+            // The picture opens the profile too, like the name.
+            profileLink(comment.author.id, isOfficial: comment.author.isOfficial) { avatar }
 
             VStack(alignment: .leading, spacing: 4) {
                 if isEditing {
@@ -370,6 +388,11 @@ struct CommentRow: View {
                             if isOwn, let onEdit {
                                 Button(action: onEdit) {
                                     Label(bundle.loc("Edit comment"), systemImage: "pencil")
+                                }
+                            }
+                            if let onViewHistory {
+                                Button(action: onViewHistory) {
+                                    Label(bundle.loc("View edit history"), systemImage: "clock.arrow.circlepath")
                                 }
                             }
                             if isOwn, let onDelete {
@@ -390,7 +413,7 @@ struct CommentRow: View {
                             .padding(.top, 2)
                     }
                 }
-                metaRow
+                if !isEditing { metaRow }
             }
             // First claim on the row's width, ahead of the spacer, so a long
             // name gets the whole width before it shrinks.
@@ -412,7 +435,7 @@ struct CommentRow: View {
             ViewThatFits(in: .horizontal) {
                 ForEach(Self.nameScales, id: \.self) { scale in
                     HStack(spacing: 4) {
-                        profileLink(comment.author.id) {
+                        profileLink(comment.author.id, isOfficial: comment.author.isOfficial) {
                             nameText(comment.author.displayName, scale: scale)
                         }
                         if comment.author.isOfficial { OfficialBadge(compact: true).padding(.leading, -2) }
@@ -514,29 +537,26 @@ struct CommentRow: View {
 
     /// Compact inline edit UI. Replaces the static content `Text` while
     /// `isEditing` is true. Single-line-ish; not a full-screen composer.
+    /// Facebook-style: the text sits in a large box edited in place, with
+    /// Cancel (asks first when the text changed) and Update under it.
     private var editRow: some View {
-        HStack(spacing: 8) {
-            MarkdownTextEditor(text: editingText, placeholder: bundle.loc("Write a comment..."), size: 14,
-                               minHeight: 22, maxHeight: 96)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(AppColors.base(colorScheme))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+        VStack(alignment: .trailing, spacing: 8) {
+            MarkdownTextEditor(text: editingText, placeholder: bundle.loc("Write a comment..."), size: 15,
+                               minHeight: 88, maxHeight: 200, autofocus: true)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(AppColors.surface(colorScheme), in: RoundedRectangle(cornerRadius: 16))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(AppColors.borderStrong(colorScheme), lineWidth: 1))
 
-            Button(action: { onSaveEdit?() }) {
-                Image(systemName: "checkmark.circle.fill")
-                    .scaledFont(20)
-                    .foregroundColor(themeManager.theme.primary)
+            HStack(spacing: 10) {
+                ConfirmCancelButton(hasChanges: editHasChanges) { onCancelEdit?() }
+                    .buttonStyle(EditPillButtonStyle(fill: AppColors.elevated(colorScheme),
+                                                     text: AppColors.textPrimary(colorScheme)))
+                Button(bundle.loc("Update")) { onSaveEdit?() }
+                    .buttonStyle(EditPillButtonStyle(fill: themeManager.theme.primary, text: .white))
+                    .disabled(editingText.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                              && comment.imageUrl == nil)
             }
-            .accessibilityLabel(Bundle.app.loc("Save"))
-            .disabled(editingText.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-            Button(action: { onCancelEdit?() }) {
-                Image(systemName: "xmark.circle.fill")
-                    .scaledFont(20)
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-            }
-            .accessibilityLabel(Bundle.app.loc("Cancel"))
         }
     }
 
@@ -569,14 +589,33 @@ struct CommentRow: View {
     }
 
     /// Under a community post, someone's community profile as a pop-up;
-    /// elsewhere their profile page.
+    /// elsewhere their profile page. The official account isn't a community
+    /// member, so it always opens its profile page.
     @ViewBuilder
-    private func profileLink<L: View>(_ userId: String, @ViewBuilder label: @escaping () -> L) -> some View {
-        if let communityId {
+    private func profileLink<L: View>(_ userId: String, isOfficial: Bool = false,
+                                      @ViewBuilder label: @escaping () -> L) -> some View {
+        if let communityId, !isOfficial {
             CommunityProfileLink(communityId: communityId, userId: userId, label: label)
         } else {
             NavigationLink(destination: UserProfileView(userId: userId).environment(appState), label: label)
                 .buttonStyle(.plain)
         }
+    }
+}
+
+/// The rounded Cancel / Update buttons under a comment being edited.
+private struct EditPillButtonStyle: ButtonStyle {
+    let fill: Color
+    let text: Color
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaledFont(15, .semibold)
+            .foregroundColor(text)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 9)
+            .background(fill, in: RoundedRectangle(cornerRadius: 12))
+            .opacity(!isEnabled ? 0.4 : configuration.isPressed ? 0.75 : 1)
     }
 }

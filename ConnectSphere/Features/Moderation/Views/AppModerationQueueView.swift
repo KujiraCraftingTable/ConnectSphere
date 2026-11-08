@@ -125,6 +125,9 @@ struct ModerationCaseView: View {
 
     @State private var viewModel: ModerationCaseViewModel
     @State private var restrictDays = 3
+    /// The decision picked on an open case; nothing happens until it's confirmed.
+    @State private var selectedDecision: ModerationDecisionKind?
+    @State private var confirmingSubmit = false
 
     init(caseId: String) {
         _viewModel = State(initialValue: ModerationCaseViewModel(caseId: caseId))
@@ -209,33 +212,81 @@ struct ModerationCaseView: View {
         .task { await viewModel.load() }
     }
 
+    /// Grey until a decision is picked; red for anything that removes content.
+    private var submitColor: Color {
+        guard let kind = selectedDecision else { return AppColors.textTertiary(colorScheme) }
+        return kind == .keep ? Color.accentColor : AppColors.danger(colorScheme)
+    }
+
+    private var submitQuestion: String {
+        switch selectedDecision {
+        case .restrict: String(format: bundle.loc("Restrict the account for %lld days"), restrictDays) + "?"
+        case let kind?: bundle.loc(kind.label) + "?"
+        case nil: ""
+        }
+    }
+
     @ViewBuilder
     private func decisionSection(_ d: ModerationCaseDetail) -> some View {
         if viewModel.isOpen {
+            // A form: the decision, how long (Restrict), a note, then Submit,
+            // which stays off until a decision is picked.
             Section {
-                TextField(bundle.loc("Note for the record (optional)"), text: $viewModel.note, axis: .vertical)
-                ForEach(ModerationDecisionKind.allCases, id: \.self) { kind in
-                    if kind == .restrict {
-                        Picker(bundle.loc("Restrict for"), selection: $restrictDays) {
-                            ForEach(ModerationCaseViewModel.restrictOptions, id: \.self) { days in
-                                Text(String(format: bundle.loc("%lld days"), days)).tag(days)
-                            }
+                VStack(alignment: .leading, spacing: 4) {
+                    Picker(bundle.loc("Decision"), selection: $selectedDecision) {
+                        Text("Choose…", bundle: bundle).tag(ModerationDecisionKind?.none)
+                        ForEach(ModerationDecisionKind.pickable, id: \.self) { kind in
+                            Text(bundle.loc(kind.shortLabel)).tag(ModerationDecisionKind?.some(kind))
                         }
                     }
-                    ConfirmingButton(title: bundle.loc(kind.label), question: bundle.loc(kind.label),
-                                     message: bundle.loc(kind == .keep
-                                        ? "The content stays up and the reporters are told it doesn't break the rules."
-                                        : "The author is told what was removed and why, and can ask for a review."),
-                                     destructive: kind != .keep) {
+                    .pickerStyle(.menu)
+                    if let kind = selectedDecision {
+                        Text(bundle.loc(kind.summary))
+                            .font(.footnote)
+                            .foregroundColor(AppColors.textSecondary(colorScheme))
+                    }
+                }
+                if selectedDecision == .restrict {
+                    Picker(bundle.loc("Restrict for"), selection: $restrictDays) {
+                        ForEach(ModerationCaseViewModel.restrictOptions, id: \.self) { days in
+                            Text(String(format: bundle.loc("%lld days"), days)).tag(days)
+                        }
+                    }
+                }
+                VStack(alignment: .trailing, spacing: 10) {
+                    // The same box as the post composer's "What's on your mind?".
+                    MarkdownTextEditor(text: $viewModel.note,
+                                       placeholder: bundle.loc("Note for the record (optional)"),
+                                       minHeight: 100, maxHeight: 200)
+                        .padding(.horizontal, 6)
+                        .background(AppColors.base(colorScheme), in: RoundedRectangle(cornerRadius: 12))
+                    Button { confirmingSubmit = true } label: {
+                        Text("Submit", bundle: bundle)
+                            .fontWeight(.semibold)
+                            .padding(.horizontal, 18)
+                            .padding(.vertical, 9)
+                            .foregroundColor(.white)
+                            .background(submitColor, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(selectedDecision == nil)
+                }
+                .padding(.vertical, 4)
+                .alert(submitQuestion, isPresented: $confirmingSubmit) {
+                    Button(bundle.loc("Submit"), role: selectedDecision == .keep ? nil : .destructive) {
+                        guard let kind = selectedDecision else { return }
                         Task<Void, Never>(name: nil) {
                             await viewModel.decide(kind, days: kind == .restrict ? restrictDays : nil)
                         }
                     }
+                    Button(bundle.loc("Cancel"), role: .cancel) {}
+                } message: {
+                    if let kind = selectedDecision { Text(bundle.loc(kind.summary)) }
                 }
             } header: {
                 Text("Decision", bundle: bundle)
             } footer: {
-                Text("Everything except Keep removes the content. A strike for child sexual exploitation bans the account.", bundle: bundle)
+                Text("Everything except Keep removes the content.", bundle: bundle)
             }
         } else if let decision = d.case.decision {
             Section(bundle.loc("Decision")) {

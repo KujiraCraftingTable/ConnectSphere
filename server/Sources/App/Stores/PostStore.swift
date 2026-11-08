@@ -69,7 +69,7 @@ enum PostStore {
         SELECT
           p.id::text AS id, p.content, p.content_format, p.mode, p.privacy, p.image_urls[1] AS image_url, p.image_urls, p.image_alts, p.status::text AS status, p.publish_at, p.decline_reason,
           p.lang, \(unsafeRaw: TranslationService.translatedColumn("p")) AS translated_text, p.article_title, p.link_url,
-          p.like_count, p.comment_count, p.share_count, p.created_at,
+          p.like_count, p.comment_count, p.share_count, p.created_at, p.edited_at,
           p.post_type, p.is_pinned, p.pinned_at, p.shared_post_id::text AS shared_post_id,
           EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = \(uuid: v)) AS is_liked,
           EXISTS(SELECT 1 FROM saved_posts sp2 WHERE sp2.post_id = p.id AND sp2.user_id = \(uuid: v)) AS is_saved,
@@ -267,6 +267,7 @@ enum PostStore {
         var comment_count: Int
         var share_count: Int
         var created_at: Date
+        var edited_at: Date?
         var post_type: String
         var is_pinned: Bool
         var pinned_at: Date?
@@ -297,7 +298,7 @@ enum PostStore {
             decline_reason: r.decline_reason,
             lang: r.lang, translated_text: r.translated_text,
             like_count: r.like_count, comment_count: r.comment_count, share_count: r.share_count,
-            created_at: r.created_at, post_type: r.post_type, is_pinned: r.is_pinned, pinned_at: r.pinned_at,
+            created_at: r.created_at, edited_at: r.edited_at, post_type: r.post_type, is_pinned: r.is_pinned, pinned_at: r.pinned_at,
             shared_post_id: r.shared_post_id, is_liked: r.is_liked, is_saved: r.is_saved,
             shared_post: try parse(r.shared_post, PostObject.SharedPost.self),
             tags: (try? dec.decode([String].self, from: Data(r.tags.utf8))) ?? [],
@@ -631,12 +632,29 @@ enum PostStore {
         let hasLink = !(linkUrl?.isEmpty ?? true)
         if !hasContent && !hasImages && !hasLink { return .empty }
 
+        // Keep the version being replaced, but only when what people see
+        // changes: the app resends the current text and media on every edit,
+        // and a privacy- or hashtag-only edit isn't one.
+        struct One: Decodable { let one: Int }
+        let edited = try await db.raw("""
+            INSERT INTO post_revisions (post_id, content, content_format, image_urls, image_alts, article_title, link_url)
+            SELECT id, content, content_format, image_urls, image_alts, article_title, link_url
+            FROM posts
+            WHERE id = \(uuid: id) AND status = 'posted'
+              AND (COALESCE(content, '') IS DISTINCT FROM COALESCE(\(bind: finalContent)::text, '')
+                OR COALESCE(image_urls, '{}') IS DISTINCT FROM COALESCE(\(bind: urls)::text[], '{}')
+                OR COALESCE(link_url, '') IS DISTINCT FROM COALESCE(\(bind: linkUrl)::text, '')
+                OR COALESCE(article_title, '') IS DISTINCT FROM COALESCE(\(bind: articleTitle)::text, ''))
+            RETURNING 1 AS one
+            """).first(decoding: One.self) != nil
+
         struct R: Decodable { let id: String; let author_id: String }
         guard let row = try await db.raw("""
             UPDATE posts SET
               content = CASE WHEN \(bind: contentProvided) THEN \(bind: contentProvided ? content : nil) ELSE content END,
               privacy = COALESCE(\(bind: validPrivacy), privacy),
               image_urls = \(bind: urls), link_url = \(bind: linkUrl), article_title = \(bind: articleTitle),
+              edited_at = CASE WHEN \(bind: edited) THEN NOW() ELSE edited_at END,
               updated_at = NOW()
             WHERE id = \(uuid: id) AND status = 'posted'
             RETURNING id, author_id

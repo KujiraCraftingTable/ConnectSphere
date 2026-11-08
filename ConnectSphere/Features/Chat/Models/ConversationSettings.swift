@@ -37,6 +37,10 @@ struct ConversationSettings: Decodable, Equatable {
     let requestsLeft: Int?
     /// 1-on-1 with the official account (either side): messages can't be unsent.
     let withOfficial: Bool
+    /// When this chat's message request was accepted (nil if it never was one).
+    let requestAcceptedAt: Date?
+    /// I started that request.
+    let requestFromMe: Bool
 
     enum CodingKeys: String, CodingKey {
         case id, theme, members
@@ -44,6 +48,8 @@ struct ConversationSettings: Decodable, Equatable {
         case requestState         = "request_state"
         case requestsLeft         = "requests_left"
         case withOfficial         = "with_official"
+        case requestAcceptedAt    = "request_accepted_at"
+        case requestFromMe        = "request_from_me"
         case otherUserId          = "other_user_id"
         case otherUserUsername    = "other_user_username"
         case otherUserName        = "other_user_name"
@@ -61,6 +67,8 @@ struct ConversationSettings: Decodable, Equatable {
         requestState = try? c.decodeIfPresent(MessageRequestState.self, forKey: .requestState)
         requestsLeft = try c.decodeIfPresent(Int.self, forKey: .requestsLeft)
         withOfficial = try c.decodeIfPresent(Bool.self, forKey: .withOfficial) ?? false
+        requestAcceptedAt = (try? c.decodeIfPresent(Date.self, forKey: .requestAcceptedAt)) ?? nil
+        requestFromMe = try c.decodeIfPresent(Bool.self, forKey: .requestFromMe) ?? false
         theme = try c.decodeIfPresent(String.self, forKey: .theme)
         mutedUntil = try c.decodeIfPresent(Date.self, forKey: .mutedUntil)
 
@@ -146,6 +154,14 @@ struct ConversationSettings: Decodable, Equatable {
     var displayName: String {
         switch peer {
         case .direct(_, _, let name, _, _, let nickname): return nickname ?? name
+        case .group(_, let name, _, _, _, _): return name
+        }
+    }
+
+    /// Whose initial the avatar shows: the real name, never the nickname.
+    var avatarName: String {
+        switch peer {
+        case .direct(_, _, let name, _, _, _): return name
         case .group(_, let name, _, _, _, _): return name
         }
     }

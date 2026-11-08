@@ -24,6 +24,8 @@ struct FeedView: View {
                 LazyVStack(spacing: AppSpacing.sm) {
                     Color.clear.frame(height: 0).id("feedTop")
 
+                    RestrictionBanner()
+
                     createPostBar
                         .cardStyle()
 
@@ -290,6 +292,7 @@ struct FeedView: View {
                         Capsule().stroke(AppColors.borderDefault(colorScheme), lineWidth: 1)
                     )
             }
+            .disabledWhenRestricted()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)

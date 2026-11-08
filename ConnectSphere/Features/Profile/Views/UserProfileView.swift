@@ -20,7 +20,10 @@ struct UserProfileView: View {
     /// The side being shown.
     private var shown: ProfileViewModel { showingOther ? otherViewModel : viewModel }
 
-    @State private var pull: CGFloat = 0
+    /// Status bar height: the cover is pulled up under it instead of the
+    /// scroll view ignoring the safe area, so the system refresh spinner shows
+    /// below the Dynamic Island (as on a community page).
+    @State private var topInset: CGFloat = 0
     @State private var chatConversationId: String?
     @State private var navigateToChat = false
     // Tap-to-open-post-detail, same PostRoute/PostDetailView navigation Feed uses.
@@ -74,6 +77,7 @@ struct UserProfileView: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
+                Group {
                 if let front = user {
                     VStack(spacing: 8) {
                         if showingOther && !hasOther {
@@ -109,19 +113,21 @@ struct UserProfileView: View {
                 } else {
                     ProgressView().padding(.top, 120)
                 }
+                }
+                // The cover runs up under the status bar; its fade keeps it legible.
+                .padding(.top, -topInset)
             }
-            // The cover runs up under the status bar; its fade keeps it legible.
-            .ignoresSafeArea(edges: .top)
-            .trackPull($pull)
+            .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { topInset = $0 }
             .refreshable {
                 await viewModel.refresh(userId: userId, mode: mode.rawValue)
                 if userId != appState.currentUser?.id { await viewModel.loadBlockStatus(userId: userId) }
             }
         }
-        .overlay(alignment: .top) { PullRefreshIndicator(pull: pull, isRefreshing: viewModel.isRefreshing) }
         .background(AppColors.base(colorScheme))
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
+        // Someone's profile is a page of its own: no tab bar, like a chat.
+        .toolbar(.hidden, for: .tabBar)
         .navigationDestination(item: $listRoute) { stat in
             switch stat {
             case .followers: FollowListView(userId: userId, showsFollowers: true)

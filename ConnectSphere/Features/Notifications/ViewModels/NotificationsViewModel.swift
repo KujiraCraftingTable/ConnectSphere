@@ -274,9 +274,10 @@ final class NotificationsViewModel {
         applyUnread(max(unreadCount + delta, 0), to: appState)
     }
 
+    /// This screen's own count. The tab badge isn't touched: it counts what's
+    /// new since the tab was last left (`NotificationBadgeViewModel`).
     private func applyUnread(_ count: Int, to appState: AppState?) {
         unreadCount = count
-        appState?.notificationUnreadCount = count
     }
 }
 
@@ -289,7 +290,8 @@ private extension UserNotificationDTO {
             actorId: actorId, communityId: communityId, conversationId: conversationId,
             entityType: entityType, entityId: entityId, groupKey: groupKey,
             collapseCount: collapseCount, updatedAt: updatedAt,
-            communityName: communityName, category: category, destination: destination
+            communityName: communityName, actorIsOfficial: actorIsOfficial,
+            category: category, destination: destination
         )
     }
 }

@@ -38,6 +38,8 @@ struct AuthUserDTO: Decodable {
     let languages: [String]?
     let relationshipStatus: String?
     let isLocked: Bool?
+    /// A moderation restriction runs until then: no posting, commenting or joining.
+    let restrictedUntil: Date?
     let age: Int?
     let dob: String?
     let dobVisibility: String?
@@ -74,6 +76,7 @@ struct AuthUserDTO: Decodable {
         case languages
         case relationshipStatus = "relationship_status"
         case isLocked = "is_locked"
+        case restrictedUntil = "restricted_until"
         case dobVisibility  = "dob_visibility"
         case dobChangesLeft = "dob_changes_left"
         case displayName    = "display_name"
@@ -123,6 +126,8 @@ struct AuthUserDTO: Decodable {
         languages = try c.decodeIfPresent([String].self, forKey: .languages)
         relationshipStatus = try c.decodeIfPresent(String.self, forKey: .relationshipStatus)
         isLocked = try c.decodeIfPresent(Bool.self, forKey: .isLocked)
+        // Lenient: the cached copy may store dates differently from the server.
+        restrictedUntil = (try? c.decodeIfPresent(Date.self, forKey: .restrictedUntil)) ?? nil
         age            = try c.decodeIfPresent(Int.self, forKey: .age)
         dob            = try c.decodeIfPresent(String.self, forKey: .dob)
         dobVisibility  = try c.decodeIfPresent(String.self, forKey: .dobVisibility)

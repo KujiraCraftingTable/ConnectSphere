@@ -54,15 +54,27 @@ struct UserNotificationRepository {
         try await fetch(token: token)
     }
 
-    /// Unread total without pulling the whole list. Used for the tab badge.
-    func unreadCount(mode: AppMode? = nil, token: String) async throws -> Int {
+    /// The tab badge: unread notifications that arrived since the tab was last left.
+    func badgeCount(mode: AppMode, token: String) async throws -> Int {
         let response = try await client.fetch(
             DataResponse<UnreadCountPayloadDTO>.self,
             path: "/user-notifications/unread-count",
             token: token,
-            queryItems: mode.map { [URLQueryItem(name: "mode", value: $0.rawValue)] } ?? []
+            queryItems: [URLQueryItem(name: "mode", value: mode.rawValue), URLQueryItem(name: "scope", value: "badge")]
         )
         return response.data.count
+    }
+
+    /// The Notifications tab was left: the badge starts again from zero.
+    func markSeen(mode: AppMode, token: String) async throws {
+        struct Empty: Decodable {}
+        _ = try await client.fetch(
+            Empty.self,
+            path: "/user-notifications/seen",
+            method: "POST",
+            token: token,
+            queryItems: [URLQueryItem(name: "mode", value: mode.rawValue)]
+        )
     }
 
     /// Returns the first unresolved mode_mismatch notification for a specific post.

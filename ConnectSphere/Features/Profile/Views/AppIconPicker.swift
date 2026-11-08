@@ -120,3 +120,19 @@ struct AppIconPreview: View {
             .scaledToFit()
     }
 }
+
+/// The app icon you picked, at `size`, with the home-screen corner shape: the
+/// splash and sign-in screens show it so they match the icon you tapped.
+struct CurrentAppIcon: View {
+    @Environment(AppState.self) private var appState
+    let size: CGFloat
+
+    var body: some View {
+        Image("AppIconPreview-\(appState.appIconId)")
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .clipShape(RoundedRectangle(cornerRadius: size * 0.2237, style: .continuous))
+            .accessibilityHidden(true)
+    }
+}

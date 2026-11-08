@@ -82,9 +82,7 @@ struct RootView: View {
                 ZStack {
                     AppColors.base(.light).ignoresSafeArea()
                     VStack(spacing: 16) {
-                        Image(systemName: "bubble.left.and.bubble.right.fill")
-                            .scaledFont(54)
-                            .foregroundColor(themeManager.theme.primary)
+                        CurrentAppIcon(size: 96)
                         Text("ConnectSphere")
                             .scaledFont(28, .bold)
                             .foregroundColor(AppColors.textPrimary(.light))

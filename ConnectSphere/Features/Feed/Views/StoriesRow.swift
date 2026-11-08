@@ -64,7 +64,7 @@ struct StoriesRow: View {
         VStack(spacing: 5) {
             ZStack(alignment: .bottomTrailing) {
                 Button {
-                    if let mine = myGroup { selectedGroup = mine } else { showComposer = true }
+                    if let mine = myGroup { selectedGroup = mine } else if !appState.isRestricted { showComposer = true }
                 } label: {
                     ZStack {
                         // A ring only when there's an actual story to show,
@@ -113,6 +113,7 @@ struct StoriesRow: View {
                     }
                 }
                 .accessibilityLabel(Bundle.app.loc("Add to your story"))
+                .disabledWhenRestricted()
                 .offset(x: 2, y: 2)
             }
             Text("Your story", bundle: bundle)

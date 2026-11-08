@@ -36,6 +36,9 @@ struct PostObject: Content {
     var comment_count: Int
     var share_count: Int
     var created_at: Date
+    /// Last edit that changed the text or media (migration 110); null when
+    /// never edited, so the app knows whether there's an edit history.
+    @NullCoded var edited_at: Date? = nil
     var post_type: String
     var is_pinned: Bool
     @NullCoded var pinned_at: Date?

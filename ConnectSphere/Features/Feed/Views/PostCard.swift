@@ -205,7 +205,8 @@ struct PostCard: View {
                     ListingPhotoCarousel(urls: post.displayImageUrls, aspectRatio: 4.0 / 3.0, cornerRadius: 0)
                         .padding(.top, 10)
                 } else {
-                    PostPhotoGrid(urls: post.displayImageUrls, alts: post.displayImageAlts)
+                    PostPhotoGrid(urls: post.displayImageUrls, alts: post.displayImageAlts,
+                                  viewerBar: { closeThen in AnyView(viewerActionBar(closeThen: closeThen)) })
                         .padding(.top, 10)
                 }
             }
@@ -619,7 +620,7 @@ struct PostCard: View {
                     HStack(spacing: 4) {
                         LikeIcon(isLiked: actions.isLiked,
                                  color: actions.isLiked ? themeManager.theme.primary : AppColors.textSecondary(colorScheme),
-                                 size: 22)
+                                 size: 26)
                         actionCount(actions.likeCount)
                     }
                 }
@@ -670,6 +671,19 @@ struct PostCard: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+    }
+
+    /// The post's whale / comment / save / share under a full-screen photo.
+    /// Comments open full height over the photo; share closes the photo first.
+    private func viewerActionBar(closeThen: @escaping (@escaping () -> Void) -> Void) -> some View {
+        PostViewerActionBar(
+            actions: actions,
+            post: post,
+            accent: themeManager.theme.primary,
+            canSave: !((post.community != nil || post.postType == .listing) && (appState.currentUser?.isOfficial ?? false)),
+            canShare: !(post.postType == .listing && (appState.currentUser?.isOfficial ?? false)),
+            onCommentAdded: onCommentAdded,
+            onShare: { closeThen { showShareSheet = true } })
     }
 
     // MARK: Shared post embed
@@ -733,5 +747,78 @@ struct PostCard: View {
             RoundedRectangle(cornerRadius: 10)
                 .stroke(AppColors.borderDefault(colorScheme), lineWidth: 1)
         )
+    }
+}
+
+/// Whale / comment / save / share in white on the full-screen photo viewer.
+/// Its own view so it follows `actions` live while the viewer is open.
+private struct PostViewerActionBar: View {
+    let actions: PostActionsViewModel
+    let post: Post
+    let accent: Color
+    let canSave: Bool
+    let canShare: Bool
+    var onCommentAdded: (() -> Void)?
+    let onShare: () -> Void
+    @State private var showComments = false
+
+    var body: some View {
+        HStack(spacing: 22) {
+            Button {
+                Task { await actions.toggleLike(postId: post.id) }
+            } label: {
+                HStack(spacing: 6) {
+                    LikeIcon(isLiked: actions.isLiked, color: actions.isLiked ? accent : .white, size: 26)
+                    count(actions.likeCount)
+                }
+            }
+            .accessibilityLabel(Bundle.app.loc("Whale"))
+
+            Button { showComments = true } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "bubble.left").scaledFont(22)
+                    count(actions.commentCount)
+                }
+            }
+            .accessibilityLabel(Bundle.app.loc("Comment"))
+
+            Spacer()
+
+            if canSave {
+                Button {
+                    Task { await actions.toggleSave(post: post) }
+                } label: {
+                    Image(systemName: actions.isSaved ? "bookmark.fill" : "bookmark")
+                        .scaledFont(22)
+                        .foregroundColor(actions.isSaved ? accent : .white)
+                }
+                .accessibilityLabel(actions.isSaved ? Bundle.app.loc("Unsave") : Bundle.app.loc("Save"))
+            }
+            if canShare {
+                Button(action: onShare) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrowshape.turn.up.right").scaledFont(22)
+                        count(actions.shareCount)
+                    }
+                }
+                .accessibilityLabel(Bundle.app.loc("Share"))
+            }
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, 22)
+        .padding(.vertical, 14)
+        .background(LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .top, endPoint: .bottom)
+            .ignoresSafeArea())
+        .sheet(isPresented: $showComments) {
+            CommentSheet(postId: post.id, postAuthorId: post.author.id, onCommentCountChange: { delta in
+                actions.adjustCommentCount(by: delta)
+                if delta > 0 { onCommentAdded?() }
+            }, fullHeight: true)
+        }
+    }
+
+    @ViewBuilder
+    private func count(_ value: Int) -> some View {
+        if value > 0 { Text("\(value)").scaledFont(15, .semibold) }
     }
 }

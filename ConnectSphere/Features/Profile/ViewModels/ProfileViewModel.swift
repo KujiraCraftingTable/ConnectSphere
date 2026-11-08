@@ -48,8 +48,6 @@ class ProfileViewModel {
     /// restorePost from splicing in a post from the other mode (mirrors
     /// FeedViewModel.restorePost's post.mode branch).
     private var loadedMode: String?
-    /// True while a pull-to-refresh runs (drives the pull indicator).
-    private(set) var isRefreshing = false
     private var offset = 0
     nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
 
@@ -166,8 +164,6 @@ class ProfileViewModel {
     /// nothing on screen yet (the first load failed) a failed pull updates the
     /// error instead, so the screen never sits on a skeleton.
     func refresh(userId: String, mode: String? = nil) async {
-        isRefreshing = true
-        defer { isRefreshing = false }
         do {
             async let userResult  = repository.fetchUser(userId: userId, mode: mode)
             async let postsResult = repository.fetchPosts(authorId: userId, mode: mode, limit: pageSize, offset: 0)

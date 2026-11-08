@@ -9,6 +9,7 @@ struct ConnectButton: View {
     @Environment(\.appBundle) var bundle
     @State private var vm: ConnectViewModel
     @State private var showDisconnectConfirm = false
+    @State private var showUnsendConfirm = false
 
     let targetUserId: String
     var compact: Bool = false   // true = shown next to the name, smaller
@@ -62,7 +63,8 @@ struct ConnectButton: View {
                 withCompanion {
                     actionChip(label: bundle.loc("Sent"), icon: "clock", color: AppColors.textSecondary(colorScheme),
                                minWidth: singleChipMinWidth, fixedWidth: compactChipWidth) {
-                        Task { await vm.cancel() }
+                        // A tap on "Sent" shouldn't silently take the request back.
+                        showUnsendConfirm = true
                     }
                 }
             case .pendingReceived:
@@ -97,6 +99,7 @@ struct ConnectButton: View {
                             )
                         }
                     }
+                    .disabledWhenRestricted()
                 }
             }
         }
@@ -108,6 +111,10 @@ struct ConnectButton: View {
                     mode: appState.currentMode.rawValue
                 )
             }
+        }
+        .alert(bundle.loc("Unsend friend request?"), isPresented: $showUnsendConfirm) {
+            Button(bundle.loc("Unsend"), role: .destructive) { Task { await vm.cancel() } }
+            Button(bundle.loc("Cancel"), role: .cancel) {}
         }
         .alert(bundle.loc("Error"), isPresented: .constant(vm.errorMessage != nil)) {
             Button(bundle.loc("OK")) { vm.errorMessage = nil }

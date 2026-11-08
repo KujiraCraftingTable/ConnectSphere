@@ -80,7 +80,7 @@ struct ForwardMessagePickerView: View {
                         .scaledFont(16, .semibold)
                         .foregroundColor(.white)
                 } else {
-                    Text(String(conversation.displayName.prefix(1)))
+                    Text(String(conversation.avatarName.prefix(1)))
                         .scaledFont(17, .bold)
                         .foregroundColor(.white)
                 }

@@ -109,6 +109,9 @@ struct Post: Identifiable {
     let author: UserProfile
     let content: String
     let timestamp: Date
+    /// Last edit that changed the text or media; nil when never edited, so
+    /// there's no edit history to offer.
+    var editedAt: Date? = nil
     let mode: AppMode
     var privacy: PostPrivacy = .publicAll
     var linkUrl: String?         // original URL for the link preview

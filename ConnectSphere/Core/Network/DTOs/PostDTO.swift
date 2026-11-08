@@ -148,6 +148,7 @@ struct PostDTO: Decodable {
     let commentCount: Int
     let shareCount: Int
     let createdAt: Date
+    let editedAt: Date?
     let tags: [String]
     let author: PostAuthorDTO
     let sharedPostId: String?
@@ -181,6 +182,7 @@ struct PostDTO: Decodable {
         case commentCount  = "comment_count"
         case shareCount    = "share_count"
         case createdAt     = "created_at"
+        case editedAt      = "edited_at"
         case sharedPostId  = "shared_post_id"
         case sharedPost    = "shared_post"
         case sharedCommunity = "shared_community"
@@ -222,6 +224,7 @@ struct PostDTO: Decodable {
         // A malformed / missing `created_at` must not fail the whole list page,
         // fall back to .distantPast so the row sorts to the bottom instead.
         createdAt     = (try? c.decode(Date.self, forKey: .createdAt)) ?? .distantPast
+        editedAt      = try? c.decodeIfPresent(Date.self, forKey: .editedAt)
         tags          = try c.decodeIfPresent([String].self, forKey: .tags) ?? []
         author        = try c.decodeIfPresent(PostAuthorDTO.self, forKey: .author) ?? .deleted
         sharedPostId  = try c.decodeIfPresent(String.self, forKey: .sharedPostId)
@@ -246,6 +249,7 @@ struct PostDTO: Decodable {
             author:                 author.toUserProfile(),
             content:                content,
             timestamp:              createdAt,
+            editedAt:               editedAt,
             mode:                   mode == "work" ? .work : .hobby,
             privacy:                PostPrivacy(rawValue: privacy) ?? .publicAll,
             linkUrl:                linkUrl,

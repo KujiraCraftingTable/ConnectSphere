@@ -162,6 +162,11 @@ class ConversationListViewModel {
             guard let self else { return }
             Task { await self.load(mode: mode, token: token) }
         }
+        // A theme/nickname/accept note is a chat's newest item too.
+        ws.on("conversation_event", tag: "conversationList") { [weak self] _ in
+            guard let self else { return }
+            Task { await self.load(mode: mode, token: token) }
+        }
     }
 
     // MARK: - Presence (realtime online status)
@@ -189,6 +194,7 @@ class ConversationListViewModel {
 
     func unregisterHandlers() {
         ws.off("new_message", tag: "conversationList")
+        ws.off("conversation_event", tag: "conversationList")
         ws.off("presence_snapshot", tag: "presence")
         ws.off("presence_update", tag: "presence")
     }

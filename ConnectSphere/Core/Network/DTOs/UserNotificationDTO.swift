@@ -79,6 +79,8 @@ struct UserNotificationPayloadDTO: Decodable {
 
     // Moderation (report_outcome / moderation_decision / appeal_outcome)
     let outcome: String?
+    /// The moderator's note on a report_outcome, if they wrote one.
+    let note: String?
     let policy: String?
     let decision: String?
     let targetType: String?
@@ -119,6 +121,8 @@ struct UserNotificationDTO: Decodable, Identifiable {
     let collapseCount: Int?
     let updatedAt: Date?
     let communityName: String?
+    /// The sender is the official account (its seal shows after the name).
+    let actorIsOfficial: Bool?
     let category: String?
     let destination: NotificationDestinationDTO?
 
@@ -136,6 +140,7 @@ struct UserNotificationDTO: Decodable, Identifiable {
         case groupKey       = "group_key"
         case collapseCount  = "collapse_count"
         case updatedAt      = "updated_at"
+        case actorIsOfficial = "actor_is_official"
         case communityName  = "community_name"
     }
 

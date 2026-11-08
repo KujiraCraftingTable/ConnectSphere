@@ -29,6 +29,10 @@ struct SearchView: View {
 
     var body: some View {
         NavigationStack(path: $navPath) {
+            // The header sits above the list, not inside it, so the large
+            // "Search" title stays put while the results scroll (as in Community).
+            VStack(spacing: 0) {
+            searchHeader
             ScrollView {
                 LazyVStack(spacing: 0) {
                     if aiEnabled && trimmedText.isEmpty && !showsAIResults && !viewModel.suggestions.isEmpty {
@@ -73,10 +77,7 @@ struct SearchView: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            // Swipe the results to switch People / Posts (/ Companies in Work).
-            .swipeBetween(appState.currentMode == .work ? [.people, .posts, .companies] : [.people, .posts],
-                          selection: Bindable(viewModel).scope)
-            .safeAreaInset(edge: .top, spacing: 0) { searchHeader }
+            }
             // Not under the top safe area: the title and header sit on white like
             // Community's, and only the results area is the grey page colour.
             .background(AppColors.base(colorScheme), ignoresSafeAreaEdges: [.horizontal, .bottom])

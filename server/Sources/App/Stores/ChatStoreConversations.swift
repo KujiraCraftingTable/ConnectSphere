@@ -36,6 +36,9 @@ extension ChatStore {
         @NullCoded var last_message_media_count: Int?
         @NullCoded var last_message_sender_id: String?
         @NullCoded var last_message_at: Date?
+        /// Set when the newest thing in the chat is a theme/nickname note
+        /// (`last_message_type` 'event'): kind, actor, theme, target, nickname.
+        @NullCoded var last_event: ConversationEvents.LastEvent?
         var unread_count: Int
     }
 
@@ -43,6 +46,9 @@ extension ChatStore {
         let dn = PersonaSQL.expr("display_name", modeRef: "c.mode")
         let av = PersonaSQL.expr("avatar_url", modeRef: "c.mode")
         let pending = MessageRequests.pendingSQL(me: MessageRequests.quoted(userID), other: "u.id")
+        let me = MessageRequests.quoted(userID)
+        let latestEvent = ConversationEvents.latestAsMessageSQL(me: me, clearedRef: "my_cp.cleared_at")
+        let eventUnread = ConversationEvents.unreadSQL(me: me, readRef: "my_cp.last_read_at", clearedRef: "my_cp.cleared_at")
         return try await db.raw("""
             (
               SELECT c.id::text AS id, c.mode, c.is_group, c.theme, c.updated_at,
@@ -62,19 +68,25 @@ extension ChatStore {
                     WHERE mm.conversation_id = c.id AND mm.sender_id = \(uuid: userID))) END AS requests_left,
                 lm.content AS last_message_content, lm.message_type AS last_message_type,
                 jsonb_array_length(lm.media_items) AS last_message_media_count,
-                lm.sender_id::text AS last_message_sender_id, lm.created_at AS last_message_at,
+                lm.sender_id::text AS last_message_sender_id, lm.created_at AS last_message_at, lm.event AS last_event,
                 (SELECT COUNT(*)::INT FROM messages m WHERE m.conversation_id = c.id AND m.sender_id != \(uuid: userID)
                   AND (my_cp.last_read_at IS NULL OR m.created_at > my_cp.last_read_at)
-                  AND m.created_at > COALESCE(my_cp.cleared_at, '-infinity'::timestamptz)) AS unread_count
+                  AND m.created_at > COALESCE(my_cp.cleared_at, '-infinity'::timestamptz))
+                  + \(unsafeRaw: eventUnread) AS unread_count
               FROM conversations c
               JOIN conversation_participants my_cp ON my_cp.conversation_id = c.id AND my_cp.user_id = \(uuid: userID)
               JOIN conversation_participants other_cp ON other_cp.conversation_id = c.id AND other_cp.user_id != \(uuid: userID)
               JOIN users u ON u.id = other_cp.user_id
               LEFT JOIN LATERAL (
-                SELECT CASE WHEN deleted_at IS NULL THEN content ELSE NULL END AS content, message_type, sender_id, created_at,
-                  CASE WHEN deleted_at IS NULL THEN media_items ELSE NULL END AS media_items
-                FROM messages WHERE conversation_id = c.id AND created_at > COALESCE(my_cp.cleared_at, '-infinity'::timestamptz)
-                ORDER BY created_at DESC LIMIT 1
+                -- The newest message or theme/nickname note, whichever came last.
+                SELECT * FROM (
+                  (SELECT CASE WHEN deleted_at IS NULL THEN content ELSE NULL END AS content, message_type, sender_id, created_at,
+                    CASE WHEN deleted_at IS NULL THEN media_items ELSE NULL END AS media_items, NULL::jsonb AS event
+                  FROM messages WHERE conversation_id = c.id AND created_at > COALESCE(my_cp.cleared_at, '-infinity'::timestamptz)
+                  ORDER BY created_at DESC LIMIT 1)
+                  UNION ALL
+                  (\(unsafeRaw: latestEvent))
+                ) latest ORDER BY created_at DESC LIMIT 1
               ) lm ON true
               WHERE c.mode = \(bind: mode) AND c.is_group = FALSE
                 -- "Delete" (clear history) takes a chat off my list until a new message arrives.
@@ -94,17 +106,23 @@ extension ChatStore {
                 NULL::text AS request_state, NULL::int AS requests_left,
                 lm.content AS last_message_content, lm.message_type AS last_message_type,
                 jsonb_array_length(lm.media_items) AS last_message_media_count,
-                lm.sender_id::text AS last_message_sender_id, lm.created_at AS last_message_at,
+                lm.sender_id::text AS last_message_sender_id, lm.created_at AS last_message_at, lm.event AS last_event,
                 (SELECT COUNT(*)::INT FROM messages m WHERE m.conversation_id = c.id AND m.sender_id != \(uuid: userID)
                   AND (my_cp.last_read_at IS NULL OR m.created_at > my_cp.last_read_at)
-                  AND m.created_at > COALESCE(my_cp.cleared_at, '-infinity'::timestamptz)) AS unread_count
+                  AND m.created_at > COALESCE(my_cp.cleared_at, '-infinity'::timestamptz))
+                  + \(unsafeRaw: eventUnread) AS unread_count
               FROM conversations c
               JOIN conversation_participants my_cp ON my_cp.conversation_id = c.id AND my_cp.user_id = \(uuid: userID)
               LEFT JOIN LATERAL (
-                SELECT CASE WHEN deleted_at IS NULL THEN content ELSE NULL END AS content, message_type, sender_id, created_at,
-                  CASE WHEN deleted_at IS NULL THEN media_items ELSE NULL END AS media_items
-                FROM messages WHERE conversation_id = c.id AND created_at > COALESCE(my_cp.cleared_at, '-infinity'::timestamptz)
-                ORDER BY created_at DESC LIMIT 1
+                -- The newest message or theme/nickname note, whichever came last.
+                SELECT * FROM (
+                  (SELECT CASE WHEN deleted_at IS NULL THEN content ELSE NULL END AS content, message_type, sender_id, created_at,
+                    CASE WHEN deleted_at IS NULL THEN media_items ELSE NULL END AS media_items, NULL::jsonb AS event
+                  FROM messages WHERE conversation_id = c.id AND created_at > COALESCE(my_cp.cleared_at, '-infinity'::timestamptz)
+                  ORDER BY created_at DESC LIMIT 1)
+                  UNION ALL
+                  (\(unsafeRaw: latestEvent))
+                ) latest ORDER BY created_at DESC LIMIT 1
               ) lm ON true
               WHERE c.mode = \(bind: mode) AND c.is_group = TRUE
                 -- "Delete" (clear history) takes a chat off my list until a new message arrives.
@@ -149,6 +167,10 @@ extension ChatStore {
         @NullCoded var requests_left: Int?
         /// The official account is on either side: messages here can't be unsent.
         var with_official: Bool
+        /// When this chat's message request was accepted (null if it never was one).
+        @NullCoded var request_accepted_at: Date?
+        /// I started the request, so the note reads "X accepted your message request".
+        var request_from_me: Bool
     }
     static func settings1to1(_ conversationID: String, userID: String, on db: any SQLDatabase) async throws -> Settings1to1? {
         let pending = MessageRequests.pendingSQL(me: MessageRequests.quoted(userID), other: "u.id")
@@ -166,7 +188,9 @@ extension ChatStore {
               CASE WHEN \(unsafeRaw: pending) AND c.request_from = \(uuid: userID) AND u.app_role <> 'admin' THEN
                 GREATEST(0, \(unsafeRaw: String(MessageRequests.limit)) - (SELECT COUNT(*)::int FROM messages mm
                   WHERE mm.conversation_id = c.id AND mm.sender_id = \(uuid: userID))) END AS requests_left,
-              (u.app_role = 'admin' OR EXISTS (SELECT 1 FROM users me WHERE me.id = \(uuid: userID) AND me.app_role = 'admin')) AS with_official
+              (u.app_role = 'admin' OR EXISTS (SELECT 1 FROM users me WHERE me.id = \(uuid: userID) AND me.app_role = 'admin')) AS with_official,
+              CASE WHEN c.request_from IS NOT NULL THEN c.request_accepted_at END AS request_accepted_at,
+              COALESCE(c.request_from = \(uuid: userID), FALSE) AS request_from_me
             FROM conversations c
             JOIN conversation_participants my ON my.conversation_id = c.id AND my.user_id = \(uuid: userID)
             JOIN conversation_participants other ON other.conversation_id = c.id AND other.user_id != \(uuid: userID)

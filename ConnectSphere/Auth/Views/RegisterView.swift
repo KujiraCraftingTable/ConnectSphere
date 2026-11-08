@@ -59,13 +59,13 @@ struct RegisterView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 AuthTextField(icon: "lock.fill", placeholder: bundle.loc("Password"),
-                              text: $viewModel.password, isSecure: true)
+                              text: $viewModel.password, isSecure: true, noStrongPasswordPrompt: true)
                 fieldHint(viewModel.passwordHint, isError: viewModel.passwordError != nil)
             }
 
             VStack(alignment: .leading, spacing: 6) {
                 AuthTextField(icon: "lock.fill", placeholder: bundle.loc("Confirm password"),
-                              text: $viewModel.confirmPassword, isSecure: true)
+                              text: $viewModel.confirmPassword, isSecure: true, noStrongPasswordPrompt: true)
                 if let confirmError = viewModel.confirmError {
                     fieldHint(confirmError, isError: true)
                 }

@@ -31,11 +31,13 @@ struct NotificationsController {
         "application_status":  .init(category: "social", destination: "job"),
         "scheduled_post_live": .init(category: "social", destination: "post"),
         "dating_match":        .init(category: "social", destination: "conversation"),
-        // Moderation (migration 089): all open Settings › Account status.
+        // Moderation (migration 089): notices about your own account open
+        // Settings › Account status. A reporter's notices open nothing: the
+        // reported content isn't theirs, and the text already says the decision.
         "content_held":        .init(category: "social", destination: "accountStatus"),
         "account_limited":     .init(category: "social", destination: "accountStatus"),
-        "report_received":     .init(category: "social", destination: "accountStatus"),
-        "report_outcome":      .init(category: "social", destination: "accountStatus"),
+        "report_received":     .init(category: "social", destination: "none"),
+        "report_outcome":      .init(category: "social", destination: "none"),
         "moderation_decision": .init(category: "social", destination: "accountStatus"),
         // The official account: "There are 67 reports waiting" (every 10 minutes).
         "admin_digest":        .init(category: "social", destination: "adminTools"),
@@ -79,6 +81,7 @@ struct NotificationsController {
             let n = routes.grouped(PathComponent(stringLiteral: prefix)).grouped(AuthMiddleware())
             n.get(use: list)
             n.get("unread-count", use: unreadCount)
+            n.post("seen", use: markSeen)
             n.get("communities", use: listCommunityShim)
             for verb in [HTTPMethod.PATCH, .POST] {
                 n.on(verb, "read-all", use: markAllRead)
@@ -99,6 +102,8 @@ struct NotificationsController {
         var group_key: String; var payload: String   // ::text
         var collapse_count: Int; var is_read: Bool; var resolved_at: Date?
         var created_at: Date; var updated_at: Date; var community_name: String?
+        /// The sender is the official account, so the app shows its seal.
+        var actor_is_official: Bool
     }
 
     static let selectColumns: SQLQueryString = """
@@ -107,7 +112,9 @@ struct NotificationsController {
         n.entity_type, n.entity_id::text AS entity_id,
         COALESCE(n.group_key, n.type || ':' || n.id::text) AS group_key,
         n.payload::text AS payload, n.collapse_count, n.is_read, n.resolved_at,
-        n.created_at, n.updated_at, c.name AS community_name
+        n.created_at, n.updated_at, c.name AS community_name,
+        EXISTS (SELECT 1 FROM users au WHERE au.id = n.actor_id AND au.app_role = 'admin'
+                AND au.deleted_at IS NULL) AS actor_is_official
         """
 
     /// Build `{ ...row, group_key, category, destination }` as raw JSON bytes.
@@ -125,7 +132,7 @@ struct NotificationsController {
         out += "\"collapse_count\":\(r.collapse_count),\"is_read\":\(r.is_read),"
         out += "\"resolved_at\":\(r.resolved_at.map(ts) ?? "null"),"
         out += "\"created_at\":\(ts(r.created_at)),\"updated_at\":\(ts(r.updated_at)),"
-        out += "\"community_name\":\(jsOpt(r.community_name)),"
+        out += "\"community_name\":\(jsOpt(r.community_name)),\"actor_is_official\":\(r.actor_is_official),"
         out += "\"category\":\(jsOpt(category)),\"destination\":\(dest)}"
         return Data(out.utf8)
     }
@@ -264,10 +271,49 @@ struct NotificationsController {
 
     struct UnreadResp: Content { var data: Inner; struct Inner: Content { var count: Int; var byCategory: [String: Int] } }
     static func unreadCount(_ req: Request) async throws -> UnreadResp {
-        let (unread, byCat) = try await summary(req.userID, mode: requestedMode(req), on: req.db.sql())
         let scope = try? req.query.get(String.self, at: "scope")
+        if scope == "badge" {
+            // The tab badge: unread, and new since the tab was last left.
+            let count = try await badgeCount(req.userID, mode: requestedMode(req), on: req.db.sql())
+            return UnreadResp(data: .init(count: count, byCategory: [:]))
+        }
+        let (unread, byCat) = try await summary(req.userID, mode: requestedMode(req), on: req.db.sql())
         let count = (scope.flatMap { categories.contains($0) ? byCat[$0] : nil }) ?? unread
         return UnreadResp(data: .init(count: count, byCategory: byCat))
+    }
+
+    /// Unread notifications raised after this mode's `notification_seen.seen_at`
+    /// (all unread when there's no row yet), with the inbox's own filters.
+    static func badgeCount(_ userID: String, mode: String?, on db: any SQLDatabase) async throws -> Int {
+        struct C: Decodable { let count: Int }
+        var q: SQLQueryString = """
+            SELECT COUNT(*)::int AS count FROM user_notifications n
+            WHERE n.user_id = \(uuid: userID) AND n.is_read = FALSE
+              AND NOT (n.type = ANY(\(bind: excludedFromInbox)::text[])) AND
+            """ + visibleIn(mode)
+        if let mode {
+            q = q + """
+                 AND n.created_at > COALESCE((SELECT s.seen_at FROM notification_seen s
+                   WHERE s.user_id = \(uuid: userID) AND s.mode = \(bind: mode)), '-infinity'::timestamptz)
+                """
+        }
+        return try await db.raw(q).first(decoding: C.self)?.count ?? 0
+    }
+
+    // MARK: POST /seen
+
+    /// The Notifications tab was left: the badge starts again from zero. Each
+    /// notification keeps its unread state.
+    static func markSeen(_ req: Request) async throws -> HTTPStatus {
+        guard let mode = requestedMode(req) else { throw Abort(.badRequest, reason: "mode must be hobby or work") }
+        let db = req.db.sql()
+        try await db.raw("""
+            INSERT INTO notification_seen (user_id, mode, seen_at) VALUES (\(uuid: req.userID), \(bind: mode), NOW())
+            ON CONFLICT (user_id, mode) DO UPDATE SET seen_at = EXCLUDED.seen_at
+            """).run()
+        // The person's other devices refresh their badge too.
+        await NotifyService.emitCounts(req.userID, on: db, hub: req.socketHub)
+        return .noContent
     }
 
     // MARK: mutations

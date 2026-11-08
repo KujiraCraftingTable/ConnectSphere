@@ -129,20 +129,19 @@ struct ProfileHeaderCard<Actions: View>: View {
         }
     }
 
+    /// Just the lock, in the same 38-point circle (the interest chips' grey,
+    /// like the switch, so the corners match the chips below) and corner padding as the
+    /// Hobby/Work switch on the other side, so the two sit on one line.
     private var lockedBadgeLabel: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "lock.fill")
-            Text("Locked profile", bundle: bundle)
-        }
-        .scaledFont(11, .semibold)
-        .lineLimit(1)
-        .foregroundColor(themeManager.theme.primary)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(themeManager.theme.primary.opacity(0.14), in: Capsule())
-        // The switch button's height and padding, so both sit on one centre line.
-        .frame(height: 38)
-        .padding(12)
+        Image(systemName: "lock.fill")
+            // A lock is narrower than the briefcase opposite, so it's drawn larger
+            // to look the same size.
+            .scaledFont(20, .semibold)
+            .foregroundColor(themeManager.theme.primary)
+            .frame(width: 38, height: 38)
+            .background(AppColors.textPrimary(colorScheme).opacity(colorScheme == .dark ? 0.16 : 0.08), in: Circle())
+            .padding(12)
+            .accessibilityLabel(Text("Locked profile", bundle: bundle))
     }
 
     /// "iOS dev · Kujira corp", or whichever half is set.
@@ -282,7 +281,7 @@ struct FlipButton<Actions: View>: View {
                     .scaledFont(15, .semibold)
                     .foregroundColor(themeManager.theme.primary)
                     .frame(width: 38, height: 38)
-                    .background(AppColors.elevated(colorScheme), in: Circle())
+                    .background(AppColors.textPrimary(colorScheme).opacity(colorScheme == .dark ? 0.16 : 0.08), in: Circle())
                 Image(systemName: "arrow.triangle.2.circlepath")
                     .scaledFont(9, .bold)
                     .foregroundColor(.white)

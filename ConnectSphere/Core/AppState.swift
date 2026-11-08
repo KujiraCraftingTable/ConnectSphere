@@ -120,6 +120,11 @@ class AppState {
     var suspendedModes: Set<String> = []
     var isCurrentModeSuspended: Bool { isSuspended || suspendedModes.contains(currentMode.rawValue) }
     var currentUser:  UserProfile? = nil
+    /// A moderation restriction runs until then (migration 089): the app shows a
+    /// banner and greys out posting, commenting, joining and listing; the server
+    /// refuses them anyway. Browsing and messaging friends still work.
+    var restrictedUntil: Date? = nil
+    var isRestricted: Bool { restrictedUntil.map { $0 > Date() } ?? false }
     /// The signed-in account's colour theme; ConnectSphereApp hands it to ThemeManager.
     var accountTheme: AccountTheme? = nil
     /// Mode the user wants to switch to but hasn't set up a persona for yet. Triggers the
@@ -280,6 +285,7 @@ class AppState {
                 guard authToken == token else { return }
                 if user.isSetup {
                     currentUser = user.toUserProfile()
+                    restrictedUntil = user.restrictedUntil
                     accountTheme = user.accountTheme
                 } else { logout() }
             }
@@ -338,6 +344,7 @@ class AppState {
         let user = try await AuthService.shared.setup(token: token, form: form)
         await MainActor.run {
             currentUser     = user.toUserProfile()
+            restrictedUntil = user.restrictedUntil
             needsOnboarding = false
             // The username is only final once onboarding is done.
             rememberAccount()
@@ -354,6 +361,7 @@ class AppState {
     private func finishLogin(token: String, user: AuthUserDTO, isNew: Bool, themeFromServer: Bool = true) {
         authToken       = token
         currentUser     = user.toUserProfile()
+        restrictedUntil = user.restrictedUntil
         accountTheme    = themeFromServer ? user.accountTheme : AccountTheme(userID: user.id, hobby: nil, work: nil)
         currentMode     = AppMode(rawValue: user.defaultMode) ?? .hobby
         isLoggedIn      = true
@@ -433,6 +441,7 @@ class AppState {
                   // A newer switch (or a logout) wins over this answer.
                   currentMode == mode, currentUser?.id == id else { return }
             currentUser = user.toUserProfile()
+            restrictedUntil = user.restrictedUntil
         }
     }
 
@@ -457,6 +466,7 @@ class AppState {
         needsOnboarding  = false
         isSuspended      = false
         suspendedModes   = []
+        restrictedUntil  = nil
         chatUnreadCount  = 0
         notificationUnreadCount = 0
         WebSocketClient.shared.disconnect()

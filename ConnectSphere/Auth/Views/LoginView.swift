@@ -77,14 +77,7 @@ struct LoginView: View {
 
     private var logoSection: some View {
         VStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(themeManager.theme.primary)
-                    .frame(width: 72, height: 72)
-                Image(systemName: "bubble.left.and.bubble.right.fill")
-                    .scaledFont(30)
-                    .foregroundColor(.white)
-            }
+            CurrentAppIcon(size: 80)
             Text("ConnectSphere")
                 .scaledFont(28, .bold)
                 .foregroundStyle(themeManager.theme.primary)

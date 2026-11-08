@@ -60,6 +60,8 @@ enum ChatStore {
         var is_pinned: Bool; var delivered_to: String; var read_by: String
         var is_auto_reply: Bool
         var is_forwarded: Bool
+        var edited_at: Date?
+        var previous_content: String?
     }
 
     static func mapMessage(_ r: MessageRow) throws -> MessageObject {
@@ -82,7 +84,8 @@ enum ChatStore {
             read_by: obj(r.read_by, [String].self) ?? [],
             poll: obj(r.poll, MessageObject.Poll.self),
             shared_post_id: r.shared_post_id, shared_community_id: r.shared_community_id,
-            is_auto_reply: r.is_auto_reply, is_forwarded: r.is_forwarded)
+            is_auto_reply: r.is_auto_reply, is_forwarded: r.is_forwarded,
+            edited_at: r.edited_at, previous_content: r.previous_content)
     }
 
     static let msgSelect: SQLQueryString = """
@@ -96,6 +99,7 @@ enum ChatStore {
           CASE WHEN m.deleted_at IS NULL THEN m.shared_community_id::text ELSE NULL END AS shared_community_id,
           m.created_at, m.reply_to_message_id::text AS reply_to_message_id, (m.deleted_at IS NOT NULL) AS is_deleted,
           m.is_auto_reply, m.is_forwarded,
+          m.edited_at, CASE WHEN m.deleted_at IS NULL THEN m.previous_content ELSE NULL END AS previous_content,
         """
 
     static let msgFrom: SQLQueryString = """
@@ -203,6 +207,23 @@ enum ChatStore {
         return id
     }
 
+    /// Replaces a text message's content, keeping the text it replaces. Only
+    /// the sender, only a text message that isn't unsent, and only within
+    /// `editWindow` of sending; nil when any of that fails.
+    static let editWindowMinutes = 15
+    static func editText(_ messageID: String, conversationID: String, senderID: String, content: String,
+                         on db: any SQLDatabase) async throws -> Bool {
+        struct R: Decodable { let id: String }
+        return try await db.raw("""
+            UPDATE messages SET previous_content = content, content = \(bind: content), edited_at = NOW()
+            WHERE id = \(uuid: messageID) AND conversation_id = \(uuid: conversationID) AND sender_id = \(uuid: senderID)
+              AND message_type = 'text' AND deleted_at IS NULL
+              AND created_at > NOW() - INTERVAL '\(unsafeRaw: String(editWindowMinutes)) minutes'
+              AND content IS DISTINCT FROM \(bind: content)
+            RETURNING id::text AS id
+            """).first(decoding: R.self) != nil
+    }
+
     static func recall(_ messageID: String, conversationID: String, senderID: String, on db: any SQLDatabase) async throws -> Bool {
         struct R: Decodable { let id: String }
         return try await db.raw("""
@@ -248,7 +269,8 @@ enum ChatStore {
         return try await db.raw("""
             SELECT COALESCE(SUM((SELECT COUNT(*) FROM messages m
               WHERE m.conversation_id = c.id AND m.sender_id != \(uuid: userID)
-                AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at))), 0)::int AS total
+                AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at))
+              + \(unsafeRaw: ConversationEvents.unreadSQL(me: MessageRequests.quoted(userID), readRef: "cp.last_read_at"))), 0)::int AS total
             FROM conversations c
             JOIN conversation_participants cp ON cp.conversation_id = c.id AND cp.user_id = \(uuid: userID)
             WHERE c.mode = \(bind: mode)
@@ -438,6 +460,10 @@ struct MessageObject: Content {
     var is_auto_reply: Bool = false
     /// Forwarded from another chat (migration 107); the source is never stored.
     var is_forwarded: Bool = false
+    /// When the sender last edited the text (migration 111); null if never.
+    @NullCoded var edited_at: Date? = nil
+    /// The text the last edit replaced, shown when "Edited" is tapped.
+    @NullCoded var previous_content: String? = nil
 
     struct MediaItem: Content, Equatable {
         var url: String

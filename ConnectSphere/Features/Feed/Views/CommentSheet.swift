@@ -12,6 +12,8 @@ struct CommentSheet: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var viewModel = CommentViewModel()
     @State private var input = ""
+    /// A comment is being edited in place: the composer steps aside.
+    @State private var isEditingComment = false
     @FocusState private var focused: Bool
     /// Local Undo-toast presenter, `CommentSheet` is a `.sheet`, presented
     /// above `MainTabView`'s app-wide toast overlay, so it can't reuse that one
@@ -24,6 +26,8 @@ struct CommentSheet: View {
     /// on undo), see `CommentsSection.onCommentCountChange`, which this
     /// passes straight through.
     var onCommentCountChange: ((Int) -> Void)?
+    /// Opens at full height, e.g. over the full-screen photo viewer.
+    var fullHeight = false
 
     var body: some View {
         NavigationStack {
@@ -43,11 +47,13 @@ struct CommentSheet: View {
                             viewModel: viewModel,
                             toastPresenter: toastPresenter,
                             onReplyRequested: { focused = true },
-                            onCommentCountChange: { delta in onCommentCountChange?(delta) }
+                            onCommentCountChange: { delta in onCommentCountChange?(delta) },
+                            onEditingChange: { isEditingComment = $0 }
                         )
                         Color.clear.frame(height: 1).id("bottom")
                     }
 
+                    if !isEditingComment {
                     Divider()
 
                     // ── Reply banner ────────────────────────────────────────────
@@ -104,15 +110,17 @@ struct CommentSheet: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
                     .background(AppColors.surface(colorScheme))
+                    }
                 }
-                .background(AppColors.base(colorScheme))
+                // White like the post view's comment card, so the grey bubbles show.
+                .background(AppColors.surface(colorScheme))
                 .navigationTitle(bundle.loc("Comments"))
                 .navigationBarTitleDisplayMode(.inline)
             }
         }
         .confirmBeforePosting(viewModel, text: $input) { onCommentCountChange?(1) }
         .undoToastOverlay(toastPresenter)
-        .presentationDetents([.medium, .large])
+        .presentationDetents(fullHeight ? [.large] : [.medium, .large])
         .presentationDragIndicator(.visible)
         .task { await viewModel.load(postId: postId) }
         .onAppear { focused = true }

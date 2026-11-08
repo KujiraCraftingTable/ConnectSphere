@@ -58,8 +58,29 @@ struct Conversation: Identifiable, Decodable, Equatable {
     let lastMessageMediaCount: Int?
     let lastMessageSenderId: String?
     let lastMessageAt: Date?
+    /// The newest thing in the chat is a theme/nickname/accept note.
+    let lastEvent: LastEvent?
 
     var unreadCount: Int
+
+    /// A chat note as the inbox preview: the same fields as `ChatEvent`.
+    struct LastEvent: Decodable, Equatable, Hashable {
+        let kind: ChatEvent.Kind
+        let actorId: String
+        let actorName: String
+        let theme: String?
+        let targetId: String?
+        let targetName: String?
+        let nickname: String?
+
+        enum CodingKeys: String, CodingKey {
+            case kind, theme, nickname
+            case actorId = "actor_id"
+            case actorName = "actor_name"
+            case targetId = "target_id"
+            case targetName = "target_name"
+        }
+    }
 
     enum CodingKeys: String, CodingKey {
         case id, mode, theme
@@ -90,6 +111,7 @@ struct Conversation: Identifiable, Decodable, Equatable {
         case lastMessageMediaCount = "last_message_media_count"
         case lastMessageSenderId = "last_message_sender_id"
         case lastMessageAt       = "last_message_at"
+        case lastEvent           = "last_event"
         case unreadCount         = "unread_count"
     }
 
@@ -135,6 +157,7 @@ struct Conversation: Identifiable, Decodable, Equatable {
         lastMessageMediaCount = try c.decodeIfPresent(Int.self, forKey: .lastMessageMediaCount)
         lastMessageSenderId = try c.decodeIfPresent(String.self, forKey: .lastMessageSenderId)
         lastMessageAt = try c.decodeIfPresent(Date.self, forKey: .lastMessageAt)
+        lastEvent = (try? c.decodeIfPresent(LastEvent.self, forKey: .lastEvent)) ?? nil
         unreadCount = try c.decodeIfPresent(Int.self, forKey: .unreadCount) ?? 0
         isOfficialPeer = try c.decodeIfPresent(Bool.self, forKey: .otherUserIsOfficial) ?? false
     }
@@ -158,6 +181,15 @@ struct Conversation: Identifiable, Decodable, Equatable {
             return nickname ?? name
         case .group(let name, _, _, _):
             return name
+        }
+    }
+
+    /// Whose initial the avatar shows: always the real name (or the group's),
+    /// never a nickname, which only renames them in this chat.
+    var avatarName: String {
+        switch peer {
+        case .direct(_, _, let name, _, _, _, _): return name
+        case .group(let name, _, _, _): return name
         }
     }
 
@@ -201,6 +233,11 @@ struct Conversation: Identifiable, Decodable, Equatable {
         case "poll":    return "\(prefix)📊 " + (lastMessageContent ?? Bundle.app.loc("Poll"))
         case "post":    return "\(prefix)📰 " + ((lastMessageContent?.isEmpty == false ? lastMessageContent : nil) ?? Bundle.app.loc("Shared a post"))
         case "voice":   return "\(prefix)🎤 " + Bundle.app.loc("Voice message")
+        case "event":
+            guard let e = lastEvent else { return Bundle.app.loc("No messages yet") }
+            return ChatEvent.text(kind: e.kind, actorId: e.actorId, actorName: e.actorName, theme: e.theme,
+                                  targetId: e.targetId, targetName: e.targetName, nickname: e.nickname,
+                                  currentUserId: currentUserId, bundle: Bundle.app)
         default:
             guard let content = lastMessageContent else { return Bundle.app.loc("No messages yet") }
             return "\(prefix)\(content)"

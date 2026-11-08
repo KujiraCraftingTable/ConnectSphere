@@ -14,6 +14,8 @@ struct FloatingChatMessageRow: View {
 
     let message: Message
     let bubble: FloatingBubbleState
+    /// This chat's own theme (shared by everyone in it), like the full chat.
+    private var chatAccent: Color { (ThemePalette.byId(bubble.viewModel.chatThemeId) ?? themeManager.theme).primary }
     let presenter: FloatingChatPresenter
     /// The page's content width.
     let width: CGFloat
@@ -32,6 +34,9 @@ struct FloatingChatMessageRow: View {
 
     var body: some View {
         VStack(alignment: isOwn ? .trailing : .leading, spacing: 4) {
+            if !message.isDeleted, message.replyToMessageId != nil, let replied = message.repliedMessage {
+                replyQuote(replied)
+            }
             if message.isDeleted {
                 textBubble(bundle.loc("Message unsent"), muted: true)
             } else {
@@ -50,7 +55,7 @@ struct FloatingChatMessageRow: View {
                         textBubble(caption)
                     }
                 case .voice:
-                    VoiceMessagePlayer(message: message, isOwn: isOwn, accent: themeManager.theme.primary,
+                    VoiceMessagePlayer(message: message, isOwn: isOwn, accent: chatAccent,
                                        compact: true,
                                        isActive: presenter.playingMediaID == message.id,
                                        onStart: {
@@ -60,13 +65,13 @@ struct FloatingChatMessageRow: View {
                         .padding(.horizontal, 9)
                         .padding(.vertical, 7)
                         .frame(width: width * 0.85)
-                        .background(isOwn ? themeManager.theme.primary.opacity(0.9) : AppColors.elevated(colorScheme),
+                        .background(isOwn ? chatAccent.opacity(0.9) : AppColors.elevated(colorScheme),
                                     in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 case .meeting:
                     if let proposal = message.meetingProposal {
                         MeetingProposalCard(
                             proposal: proposal, isOwn: isOwn, isGroup: bubble.viewModel.isGroup,
-                            currentUserId: bubble.currentUserId, accent: themeManager.theme.primary,
+                            currentUserId: bubble.currentUserId, accent: chatAccent,
                             compact: true,
                             onRespond: { status in
                                 presenter.markSeen(bubble)
@@ -80,7 +85,7 @@ struct FloatingChatMessageRow: View {
                 case .poll:
                     if let poll = message.poll {
                         ChatPollCard(question: message.content ?? "", poll: poll,
-                                     currentUserId: bubble.currentUserId, accent: themeManager.theme.primary,
+                                     currentUserId: bubble.currentUserId, accent: chatAccent,
                                      compact: true,
                                      onVote: { optionId in
                                          presenter.markSeen(bubble)
@@ -95,12 +100,14 @@ struct FloatingChatMessageRow: View {
                     ChatSharedPostCard(
                         state: message.sharedPostId.flatMap { bubble.viewModel.sharedPosts[$0] } ?? (message.sharedPostId == nil ? .unavailable : nil),
                         compact: true,
+                        accent: chatAccent,
                         onAppear: { Task { await bubble.viewModel.loadSharedPost(message.sharedPostId) } },
                         onOpen: { post in
                             presenter.markSeen(bubble)
                             openedPost = OpenedSharedPost(id: post.id)
                         })
-                        .frame(width: width * 0.9)
+                        // Narrower than the window, so there's room beside it to tap and reply.
+                        .frame(width: width * 0.75)
                 case .community:
                     // The mini window has no room for the card; the chat shows it.
                     textBubble("👥 " + ((message.content?.isEmpty == false ? message.content : nil) ?? bundle.loc("Shared a community")))
@@ -167,6 +174,32 @@ struct FloatingChatMessageRow: View {
 
     // MARK: Text
 
+    /// The message this one replies to, a smaller copy of the full chat's quote.
+    private func replyQuote(_ replied: RepliedMessage) -> some View {
+        HStack(spacing: 6) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(chatAccent)
+                .frame(width: 3)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(replied.senderName)
+                    .scaledFont(12, .semibold)
+                    .foregroundColor(Color(white: 0.15))
+                    .lineLimit(1)
+                Text(replied.isDeleted ? bundle.loc("Message unsent") : (replied.content ?? ""))
+                    .scaledFont(12)
+                    .italic(replied.isDeleted)
+                    .foregroundColor(Color(white: 0.32))
+                    .lineLimit(2)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .frame(maxWidth: width * 0.8, alignment: .leading)
+        // Light grey with dark text in both modes, like the full chat's quote.
+        .background(Color(white: 0.91), in: RoundedRectangle(cornerRadius: 10))
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
     private func textBubble(_ text: String, muted: Bool = false) -> some View {
         Text(text)
             .scaledFont(13)
@@ -174,7 +207,7 @@ struct FloatingChatMessageRow: View {
             .foregroundColor(isOwn && !muted ? .white : AppColors.textPrimary(colorScheme))
             .padding(.horizontal, 9)
             .padding(.vertical, 6)
-            .background(isOwn && !muted ? themeManager.theme.primary.opacity(0.9) : AppColors.elevated(colorScheme),
+            .background(isOwn && !muted ? chatAccent.opacity(0.9) : AppColors.elevated(colorScheme),
                         in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .frame(maxWidth: width * 0.85, alignment: isOwn ? .trailing : .leading)
     }

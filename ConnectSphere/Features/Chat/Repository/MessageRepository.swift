@@ -301,6 +301,19 @@ struct MessageRepository {
         )
     }
 
+    /// Edits one of my text messages; returns the updated message.
+    func editMessage(conversationId: String, messageId: String, content: String, token: String) async throws -> Message {
+        struct Body: Encodable { let content: String }
+        struct Response: Decodable { let data: Message }
+        return try await client.fetch(
+            Response.self,
+            path: "/messages/conversations/\(conversationId)/messages/\(messageId)",
+            method: "PATCH",
+            token: token,
+            bodyData: try JSONEncoder().encode(Body(content: content))
+        ).data
+    }
+
     // MARK: - Reactions
 
     /// React to a message (toggle off if re-tapping the same emoji, else set/replace).
@@ -606,6 +619,16 @@ struct MessageRepository {
             token: token
         )
         return response.data
+    }
+
+    /// The chat's theme and nickname notes, oldest first.
+    func fetchEvents(conversationId: String, token: String) async throws -> [ChatEvent] {
+        try await client.fetch(
+            DataListResponse<ChatEvent>.self,
+            path: "/messages/conversations/\(conversationId)/events",
+            method: "GET",
+            token: token
+        ).data
     }
 
     /// PATCH shared settings with a body that can carry an explicit null.

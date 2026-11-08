@@ -87,16 +87,18 @@ enum MessageRequests {
     /// The starter's limit, as a pure rule.
     static func decide(sent: Int) -> Gate { sent >= limit ? .limitReached : .open }
 
-    /// Accept a request. Only its recipient can. False when nothing changed.
+    /// Who started an accepted request, and when it was accepted.
+    struct Acceptance: Decodable { let request_from: String; let request_accepted_at: Date }
+
+    /// Accept a request. Only its recipient can. Nil when nothing changed.
     @discardableResult
-    static func accept(conversationID: String, by userID: String, on db: any SQLDatabase) async throws -> Bool {
-        struct R: Decodable { let id: String }
-        return try await db.raw("""
+    static func accept(conversationID: String, by userID: String, on db: any SQLDatabase) async throws -> Acceptance? {
+        try await db.raw("""
             UPDATE conversations SET request_accepted_at = NOW()
             WHERE id = \(uuid: conversationID) AND request_from IS NOT NULL AND request_from <> \(uuid: userID)
               AND request_accepted_at IS NULL
-            RETURNING id::text AS id
-            """).first(decoding: R.self) != nil
+            RETURNING request_from::text AS request_from, request_accepted_at
+            """).first(decoding: Acceptance.self)
     }
 
     /// Whether `userID` sent this chat's request and it hasn't been accepted yet.

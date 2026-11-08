@@ -13,12 +13,16 @@ struct MarkdownTextEditor: View {
     let placeholder: String
     let minHeight: CGFloat
     let maxHeight: CGFloat
+    /// Takes the keyboard as soon as it appears (editing a comment in place).
+    let autofocus: Bool
+    @FocusState private var isFocused: Bool
     /// A fixed point size that follows Dynamic Type, like `.scaledFont(_:)`.
     @ScaledMetric private var size: CGFloat
 
     init(text: Binding<String>, placeholder: String, size: CGFloat = 16,
-         minHeight: CGFloat = 36, maxHeight: CGFloat = 160) {
+         minHeight: CGFloat = 36, maxHeight: CGFloat = 160, autofocus: Bool = false) {
         _text = text
+        self.autofocus = autofocus
         self.placeholder = placeholder
         self.minHeight = minHeight
         self.maxHeight = maxHeight
@@ -54,7 +58,17 @@ struct MarkdownTextEditor: View {
                         .allowsHitTesting(false)
                 }
             }
-            .overlay { editor }
+            .overlay {
+                editor
+                    .focused($isFocused)
+                    .task {
+                        guard autofocus else { return }
+                        // Focusing in the same pass as the view appears is ignored
+                        // while the row is still being laid out.
+                        try? await Task.sleep(for: .milliseconds(150))
+                        isFocused = true
+                    }
+            }
     }
 
     @ViewBuilder

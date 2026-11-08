@@ -20,6 +20,8 @@ class ChatViewModel {
 
     // 1:1-only settings
     var otherNickname: String?
+    /// Their real name, for the avatar's initial (a nickname never changes it).
+    private(set) var otherRealName: String?
     /// Message request state for this 1-on-1 chat (nil once it's a normal chat).
     var requestState: MessageRequestState?
     /// Messages I can still send before they accept (`.sent` only).
@@ -28,6 +30,18 @@ class ChatViewModel {
     private(set) var withOfficial = false
     /// I started this chat with someone who isn't a friend and used up my messages.
     var isWaitingForAcceptance: Bool { requestState == .sent && (requestsLeft ?? 1) <= 0 }
+    /// The full chat is on screen and the app is in front (set by `ChatView`).
+    /// Messages arriving then are marked seen at once, so the sender's tick
+    /// turns to "Seen" live; coming back to the chat marks what arrived meanwhile.
+    var isOnScreen = false {
+        didSet { if isOnScreen && !oldValue && hasJoinedConversation { markRead() } }
+    }
+    /// Theme and nickname changes, oldest first, shown as notes in the timeline.
+    private(set) var events: [ChatEvent] = []
+    /// When this chat's message request was accepted: the chat shows a note there.
+    private(set) var requestAcceptedAt: Date?
+    /// I started the request, so the note reads "X accepted your message request".
+    private(set) var requestFromMe = false
 
     // Group-only settings (populated when `isGroup`)
     var groupName: String?
@@ -193,6 +207,14 @@ class ChatViewModel {
         } catch {
             // Settings are non-critical; keep chat usable without them.
         }
+        await loadEvents()
+    }
+
+    func loadEvents() async {
+        // Notes are decoration: the chat works without them.
+        if let list = try? await repository.fetchEvents(conversationId: conversationId, token: token) {
+            events = list
+        }
     }
 
     private func applySettings(_ s: ConversationSettings) {
@@ -206,8 +228,11 @@ class ChatViewModel {
             groupMembers     = s.members
         } else {
             otherNickname = s.otherUserNickname
+            if case .direct(_, _, let name, _, _, _) = s.peer { otherRealName = name }
             requestState = s.requestState
             requestsLeft = s.requestsLeft
+            requestAcceptedAt = s.requestAcceptedAt
+            requestFromMe = s.requestFromMe
             withOfficial = s.withOfficial
         }
     }
@@ -227,7 +252,7 @@ class ChatViewModel {
     func acceptRequest() async {
         do {
             try await repository.acceptRequest(conversationId: conversationId, token: token)
-            requestState = nil
+            markRequestAccepted(at: Date(), fromMe: false)
         } catch {
             self.error = friendlyError(error)
         }
@@ -238,9 +263,19 @@ class ChatViewModel {
     private func noteMessageSent() {
         switch requestState {
         case .sent: requestsLeft = max(0, (requestsLeft ?? 0) - 1)
-        case .waiting: requestState = nil
+        case .waiting: markRequestAccepted(at: Date(), fromMe: false)
         case nil: break
         }
+    }
+
+    /// The request became a normal chat: the "N messages left" banner goes
+    /// (and the input bar comes back if they were used up), and the note shows.
+    private func markRequestAccepted(at date: Date, fromMe: Bool) {
+        requestState = nil
+        requestsLeft = nil
+        guard requestAcceptedAt == nil else { return }
+        requestAcceptedAt = date
+        requestFromMe = fromMe
     }
 
     // MARK: - Group management
@@ -472,12 +507,24 @@ class ChatViewModel {
 
     // MARK: - Meeting proposals
 
+    /// What's wrong with a meeting before it's sent, or nil. Checked on Propose
+    /// so the form stays open, instead of closing and failing afterwards.
+    func meetingProblem(startsAt: Date, endsAt: Date?, reminder: MeetingReminderOffset,
+                        now: Date = Date()) -> String? {
+        if startsAt <= now { return Bundle.app.loc("Pick a start time in the future.") }
+        if let endsAt, endsAt <= startsAt { return Bundle.app.loc("The end time must be after the start time.") }
+        if !reminder.fits(before: startsAt, now: now) {
+            return Bundle.app.loc("This reminder time has already passed. Pick a later reminder.")
+        }
+        return nil
+    }
+
     /// Propose a meeting (title/location/starts_at/ends_at + a mandatory
     /// reminder) in this conversation. Prefers the socket (server fans out
     /// `new_message` to both sides, same as text/media); falls back to REST
     /// when disconnected, appending the result locally since no broadcast
     /// will arrive to add this bubble. `reminderOffset` is the raw preset key
-    /// ("on_day"/"1_day_before"/"2_days_before"/"1_week_before"); `reminderAt`
+    /// (`MeetingReminderOffset.rawValue`, e.g. "at_start" or "1_day_before"); `reminderAt`
     /// is the absolute instant computed client-side (`MeetingReminderOffset
     /// .reminderDate(before:)`) since there's no per-user timezone tracked server-side.
     func sendMeetingProposal(
@@ -697,7 +744,10 @@ class ChatViewModel {
             forName: .webSocketDidReconnect, object: nil, queue: .main
         ) { [weak self] _ in
             self?.emitJoin()
-            Task { @MainActor [weak self] in await self?.loadMessages() }
+            Task { @MainActor [weak self] in
+                await self?.loadMessages()
+                await self?.loadEvents()
+            }
         }
 
         ws.on("new_message", tag: socketTag) { [weak self] payload in
@@ -705,7 +755,12 @@ class ChatViewModel {
                   let msg = self.decodeMessage(payload),
                   msg.conversationId == self.conversationId else { return }
             if !self.messages.contains(where: { $0.id == msg.id }) {
+                // Their reply to my request accepts it (the server marks it so).
+                if msg.senderId != self.currentUserId, self.requestState == .sent {
+                    self.markRequestAccepted(at: msg.createdAt, fromMe: true)
+                }
                 self.messages.append(msg)
+                if msg.senderId != self.currentUserId, self.isOnScreen { self.markRead() }
                 // Tell the sender this message has arrived. Flips their bubble
                 // from `.sent` to `.delivered` via the `message_delivered` echo.
                 if msg.senderId != self.currentUserId {
@@ -722,6 +777,29 @@ class ChatViewModel {
         // sent only to the sender's personal room. Appends the delivering
         // user's id to `deliveredTo`, idempotently (a duplicate delivered
         // event for an already-delivered message is a no-op).
+        // Someone changed the theme or a nickname: its note appears live.
+        ws.on("conversation_event", tag: socketTag) { [weak self] payload in
+            guard let self,
+                  let json = try? JSONSerialization.data(withJSONObject: payload),
+                  let event = try? JSONDecoder.makeISO8601().decode(ChatEvent.self, from: json),
+                  event.conversationId == self.conversationId,
+                  !self.events.contains(where: { $0.id == event.id }) else { return }
+            self.events.append(event)
+            // Seen at once while the chat is open, so it doesn't count as unread.
+            if event.actorId != self.currentUserId, self.isOnScreen { self.markRead() }
+        }
+
+        // They tapped Accept on my request (or I did, on another device).
+        ws.on("message_request_accepted", tag: socketTag) { [weak self] payload in
+            guard let self,
+                  let dict = payload as? [String: Any],
+                  let convId = dict["conversation_id"] as? String,
+                  convId == self.conversationId else { return }
+            let at = (dict["accepted_at"] as? String).flatMap(Self.parseSocketDate) ?? Date()
+            let fromMe = self.requestState == .sent || (self.requestState == nil && self.requestFromMe)
+            self.markRequestAccepted(at: at, fromMe: fromMe)
+        }
+
         ws.on("message_delivered", tag: socketTag) { [weak self] payload in
             guard let self,
                   let dict = payload as? [String: Any],
@@ -787,6 +865,15 @@ class ChatViewModel {
             // embedded `repliedMessage` to the same "deleted" shape a fresh fetch
             // would already return (mirrors how `replyPreview` renders `isDeleted`).
             self.patchRepliedPreviews(forDeletedMessageId: messageId)
+        }
+
+        // A message was edited (by me on another device, or by the other side):
+        // swap in the server's copy, which carries the new text and the old one.
+        ws.on("message_edited", tag: socketTag) { [weak self] payload in
+            guard let self,
+                  let msg = self.decodeMessage(payload),
+                  msg.conversationId == self.conversationId else { return }
+            self.applyEdit(msg)
         }
 
         // A reaction was added/changed/removed on a message (either participant)
@@ -932,10 +1019,13 @@ class ChatViewModel {
         }
         ws.emit("leave_conversation", conversationId)
         ws.off("new_message", tag: socketTag)
+        ws.off("message_request_accepted", tag: socketTag)
+        ws.off("conversation_event", tag: socketTag)
         ws.off("message_delivered", tag: socketTag)
         ws.off("user_typing",   tag: socketTag)
         ws.off("messages_read", tag: socketTag)
         ws.off("message_deleted", tag: socketTag)
+        ws.off("message_edited", tag: socketTag)
         ws.off("reaction_updated", tag: socketTag)
         ws.off("meeting_proposal_updated", tag: socketTag)
         ws.off("meeting_response_updated", tag: socketTag)
@@ -973,6 +1063,42 @@ class ChatViewModel {
         } catch {
             self.error = Bundle.app.loc("Could not recall message")
         }
+    }
+
+    // MARK: - Edit
+
+    /// Edits one of my text messages. Returns false when nothing was saved, so
+    /// the composer keeps the text. The server sends `message_edited` to the
+    /// other side; the reply is applied here too in case that echo is late.
+    func editMessage(_ message: Message, to content: String) async -> Bool {
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard message.canEdit(userId: currentUserId), !trimmed.isEmpty else {
+            if !message.canEdit(userId: currentUserId) {
+                error = Bundle.app.loc("This message can no longer be edited")
+            }
+            return false
+        }
+        guard trimmed != message.content else { return true }
+        do {
+            let updated = try await repository.editMessage(conversationId: conversationId, messageId: message.id,
+                                                           content: trimmed, token: token)
+            applyEdit(updated)
+            return true
+        } catch APIError.serverError(403, _) {
+            error = Bundle.app.loc("This message can no longer be edited")
+        } catch {
+            self.error = friendlyError(error)
+        }
+        return false
+    }
+
+    /// Takes the edited text, edit time and replaced text from the server's
+    /// copy, keeping local receipt and reaction state.
+    private func applyEdit(_ updated: Message) {
+        guard let i = messages.firstIndex(where: { $0.id == updated.id }) else { return }
+        messages[i].content = updated.content
+        messages[i].editedAt = updated.editedAt
+        messages[i].previousContent = updated.previousContent
     }
 
     // MARK: - Reactions
@@ -1166,6 +1292,15 @@ class ChatViewModel {
             return Set(many)
         }
         return []
+    }
+
+    /// A socket payload's ISO-8601 date, with or without fractional seconds.
+    private static func parseSocketDate(_ text: String) -> Date? {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = f.date(from: text) { return d }
+        f.formatOptions = [.withInternetDateTime]
+        return f.date(from: text)
     }
 
     private func decodeMessage(_ payload: Any) -> Message? {

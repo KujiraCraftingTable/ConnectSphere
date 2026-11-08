@@ -45,6 +45,8 @@ enum MeetingRsvpStatus: String, Codable {
 /// `startsAt`) client-side and sends both to the server. Mirrors
 /// `MeetingRsvpStatus`'s exact style (`label`/`icon`).
 enum MeetingReminderOffset: String, CaseIterable, Codable {
+    case atStart = "at_start"
+    case oneHourBefore = "1_hour_before"
     case onDay = "on_day"
     case oneDayBefore = "1_day_before"
     case twoDaysBefore = "2_days_before"
@@ -53,6 +55,8 @@ enum MeetingReminderOffset: String, CaseIterable, Codable {
     /// English fallback / localization key.
     var label: String {
         switch self {
+        case .atStart:       return "At start time"
+        case .oneHourBefore: return "1 hour before"
         case .onDay:         return "On the day"
         case .oneDayBefore:  return "1 day before"
         case .twoDaysBefore: return "2 days before"
@@ -62,10 +66,11 @@ enum MeetingReminderOffset: String, CaseIterable, Codable {
 
     var icon: String { "bell.fill" }
 
-    /// Days before `startsAt` the reminder fires (at 7am local time).
+    /// Days before `startsAt` the reminder fires (at 7am local time). The two
+    /// short ones are timed from the start instead, see `reminderDate`.
     var daysBefore: Int {
         switch self {
-        case .onDay:         return 0
+        case .atStart, .oneHourBefore, .onDay: return 0
         case .oneDayBefore:  return 1
         case .twoDaysBefore: return 2
         case .oneWeekBefore: return 7
@@ -79,11 +84,32 @@ enum MeetingReminderOffset: String, CaseIterable, Codable {
     /// deliberately NOT hardcoded UTC, since there's no per-user timezone
     /// tracked server-side; see Phase 2's `reminder_at` design note).
     func reminderDate(before startsAt: Date, calendar: Calendar = .current) -> Date {
+        switch self {
+        case .atStart:       return startsAt
+        case .oneHourBefore: return startsAt.addingTimeInterval(-3600)
+        default: break
+        }
         let startOfStartDay = calendar.startOfDay(for: startsAt)
         guard let targetDay = calendar.date(byAdding: .day, value: -daysBefore, to: startOfStartDay) else {
             return startsAt
         }
         return calendar.date(byAdding: .hour, value: 7, to: targetDay) ?? targetDay
+    }
+
+    /// Still ahead and not after the start, the server's rule. "On the day" at
+    /// 7am has passed for a meeting tonight, and is after one at 6am.
+    func fits(before startsAt: Date, now: Date = Date()) -> Bool {
+        let at = reminderDate(before: startsAt)
+        return at > now && at <= startsAt
+    }
+
+    /// `preferred` if it fits, else the nearest shorter lead that does
+    /// ("At start time" always fits a meeting that hasn't started).
+    static func closestFitting(_ preferred: Self, before startsAt: Date, now: Date = Date()) -> Self {
+        if preferred.fits(before: startsAt, now: now) { return preferred }
+        let all = allCases
+        let index = all.firstIndex(of: preferred) ?? all.count - 1
+        return all[...index].reversed().first { $0.fits(before: startsAt, now: now) } ?? .atStart
     }
 }
 
@@ -294,6 +320,10 @@ struct Message: Identifiable, Decodable, Equatable {
     var voiceWaveform: [Float]?
     /// Forwarded from another chat. Only the flag exists, never the source.
     var isForwarded: Bool = false
+    /// When the sender last edited the text; nil if never edited.
+    var editedAt: Date?
+    /// The text the last edit replaced, revealed by tapping "Edited".
+    var previousContent: String?
     /// Optional because the insert response doesn't return this field. Nil means not recalled
     private var deletedFlag: Bool?
 
@@ -327,6 +357,8 @@ struct Message: Identifiable, Decodable, Equatable {
         case voiceDurationSeconds = "voice_duration_seconds"
         case voiceWaveform        = "voice_waveform"
         case isForwarded          = "is_forwarded"
+        case editedAt             = "edited_at"
+        case previousContent      = "previous_content"
     }
 
     init(from decoder: Decoder) throws {
@@ -354,6 +386,18 @@ struct Message: Identifiable, Decodable, Equatable {
         voiceDurationSeconds = try c.decodeIfPresent(Int.self, forKey: .voiceDurationSeconds)
         voiceWaveform = try c.decodeIfPresent([Float].self, forKey: .voiceWaveform)
         isForwarded = try c.decodeIfPresent(Bool.self, forKey: .isForwarded) ?? false
+        editedAt = try? c.decodeIfPresent(Date.self, forKey: .editedAt)
+        previousContent = try c.decodeIfPresent(String.self, forKey: .previousContent)
+    }
+
+    /// How long after sending the sender may still edit a text message; the
+    /// server enforces the same window.
+    static let editWindow: TimeInterval = 15 * 60
+
+    /// Own, unsent-free text messages younger than `editWindow`.
+    func canEdit(userId: String, now: Date = .now) -> Bool {
+        isOwn(userId: userId) && messageType == .text && !isDeleted
+            && now.timeIntervalSince(createdAt) < Message.editWindow
     }
 
     /// True when this message was sent by the given user.

@@ -33,7 +33,7 @@ struct ReportSheet: View {
                         reasonList
                         if case .content(.message, _, _) = viewModel.subject {
                             Text("Your report includes this message and up to 5 earlier messages from this person.", bundle: bundle)
-                                .font(.system(size: 13))
+                                .scaledFont(13)
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
                                 .padding(.horizontal, 20)
                                 .padding(.top, 12)
@@ -41,7 +41,7 @@ struct ReportSheet: View {
                         detailField
                         if let err = viewModel.errorMessage {
                             Text(err)
-                                .font(.system(size: 13))
+                                .scaledFont(13)
                                 .foregroundColor(.red)
                                 .padding(.horizontal, 20)
                                 .padding(.top, 8)
@@ -65,7 +65,7 @@ struct ReportSheet: View {
                         Button(bundle.loc("Submit report")) {
                             Task<Void, Never>(name: nil) { await viewModel.submit() }
                         }
-                        .font(.system(size: 15, weight: .semibold))
+                        .scaledFont(16, .semibold)
                         .disabled(!viewModel.canSubmit)
                     }
                 }
@@ -84,7 +84,7 @@ struct ReportSheet: View {
     private var reasonList: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Why are you reporting this?", bundle: bundle)
-                .font(.system(size: 14, weight: .semibold))
+                .scaledFont(14, .semibold)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .padding(.horizontal, 20)
                 .padding(.top, 20)
@@ -96,7 +96,7 @@ struct ReportSheet: View {
                 } label: {
                     HStack {
                         Text(bundle.loc(reason.displayName))
-                            .font(.system(size: 16))
+                            .scaledFont(16)
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                         Spacer()
                         Image(systemName: viewModel.selectedReason == reason ? "checkmark.circle.fill" : "circle")
@@ -119,11 +119,11 @@ struct ReportSheet: View {
     private var detailField: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Additional details (optional)", bundle: bundle)
-                .font(.system(size: 13, weight: .medium))
+                .scaledFont(14, .semibold)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
 
             TextEditor(text: $viewModel.detail)
-                .font(.system(size: 15))
+                .scaledFont(16)
                 .frame(height: 80)
                 .padding(10)
                 .background(AppColors.elevated(colorScheme))
@@ -139,20 +139,20 @@ struct ReportSheet: View {
     private var submittedState: some View {
         VStack(spacing: 16) {
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 56))
+                .scaledFont(56)
                 .foregroundColor(.green)
             Text("Thanks for letting us know", bundle: bundle)
-                .font(.system(size: 20, weight: .bold))
+                .scaledFont(20, .bold)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             Text("We'll review it and tell you what we decide in Settings › Account status. They won't know it was you.", bundle: bundle)
-                .font(.system(size: 15))
+                .scaledFont(15)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
             if let blockUser {
                 if viewModel.blocked {
                     Label(String(format: bundle.loc("You blocked %@"), blockUser.name), systemImage: "checkmark")
-                        .font(.system(size: 15, weight: .semibold))
+                        .scaledFont(15, .semibold)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                         .padding(.top, 8)
                 } else {
@@ -160,7 +160,7 @@ struct ReportSheet: View {
                         Task<Void, Never>(name: nil) { await viewModel.block(userId: blockUser.id) }
                     } label: {
                         Text(String(format: bundle.loc("Block %@"), blockUser.name))
-                            .font(.system(size: 16, weight: .semibold))
+                            .scaledFont(16, .semibold)
                             .padding(.horizontal, 32)
                             .padding(.vertical, 12)
                             .overlay(Capsule().stroke(Color.red.opacity(0.6)))
@@ -169,7 +169,7 @@ struct ReportSheet: View {
                 }
             }
             if let err = viewModel.errorMessage {
-                Text(err).font(.system(size: 13)).foregroundColor(.red)
+                Text(err).scaledFont(13).foregroundColor(.red)
             }
         }
         .frame(maxWidth: .infinity)

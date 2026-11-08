@@ -87,7 +87,10 @@ class ConnectViewModel {
                 bodyData: body
             )
             apply(res)
-            isFollowing = true   // adding a friend includes following them
+            // Adding a friend includes following them (the server follows too),
+            // so their follower count moves like it does for Follow.
+            if !isFollowing { followDelta += 1 }
+            isFollowing = true
         } catch {
             errorMessage = friendlyError(error)
         }
@@ -106,7 +109,9 @@ class ConnectViewModel {
                 Res.self, path: "/connections/accept", method: "POST", token: token, bodyData: body
             )
             status = .accepted
-            isFollowing = true   // friends start out following each other
+            // Friends start out following each other.
+            if !isFollowing { followDelta += 1 }
+            isFollowing = true
         } catch {
             errorMessage = friendlyError(error)
         }

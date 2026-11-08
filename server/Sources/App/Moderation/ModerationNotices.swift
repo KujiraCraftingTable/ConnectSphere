@@ -27,11 +27,17 @@ enum ModerationNotices {
         let reporters = (try? await db.raw("""
             SELECT DISTINCT reporter_id::text AS reporter_id FROM content_reports WHERE case_id = \(uuid: o.caseID)
             """).all(decoding: R.self)) ?? []
+        // The moderator's note goes to reporters too: it's the decision as they
+        // wrote it, about content that isn't the reporter's.
+        struct N: Decodable { let decision_note: String? }
+        let note = (try? await db.raw("SELECT decision_note FROM moderation_cases WHERE id = \(uuid: o.caseID)")
+            .first(decoding: N.self))??.decision_note?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var reporterPayload: [String: Any] = ["targetType": c.target_type, "outcome": o.decision == .keep ? "kept" : "removed"]
+        if let note, !note.isEmpty { reporterPayload["note"] = note }
         for r in reporters {
             await NotifyService.pushUserNotification(
                 userID: r.reporter_id, type: "report_outcome",
-                payload: ["targetType": c.target_type, "outcome": o.decision == .keep ? "kept" : "removed"],
-                on: db, hub: hub, logger: logger)
+                payload: reporterPayload, on: db, hub: hub, logger: logger)
         }
         // A kept report is nothing the author needs to hear about — unless the
         // check had already hidden it, and now it's back.

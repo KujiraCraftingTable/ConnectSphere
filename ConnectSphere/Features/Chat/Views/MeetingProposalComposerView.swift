@@ -104,6 +104,7 @@ struct MeetingProposalComposerView: View {
             Divider()
 
             // Reminder, mandatory, defaults to "1 day before" (no "None" option).
+            // Ones already past (or after the start) are greyed out.
             // Menu style rather than segmented: the 4 labels ("2 days before",
             // "1 week before", …) are too long to fit legibly side-by-side in
             // a composer this narrow.
@@ -113,6 +114,7 @@ struct MeetingProposalComposerView: View {
                 Picker(bundle.loc("Reminder"), selection: $reminderOffset) {
                     ForEach(MeetingReminderOffset.allCases, id: \.self) { option in
                         Label(bundle.loc(option.label), systemImage: option.icon).tag(option)
+                            .disabled(!option.fits(before: startsAt))
                     }
                 }
                 .pickerStyle(.menu)
@@ -122,6 +124,14 @@ struct MeetingProposalComposerView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(AppColors.surface(colorScheme))
+        // A meeting soon has no room for "1 day before": move to one that fits.
+        .onAppear { fitReminder() }
+        .onChange(of: startsAt) { _, _ in fitReminder() }
+    }
+
+    private func fitReminder() {
+        let fitting = MeetingReminderOffset.closestFitting(reminderOffset, before: startsAt)
+        if fitting != reminderOffset { reminderOffset = fitting }
     }
 
     private func sectionLabel(_ key: String) -> some View {

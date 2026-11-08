@@ -8,6 +8,7 @@ struct CommentInputBox: View {
     let viewModel: CommentViewModel
     @Environment(\.appBundle) private var bundle
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(AppState.self) private var appState
 
     /// A photo, a line break or a long line grows the box: the camera then
     /// drops to the bottom-right corner instead of sitting beside the text.
@@ -22,7 +23,7 @@ struct CommentInputBox: View {
     var body: some View {
         ZStack(alignment: isExpanded ? .bottomTrailing : .trailing) {
             VStack(alignment: .leading, spacing: 6) {
-                MarkdownTextEditor(text: $text, placeholder: bundle.loc("Write a comment..."), size: 15,
+                MarkdownTextEditor(text: $text, placeholder: bundle.loc(appState.isRestricted ? "You can't comment right now" : "Write a comment..."), size: 15,
                                    minHeight: 22, maxHeight: 120)
                     .padding(.trailing, isExpanded ? 0 : 34)
                 if viewModel.attachedPhoto != nil {
@@ -41,5 +42,6 @@ struct CommentInputBox: View {
                     in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
             .stroke(AppColors.borderDefault(colorScheme), lineWidth: 1))
+        .disabledWhenRestricted()
     }
 }

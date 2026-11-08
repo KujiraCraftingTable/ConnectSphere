@@ -92,6 +92,12 @@ struct MainTabView: View {
             consumePendingDeepLink()
             consumePendingAssistantNavigation()
         }
+        // Leaving the Notifications tab clears its badge; the notifications stay unread.
+        .onChange(of: selectedTab) { oldTab, newTab in
+            if oldTab == 3 && newTab != 3 {
+                Task { await notificationBadge.markSeen(appState: appState) }
+            }
+        }
         // The badge counts the mode you're in.
         .onChange(of: appState.currentMode) {
             Task { await notificationBadge.refresh(appState: appState) }

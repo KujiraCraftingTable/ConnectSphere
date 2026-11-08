@@ -26,10 +26,9 @@ struct MessageBubble: View {
     /// Hobby mode = rounder bubble; Work mode = crisper bubble. Threaded in from ChatView
     /// (`appState.currentMode == .hobby`), same convention as `palette`.
     var isPlayful: Bool = false
-    /// Whether this bubble shows its time + read receipt. `ChatView` turns it
-    /// off for all but the last message in a same-sender run
-    /// (`ChatTimeline.endsRun`), so a burst of messages carries one time
-    /// instead of a stamp on every line.
+    /// Whether this bubble shows "Seen"/"Unseen" under it. `ChatView` turns it
+    /// on only for my latest message; bubbles carry no time of their own (the
+    /// centered separators do).
     var showsMeta: Bool = true
     /// True while this chat is a message request the person hasn't accepted:
     /// the other side's photos and videos stay blurred until tapped.
@@ -52,10 +51,15 @@ struct MessageBubble: View {
     var onOpenSharedPost: ((Post) -> Void)? = nil
     /// Double-tap: whale the message, or take the whale back.
     var onDoubleTap: (() -> Void)? = nil
+    /// The long-press menu. Attached to the bubble, not the full-width row, so
+    /// the menu opens right under the message instead of at the row's edge.
+    var menuItems: AnyView? = nil
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.appBundle) var bundle
     @State private var showCancelConfirm = false
     @State private var revealedStrangerMedia = false
+    /// "Edited" tapped: the text the edit replaced shows above the bubble.
+    @State private var showsPreviousText = false
 
     private var bubbleShape: BubbleShape { BubbleShape(isOwn: isOwn, isPlayful: isPlayful) }
 
@@ -70,11 +74,20 @@ struct MessageBubble: View {
                 if message.isForwarded && !message.isDeleted {
                     forwardedLabel
                 }
+                if let editedAt = message.editedAt, !message.isDeleted {
+                    editedLabel(editedAt)
+                    if showsPreviousText, let previous = message.previousContent {
+                        previousTextBubble(previous)
+                    }
+                }
                 bubbleContent
                     // Simultaneous, so single taps on photos, links and cards stay instant.
                     .simultaneousGesture(TapGesture(count: 2).onEnded {
                         if !message.isDeleted { onDoubleTap?() }
                     })
+                    // Only the bubble lifts on long press, in its own shape.
+                    .contentShape(.contextMenuPreview, bubbleShape)
+                    .contextMenu { if let menuItems { menuItems } }
                     .overlay(alignment: isOwn ? .bottomLeading : .bottomTrailing) {
                         if message.whaleCount > 0 { whaleBadge }
                     }
@@ -126,19 +139,19 @@ struct MessageBubble: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(replied.senderName)
-                        .scaledFont(12, .semibold)
+                        .scaledFont(14, .semibold)
                         .foregroundColor(Self.replyChipName)
                         .lineLimit(1)
                     Text(replied.isDeleted ? bundle.loc("Message unsent") : (replied.content ?? ""))
-                        .scaledFont(13)
+                        .scaledFont(15)
                         .italic(replied.isDeleted)
                         .foregroundColor(Self.replyChipText)
                         .lineLimit(2)
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .frame(maxWidth: 240, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(maxWidth: 260, alignment: .leading)
             .background(Self.replyChipBackground, in: RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)
@@ -153,11 +166,11 @@ struct MessageBubble: View {
     // MARK: - Whale and forwarded
 
     /// The whale on the bubble's corner once someone whaled it, with a count in a
-    /// group. The theme colour when this viewer whaled it, grey otherwise.
+    /// group. Always the filled whale in the chat's colour, whoever whaled it:
+    /// it only shows when the message has been whaled.
     private var whaleBadge: some View {
-        let mine = message.isWhaled(by: currentUserId)
-        return HStack(spacing: 2) {
-            LikeIcon(isLiked: mine, color: mine ? palette.primary : AppColors.textSecondary(colorScheme), size: 16)
+        HStack(spacing: 2) {
+            LikeIcon(isLiked: true, color: palette.primary, size: 16)
             if message.whaleCount > 1 {
                 Text("\(message.whaleCount)")
                     .scaledFont(10, .semibold)
@@ -170,7 +183,7 @@ struct MessageBubble: View {
         .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
         .offset(x: isOwn ? -8 : 8, y: 10)
         .transition(.scale.combined(with: .opacity))
-        .accessibilityLabel(Text(mine ? "You whaled this" : "Whaled", bundle: bundle))
+        .accessibilityLabel(Text(message.isWhaled(by: currentUserId) ? "You whaled this" : "Whaled", bundle: bundle))
     }
 
     /// "Forwarded" and nothing else: who wrote it originally is never shown or stored.
@@ -180,9 +193,44 @@ struct MessageBubble: View {
         } icon: {
             Image(systemName: "arrowshape.turn.up.right")
         }
-        .scaledFont(11)
+        .scaledFont(12)
         .foregroundColor(AppColors.textSecondary(colorScheme))
         .labelStyle(.titleAndIcon)
+    }
+
+    /// "Edited · 20:55" with the time of the edit; tapping it shows the text
+    /// the edit replaced, and "Hide edits" puts it away again.
+    private func editedLabel(_ editedAt: Date) -> some View {
+        let time = Calendar.current.isDateInToday(editedAt)
+            ? editedAt.formatted(date: .omitted, time: .shortened)
+            : editedAt.dayMonthTime
+        return Button {
+            withAnimation(.easeInOut(duration: 0.2)) { showsPreviousText.toggle() }
+        } label: {
+            HStack(spacing: 0) {
+                Text(showsPreviousText ? "Hide edits" : "Edited", bundle: bundle)
+                    .foregroundColor(palette.primary)
+                Text(verbatim: " · " + time)
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
+            }
+            .scaledFont(12)
+        }
+        .buttonStyle(.plain)
+        .disabled(message.previousContent == nil)
+        .accessibilityHint(Text(showsPreviousText ? "Hides the earlier text" : "Shows the earlier text", bundle: bundle))
+    }
+
+    /// The text before the last edit: the same bubble, dimmed, so it reads as
+    /// what the message used to say.
+    private func previousTextBubble(_ text: String) -> some View {
+        Text(text)
+            .scaledFont(17)
+            .foregroundColor(isOwn ? .white.opacity(0.85) : AppColors.textSecondary(colorScheme))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(bubbleBackground.opacity(0.45))
+            .clipShape(bubbleShape)
+            .transition(.opacity.combined(with: .move(edge: .bottom)))
     }
 
     // MARK: - Bubble content
@@ -192,7 +240,7 @@ struct MessageBubble: View {
         if message.isDeleted {
             // Placeholder for a recalled message
             Text("Message unsent", bundle: bundle)
-                .scaledFont(14)
+                .scaledFont(16)
                 .italic()
                 .foregroundColor(AppColors.textTertiary(colorScheme))
                 .padding(.horizontal, 12)
@@ -213,10 +261,10 @@ struct MessageBubble: View {
         case .text, .unknown:
             if let text = message.content {
                 Text(text)
-                    .scaledFont(15)
+                    .scaledFont(17)
                     .foregroundColor(isOwn ? .white : AppColors.textPrimary(colorScheme))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
                     .background(bubbleBackground)
                     .clipShape(bubbleShape)
             }
@@ -248,10 +296,10 @@ struct MessageBubble: View {
                 AlbumStackBubble(urls: message.albumURLs(), isOwn: isOwn) { onMediaTap?(message) }
                 if let caption = message.content, !caption.isEmpty {
                     Text(caption)
-                        .scaledFont(15)
+                        .scaledFont(17)
                         .foregroundColor(isOwn ? .white : AppColors.textPrimary(colorScheme))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
                         .background(bubbleBackground)
                         .clipShape(bubbleShape)
                 }
@@ -286,14 +334,14 @@ struct MessageBubble: View {
             VStack(alignment: isOwn ? .trailing : .leading, spacing: 4) {
                 if let note = message.content, !note.isEmpty {
                     Text(note)
-                        .scaledFont(15)
+                        .scaledFont(17)
                         .foregroundColor(isOwn ? .white : AppColors.textPrimary(colorScheme))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
                         .background(bubbleBackground)
                         .clipShape(bubbleShape)
                 }
-                ChatSharedPostCard(state: sharedPost,
+                ChatSharedPostCard(state: sharedPost, accent: palette.primary,
                                    onAppear: { onSharedPostAppear?() },
                                    onOpen: { onOpenSharedPost?($0) })
             }
@@ -302,10 +350,10 @@ struct MessageBubble: View {
             VStack(alignment: isOwn ? .trailing : .leading, spacing: 4) {
                 if let note = message.content, !note.isEmpty {
                     Text(note)
-                        .scaledFont(15)
+                        .scaledFont(17)
                         .foregroundColor(isOwn ? .white : AppColors.textPrimary(colorScheme))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
                         .background(bubbleBackground)
                         .clipShape(bubbleShape)
                 }
@@ -366,70 +414,25 @@ struct MessageBubble: View {
 
     // MARK: - Timestamp + status
 
+    @ViewBuilder
     private var metaRow: some View {
-        HStack(spacing: 4) {
-            Text(message.createdAt.formatted(.dateTime.hour().minute()))
-                .scaledFont(11)
-                .foregroundColor(AppColors.textTertiary(colorScheme))
-
-            if isOwn {
-                statusIcon
-            }
-        }
+        if isOwn { statusIcon }
     }
 
-    /// Derived from `deliveredTo`/`readBy` against `otherParticipantIds` rather
-    /// than a single enum. For the 1:1 case (exactly one other participant)
-    /// this reproduces the old `sent`/`delivered`/`read` visuals exactly,
-    /// single checkmark / hollow double-check / filled colored double-check,
-    /// since "the other person" is the entire `otherParticipantIds` set.
-    /// Groups (N > 1) instead show a compact "Read n/total" label once at
-    /// least one other member has read it, falling back to the same
-    /// sent/delivered glyphs otherwise.
+    /// "Unseen" until the other person has read it, then nothing. Groups show
+    /// "Read n/total" while only some have read it and nothing once all have.
     @ViewBuilder
     private var statusIcon: some View {
         let total = otherParticipantIds.count
         let readCount = message.readCount(among: otherParticipantIds)
-        let deliveredCount = message.deliveredCount(among: otherParticipantIds)
 
-        if total > 1 {
-            groupStatusView(readCount: readCount, total: total)
-        } else if readCount > 0 {
-            Image(systemName: "checkmark.circle.fill")
-                .scaledFont(11)
-                .foregroundColor(palette.primary)
-        } else if deliveredCount > 0 {
-            Image(systemName: "checkmark.circle")
-                .scaledFont(11)
-                .foregroundColor(AppColors.textTertiary(colorScheme))
-        } else {
-            Image(systemName: "checkmark")
-                .scaledFont(10, .semibold)
-                .foregroundColor(AppColors.textTertiary(colorScheme))
-        }
-    }
-
-    /// Group (N > 1 other participants) status: filled colored check once
-    /// everyone has read it, a compact "Read n/total" label while some (but
-    /// not all) have, otherwise the same sent/delivered glyph the 1:1 case
-    /// uses, kept unobtrusive so it doesn't widen the bubble's meta row.
-    @ViewBuilder
-    private func groupStatusView(readCount: Int, total: Int) -> some View {
-        if readCount >= total {
-            Image(systemName: "checkmark.circle.fill")
-                .scaledFont(11)
-                .foregroundColor(palette.primary)
-        } else if readCount > 0 {
+        if total > 1, readCount > 0, readCount < total {
             Text(String(format: bundle.loc("Read %d/%d"), readCount, total))
-                .scaledFont(10, .medium)
+                .scaledFont(12, .medium)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
-        } else if message.deliveredCount(among: otherParticipantIds) > 0 {
-            Image(systemName: "checkmark.circle")
-                .scaledFont(11)
-                .foregroundColor(AppColors.textTertiary(colorScheme))
-        } else {
-            Image(systemName: "checkmark")
-                .scaledFont(10, .semibold)
+        } else if total > 0, readCount < total {
+            Text(bundle.loc("Unseen"))
+                .scaledFont(12, .medium)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
         }
     }
@@ -453,7 +456,8 @@ private struct BubbleShape: Shape {
             path.move(to: CGPoint(x: minX + r, y: minY))
             path.addLine(to: CGPoint(x: maxX - r, y: minY))
             path.addQuadCurve(to: CGPoint(x: maxX, y: minY + r), control: CGPoint(x: maxX, y: minY))
-            path.addLine(to: CGPoint(x: maxX, y: maxY - r - tail))
+            // The tail corner mirrors the received bubble's: as tall as it is wide.
+            path.addLine(to: CGPoint(x: maxX, y: maxY - tail))
             path.addQuadCurve(to: CGPoint(x: maxX - tail, y: maxY), control: CGPoint(x: maxX, y: maxY))
             path.addLine(to: CGPoint(x: minX + r, y: maxY))
             path.addQuadCurve(to: CGPoint(x: minX, y: maxY - r), control: CGPoint(x: minX, y: maxY))

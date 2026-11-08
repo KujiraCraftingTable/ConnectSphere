@@ -54,6 +54,8 @@ struct CommentDTO: Decodable, Identifiable {
     /// 'markdown' when written with Markdown; comments from before it are plain.
     let contentFormat: String?
     var isMarkdown: Bool { contentFormat == "markdown" }
+    /// Last edit that changed the text; nil when never edited (no history to show).
+    let editedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case id, content, author, muted, lang
@@ -62,6 +64,7 @@ struct CommentDTO: Decodable, Identifiable {
         case imageUrl        = "image_url"
         case replyTo         = "reply_to"
         case createdAt       = "created_at"
+        case editedAt        = "edited_at"
         case parentCommentId = "parent_comment_id"
         case likeCount       = "like_count"
         case isLiked         = "is_liked"
@@ -82,6 +85,7 @@ struct CommentDTO: Decodable, Identifiable {
         translatedText  = try c.decodeIfPresent(String.self, forKey: .translatedText)
         imageUrl        = try c.decodeIfPresent(String.self, forKey: .imageUrl)
         contentFormat   = try c.decodeIfPresent(String.self, forKey: .contentFormat)
+        editedAt        = try? c.decodeIfPresent(Date.self, forKey: .editedAt)
     }
 }
 

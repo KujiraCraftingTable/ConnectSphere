@@ -129,7 +129,7 @@ extension Request {
         set { storage[AccountIsNewKey.self] = newValue }
     }
 
-    /// Stops a restricted account posting, commenting or reaching strangers.
+    /// Stops a restricted account posting, commenting, joining communities or reaching strangers.
     func requireNotRestricted() throws {
         if let until = restrictedUntil { throw InlineError(.forbidden, Restrictions.message(until: until)) }
     }

@@ -116,7 +116,7 @@ struct FloatingChatAddSheet: View {
         let floating = presenter.hasBubble(for: conversation.id)
         return Button { pick(conversation) } label: {
             HStack(spacing: 12) {
-                Avatar(name: conversation.displayName, colorHex: conversation.avatarColor,
+                Avatar(name: conversation.avatarName, colorHex: conversation.avatarColor,
                        imageURL: conversation.avatarUrl, size: .md)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(conversation.displayName)

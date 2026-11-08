@@ -114,6 +114,10 @@ struct AuthTextField: View {
     var characterLimit: Int? = nil
     /// Lets the screen move the cursor here.
     var isFocused: FocusState<Bool>.Binding? = nil
+    /// Sign-up only: stops iOS offering "Use Strong Password?". With no
+    /// Associated Domains (webcredentials) link to a website it can't fill or
+    /// save one, so its Fill button did nothing.
+    var noStrongPasswordPrompt = false
 
     @Environment(ThemeManager.self) var themeManager
     @State private var isRevealed = false
@@ -147,6 +151,8 @@ struct AuthTextField: View {
             .foregroundColor(AppColors.textPrimary(.light))
             .scaledFont(15)
             .modifier(OptionalFocus(binding: isFocused))
+            // A non-password content type is the documented way to opt out.
+            .textContentType(noStrongPasswordPrompt ? .oneTimeCode : nil)
 
             if let characterLimit {
                 CharacterCounter(count: text.count, limit: characterLimit)

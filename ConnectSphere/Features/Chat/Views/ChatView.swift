@@ -7,6 +7,7 @@ struct ChatView: View {
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     @State private var showDeleteRequestConfirm = false
     @Environment(\.appBundle) var bundle
     @Environment(FloatingChatPresenter.self) var floatingChatPresenter
@@ -65,6 +66,8 @@ struct ChatView: View {
     @State private var meetingEndsAt: Date? = nil
     @State private var meetingShowEndDate = false
     @State private var meetingReminderOffset: MeetingReminderOffset = .oneDayBefore
+    /// Why Propose/Save was refused; the form stays open behind the alert.
+    @State private var meetingWarning: String?
     /// Non-nil while rescheduling an existing proposal. The id of the message being edited.
     @State private var editingMeetingMessageId: String?
     // Jump-to-message from search results (and from tapping a reply's quoted preview)
@@ -73,6 +76,8 @@ struct ChatView: View {
     @State private var isJumping = false
     // The message currently being quoted for a reply. Shows a preview bar above the input bar
     @State private var replyingTo: Message?
+    /// One of my text messages being edited in the composer (long-press → Edit).
+    @State private var editingMessage: Message?
     /// Raised when a reply starts (swipe or long-press), so the keyboard comes
     /// up ready to type the way Messenger does.
     @FocusState private var isComposerFocused: Bool
@@ -151,6 +156,9 @@ struct ChatView: View {
         }
         return viewModel.otherNickname ?? peer.name
     }
+
+    /// Whose initial the 1:1 avatar shows: their real name, not the nickname.
+    private var avatarInitialName: String { viewModel.otherRealName ?? peer.name }
 
     /// "N members" subtitle under the group's name. Nil for 1:1.
     private var groupMemberCountText: String? {
@@ -346,7 +354,11 @@ struct ChatView: View {
                 }
             }
         }
+        // On screen with the app in front: new messages are seen as they arrive.
+        .onAppear { viewModel.isOnScreen = scenePhase == .active }
+        .onChange(of: scenePhase) { _, phase in viewModel.isOnScreen = phase == .active }
         .onDisappear {
+            viewModel.isOnScreen = false
             // Shrinking to a bubble transfers ownership of the live socket
             // listeners to FloatingChatPresenter instead of tearing them
             // down, see `isMinimizing`'s doc comment.
@@ -485,13 +497,13 @@ struct ChatView: View {
                         if let image = phase.image {
                             image.resizable().scaledToFill()
                         } else {
-                            Text(String(headerName.prefix(1)))
+                            Text(String(avatarInitialName.prefix(1)))
                                 .scaledFont(14, .bold)
                                 .foregroundColor(.white)
                         }
                     }
                 } else {
-                    Text(String(headerName.prefix(1)))
+                    Text(String(avatarInitialName.prefix(1)))
                         .scaledFont(14, .bold)
                         .foregroundColor(.white)
                 }
@@ -566,6 +578,12 @@ struct ChatView: View {
             .background(AppColors.base(colorScheme).ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
             .interactiveDismissDisabled(meetingComposerHasChanges)
+            .alert(bundle.loc("Can't propose this meeting"), isPresented: Binding(
+                get: { meetingWarning != nil }, set: { if !$0 { meetingWarning = nil } })) {
+                Button(bundle.loc("OK"), role: .cancel) {}
+            } message: {
+                Text(meetingWarning ?? "")
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     ConfirmCancelButton(hasChanges: meetingComposerHasChanges) {
@@ -643,6 +661,12 @@ struct ChatView: View {
 
     /// Sends a new proposal, or applies a reschedule when `editingMeetingMessageId` is set.
     private func submitMeetingComposer() {
+        let showsEnd = meetingShowEndDate ? meetingEndsAt : nil
+        if let problem = viewModel.meetingProblem(startsAt: meetingStartsAt, endsAt: showsEnd,
+                                                  reminder: meetingReminderOffset) {
+            meetingWarning = problem
+            return
+        }
         let title = meetingTitle
         let location = meetingLocation.trimmingCharacters(in: .whitespacesAndNewlines)
         let startsAt = meetingStartsAt
@@ -797,13 +821,22 @@ struct ChatView: View {
                         // appear animation keep targeting a single thing per message id.
                         let messages = viewModel.messages
                         let coversStrangerMedia = viewModel.requestState == .waiting
+                        let noteIndex = acceptedNoteIndex(in: messages)
+                        let myId = appState.currentUser?.id ?? ""
+                        let lastOwnIndex = messages.lastIndex { $0.isOwn(userId: myId) }
+                        let notes = eventSlots(for: messages)
                         ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
                             let isOwn = message.isOwn(userId: appState.currentUser?.id ?? "")
                             VStack(spacing: 0) {
+                                ForEach(notes[index] ?? []) { centerNote(eventText($0)) }
+                                if index == noteIndex, let at = viewModel.requestAcceptedAt {
+                                    requestAcceptedNote(at: at)
+                                }
                                 if ChatTimeline.showsSeparator(before: index, in: messages) {
                                     timeSeparator(for: message.createdAt)
                                 }
-                                bubble(for: message, at: index, in: messages, isOwn: isOwn, coversStrangerMedia: coversStrangerMedia)
+                                bubble(for: message, at: index, in: messages, isOwn: isOwn, showsStatus: index == lastOwnIndex,
+                                       coversStrangerMedia: coversStrangerMedia)
                                     .modifier(MessageAppearModifier(
                                         id: message.id,
                                         appearedIDs: $appearedMessageIDs,
@@ -822,8 +855,11 @@ struct ChatView: View {
                                         isEnabled: !message.isDeleted && !(viewModel.isBlocked && !viewModel.isGroup),
                                         onReply: { beginReply(to: message) }
                                     ))
-                                    .contextMenu { messageMenu(for: message, isOwn: isOwn) }
                             }
+                        }
+                        ForEach(notes[messages.count] ?? []) { centerNote(eventText($0)) }
+                        if noteIndex == messages.count, let at = viewModel.requestAcceptedAt {
+                            requestAcceptedNote(at: at)
                         }
                     }
 
@@ -896,7 +932,7 @@ struct ChatView: View {
                 Circle()
                     .fill(Color(hex: peer.avatarColor))
                     .frame(width: 80, height: 80)
-                Text(String(peer.name.prefix(1)))
+                Text(String(avatarInitialName.prefix(1)))
                     .scaledFont(32, .bold)
                     .foregroundColor(.white)
             }
@@ -959,11 +995,38 @@ struct ChatView: View {
     /// long-press "Reply" item so both show the "Replying to" bar and raise
     /// the keyboard identically.
     private func beginReply(to message: Message) {
+        cancelEditing()
         replyingTo = message
         isComposerFocused = true
     }
 
-    /// Centered time label between messages after 30+ minutes of silence (or a
+    /// Puts the message's text in the composer; sending saves the edit.
+    private func beginEditing(_ message: Message) {
+        replyingTo = nil
+        pendingMedia = []
+        editingMessage = message
+        inputText = message.content ?? ""
+        isComposerFocused = true
+    }
+
+    private func cancelEditing() {
+        guard editingMessage != nil else { return }
+        editingMessage = nil
+        inputText = ""
+    }
+
+    /// The composer keeps the text when the edit isn't saved (the error shows).
+    private func saveEdit(_ message: Message) {
+        let text = inputText
+        Task {
+            if await viewModel.editMessage(message, to: text) {
+                editingMessage = nil
+                inputText = ""
+            }
+        }
+    }
+
+    /// Centered time label between messages after 20+ minutes of silence (or a
     /// new day), Messenger's convention. With it, each bubble no longer needs
     /// its own timestamp; see `ChatTimeline`.
     private func timeSeparator(for date: Date) -> some View {
@@ -971,6 +1034,52 @@ struct ChatView: View {
             .scaledFont(12, .medium)
             .foregroundColor(AppColors.textTertiary(colorScheme))
             .frame(maxWidth: .infinity)
+            .padding(.top, 14)
+            .padding(.bottom, 6)
+    }
+
+    /// Where the "request accepted" note sits: before the first message sent at
+    /// or after it (the reply that accepted it), else at the end.
+    private func acceptedNoteIndex(in messages: [Message]) -> Int? {
+        guard let at = viewModel.requestAcceptedAt else { return nil }
+        return messages.firstIndex { $0.createdAt >= at } ?? messages.count
+    }
+
+    /// Centered like the time labels: who accepted the message request, and when.
+    private func requestAcceptedNote(at date: Date) -> some View {
+        let when = ChatTimeline.separatorLabel(for: date, yesterday: bundle.loc("Yesterday"))
+        let text = viewModel.requestFromMe
+            ? String(format: bundle.loc("%@ accepted your message request at %@"), headerName, when)
+            : String(format: bundle.loc("You accepted %@'s message request at %@"), headerName, when)
+        return centerNote(text)
+    }
+
+    /// Which message each theme/nickname note sits above (`messages.count` =
+    /// after the last). Notes older than the loaded messages wait until the
+    /// older page is loaded, instead of piling up at the top.
+    private func eventSlots(for messages: [Message]) -> [Int: [ChatEvent]] {
+        var slots: [Int: [ChatEvent]] = [:]
+        // An accept already has its own note ("… accepted your message request at 22:05").
+        for event in viewModel.events where event.kind != .accepted {
+            let index = messages.firstIndex { $0.createdAt >= event.createdAt } ?? messages.count
+            if index == 0, viewModel.hasMoreMessages { continue }
+            slots[index, default: []].append(event)
+        }
+        return slots
+    }
+
+    private func eventText(_ event: ChatEvent) -> String {
+        event.text(currentUserId: appState.currentUser?.id ?? "", bundle: bundle)
+    }
+
+    /// Centered grey note between messages, styled like the time labels.
+    private func centerNote(_ text: String) -> some View {
+        Text(text)
+            .scaledFont(12, .medium)
+            .foregroundColor(AppColors.textTertiary(colorScheme))
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 24)
             .padding(.top, 14)
             .padding(.bottom, 6)
     }
@@ -1037,7 +1146,9 @@ struct ChatView: View {
             }
 
             // "Replying to X" preview, clearable with an X button
-            if let replyingTo {
+            if let editingMessage {
+                editingBar(editingMessage)
+            } else if let replyingTo {
                 replyingToBar(replyingTo)
             }
 
@@ -1048,12 +1159,12 @@ struct ChatView: View {
 
             HStack(alignment: .bottom, spacing: 10) {
                 if voiceSession.state == .idle {
-                    if showsComposerTools {
+                    if showsComposerTools && editingMessage == nil {
                         PhotosPicker(selection: $pickerItems,
                                      maxSelectionCount: 10,
                                      matching: .any(of: [.images, .videos])) {
                             Image(systemName: "photo.on.rectangle.angled")
-                                .scaledFont(22)
+                                .scaledFont(26)
                                 .foregroundColor(chatPalette.primary)
                                 .padding(.bottom, 6)
                         }
@@ -1063,7 +1174,7 @@ struct ChatView: View {
                             showMeetingComposer = true
                         } label: {
                             Image(systemName: "calendar.badge.plus")
-                                .scaledFont(22)
+                                .scaledFont(26)
                                 .foregroundColor(chatPalette.primary)
                                 .padding(.bottom, 6)
                         }
@@ -1073,7 +1184,7 @@ struct ChatView: View {
                         if viewModel.isGroup {
                             Button { showPollComposer = true } label: {
                                 Image(systemName: "chart.bar.doc.horizontal")
-                                    .scaledFont(21)
+                                    .scaledFont(25)
                                     .foregroundColor(chatPalette.primary)
                                     .padding(.bottom, 6)
                             }
@@ -1086,7 +1197,7 @@ struct ChatView: View {
                             withAnimation(.snappy) { showsComposerTools = true }
                         } label: {
                             Image(systemName: "chevron.right")
-                                .scaledFont(17, .semibold)
+                                .scaledFont(19, .semibold)
                                 .foregroundColor(chatPalette.primary)
                                 .frame(width: 26, height: 34)
                         }
@@ -1095,10 +1206,10 @@ struct ChatView: View {
 
                     TextField("", text: $inputText, prompt: Text("Message...", bundle: bundle), axis: .vertical)
                         .focused($isComposerFocused)
-                        .scaledFont(15)
+                        .scaledFont(17)
                         .lineLimit(1...5)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 11)
                         .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 20))
                         .overlay(
                             RoundedRectangle(cornerRadius: 20)
@@ -1125,7 +1236,9 @@ struct ChatView: View {
                 }
 
                 Button {
-                    if voiceSession.state != .idle {
+                    if let editingMessage {
+                        saveEdit(editingMessage)
+                    } else if voiceSession.state != .idle {
                         let replyToId = replyingTo?.id
                         replyingTo = nil
                         voiceSession.finalizeAndSend { fileURL, duration, waveform in
@@ -1146,22 +1259,27 @@ struct ChatView: View {
                     }
                 } label: {
                     Group {
-                        if canSend || voiceSession.state != .idle {
+                        if editingMessage != nil {
+                            Image(systemName: "checkmark.circle.fill")
+                                .scaledFont(36)
+                                .foregroundColor(chatPalette.primary)
+                                .accessibilityLabel(Text("Save edit", bundle: bundle))
+                        } else if canSend || voiceSession.state != .idle {
                             Image(systemName: "arrow.up.circle.fill")
-                                .scaledFont(32)
+                                .scaledFont(36)
                                 .foregroundColor(chatPalette.primary)
                         } else {
                             // Never grey for an empty field: a grey control
                             // reads as "this can't be used", so instead send
                             // becomes a one-tap quick-emoji send.
                             Text(quickEmoji)
-                                .scaledFont(27)
+                                .scaledFont(31)
                         }
                     }
-                    .frame(width: 34, height: 34)
+                    .frame(width: 40, height: 40)
                     .padding(.bottom, 2)
                 }
-                .disabled(viewModel.isSending || blocking)
+                .disabled(viewModel.isSending || blocking || (editingMessage != nil && !canSend))
             }
             .disabled(blocking)
             .opacity(blocking ? 0.5 : 1)
@@ -1179,6 +1297,36 @@ struct ChatView: View {
             .scaledFont(12, .medium)
             .foregroundColor(AppColors.textSecondary(colorScheme))
             .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    /// "Editing message" bar above the composer while `editingMessage` is set.
+    private func editingBar(_ message: Message) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "pencil")
+                .scaledFont(14, .semibold)
+                .foregroundColor(chatPalette.primary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Editing message", bundle: bundle)
+                    .scaledFont(12, .semibold)
+                    .foregroundColor(chatPalette.primary)
+                Text(message.content ?? "")
+                    .scaledFont(12)
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
+                    .lineLimit(1)
+            }
+            Spacer()
+            Button {
+                cancelEditing()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .scaledFont(18)
+                    .foregroundColor(AppColors.textTertiary(colorScheme))
+            }
+            .accessibilityLabel(Text("Cancel editing", bundle: bundle))
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 10))
     }
 
     /// "Replying to X" bar shown above the composer while `replyingTo` is set.
@@ -1346,7 +1494,7 @@ struct ChatView: View {
     /// list, which was already near the limit of what the compiler can
     /// type-check in reasonable time.
     private func bubble(for message: Message, at index: Int, in messages: [Message], isOwn: Bool,
-                        coversStrangerMedia: Bool) -> MessageBubble {
+                        showsStatus: Bool, coversStrangerMedia: Bool) -> MessageBubble {
         let sharedPost: ChatViewModel.SharedPostState? = message.sharedPostId.flatMap { viewModel.sharedPosts[$0] }
             ?? (message.messageType == .post && message.sharedPostId == nil ? .unavailable : nil)
         return MessageBubble(
@@ -1355,7 +1503,8 @@ struct ChatView: View {
             otherParticipantIds: otherParticipantIds,
             isGroup: viewModel.isGroup,
             isPlayful: appState.currentMode == .hobby,
-            showsMeta: ChatTimeline.endsRun(at: index, in: messages),
+            // Only my latest message says Seen/Unseen; times live in the separators.
+            showsMeta: showsStatus,
             coversStrangerMedia: coversStrangerMedia,
             onMediaTap: openMediaViewer,
             onReplyPreviewTap: { messageId in Task { await jumpToMessage(messageId) } },
@@ -1366,7 +1515,8 @@ struct ChatView: View {
             sharedPost: sharedPost,
             onSharedPostAppear: { Task { await viewModel.loadSharedPost(message.sharedPostId) } },
             onOpenSharedPost: { openedSharedPost = OpenedSharedPost(id: $0.id) },
-            onDoubleTap: { Task { await viewModel.toggleWhale(messageId: message.id) } })
+            onDoubleTap: { Task { await viewModel.toggleWhale(messageId: message.id) } },
+            menuItems: AnyView(messageMenu(for: message, isOwn: isOwn)))
     }
 
     // MARK: - Message long-press menu
@@ -1395,6 +1545,15 @@ struct ChatView: View {
                 beginReply(to: message)
             } label: {
                 Label(bundle.loc("Reply"), systemImage: "arrowshape.turn.up.left")
+            }
+
+            // Only my own text messages, and only for 15 minutes after sending.
+            if message.canEdit(userId: appState.currentUser?.id ?? "") && !viewModel.withOfficial {
+                Button {
+                    beginEditing(message)
+                } label: {
+                    Label(bundle.loc("Edit"), systemImage: "pencil")
+                }
             }
 
             // Meeting proposals carry RSVP/reminder state tied to this
