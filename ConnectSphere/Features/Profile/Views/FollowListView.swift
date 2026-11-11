@@ -33,6 +33,8 @@ struct FollowListView: View {
         .overlay { if viewModel.isLoading && viewModel.people.isEmpty { ProgressView() } }
         .navigationTitle(bundle.loc(viewModel.showsFollowers ? "Followers" : "Following"))
         .navigationBarTitleDisplayMode(.inline)
+        // Like Friends/Connections: a list you go into, no tab bar over it.
+        .toolbar(.hidden, for: .tabBar)
         .task { await viewModel.load(mode: appState.currentMode) }
         .refreshable { await viewModel.load(mode: appState.currentMode) }
     }

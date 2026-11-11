@@ -37,16 +37,17 @@ enum ModerationQueue {
         var actions: [ActionRow]
         @NullCoded var appeal: AppealRow?
         @NullCoded var decision_note: String?
+        @NullCoded var reporter_message: String?
     }
 
     private static let caseSelect = """
         SELECT mc.id::text AS id, mc.target_type, mc.target_id::text AS target_id, mc.mode, mc.community_id::text AS community_id,
           mc.source, mc.policy, mc.severity::int AS severity, mc.report_count, mc.status, mc.auto_hidden,
-          mc.decision, mc.decided_at, mc.created_at, mc.snapshot::text AS snapshot, mc.decision_note,
+          mc.decision, mc.decided_at, mc.created_at, mc.snapshot::text AS snapshot, mc.decision_note, mc.reporter_message,
           CASE mc.target_type WHEN 'post' THEN mc.target_id::text
             WHEN 'comment' THEN (SELECT cm.post_id::text FROM comments cm WHERE cm.id = mc.target_id) END AS post_id,
           CASE WHEN u.id IS NULL THEN NULL ELSE json_build_object(
-            'id', u.id, 'username', u.username, 'banned_at', u.banned_at, 'restricted_until', u.restricted_until,
+            'id', u.id, 'username', u.username, 'banned_at', u.banned_at, 'restricted_until', GREATEST(\(AccountRestrictions.untilSQL("u.id", mode: "hobby")), \(AccountRestrictions.untilSQL("u.id", mode: "work"))),
             'active_strikes', (SELECT COUNT(*) FROM moderation_strikes s
                                WHERE s.user_id = u.id AND s.revoked_at IS NULL AND s.expires_at > NOW()),
             'past_cases', (SELECT COUNT(*) FROM moderation_cases o
@@ -58,7 +59,7 @@ enum ModerationQueue {
         let id: String; let target_type: String; let target_id: String; let mode: String?; let community_id: String?
         let source: String; let policy: String; let severity: Int; let report_count: Int; let status: String
         let auto_hidden: Bool; let decision: String?; let decided_at: Date?; let created_at: Date
-        let snapshot: String; let decision_note: String?; let author: String?; let post_id: String?
+        let snapshot: String; let decision_note: String?; let reporter_message: String?; let author: String?; let post_id: String?
     }
 
     private static func row(_ r: Raw) throws -> CaseRow {
@@ -105,7 +106,8 @@ enum ModerationQueue {
             SELECT id::text AS id, case_id::text AS case_id, message, status, created_at, decided_at
             FROM moderation_appeals WHERE case_id = \(uuid: id)
             """).first(decoding: AppealRow.self)
-        return CaseDetail(case: try row(raw), reports: reports, actions: actions, appeal: appeal, decision_note: raw.decision_note)
+        return CaseDetail(case: try row(raw), reports: reports, actions: actions, appeal: appeal, decision_note: raw.decision_note,
+                          reporter_message: raw.reporter_message)
     }
 
     struct AppealItem: Content { var appeal: AppealRow; var `case`: CaseRow }

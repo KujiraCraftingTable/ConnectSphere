@@ -446,7 +446,6 @@
 "Delete post?" = "Xoá bài viết?";
 "This post won't be shown in the app. You can restore it from Recently Deleted within 30 days." = "Bài viết sẽ không còn hiển thị trong ứng dụng. Bạn có thể khôi phục từ mục Đã xoá gần đây trong vòng 30 ngày.";
 "Delete comment?" = "Xoá bình luận?";
-"This comment won't be shown in the app. You can restore it from Recently Deleted within 30 days." = "Bình luận sẽ không còn hiển thị trong ứng dụng. Bạn có thể khôi phục từ mục Đã xoá gần đây trong vòng 30 ngày.";
 
 /* Group-B password management */
 "Change password" = "Đổi mật khẩu";
@@ -603,16 +602,13 @@
 "Recently Deleted" = "Mới xoá gần đây";
 "Restore" = "Khôi phục";
 "No recently deleted posts" = "Không có bài viết nào vừa xoá";
-"No recently deleted comments" = "Không có bình luận nào vừa xoá";
 "No saved posts" = "Không có bài viết đã lưu";
-"Deleted posts and comments are kept for 30 days, then removed permanently." = "Bài viết và bình luận đã xoá được giữ lại 30 ngày, sau đó sẽ bị xoá vĩnh viễn.";
+"Deleted posts are kept for 30 days, then removed permanently." = "Bài viết đã xoá được giữ lại 30 ngày, sau đó sẽ bị xoá vĩnh viễn.";
 "Restore this post?" = "Khôi phục bài viết này?";
-"Restore this comment?" = "Khôi phục bình luận này?";
 "It will be shown in the app again." = "Nó sẽ hiển thị lại trong ứng dụng.";
 "Photo post" = "Bài viết có ảnh";
 "Link post" = "Bài viết có liên kết";
 "Could not restore this post. Please try again." = "Không thể khôi phục bài viết này. Vui lòng thử lại.";
-"Could not restore this comment. Please try again." = "Không thể khôi phục bình luận này. Vui lòng thử lại.";
 
 // MARK: - Voice messages (chat)
 "Voice message" = "Tin nhắn thoại";
@@ -674,11 +670,6 @@
 "Exact match! 😆 Make your community stand out with its own name!" = "Giống y chang rồi! 😆 Hãy làm cho cộng đồng của bạn nổi bật với tên riêng nhé!";
 
 // MARK: - Create community duplicate-name warnings (work, formal tone)
-"This community name already exists. Please choose a different name to continue." = "Tên cộng đồng này đã tồn tại. Vui lòng chọn tên khác để tiếp tục.";
-"A community with this name already exists in the system. Please use a distinct identifier." = "Đã có cộng đồng mang tên này trong hệ thống. Đề nghị sử dụng tên định danh riêng biệt.";
-"This name matches an existing community. Please adjust it to ensure uniqueness." = "Tên trùng với cộng đồng hiện có. Vui lòng điều chỉnh để đảm bảo tính duy nhất.";
-"A community with this name has already been created. Please choose another name." = "Cộng đồng với tên này đã được tạo trước đó. Vui lòng chọn một tên khác.";
-"Invalid name: already exists in the system. Please enter a different name." = "Tên không hợp lệ: đã tồn tại trong hệ thống. Vui lòng nhập tên khác.";
 
 // MARK: - Join requests / moderation / analytics (Community admin)
 "Approve" = "Chấp nhận";
@@ -1530,8 +1521,6 @@
 "Decline this post?" = "Từ chối bài viết này?";
 "Reason (optional)" = "Lý do (không bắt buộc)";
 "The author will see it as declined, with your reason." = "Người đăng sẽ thấy bài bị từ chối, kèm lý do của bạn.";
-"Your post is waiting for approval" = "Bài viết của bạn đang chờ duyệt";
-"An admin or moderator will review it. You'll find it in \"...\" › Manage your content." = "Quản trị viên hoặc người kiểm duyệt sẽ xem xét. Bạn có thể xem trong \"...\" › Quản lý nội dung của bạn.";
 "Your post was approved and is now live in the community" = "Bài viết của bạn đã được duyệt và đang hiển thị trong cộng đồng";
 "Your post wasn't approved: %@" = "Bài viết của bạn không được duyệt: %@";
 "Your post wasn't approved by the community's moderators" = "Bài viết của bạn không được người kiểm duyệt của cộng đồng duyệt";
@@ -1559,6 +1548,7 @@
 "6-digit code, %lld of %lld entered" = "Mã 6 chữ số, đã nhập %lld/%lld";
 "Admins & moderators" = "Quản trị viên & người kiểm duyệt";
 "%@ is also a member." = "%@ cũng là thành viên.";
+"You're a member." = "Bạn là thành viên.";
 "%@ and %@ are also members." = "%@ và %@ cũng là thành viên.";
 "%@ and %lld other connections are also members." = "%@ và %lld kết nối khác cũng là thành viên.";
 "%@, %@ and %lld other connections are also members." = "%@, %@ và %lld kết nối khác cũng là thành viên.";
@@ -1606,8 +1596,11 @@
 "New listing" = "Tin đăng bán mới";
 "Price (₫), 0 = free" = "Giá (₫), 0 = miễn phí";
 "Publish" = "Đăng";
-"Up to 10. The first one is the cover." = "Tối đa 10. Ảnh đầu tiên là ảnh bìa.";
 "Waits for admin approval" = "Chờ quản trị viên duyệt";
+"Search your communities" = "Tìm cộng đồng của bạn";
+"No communities match." = "Không có cộng đồng nào khớp.";
+"Waiting for admin approval" = "Đang chờ quản trị viên duyệt";
+"Untick a community to take the listing out of it." = "Bỏ chọn một cộng đồng để gỡ tin đăng khỏi cộng đồng đó.";
 "You haven't joined any communities in this mode." = "Bạn chưa tham gia cộng đồng nào ở chế độ này.";
 
 /* Marketplace, map location */
@@ -1766,7 +1759,6 @@
 "Show more" = "Xem thêm";
 "Show password" = "Hiện mật khẩu";
 "Please tick to agree before continuing" = "Vui lòng đánh dấu đồng ý trước khi tiếp tục";
-"Join to post" = "Tham gia để đăng bài";
 "Job Details" = "Chi tiết công việc";
 "Deadline" = "Hạn chót";
 "Add application deadline" = "Thêm hạn nộp hồ sơ";
@@ -1914,9 +1906,9 @@
 "Under review" = "Đang xem xét";
 "Uphold — keep the decision" = "Giữ nguyên quyết định";
 "We removed your %@ for breaking our rules on %@. You can ask for a review." = "Chúng tôi đã gỡ %@ của bạn vì vi phạm quy định về %@. Bạn có thể yêu cầu xem xét lại.";
-"We removed your %@ for breaking our rules on %@. You can't post, comment or message new people for %lld days. You can ask for a review." = "Chúng tôi đã gỡ %@ của bạn vì vi phạm quy định về %@. Bạn không thể đăng bài, bình luận hay nhắn tin cho người mới trong %lld ngày. Bạn có thể yêu cầu xem xét lại.";
+"We removed your %@ for breaking our rules on %@. Your account is read-only for %lld days. You can ask for a review." = "Chúng tôi đã gỡ %@ của bạn vì vi phạm quy định về %@. Tài khoản của bạn ở chế độ chỉ xem trong %lld ngày. Bạn có thể yêu cầu xem xét lại.";
 "Why should we look again? (optional)" = "Vì sao chúng tôi nên xem xét lại? (không bắt buộc)";
-"You can't post, comment or message new people until %@." = "Bạn không thể đăng bài, bình luận hay nhắn tin cho người mới đến %@.";
+"Your account is read-only until %@. You can browse, change settings, block, report and appeal." = "Tài khoản của bạn ở chế độ chỉ xem đến %@. Bạn vẫn có thể xem, đổi cài đặt, chặn, báo cáo và kháng nghị.";
 "You haven't reported anything." = "Bạn chưa báo cáo nội dung nào.";
 "Your account is in good standing" = "Tài khoản của bạn ở trạng thái tốt";
 "Your account is suspended" = "Tài khoản của bạn đã bị khóa";
@@ -1967,7 +1959,7 @@
 "Role" = "Vai trò";
 "Deleted" = "Đã xoá";
 "Suspended" = "Đã bị đình chỉ";
-"Restricted until %@" = "Bị hạn chế đến %@";
+"Read-only until %@" = "Chỉ xem đến %@";
 "Shows no email, phone, birthday or messages." = "Không hiển thị email, số điện thoại, ngày sinh hay tin nhắn.";
 "Hobby %lld · Work %lld" = "Sở thích %lld · Công việc %lld";
 "The official ConnectSphere account can't be reported" = "Không thể báo cáo tài khoản chính thức của ConnectSphere";
@@ -2082,7 +2074,7 @@
 "Choose…" = "Chọn…";
 "Submit" = "Gửi";
 
-"You can browse and message friends, but you can't post, comment, join communities, sell or add friends." = "Bạn vẫn có thể xem và nhắn tin với bạn bè, nhưng không thể đăng bài, bình luận, tham gia cộng đồng, bán hàng hay kết bạn.";
+"Your account is read-only. You can browse, change settings, block and report, but you can't post, comment, message, react, join, sell or add friends." = "Tài khoản của bạn đang ở chế độ chỉ xem. Bạn vẫn có thể xem, đổi cài đặt, chặn và báo cáo, nhưng không thể đăng bài, bình luận, nhắn tin, bày tỏ cảm xúc, tham gia, bán hàng hay kết bạn.";
 "You can't comment right now" = "Bạn tạm thời không thể bình luận";
 
 "View edit history" = "Xem lịch sử chỉnh sửa";
@@ -2111,6 +2103,8 @@
 "%@ reset the theme" = "%@ đã đặt lại chủ đề";
 "You changed the theme to %@" = "Bạn đã đổi chủ đề thành %@";
 "%@ changed the theme to %@" = "%1$@ đã đổi chủ đề thành %2$@";
+"You changed the theme" = "Bạn đã đổi chủ đề";
+"%@ changed the theme" = "%@ đã đổi chủ đề";
 "You set %@'s nickname to %@" = "Bạn đã đặt biệt danh của %1$@ là %2$@";
 "%@ set your nickname to %@" = "%1$@ đã đặt biệt danh của bạn là %2$@";
 "%@ set %@'s nickname to %@" = "%1$@ đã đặt biệt danh của %2$@ là %3$@";
@@ -2194,3 +2188,264 @@
 "Manage community" = "Quản lý cộng đồng";
 "Manage\ncommunity" = "Quản lý\ncộng đồng";
 "Manage\nnotifications" = "Quản lý\nthông báo";
+"%@ made you the admin of %@" = "%@ đã chọn bạn làm quản trị viên của %@";
+"%@ made you a moderator of %@" = "%@ đã chọn bạn làm người kiểm duyệt của %@";
+"You're no longer a moderator of %@" = "Bạn không còn là người kiểm duyệt của %@ nữa";
+"Moderators" = "Người kiểm duyệt";
+
+/* Marketplace: several items in one listing */
+"Is “%@” still available?" = "“%@” còn không bạn?";
+"e.g. Shelf clear-out, 7 sets" = "VD: Dọn tủ, 7 bộ";
+"Listing title" = "Tiêu đề bài bán";
+"Shown on the Marketplace card. Your description stays exactly as you write it." = "Hiện trên thẻ ở Chợ. Phần mô tả vẫn giữ nguyên như bạn viết.";
+"Add another item" = "Thêm món khác";
+"Selling several things? Add each with its own photos and price, up to %lld." = "Bán nhiều món? Thêm từng món với ảnh và giá riêng, tối đa %lld món.";
+"Item %lld" = "Món %lld";
+"Remove item %lld" = "Xoá món %lld";
+"Up to %lld photos per item." = "Mỗi món tối đa %lld ảnh.";
+"Which item are you asking about?" = "Bạn hỏi về món nào?";
+"%lld items" = "%lld món";
+"%lld of %lld left" = "Còn %lld/%lld món";
+"Items (%lld)" = "Các món (%lld)";
+"Ask about this" = "Hỏi món này";
+"Mark all as available" = "Đánh dấu tất cả còn hàng";
+"Mark all as sold" = "Đánh dấu tất cả đã bán";
+"Mark every item as available?" = "Đánh dấu tất cả các món còn hàng?";
+"Mark every item as sold?" = "Đánh dấu tất cả các món đã bán?";
+"Ask the seller about this item?" = "Hỏi người bán về món này?";
+"The seller gets: Is “%@” still available?" = "Người bán sẽ nhận: “%@” còn không bạn?";
+"You can ask about this item again in %d minute" = "Bạn có thể hỏi lại về món này sau %d phút";
+"You can ask about this item again in %d minutes" = "Bạn có thể hỏi lại về món này sau %d phút";
+"Item not found" = "Không tìm thấy món này";
+"This is your own listing" = "Đây là bài bán của bạn";
+"%lld min" = "%lld phút";
+"Opens the item page" = "Mở trang món đồ";
+"See more (%lld)" = "Xem thêm (%lld)";
+"The first photo is the cover: it's shown first on the Marketplace card and in posts." = "Ảnh đầu tiên là ảnh bìa: hiện đầu tiên trên thẻ ở Chợ và trong bài đăng.";
+"Please add a cover photo" = "Vui lòng thêm ảnh bìa";
+
+"Save changes to this listing?" = "Lưu thay đổi cho tin đăng này?";
+"There is 1 join request in %@" = "Có 1 yêu cầu tham gia %@";
+"There are %lld join requests in %@" = "Có %lld yêu cầu tham gia %@";
+"There is 1 post request in %@" = "Có 1 bài viết chờ duyệt trong %@";
+"There are %lld post requests in %@" = "Có %lld bài viết chờ duyệt trong %@";
+"Your post is waiting for approval. An admin or moderator will review it." = "Bài viết của bạn đang chờ duyệt. Quản trị viên hoặc người kiểm duyệt sẽ xem xét.";
+"Your post is now published." = "Bài viết của bạn đã được đăng.";
+"Your post is scheduled for %@" = "Bài viết của bạn được lên lịch vào %@";
+"Saved to drafts." = "Đã lưu vào bản nháp.";
+"Approve this post?" = "Duyệt bài viết này?";
+"It goes live in the community, and the author is told." = "Bài viết sẽ hiển thị trong cộng đồng và tác giả sẽ được thông báo.";
+"Let %@ join?" = "Cho %@ tham gia?";
+"Decline %@'s request?" = "Từ chối yêu cầu của %@?";
+"They'll become a member and can see and post in the community." = "Họ sẽ trở thành thành viên, có thể xem và đăng bài trong cộng đồng.";
+"They won't join. They can ask again later." = "Họ sẽ không được tham gia. Họ có thể gửi yêu cầu lại sau.";
+"Deleted account" = "Tài khoản đã xoá";
+"Kept, no action" = "Giữ lại, không xử lý";
+"Action taken" = "Đã xử lý";
+"1 report" = "1 báo cáo";
+"History here" = "Lịch sử trong cộng đồng";
+"Nothing before this." = "Chưa có gì trước đây.";
+"Note (optional, sent with a warning)" = "Ghi chú (không bắt buộc, gửi kèm cảnh cáo)";
+"A moderator" = "Một người kiểm duyệt";
+"%@ removed a post" = "%@ đã gỡ một bài viết";
+"%@ gave a warning" = "%@ đã cảnh cáo";
+"%@ lifted the ban" = "%@ đã gỡ lệnh cấm";
+"%@ removed them from the community" = "%@ đã xoá người này khỏi cộng đồng";
+"%@ kept it after a report" = "%@ đã giữ lại sau một báo cáo";
+"%@ took action" = "%@ đã xử lý";
+"Keep, no action" = "Giữ lại, không xử lý";
+"Remove post" = "Gỡ bài viết";
+"Remove post and warn" = "Gỡ bài và cảnh cáo";
+"Remove post and ban" = "Gỡ bài và cấm";
+"Ban from community" = "Cấm khỏi cộng đồng";
+"Keep it?" = "Giữ lại?";
+"Remove this post?" = "Gỡ bài viết này?";
+"Remove and warn?" = "Gỡ bài và cảnh cáo?";
+"Ban them from this community?" = "Cấm người này khỏi cộng đồng?";
+"The reports are closed and the reporters are told no action was taken." = "Các báo cáo được đóng lại và người báo cáo được thông báo là không có xử lý.";
+"The post is taken down and its author is told. The reporters hear it was removed." = "Bài viết bị gỡ và tác giả được thông báo. Người báo cáo được biết bài đã bị gỡ.";
+"The post is taken down and its author gets a warning, with your note." = "Bài viết bị gỡ và tác giả nhận cảnh cáo kèm ghi chú của bạn.";
+"The post is taken down, they're removed from the community and can't join again." = "Bài viết bị gỡ, người này bị xoá khỏi cộng đồng và không thể tham gia lại.";
+"They're removed from the community and can't join again." = "Người này bị xoá khỏi cộng đồng và không thể tham gia lại.";
+"Requests" = "Yêu cầu";
+"There is 1 report in %@" = "Có 1 báo cáo trong %@";
+"There are %lld reports in %@" = "Có %lld báo cáo trong %@";
+"You got a warning in %@ for a post that broke its rules" = "Bạn bị cảnh cáo trong %@ vì một bài viết vi phạm quy định";
+"%@'s moderators removed something you reported. Thanks for the report." = "Người kiểm duyệt của %@ đã gỡ nội dung bạn báo cáo. Cảm ơn bạn.";
+"%@'s moderators looked at something you reported and kept it." = "Người kiểm duyệt của %@ đã xem nội dung bạn báo cáo và giữ lại.";
+"%1$@ warned %2$@" = "%1$@ đã cảnh cáo %2$@";
+"%@ approved this post" = "%@ đã duyệt bài viết này";
+"%@ declined a post" = "%@ đã từ chối một bài viết";
+"You were removed from %@ after a report and can't join again" = "Bạn đã bị xoá khỏi %@ sau một báo cáo và không thể tham gia lại";
+"You were reported in %@. Its moderators looked into it and took no action." = "Bạn bị báo cáo trong %@. Người kiểm duyệt đã xem xét và không xử lý gì.";
+"Your post in %@ was reported. Its moderators looked at it and kept it." = "Bài viết của bạn trong %@ bị báo cáo. Người kiểm duyệt đã xem và giữ lại.";
+"Something you shared was reported. We looked at it and it doesn't break our rules, so it stays up." = "Nội dung bạn chia sẻ bị báo cáo. Chúng tôi đã xem xét, nội dung không vi phạm quy định nên vẫn được giữ lại.";
+"Your report reached %@'s moderators. We'll let you know what they decide." = "Báo cáo của bạn đã được gửi tới người kiểm duyệt của %@. Chúng tôi sẽ cho bạn biết quyết định của họ.";
+"What reporters said" = "Người báo cáo đã viết";
+"Approved by" = "Người duyệt";
+
+// community_renamed
+"%@ is now called %@" = "%@ đã đổi tên thành %@";
+"A community you're in is now called %@" = "Một cộng đồng bạn tham gia đã đổi tên thành %@";
+
+// Re-up cooldown (8 hours)
+"Re-up in %@" = "Đăng lại sau %@";
+
+// Profile not available (deleted, suspended or blocked)
+"This user may not be available" = "Người dùng này có thể không còn khả dụng";
+"The link may be broken, or the profile may have been removed." = "Liên kết có thể bị hỏng hoặc trang cá nhân đã bị gỡ.";
+
+// Moderation: two notes, reporter outcomes
+"Private note, staff only (optional)" = "Ghi chú nội bộ, chỉ đội ngũ xem (không bắt buộc)";
+"Message to the reporter (optional)" = "Lời nhắn cho người báo cáo (không bắt buộc)";
+"Message to the reporter if you put it back (optional)" = "Lời nhắn cho người báo cáo nếu khôi phục (không bắt buộc)";
+"Private note" = "Ghi chú nội bộ";
+"To the reporter" = "Gửi người báo cáo";
+"Something you reported was put back after another review. You can block or mute them." = "Nội dung bạn báo cáo đã được khôi phục sau khi xem xét lại. Bạn có thể chặn hoặc tắt thông báo từ họ.";
+"You reported this, so another moderator or the admin will decide it." = "Bạn đã báo cáo nội dung này, nên một kiểm duyệt viên khác hoặc quản trị viên sẽ quyết định.";
+"Another moderator or the admin needs to decide this" = "Một kiểm duyệt viên khác hoặc quản trị viên cần quyết định việc này";
+"Community · %@" = "Cộng đồng · %@";
+"Post in %@" = "Bài viết trong %@";
+"Comment in %@" = "Bình luận trong %@";
+"Member of %@" = "Thành viên của %@";
+"Your account is read-only for now. See Account Status for details." = "Tài khoản của bạn đang ở chế độ chỉ xem. Xem Trạng thái tài khoản để biết chi tiết.";
+"Your account is read-only, so you can't send messages right now" = "Tài khoản của bạn đang ở chế độ chỉ xem nên hiện không thể gửi tin nhắn";
+"Join now" = "Tham gia ngay";
+"You need to join a community to post" = "Bạn cần tham gia cộng đồng để đăng bài";
+"Links must start with http:// or https://" = "Liên kết phải bắt đầu bằng http:// hoặc https://";
+"Options must be different from each other" = "Các lựa chọn phải khác nhau";
+"Voice messages must be 1 second to 1 hour long" = "Tin nhắn thoại phải dài từ 1 giây đến 1 giờ";
+"Invalid theme" = "Chủ đề không hợp lệ";
+"Only admins and moderators can see the moderation log" = "Chỉ quản trị viên và kiểm duyệt viên mới xem được nhật ký kiểm duyệt";
+"You can do this once the message request is accepted" = "Bạn có thể làm việc này sau khi lời mời nhắn tin được chấp nhận";
+"Couldn't restore comment" = "Không thể khôi phục bình luận";
+"This comment and its replies will be deleted." = "Bình luận này và các phản hồi của nó sẽ bị xoá.";
+"A community with this name already exists" = "Đã có cộng đồng mang tên này";
+
+/* Verified HR (server migration 126) */
+"Verified HR" = "HR đã xác minh";
+"You can post jobs for this company. Your next %lld jobs are checked by ConnectSphere before they go live." = "Bạn có thể đăng tin tuyển dụng cho công ty này. %lld tin tiếp theo của bạn sẽ được ConnectSphere kiểm tra trước khi hiển thị.";
+"You can post jobs for this company. Pick Job in the post composer in Work mode." = "Bạn có thể đăng tin tuyển dụng cho công ty này. Chọn Việc làm khi soạn bài ở chế độ Work.";
+"Waiting for review" = "Đang chờ duyệt";
+"ConnectSphere checks your company's tax code, business registration and website. You'll get a notification when it's done." = "ConnectSphere sẽ kiểm tra mã số thuế, giấy phép kinh doanh và website của công ty. Bạn sẽ nhận được thông báo khi có kết quả.";
+"Not approved" = "Chưa được duyệt";
+"No longer verified" = "Không còn được xác minh";
+"You can ask again below." = "Bạn có thể gửi yêu cầu lại bên dưới.";
+"Only a company's verified HR can post jobs on ConnectSphere, so job seekers know every offer is real. One HR per company." = "Chỉ HR đã xác minh của công ty mới đăng được tin tuyển dụng trên ConnectSphere, để người tìm việc biết mọi tin đều thật. Mỗi công ty một HR.";
+"name@yourcompany.com" = "ten@congtycuaban.com";
+"Send a new code" = "Gửi mã mới";
+"1. Company email" = "1. Email công ty";
+"Use your email on the company's own domain. Personal email like Gmail isn't accepted." = "Dùng email theo tên miền của công ty. Không chấp nhận email cá nhân như Gmail.";
+"Tax code (MST)" = "Mã số thuế (MST)";
+"Company website" = "Website công ty";
+"2. Company" = "2. Công ty";
+"The tax code is 10 digits, or 13 for a branch (0101234567-001)." = "Mã số thuế gồm 10 chữ số, hoặc 13 với chi nhánh (0101234567-001).";
+"The email must be on the website's domain." = "Email phải cùng tên miền với website.";
+"Attach business registration (PDF)" = "Đính kèm giấy phép kinh doanh (PDF)";
+"3. Business registration" = "3. Giấy phép kinh doanh";
+"The certificate of business registration (GPKD), PDF up to 10 MB. Only ConnectSphere's reviewer can open it." = "Giấy chứng nhận đăng ký kinh doanh (GPKD), PDF tối đa 10 MB. Chỉ người duyệt của ConnectSphere mở được.";
+"Send for review" = "Gửi để duyệt";
+"The file must be 10 MB or smaller." = "Tệp phải nhỏ hơn hoặc bằng 10 MB.";
+"Become a verified HR" = "Trở thành HR đã xác minh";
+"Hiring" = "Tuyển dụng";
+"HR" = "HR";
+"HR at %@" = "HR tại %@";
+"Verified HR at %@" = "HR đã xác minh tại %@";
+"Posting for %@" = "Đăng cho %@";
+"Careers page link" = "Liên kết trang tuyển dụng";
+"https://yourcompany.com/careers/…" = "https://congtycuaban.com/tuyen-dung/…";
+"Where this job is listed on your company's website, so applicants can check it's real." = "Nơi tin này được đăng trên website công ty, để ứng viên kiểm tra tin là thật.";
+"Sent for review. ConnectSphere checks a new HR's first jobs before they go live." = "Đã gửi để duyệt. ConnectSphere kiểm tra những tin đầu tiên của HR mới trước khi hiển thị.";
+"Report job" = "Báo cáo tin tuyển dụng";
+"Check on the company's careers page" = "Kiểm tra trên trang tuyển dụng của công ty";
+"Make sure this is the company's real website. Never pay anyone to apply or get a job." = "Hãy chắc chắn đây là website thật của công ty. Đừng bao giờ trả tiền để ứng tuyển hay để có việc.";
+"Never pay to apply. A real employer won't ask you for money, a deposit or bank details to get a job. If they do, report the job." = "Đừng trả tiền để ứng tuyển. Nhà tuyển dụng thật sẽ không đòi tiền, tiền cọc hay thông tin ngân hàng để nhận bạn vào làm. Nếu có, hãy báo cáo tin này.";
+"%@ asked to become HR for %@" = "%@ muốn trở thành HR của %@";
+"You're now a verified HR for %@. You can post jobs." = "Bạn đã là HR được xác minh của %@. Bạn có thể đăng tin tuyển dụng.";
+"Your request to become HR for %@ wasn't approved: %@" = "Yêu cầu trở thành HR của %@ chưa được duyệt: %@";
+"You're no longer a verified HR, so your jobs were removed: %@" = "Bạn không còn là HR được xác minh nên các tin tuyển dụng đã bị gỡ: %@";
+"Your job %@ was approved and is now live" = "Tin tuyển dụng %@ đã được duyệt và đang hiển thị";
+"Your job %@ wasn't approved: %@" = "Tin tuyển dụng %@ chưa được duyệt: %@";
+"The job %@ you applied to was removed: its poster is no longer a verified HR. Never pay anyone to get a job." = "Tin tuyển dụng %@ bạn đã ứng tuyển đã bị gỡ vì người đăng không còn là HR được xác minh. Đừng bao giờ trả tiền để có việc.";
+"HR requests" = "Yêu cầu HR";
+"Jobs to review" = "Tin tuyển dụng chờ duyệt";
+"Already HR: %@" = "Đã có HR: %@";
+"No requests" = "Không có yêu cầu";
+"Approved" = "Đã duyệt";
+"Rejected" = "Đã từ chối";
+"Revoked" = "Đã thu hồi";
+"Tax code" = "Mã số thuế";
+"Company email" = "Email công ty";
+"Person" = "Người gửi";
+"Open business registration (PDF)" = "Mở giấy phép kinh doanh (PDF)";
+"%@ is already HR for this tax code. Only one HR per company, so this can't be approved." = "%@ đã là HR của mã số thuế này. Mỗi công ty chỉ có một HR nên không thể duyệt yêu cầu này.";
+"The company email was verified by code" = "Email công ty đã được xác minh bằng mã";
+"The tax code is in the national business registry" = "Mã số thuế có trên cổng đăng ký doanh nghiệp quốc gia";
+"The company name matches the business registration" = "Tên công ty khớp với giấy phép kinh doanh";
+"The email domain is the company's real website" = "Tên miền email là website thật của công ty";
+"Before approving" = "Trước khi duyệt";
+"Look the tax code up on the national business registry, compare the name with the PDF, and open the website. If anything's unclear, contact the company using the details on its official website, not those in the request." = "Tra mã số thuế trên cổng đăng ký doanh nghiệp quốc gia, so tên với tệp PDF và mở website. Nếu có gì chưa rõ, hãy liên hệ công ty qua thông tin trên website chính thức, không dùng thông tin trong yêu cầu.";
+"Reason (required to reject)" = "Lý do (bắt buộc khi từ chối)";
+"Reason (required)" = "Lý do (bắt buộc)";
+"The person reads this." = "Người gửi sẽ đọc được nội dung này.";
+"Approve as HR" = "Duyệt làm HR";
+"Reject" = "Từ chối";
+"Revoke HR" = "Thu hồi HR";
+"Revoke" = "Thu hồi";
+"Make %@ the verified HR for %@?" = "Duyệt %@ làm HR của %@?";
+"Reject this request?" = "Từ chối yêu cầu này?";
+"Revoke HR? Their jobs are removed and everyone who applied is told." = "Thu hồi HR? Các tin tuyển dụng của họ sẽ bị gỡ và mọi người đã ứng tuyển sẽ được thông báo.";
+"No jobs to review" = "Không có tin nào chờ duyệt";
+"Decline this job?" = "Từ chối tin tuyển dụng này?";
+"Reason the HR will read" = "Lý do HR sẽ đọc";
+"Only verified HR can post jobs" = "Chỉ HR đã xác minh mới đăng được tin tuyển dụng";
+"Add the job's link on your company careers page" = "Thêm liên kết tin này trên trang tuyển dụng của công ty";
+"The email must be on the company website's domain" = "Email phải cùng tên miền với website công ty";
+"Add the business registration PDF" = "Thêm tệp PDF giấy phép kinh doanh";
+"Tax code must be 10 digits, or 13 for a branch (0101234567-001)" = "Mã số thuế phải gồm 10 chữ số, hoặc 13 với chi nhánh (0101234567-001)";
+"Your request is already waiting for review" = "Yêu cầu của bạn đang chờ duyệt";
+"You're already a verified HR" = "Bạn đã là HR được xác minh";
+"Set up your Work profile first" = "Hãy tạo hồ sơ Work trước";
+"Company name is required" = "Cần nhập tên công ty";
+"Enter the company's website" = "Nhập website của công ty";
+"Enter a valid email" = "Nhập email hợp lệ";
+"That code was sent to another email. Ask for a new one" = "Mã này được gửi tới email khác. Hãy yêu cầu mã mới";
+"The business registration must be a PDF" = "Giấy phép kinh doanh phải là tệp PDF";
+"Job posts are only available in Work mode" = "Tin tuyển dụng chỉ có ở chế độ Work";
+
+"Post a job" = "Đăng tin tuyển dụng";
+"Communities are in Hobby mode only" = "Cộng đồng chỉ có ở chế độ Sở thích";
+"Pay is negotiable" = "Lương thoả thuận";
+"Distance" = "Khoảng cách";
+"Within %lld km" = "Trong vòng %lld km";
+"Applicants see the ward and province, and how far it is from their own ward." = "Ứng viên thấy phường/xã, tỉnh/thành và khoảng cách từ phường của họ.";
+"Location *" = "Địa điểm *";
+"Pick the ward where the job is" = "Hãy chọn phường/xã nơi làm việc";
+"%@ moved to %@" = "Đã chuyển %@ sang %@";
+"Friend requests sent" = "Lời mời kết bạn đã gửi";
+"Connection requests sent" = "Lời mời kết nối đã gửi";
+"No friends yet, try searching and sending a request" = "Chưa có bạn bè, hãy tìm kiếm và gửi lời mời";
+"Withdraw connection request?" = "Rút lại lời mời kết nối?";
+"Withdraw" = "Rút lại";
+"Interest suggestions" = "Sở thích được đề xuất";
+"No suggestions waiting" = "Không có đề xuất nào đang chờ";
+"%d people" = "%d người";
+"Suggested by %d people" = "%d người đã đề xuất";
+"English" = "Tiếng Anh";
+"Vietnamese" = "Tiếng Việt";
+"Category" = "Danh mục";
+"Allows a specific item (e.g. Gaming · Roblox)" = "Cho chọn mục cụ thể (vd. Game · Roblox)";
+"Add to catalog" = "Thêm vào danh mục";
+"Review suggestion" = "Xem xét đề xuất";
+"Reject this suggestion?" = "Từ chối đề xuất này?";
+"Search province" = "Tìm tỉnh/thành";
+
+"Job description" = "Mô tả công việc";
+"Job description (PDF)" = "Mô tả công việc (PDF)";
+"Attach job description (PDF)" = "Đính kèm mô tả công việc (PDF)";
+"Optional. PDF, up to 10 MB. Anyone who can see the job can open it." = "Không bắt buộc. PDF, tối đa 10 MB. Ai xem được tin tuyển dụng đều mở được.";
+"Tap to read" = "Chạm để đọc";
+"Couldn't open this PDF." = "Không mở được tệp PDF này.";
+"The job description must be 10 MB or smaller." = "Mô tả công việc phải nhỏ hơn hoặc bằng 10 MB.";
+"The job description must be a PDF" = "Mô tả công việc phải là tệp PDF";
+"Attach the job description again" = "Hãy đính kèm lại mô tả công việc";

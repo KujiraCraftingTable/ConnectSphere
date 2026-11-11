@@ -1,8 +1,7 @@
 import Vapor
 
-/// Central error handler. Emits `{status,code,message}` with
-/// 5xx messages scrubbed. Individual handlers that need the inline `{error:"…"}`
-/// shape throw `InlineError` instead (see below).
+/// Central error handler. Every error, whatever was thrown, is rendered as
+/// `{status,code,message}` with 5xx messages scrubbed: one shape for the client.
 struct AppErrorMiddleware: AsyncMiddleware {
     let isProduction: Bool
     let logger: Logger
@@ -10,13 +9,6 @@ struct AppErrorMiddleware: AsyncMiddleware {
     struct StandardBody: Content {
         let status = "error"
         let code: Int
-        let message: String
-    }
-    struct InlineBody: Content {
-        let error: String
-    }
-    struct StatusMessageBody: Content {
-        let status = "error"
         let message: String
     }
 
@@ -31,18 +23,14 @@ struct AppErrorMiddleware: AsyncMiddleware {
     private func handle(_ error: any Error, for request: Request) -> Response {
         var status: HTTPResponseStatus
         var message: String
-        var inline = false
-        var statusMessageOnly = false
 
         switch error {
         case let inlineErr as InlineError:
             status = inlineErr.status
             message = inlineErr.reason
-            inline = true
         case let sm as StatusMessageError:
             status = sm.status
             message = sm.reason
-            statusMessageOnly = true
         // Vapor's DecodingError text is Swift's internal wording (key paths,
         // NSCocoaErrorDomain codes), and an empty or unreadable body is a 422
         // with no message. The client sees one plain 400 for both.
@@ -73,23 +61,15 @@ struct AppErrorMiddleware: AsyncMiddleware {
         logger.error("Request error \(request.method) \(request.url.path) -> \(status.code)")
 
         let headers = HTTPHeaders([("content-type", "application/json; charset=utf-8")])
-        let body: Response.Body
-        if inline {
-            body = (try? JSONEncoder().encode(InlineBody(error: message))).map { Response.Body(data: $0) } ?? .init(string: #"{"error":"error"}"#)
-        } else if statusMessageOnly {
-            body = (try? JSONEncoder().encode(StatusMessageBody(message: message))).map { Response.Body(data: $0) } ?? .init(string: #"{"status":"error","message":"error"}"#)
-        } else {
-            let safe = status.code < 500 ? message : "Internal Server Error"
-            body = (try? JSONEncoder().encode(StandardBody(code: Int(status.code), message: safe)))
-                .map { Response.Body(data: $0) } ?? .init(string: #"{"status":"error","code":500,"message":"Internal Server Error"}"#)
-        }
+        let safe = status.code < 500 ? message : "Internal Server Error"
+        let body = (try? JSONEncoder().encode(StandardBody(code: Int(status.code), message: safe)))
+            .map { Response.Body(data: $0) } ?? .init(string: #"{"status":"error","code":500,"message":"Internal Server Error"}"#)
         return Response(status: status, headers: headers, body: body)
     }
 }
 
-/// Throw this for routes whose Node original responds with `{ "error": "…" }`
-/// (auth, connections, users, posts, stories, interactions). Everything else
-/// uses `Abort` → the `{status,code,message}` shape.
+/// A 4xx with a message, kept from the Node port (where these routes answered
+/// `{ "error": "…" }`); it now renders like `Abort`.
 struct InlineError: Error {
     let status: HTTPResponseStatus
     let reason: String
@@ -99,9 +79,8 @@ struct InlineError: Error {
     }
 }
 
-/// Throw this for routes whose Node original responds with
-/// `{ "status": "error", "message": "…" }`, no `code` (feedController and a
-/// few others).
+/// Kept from the Node port (feedController answered without `code`); it now
+/// renders like `Abort`.
 struct StatusMessageError: Error {
     let status: HTTPResponseStatus
     let reason: String

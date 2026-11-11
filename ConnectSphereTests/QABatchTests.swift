@@ -86,20 +86,11 @@ struct QABatchTests {
     // MARK: Cancel asks when there is input
 
     @Test func createCommunityAsksOnceAnythingChanged() {
-        let vm = CreateCommunityViewModel(defaultEmoji: "🃏")
+        let vm = CreateCommunityViewModel()
         #expect(!vm.hasChanges)
         vm.privacy = .private
         #expect(vm.hasChanges)
         vm.privacy = .public
-        vm.selectedEmoji = "🎮"
-        #expect(vm.hasChanges)
-        vm.selectedEmoji = "🃏"
-        vm.selectedColor = "#112233"
-        #expect(vm.hasChanges)
-        vm.selectedColor = CreateCommunityViewModel.defaultColor
-        vm.type = .work
-        #expect(vm.hasChanges)
-        vm.type = .fandom
         vm.name = "  "
         #expect(!vm.hasChanges)
         vm.name = "Pokemon"
@@ -118,29 +109,5 @@ struct QABatchTests {
         overview.startChange()
         overview.currentCode = "123"
         #expect(overview.hasChanges)
-    }
-
-    // MARK: Community post bar
-
-    private func community(isMember: Bool) throws -> Community {
-        let json = """
-        {"id":"c1","name":"Pokemon TCG VN","type":"fandom","privacy":"public","icon_emoji":"🃏","cover_color":"#7F5AF0",
-         "member_count":12,"post_count":3,"created_at":"2026-10-01T10:00:00.000Z","is_member":\(isMember)}
-        """
-        return try JSONDecoder.makeISO8601().decode(CommunityDTO.self, from: Data(json.utf8)).toCommunity()
-    }
-
-    @Test func onlyNonMembersWhoHaventAskedSeeJoinToPost() throws {
-        let vm = CommunityDetailViewModel(communityId: "c1", token: "t", currentUserId: "u1")
-        #expect(!vm.showsJoinToPost)                       // nothing loaded yet
-        vm.community = try community(isMember: false)
-        #expect(vm.showsJoinToPost)
-        vm.joinStatus = .pending
-        #expect(!vm.showsJoinToPost)                       // pending sees nothing
-        vm.joinStatus = .loading
-        #expect(!vm.showsJoinToPost)
-        vm.community = try community(isMember: true)
-        vm.joinStatus = .joined
-        #expect(!vm.showsJoinToPost)
     }
 }

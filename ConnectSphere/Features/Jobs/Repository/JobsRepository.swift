@@ -6,7 +6,8 @@ struct JobsRepository {
 
     struct Filters: Equatable {
         var query = ""
-        var location = ""
+        /// Within this many km of your ward (5 km steps, like people search).
+        var radiusKm: Int?
         var employmentType: EmploymentType?
         var workFormat: String?
         var level: String?
@@ -18,8 +19,7 @@ struct JobsRepository {
             var items: [URLQueryItem] = []
             let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
             if !q.isEmpty { items.append(.init(name: "q", value: q)) }
-            let l = location.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !l.isEmpty { items.append(.init(name: "location", value: l)) }
+            if let radiusKm { items.append(.init(name: "radius_km", value: String(radiusKm))) }
             if let employmentType { items.append(.init(name: "type", value: employmentType.rawValue)) }
             if let workFormat { items.append(.init(name: "format", value: workFormat)) }
             if let level { items.append(.init(name: "level", value: level)) }

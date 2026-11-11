@@ -2,17 +2,18 @@ import Vapor
 import SQLKit
 
 /// Likes, comments and shares. Mounted under `/api/posts/:id`. Inline `{error}`
-/// bodies. Comment restore is wrapped in a txn with a `status = 'deleted'`
-/// guard and a 409 on a double restore.
+/// bodies. A deleted comment stays deleted, apart from the author's Undo in
+/// the few seconds the app shows it (`restoreComment`) and an overturned
+/// moderation appeal (`ModerationService.restore`).
 struct InteractionsController {
     static func register(routes: any RoutesBuilder) {
         routes.post("like", use: likePost)
         routes.get("comments", use: listComments)
         routes.post("comments", use: addComment)
         routes.delete("comments", ":commentId", use: deleteComment)
+        routes.post("comments", ":commentId", "restore", use: restoreComment)
         routes.patch("comments", ":commentId", use: editComment)
         routes.get("comments", ":commentId", "history", use: commentHistory)
-        routes.post("comments", ":commentId", "restore", use: restoreComment)
         routes.post("comments", ":commentId", "like", use: likeComment)
         routes.on(.POST, "hide", use: hide); routes.on(.DELETE, "hide", use: unhide)
         routes.on(.POST, "save", use: save); routes.on(.DELETE, "save", use: unsave)
@@ -33,7 +34,7 @@ struct InteractionsController {
     static func personaAuthor(_ userID: String, mode: String, _ db: any SQLDatabase) async throws -> CommentObject.CommentAuthor {
         struct A: Decodable { let id: String; let display_name: String; let avatar_color: String?; let avatar_url: String? }
         let a = try await db.raw("""
-            SELECT id,
+            SELECT id::text AS id,
               \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "'\(mode)'", alias: "users")) AS display_name,
               avatar_color,
               \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: "'\(mode)'", alias: "users")) AS avatar_url
@@ -52,6 +53,7 @@ struct InteractionsController {
         guard let meta = try await visibleMeta(postID, viewer: req.userID, officialReads: true, db) else {
             throw InlineError(.notFound, "Post not found")
         }
+        try req.requireNotBanned(in: meta.mode)
         var liked = false
         try await req.db.tx { t in
             struct R: Decodable { let one: Int }
@@ -79,7 +81,7 @@ struct InteractionsController {
         return LikeResponse(liked: liked, like_count: lc.like_count)
     }
 
-    // MARK: comments list / add / delete / edit / restore / like
+    // MARK: comments list / add / delete / edit / like
 
     struct ReplyPlacement: Equatable {
         let parentID: String
@@ -160,7 +162,7 @@ struct InteractionsController {
     struct AddCommentBody: Content { var content: String?; var parent_comment_id: String?; var image_url: String?; var content_format: String?; var confirm: Bool? }
 
     static func addComment(_ req: Request) async throws -> Response {
-        try req.requireNotRestricted(spending: .comment)
+        try req.requireRoom(for: .comment)
         let postID = req.parameters.get("id")!
         let db = req.db.sql()
         let b = try req.content.decode(AddCommentBody.self)
@@ -179,6 +181,8 @@ struct InteractionsController {
         guard let meta = try await visibleMeta(postID, viewer: req.userID, officialReads: true, db) else {
             throw InlineError(.notFound, "Post not found")
         }
+        try req.requireNotBanned(in: meta.mode)
+        try req.requireNotRestricted(in: meta.mode)
         // `parent_comment_id` in the body is the comment being answered; where
         // the reply is stored can differ (see `replyPlacement`).
         var placement: ReplyPlacement? = nil
@@ -247,16 +251,18 @@ struct InteractionsController {
     static func deleteComment(_ req: Request) async throws -> DeleteCommentResponse {
         let postID = req.parameters.get("id")!, commentID = req.parameters.get("commentId")!
         let db = req.db.sql()
-        guard let meta = try await visibleMeta(postID, viewer: req.userID, officialReads: true, db) else { throw InlineError(.notFound, "Post not found") }
+        guard try await visibleMeta(postID, viewer: req.userID, officialReads: true, db) != nil else { throw InlineError(.notFound, "Post not found") }
         struct C: Decodable { let author_id: String }
         // `::text` matters: a raw `uuid` column decodes to Swift's uppercase
         // `UUID.uuidString` form, while `req.userID` is the lowercased JWT
-        // subject, without the cast this comparison (and edit's/restore's
-        // below) can never match, so delete/edit/restore silently 403 for
+        // subject, without the cast this comparison (and edit's below) can
+        // never match, so delete/edit silently 403 for
         // everyone. Bug found and fixed alongside this batch's cascade change.
         guard let c = try await db.raw("SELECT author_id::text AS author_id FROM comments WHERE id = \(uuid: commentID) AND post_id = \(uuid: postID) AND status = 'posted'")
             .first(decoding: C.self) else { throw InlineError(.notFound, "Comment not found") }
-        guard c.author_id == req.userID || meta.authorID == req.userID else {
+        // Only the comment's author: a post's owner hides nothing by deleting
+        // someone else's words. Undo is the author's alone, for a few seconds.
+        guard c.author_id == req.userID else {
             throw InlineError(.forbidden, "Not allowed to delete this comment")
         }
         var removed = 0
@@ -281,6 +287,46 @@ struct InteractionsController {
         return DeleteCommentResponse(removed: removed)
     }
 
+    /// How long after deleting the author can still Undo: the app's toast
+    /// shows for 5 seconds, plus room for a slow request. After that the
+    /// comment is gone for good.
+    static let undoWindow: TimeInterval = 10
+
+    struct RestoreCommentResponse: Content { var restored: Int }
+
+    /// `POST .../comments/:commentId/restore`: the author's Undo. Brings back
+    /// exactly what that delete took (the comment and the replies that went
+    /// with it, which share its `deleted_at`), never a moderator's removal.
+    static func restoreComment(_ req: Request) async throws -> RestoreCommentResponse {
+        let postID = req.parameters.get("id")!, commentID = req.parameters.get("commentId")!
+        let db = req.db.sql()
+        guard try await visibleMeta(postID, viewer: req.userID, officialReads: true, db) != nil else { throw InlineError(.notFound, "Post not found") }
+        struct C: Decodable { let author_id: String; let deleted_at: Date }
+        guard let c = try await db.raw("""
+            SELECT author_id::text AS author_id, deleted_at FROM comments
+            WHERE id = \(uuid: commentID) AND post_id = \(uuid: postID) AND status = 'deleted' AND deleted_at IS NOT NULL
+            """).first(decoding: C.self) else { throw InlineError(.notFound, "Comment not found") }
+        guard c.author_id == req.userID else { throw InlineError(.forbidden, "Not allowed to restore this comment") }
+        guard Date().timeIntervalSince(c.deleted_at) <= undoWindow else {
+            throw InlineError(.gone, "This comment can't be restored anymore")
+        }
+        var restored = 0
+        try await req.db.tx { t in
+            struct D: Decodable { let id: String }
+            restored = try await t.raw("""
+                UPDATE comments SET status = 'posted', deleted_at = NULL
+                WHERE (id = \(uuid: commentID)
+                    OR parent_comment_id = \(uuid: commentID)
+                    OR parent_comment_id IN (SELECT id FROM comments WHERE parent_comment_id = \(uuid: commentID))
+                ) AND status = 'deleted'
+                  AND deleted_at = (SELECT deleted_at FROM comments WHERE id = \(uuid: commentID))
+                RETURNING id
+                """).all(decoding: D.self).count
+            try await t.raw("UPDATE posts SET comment_count = comment_count + \(bind: restored) WHERE id = \(uuid: postID)").run()
+        }
+        return RestoreCommentResponse(restored: restored)
+    }
+
     struct EditCommentBody: Content { var content: String?; var content_format: String? }
     static func editComment(_ req: Request) async throws -> DataResponse<CommentObject> {
         let postID = req.parameters.get("id")!, commentID = req.parameters.get("commentId")!
@@ -293,6 +339,7 @@ struct InteractionsController {
         try ModerationGate.check([content], .text)
         let newFormat: String? = PostStore.contentFormats.contains(body.content_format ?? "") ? body.content_format : nil
         guard let meta = try await visibleMeta(postID, viewer: req.userID, officialReads: true, db) else { throw InlineError(.notFound, "Post not found") }
+        try req.requireNotBanned(in: meta.mode)
         struct C: Decodable { let author_id: String; let image_url: String? }
         guard let c = try await db.raw("""
             SELECT author_id::text AS author_id, image_url FROM comments
@@ -330,40 +377,6 @@ struct InteractionsController {
         return DataResponse(data: CommentObject(id: u.id, content: u.content, created_at: u.created_at,
             parent_comment_id: u.parent_comment_id, like_count: u.like_count, is_liked: liked, author: author,
             image_url: u.image_url, content_format: u.content_format, edited_at: u.edited_at))
-    }
-
-    static func restoreComment(_ req: Request) async throws -> RestoreCommentResponse {
-        let postID = req.parameters.get("id")!, commentID = req.parameters.get("commentId")!
-        let db = req.db.sql()
-        guard let meta = try await visibleMeta(postID, viewer: req.userID, officialReads: true, db) else { throw InlineError(.notFound, "Post not found") }
-        struct C: Decodable { let author_id: String }
-        guard let c = try await db.raw("SELECT author_id::text AS author_id FROM comments WHERE id = \(uuid: commentID) AND post_id = \(uuid: postID) AND status = 'deleted'")
-            .first(decoding: C.self) else { throw InlineError(.notFound, "Comment not found or not deleted") }
-        guard c.author_id == req.userID else { throw InlineError(.forbidden, "Not allowed to restore this comment") }
-        struct R: Decodable {
-            let id: String; let content: String?; let created_at: Date; let parent_comment_id: String?
-            let like_count: Int; let image_url: String?; let content_format: String?; let edited_at: Date?
-        }
-        var restored: R?
-        var commentCount = 0
-        try await req.db.tx { t in
-            restored = try await t.raw("""
-                UPDATE comments SET status = 'posted', deleted_at = NULL
-                WHERE id = \(uuid: commentID) AND status = 'deleted'
-                RETURNING id, content, created_at, parent_comment_id, like_count, image_url, content_format, edited_at
-                """).first(decoding: R.self)
-            guard restored != nil else { return }
-            struct CC: Decodable { let comment_count: Int }
-            commentCount = try await t.raw("UPDATE posts SET comment_count = comment_count + 1 WHERE id = \(uuid: postID) RETURNING comment_count")
-                .first(decoding: CC.self)!.comment_count
-        }
-        guard let r = restored else { throw InlineError(.conflict, "Comment is not currently deleted") }
-        let author = try await personaAuthor(req.userID, mode: meta.mode, db)
-        return RestoreCommentResponse(
-            data: CommentObject(id: r.id, content: r.content, created_at: r.created_at,
-                parent_comment_id: r.parent_comment_id, like_count: r.like_count, is_liked: false, author: author,
-                image_url: r.image_url, content_format: r.content_format, edited_at: r.edited_at),
-            comment_count: commentCount)
     }
 
     // MARK: comment edit history
@@ -533,4 +546,3 @@ struct CommentObject: Content {
     }
 }
 struct CommentsListResponse: Content { var data: [CommentObject]; var total: Int }
-struct RestoreCommentResponse: Content { var data: CommentObject; var comment_count: Int }

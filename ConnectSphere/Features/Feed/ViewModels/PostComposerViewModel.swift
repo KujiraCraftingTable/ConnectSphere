@@ -27,38 +27,35 @@ class PostComposerViewModel {
     var showEventEndDate = false
 
     var jobTitle: String = ""
-    var jobCompany: String = ""
     var jobLocation: String = ""
     var jobEmploymentType: EmploymentType? = nil
     var jobSalaryRange: String = ""
     var jobApplicationDeadline: Date? = nil
     var showJobApplicationDeadline = false
-    /// Post as one of the company pages you run (nil = as yourself).
-    var jobCompanyId: String? = nil
+    /// The job on your company's careers page, so applicants can check it's
+    /// real. Required; the company itself is your verified HR company.
+    var jobCareersUrl: String = ""
+    /// The company's job description PDF, once uploaded (`/uploads/jd/…`).
+    private(set) var jobJDPath: String?
+    private(set) var jobJDName: String?
+    private(set) var isUploadingJD = false
+    static let jdLimit = 10 * 1024 * 1024
     var jobWorkFormat: String? = nil
+    /// Where the job is (on-site / hybrid), for "Near you" by ward distance.
+    var jobProvinceCode: String? = nil
+    var jobWardId: String? = nil
     var jobLevel: String? = nil
     /// VND million / month, as typed.
     var jobSalaryMin = ""
     var jobSalaryMax = ""
+    /// Pay is "Negotiable": the range is hidden and not sent.
+    var jobSalaryNegotiable = false
     /// Required skills, picked from the skill catalogue (SkillPickerView).
     var jobSkills: [String] = []
-    /// The company pages you can post jobs as.
-    private(set) var myCompanies: [Company] = []
-
-    func loadMyCompanies(token: String) async {
-        myCompanies = (try? await CompanyRepository().mine(token: token)) ?? []
-    }
-
-    /// Picking a page also fills the company name.
-    func pickCompany(_ company: Company?) {
-        jobCompanyId = company?.id
-        if let company { jobCompany = company.name }
-    }
-
-
 
     /// Both empty, or numbers with min ≤ max.
     var jobSalaryValid: Bool {
+        if jobSalaryNegotiable { return true }
         let lo = Int(jobSalaryMin), hi = Int(jobSalaryMax)
         if !jobSalaryMin.isEmpty && lo == nil { return false }
         if !jobSalaryMax.isEmpty && hi == nil { return false }
@@ -110,7 +107,9 @@ class PostComposerViewModel {
         case .job:
             guard !trimmed.isEmpty else { return false }
             return !jobTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && !jobCareersUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 && jobSalaryValid && jobSkills.count <= 10
+                && (jobWorkFormat == "remote" || jobWardId != nil)
         case .listing:
             // Listings are made in the Marketplace (CreateListingView), not here.
             return false
@@ -247,13 +246,46 @@ class PostComposerViewModel {
         }
         if let job = draft.jobData {
             jobTitle = job.title
-            jobCompany = job.company ?? ""
+            jobCareersUrl = job.careersUrl ?? ""
+            jobJDPath = job.jdPath
+            jobJDName = job.jdPath == nil ? nil : Bundle.app.loc("Job description (PDF)")
             jobLocation = job.location ?? ""
             jobEmploymentType = job.employmentType
             jobSalaryRange = job.salaryRange ?? ""
+            jobSalaryNegotiable = job.salaryNegotiable
             jobApplicationDeadline = job.applicationDeadline
             showJobApplicationDeadline = job.applicationDeadline != nil
         }
+    }
+
+    // MARK: - Job description PDF
+
+    /// Uploads the picked PDF (from the file importer) as this job's description.
+    func attachJD(at url: URL, token: String) async {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        guard let data = try? Data(contentsOf: url) else {
+            errorMessage = Bundle.app.loc("Couldn't read that file.")
+            return
+        }
+        guard data.count <= Self.jdLimit else {
+            errorMessage = Bundle.app.loc("The job description must be 10 MB or smaller.")
+            return
+        }
+        isUploadingJD = true
+        defer { isUploadingJD = false }
+        do {
+            jobJDPath = try await HRRepository().uploadJD(data, fileName: url.lastPathComponent, token: token)
+            jobJDName = url.lastPathComponent
+            errorMessage = nil
+        } catch {
+            errorMessage = friendlyError(error)
+        }
+    }
+
+    func removeJD() {
+        jobJDPath = nil
+        jobJDName = nil
     }
 
     // MARK: - Private helpers
@@ -360,18 +392,23 @@ class PostComposerViewModel {
         var jobDict: [String: Any] = [
             "title": jobTitle.trimmingCharacters(in: .whitespacesAndNewlines),
         ]
-        let company = jobCompany.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !company.isEmpty { jobDict["company"] = company }
+        jobDict["careersUrl"] = jobCareersUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let jobJDPath { jobDict["jdPath"] = jobJDPath }
         let location = jobLocation.trimmingCharacters(in: .whitespacesAndNewlines)
         if !location.isEmpty { jobDict["location"] = location }
         if let jobEmploymentType { jobDict["employmentType"] = jobEmploymentType.rawValue }
         let salaryRange = jobSalaryRange.trimmingCharacters(in: .whitespacesAndNewlines)
         if !salaryRange.isEmpty { jobDict["salaryRange"] = salaryRange }
-        if let jobCompanyId { jobDict["companyId"] = jobCompanyId }
         if let jobWorkFormat { jobDict["workFormat"] = jobWorkFormat }
+        // A remote job has no place; the ward picker is hidden for it.
+        if jobWorkFormat != "remote", let jobWardId { jobDict["wardId"] = jobWardId }
         if let jobLevel { jobDict["level"] = jobLevel }
-        if let lo = Int(jobSalaryMin) { jobDict["salaryMin"] = lo }
-        if let hi = Int(jobSalaryMax) { jobDict["salaryMax"] = hi }
+        if jobSalaryNegotiable {
+            jobDict["salaryNegotiable"] = true
+        } else {
+            if let lo = Int(jobSalaryMin) { jobDict["salaryMin"] = lo }
+            if let hi = Int(jobSalaryMax) { jobDict["salaryMax"] = hi }
+        }
         if !jobSkills.isEmpty { jobDict["skills"] = jobSkills }
         if showJobApplicationDeadline, let deadline = jobApplicationDeadline {
             // Date-only (no time component) to match the backend's DATE column.

@@ -18,7 +18,6 @@ enum Endpoint {
     case aiPostSearch(query: String, mode: String? = nil)
     case listProvinces
     case listWards(provinceCode: String)
-    case analyzePost(content: String, currentMode: String)
     case linkPreview(url: String)
     /// One page of a post's comments, oldest first (the server caps a page at 100).
     case listComments(postId: String, limit: Int = 100, offset: Int = 0)
@@ -54,7 +53,7 @@ enum Endpoint {
 
     var httpMethod: String {
         switch self {
-        case .aiSearch, .aiRefine, .aiPostSearch, .analyzePost, .linkPreview, .interestSpecific: return "POST"
+        case .aiSearch, .aiRefine, .aiPostSearch, .linkPreview, .interestSpecific: return "POST"
         default:                                    return "GET"
         }
     }
@@ -76,8 +75,6 @@ enum Endpoint {
             var dict: [String: Any] = ["query": q]
             if let mode = mode { dict["mode"] = mode }
             return try? JSONSerialization.data(withJSONObject: dict)
-        case .analyzePost(let content, let mode):
-            return try? JSONEncoder().encode(["content": content, "currentMode": mode])
         case .linkPreview(let url):
             return try? JSONEncoder().encode(["url": url])
         case .interestSpecific(let base, let text):
@@ -94,7 +91,6 @@ enum Endpoint {
         case .listPosts:                return "/posts"
         case .getPost(let id):          return "/posts/\(id)"
         case .recommendedFeed:          return "/feed/recommendations"
-        case .analyzePost:              return "/posts/analyze"
         case .linkPreview:              return "/link-preview"
         case .listComments(let postId, _, _): return "/posts/\(postId)/comments"
         case .aiSearch, .aiRefine:      return "/search/ai"

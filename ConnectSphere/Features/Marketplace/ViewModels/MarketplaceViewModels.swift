@@ -60,8 +60,8 @@ final class MarketplaceViewModel {
         do {
             async let mine = communityRepository.fetchMyCommunities(token: token)
             async let page = repository.listings(mode: mode, query: query, communityId: communityId, sellerId: sellerId, offset: 0, token: token)
-            let wantedType: CommunityType = mode == .work ? .work : .fandom
-            communities = try await mine.filter { $0.type == wantedType }
+            // Communities are Hobby-only (migration 127).
+            communities = mode == .hobby ? try await mine.filter { $0.type == .fandom } : []
             listings = try await page
             canLoadMore = listings.count == 30
             errorMessage = nil
@@ -189,20 +189,41 @@ final class ListingViewModel {
 
     /// Opens the chat with the seller in the listing's mode and sends the
     /// listing into it, so they know what it's about (the seller's
-    /// auto-reply follows from the server). The conversation id, or nil.
-    func messageSeller(token: String) async -> String? {
+    /// auto-reply follows from the server). With several items, `item` is the
+    /// one the buyer asks about. The conversation id, or nil.
+    func messageSeller(item: ListingItem? = nil, token: String) async -> String? {
         isOpeningChat = true
         defer { isOpeningChat = false }
         let messages = MessageRepository()
         do {
+            // Asking about one item is limited to once every 20 minutes.
+            if let item, let listingId = listing?.id {
+                do {
+                    try await repository.askAboutItem(listingId: listingId, itemId: item.id, token: token)
+                    setAskAgainAt(Date().addingTimeInterval(Self.askCooldown), for: item.id)
+                } catch {
+                    // Refused (asked from another device, say): take the server's time.
+                    if let fresh = try? await repository.listing(id: listingId, token: token) { post = fresh }
+                    throw error
+                }
+            }
             let conversationId = try await messages.openConversation(otherUserId: post.author.id,
                                                                      mode: post.mode.rawValue, token: token)
-            _ = try await messages.sendPost(conversationId: conversationId, postId: post.id, note: "", token: token)
+            let note = item.map { String(format: Bundle.app.loc("Is “%@” still available?"), $0.title) } ?? ""
+            _ = try await messages.sendPost(conversationId: conversationId, postId: post.id, note: note, token: token)
             return conversationId
         } catch {
             errorMessage = friendlyError(error)
             return nil
         }
+    }
+
+    /// Same as the server (`ListingStore.askCooldown`).
+    static let askCooldown: TimeInterval = 20 * 60
+
+    private func setAskAgainAt(_ date: Date, for itemId: String) {
+        guard let i = post.listingData?.items.firstIndex(where: { $0.id == itemId }) else { return }
+        post.listingData?.items[i].askAgainAt = date
     }
 
     var isSaved: Bool { post.isSaved }
@@ -223,6 +244,20 @@ final class ListingViewModel {
 
     func setSold(_ sold: Bool, token: String) async {
         await save(["status": sold ? "sold" : "available"], token: token)
+    }
+
+    /// Marks one item of several sold or for sale again; the listing is sold
+    /// once all of them are.
+    func setItemSold(_ item: ListingItem, sold: Bool, token: String) async {
+        guard let id = listing?.id else { return }
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            post = try await repository.setItemStatus(listingId: id, itemId: item.id, sold: sold, token: token)
+            NotificationCenter.default.post(name: .postUpdated, object: nil, userInfo: ["post": post])
+        } catch {
+            errorMessage = friendlyError(error)
+        }
     }
 
     /// Posts the item again as new, in the communities it was listed in. True when done.

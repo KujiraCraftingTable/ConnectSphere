@@ -103,23 +103,42 @@ struct AccountStatus: Decodable {
         let targetType: String
         let reason: String
         let createdAt: Date
-        /// pending, removed or kept.
+        /// pending, kept, removed, action_taken (a profile banned or warned,
+        /// left up) or restored (put back after an appeal).
         let outcome: String
         let targetId: String?
         /// The post to open: the reported post, or a reported comment's post.
         let postId: String?
         /// The content as moderators saw it.
         let snapshot: CaseSnapshot?
-        /// Why moderators decided as they did, once they have.
-        let decisionNote: String?
+        /// What the moderator chose to tell reporters, once decided.
+        let reporterMessage: String?
+        /// The community it was in (or the community reported).
+        let communityName: String?
         enum CodingKeys: String, CodingKey {
             case reason, outcome, snapshot, targetType = "target_type", createdAt = "created_at"
-            case targetId = "target_id", postId = "post_id", decisionNote = "decision_note"
+            case targetId = "target_id", postId = "post_id", reporterMessage = "reporter_message"
+            case communityName = "community_name"
+        }
+
+        /// "Post in Hanoi Runners" for a community's post, "Community · Hanoi
+        /// Runners" for a reported community, plain "Post" otherwise.
+        func title(_ bundle: Bundle) -> String {
+            guard let name = communityName, !name.isEmpty else { return bundle.loc(targetType.reportTargetLabel) }
+            switch targetType {
+            case "community": return String(format: bundle.loc("Community · %@"), name)
+            case "post":      return String(format: bundle.loc("Post in %@"), name)
+            case "comment":   return String(format: bundle.loc("Comment in %@"), name)
+            case "user":      return String(format: bundle.loc("Member of %@"), name)
+            default:          return bundle.loc(targetType.reportTargetLabel)
+            }
         }
     }
 
     let appRole: String
     let restrictedUntil: Date?
+    /// Each restricted mode (server migration 125); older servers leave it out.
+    let restrictions: [Restriction]?
     let bannedAt: Date?
     let banReason: String?
     let strikes: [Strike]
@@ -128,8 +147,15 @@ struct AccountStatus: Decodable {
     let decisions: [Decision]
     let reports: [MyReport]
 
+    struct Restriction: Decodable { let mode: String; let until: Date }
+
     /// The active ban in `mode`, if any.
     func ban(in mode: String) -> Ban? { bans?.first { $0.mode == mode } }
+    /// When the restriction in `mode` ends, if one is running there.
+    func restriction(in mode: String) -> Date? {
+        guard let restrictions else { return restrictedUntil }
+        return restrictions.first { $0.mode == mode }?.until
+    }
     /// Active warnings in `mode`; ones from before modes count in both.
     func warnings(in mode: String) -> [Strike] { strikes.filter { $0.mode == nil || $0.mode == mode } }
 
@@ -138,7 +164,7 @@ struct AccountStatus: Decodable {
     var isAdmin: Bool { appRole == "admin" }
 
     enum CodingKeys: String, CodingKey {
-        case strikes, bans, decisions, reports
+        case strikes, bans, decisions, reports, restrictions
         case appRole = "app_role", restrictedUntil = "restricted_until", bannedAt = "banned_at", banReason = "ban_reason"
     }
 }
@@ -206,9 +232,14 @@ struct ModerationCaseDetail: Decodable {
     let reports: [Report]
     let actions: [Action]
     let appeal: ModerationAppeal?
+    /// Staff only.
     let decisionNote: String?
+    /// What reporters read about the decision.
+    let reporterMessage: String?
 
-    enum CodingKeys: String, CodingKey { case `case`, reports, actions, appeal, decisionNote = "decision_note" }
+    enum CodingKeys: String, CodingKey {
+        case `case`, reports, actions, appeal, decisionNote = "decision_note", reporterMessage = "reporter_message"
+    }
 }
 
 struct ModerationAppeal: Decodable, Identifiable, Hashable {

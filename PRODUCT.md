@@ -32,7 +32,7 @@ birthday is self-declared; see [`KNOWN_GAPS.md`](KNOWN_GAPS.md)).
 | Group | What they want | Example |
 |---|---|---|
 | **Students & new graduates (VN)** | A social life *and* a first professional network, without one leaking into the other | Linh, a 3rd-year Computing student: posts about J-pop with friends, and builds a Work profile for internships |
-| **Young professionals** | Career networking, job search and work communities, separate from personal posts | Minh, a junior iOS developer: follows companies, joins a Swift community, applies for jobs |
+| **Young professionals** | Career networking and job search, separate from personal posts | Minh, a junior iOS developer: follows companies, connects with engineers, applies for jobs |
 | **Hobby communities** | A place to gather around an interest, organise events, and buy/sell gear with people they trust | An anime fan community running watch-party events and a marketplace for figures |
 | **Recruiters & companies** | A company page, job posts, and a way to find candidates by skill rather than keyword | A startup posting an iOS role and searching for "Swift developers in District 1" |
 
@@ -52,20 +52,26 @@ feed. Most features exist in both, and content stays in the mode it was made in.
 **Profile**
 - Cover photo, avatar, bio, location, highlights, an *About* section (Hobby).
 - A Work profile with experience and skills, shown as a mini CV.
-- Connections (friends) and follows, kept separately per mode.
+- Connections (friends) and follows, kept separately per mode; see and
+  withdraw the requests you sent.
 
 **Chat**
 - Direct and group chats, with photos/videos, voice messages, replies,
   pinned messages, polls and message search; message requests from people you
   aren't connected to.
-- **Meeting proposals** with a place, time and reminder.
+- **Meeting proposals** with a place, time and reminder (at the start, an hour
+  before, or 7am on the day / days before; reminders already past can't be picked).
+- Live "Unseen" under your latest message until the other person reads it.
+- Centered notes when someone accepts your message request or changes the chat's
+  theme or a nickname; they count as unread and show as the chat's preview.
 - Share posts and communities into a chat; a floating chat bubble; chat *spaces*
   to group conversations.
 
 **Communities**
-- Join or create communities (hobby or work); a community page with cover,
+- Join or create communities (Hobby mode only: a company's people already talk on
+  Zalo, Viber or Slack, so Work mode has none; a community about a company lives in Hobby); a community page with cover,
   members and info.
-- Post text, polls, events and jobs inside a community.
+- Post text, polls and events inside a community.
 - Admin tools: post approval, a report queue, analytics, member roles.
 - Per-member choice of new-post notifications (all / friends' posts / off),
   and "Manage your content" to see your own posts and comments there.
@@ -84,6 +90,20 @@ feed. Most features exist in both, and content stays in the mode it was made in.
 **Jobs & companies**
 - Company pages; job posts; a Jobs tab with recommendations, search and saved
   jobs; Easy Apply with applicant tracking; skill endorsements.
+- **Only a verified HR posts jobs**, always for their own company, so job
+  seekers can trust every offer. Becoming HR (Work mode › Settings): a code to a
+  company-domain email (no Gmail), the tax code (MST), website and business
+  registration PDF; the app admin checks them by hand (Admin tools › HR
+  requests). One HR per tax code. A new HR's first 3 jobs are reviewed before
+  they go live; every job carries a link to the company's own careers page;
+  3 reports hide a job until the admin decides; revoking an HR removes their
+  jobs and tells the applicants. HR shows as a ✓ "HR at Company" badge, in Work
+  mode only. An HR posts from the **+** at the top of the Jobs tab
+  (For you and Search), which opens the composer on Job.
+- A job's place is a **ward**, required unless the job is remote. "Near you" means within 10 km
+  straight-line, ward centre to ward centre, never a shared city name (Thạnh Mỹ
+  Tây and Vũng Tàu are both "Ho Chi Minh City" but ~65 km apart). Cards show
+  "~N km"; Search filters "Within 5–30 km". Pay can be "Negotiable".
 
 **Search & assistant**
 - **AI search** over people and posts in plain language (see below).
@@ -96,11 +116,16 @@ feed. Most features exist in both, and content stays in the mode it was made in.
 - Blocked users, muted words, activity log, recently deleted, lock profile,
   privacy and security settings, links open in an in-app browser.
 - English / Vietnamese, light/dark themes.
+- Reports go to the app admin, who can keep, remove, restrict (for a number of
+  days) or ban. A restricted account can browse and message friends, but can't
+  post, comment, join communities, sell or add friends, and sees a banner saying
+  until when. The admin also reviews the interests people suggest for the
+  picker (Admin tools › Interest suggestions).
 
 ## What makes it different
 
 1. **Hobby and Work in one app, kept apart.** One account, two personas: each
-   mode has its own feed, its own connections and its own communities, so
+   mode has its own feed and its own connections (communities are Hobby-only), so
    friends and colleagues each see the side that's meant for them.
 2. **AI search that understands what you mean.** Ask "iOS developers near
    Landmark 81 who like J-pop" in Vietnamese or English; a local LLM works out
@@ -134,6 +159,8 @@ Rules the app already follows. Keep them when adding features:
   `en.lproj` and `vi.lproj`.
 - **Strip personal metadata.** Photos and videos lose GPS and camera data
   before upload.
+- **Pop-ups are for a quick look.** A sheet loads fresh each time it opens and
+  has no pull-to-refresh: pulling down closes it. Full pages refresh.
 
 ## Not yet / out of scope
 
@@ -154,7 +181,7 @@ Summarised from [`KNOWN_GAPS.md`](KNOWN_GAPS.md):
 | **Mode** | Hobby or Work. The side of the app you're using; content belongs to one mode |
 | **Persona** | Your profile for one mode (Hobby profile, Work profile) |
 | **Connection** | A mutual friend link in one mode; separate from following |
-| **Community** | A group around a hobby (fandom) or a field of work |
+| **Community** | A group around a hobby (fandom); Hobby mode only |
 | **Listing** | An item for sale in the Marketplace |
 | **Community link** | A listing also shown as a post in a community (up to 5) |
 | **Highlight** | A saved collection of stories on a profile |

@@ -28,6 +28,16 @@ struct JobCard: View {
                             .lineLimit(1)
                         if job.companyVerified { OfficialBadge(compact: true) }
                     }
+                    // Who posted it: the company's verified HR.
+                    if job.poster.hrCompany != nil {
+                        HStack(spacing: 4) {
+                            Text(job.poster.displayName)
+                                .scaledFont(12)
+                                .foregroundColor(AppColors.textTertiary(colorScheme))
+                                .lineLimit(1)
+                            HRBadge(company: job.poster.hrCompany, compact: true)
+                        }
+                    }
                 }
                 Spacer(minLength: 4)
                 Button(action: onToggleSave) {
@@ -41,7 +51,7 @@ struct JobCard: View {
             Text(job.salaryText(loc: bundle.loc) ?? bundle.loc("Negotiable"))
                 .scaledFont(14, .semibold)
                 .foregroundColor(themeManager.theme.primary)
-            let facts = [job.location, job.workFormat.map { bundle.loc(JobListing.formatLabel($0)) },
+            let facts = [job.location, job.distanceKm.map { "~" + String(format: bundle.loc("%d km"), $0) }, job.workFormat.map { bundle.loc(JobListing.formatLabel($0)) },
                          job.level.map { bundle.loc(JobListing.levelLabel($0)) },
                          job.employmentType.flatMap(EmploymentType.init(rawValue:)).map { bundle.loc($0.label) }]
                 .compactMap { $0 }

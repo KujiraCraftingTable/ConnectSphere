@@ -14,6 +14,23 @@ struct AdminToolsView: View {
                 } label: {
                     Label(bundle.loc("Review reports"), systemImage: "hammer.fill")
                 }
+                NavigationLink {
+                    InterestSuggestionsView()
+                } label: {
+                    Label(bundle.loc("Interest suggestions"), systemImage: "sparkles")
+                }
+            }
+
+            // Verified HR (server migration 126): who may post jobs, and a new HR's first jobs.
+            Section {
+                NavigationLink { HRRequestsView() } label: {
+                    Label(bundle.loc("HR requests"), systemImage: "person.badge.shield.checkmark.fill")
+                }
+                NavigationLink { PendingJobsView() } label: {
+                    Label(bundle.loc("Jobs to review"), systemImage: "briefcase.fill")
+                }
+            } header: {
+                Text("Hiring", bundle: bundle)
             }
 
             Section {
@@ -59,7 +76,7 @@ struct AdminToolsView: View {
                     if u.deletedAt != nil { row("Status", bundle.loc("Deleted")) }
                     else if u.bannedAt != nil { row("Status", bundle.loc("Suspended")) }
                     else if let until = u.restrictedUntil {
-                        row("Status", String(format: bundle.loc("Restricted until %@"),
+                        row("Status", String(format: bundle.loc("Read-only until %@"),
                                              until.formatted(date: .abbreviated, time: .shortened)))
                     }
                 }

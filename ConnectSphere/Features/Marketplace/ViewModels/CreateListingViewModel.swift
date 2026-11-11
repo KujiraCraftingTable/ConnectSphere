@@ -3,18 +3,17 @@ import Observation
 import PhotosUI
 import SwiftUI
 
-/// "Sell" in the Marketplace: what's for sale (step 1), then which of your
-/// communities to also list it in, up to 5 (step 2). With none picked it's
-/// in the Marketplace only.
+/// "Sell" in the Marketplace: what's for sale, one item or several (step 1),
+/// then which of your communities to also list it in, up to 5 (step 2). With
+/// none picked it's in the Marketplace only.
 @MainActor
 @Observable
 final class CreateListingViewModel {
-    // Step 1, the item. The description is the post's text; the photos and
-    // videos its media.
-    var title = ""
-    /// Whole VND, shown grouped ("150.000"); empty or 0 = free.
-    var price = ""
-    var condition: ListingCondition = .good
+    // Step 1, what's for sale. The description is the post's text, written
+    // however the seller likes; each item has its own photos.
+    /// The listing's headline, asked for once there are several items.
+    var headline = ""
+    let items = ListingItemsViewModel()
     /// Where the item is, picked on the map.
     var place: PickedPlace?
     var details = ""
@@ -25,7 +24,6 @@ final class CreateListingViewModel {
     var autoReupOn = false
     var autoReupDays = 3
     var autoReupHour = 9
-    let photos = ListingPhotosViewModel()
 
     // Step 2, where else it shows.
     private(set) var communities: [Community] = []
@@ -48,31 +46,27 @@ final class CreateListingViewModel {
         self.selected = Array(preselected.prefix(Self.maxCommunities))
     }
 
-    var priceValue: Int64? { ListingPrice.value(price) }
+    private var trimmedHeadline: String { headline.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     /// Anything entered, closing the form would lose it, so Cancel asks.
     var hasChanges: Bool {
-        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !price.isEmpty
-            || !details.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || place != nil || photos.hasPhotos
+        !trimmedHeadline.isEmpty || items.hasEntries
+            || !details.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || place != nil
     }
 
-
-
     var canContinue: Bool {
-        let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !t.isEmpty && t.count <= 100 && priceValue != nil
-            && details.count <= 2000 && autoReply.count <= 500 && photos.isReady
+        let headlineOK = !items.hasSeveral || (!trimmedHeadline.isEmpty && trimmedHeadline.count <= 100)
+        return headlineOK && items.isValid && details.count <= 2000 && autoReply.count <= 500
     }
 
     // MARK: communities
 
-    /// Your communities for this listing's mode (work ones for Work).
+    /// Your communities, Hobby only: Work mode has none (migration 127).
     func loadCommunities(token: String) async {
+        guard mode == .hobby else { communities = []; return }
         isLoadingCommunities = true
         defer { isLoadingCommunities = false }
-        let wanted: CommunityType = mode == .work ? .work : .fandom
-        communities = ((try? await communityRepository.fetchMyCommunities(token: token)) ?? []).filter { $0.type == wanted }
+        communities = ((try? await communityRepository.fetchMyCommunities(token: token)) ?? []).filter { $0.type == .fandom }
     }
 
     func isSelected(_ id: String) -> Bool { selected.contains(id) }
@@ -96,13 +90,12 @@ final class CreateListingViewModel {
         isPublishing = true
         defer { isPublishing = false }
         do {
-            let uploaded = try await photos.upload()
             var listing: [String: Any] = [
-                "title": title.trimmingCharacters(in: .whitespacesAndNewlines),
-                "price": priceValue ?? 0,
-                "condition": condition.rawValue,
+                "items": try await items.upload(),
                 "hideFromFriends": hideFromFriends,
             ]
+            // One item is its own headline.
+            if items.hasSeveral { listing["title"] = trimmedHeadline }
             if let place {
                 listing["location"] = String(place.name.prefix(150))
                 listing["latitude"] = place.latitude
@@ -116,9 +109,7 @@ final class CreateListingViewModel {
                 "mode": mode.rawValue,
                 "listingData": listing,
                 "community_ids": selected,
-                "image_urls": uploaded.urls,
             ]
-            if let alts = uploaded.alts { fields["image_alts"] = alts }
             return try await repository.create(fields: fields, token: token)
         } catch let upload as MediaUploadError {
             errorMessage = upload.errorDescription

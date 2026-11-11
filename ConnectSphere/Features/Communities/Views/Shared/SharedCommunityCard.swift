@@ -66,16 +66,27 @@ struct ChatCommunityCard: View {
             if let ref = viewModel.community {
                 SharedCommunityCard(community: ref)
             } else if viewModel.unavailable {
-                Text("This community isn't available", bundle: bundle)
-                    .scaledFont(13)
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-                    .padding(12)
-                    .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 12))
+                CommunityUnavailableCard()
             } else {
                 ProgressView().frame(width: 220, height: 80)
             }
         }
         .frame(maxWidth: 260)
         .task { await viewModel.load(communityId: communityId, token: appState.authToken ?? "") }
+    }
+}
+
+/// Where a shared community used to be: it was disbanded, suspended or is
+/// otherwise out of reach, so nothing of it is shown.
+struct CommunityUnavailableCard: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.appBundle) private var bundle
+
+    var body: some View {
+        Text("This community isn't available", bundle: bundle)
+            .scaledFont(13)
+            .foregroundColor(AppColors.textSecondary(colorScheme))
+            .padding(12)
+            .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 12))
     }
 }

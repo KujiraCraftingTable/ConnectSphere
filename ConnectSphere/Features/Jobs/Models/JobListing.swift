@@ -15,11 +15,19 @@ struct JobListing: Identifiable, Decodable, Hashable {
     let level: String?
     let salaryMin: Int?
     let salaryMax: Int?
+    /// Pay is "Negotiable" (server migration 128).
+    var salaryNegotiable: Bool? = nil
     let salaryRange: String?
+    /// Km from the viewer's ward, rounded up to 5; nil when either has no ward.
+    var distanceKm: Int? = nil
     /// "YYYY-MM-DD".
     let applicationDeadline: String?
     let createdAt: Date
     let description: String?
+    /// The job on the company's own careers page, for applicants to check it's real.
+    let careersUrl: String?
+    /// The company's job description PDF (`/uploads/jd/…`), if attached.
+    var jdPath: String? = nil
     /// 'markdown' when the description was written with Markdown; older text is plain.
     let descriptionFormat: String?
     let skills: [String]
@@ -39,12 +47,15 @@ struct JobListing: Identifiable, Decodable, Hashable {
         let avatarUrl: String?
         let avatarColor: String?
         let jobTitle: String?
+        /// The company they're verified HR for.
+        let hrCompany: String?
         enum CodingKeys: String, CodingKey {
             case id
             case displayName = "display_name"
             case avatarUrl = "avatar_url"
             case avatarColor = "avatar_color"
             case jobTitle = "job_title"
+            case hrCompany = "hr_company"
         }
     }
 
@@ -65,6 +76,8 @@ struct JobListing: Identifiable, Decodable, Hashable {
     enum CodingKeys: String, CodingKey {
         case id, title, location, level, description, skills, saved, poster, match
         case descriptionFormat = "description_format"
+        case careersUrl = "careers_url"
+        case jdPath = "jd_path"
         case postId = "post_id"
         case companyName = "company_name"
         case companyId = "company_id"
@@ -74,7 +87,9 @@ struct JobListing: Identifiable, Decodable, Hashable {
         case workFormat = "work_format"
         case salaryMin = "salary_min"
         case salaryMax = "salary_max"
+        case salaryNegotiable = "salary_negotiable"
         case salaryRange = "salary_range"
+        case distanceKm = "distance_km"
         case applicationDeadline = "application_deadline"
         case createdAt = "created_at"
         case interestedCount = "interested_count"
@@ -86,6 +101,7 @@ struct JobListing: Identifiable, Decodable, Hashable {
     /// "15–30 million ₫/month", "From 15 million ₫/month", the poster's own
     /// text, or nil (shown as "Negotiable").
     func salaryText(loc: (String) -> String) -> String? {
+        if salaryNegotiable == true { return nil }
         switch (salaryMin, salaryMax) {
         case let (lo?, hi?) where lo == hi: return String(format: loc("%lld million ₫/month"), lo)
         case let (lo?, hi?): return String(format: loc("%lld–%lld million ₫/month"), lo, hi)

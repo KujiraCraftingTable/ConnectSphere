@@ -24,10 +24,12 @@ enum ServerMessage {
         let key: (Int) -> String
     }
 
-    /// Server sentences that carry a number (AccountCodeStore).
+    /// Server sentences that carry a number (AccountCodeStore, ListingStore.claimItemAsk).
     private static let numbered: [Numbered] = [
         Numbered(regex: try! NSRegularExpression(pattern: #"^Wait (\d+)s before asking for a new code$"#),
                  key: { _ in "Wait %ds before asking for a new code" }),
+        Numbered(regex: try! NSRegularExpression(pattern: #"^You can ask about this item again in (\d+) minutes$"#),
+                 key: { $0 == 1 ? "You can ask about this item again in %d minute" : "You can ask about this item again in %d minutes" }),
         Numbered(regex: try! NSRegularExpression(pattern: #"^That code isn't right, (\d+) tr(?:y|ies) left$"#),
                  key: { $0 == 1 ? "That code isn't right, %d try left" : "That code isn't right, %d tries left" }),
     ]

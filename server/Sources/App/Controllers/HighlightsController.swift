@@ -50,10 +50,21 @@ struct HighlightsController {
         var id = req.parameters.get("id")!
         if id == "me" { id = req.userID }
         guard UUID(uuidString: id) != nil else { throw Abort(.notFound) }
-        if try await ProfileLock.lockedOut(viewer: req.userID, owner: id, mode: "hobby", on: req.db.sql()) {
+        let db = req.db.sql()
+        // Highlights are Hobby only, and follow the profile: none to someone
+        // blocked either way, for a gone account, or while it's banned in Hobby.
+        let isMe = id.caseInsensitiveCompare(req.userID) == .orderedSame
+        if !isMe {
+            let workMode = req.headers.first(name: AuthMiddleware.modeHeader)?.lowercased() == "work"
+            let active = try await UserStore.isActive(id, on: db)
+            let blocked = try await UserStore.isBlockedEitherWay(id, req.userID, on: db)
+            let banned = try await AccountBans.activeModes(id, on: db).contains("hobby")
+            if workMode || !active || blocked || banned { return DataListResponse(data: []) }
+        }
+        if try await ProfileLock.lockedOut(viewer: req.userID, owner: id, mode: "hobby", on: db) {
             return DataListResponse(data: [])
         }
-        return DataListResponse(data: try await HighlightStore.list(of: id.lowercased(), on: req.db.sql()))
+        return DataListResponse(data: try await HighlightStore.list(of: id.lowercased(), on: db))
     }
 
     static func create(_ req: Request) async throws -> DataListResponse<HighlightStore.Highlight> {

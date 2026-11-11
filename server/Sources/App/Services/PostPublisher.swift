@@ -18,9 +18,13 @@ enum PostPublisher {
     }
 
     /// The status a post takes when it goes out: `pending` in a community
-    /// that approves posts (unless the author is staff there), else `posted`.
+    /// that approves posts (unless the author is staff there), or for a new
+    /// HR's job still in its trial (migration 126), else `posted`.
     static let goingOutStatus = """
-        CASE WHEN posts.community_id IS NOT NULL
+        CASE WHEN posts.post_type = 'job'
+               AND EXISTS (SELECT 1 FROM recruiters r WHERE r.user_id = posts.author_id AND r.trial_left > 0)
+             THEN 'pending'::post_status
+             WHEN posts.community_id IS NOT NULL
                AND EXISTS (SELECT 1 FROM communities c WHERE c.id = posts.community_id AND c.require_post_approval)
                AND NOT EXISTS (SELECT 1 FROM community_members m WHERE m.community_id = posts.community_id
                                  AND m.user_id = posts.author_id AND m.role IN ('admin', 'moderator'))

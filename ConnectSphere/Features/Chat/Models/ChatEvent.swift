@@ -40,7 +40,13 @@ struct ChatEvent: Decodable, Identifiable, Equatable {
                 return byMe ? bundle.loc("You reset the theme")
                             : String(format: bundle.loc("%@ reset the theme"), actorName)
             }
-            let name = bundle.loc(ThemePalette.byId(theme)?.name ?? theme)
+            // An id this build doesn't know (an older app, or a hand-made
+            // request) is never shown raw.
+            guard let palette = ThemePalette.byId(theme) else {
+                return byMe ? bundle.loc("You changed the theme")
+                            : String(format: bundle.loc("%@ changed the theme"), actorName)
+            }
+            let name = bundle.loc(palette.name)
             return byMe ? String(format: bundle.loc("You changed the theme to %@"), name)
                         : String(format: bundle.loc("%@ changed the theme to %@"), actorName, name)
         case .accepted:

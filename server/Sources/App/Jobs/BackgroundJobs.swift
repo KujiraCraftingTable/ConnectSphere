@@ -62,6 +62,7 @@ enum BackgroundJobs {
         app.queues.schedule(AutoReupJob()).every(minutes: 1)           // auto re-up lands within a minute of its slot
         app.queues.schedule(TranslationSweepJob()).every(minutes: 2)
         app.queues.schedule(AdminDigestJob()).every(minutes: 10)       // "N reports / appeals waiting"
+        app.queues.schedule(RequestDigestJob()).every(minutes: 1)      // "N post / join requests" to community staff
 
         try app.queues.startInProcessJobs(on: .default)
         try app.queues.startScheduledJobs()
@@ -175,6 +176,81 @@ enum BackgroundJobs {
                     userID: admin.id, type: "admin_digest", groupTargetID: kind,
                     payload: ["reason": kind, "reportCount": count],
                     on: db, hub: app.socketHub, logger: context.logger)
+            }
+        }
+    }
+
+    /// Community staff hear about waiting post and join requests, and reports, in batches.
+    /// The first request after the last notification opens a 10-minute window;
+    /// when it closes, every admin and moderator gets one notification with
+    /// how many are waiting in all, replacing their earlier unread one. With no
+    /// new requests there's nothing more, and a window whose requests were all
+    /// reviewed in time sends nothing.
+    struct RequestDigestJob: AsyncScheduledJob {
+        static let window = "10 minutes"
+
+        /// Each kind's pending requests as (community, requested at).
+        static let sources: [(kind: String, type: String, requests: SQLQueryString)] = [
+            ("post", "post_requests", """
+                SELECT p.community_id AS cid, p.created_at AS at FROM posts p
+                WHERE p.status = 'pending' AND p.community_id IS NOT NULL
+                UNION ALL
+                SELECT lc.community_id, lc.created_at FROM listing_communities lc WHERE lc.status = 'pending'
+                """),
+            ("join", "join_request", """
+                SELECT jr.community_id AS cid, jr.requested_at AS at FROM community_join_requests jr
+                WHERE jr.status = 'pending'
+                """),
+            // Counted per reported post or member, like the Reports screen.
+            ("report", "community_reports", """
+                SELECT cr.community_id AS cid, MIN(cr.created_at) AS at FROM community_reports cr
+                WHERE cr.status = 'pending' GROUP BY cr.community_id, cr.target_id
+                """),
+        ]
+
+        func run(context: QueueContext) async throws {
+            let app = context.application, db = app.db.sql()
+            struct Due: Decodable { let community_id: String; let waiting: Int; let window_start: Date }
+            struct Staff: Decodable { let user_id: String }
+            for source in Self.sources {
+                let due = try await db.raw("""
+                    WITH reqs AS (\(source.requests))
+                    SELECT r.cid::text AS community_id, COUNT(*)::int AS waiting,
+                      MIN(r.at) FILTER (WHERE d.last_sent_at IS NULL OR r.at > d.last_sent_at) AS window_start
+                    FROM reqs r
+                    JOIN communities c ON c.id = r.cid AND c.disbanded_at IS NULL AND c.suspended_at IS NULL
+                    LEFT JOIN community_request_digests d ON d.community_id = r.cid AND d.kind = \(bind: source.kind)
+                    GROUP BY r.cid, d.last_sent_at
+                    HAVING MIN(r.at) FILTER (WHERE d.last_sent_at IS NULL OR r.at > d.last_sent_at)
+                           <= now() - interval '\(unsafeRaw: Self.window)'
+                    """).all(decoding: Due.self)
+                for d in due {
+                    // Claim this window first, so an overlapping run can't send it twice.
+                    struct Claimed: Decodable { let community_id: String }
+                    guard try await db.raw("""
+                        INSERT INTO community_request_digests (community_id, kind, last_sent_at)
+                        VALUES (\(uuid: d.community_id), \(bind: source.kind), now())
+                        ON CONFLICT (community_id, kind) DO UPDATE SET last_sent_at = now()
+                          WHERE community_request_digests.last_sent_at < \(bind: d.window_start)
+                        RETURNING community_id::text AS community_id
+                        """).first(decoding: Claimed.self) != nil else { continue }
+                    let staff = try await db.raw("""
+                        SELECT user_id::text AS user_id FROM community_members
+                        WHERE community_id = \(uuid: d.community_id) AND role IN ('admin', 'moderator')
+                        """).all(decoding: Staff.self)
+                    for s in staff {
+                        try await db.raw("""
+                            DELETE FROM user_notifications
+                            WHERE user_id = \(uuid: s.user_id) AND type = \(bind: source.type)
+                              AND community_id = \(uuid: d.community_id) AND is_read = FALSE
+                            """).run()
+                        await NotifyService.pushUserNotification(
+                            userID: s.user_id, type: source.type, communityID: d.community_id,
+                            entityType: "community", entityID: d.community_id, groupTargetID: d.community_id,
+                            payload: ["requestCount": d.waiting],
+                            on: db, hub: app.socketHub, logger: context.logger)
+                    }
+                }
             }
         }
     }

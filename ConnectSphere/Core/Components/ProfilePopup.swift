@@ -3,6 +3,8 @@ import SwiftUI
 /// A profile shown as a full-height pop-up over the current page, with a
 /// close button, how every in-context profile opens (a community member,
 /// a Marketplace seller), so tapping someone never leaves the page.
+/// What it shows loads fresh each time it opens and has no pull-to-refresh:
+/// on a pop-up, pulling down is how it closes.
 struct ProfilePopup<Content: View>: View {
     @Environment(AppState.self) private var appState
     @Environment(ThemeManager.self) private var themeManager

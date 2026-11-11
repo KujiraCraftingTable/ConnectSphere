@@ -89,6 +89,7 @@ struct MyApplicationCard: View {
 /// A job's applicants, for its poster or company admins: filter by status,
 /// swipe to shortlist or turn down, open one for the note, CV and a chat.
 struct ApplicantsView: View {
+    @Environment(UndoToastPresenter.self) private var toast
     @Environment(ThemeManager.self) private var themeManager
     @Environment(AppState.self) private var appState
     @Environment(\.appBundle) private var bundle
@@ -104,6 +105,15 @@ struct ApplicantsView: View {
     }
 
     private var token: String { appState.authToken ?? "" }
+
+    /// The applicant is told, so the move waits out an Undo toast first.
+    private func move(_ status: String, _ application: JobApplication) {
+        viewModel.stage(status, for: application, token: token)
+        toast.show(message: String(format: bundle.loc("%@ moved to %@"), application.applicant.displayName,
+                                   bundle.loc(JobApplication.statusLabel(status)))) {
+            viewModel.undo(application.id)
+        }
+    }
 
     var body: some View {
         List {
@@ -132,13 +142,13 @@ struct ApplicantsView: View {
                             ApplicantDetailView(application: application, viewModel: viewModel) { chat = $0 }
                         } label: { row(application) }
                         .swipeActions(edge: .leading) {
-                            Button { Task { await viewModel.setStatus("shortlisted", for: application, token: token) } } label: {
+                            Button { move("shortlisted", application) } label: {
                                 Label(bundle.loc("Shortlist"), systemImage: "star.fill")
                             }
                             .tint(.orange)
                         }
                         .swipeActions(edge: .trailing) {
-                            Button { Task { await viewModel.setStatus("rejected", for: application, token: token) } } label: {
+                            Button { move("rejected", application) } label: {
                                 Label(bundle.loc("Turn down"), systemImage: "xmark")
                             }
                             .tint(.gray)
@@ -214,6 +224,7 @@ struct ApplicantsView: View {
 
 /// One applicant: profile, fit, note, CV, and the next step.
 struct ApplicantDetailView: View {
+    @Environment(UndoToastPresenter.self) private var toast
     @Environment(ThemeManager.self) private var themeManager
     @Environment(AppState.self) private var appState
     @Environment(\.appBundle) private var bundle
@@ -225,6 +236,15 @@ struct ApplicantDetailView: View {
     let onChat: (ApplicantsView.ChatTarget) -> Void
 
     private var token: String { appState.authToken ?? "" }
+
+    /// The applicant is told, so the move waits out an Undo toast first.
+    private func move(_ status: String, _ application: JobApplication) {
+        viewModel.stage(status, for: application, token: token)
+        toast.show(message: String(format: bundle.loc("%@ moved to %@"), application.applicant.displayName,
+                                   bundle.loc(JobApplication.statusLabel(status)))) {
+            viewModel.undo(application.id)
+        }
+    }
     /// The live copy, so a status change shows at once.
     private var current: JobApplication {
         viewModel.applications.first { $0.id == application.id } ?? application
@@ -285,7 +305,7 @@ struct ApplicantDetailView: View {
                 }
                 Menu {
                     ForEach(["shortlisted", "hired", "rejected"], id: \.self) { status in
-                        Button { Task { await viewModel.setStatus(status, for: current, token: token) } } label: {
+                        Button { move(status, current) } label: {
                             Label(bundle.loc(JobApplication.statusLabel(status)), systemImage: JobApplication.statusIcon(status))
                         }
                         .disabled(current.status == status)

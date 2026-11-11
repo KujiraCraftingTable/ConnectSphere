@@ -188,7 +188,30 @@ extension SeedDemoCommand {
                 extra.salaryMin = job.min
                 extra.salaryMax = job.max
                 extra.skills = skills
-                try await JobStore.create(postID: postID, title: job.title, company: company?.name ?? job.company_name,
+                let companyName = company?.name ?? job.company_name ?? "Company"
+                extra.careersURL = (company?.website ?? "https://" + Self.slugDomain(companyName)) + "/careers"
+                // An office job sits in its poster's ward, so "near" (ward distance,
+                // migration 129) works on demo data too.
+                if job.format != "remote" {
+                    struct W: Decodable { let id: String; let label: String }
+                    if let w = try await t.raw("""
+                        SELECT w.id::text AS id, w.full_name || ', ' || w.province_name AS label
+                        FROM users u JOIN vn_wards w ON w.id = u.ward_id WHERE u.id = \(uuid: ids[job.by]!)
+                        """).first(decoding: W.self) {
+                        extra.wardID = w.id
+                        extra.wardLabel = w.label
+                    }
+                }
+                // Only verified HR post jobs (migration 126): the demo posters
+                // are, past their trial. One HR per company (tax code), so a
+                // second poster for the same company stays a plain user.
+                try await t.raw("""
+                    INSERT INTO recruiters (user_id, company_name, tax_code, company_id, trial_left)
+                    VALUES (\(uuid: ids[job.by]!), \(bind: companyName), \(bind: Self.demoTaxCode(companyName)),
+                            \(uuid: extra.companyID), 0)
+                    ON CONFLICT DO NOTHING
+                    """).run()
+                try await JobStore.create(postID: postID, title: job.title, company: companyName,
                                           location: job.location, employmentType: job.type, salaryRange: nil,
                                           applicationDeadline: dayFormat.string(from: Date().addingTimeInterval(Double(job.deadline) * 86_400)),
                                           extra: extra, on: t)
@@ -532,6 +555,18 @@ extension SeedDemoCommand {
             }
         }
         return ["on real accounts: \(follows) follows, \(likes) likes, \(comments) comments"]
+    }
+
+    /// A stable, made-up 10-digit tax code for a demo company.
+    static func demoTaxCode(_ name: String) -> String {
+        var h: UInt64 = 1469598103934665603
+        for b in name.lowercased().utf8 { h = (h ^ UInt64(b)) &* 1099511628211 }
+        return String(format: "%010llu", h % 10_000_000_000)
+    }
+
+    /// "Ví Xanh" → "vixanh.vn", for a demo company without a website.
+    static func slugDomain(_ name: String) -> String {
+        name.folding(options: .diacriticInsensitive, locale: nil).lowercased().filter { $0.isLetter || $0.isNumber } + ".vn"
     }
 }
 

@@ -10,7 +10,18 @@ enum SocketHandlers {
 
     // MARK: dispatch
 
+    /// Events that change a chat: refused while the sender is restricted in
+    /// the chat's mode (read-only, like the REST routes in AuthMiddleware).
+    static let writeEvents: Set<String> = [
+        "send_message", "react_message", "update_meeting_proposal", "cancel_meeting_proposal",
+        "respond_meeting", "pin_message", "unpin_message",
+    ]
+
     static func dispatch(event: String, arg: Any?, ackID: Int?, conn: SocketConn, session: SocketSession) async {
+        if writeEvents.contains(event), let cid = (arg as? [String: Any])?["conversationId"] as? String,
+           (try? await MessageRequests.isRestricted(in: cid, userID: conn.userID, on: session.db.sql())) ?? false {
+            await session.ackError(ackID, Restrictions.message); return
+        }
         switch event {
         case "get_presence":          await sendPresenceSnapshot(session: session)
         case "join_conversation":     await joinConversation(arg, conn: conn, session: session)
@@ -148,9 +159,11 @@ enum SocketHandlers {
             }
             let album: [MessageObject.MediaItem]?
             let mediaURL: String?
+            let voice: (seconds: Int?, waveform: [Double]?)
             do {
                 album = try MessagesController.validateAlbum(type: type, items: b.mediaItems)
                 mediaURL = try MediaPath.uploaded(b.mediaUrl, scope: .chat)
+                voice = try MessagesController.validateVoice(type: type, seconds: b.voiceDurationSeconds, waveform: b.voiceWaveform)
             } catch { await session.ackError(ackID, reason(error)); return }
             if ["image", "video", "voice"].contains(type), mediaURL == nil {
                 await session.ackError(ackID, "Media URL is required"); return
@@ -184,7 +197,7 @@ enum SocketHandlers {
             let stored = b.content?.trimmedText.nilIfEmpty ?? validated?.title
             let newID = try await ChatStore.insertMessage(cid, senderID: conn.userID, content: stored, messageType: type,
                 mediaUrl: album?.first?.url ?? mediaURL, mediaItems: album, replyToMessageID: replyTo,
-                voiceDuration: b.voiceDurationSeconds, voiceWaveform: b.voiceWaveform, on: db)
+                voiceDuration: voice.seconds, voiceWaveform: voice.waveform, on: db)
             if let v = validated { try await ChatStore.createMeetingProposalRow(messageID: newID, v, on: db) }
             guard let msg = try await ChatStore.messageByID(newID, on: db) else {
                 await session.ackError(ackID, "Failed to send message"); return
@@ -218,6 +231,9 @@ enum SocketHandlers {
         do {
             guard try await ChatStore.isParticipant(cid, conn.userID, on: db) else {
                 await session.ackError(ackID, "Not a participant"); return
+            }
+            if try await MessageRequests.isPendingRequest(conversationID: cid, on: db) {
+                await session.ackError(ackID, MessageRequests.pendingRequestReason); return
             }
             guard let emoji = b.emoji, ChatStore.reactionEmoji.contains(emoji) else {
                 await session.ackError(ackID, "Unsupported emoji"); return
@@ -258,6 +274,9 @@ enum SocketHandlers {
             guard try await ChatStore.isParticipant(cid, conn.userID, on: db) else {
                 await session.ackError(ackID, "Not a participant"); return
             }
+            if try await MessageRequests.isPendingRequest(conversationID: cid, on: db) {
+                await session.ackError(ackID, MessageRequests.pendingRequestReason); return
+            }
             let p: ChatStore.ProposalRow
             do { p = try await MessagesController.resolveMeetingProposal(cid, mid, on: db) }
             catch { await session.ackError(ackID, "Meeting proposal not found"); return }
@@ -293,6 +312,9 @@ enum SocketHandlers {
         do {
             guard try await ChatStore.isParticipant(cid, conn.userID, on: db) else {
                 await session.ackError(ackID, "Not a participant"); return
+            }
+            if try await MessageRequests.isPendingRequest(conversationID: cid, on: db) {
+                await session.ackError(ackID, MessageRequests.pendingRequestReason); return
             }
             let p: ChatStore.ProposalRow
             do { p = try await MessagesController.resolveMeetingProposal(cid, mid, on: db) }
@@ -422,6 +444,9 @@ enum SocketHandlers {
         do {
             guard try await ChatStore.isParticipant(cid, conn.userID, on: db) else {
                 await session.ackError(ackID, "Not a participant"); return
+            }
+            if try await MessageRequests.isPendingRequest(conversationID: cid, on: db) {
+                await session.ackError(ackID, MessageRequests.pendingRequestReason); return
             }
             guard let t = try await ChatStore.messageBasic(mid, on: db), t.conversation_id == cid else {
                 await session.ackError(ackID, "Message not found"); return

@@ -156,7 +156,6 @@ struct StoriesController {
     struct CreateBody: Content { var image_url: String?; var mode: String? }
 
     static func create(_ req: Request) async throws -> Response {
-        try req.requireNotRestricted()
         let body = try req.content.decode(CreateBody.self)
         guard let url = try MediaPath.uploaded(body.image_url) else {
             throw InlineError(.badRequest, "image_url is required")
@@ -164,6 +163,8 @@ struct StoriesController {
         guard let mode = body.mode, ["hobby", "work"].contains(mode) else {
             throw InlineError(.badRequest, "mode must be hobby or work")
         }
+        try req.requireNotBanned(in: mode)
+        try req.requireNotRestricted(in: mode)
         let row = try await req.db.sql().raw("""
             INSERT INTO stories (author_id, image_url, mode) VALUES (\(uuid: req.userID), \(bind: url), \(bind: mode))
             RETURNING id, author_id, image_url, created_at, expires_at
@@ -224,7 +225,7 @@ struct StoriesController {
         let id = req.parameters.get("id")!
         struct S: Decodable { let author_id: String; let mode: String }
         guard let s = try await req.db.sql().raw("SELECT author_id, mode FROM stories WHERE id = \(uuid: id)").first(decoding: S.self),
-              s.author_id == req.userID else { throw InlineError(.notFound, "Story not found") }
+              s.author_id.lowercased() == req.userID else { throw InlineError(.notFound, "Story not found") }
         // Viewers are shown with the persona matching this story's own mode,
         // same reasoning as `list`'s author field: the identity a hobby-mode
         // story's audience sees should be their hobby persona, not whichever

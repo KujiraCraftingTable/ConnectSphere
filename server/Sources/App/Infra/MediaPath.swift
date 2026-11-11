@@ -59,18 +59,32 @@ enum MediaPath {
     static func thumbnail(_ raw: String?, hasLink: Bool, exists: (String) -> Bool = ownFileExists) throws -> String? {
         guard let stored = storable(raw, exists: exists) else { return nil }
         if stored.hasPrefix("/uploads/") { return try uploaded(stored, exists: exists) }
-        guard hasLink, stored.count <= 2048, let comps = URLComponents(string: stored),
-              let scheme = comps.scheme?.lowercased(), scheme == "http" || scheme == "https",
-              comps.host?.isEmpty == false else {
+        guard hasLink, isWebURL(stored) else {
             throw Abort(.badRequest, reason: "Images must be uploaded")
         }
         return stored
     }
 
-    /// An upload path we can show to anyone: not a chat attachment or a CV.
+    /// A post's `link_url`: a web page only. Other schemes (`javascript:`,
+    /// `tel:`, `sms:`, another app's link) would open something other than a
+    /// page straight from a post. Blank becomes nil.
+    static func webLink(_ raw: String?) throws -> String? {
+        guard let link = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !link.isEmpty else { return nil }
+        guard isWebURL(link) else { throw Abort(.badRequest, reason: "Links must start with http:// or https://") }
+        return link
+    }
+
+    static func isWebURL(_ s: String) -> Bool {
+        guard s.count <= 2048, let comps = URLComponents(string: s),
+              let scheme = comps.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return false }
+        return comps.host?.isEmpty == false
+    }
+
+    /// An upload path we can show to anyone: not a chat attachment, a CV or an HR licence.
     static func isPublicUpload(_ path: String) -> Bool {
         path.hasPrefix("/uploads/") && !path.contains("..")
             && !path.hasPrefix("/uploads/messages/") && !path.hasPrefix("/uploads/cv/")
+            && !path.hasPrefix("/uploads/hr/")
     }
 
     /// Whether `/uploads/…` names a file in the server's uploads folder.

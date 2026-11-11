@@ -26,6 +26,8 @@ struct UserCore: Content {
     var post_count: Int
     /// The official @connectsphere account, the app's only admin (migration 104).
     var is_official: Bool? = nil
+    /// The company this person is verified HR for (migration 126). Work views only.
+    @NullCoded var hr_company: String? = nil
     var created_at: Date
     var interests: [String]
     var skills: [String]

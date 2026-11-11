@@ -11,6 +11,12 @@ struct ApplicationsController {
         j.get("applications", "mine", use: mine)
         j.patch("applications", ":applicationId", use: setStatus)
         j.on(.POST, "cv", body: .collect(maxSize: "10mb"), use: uploadCV)
+        // The CV saved on your Work profile (migration 131).
+        j.get("my-cv", use: myCV)
+        j.put("my-cv", use: setMyCV)
+        j.delete("my-cv", use: removeMyCV)
+        // Someone's saved CV: only verified HRs (and the owner) get it.
+        routes.grouped("users").grouped(AuthMiddleware()).get(":userId", "cv", use: profileCV)
         // CVs are private: only their owner and the managers of a job they
         // were sent to can open one (token in the query, like chat media).
         app.get("uploads", "cv", ":filename", use: serveCV)
@@ -136,6 +142,43 @@ struct ApplicationsController {
         return CVResponse(url: "/uploads/cv/\(name)")
     }
 
+    struct MyCV: Content { var cv_url: String? }
+
+    static func myCV(_ req: Request) async throws -> DataResponse<MyCV> {
+        struct R: Decodable { let cv_path: String? }
+        let r = try await req.db.sql().raw("SELECT cv_path FROM users WHERE id = \(uuid: req.userID)").first(decoding: R.self)
+        return DataResponse(data: MyCV(cv_url: r?.cv_path))
+    }
+
+    /// Saves a CV uploaded with `POST /jobs/cv` (yours only) on your profile.
+    static func setMyCV(_ req: Request) async throws -> DataResponse<MyCV> {
+        let path = try req.content.decode(MyCV.self).cv_url ?? ""
+        let file = String(path.dropFirst("/uploads/cv/".count))
+        guard path.hasPrefix("/uploads/cv/"), file.hasPrefix(req.userID.lowercased() + "_"),
+              !file.contains("/"), !file.contains(".."), FileManager.default.fileExists(atPath: "\(cvDir)/\(file)") else {
+            throw Abort(.badRequest, reason: "Attach the CV again")
+        }
+        try await req.db.sql().raw("UPDATE users SET cv_path = \(bind: path) WHERE id = \(uuid: req.userID)").run()
+        return DataResponse(data: MyCV(cv_url: path))
+    }
+
+    static func removeMyCV(_ req: Request) async throws -> DataResponse<MyCV> {
+        try await req.db.sql().raw("UPDATE users SET cv_path = NULL WHERE id = \(uuid: req.userID)").run()
+        return DataResponse(data: MyCV(cv_url: nil))
+    }
+
+    /// The person's saved CV, for a verified HR (or themselves); 404 otherwise,
+    /// so others can't even tell whether there is one.
+    static func profileCV(_ req: Request) async throws -> DataResponse<MyCV> {
+        guard let id = req.parameters.get("userId"), UUID(uuidString: id) != nil else { throw Abort(.notFound) }
+        let isSelf = id.lowercased() == req.userID.lowercased()
+        guard isSelf || (try await HRStore.recruiter(req.userID, on: req.db.sql())) != nil else { throw Abort(.notFound) }
+        struct R: Decodable { let cv_path: String? }
+        guard let path = try await req.db.sql().raw("SELECT cv_path FROM users WHERE id = \(uuid: id)")
+            .first(decoding: R.self)?.cv_path else { throw Abort(.notFound) }
+        return DataResponse(data: MyCV(cv_url: path))
+    }
+
     static func serveCV(_ req: Request) async throws -> Response {
         guard let token = req.query[String.self, at: "token"],
               let payload = try? JWTHS256.verify(token, secret: req.application.appEnv.jwt.secret) else {
@@ -145,6 +188,12 @@ struct ApplicationsController {
         let viewer = payload.sub.lowercased()
         let path = "/uploads/cv/\(name)"
         var allowed = name.hasPrefix(viewer + "_")
+        // A profile CV is for verified HRs.
+        if !allowed, try await HRStore.recruiter(viewer, on: req.db.sql()) != nil {
+            struct U: Decodable { let id: String }
+            allowed = try await req.db.sql().raw("SELECT id::text AS id FROM users WHERE cv_path = \(bind: path)")
+                .first(decoding: U.self) != nil
+        }
         if !allowed {
             struct R: Decodable { let job_id: String }
             for a in try await req.db.sql().raw("SELECT job_id::text AS job_id FROM job_applications WHERE cv_url = \(bind: path)")

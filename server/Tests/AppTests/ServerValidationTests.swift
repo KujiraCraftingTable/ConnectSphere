@@ -132,17 +132,6 @@ final class ServerValidationTests: XCTestCase {
         XCTAssertEqual(BirthdayRules.rejection("2015-01-01", today: today), BirthdayRules.underageReason)
     }
 
-    func testCommunityIconAndColour() throws {
-        XCTAssertNoThrow(try CommunitiesController.validateAppearance(icon: "🎮", color: "#7F5AF0"))
-        XCTAssertNoThrow(try CommunitiesController.validateAppearance(icon: nil, color: nil))
-        XCTAssertThrowsError(try CommunitiesController.validateAppearance(icon: String(repeating: "🎮", count: 11), color: nil))
-        XCTAssertThrowsError(try CommunitiesController.validateAppearance(icon: "", color: nil))
-        XCTAssertThrowsError(try CommunitiesController.validateAppearance(icon: " 🎮", color: nil))
-        for bad in ["red", "7F5AF0", "#7F5AF", "#7F5AF0F", "#GGGGGG", "'; DROP"] {
-            XCTAssertThrowsError(try CommunitiesController.validateAppearance(icon: nil, color: bad), bad)
-        }
-    }
-
     func testExperienceMonthTakesDigitsOnly() {
         XCTAssertNotNil(ExperiencesController.month("2024-03"))
         for bad in ["2024-+3", "2024--1", "+024-03", "2024-3 ", "2024-13", "2024-00"] {
@@ -186,6 +175,16 @@ final class ServerValidationTests: XCTestCase {
         XCTAssertThrowsError(try meeting("2_hours_before"), "not a preset")
     }
 
+    func testInterestApprovalNeedsEveryFieldTrimmedAndShort() throws {
+        typealias C = AdminInterestsController
+        let ok = try C.validate(.init(text: " roblox ", name_en: "Roblox", name_vi: "Roblox", category: "gaming", allows_specific: nil))
+        XCTAssertEqual(ok, C.Approval(text: "roblox", nameEN: "Roblox", nameVI: "Roblox", category: "gaming", allowsSpecific: false))
+        XCTAssertThrowsError(try C.validate(.init(text: "x", name_en: "  ", name_vi: "x", category: "gaming", allows_specific: nil)))
+        XCTAssertThrowsError(try C.validate(.init(text: "x", name_en: "x", name_vi: "x", category: nil, allows_specific: nil)))
+        XCTAssertThrowsError(try C.validate(.init(text: "x", name_en: String(repeating: "a", count: 41), name_vi: "x",
+                                                  category: "gaming", allows_specific: nil)))
+    }
+
     // MARK: translation
 
     func testAnEchoedTranslationIsNotATranslation() {
@@ -206,14 +205,5 @@ final class ServerValidationTests: XCTestCase {
         XCTAssertThrowsError(try MediaPath.thumbnail("javascript:alert(1)", hasLink: true, exists: other))
         XCTAssertThrowsError(try MediaPath.thumbnail("data:image/png;base64,AAAA", hasLink: true, exists: other))
         XCTAssertThrowsError(try MediaPath.thumbnail("/etc/passwd", hasLink: true, exists: other))
-    }
-
-    func testCommunityIconMustBeAnEmoji() throws {
-        for ok in ["👥", "🏃‍♂️", "❤️", "🇻🇳"] {
-            XCTAssertNoThrow(try CommunitiesController.validateAppearance(icon: ok, color: nil), ok)
-        }
-        for bad in ["<b>", "abc", "1", "#", "👥a", " ", ""] {
-            XCTAssertThrowsError(try CommunitiesController.validateAppearance(icon: bad, color: nil), bad)
-        }
     }
 }

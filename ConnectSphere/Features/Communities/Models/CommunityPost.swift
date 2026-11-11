@@ -99,9 +99,17 @@ struct JobData: Codable {
     /// VND million / month (Jobs-tab details).
     var salaryMin: Int? = nil
     var salaryMax: Int? = nil
+    /// Pay is "Negotiable" (server migration 128).
+    var salaryNegotiable: Bool = false
+    /// The job on the company's own careers page (server migration 126).
+    var careersUrl: String? = nil
+    /// The company's job description PDF (`/uploads/jd/…`, server migration 130).
+    var jdPath: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, title, company, location
+        case careersUrl           = "careers_url"
+        case jdPath               = "jd_path"
         case salaryMin            = "salary_min"
         case salaryMax            = "salary_max"
         case employmentType       = "employment_type"
@@ -138,6 +146,25 @@ struct ListingData: Equatable {
     /// The seller's auto re-up schedule and its next run; only they get these.
     var autoReup: AutoReup? = nil
     var nextAutoReupAt: Date? = nil
+    /// A seller re-ups by hand at most every 8 hours: when the next one is allowed.
+    var nextReupAt: Date? = nil
+    /// What's for sale; `title` is the headline and `price` the lowest price
+    /// still for sale, kept by the server from these.
+    var items: [ListingItem] = []
+
+    var availableItems: [ListingItem] { items.filter { !$0.isSold } }
+    /// The seller's order with sold items moved to the back, so a "Sold" first
+    /// item doesn't read as the whole listing being sold. The server orders
+    /// the post's cover photos the same way.
+    var displayItems: [ListingItem] { availableItems + items.filter(\.isSold) }
+    var hasSeveralItems: Bool { items.count > 1 }
+
+    /// "From 25.000 ₫" for several items at different prices, else the price.
+    func fromPriceText(bundle: Bundle) -> String {
+        let prices = Set((availableItems.isEmpty ? items : availableItems).map(\.price))
+        guard prices.count > 1 else { return priceText(loc: bundle.loc) }
+        return String(format: bundle.loc("From %@"), priceText(loc: bundle.loc))
+    }
 
     /// Posts the item again as new every `days` days at `hour`:00 Vietnam time.
     struct AutoReup: Equatable {
@@ -164,6 +191,14 @@ struct ListingData: Equatable {
             : String(format: bundle.loc("Auto re-up every %lld days at %@"), a.days, Self.hourLabel(a.hour))
     }
 
+    /// "Re-up in 3h 20m" while the 8-hour wait runs, else nil.
+    func reupWaitText(now: Date = Date(), bundle: Bundle) -> String? {
+        guard let next = nextReupAt, next > now else { return nil }
+        let minutes = max(1, Int((next.timeIntervalSince(now) / 60).rounded(.up)))
+        let left = minutes >= 60 ? "\(minutes / 60)h \(minutes % 60)m" : "\(minutes)m"
+        return String(format: bundle.loc("Re-up in %@"), left)
+    }
+
     /// "Next: Thu, 9 Nov, 18:00", in Vietnam time, like the schedule itself.
     func nextAutoReupText(bundle: Bundle) -> String? {
         guard let next = nextAutoReupAt else { return nil }
@@ -177,7 +212,12 @@ struct ListingData: Equatable {
         let id: String
         let name: String
         let iconEmoji: String
+        /// Waiting for the community's admins (only the seller gets these).
+        var isPending = false
     }
+
+    /// The communities it's showing in now, leaving out ones still waiting.
+    var postedCommunities: [ListedIn] { communities.filter { !$0.isPending } }
 
     /// "1st re-up", "2nd re-up"… / "Đăng lại lần 1"…; nil for an item never re-upped.
     func reupText(bundle: Bundle) -> String? {
@@ -200,9 +240,11 @@ struct ListingData: Equatable {
     }
 
     /// "1.200.000 ₫", or "Free".
-    func priceText(loc: (String) -> String) -> String {
+    func priceText(loc: (String) -> String) -> String { Self.priceText(price, loc: loc) }
+
+    static func priceText(_ price: Int64, loc: (String) -> String) -> String {
         guard price > 0 else { return loc("Free") }
-        return Self.priceFormatter.string(from: NSNumber(value: price)).map { $0 + " ₫" } ?? "\(price) ₫"
+        return priceFormatter.string(from: NSNumber(value: price)).map { $0 + " ₫" } ?? "\(price) ₫"
     }
 
     /// VND is written with dots between thousands, whatever the app language.
@@ -214,6 +256,31 @@ struct ListingData: Equatable {
         f.maximumFractionDigits = 0
         return f
     }()
+}
+
+/// One thing for sale in a listing, with its own photos and sold state.
+struct ListingItem: Equatable, Identifiable {
+    let id: String
+    var title: String
+    /// Whole VND; 0 = free.
+    var price: Int64
+    var condition: ListingCondition
+    var isSold: Bool
+    /// Bare `/uploads/` paths, 1–6.
+    var imageUrls: [String]
+    var imageAlts: [String]
+    /// When this viewer may next "Ask about this" (once every 20 minutes); nil = now.
+    var askAgainAt: Date? = nil
+
+    func canAsk(at now: Date = Date()) -> Bool { askAgainAt.map { $0 <= now } ?? true }
+
+    /// Whole minutes until it can be asked about again, at least 1.
+    func askWaitMinutes(at now: Date = Date()) -> Int {
+        guard let askAgainAt else { return 0 }
+        return max(1, Int((askAgainAt.timeIntervalSince(now) / 60).rounded(.up)))
+    }
+
+    func priceText(loc: (String) -> String) -> String { ListingData.priceText(price, loc: loc) }
 }
 
 enum ListingCondition: String, CaseIterable {

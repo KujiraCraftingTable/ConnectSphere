@@ -30,6 +30,11 @@ class ChatViewModel {
     private(set) var withOfficial = false
     /// I started this chat with someone who isn't a friend and used up my messages.
     var isWaitingForAcceptance: Bool { requestState == .sent && (requestsLeft ?? 1) <= 0 }
+    /// A request nobody has decided on yet. The sender can only write (up to
+    /// the limit), the recipient can only accept or decline, and either can
+    /// open the other's profile; settings, reactions, pins and edits wait until
+    /// it's accepted (the server refuses them too).
+    var isPendingRequest: Bool { requestState == .sent || requestState == .waiting }
     /// The full chat is on screen and the app is in front (set by `ChatView`).
     /// Messages arriving then are marked seen at once, so the sender's tick
     /// turns to "Seen" live; coming back to the chat marks what arrived meanwhile.
@@ -1138,9 +1143,6 @@ class ChatViewModel {
     }
 
     // MARK: - Pinned messages
-    // NOTE: socket payload/REST field names assumed per the Phase 4 plan's
-    // working shape (parallel backend task not landed at write time),
-    // reconcile against the real backend once it lands. See `PinnedMessage`.
 
     /// Load this conversation's pinned messages (server caps at 10).
     func loadPins() async {

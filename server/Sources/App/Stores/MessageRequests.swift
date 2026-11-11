@@ -67,7 +67,7 @@ enum MessageRequests {
         // Writing to the official account (a support inbox) has no message limit.
         if try await OfficialAccount.isOfficial(other, on: db) { return .open }
         if starter.caseInsensitiveCompare(senderID) == .orderedSame {
-            if try await isRestricted(senderID, on: db) { return .restricted }
+            if try await isRestricted(senderID, mode: r.mode, on: db) { return .restricted }
             return decide(sent: r.sent)
         }
         try await accept(conversationID: conversationID, by: senderID, on: db)
@@ -101,16 +101,21 @@ enum MessageRequests {
             """).first(decoding: Acceptance.self)
     }
 
-    /// Whether `userID` sent this chat's request and it hasn't been accepted yet.
-    static func isOwnPendingRequest(conversationID: String, by userID: String, on db: any SQLDatabase) async throws -> Bool {
+    /// Whether this chat is still a message request nobody has decided on.
+    static func isPendingRequest(conversationID: String, on db: any SQLDatabase) async throws -> Bool {
         struct R: Decodable { let one: Int }
         return try await db.raw("""
             SELECT 1 AS one FROM conversations
-            WHERE id = \(uuid: conversationID) AND request_from = \(uuid: userID) AND request_accepted_at IS NULL
+            WHERE id = \(uuid: conversationID) AND request_from IS NOT NULL AND request_accepted_at IS NULL
             """).first(decoding: R.self) != nil
     }
 
     static let limitReason = "You can send up to 3 messages until they accept your request"
+    /// Until a request is accepted, the sender can only write (up to `limit`
+    /// messages) and the recipient can only accept or decline; either can open
+    /// the other's profile. No nicknames, themes, reactions, pins, edits or
+    /// meeting changes on either side, each of which would reach the other.
+    static let pendingRequestReason = "You can do this once the message request is accepted"
     static let unrelatedReason = "You can only add friends or people who've accepted your messages"
 
     /// Among `ids`, the people `actor` may NOT put in a group or a space in
@@ -135,11 +140,17 @@ enum MessageRequests {
         return Set(rows.map { $0.id.lowercased() })
     }
 
-    static func isRestricted(_ userID: String, on db: any SQLDatabase) async throws -> Bool {
-        struct R: Decodable { let r: Bool }
-        return try await db.raw("""
-            SELECT COALESCE(restricted_until > NOW(), FALSE) AS r FROM users WHERE id = \(uuid: userID)
-            """).first(decoding: R.self)?.r ?? false
+    /// Restricted in the chat's mode (migration 125).
+    static func isRestricted(_ userID: String, mode: String, on db: any SQLDatabase) async throws -> Bool {
+        try await AccountRestrictions.active(userID, on: db)[mode] != nil
+    }
+
+    /// Whether `userID` is restricted in the mode of chat `conversationID`.
+    static func isRestricted(in conversationID: String, userID: String, on db: any SQLDatabase) async throws -> Bool {
+        struct M: Decodable { let mode: String }
+        guard let mode = try await db.raw("SELECT mode FROM conversations WHERE id = \(uuid: conversationID)")
+            .first(decoding: M.self)?.mode else { return false }
+        return try await isRestricted(userID, mode: mode, on: db)
     }
 
     static let restrictedReason = "Your account can't message new people right now"

@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// "..." › Moderation log (admin only): what the admin and moderators did.
+/// "..." › Moderation log (admins and moderators): what the admin and moderators did.
 @MainActor
 @Observable
 final class ModerationLogViewModel {

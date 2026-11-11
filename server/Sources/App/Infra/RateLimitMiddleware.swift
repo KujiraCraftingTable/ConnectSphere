@@ -88,6 +88,15 @@ struct RateLimitMiddleware: AsyncMiddleware {
         private let lock = NIOLock()
         private var windows: [String: (count: Int, resetAt: Date)] = [:]
 
+        /// The current count without adding to it.
+        func peek(key: String) -> (count: Int, resetIn: Double) {
+            lock.withLock {
+                let now = Date()
+                guard let w = windows[key], w.resetAt > now else { return (0, 0) }
+                return (w.count, w.resetAt.timeIntervalSince(now))
+            }
+        }
+
         func hit(key: String, windowSeconds: Double) -> (count: Int, resetIn: Double) {
             lock.withLock {
                 let now = Date()

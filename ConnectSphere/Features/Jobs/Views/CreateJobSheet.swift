@@ -1,22 +1,24 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
-/// Inline section shown inside CreatePostView when
-/// post type = Job. Work mode only, captures title, optional company/
-/// location/employment type/salary range/application deadline.
+/// Inline section shown inside CreatePostView when post type = Job. Work mode
+/// and verified HR only: the company is always the HR's own; captures title,
+/// the careers-page link, location, type, pay, skills and deadline.
 struct CreateJobSheet: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
     @Binding var title: String
-    @Binding var company: String
-    @Binding var location: String
     @Binding var employmentType: EmploymentType?
     @Binding var salaryRange: String
     @Binding var applicationDeadline: Date?
     @Binding var showApplicationDeadline: Bool
-    /// The Jobs-tab details (company page, skills, level, format, pay).
+    /// The Jobs-tab details (careers link, skills, level, format, pay).
     @Bindable var details: PostComposerViewModel
     @Environment(AppState.self) private var appState
+    @State private var pickingJD = false
+
+    private var token: String { appState.authToken ?? "" }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -29,22 +31,80 @@ struct CreateJobSheet: View {
                     .foregroundColor(AppColors.textPrimary(colorScheme))
             }
 
-            // Company
-            fieldRow(label: bundle.loc("Company")) {
-                TextField(bundle.loc("Optional"), text: $company)
-                    .scaledFont(15)
-                    .foregroundColor(AppColors.textPrimary(colorScheme))
+            // Always the poster's verified HR company (server-enforced).
+            // HStack, not Label: a custom Label loses its text in this stack.
+            if let company = appState.hrCompany {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.seal.fill").foregroundColor(.blue)
+                    Text(String(format: bundle.loc("Posting for %@"), company))
+                        .scaledFont(14, .medium)
+                        .foregroundColor(AppColors.textPrimary(colorScheme))
+                }
             }
 
-            // Location
+            // The job on the company's own careers page, for applicants to check.
             VStack(alignment: .leading, spacing: 4) {
-                Text(bundle.loc("Location"))
+                fieldRow(label: bundle.loc("Careers page link") + " *") {
+                    TextField(bundle.loc("https://yourcompany.com/careers/…"), text: $details.jobCareersUrl)
+                        .keyboardType(.URL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .scaledFont(15)
+                        .foregroundColor(AppColors.textPrimary(colorScheme))
+                }
+                Text("Where this job is listed on your company's website, so applicants can check it's real.", bundle: bundle)
+                    .scaledFont(12)
+                    .foregroundColor(AppColors.textTertiary(colorScheme))
+            }
+
+            // The company's own job description, optional; applicants open it full screen.
+            VStack(alignment: .leading, spacing: 4) {
+                Text(bundle.loc("Job description (PDF)"))
                     .scaledFont(12, .medium)
                     .foregroundColor(AppColors.textTertiary(colorScheme))
-                LocationSearchField(bundle.loc("Optional"), text: $location) { field in
-                    fieldBox(field
-                        .scaledFont(15)
-                        .foregroundColor(AppColors.textPrimary(colorScheme)))
+                if let name = details.jobJDName {
+                    fieldBox(HStack(spacing: 8) {
+                        Image(systemName: "doc.richtext").foregroundColor(themeManager.theme.primary)
+                        Text(name).scaledFont(15).lineLimit(1)
+                            .foregroundColor(AppColors.textPrimary(colorScheme))
+                        Spacer()
+                        Button { details.removeJD() } label: { Image(systemName: "xmark.circle.fill") }
+                            .buttonStyle(.plain)
+                            .foregroundColor(AppColors.textTertiary(colorScheme))
+                            .accessibilityLabel(Text(bundle.loc("Remove")))
+                    })
+                } else if details.isUploadingJD {
+                    fieldBox(HStack(spacing: 8) { ProgressView(); Text("Uploading…", bundle: bundle).scaledFont(15) })
+                } else {
+                    Button { pickingJD = true } label: {
+                        fieldBox(HStack(spacing: 8) {
+                            Image(systemName: "paperclip")
+                            Text(bundle.loc("Attach job description (PDF)")).scaledFont(15)
+                            Spacer()
+                        }
+                        .foregroundColor(themeManager.theme.primary))
+                    }
+                    .buttonStyle(.plain)
+                }
+                Text("Optional. PDF, up to 10 MB. Anyone who can see the job can open it.", bundle: bundle)
+                    .scaledFont(12)
+                    .foregroundColor(AppColors.textTertiary(colorScheme))
+            }
+            .fileImporter(isPresented: $pickingJD, allowedContentTypes: [.pdf]) { result in
+                if case .success(let url) = result {
+                    Task { await details.attachJD(at: url, token: token) }
+                }
+            }
+
+            // Where the job is: a ward, so "Near you" is real distance, not a
+            // shared city name. A remote job has none.
+            if details.jobWorkFormat != "remote" {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(bundle.loc("Location *"))
+                        .scaledFont(12, .medium)
+                        .foregroundColor(AppColors.textTertiary(colorScheme))
+                    WardPickerView(selectedProvinceCode: $details.jobProvinceCode, selectedWardId: $details.jobWardId,
+                                   note: bundle.loc("Applicants see the ward and province, and how far it is from their own ward."))
                 }
             }
 
@@ -76,15 +136,6 @@ struct CreateJobSheet: View {
                 }
             }
 
-            // Post as a company page you run
-            if !details.myCompanies.isEmpty {
-                pickerRow(label: bundle.loc("Post as"),
-                          value: details.myCompanies.first { $0.id == details.jobCompanyId }?.name ?? bundle.loc("Yourself")) {
-                    Button(bundle.loc("Yourself")) { details.pickCompany(nil) }
-                    ForEach(details.myCompanies) { c in Button(c.name) { details.pickCompany(c) } }
-                }
-            }
-
             HStack(spacing: 10) {
                 pickerRow(label: bundle.loc("Work format"),
                           value: details.jobWorkFormat.map { bundle.loc(JobListing.formatLabel($0)) } ?? bundle.loc("Optional")) {
@@ -98,13 +149,17 @@ struct CreateJobSheet: View {
                 }
             }
 
-            // Pay range, VND million / month
-            HStack(spacing: 10) {
-                fieldRow(label: bundle.loc("Pay from (million ₫/month)")) {
-                    TextField(bundle.loc("e.g. 15"), text: $details.jobSalaryMin).keyboardType(.numberPad)
-                }
-                fieldRow(label: bundle.loc("Pay to")) {
-                    TextField(bundle.loc("e.g. 30"), text: $details.jobSalaryMax).keyboardType(.numberPad)
+            // Pay range, VND million / month, or "Negotiable" instead
+            Toggle(bundle.loc("Pay is negotiable"), isOn: $details.jobSalaryNegotiable.animation(.snappy))
+                .scaledFont(14)
+            if !details.jobSalaryNegotiable {
+                HStack(spacing: 10) {
+                    fieldRow(label: bundle.loc("Pay from (million ₫/month)")) {
+                        TextField(bundle.loc("e.g. 15"), text: $details.jobSalaryMin).keyboardType(.numberPad)
+                    }
+                    fieldRow(label: bundle.loc("Pay to")) {
+                        TextField(bundle.loc("e.g. 30"), text: $details.jobSalaryMax).keyboardType(.numberPad)
+                    }
                 }
             }
             if !details.jobSalaryValid {
@@ -142,7 +197,6 @@ struct CreateJobSheet: View {
                 .onAppear { if applicationDeadline == nil { applicationDeadline = Date().addingTimeInterval(7 * 86400) } }
             }
         }
-        .task { await details.loadMyCompanies(token: appState.authToken ?? "") }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(

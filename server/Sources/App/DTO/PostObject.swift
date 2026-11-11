@@ -136,6 +136,8 @@ struct PostObject: Content {
         /// The seller's auto re-up schedule and its next run (migration 095); only they get these.
         @NullCoded var auto_reup: AutoReup? = nil
         @NullCoded var next_auto_reup_at: Date? = nil
+        /// Seller only: when a manual re-up is allowed again; nil = now.
+        @NullCoded var next_reup_at: Date? = nil
         var hide_from_friends: Bool
         var has_auto_reply: Bool
         @NullCoded var auto_reply: String?
@@ -144,10 +146,26 @@ struct PostObject: Content {
         /// Where it is on the map (migration 074).
         @NullCoded var latitude: Double? = nil
         @NullCoded var longitude: Double? = nil
+        /// What's for sale (migration 117); `title`, `price` and `status` above
+        /// summarise them.
+        var items: [Item] = []
+        struct Item: Content {
+            var id: String
+            var title: String
+            var price: Int64
+            var condition: String
+            var status: String
+            var image_urls: [String]
+            @NullCoded var image_alts: [String]?
+            /// When this viewer may next "Ask about this" (migration 119); nil = now.
+            @NullCoded var ask_again_at: Date? = nil
+        }
         struct ListedIn: Content {
             var id: String
             var name: String
             var icon_emoji: String
+            /// Waiting for the community's admins; only the seller is sent these.
+            var pending: Bool?
         }
         struct AutoReup: Content, Equatable {
             var every_days: Int
@@ -172,6 +190,11 @@ struct PostObject: Content {
         @NullCoded var level: String? = nil
         @NullCoded var salary_min: Int? = nil
         @NullCoded var salary_max: Int? = nil
+        var salary_negotiable: Bool? = nil
+        @NullCoded var ward_id: String? = nil
+        @NullCoded var jd_path: String? = nil
+        /// The job on the company's careers page (migration 126).
+        @NullCoded var careers_url: String? = nil
         var skills: [String]? = nil
     }
     struct CommunityRef: Content {

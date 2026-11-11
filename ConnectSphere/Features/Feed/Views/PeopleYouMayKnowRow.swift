@@ -118,7 +118,7 @@ struct PeopleYouMayKnowRow: View {
         }
         .buttonStyle(.plain)
         .disabled(requested)
-        .disabledWhenRestricted(!requested)
+        .disabledWhenRestricted()
     }
 }
 

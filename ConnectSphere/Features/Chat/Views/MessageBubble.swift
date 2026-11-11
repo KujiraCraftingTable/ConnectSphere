@@ -359,6 +359,9 @@ struct MessageBubble: View {
                 }
                 if let id = message.sharedCommunityId {
                     ChatCommunityCard(communityId: id)
+                } else {
+                    // The server drops the id once the community is disbanded.
+                    CommunityUnavailableCard()
                 }
             }
         }

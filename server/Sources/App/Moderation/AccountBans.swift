@@ -155,3 +155,60 @@ enum AccountBans {
         }
     }
 }
+
+/// Per-mode restrictions (migration 125): can read, but can't post, comment,
+/// message new people or join in that mode. A case with no mode restricts
+/// both. Each row belongs to the case that made it, so it's lifted with it.
+enum AccountRestrictions {
+    /// Adds a restriction in `modes`; a longer one already running still wins,
+    /// since the active restriction is the latest end among live rows.
+    static func restrict(_ userID: String, modes: [String], caseID: String?, until: SQLQueryString,
+                         on db: any SQLDatabase) async throws {
+        for mode in modes where AccountBans.modes.contains(mode) {
+            try await db.raw("""
+                INSERT INTO account_restrictions (user_id, mode, case_id, restricted_until)
+                VALUES (\(uuid: userID), \(bind: mode), \(uuid: caseID), \(until))
+                """).run()
+        }
+    }
+
+    /// Overturned, kept, or the spam pause cleared: lifts what that case made.
+    static func lift(caseID: String, on db: any SQLDatabase) async throws {
+        try await db.raw("""
+            UPDATE account_restrictions SET lifted_at = NOW() WHERE case_id = \(uuid: caseID) AND lifted_at IS NULL
+            """).run()
+    }
+
+    /// When each mode's restriction ends, for the modes restricted right now.
+    static func active(_ userID: String, on db: any SQLDatabase) async throws -> [String: Date] {
+        struct R: Decodable { let mode: String; let until: Date }
+        let rows = try await db.raw("""
+            SELECT mode, MAX(restricted_until) AS until FROM account_restrictions
+            WHERE user_id = \(uuid: userID) AND lifted_at IS NULL AND restricted_until > NOW()
+            GROUP BY mode
+            """).all(decoding: R.self)
+        return Dictionary(uniqueKeysWithValues: rows.map { ($0.mode, $0.until) })
+    }
+
+    /// SQL: when `userRef`'s restriction in `mode` ends, or NULL. `mode` is a
+    /// literal chosen by the code.
+    static func untilSQL(_ userRef: String, mode: String) -> String {
+        """
+        (SELECT MAX(ar.restricted_until) FROM account_restrictions ar WHERE ar.user_id = \(userRef)
+          AND ar.mode = '\(mode)' AND ar.lifted_at IS NULL AND ar.restricted_until > NOW())
+        """
+    }
+
+    /// The restriction a request faces: in its mode, or with no mode known,
+    /// whichever runs longest.
+    static func until(in mode: String?, of restricted: [String: Date]) -> Date? {
+        if let mode = mode?.lowercased(), AccountBans.modes.contains(mode) { return restricted[mode] }
+        return restricted.values.max()
+    }
+
+    /// One entry per restricted mode, for API responses.
+    struct Entry: Content { var mode: String; var until: Date }
+    static func entries(_ restricted: [String: Date]) -> [Entry] {
+        restricted.sorted { $0.key < $1.key }.map { Entry(mode: $0.key, until: $0.value) }
+    }
+}

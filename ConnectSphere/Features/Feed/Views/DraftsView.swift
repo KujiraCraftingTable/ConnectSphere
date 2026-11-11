@@ -101,6 +101,9 @@ struct DraftsView: View {
 
     @State private var viewModel = DraftsViewModel()
     @State private var opening: DraftsViewModel.Opened?
+    /// Sell tapped in a community draft: New listing opens once the composer closes.
+    @State private var sellAfterCompose: Community?
+    @State private var sellingIn: Community?
     @State private var pendingDelete: Post?
     @State private var showScheduled = false
 
@@ -163,17 +166,27 @@ struct DraftsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await viewModel.load() }
         .refreshable { await viewModel.load() }
-        .sheet(item: $opening) { opened in
+        .sheet(item: $opening, onDismiss: {
+            sellingIn = sellAfterCompose
+            sellAfterCompose = nil
+        }) { opened in
             switch opened.place {
             case .feed:
                 CreatePostView(draft: opened.draft)
                     .environment(appState)
                     .environment(themeManager)
             case .community(let community):
-                CreatePostView(community: community, draft: opened.draft)
+                CreatePostView(community: community, draft: opened.draft, onSell: { sellAfterCompose = community })
                     .environment(appState)
                     .environment(themeManager)
             }
+        }
+        .sheet(item: $sellingIn) { community in
+            CreateListingView(mode: .hobby, preselectedCommunityId: community.id) { _ in
+                sellingIn = nil
+            }
+            .environment(appState)
+            .environment(themeManager)
         }
         .alert(bundle.loc(pendingDelete?.publishStatus == "scheduled" ? "Delete this scheduled post?" : "Delete this draft?"), isPresented: Binding(
             get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }

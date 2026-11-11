@@ -87,13 +87,3 @@ struct AnalyticsPost: Identifiable, Decodable {
     }
 }
 
-/// Response wrapper for the moderation queue
-struct ModerationQueueResponse: Decodable {
-    let reports:      [ModerationItem]
-    let pendingCount: Int
-
-    enum CodingKeys: String, CodingKey {
-        case reports
-        case pendingCount = "pendingCount"
-    }
-}

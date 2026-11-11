@@ -40,6 +40,9 @@ struct AuthUserDTO: Decodable {
     let isLocked: Bool?
     /// A moderation restriction runs until then: no posting, commenting or joining.
     let restrictedUntil: Date?
+    /// Each mode's own restriction (server migration 125); one never pauses the other.
+    let hobbyRestrictedUntil: Date?
+    let workRestrictedUntil: Date?
     let age: Int?
     let dob: String?
     let dobVisibility: String?
@@ -77,6 +80,8 @@ struct AuthUserDTO: Decodable {
         case relationshipStatus = "relationship_status"
         case isLocked = "is_locked"
         case restrictedUntil = "restricted_until"
+        case hobbyRestrictedUntil = "hobby_restricted_until"
+        case workRestrictedUntil = "work_restricted_until"
         case dobVisibility  = "dob_visibility"
         case dobChangesLeft = "dob_changes_left"
         case displayName    = "display_name"
@@ -128,6 +133,8 @@ struct AuthUserDTO: Decodable {
         isLocked = try c.decodeIfPresent(Bool.self, forKey: .isLocked)
         // Lenient: the cached copy may store dates differently from the server.
         restrictedUntil = (try? c.decodeIfPresent(Date.self, forKey: .restrictedUntil)) ?? nil
+        hobbyRestrictedUntil = (try? c.decodeIfPresent(Date.self, forKey: .hobbyRestrictedUntil)) ?? nil
+        workRestrictedUntil = (try? c.decodeIfPresent(Date.self, forKey: .workRestrictedUntil)) ?? nil
         age            = try c.decodeIfPresent(Int.self, forKey: .age)
         dob            = try c.decodeIfPresent(String.self, forKey: .dob)
         dobVisibility  = try c.decodeIfPresent(String.self, forKey: .dobVisibility)
@@ -196,4 +203,18 @@ struct OnboardingForm: Encodable {
     var skills: [String] = []
     /// `LegalDocs.version`, set when the person ticks the Terms/Privacy box.
     var accepted_policy_version: String?
+}
+
+extension AuthUserDTO {
+    /// Each restricted mode and when it ends. An older server sends one
+    /// account-wide date, which then applies to both.
+    var restrictions: [AppMode: Date] {
+        if hobbyRestrictedUntil == nil && workRestrictedUntil == nil, let all = restrictedUntil {
+            return [.hobby: all, .work: all]
+        }
+        var r: [AppMode: Date] = [:]
+        r[.hobby] = hobbyRestrictedUntil
+        r[.work] = workRestrictedUntil
+        return r
+    }
 }

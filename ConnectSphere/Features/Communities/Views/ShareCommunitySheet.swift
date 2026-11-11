@@ -95,7 +95,7 @@ struct ShareCommunitySheet: View {
             .navigationDestination(isPresented: $showAllChats) {
                 ShareRecipientsView(viewModel: viewModel)
             }
-            .task { await viewModel.loadRecipients(mode: community.type == .work ? "work" : "hobby", token: token) }
+            .task { await viewModel.loadRecipients(mode: "hobby", token: token) }
         }
     }
 }

@@ -25,6 +25,18 @@ final class AccountBansTests: XCTestCase {
         XCTAssertNil(AuthMiddleware.refusal(bannedModes: [], requestMode: "hobby", path: path))
     }
 
+    func testDroppingOrFakingTheModeHeaderDoesNotSlipABan() {
+        let path = "/api/posts"
+        for header in [nil, "", "dating"] as [String?] {
+            XCTAssertEqual(AuthMiddleware.refusal(bannedModes: ["hobby"], requestMode: header, path: path),
+                           AuthMiddleware.bannedInModeMessage, header ?? "nil")
+        }
+        XCTAssertEqual(AuthMiddleware.refusal(bannedModes: ["hobby"], requestMode: "work", queryMode: "hobby", path: path),
+                       AuthMiddleware.bannedInModeMessage)
+        XCTAssertNil(AuthMiddleware.refusal(bannedModes: ["hobby"], requestMode: "work", queryMode: "work", path: path))
+        XCTAssertNil(AuthMiddleware.refusal(bannedModes: [], requestMode: nil, path: path))
+    }
+
     func testBannedEverywhereIsTheWholeAccount() {
         XCTAssertEqual(AuthMiddleware.refusal(bannedModes: ["hobby", "work"], requestMode: nil, path: "/api/posts"),
                        AuthMiddleware.bannedMessage)

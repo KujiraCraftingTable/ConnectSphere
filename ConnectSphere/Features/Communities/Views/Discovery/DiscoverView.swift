@@ -18,7 +18,7 @@ struct DiscoverView: View {
         self.onSelectCommunity = onSelectCommunity
     }
 
-    private var modeType: CommunityType { appState.currentMode == .hobby ? .fandom : .work }
+    private var modeType: CommunityType { .fandom }
     private var isSearchActive: Bool {
         !searchText.trimmingCharacters(in: .whitespaces).isEmpty
     }
@@ -76,7 +76,9 @@ struct DiscoverView: View {
 
     @ViewBuilder
     private var searchResultsSection: some View {
-        if viewModel.isSearching && viewModel.searchResults.isEmpty {
+        let typed = searchText.trimmingCharacters(in: .whitespaces)
+        if viewModel.searchResults.isEmpty && (viewModel.isSearching || viewModel.searchedQuery != typed) {
+            // Still typing (the search waits 300 ms) or still loading.
             ProgressView().padding(.top, 40).frame(maxWidth: .infinity)
         } else if viewModel.searchResults.isEmpty {
             Text(bundle.loc("No results found"))

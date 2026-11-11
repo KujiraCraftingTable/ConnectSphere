@@ -41,8 +41,10 @@ enum UserStore {
               u.follower_count, u.following_count,
               -- This persona's own posts, never ones made in a community or
               -- marketplace listings (each has its own page): the profile list's rule.
+              -- Only-me posts are private notes, so they never count (UserQueries too).
               (SELECT COUNT(*)::int FROM posts pc WHERE pc.author_id = u.id AND pc.mode = \(unsafeRaw: modeRef)
-                 AND pc.status = 'posted' AND pc.community_id IS NULL AND pc.post_type <> 'listing') AS post_count,
+                 AND pc.status = 'posted' AND pc.community_id IS NULL AND pc.post_type <> 'listing'
+                 AND pc.privacy IN ('public', 'friends')) AS post_count,
               u.created_at, u.updated_at, u.deleted_at,
               \(unsafeRaw: cv)  AS cover_url,
               u.hobby_display_name, u.hobby_bio, u.hobby_avatar_url, u.hobby_cover_url,
@@ -54,7 +56,9 @@ enum UserStore {
               (u.password_hash IS NOT NULL AND u.password_hash <> ''
                AND u.password_hash <> 'SEED_DATA') AS has_password,
               u.allow_friend_requests, u.show_in_suggestions, (u.email_verified_at IS NOT NULL) AS email_verified,
-              CASE WHEN u.restricted_until > NOW() THEN u.restricted_until END AS restricted_until,
+              CASE WHEN \(unsafeRaw: modeRef) = 'work' THEN \(unsafeRaw: AccountRestrictions.untilSQL("u.id", mode: "work")) ELSE \(unsafeRaw: AccountRestrictions.untilSQL("u.id", mode: "hobby")) END AS restricted_until,
+              \(unsafeRaw: AccountRestrictions.untilSQL("u.id", mode: "hobby")) AS hobby_restricted_until,
+              \(unsafeRaw: AccountRestrictions.untilSQL("u.id", mode: "work")) AS work_restricted_until,
               u.languages, u.relationship_status, u.two_factor_enabled,
               CASE WHEN \(unsafeRaw: modeRef) = 'work' THEN u.work_locked ELSE u.hobby_locked END AS is_locked,
               CASE WHEN \(unsafeRaw: modeRef) = 'work' THEN u.work_links_hobby ELSE u.hobby_links_work END AS links_other_mode,

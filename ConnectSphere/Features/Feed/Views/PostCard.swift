@@ -6,7 +6,6 @@ struct PostCard: View {
     @Environment(\.appBundle) var bundle
     @Environment(\.colorScheme) var colorScheme
     @Environment(UndoToastPresenter.self) var toastPresenter
-    @Environment(\.openURL) private var openURL
     @AppStorage(TranslationMode.storageKey) private var translationModeRaw = TranslationMode.original.rawValue
     private var translationMode: TranslationMode { TranslationMode(rawValue: translationModeRaw) ?? .original }
     private var translations: TranslationStore { .shared }
@@ -51,11 +50,16 @@ struct PostCard: View {
     /// header shows the poster, and tapping them, yourself included, pops up
     /// their profile in this community. Covers Marketplace items listed there too.
     var insideCommunityId: String? = nil
+    /// A post waiting for approval, shown to the reviewer: not live yet, so
+    /// there's nothing to react to, comment on, save, share or open a menu for.
+    var isReviewOnly: Bool = false
 
     @State private var shakeAmount: CGFloat = 0
     /// Drives the in-app browser (see `openLink(_:)`) for a tapped http(s)
     /// link, the link-preview card or an in-text URL.
     @State private var inAppBrowserURL: URL?
+    /// The listing photo on screen, so the item list below can highlight its item.
+    @State private var listingPhotoIndex = 0
 
     init(
         post: Post,
@@ -71,7 +75,8 @@ struct PostCard: View {
         showConnectButton: Bool = true,
         cornerRadius: CGFloat = 12,
         showsHeader: Bool = true,
-        insideCommunityId: String? = nil
+        insideCommunityId: String? = nil,
+        isReviewOnly: Bool = false
     ) {
         self.post = post
         self.disableSelfNavigation = disableSelfNavigation
@@ -87,6 +92,7 @@ struct PostCard: View {
         self.cornerRadius = cornerRadius
         self.showsHeader = showsHeader
         self.insideCommunityId = insideCommunityId
+        self.isReviewOnly = isReviewOnly
         _actions = State(initialValue: PostActionsViewModel(post: post))
     }
 
@@ -114,8 +120,12 @@ struct PostCard: View {
                 // The header's top inset, which the body's own 10 pt continues.
                 postBody.padding(.top, 2)
             }
-            Divider().padding(.horizontal, 12).padding(.top, 8)
-            actionButtons
+            if isReviewOnly {
+                Spacer().frame(height: 12)
+            } else {
+                Divider().padding(.horizontal, 12).padding(.top, 8)
+                actionButtons
+            }
         }
         .background(AppColors.surface(colorScheme))
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
@@ -202,7 +212,10 @@ struct PostCard: View {
             else if !post.displayImageUrls.isEmpty {
                 if post.postType == .listing {
                     // An item for sale: its photos one at a time, as in the Marketplace.
-                    ListingPhotoCarousel(urls: post.displayImageUrls, aspectRatio: 4.0 / 3.0, cornerRadius: 0)
+                    // With several items, one photo per item, each with its price drawn on.
+                    ListingPhotoCarousel(urls: post.displayImageUrls, aspectRatio: 4.0 / 3.0, cornerRadius: 0,
+                                         tags: post.listingData?.photoTags(count: post.displayImageUrls.count, loc: bundle.loc),
+                                         currentIndex: $listingPhotoIndex)
                         .padding(.top, 10)
                 } else {
                     PostPhotoGrid(urls: post.displayImageUrls, alts: post.displayImageAlts,
@@ -252,7 +265,7 @@ struct PostCard: View {
                     .padding(.top, 10)
                 }
             case .listing:
-                ListingPostCard(post: post)
+                ListingPostCard(post: post, photoIndex: listingPhotoIndex)
                     .padding(.top, 10)
             case .text:
                 EmptyView()
@@ -316,15 +329,12 @@ struct PostCard: View {
 
     // MARK: Links
 
-    /// http(s) → the in-app browser (matches Facebook/X/Instagram); anything
-    /// else (`mailto:`, `tel:`, a custom app scheme) → the system opener,
-    /// since `SFSafariViewController` can't handle those.
+    /// http(s) → the in-app browser (matches Facebook/X/Instagram). Other
+    /// schemes (`tel:`, `sms:`, another app's link) are ignored: a post must
+    /// not open another app without the reader choosing to.
     private func openLink(_ url: URL) {
-        if let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
-            inAppBrowserURL = url
-        } else {
-            openURL(url)
-        }
+        guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return }
+        inAppBrowserURL = url
     }
 
     // MARK: Link Preview Card
@@ -468,42 +478,39 @@ struct PostCard: View {
         .padding(.top, 12)
     }
 
+    /// The author's avatar or name: on your own profile it shakes the post
+    /// ("you're already here"), in your own feed it opens your Profile tab,
+    /// and anyone else's opens their profile. Avatar and name behave the same.
+    @ViewBuilder
+    private func authorLink<Label: View>(@ViewBuilder _ label: () -> Label) -> some View {
+        let isSelf = post.author.id == appState.currentUser?.id
+        if disableSelfNavigation && isSelf {
+            Button { triggerShake() } label: { label() }
+                .buttonStyle(.plain)
+        } else if isSelf, let onTap = onOwnAvatarTapped {
+            Button { onTap() } label: { label() }
+                .buttonStyle(.plain)
+        } else {
+            NavigationLink(destination:
+                UserProfileView(userId: post.author.id, preloadedUser: post.author)
+                    .environment(appState)
+            ) { label() }
+            .buttonStyle(.plain)
+        }
+    }
+
     private var regularPostHeader: some View {
         HStack(alignment: .top, spacing: 10) {
-            // Avatar → shake (own profile) | Profile tab (own feed) | UserProfileView (someone else)
-            let isSelf = post.author.id == appState.currentUser?.id
-            if disableSelfNavigation && isSelf {
-                Button { triggerShake() } label: {
-                    AvatarView(user: post.author, size: 42)
-                }
-                .buttonStyle(.plain)
-            } else if isSelf, let onTap = onOwnAvatarTapped {
-                Button { onTap() } label: {
-                    AvatarView(user: post.author, size: 42)
-                }
-                .buttonStyle(.plain)
-            } else {
-                NavigationLink(destination:
-                    UserProfileView(userId: post.author.id, preloadedUser: post.author)
-                        .environment(appState)
-                ) {
-                    AvatarView(user: post.author, size: 42)
-                }
-                .buttonStyle(.plain)
-            }
+            authorLink { AvatarView(user: post.author, size: 42) }
 
             VStack(alignment: .leading, spacing: 3) {
                 // Name + Connect button in one row
                 HStack(spacing: 8) {
-                    NavigationLink(destination:
-                        UserProfileView(userId: post.author.id, preloadedUser: post.author)
-                            .environment(appState)
-                    ) {
+                    authorLink {
                         Text(post.author.name)
                             .appFont(.headline)
                             .foregroundColor(AppColors.textPrimary(colorScheme))
                     }
-                    .buttonStyle(.plain)
                     if post.author.isOfficial { OfficialBadge(compact: true).padding(.leading, -5) }
 
                     // Only show Connect if this isn't the current user
@@ -576,9 +583,12 @@ struct PostCard: View {
         .padding(.top, 12)
     }
 
+    @ViewBuilder
     private var postHeaderMenu: some View {
-        PostOptionsMenu(post: post, actions: actions, onPin: onPin, onUnpin: onUnpin,
-                        onPostDeleted: onPostDeleted, onPostUpdated: onPostUpdated)
+        if !isReviewOnly {
+            PostOptionsMenu(post: post, actions: actions, onPin: onPin, onUnpin: onUnpin,
+                            onPostDeleted: onPostDeleted, onPostUpdated: onPostUpdated)
+        }
     }
 
     // MARK: Hashtag Chips
@@ -625,6 +635,7 @@ struct PostCard: View {
                     }
                 }
                 .accessibilityLabel(Bundle.app.loc("Whale"))
+                .disabledWhenRestricted()
 
                 Button {
                     if let onOpenDetail { onOpenDetail(true) } else if let onCommentTap { onCommentTap() } else { showComments = true }
@@ -762,7 +773,7 @@ private struct PostViewerActionBar: View {
     let onShare: () -> Void
     @State private var showComments = false
 
-    var body: some View {
+    private var buttons: some View {
         HStack(spacing: 22) {
             Button {
                 Task { await actions.toggleLike(postId: post.id) }
@@ -773,6 +784,7 @@ private struct PostViewerActionBar: View {
                 }
             }
             .accessibilityLabel(Bundle.app.loc("Whale"))
+            .disabledWhenRestricted()
 
             Button { showComments = true } label: {
                 HStack(spacing: 6) {
@@ -803,6 +815,24 @@ private struct PostViewerActionBar: View {
                 }
                 .accessibilityLabel(Bundle.app.loc("Share"))
             }
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Who posted it, like Facebook: the community first for a community post.
+            VStack(alignment: .leading, spacing: 2) {
+                Text(post.community?.name ?? post.author.name)
+                    .scaledFont(16, .semibold)
+                    .lineLimit(1)
+                Text(post.community != nil
+                     ? "\(post.author.name) · \(post.timestamp.timeAgoString)"
+                     : post.timestamp.timeAgoString)
+                    .scaledFont(13)
+                    .opacity(0.75)
+                    .lineLimit(1)
+            }
+            buttons
         }
         .foregroundColor(.white)
         .padding(.horizontal, 22)

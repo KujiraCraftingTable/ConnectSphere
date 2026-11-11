@@ -501,9 +501,6 @@ struct MessageRepository {
     }
 
     // MARK: - Pinned messages
-    // NOTE: response/body field names assumed per the Phase 4 plan's working
-    // shape (parallel backend task not landed at write time). Reconcile
-    // against the real controller once it lands. See `PinnedMessage`.
 
     /// Fetch all pins for a conversation (server caps at 10, ordered newest-pinned first).
     func fetchPins(conversationId: String, token: String) async throws -> [PinnedMessage] {

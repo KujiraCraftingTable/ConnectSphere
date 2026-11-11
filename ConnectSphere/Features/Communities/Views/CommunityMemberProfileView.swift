@@ -11,7 +11,6 @@ struct CommunityMemberProfileView: View {
     let userId: String
     @State private var viewModel: CommunityMemberProfileViewModel
     @State private var detailRoute: PostRoute?
-    @State private var pull: CGFloat = 0
 
     private let communityId: String
 
@@ -49,10 +48,8 @@ struct CommunityMemberProfileView: View {
             .padding(.bottom, AppSpacing.lg)
         }
         // The cover runs up under the status bar; its fade keeps it legible.
+        // A pop-up: no pull-to-refresh, pulling down closes it (see ProfilePopup).
         .ignoresSafeArea(edges: .top)
-        .trackPull($pull)
-        .refreshable { await viewModel.refresh(token: token) }
-        .overlay(alignment: .top) { PullRefreshIndicator(pull: pull, isRefreshing: viewModel.isRefreshing) }
         .appBackground()
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)

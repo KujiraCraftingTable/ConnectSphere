@@ -47,7 +47,10 @@ final class ModerationCaseViewModel {
     private(set) var isLoading = false
     private(set) var isWorking = false
     private(set) var errorMessage: String?
+    /// Staff only, never shown to the reporter or the author.
     var note = ""
+    /// What the reporters read about the decision.
+    var reporterMessage = ""
 
     static let restrictOptions = [1, 3, 7, 30]
 
@@ -66,18 +69,27 @@ final class ModerationCaseViewModel {
         catch { errorMessage = friendlyError(error) }
     }
 
-    private var trimmedNote: String? {
-        let n = note.trimmingCharacters(in: .whitespacesAndNewlines)
+    private var trimmedNote: String? { Self.trimmed(note) }
+    private var trimmedReporterMessage: String? { Self.trimmed(reporterMessage) }
+
+    private static func trimmed(_ s: String) -> String? {
+        let n = s.trimmingCharacters(in: .whitespacesAndNewlines)
         return n.isEmpty ? nil : n
     }
 
     func decide(_ decision: ModerationDecisionKind, days: Int? = nil) async {
-        await work { try await self.repository.decide(caseId: self.caseId, decision: decision, days: days, note: self.trimmedNote) }
+        await work {
+            try await self.repository.decide(caseId: self.caseId, decision: decision, days: days, note: self.trimmedNote,
+                                             reporterMessage: self.trimmedReporterMessage)
+        }
     }
 
     func decideAppeal(overturn: Bool) async {
         guard let appeal = pendingAppeal else { return }
-        await work { try await self.repository.decideAppeal(appeal.id, overturn: overturn, note: self.trimmedNote) }
+        await work {
+            try await self.repository.decideAppeal(appeal.id, overturn: overturn, note: self.trimmedNote,
+                                                   reporterMessage: overturn ? self.trimmedReporterMessage : nil)
+        }
     }
 
     private func work(_ call: @escaping () async throws -> ModerationCaseDetail) async {
@@ -87,6 +99,7 @@ final class ModerationCaseViewModel {
         do {
             detail = try await call()
             note = ""
+            reporterMessage = ""
             NotificationCenter.default.post(name: .moderationCaseDecided, object: nil)
         } catch {
             errorMessage = friendlyError(error)

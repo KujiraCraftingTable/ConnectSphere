@@ -13,6 +13,9 @@ struct JobDetailView: View {
     @State private var applying = false
     @Environment(\.openURL) private var openURL
     @State private var inAppBrowserURL: URL?
+    /// The job description PDF, open full screen.
+    @State private var viewingJD: URL?
+    @State private var reportSubject: ReportSubject?
     let onChange: (JobListing) -> Void
 
     init(jobId: String, preloaded: JobListing? = nil, onChange: @escaping (JobListing) -> Void) {
@@ -47,15 +50,20 @@ struct JobDetailView: View {
                                 })
                         }
                     }
+                    if let path = job.jdPath, let url = APIConfig.mediaURL(path) { jdCard(url) }
+                    if let link = job.careersUrl, !link.isEmpty { careersCard(link) }
                     card(bundle.loc("Posted by")) {
                         NavigationLink { UserProfileView(userId: job.poster.id) } label: {
                             HStack(spacing: 10) {
                                 Avatar(name: job.poster.displayName, colorHex: job.poster.avatarColor,
                                        imageURL: job.poster.avatarUrl, size: .md)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(job.poster.displayName)
-                                        .scaledFont(15, .semibold)
-                                        .foregroundColor(AppColors.textPrimary(colorScheme))
+                                    HStack(spacing: 6) {
+                                        Text(job.poster.displayName)
+                                            .scaledFont(15, .semibold)
+                                            .foregroundColor(AppColors.textPrimary(colorScheme))
+                                        if let company = job.poster.hrCompany { HRBadge(company: company) }
+                                    }
                                     if let title = job.poster.jobTitle {
                                         Text(title).scaledFont(13).foregroundColor(AppColors.textSecondary(colorScheme))
                                     }
@@ -76,8 +84,28 @@ struct JobDetailView: View {
         }
         .background(AppColors.base(colorScheme))
         .inAppBrowser(url: $inAppBrowserURL)
+        .fullScreenCover(isPresented: Binding(get: { viewingJD != nil }, set: { if !$0 { viewingJD = nil } })) {
+            if let url = viewingJD { PDFViewerScreen(url: url, title: bundle.loc("Job description")) }
+        }
         .navigationTitle(bundle.loc("Job"))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if let job = viewModel.job, !job.isMine {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button(role: .destructive) {
+                            reportSubject = .content(.post, id: job.postId)
+                        } label: {
+                            Label(bundle.loc("Report job"), systemImage: "exclamationmark.bubble")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                    }
+                    .accessibilityLabel(Text(bundle.loc("More")))
+                }
+            }
+        }
+        .sheet(item: $reportSubject) { ReportSheet(subject: $0) }
         .safeAreaInset(edge: .bottom) {
             if let job = viewModel.job { actions(job) }
         }
@@ -85,6 +113,59 @@ struct JobDetailView: View {
         .onChange(of: viewModel.job) { _, job in if let job { onChange(job) } }
         .sheet(isPresented: $applying) {
             if let job = viewModel.job { ApplySheet(job: job) { viewModel.applied($0) } }
+        }
+    }
+
+    /// The company's own job description, opened full screen in the app.
+    private func jdCard(_ url: URL) -> some View {
+        card(bundle.loc("Job description")) {
+            Button { viewingJD = url } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "doc.richtext").scaledFont(22)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Job description (PDF)", bundle: bundle).scaledFont(15, .semibold)
+                        Text("Tap to read", bundle: bundle).scaledFont(12)
+                            .foregroundColor(AppColors.textSecondary(colorScheme))
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").foregroundColor(AppColors.textTertiary(colorScheme))
+                }
+                .foregroundColor(themeManager.theme.primary)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    /// The job on the company's own site: applicants open it and check the
+    /// address is really the company's before applying. Shown as typed; not
+    /// checked against the HR's domain yet (KNOWN_GAPS).
+    private func careersCard(_ link: String) -> some View {
+        card(bundle.loc("Check on the company's careers page")) {
+            VStack(alignment: .leading, spacing: 6) {
+                if let url = URL(string: link), let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+                   let host = url.host {
+                    Button { inAppBrowserURL = url } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "safari")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(host).scaledFont(15, .semibold)
+                                Text(link).scaledFont(12).lineLimit(1)
+                                    .foregroundColor(AppColors.textSecondary(colorScheme))
+                            }
+                            Spacer()
+                            Image(systemName: "arrow.up.right").foregroundColor(AppColors.textTertiary(colorScheme))
+                        }
+                        .foregroundColor(themeManager.theme.primary)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Text(link).scaledFont(15).foregroundColor(AppColors.textPrimary(colorScheme)).textSelection(.enabled)
+                }
+                Text("Make sure this is the company's real website. Never pay anyone to apply or get a job.", bundle: bundle)
+                    .scaledFont(12)
+                    .foregroundColor(AppColors.textTertiary(colorScheme))
+            }
         }
     }
 
@@ -103,7 +184,7 @@ struct JobDetailView: View {
             Text(job.salaryText(loc: bundle.loc) ?? bundle.loc("Negotiable"))
                 .scaledFont(16, .semibold)
                 .foregroundColor(themeManager.theme.primary)
-            let facts = [job.location, job.workFormat.map { bundle.loc(JobListing.formatLabel($0)) },
+            let facts = [job.location, job.distanceKm.map { "~" + String(format: bundle.loc("%d km"), $0) }, job.workFormat.map { bundle.loc(JobListing.formatLabel($0)) },
                          job.level.map { bundle.loc(JobListing.levelLabel($0)) },
                          job.employmentType.flatMap(EmploymentType.init(rawValue:)).map { bundle.loc($0.label) }]
                 .compactMap { $0 }

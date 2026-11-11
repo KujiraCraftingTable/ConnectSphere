@@ -3,13 +3,14 @@ import Observation
 import PhotosUI
 import SwiftUI
 
-/// A listing's photos (and videos) while it's being created or edited: the
-/// picker, what's been loaded, alt text and the upload. A listing needs at
-/// least one (`hasPhotos`).
+/// One listing item's photos (and videos) while it's being created or edited:
+/// the picker, what's been loaded, alt text and the upload. An item needs
+/// 1–6 (`isReady`).
 @MainActor
 @Observable
 final class ListingPhotosViewModel {
-    static let maxMedia = 10
+    /// Same cap as the server (`ListingStore.maxItemPhotos`).
+    static let maxMedia = 6
 
     var pickerItems: [PhotosPickerItem] = []
     private(set) var media: [PickedPostMedia]
@@ -24,7 +25,8 @@ final class ListingPhotosViewModel {
 
     var pendingCount: Int { helper.pendingMediaCount }
     var hasPhotos: Bool { !media.isEmpty }
-    var isReady: Bool { hasPhotos && pendingCount == 0 }
+    var isOverLimit: Bool { media.count > Self.maxMedia }
+    var isReady: Bool { hasPhotos && !isOverLimit && pendingCount == 0 }
 
     func loadPicked() async {
         media = await helper.loadSelectedMedia(pickerItems, keeping: media) { [weak self] soFar in

@@ -4,7 +4,6 @@ import SwiftUI
 /// make them moderator, member or the admin. Every change asks first.
 struct ManageRolesView: View {
     @Environment(AppState.self) private var appState
-    @Environment(ThemeManager.self) private var themeManager
     @Environment(\.appBundle) private var bundle
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
@@ -31,11 +30,10 @@ struct ManageRolesView: View {
 
     private var token: String { appState.authToken ?? "" }
     private var myId: String { appState.currentUser?.id ?? "" }
-    private var accent: Color { themeManager.theme.primary }
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 16) {
                 searchField
                 results
                 bannedSection
@@ -104,28 +102,46 @@ struct ManageRolesView: View {
                 .scaledFont(14)
                 .foregroundColor(AppColors.textSecondary(colorScheme))
                 .padding(.top, 30)
+                .frame(maxWidth: .infinity)
         } else {
-            LazyVStack(spacing: 0) {
-                ForEach(viewModel.results) { member in
-                    row(member)
-                    if member.id != viewModel.results.last?.id {
-                        Divider().padding(.leading, 64)
+            roleSection("Admin", viewModel.results.filter { $0.role == .admin })
+            roleSection("Moderators", viewModel.results.filter { $0.role == .moderator })
+            roleSection("Members", viewModel.results.filter { $0.role == .member })
+        }
+    }
+
+    /// One titled box per role; a role with nobody (or no search match) hides.
+    @ViewBuilder
+    private func roleSection(_ title: String, _ members: [CommunityMember]) -> some View {
+        if !members.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                sectionTitle(title)
+                LazyVStack(spacing: 0) {
+                    ForEach(members) { member in
+                        row(member)
+                        if member.id != members.last?.id {
+                            Divider().padding(.leading, 64)
+                        }
                     }
                 }
+                .surfaceBackground()
+                .clipShape(RoundedRectangle(cornerRadius: 14))
             }
-            .surfaceBackground()
-            .clipShape(RoundedRectangle(cornerRadius: 14))
         }
+    }
+
+    private func sectionTitle(_ title: String) -> some View {
+        Text(bundle.loc(title))
+            .scaledFont(13, .semibold)
+            .foregroundColor(AppColors.textSecondary(colorScheme))
+            .padding(.horizontal, 4)
     }
 
     @ViewBuilder
     private var bannedSection: some View {
         if !viewModel.banned.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Banned", bundle: bundle)
-                    .scaledFont(13, .semibold)
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-                    .padding(.horizontal, 4)
+                sectionTitle("Banned")
                 LazyVStack(spacing: 0) {
                     ForEach(viewModel.banned) { person in
                         HStack(spacing: 12) {
@@ -170,15 +186,6 @@ struct ManageRolesView: View {
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
                 Spacer()
-                if member.role != .member {
-                    Text(bundle.loc(member.role.label))
-                        .scaledFont(11, .semibold)
-                        .foregroundColor(accent)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(accent.opacity(0.12))
-                        .clipShape(Capsule())
-                }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)

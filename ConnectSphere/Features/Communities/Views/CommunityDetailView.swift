@@ -7,8 +7,10 @@ struct CommunityDetailView: View {
     @Environment(\.appBundle) var bundle
     @State private var viewModel: CommunityDetailViewModel
     @State private var showCreatePost = false
-    @State private var showJoinRequests  = false
-    @State private var showModeration    = false
+    /// Sell was tapped in the composer: open New listing once it has closed.
+    @State private var sellAfterCompose = false
+    @State private var showSell = false
+    @State private var showReports       = false
     @State private var showAnalytics     = false
     @State private var showSettings      = false
     @State private var showMembers       = false
@@ -20,7 +22,7 @@ struct CommunityDetailView: View {
     @State private var showReportCommunity = false
     @State private var showInfo          = false
     @State private var showMyContent     = false
-    @State private var showPendingPosts  = false
+    @State private var showRequests      = false
     @State private var showNotifications = false
     @State private var showShare         = false
     @State private var showMyProfile     = false
@@ -81,8 +83,6 @@ struct CommunityDetailView: View {
                     }
                     if canCompose {
                         createPostBar
-                    } else if viewModel.showsJoinToPost {
-                        joinToPostPrompt
                     }
                     feedContent
                 }
@@ -111,12 +111,14 @@ struct CommunityDetailView: View {
                 }
                 .accessibilityLabel(Text("Search this community", bundle: bundle))
             }
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Menu { moreMenu } label: {
+            // Staff see at a glance that something waits for review, with the
+            // same badge as the Messages button (drawn outside the bar's glass).
+            BadgedToolbarItem(
+                button: Menu { moreMenu } label: {
                     Image(systemName: "ellipsis").scaledFont(17)
                 }
-                .accessibilityLabel(Text("More", bundle: bundle))
-            }
+                .accessibilityLabel(Text("More", bundle: bundle)),
+                count: isStaff ? (viewModel.community?.staffAttentionCount ?? 0) : 0)
         }
         .task { await viewModel.fetchAll() }
         .refreshable { await viewModel.refresh() }
@@ -129,11 +131,27 @@ struct CommunityDetailView: View {
             impressions.pause()
         }
         .onChange(of: scenePhase) { _, phase in if phase != .active { impressions.pause() } }
-        .sheet(isPresented: $showCreatePost) {
+        .sheet(isPresented: $showCreatePost, onDismiss: {
+            if sellAfterCompose {
+                sellAfterCompose = false
+                showSell = true
+            }
+        }) {
             if let community = viewModel.community {
                 CreatePostView(community: community, onPostCreated: { post in
                     viewModel.prependPost(post)
-                })
+                }, onSell: { sellAfterCompose = true })
+                .environment(appState)
+                .environment(themeManager)
+            }
+        }
+        .sheet(isPresented: $showSell) {
+            if let community = viewModel.community {
+                // Listed in this community (already ticked) and the Marketplace.
+                CreateListingView(mode: .hobby, preselectedCommunityId: community.id) { listing in
+                    if listing.publishStatus != "pending" { viewModel.prependPost(listing) }
+                    showSell = false
+                }
                 .environment(appState)
                 .environment(themeManager)
             }
@@ -205,13 +223,15 @@ struct CommunityDetailView: View {
         .navigationDestination(isPresented: $showMyContent) {
             ManageCommunityContentView(communityId: communityId).toolbar(.hidden, for: .tabBar)
         }
-        .navigationDestination(isPresented: $showPendingPosts) {
-            PendingPostsView(communityId: communityId).toolbar(.hidden, for: .tabBar)
-        }
-        .alert(bundle.loc("Your post is waiting for approval"), isPresented: $viewModel.awaitingApprovalNotice) {
-            Button(bundle.loc("OK")) {}
-        } message: {
-            Text("An admin or moderator will review it. You'll find it in \"...\" › Manage your content.", bundle: bundle)
+        // Back from reviewing: the counts on the "..." menu catch up.
+        .onChange(of: showRequests) { _, open in if !open { Task { await viewModel.fetchDetail() } } }
+        .onChange(of: showReports) { _, open in if !open { Task { await viewModel.fetchDetail() } } }
+        .navigationDestination(isPresented: $showRequests) {
+            CommunityRequestsView(communityId: communityId,
+                                  showsJoin: viewModel.community?.privacy == .private,
+                                  postCount: viewModel.community?.pendingPostCount ?? 0,
+                                  joinCount: viewModel.community?.pendingJoinCount ?? 0)
+                .toolbar(.hidden, for: .tabBar)
         }
         .navigationDestination(isPresented: $showInfo) {
             if let community = viewModel.community {
@@ -238,20 +258,9 @@ struct CommunityDetailView: View {
                 PostDetailView(postId: route.postId, focusComposer: route.focusComposer)
             }
         }
-        .navigationDestination(isPresented: $showJoinRequests) {
-            JoinRequestsView(
-                communityId: viewModel.community?.id ?? "",
-                token: appState.authToken ?? ""
-            )
-            .toolbar(.hidden, for: .tabBar)
-        }
-        .navigationDestination(isPresented: $showModeration) {
-            ModerationQueueView(
-                communityId: viewModel.community?.id ?? "",
-                token:       appState.authToken ?? "",
-                coverColor:  viewModel.community?.coverColor ?? "#7F5AF0"
-            )
-            .toolbar(.hidden, for: .tabBar)
+        .navigationDestination(isPresented: $showReports) {
+            CommunityReportsView(communityId: communityId, isAdmin: currentUserRole == .admin)
+                .toolbar(.hidden, for: .tabBar)
         }
         .navigationDestination(isPresented: $showAnalytics) {
             CommunityAnalyticsView(
@@ -291,11 +300,17 @@ struct CommunityDetailView: View {
     }
 
     private var isCoveredByPush: Bool {
-        showMembers || showManageRoles || showModLog || showInfo || showMyContent || showPendingPosts
-            || showJoinRequests || showModeration || showAnalytics || detailRoute != nil
+        showMembers || showManageRoles || showModLog || showInfo || showMyContent || showRequests
+            || showReports || showAnalytics || detailRoute != nil
     }
 
     // MARK: - "..." menu
+
+    /// "Pending posts · 2"; just the title when nothing is waiting.
+    private func withCount(_ title: String, _ count: Int?) -> String {
+        guard let count, count > 0 else { return title }
+        return "\(title) · \(count)"
+    }
 
     @ViewBuilder
     private var moreMenu: some View {
@@ -324,23 +339,21 @@ struct CommunityDetailView: View {
                             Label(bundle.loc("Edit community"), systemImage: "pencil")
                         }
                     }
-                    Button { showPendingPosts = true } label: {
-                        Label(bundle.loc("Pending posts"), systemImage: "hourglass")
+                    Button { showRequests = true } label: {
+                        Label(withCount(bundle.loc("Requests"), viewModel.community?.pendingRequestCount),
+                              systemImage: "tray.full")
                     }
-                    Button { showModeration = true } label: {
-                        Label(bundle.loc("Moderation"), systemImage: "shield.lefthalf.filled")
+                    Button { showReports = true } label: {
+                        Label(withCount(bundle.loc("Reports"), viewModel.community?.pendingReportCount),
+                              systemImage: "exclamationmark.shield")
                     }
-                    if viewModel.community?.privacy == .private {
-                        Button { showJoinRequests = true } label: {
-                            Label(bundle.loc("Join requests"), systemImage: "person.badge.plus")
-                        }
+                    // Moderators see the log too: staff keep each other accountable.
+                    Button { showModLog = true } label: {
+                        Label(bundle.loc("Moderation log"), systemImage: "list.bullet.rectangle")
                     }
                     if currentUserRole == .admin {
                         Button { showManageRoles = true } label: {
                             Label(bundle.loc("Manage roles"), systemImage: "person.2.badge.gearshape")
-                        }
-                        Button { showModLog = true } label: {
-                            Label(bundle.loc("Moderation log"), systemImage: "list.bullet.rectangle")
                         }
                         Button { showAnalytics = true } label: {
                             Label(bundle.loc("Analytics"), systemImage: "chart.xyaxis.line")
@@ -348,7 +361,8 @@ struct CommunityDetailView: View {
                     }
                 } label: {
                     // Breaks between the words: the menu otherwise hyphenates "commu-nity".
-                    Label(bundle.loc("Manage\ncommunity"), systemImage: "slider.horizontal.3")
+                    Label(withCount(bundle.loc("Manage\ncommunity"), viewModel.community?.staffAttentionCount),
+                          systemImage: "slider.horizontal.3")
                 }
             }
         } else {
@@ -391,16 +405,21 @@ struct CommunityDetailView: View {
     private var joinButton: some View {
         switch viewModel.joinStatus {
         case .notMember:
-            Button {
-                Task<Void, Never>(name: nil) { await viewModel.requestToJoin() }
-            } label: {
-                joinButtonLabel(
-                    title: viewModel.community?.privacy == .private ? bundle.loc("Request to join") : bundle.loc("Join"),
-                    bg: themeManager.theme.primary, fg: .white
-                )
+            VStack(spacing: 6) {
+                Button {
+                    Task<Void, Never>(name: nil) { await viewModel.requestToJoin() }
+                } label: {
+                    joinButtonLabel(
+                        title: viewModel.community?.privacy == .private ? bundle.loc("Request to join") : bundle.loc("Join now"),
+                        bg: themeManager.theme.primary, fg: .white
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabledWhenRestricted()
+                Text("You need to join a community to post", bundle: bundle)
+                    .scaledFont(12)
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
             }
-            .buttonStyle(.plain)
-            .disabledWhenRestricted()
 
         case .loading:
             ProgressView()
@@ -517,27 +536,6 @@ struct CommunityDetailView: View {
     /// scrolling back up to it.
     /// A disbanded community takes no new posts (the server refuses them too).
     private var canCompose: Bool { viewModel.community?.isMember == true && viewModel.community?.disbandedAt == nil }
-
-    /// Non-members: same slot and shape as the post bar, tapping asks to join.
-    private var joinToPostPrompt: some View {
-        Button {
-            Task<Void, Never>(name: nil) { await viewModel.requestToJoin() }
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "square.and.pencil")
-                Text("Join to post", bundle: bundle)
-            }
-            .scaledFont(15, .medium)
-            .foregroundColor(accentColor)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
-            .background(Capsule().stroke(accentColor.opacity(0.5), lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, AppSpacing.sm + 4)
-        .padding(.vertical, 10)
-        .background(AppColors.surface(colorScheme))
-    }
 
     private var createPostBar: some View {
         HStack(spacing: 10) {

@@ -201,6 +201,10 @@ struct UsersController {
             return isOfficial ? OfficialAccount.editableProfileKeys(Set(dict.keys)) : Set(dict.keys)
         }()
         func sent(_ key: String) -> Bool { presentKeys.contains(key) }
+        // Read-only while restricted: settings save, profile content doesn't.
+        if req.restrictedUntil != nil, !presentKeys.isSubset(of: Restrictions.settingsKeys) {
+            throw InlineError(.forbidden, Restrictions.message)
+        }
 
         var mode = raw.mode ?? (try? req.query.get(String.self, at: "mode"))
         let sdb = req.db.sql()

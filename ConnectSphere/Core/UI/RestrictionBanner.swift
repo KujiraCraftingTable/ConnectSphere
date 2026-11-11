@@ -15,10 +15,10 @@ struct RestrictionBanner: View {
                     .foregroundColor(AppColors.danger(colorScheme))
                     .frame(width: 32)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(String(format: bundle.loc("Restricted until %@"), until.dayMonthYear))
+                    Text(String(format: bundle.loc("Read-only until %@"), until.dayMonthYear))
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(AppColors.textPrimary(colorScheme))
-                    Text(bundle.loc("You can browse and message friends, but you can't post, comment, join communities, sell or add friends."))
+                    Text(bundle.loc("Your account is read-only. You can browse, change settings, block and report, but you can't post, comment, message, react, join, sell or add friends."))
                         .font(.system(size: 14))
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                         .fixedSize(horizontal: false, vertical: true)
@@ -48,6 +48,6 @@ private struct RestrictedControl: ViewModifier {
 }
 
 extension View {
-    /// `applies: false` leaves the control alone, e.g. Joined (leaving is still allowed).
+    /// `applies: false` leaves the control alone.
     func disabledWhenRestricted(_ applies: Bool = true) -> some View { modifier(RestrictedControl(applies: applies)) }
 }

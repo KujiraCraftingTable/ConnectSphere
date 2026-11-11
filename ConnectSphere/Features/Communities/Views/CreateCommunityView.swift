@@ -1,11 +1,6 @@
 import SwiftUI
 import PhotosUI
 
-private let fandomEmojis = ["🎵","🎮","📚","🍕","✈️","🎨","🏆","🐾","🎬","🎤",
-                             "🌸","🦊","⚽","🏀","🎯","🎲","🧩","🌙","🎭","🎪"]
-private let workEmojis   = ["💼","💻","🔬","🌎","📊","📈","🏢","🤝","📋","✉️",
-                             "🔧","⚙️","📱","💡","🎓","🏅","📌","🗂️","🖥️","📝"]
-
 // Localization keys, resolved through `bundle.loc(...)` at the call site
 // (`duplicateWarning`), never rendered directly. These used to be Vietnamese
 // literals with no English counterpart at all, so an English-language user
@@ -17,20 +12,6 @@ private let fandomDuplicateWarnings = [
     "This name's already claimed~ 🌟 You can definitely think of something cooler!",
     "Exact match! 😆 Make your community stand out with its own name!"
 ]
-private let workDuplicateWarnings = [
-    "This community name already exists. Please choose a different name to continue.",
-    "A community with this name already exists in the system. Please use a distinct identifier.",
-    "This name matches an existing community. Please adjust it to ensure uniqueness.",
-    "A community with this name has already been created. Please choose another name.",
-    "Invalid name: already exists in the system. Please enter a different name."
-]
-private let colorPreset  = [
-    "#7F5AF0","#F72585","#2196F3","#00BCD4","#4CAF50",
-    "#FF9800","#E91E63","#607D8B","#795548","#9C27B0",
-    "#F44336","#FF5722","#FFEB3B","#8BC34A","#009688",
-    "#3F51B5","#00ACC1","#AB47BC","#EC407A","#546E7A"
-]
-
 struct CreateCommunityView: View {
     @Environment(AppState.self) var appState
     @Environment(ThemeManager.self) var themeManager
@@ -38,18 +19,13 @@ struct CreateCommunityView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.appBundle) var bundle
 
-    @State private var viewModel = CreateCommunityViewModel(defaultEmoji: fandomEmojis[0])
+    @State private var viewModel = CreateCommunityViewModel()
 
     // Real uploaded photo, same pick-now/upload-at-save pattern as EditProfileView.
     @State private var pickerItem: PhotosPickerItem?
     @State private var showPhotoPicker = false
     @State private var showCoverCrop = false
     @State private var showCoverOptions = false
-
-    @State private var customEmoji: String?  = nil
-    @State private var showCustomEmojiInput  = false
-    @State private var customEmojiDraft      = ""
-    @FocusState private var emojiInputFocused: Bool
 
     @State private var warningIndex      = 0
     @State private var wasWarning        = false
@@ -61,7 +37,7 @@ struct CreateCommunityView: View {
     private var isDuplicateName: Bool { viewModel.isDuplicateName(among: existingCommunities) }
 
     private var duplicateWarning: String {
-        let pool = viewModel.type == .work ? workDuplicateWarnings : fandomDuplicateWarnings
+        let pool = fandomDuplicateWarnings
         return bundle.loc(pool[warningIndex % pool.count])
     }
 
@@ -74,15 +50,17 @@ struct CreateCommunityView: View {
         return nil
     }
 
-    var canCreate: Bool { viewModel.canCreate }
+    private var coverError: String? {
+        showValidation && viewModel.pickedImage == nil ? bundle.loc("Please add a cover photo") : nil
+    }
 
-    private var hasPhoto: Bool { viewModel.pickedImage != nil }
+    var canCreate: Bool { viewModel.canCreate }
 
     /// Name problems and the duplicate-name joke, under the card.
     @ViewBuilder
     private var nameMessages: some View {
         Group {
-            if let err = nameError {
+            if let err = nameError ?? coverError {
                 Text(err)
                     .scaledFont(12)
                     .foregroundColor(.red)
@@ -94,11 +72,9 @@ struct CreateCommunityView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 4)
-        .animation(.easeInOut(duration: 0.2), value: nameError != nil)
+        .animation(.easeInOut(duration: 0.2), value: nameError ?? coverError)
         .animation(.easeInOut(duration: 0.2), value: isDuplicateName)
     }
-
-    private var currentEmojiSet: [String] { viewModel.type == .work ? workEmojis : fandomEmojis }
 
     var body: some View {
         NavigationStack {
@@ -118,12 +94,19 @@ struct CreateCommunityView: View {
                                         .frame(width: 44, height: 44)
                                         .clipShape(RoundedRectangle(cornerRadius: 10))
                                 } else {
+                                    // No photo yet: a required slot, not a stand-in icon.
                                     ZStack {
                                         RoundedRectangle(cornerRadius: 10)
-                                            .fill(Color(hex: viewModel.selectedColor).opacity(0.18))
+                                            .fill(themeManager.theme.primary.opacity(0.12))
                                             .frame(width: 44, height: 44)
-                                        Text(viewModel.selectedEmoji).scaledFont(22)
+                                        Image(systemName: "photo")
+                                            .scaledFont(18)
+                                            .foregroundColor(themeManager.theme.primary)
                                     }
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(coverError != nil ? Color.red.opacity(0.6) : Color.clear, lineWidth: 1)
+                                    )
                                 }
                                 ZStack {
                                     Circle().fill(themeManager.theme.primary)
@@ -153,7 +136,7 @@ struct CreateCommunityView: View {
                                 .onChange(of: viewModel.type) { _, _ in refreshWarning() }
                             Text(bundle.loc(viewModel.type.label))
                                 .scaledFont(12)
-                                .foregroundColor(Color(hex: viewModel.selectedColor))
+                                .foregroundColor(themeManager.theme.primary)
                         }
                         Spacer()
                         if viewModel.pickedImage != nil {
@@ -203,99 +186,6 @@ struct CreateCommunityView: View {
                         .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
                     }
 
-                    // Emoji picker (the cover photo replaces icon and colour)
-                    formSection(title: bundle.loc("Icon")) {
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 10), spacing: 8) {
-                            ForEach(currentEmojiSet, id: \.self) { emoji in
-                                emojiCell(emoji)
-                            }
-                            // Custom emoji cell (if added by user)
-                            if let custom = customEmoji, !currentEmojiSet.contains(custom) {
-                                emojiCell(custom)
-                            }
-                        }
-
-                        // "+" row, left-aligned, mirrors "Custom color" below
-                        if showCustomEmojiInput {
-                            HStack(spacing: 10) {
-                                TextField(bundle.loc("Type or paste an emoji…"), text: $customEmojiDraft)
-                                    .focused($emojiInputFocused)
-                                    .scaledFont(22)
-                                    .multilineTextAlignment(.center)
-                                    .frame(width: 50, height: 44)
-                                    .background(AppColors.surface(colorScheme))
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                                    .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
-                                    .onChange(of: customEmojiDraft) { _, new in
-                                        guard !new.isEmpty else { return }
-                                        let picked = String(new.prefix(1))
-                                        customEmoji          = picked
-                                        viewModel.selectedEmoji        = picked
-                                        showCustomEmojiInput = false
-                                        customEmojiDraft     = ""
-                                    }
-                                Text("Type or paste any emoji", bundle: bundle)
-                                    .scaledFont(13)
-                                    .foregroundColor(AppColors.textTertiary(colorScheme))
-                                Spacer()
-                                Button(bundle.loc("Cancel")) {
-                                    showCustomEmojiInput = false
-                                    customEmojiDraft     = ""
-                                }
-                                .scaledFont(13, .semibold)
-                                .foregroundColor(AppColors.textSecondary(colorScheme))
-                            }
-                            .padding(.top, 4)
-                        } else {
-                            Button {
-                                showCustomEmojiInput = true
-                                emojiInputFocused    = true
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "plus.circle")
-                                    Text("Add emoji", bundle: bundle)
-                                }
-                                .scaledFont(13)
-                                .foregroundColor(AppColors.textSecondary(colorScheme))
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.top, 4)
-                        }
-                    }
-                    .disabled(hasPhoto)
-                    .opacity(hasPhoto ? 0.4 : 1)
-
-                    // Color picker
-                    formSection(title: bundle.loc("Cover color")) {
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 10), spacing: 10) {
-                            ForEach(colorPreset, id: \.self) { hex in
-                                Button {
-                                    viewModel.selectedColor = hex
-                                } label: {
-                                    Circle()
-                                        .fill(Color(hex: hex))
-                                        .frame(width: 28, height: 28)
-                                        .overlay(
-                                            Circle().stroke(.white, lineWidth: viewModel.selectedColor == hex ? 3 : 0)
-                                        )
-                                        .shadow(color: Color(hex: hex).opacity(0.5), radius: 4)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        ColorPicker(selection: Binding(
-                            get: { Color(hex: viewModel.selectedColor) },
-                            set: { viewModel.selectedColor = $0.toHex() ?? viewModel.selectedColor }
-                        ), supportsOpacity: false) {
-                            Text("Custom color", bundle: bundle)
-                                .scaledFont(13)
-                                .foregroundColor(AppColors.textSecondary(colorScheme))
-                        }
-                        .padding(.top, 4)
-                    }
-                    .disabled(hasPhoto)
-                    .opacity(hasPhoto ? 0.4 : 1)
-
                     if let err = viewModel.errorMessage {
                         Text(err)
                             .scaledFont(13)
@@ -341,21 +231,15 @@ struct CreateCommunityView: View {
             }
             .fullScreenCover(isPresented: $showCoverCrop) {
                 if let original = viewModel.coverOriginal {
-                    CoverCropView(image: original) { viewModel.setFramedCover($0) }
+                    CoverCropView(image: original) {
+                        viewModel.setFramedCover($0)
+                        if showValidation && canCreate { showValidation = false }
+                    }
                         .environment(themeManager)
                 }
             }
             .onAppear {
-                viewModel.type = appState.currentMode == .hobby ? .fandom : .work
-            }
-            .onChange(of: viewModel.type) { _, newType in
-                // Reset to first emoji of new type if current selection doesn't belong
-                let set = newType == .work ? workEmojis : fandomEmojis
-                if !set.contains(viewModel.selectedEmoji) && customEmoji != viewModel.selectedEmoji {
-                    viewModel.selectedEmoji = set[0]
-                }
-                customEmoji         = nil
-                showCustomEmojiInput = false
+                viewModel.type = .fandom
             }
         }
     }
@@ -368,20 +252,6 @@ struct CreateCommunityView: View {
             warningIndex = Int.random(in: 0..<5)
         }
         wasWarning = isNow
-    }
-
-    @ViewBuilder
-    private func emojiCell(_ emoji: String) -> some View {
-        Button { viewModel.selectedEmoji = emoji } label: {
-            Text(emoji)
-                .scaledFont(22)
-                .frame(width: 34, height: 34)
-                .background(viewModel.selectedEmoji == emoji
-                    ? Color(hex: viewModel.selectedColor).opacity(0.18)
-                    : Color.clear)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-        }
-        .buttonStyle(.plain)
     }
 
     @ViewBuilder

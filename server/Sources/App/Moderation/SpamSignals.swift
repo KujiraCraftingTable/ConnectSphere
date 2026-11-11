@@ -88,13 +88,10 @@ enum SpamSignals {
                                       detail: ["reason": why, "mode": enforcing ? "enforce" : "shadow"], on: sdb)
         logger.info("moderation: spam signal on \(senderID): \(why) (\(enforcing ? "enforce" : "shadow"))")
         guard enforcing else { return }
-        struct U: Decodable { let id: String }
-        let paused = try await sdb.raw("""
-            UPDATE users SET restricted_until = NOW() + make_interval(hours => \(bind: pauseHours)::int)
-            WHERE id = \(uuid: senderID) AND (restricted_until IS NULL OR restricted_until < NOW())
-            RETURNING id::text AS id
-            """).first(decoding: U.self)
-        guard paused != nil else { return }
+        // Only in the mode the spam came from, and not on top of a running one.
+        guard try await AccountRestrictions.active(senderID, on: sdb)[mode] == nil else { return }
+        try await AccountRestrictions.restrict(senderID, modes: [mode], caseID: filed.case_id,
+                                               until: "NOW() + make_interval(hours => \(bind: pauseHours)::int)", on: sdb)
         // The case stands for the pause: keeping it (or an overturned appeal) lifts it.
         try await sdb.raw("UPDATE moderation_cases SET auto_hidden = TRUE WHERE id = \(uuid: filed.case_id)").run()
         await NotifyService.pushUserNotification(userID: senderID, type: "account_limited", groupTargetID: filed.case_id,

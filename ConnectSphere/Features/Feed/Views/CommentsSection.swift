@@ -92,7 +92,7 @@ struct CommentsSection: View {
             }
             Button(bundle.loc("Cancel"), role: .cancel) {}
         } message: {
-            Text("This comment won't be shown in the app. You can restore it from Recently Deleted within 30 days.", bundle: bundle)
+            Text("This comment and its replies will be deleted.", bundle: bundle)
         }
         .onChange(of: editingCommentId) { _, id in onEditingChange(id != nil) }
         .sheet(item: $historySubject) { subject in
@@ -154,19 +154,21 @@ struct CommentsSection: View {
         }
     }
 
-    // MARK: - Delete comment (with Undo toast)
+    // MARK: - Delete comment
 
-    /// Deletes the comment then shows an Undo toast; tapping Undo calls restore
-    /// then reloads the whole comment list.
+    /// Undo works only while the toast shows; after that the comment is gone.
     private func handleDeleteComment(commentId: String) async {
         let removed = await viewModel.deleteComment(postId: postId, commentId: commentId)
-        if removed > 0 { onCommentCountChange(-removed) }
+        guard removed > 0 else { return }
+        onCommentCountChange(-removed)
         toastPresenter.show(message: bundle.loc("Comment deleted")) {
             Task {
-                // Restore only ever brings back the single deleted comment,
-                // never its cascade-deleted replies, so the delta is always
-                // exactly +1, however much `removed` subtracted above.
-                if await viewModel.restoreComment(postId: postId, commentId: commentId) { onCommentCountChange(1) }
+                let restored = await viewModel.restoreComment(postId: postId, commentId: commentId)
+                if restored > 0 {
+                    onCommentCountChange(restored)
+                } else {
+                    toastPresenter.show(message: bundle.loc("Couldn't restore comment"))
+                }
             }
         }
     }
@@ -246,8 +248,8 @@ struct CommentsSection: View {
             comment: comment,
             communityId: communityId,
             level: level,
-            isOwn: comment.author.id == appState.currentUser?.id,
-            isPostAuthor: comment.author.id == postAuthorId,
+            isOwn: appState.currentUser.map { comment.author.id.caseInsensitiveCompare($0.id) == .orderedSame } ?? false,
+            isPostAuthor: comment.author.id.caseInsensitiveCompare(postAuthorId) == .orderedSame,
             isEditing: editingCommentId == comment.id,
             editingText: $editingText,
             editHasChanges: editingCommentId == comment.id && editingText != comment.content,
@@ -318,7 +320,6 @@ struct CommentRow: View {
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
     @Environment(\.colorScheme) var colorScheme
-    @Environment(\.openURL) private var openURL
     @State private var inAppBrowserURL: URL?
     /// The admin acts in Review reports instead of reporting comments.
     private var viewerIsOfficial: Bool { appState.currentUser?.isOfficial ?? false }
@@ -353,14 +354,11 @@ struct CommentRow: View {
     var onSaveEdit:   (() -> Void)? = nil
     var onCancelEdit: (() -> Void)? = nil
 
-    /// http(s) links open in the in-app browser, like links in posts; mail and
-    /// phone links go to the system.
+    /// http(s) links open in the in-app browser, like links in posts; other
+    /// schemes are ignored.
     private func openCommentLink(_ url: URL) {
-        if let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
-            inAppBrowserURL = url
-        } else {
-            openURL(url)
-        }
+        guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return }
+        inAppBrowserURL = url
     }
 
     private var canTranslate: Bool {

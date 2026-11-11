@@ -38,10 +38,22 @@ struct NotificationsController {
         "account_limited":     .init(category: "social", destination: "accountStatus"),
         "report_received":     .init(category: "social", destination: "none"),
         "report_outcome":      .init(category: "social", destination: "none"),
+        // An item you reported was put back after its author appealed.
+        "report_restored":     .init(category: "social", destination: "none"),
+        // The author of something reported: reviewed, no action taken.
+        "report_reviewed":     .init(category: "social", destination: "none"),
         "moderation_decision": .init(category: "social", destination: "accountStatus"),
         // The official account: "There are 67 reports waiting" (every 10 minutes).
         "admin_digest":        .init(category: "social", destination: "adminTools"),
         "appeal_outcome":      .init(category: "social", destination: "accountStatus"),
+        // Verified HR (migration 126).
+        "hr_request_new":      .init(category: "social", destination: "adminTools"),
+        "hr_request_decided":  .init(category: "social", destination: "hrStatus"),
+        "hr_revoked":          .init(category: "social", destination: "hrStatus"),
+        "job_approved":        .init(category: "social", destination: "job"),
+        "job_declined":        .init(category: "social", destination: "hrStatus"),
+        // Someone you applied to lost HR status; their jobs are gone.
+        "job_removed":         .init(category: "social", destination: "none"),
         "message":             .init(category: "chat", destination: "conversation"),
         "meeting_proposed":    .init(category: "chat", destination: "conversation"),
         "meeting_updated":     .init(category: "chat", destination: "conversation"),
@@ -54,7 +66,14 @@ struct NotificationsController {
         "pinned_post":         .init(category: "community", destination: "communityPost"),
         "post_approved":       .init(category: "community", destination: "communityPost"),
         "post_declined":       .init(category: "community", destination: "community"),
+        // "There are 3 join / post requests in …", batched by RequestDigestJob.
         "join_request":        .init(category: "community", destination: "communityJoinRequests"),
+        "post_requests":       .init(category: "community", destination: "communityPendingPosts"),
+        "community_reports":   .init(category: "community", destination: "communityReports"),
+        // A community's staff judged a report: to its author (warned) and its reporters.
+        "community_warning":   .init(category: "community", destination: "community"),
+        "community_report_outcome": .init(category: "community", destination: "community"),
+        "community_report_result": .init(category: "community", destination: "community"),
         "join_approved":       .init(category: "community", destination: "community"),
         "join_rejected":       .init(category: "community", destination: "community"),
         "role_changed":        .init(category: "community", destination: "community"),
@@ -62,6 +81,7 @@ struct NotificationsController {
         "content_removed":     .init(category: "community", destination: "community"),
         "community_disbanded": .init(category: "community", destination: "community"),
         "community_restored":  .init(category: "community", destination: "community"),
+        "community_renamed":   .init(category: "community", destination: "community"),
     ]
 
     static func typesForCategory(_ cat: String?) -> [String]? {
@@ -106,6 +126,9 @@ struct NotificationsController {
         var created_at: Date; var updated_at: Date; var community_name: String?
         /// The sender is the official account, so the app shows its seal.
         var actor_is_official: Bool
+        /// The community is disbanded or suspended: the notice stays, but it
+        /// no longer leads anywhere.
+        var community_gone: Bool? = nil
     }
 
     static let selectColumns: SQLQueryString = """
@@ -115,6 +138,7 @@ struct NotificationsController {
         COALESCE(n.group_key, n.type || ':' || n.id::text) AS group_key,
         n.payload::text AS payload, n.collapse_count, n.is_read, n.resolved_at,
         n.created_at, n.updated_at, c.name AS community_name,
+        (c.disbanded_at IS NOT NULL OR c.suspended_at IS NOT NULL) AS community_gone,
         EXISTS (SELECT 1 FROM users au WHERE au.id = n.actor_id AND au.app_role = 'admin'
                 AND au.deleted_at IS NULL) AS actor_is_official
         """
@@ -140,7 +164,7 @@ struct NotificationsController {
     }
 
     static func destination(_ r: Row) -> String {
-        let kind = types[r.type]?.destination ?? "none"
+        let kind = r.community_gone == true ? "none" : (types[r.type]?.destination ?? "none")
         func j(_ s: String?) -> String { s.map { "\"\($0)\"" } ?? "null" }
         // payload lookups
         let p = (try? JSONSerialization.jsonObject(with: Data(r.payload.utf8))) as? [String: Any] ?? [:]
@@ -150,6 +174,8 @@ struct NotificationsController {
         case "profile": return "{\"kind\":\"profile\",\"userId\":\(j(r.actor_id ?? ps("fromUserId")))}"
         case "conversation": return "{\"kind\":\"conversation\",\"conversationId\":\(j(r.conversation_id ?? ps("conversationId"))),\"messageId\":\(j(ps("messageId")))}"
         case "conversations": return "{\"kind\":\"conversations\"}"
+        // Screens of your own, nothing to point at: Admin tools, Become HR.
+        case "adminTools", "hrStatus": return "{\"kind\":\"\(kind)\"}"
         case "accountStatus": return "{\"kind\":\"accountStatus\",\"caseId\":\(j(ps("caseId")))}"
         case "job", "jobApplicants": return "{\"kind\":\"\(kind)\",\"jobId\":\(j(ps("jobId")))}"
         case "communityPost": return "{\"kind\":\"communityPost\",\"communityId\":\(j(r.community_id)),\"postId\":\(j(r.post_id ?? ps("refId")))}"

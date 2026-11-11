@@ -123,11 +123,13 @@ struct ConnectionsController {
     struct ConnResult: Content { var connection_id: String; var status: String }
 
     static func request(_ req: Request) async throws -> Response {
-        try req.requireNotRestricted(spending: .friendRequest)
+        try req.requireRoom(for: .friendRequest)
         let b = try req.content.decode(RequestBody.self)
         let mode = b.mode ?? "hobby"
         guard let addresseeID = b.addressee_id else { throw InlineError(.badRequest, "addressee_id required") }
         guard ["hobby", "work"].contains(mode) else { throw InlineError(.badRequest, "Invalid mode") }
+        try req.requireNotBanned(in: mode)
+        try req.requireNotRestricted(in: mode)
         guard req.userID.caseInsensitiveCompare(addresseeID) != .orderedSame else { throw InlineError(.badRequest, "Cannot connect with yourself") }
         let db = req.db.sql()
         struct I: Decodable { let id: String }

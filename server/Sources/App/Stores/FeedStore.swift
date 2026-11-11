@@ -541,7 +541,8 @@ enum FeedStore {
                 ) ELSE NULL END)::text AS shared_post,
                 (SELECT json_build_object('id', sc.id, 'name', sc.name, 'cover_url', sc.cover_url, 'cover_color', sc.cover_color,
                     'icon_emoji', sc.icon_emoji, 'member_count', sc.member_count, 'privacy', sc.privacy)
-                  FROM communities sc WHERE sc.id = p.shared_community_id)::text AS shared_community,
+                  FROM communities sc WHERE sc.id = p.shared_community_id
+                  AND sc.disbanded_at IS NULL AND sc.suspended_at IS NULL)::text AS shared_community,
                 json_build_object('id', u.id, 'username', u.username,
                   'display_name', \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "p.mode")),
                   'avatar_color', u.avatar_color, 'avatar_url', \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: "p.mode")),
@@ -577,6 +578,7 @@ enum FeedStore {
                     AND p.community_audience = 'public')
                   OR EXISTS (SELECT 1 FROM community_members cm2 WHERE cm2.community_id = p.community_id AND cm2.user_id = \(uuid: userID)))
                 AND NOT EXISTS (SELECT 1 FROM communities cdis WHERE cdis.id = p.community_id AND cdis.disbanded_at IS NOT NULL)
+                AND NOT EXISTS (SELECT 1 FROM community_bans cban WHERE cban.community_id = p.community_id AND cban.user_id = \(uuid: userID))
                 AND NOT EXISTS (SELECT 1 FROM community_members cmMute
                   WHERE cmMute.community_id = p.community_id AND cmMute.user_id = \(uuid: userID) AND cmMute.muted = TRUE)
                 AND p.author_id <> \(uuid: userID)

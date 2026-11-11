@@ -32,7 +32,8 @@ struct AdminModerationController {
         return DataResponse(data: detail)
     }
 
-    struct DecideBody: Content { var decision: String?; var days: Int?; var note: String? }
+    /// `note` is staff-only; `reporter_message` is what the reporters read.
+    struct DecideBody: Content { var decision: String?; var days: Int?; var note: String?; var reporter_message: String? }
 
     static func decide(_ req: Request) async throws -> DataResponse<ModerationQueue.CaseDetail> {
         guard let id = uuidParam(req, "id") else { throw InlineError(.notFound, "Case not found") }
@@ -42,7 +43,8 @@ struct AdminModerationController {
         }
         let outcome = try await ModerationService.decide(caseID: id, decision: decision,
                                                          restrictDays: decision == .restrict ? b.days : nil,
-                                                         note: try note(b.note), actor: req.userID,
+                                                         note: try note(b.note), reporterMessage: try note(b.reporter_message),
+                                                         actor: req.userID,
                                                          banDays: decision == .ban ? b.days : nil, on: req.db)
         NotifyService.fireAndForget(req) { db, hub, log in await ModerationNotices.decided(outcome, on: db, hub: hub, logger: log) }
         ModerationNotices.email(outcome, app: req.application, logger: req.logger)
@@ -57,7 +59,7 @@ struct AdminModerationController {
         return DataResponse(data: try await ModerationQueue.appeals(status: status, limit: limit, offset: offset, on: req.db.sql()))
     }
 
-    struct AppealDecideBody: Content { var result: String?; var note: String? }
+    struct AppealDecideBody: Content { var result: String?; var note: String?; var reporter_message: String? }
 
     static func decideAppeal(_ req: Request) async throws -> DataResponse<ModerationQueue.CaseDetail> {
         guard let id = uuidParam(req, "id") else { throw InlineError(.notFound, "Appeal not found") }
@@ -66,6 +68,7 @@ struct AdminModerationController {
             throw InlineError(.badRequest, "result must be uphold or overturn")
         }
         let outcome = try await ModerationService.decideAppeal(id, overturn: result == "overturn", note: try note(b.note),
+                                                               reporterMessage: try note(b.reporter_message),
                                                                actor: req.userID, on: req.db)
         NotifyService.fireAndForget(req) { db, hub, log in await ModerationNotices.appealDecided(outcome, on: db, hub: hub, logger: log) }
         return DataResponse(data: try await ModerationQueue.detail(outcome.caseID, on: req.db.sql())!)
@@ -116,7 +119,8 @@ struct AccountStatusController {
     }
     struct MyReport: Content {
         var target_type: String; var reason: String; var created_at: Date
-        /// pending, removed or kept.
+        /// pending, kept, removed, action_taken (a profile banned or warned,
+        /// left up) or restored (taken down, then put back on appeal).
         var outcome: String
         /// What was reported, so the app can open it: the post (a comment's
         /// post too), profile or community.
@@ -124,13 +128,19 @@ struct AccountStatusController {
         @NullCoded var post_id: String?
         /// The content as moderators saw it, for when it's been removed.
         @NullCoded var snapshot: JSONValue?
-        /// Why moderators decided as they did, once they have.
-        @NullCoded var decision_note: String?
+        /// What the moderator chose to tell reporters, once decided. Their
+        /// private note (`decision_note`) never reaches here.
+        @NullCoded var reporter_message: String?
+        /// The community it happened in, or the community itself when that
+        /// was reported, so a community's post reads apart from a post.
+        @NullCoded var community_name: String?
     }
     struct Status: Content {
         /// user, moderator or admin — the app shows its Moderation screen to staff.
         var app_role: String
+        /// The longest running restriction, any mode; `restrictions` has each.
         @NullCoded var restricted_until: Date?
+        var restrictions: [AccountRestrictions.Entry]
         @NullCoded var banned_at: Date?
         @NullCoded var ban_reason: String?
         var strikes: [Strike]
@@ -142,11 +152,11 @@ struct AccountStatusController {
 
     static func get(_ req: Request) async throws -> DataResponse<Status> {
         let db = req.db.sql(), me = req.userID
-        struct U: Decodable { let app_role: String; let restricted_until: Date?; let banned_at: Date?; let ban_reason: String? }
+        struct U: Decodable { let app_role: String; let banned_at: Date?; let ban_reason: String? }
         let u = try await db.raw("""
-            SELECT app_role, CASE WHEN restricted_until > NOW() THEN restricted_until END AS restricted_until, banned_at, ban_reason
-            FROM users WHERE id = \(uuid: me)
+            SELECT app_role, banned_at, ban_reason FROM users WHERE id = \(uuid: me)
             """).first(decoding: U.self)
+        let restricted = try await AccountRestrictions.active(me, on: db)
         struct S: Decodable {
             let policy: String; let created_at: Date; let expires_at: Date; let mode: String?
             let case_id: String?; let target_type: String?; let snapshot: String?
@@ -194,24 +204,45 @@ struct AccountStatusController {
             }
         struct R: Decodable {
             let target_type: String; let reason: String; let created_at: Date; let outcome: String
-            let target_id: String; let post_id: String?; let snapshot: String?; let decision_note: String?
+            let target_id: String; let post_id: String?; let snapshot: String?; let reporter_message: String?
+            let community_name: String?
         }
+        // App cases, plus reports only a community's staff judged (a
+        // community-only reason opens no app case). A report filed into both
+        // shows once, as the app case.
         let reports = try await db.raw("""
-            SELECT r.target_type, r.reason, r.created_at,
-              CASE mc.status WHEN 'actioned' THEN 'removed' WHEN 'dismissed' THEN 'kept' ELSE 'pending' END AS outcome,
-              r.target_id::text AS target_id,
-              CASE r.target_type WHEN 'post' THEN r.target_id::text
-                WHEN 'comment' THEN (SELECT cm.post_id::text FROM comments cm WHERE cm.id = r.target_id) END AS post_id,
-              mc.snapshot::text AS snapshot,
-              CASE WHEN mc.status IN ('actioned', 'dismissed') THEN NULLIF(btrim(mc.decision_note), '') END AS decision_note
-            FROM content_reports r JOIN moderation_cases mc ON mc.id = r.case_id
-            WHERE r.reporter_id = \(uuid: me) ORDER BY r.created_at DESC LIMIT 50
+            SELECT * FROM (
+              SELECT r.target_type, r.reason, r.created_at,
+                \(unsafeRaw: ReportOutcome.sql) AS outcome,
+                r.target_id::text AS target_id,
+                CASE r.target_type WHEN 'post' THEN r.target_id::text
+                  WHEN 'comment' THEN (SELECT cm.post_id::text FROM comments cm WHERE cm.id = r.target_id) END AS post_id,
+                mc.snapshot::text AS snapshot,
+                CASE WHEN mc.status IN ('actioned', 'dismissed') THEN NULLIF(btrim(mc.reporter_message), '') END AS reporter_message,
+                (SELECT c.name FROM communities c
+                 WHERE c.id = CASE WHEN r.target_type = 'community' THEN r.target_id ELSE mc.community_id END) AS community_name
+              FROM content_reports r JOIN moderation_cases mc ON mc.id = r.case_id
+              WHERE r.reporter_id = \(uuid: me)
+              UNION ALL
+              SELECT CASE cr.target_type WHEN 'member' THEN 'user' ELSE cr.target_type END, cr.reason, cr.created_at,
+                CASE cr.status WHEN 'dismissed' THEN 'kept'
+                  WHEN 'resolved' THEN CASE cr.target_type WHEN 'member' THEN 'action_taken' ELSE 'removed' END
+                  ELSE 'pending' END,
+                cr.target_id::text,
+                CASE cr.target_type WHEN 'post' THEN cr.target_id::text END,
+                NULL, NULL, c.name
+              FROM community_reports cr JOIN communities c ON c.id = cr.community_id
+              WHERE cr.reporter_id = \(uuid: me)
+                AND NOT EXISTS (SELECT 1 FROM content_reports r2
+                                WHERE r2.reporter_id = cr.reporter_id AND r2.target_id = cr.target_id)
+            ) mine ORDER BY created_at DESC LIMIT 50
             """).all(decoding: R.self).map {
                 MyReport(target_type: $0.target_type, reason: $0.reason, created_at: $0.created_at, outcome: $0.outcome,
                          target_id: $0.target_id, post_id: $0.post_id, snapshot: json($0.snapshot),
-                         decision_note: $0.decision_note)
+                         reporter_message: $0.reporter_message, community_name: $0.community_name)
             }
-        return DataResponse(data: Status(app_role: u?.app_role ?? "user", restricted_until: u?.restricted_until, banned_at: u?.banned_at, ban_reason: u?.ban_reason,
+        return DataResponse(data: Status(app_role: u?.app_role ?? "user", restricted_until: restricted.values.max(),
+                                         restrictions: AccountRestrictions.entries(restricted), banned_at: u?.banned_at, ban_reason: u?.ban_reason,
                                          strikes: strikes, bans: bans, decisions: decisions, reports: reports))
     }
 }

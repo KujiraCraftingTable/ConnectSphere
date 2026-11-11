@@ -189,9 +189,14 @@ class FeedViewModel {
         if colleaguePosts.contains(where: { $0.id == id }), let o = connectionsOffset[.work], o > 0 {
             connectionsOffset[.work] = o - 1
         }
+        // Remembered so an Undo puts the post back in the same place.
+        if let i = friendPosts.firstIndex(where: { $0.id == id }) { removedAt[id] = i }
+        if let i = colleaguePosts.firstIndex(where: { $0.id == id }) { removedAt[id] = i }
         friendPosts.removeAll   { $0.id == id }
         colleaguePosts.removeAll { $0.id == id }
     }
+
+    private var removedAt: [String: Int] = [:]
 
     /// Insert a freshly-created post at the top of its mode's list right
     /// after posting, so the user sees confirmation immediately instead of
@@ -221,21 +226,21 @@ class FeedViewModel {
     }
 
     /// Re-inserts a post restored via the Undo toast or the Recently Deleted
-    /// screen, unlike `updatePost`, it inserts at the top when the post
-    /// isn't currently in the list (it was just removed by `.postDeleted`),
+    /// screen, unlike `updatePost`, it inserts where it was (or at the top)
+    /// when the post isn't currently in the list (removed by `.postDeleted`),
     /// and patches it in place if a reload already picked it back up first.
     func restorePost(_ post: Post) {
         if post.mode == .hobby {
             if let i = friendPosts.firstIndex(where: { $0.id == post.id }) {
                 friendPosts[i] = post
             } else {
-                friendPosts.insert(post, at: 0)
+                friendPosts.insert(post, at: min(removedAt.removeValue(forKey: post.id) ?? 0, friendPosts.count))
             }
         } else {
             if let i = colleaguePosts.firstIndex(where: { $0.id == post.id }) {
                 colleaguePosts[i] = post
             } else {
-                colleaguePosts.insert(post, at: 0)
+                colleaguePosts.insert(post, at: min(removedAt.removeValue(forKey: post.id) ?? 0, colleaguePosts.count))
             }
         }
     }

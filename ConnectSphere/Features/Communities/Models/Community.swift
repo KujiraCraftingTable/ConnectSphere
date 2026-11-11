@@ -39,6 +39,14 @@ struct Community: Identifiable {
     var notifyLevel: CommunityNotifyLevel?
     /// Disbanded and waiting out its 7 days; only its admin still sees it.
     var disbandedAt: Date? = nil
+    /// Waiting for review; filled in for admins and moderators only.
+    var pendingPostCount = 0
+    var pendingJoinCount = 0
+    /// Reported posts and members waiting for a decision.
+    var pendingReportCount = 0
+    var pendingRequestCount: Int { pendingPostCount + pendingJoinCount }
+    /// Everything waiting for staff: the red badge on "...".
+    var staffAttentionCount: Int { pendingRequestCount + pendingReportCount }
 
     /// When a disbanded community is deleted for good.
     var deletionDate: Date? { disbandedAt.map { $0.addingTimeInterval(7 * 86_400) } }
@@ -49,26 +57,15 @@ enum CommunityNotifyLevel: String, CaseIterable {
     case all, friends, off
 }
 
+/// Communities are Hobby-only (server migration 127): a company's people
+/// already talk on their own tools, so Work mode has none.
 enum CommunityType: String, CaseIterable {
     case fandom = "fandom"
-    case work   = "work"
 
-    /// Localization key, callers must wrap this in `bundle.loc(...)`. Returning
-    /// a hardcoded translation here (as this used to for `.work`) meant the
-    /// label showed in the wrong language regardless of the app's setting.
-    var label: String {
-        switch self {
-        case .fandom: return "Fandom"
-        case .work:   return "Work"
-        }
-    }
+    /// Localization key, callers must wrap this in `bundle.loc(...)`.
+    var label: String { "Fandom" }
 
-    var icon: String {
-        switch self {
-        case .fandom: return "star.fill"
-        case .work:   return "briefcase.fill"
-        }
-    }
+    var icon: String { "star.fill" }
 }
 
 enum CommunityPrivacy: String {
@@ -305,7 +302,7 @@ struct BannedMember: Decodable, Identifiable {
     }
 }
 
-/// One line of the community's moderation log (admin only).
+/// One line of the community's moderation log (admins and moderators).
 struct ModLogEntry: Decodable, Identifiable {
     let id: String
     let action: String

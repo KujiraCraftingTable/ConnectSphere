@@ -26,6 +26,9 @@ struct CommunityDTO: Decodable {
     let isPinned: Bool
     let notifyLevel: String?
     let disbandedAt: Date?
+    let pendingPostCount: Int
+    let pendingJoinCount: Int
+    let pendingReportCount: Int
 
     enum CodingKeys: String, CodingKey {
         case id, name, description, type, privacy, role
@@ -38,6 +41,9 @@ struct CommunityDTO: Decodable {
         case isPinned           = "is_pinned"
         case notifyLevel        = "notify_level"
         case disbandedAt        = "disbanded_at"
+        case pendingPostCount   = "pending_post_count"
+        case pendingJoinCount   = "pending_join_count"
+        case pendingReportCount = "pending_report_count"
         case coverColor         = "cover_color"
         case memberCount        = "member_count"
         case postCount          = "post_count"
@@ -64,6 +70,9 @@ struct CommunityDTO: Decodable {
         isPinned    = try c.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
         notifyLevel = try c.decodeIfPresent(String.self, forKey: .notifyLevel)
         disbandedAt = try c.decodeIfPresent(Date.self, forKey: .disbandedAt)
+        pendingPostCount = try c.decodeIfPresent(Int.self, forKey: .pendingPostCount) ?? 0
+        pendingJoinCount = try c.decodeIfPresent(Int.self, forKey: .pendingJoinCount) ?? 0
+        pendingReportCount = try c.decodeIfPresent(Int.self, forKey: .pendingReportCount) ?? 0
         coverColor  = try c.decode(String.self, forKey: .coverColor)
         memberCount = try c.decode(Int.self, forKey: .memberCount)
         postCount   = try c.decode(Int.self, forKey: .postCount)
@@ -99,7 +108,10 @@ struct CommunityDTO: Decodable {
             requirePostApproval: requirePostApproval,
             isPinned:    isPinned,
             notifyLevel: notifyLevel.flatMap { CommunityNotifyLevel(rawValue: $0) },
-            disbandedAt: disbandedAt
+            disbandedAt: disbandedAt,
+            pendingPostCount: pendingPostCount,
+            pendingJoinCount: pendingJoinCount,
+            pendingReportCount: pendingReportCount
         )
     }
 }
@@ -407,12 +419,32 @@ struct ListingDataDTO: Decodable {
     /// The seller's own auto re-up schedule (migration 095); nil for everyone else.
     let autoReup: AutoReupDTO?
     let nextAutoReupAt: Date?
+    /// Seller only: when a manual re-up is allowed again; nil = now.
+    let nextReupAt: Date?
     let hideFromFriends: Bool
     let hasAutoReply: Bool
     let autoReply: String?
     let communities: [ListedInDTO]?
     let latitude: Double?
     let longitude: Double?
+    let items: [ItemDTO]?
+
+    struct ItemDTO: Decodable {
+        let id: String
+        let title: String
+        let price: Int64
+        let condition: String
+        let status: String
+        let imageUrls: [String]
+        let imageAlts: [String]?
+        let askAgainAt: Date?
+        enum CodingKeys: String, CodingKey {
+            case id, title, price, condition, status
+            case imageUrls = "image_urls"
+            case imageAlts = "image_alts"
+            case askAgainAt = "ask_again_at"
+        }
+    }
 
     struct AutoReupDTO: Decodable {
         let everyDays: Int
@@ -427,20 +459,22 @@ struct ListingDataDTO: Decodable {
         let id: String
         let name: String
         let iconEmoji: String
+        let pending: Bool?
         enum CodingKeys: String, CodingKey {
-            case id, name
+            case id, name, pending
             case iconEmoji = "icon_emoji"
         }
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, title, price, condition, location, status, communities, latitude, longitude
+        case id, title, price, condition, location, status, communities, latitude, longitude, items
         case hideFromFriends = "hide_from_friends"
         case hasAutoReply    = "has_auto_reply"
         case autoReply       = "auto_reply"
         case reupCount       = "reup_count"
         case autoReup        = "auto_reup"
         case nextAutoReupAt  = "next_auto_reup_at"
+        case nextReupAt      = "next_reup_at"
     }
 
     func toListingData() -> ListingData {
@@ -448,10 +482,18 @@ struct ListingDataDTO: Decodable {
                     condition: ListingCondition(rawValue: condition) ?? .good,
                     location: location, isSold: status == "sold", reupCount: reupCount ?? 0,
                     hideFromFriends: hideFromFriends, hasAutoReply: hasAutoReply, autoReply: autoReply,
-                    communities: (communities ?? []).map { .init(id: $0.id, name: $0.name, iconEmoji: $0.iconEmoji) },
+                    communities: (communities ?? []).map {
+                        .init(id: $0.id, name: $0.name, iconEmoji: $0.iconEmoji, isPending: $0.pending ?? false)
+                    },
                     latitude: latitude, longitude: longitude,
                     autoReup: autoReup.map { .init(days: $0.everyDays, hour: $0.hour) },
-                    nextAutoReupAt: nextAutoReupAt)
+                    nextAutoReupAt: nextAutoReupAt,
+                    nextReupAt: nextReupAt,
+                    items: (items ?? []).map {
+                        ListingItem(id: $0.id, title: $0.title, price: $0.price,
+                                    condition: ListingCondition(rawValue: $0.condition) ?? .good,
+                                    isSold: $0.status == "sold", imageUrls: $0.imageUrls, imageAlts: $0.imageAlts ?? [], askAgainAt: $0.askAgainAt)
+                    })
     }
 }
 
@@ -467,11 +509,17 @@ struct JobDataDTO: Decodable {
     let userInterested: Bool
     let salaryMin: Int?
     let salaryMax: Int?
+    let salaryNegotiable: Bool
+    let careersUrl: String?
+    let jdPath: String?
 
     enum CodingKeys: String, CodingKey {
         case id, title, company, location
+        case careersUrl          = "careers_url"
+        case jdPath              = "jd_path"
         case salaryMin           = "salary_min"
         case salaryMax           = "salary_max"
+        case salaryNegotiable    = "salary_negotiable"
         case employmentType      = "employment_type"
         case salaryRange         = "salary_range"
         case applicationDeadline = "application_deadline"
@@ -492,6 +540,9 @@ struct JobDataDTO: Decodable {
         userInterested      = try c.decodeIfPresent(Bool.self, forKey: .userInterested) ?? false
         salaryMin           = try c.decodeIfPresent(Int.self, forKey: .salaryMin)
         salaryMax           = try c.decodeIfPresent(Int.self, forKey: .salaryMax)
+        salaryNegotiable    = try c.decodeIfPresent(Bool.self, forKey: .salaryNegotiable) ?? false
+        careersUrl          = try c.decodeIfPresent(String.self, forKey: .careersUrl)
+        jdPath              = try c.decodeIfPresent(String.self, forKey: .jdPath)
     }
 
     func toJobData() -> JobData {
@@ -506,7 +557,10 @@ struct JobDataDTO: Decodable {
             interestedCount:     interestedCount,
             userInterested:      userInterested,
             salaryMin:           salaryMin,
-            salaryMax:           salaryMax
+            salaryMax:           salaryMax,
+            salaryNegotiable:    salaryNegotiable,
+            careersUrl:          careersUrl,
+            jdPath:              jdPath
         )
     }
 }

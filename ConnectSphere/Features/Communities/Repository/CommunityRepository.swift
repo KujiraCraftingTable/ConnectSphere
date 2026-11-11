@@ -8,6 +8,15 @@ struct CommunityRepository {
     // MARK: - Discovery & Listing
 
     /// One mode's public communities (the server never mixes modes).
+    /// Whether `name` is free (ignoring case); `except` is the community being renamed.
+    func isNameAvailable(_ name: String, except: String?, token: String) async throws -> Bool {
+        struct Availability: Decodable { let available: Bool }
+        var items: [URLQueryItem] = [.init(name: "name", value: name)]
+        if let except { items.append(.init(name: "except", value: except)) }
+        return try await client.fetch(DataResponse<Availability>.self, path: "/communities/name-available",
+                                      token: token, queryItems: items).data.available
+    }
+
     func fetchCommunities(query: String = "", type: CommunityType, token: String) async throws -> [Community] {
         var items: [URLQueryItem] = [
             .init(name: "limit",  value: "20"),
@@ -25,6 +34,12 @@ struct CommunityRepository {
         let res = try await client.fetch(DataListResponse<CommunityDTO>.self,
                                          path: "/communities/me", token: token)
         return res.data.map { $0.toCommunity(isMemberOverride: true) }
+    }
+
+    /// The community page was opened: orders My communities by how often.
+    func recordOpened(communityId: String, token: String) async throws {
+        _ = try await client.fetch(OKResponse.self, path: "/communities/\(communityId)/opened",
+                                   method: "POST", token: token)
     }
 
     func fetchDetail(communityId: String, token: String) async throws -> Community {
@@ -205,23 +220,28 @@ struct CommunityRepository {
 
     // MARK: - Admin: Moderation
 
-    func fetchModerationQueue(communityId: String, status: String, token: String) async throws -> (reports: [ModerationItem], pendingCount: Int) {
+    func fetchReportCases(communityId: String, resolved: Bool, token: String) async throws -> CommunityReportQueue {
         let items: [URLQueryItem] = [
-            .init(name: "status", value: status),
-            .init(name: "limit",  value: "50"),
-            .init(name: "offset", value: "0"),
+            .init(name: "status", value: resolved ? "resolved" : "pending"),
+            .init(name: "limit", value: "50"),
         ]
-        let res = try await client.fetch(DataResponse<ModerationQueueResponse>.self,
-                                          path: "/communities/\(communityId)/moderation",
-                                          token: token, queryItems: items)
-        return (reports: res.data.reports, pendingCount: res.data.pendingCount)
+        return try await client.fetch(DataResponse<CommunityReportQueue>.self,
+                                      path: "/communities/\(communityId)/moderation",
+                                      token: token, queryItems: items).data
     }
 
-    func resolveReport(communityId: String, reportId: String, action: String, token: String) async throws {
-        let body = NetworkClient.encode(["action": action])
-        _ = try await client.fetch(OKResponse.self,
-                                    path: "/communities/\(communityId)/reports/\(reportId)",
-                                    method: "PATCH", token: token, bodyData: body)
+    func fetchReportCase(communityId: String, targetId: String, token: String) async throws -> CommunityReportDetail {
+        try await client.fetch(DataResponse<CommunityReportDetail>.self,
+                               path: "/communities/\(communityId)/reports/target/\(targetId)", token: token).data
+    }
+
+    func decideReportCase(communityId: String, targetId: String, decision: CommunityReportDecision,
+                          note: String?, token: String) async throws {
+        struct Body: Encodable { let decision: String; let note: String? }
+        _ = try await client.fetch(DataResponse<EmptyPayload>.self,
+                                   path: "/communities/\(communityId)/reports/target/\(targetId)",
+                                   method: "PATCH", token: token,
+                                   bodyData: NetworkClient.encode(Body(decision: decision.rawValue, note: note)))
     }
 
     // MARK: - Create Community
@@ -230,20 +250,16 @@ struct CommunityRepository {
         name: String,
         type: String,
         privacy: String,
-        iconEmoji: String,
-        coverColor: String,
-        coverUrl: String? = nil,
+        coverUrl: String,
         description: String?,
         token: String
     ) async throws -> Community {
         struct Body: Encodable {
-            let name, type, privacy, icon_emoji, cover_color: String
-            let cover_url: String?
+            let name, type, privacy, cover_url: String
             let description: String?
             let description_format: String?
         }
         let body = NetworkClient.encode(Body(name: name, type: type, privacy: privacy,
-                                             icon_emoji: iconEmoji, cover_color: coverColor,
                                              cover_url: coverUrl, description: description,
                                              description_format: description == nil ? nil : PostRepository.contentFormat))
         let res = try await client.fetch(DataResponse<CommunityDTO>.self,
@@ -252,8 +268,8 @@ struct CommunityRepository {
         return res.data.toCommunity(isMemberOverride: true)
     }
 
-    /// Partial edit, admin/moderator only, enforced server-side. A nil field
-    /// leaves that column untouched; an empty `coverUrl` removes the cover.
+    /// Partial edit, admin only, enforced server-side. A nil field leaves
+    /// that column untouched; the cover can be replaced but not removed.
     func updateCommunity(
         communityId: String,
         name: String? = nil,

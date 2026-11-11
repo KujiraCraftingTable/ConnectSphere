@@ -69,7 +69,7 @@ struct CommunityRow: View {
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
-        .disabledWhenRestricted(!community.isMember)
+        .disabledWhenRestricted()
         .confirmationDialog(bundle.loc("Leave this community?"), isPresented: $confirmLeave, titleVisibility: .visible) {
             Button(bundle.loc("Leave community"), role: .destructive, action: action)
         } message: {

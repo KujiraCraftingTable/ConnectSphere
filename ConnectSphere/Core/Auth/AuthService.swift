@@ -204,7 +204,7 @@ class AuthService {
         let (data, resp) = try await URLSession.shared.data(for: req)
         guard let http = resp as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         guard (200...299).contains(http.statusCode) else {
-            let msg = (try? JSONDecoder().decode([String: String].self, from: data))?["error"] ?? "Request failed"
+            let msg = (try? JSONDecoder().decode(ErrorResponse.self, from: data))?.message ?? "Request failed"
             throw NSError(domain: "Auth", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: msg])
         }
         return data

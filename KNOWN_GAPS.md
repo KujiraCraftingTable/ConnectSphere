@@ -1,8 +1,8 @@
 # Known Gaps, Deliberately Deferred
 
 Scope decisions that were deliberately **not** implemented, with the reasoning, so
-they don't get rediscovered as "silent" gaps later. Last reviewed 2026-11-06
-against the code (docs refresh).
+they don't get rediscovered as "silent" gaps later. Last reviewed 2026-11-11
+against the code.
 
 ---
 
@@ -10,32 +10,16 @@ against the code (docs refresh).
 
 These exist in code but are not wired end-to-end. They are acceptable as
 prototype surface for the project; finishing them is post-submission work.
+(The ward picker was wired in on 2026-11-07. Interest-suggestion review and the
+sent-requests list were finished, and the unused `/posts/analyze` route removed,
+on 2026-11-11.)
 
-- **Interest suggestions have no review screen** (`interest_suggestions`,
-  migration 080): app admins exist now (migration 089) but their queue covers
-  reports only, so suggestions are still reviewed in the database and added to
-  `interest_catalog` by hand.
 - **Dating is archived, not running.** The app is for friends and colleagues;
   finding a partner is deliberately out of scope. The code lives in
   `legacy/dating/` (see its README to restore it). The database keeps the
   inert `dating_*` tables and `conversations.dating_match_id`
   (migrations 081–082); nothing reads or writes them. AI search ignores
   partner wording ("to date", "người yêu") and searches the rest.
-
-- **Ward/commune location picker** (`Core/Components/WardPickerView.swift`,
-  `WardRepository`, `WardDTO`/`ProvinceDTO`): built but not wired into onboarding
-  (which uses a local province list) or Edit Profile (a plain text field).
-  Kept for a future "structured address" feature.
-- **Chat delivery receipts** (`MessageRepository` / `ChatViewModel` carry a
-  `NOTE:` that the payload shape is assumed): the double-check-mark UI is present
-  but the delivered/read distinction is not reliably driven by the backend.
-  Read receipts work; "delivered" is best-effort.
-- **Connections "sent requests" list**: the repository supports `pending_sent`
-  but there is no UI section for outgoing requests; you can only see incoming
-  ones. The connected-section header also reads "Friends" in Work mode.
-- **`POST /api/posts/analyze` + `PostAnalyzeDTO`**: an earlier mode-mismatch
-  path, now superseded by `notifRepository.fetchMismatchFor`. Left in place; not
-  called by the shipping client.
 
 ## Backend, deferred query rewrites (correctness is fine; scale is not tuned)
 
@@ -129,6 +113,9 @@ blocked or deleted (`OfficialAccount`). Its rules:
 - **Locked profiles stay out of other people's feeds.** A locked persona's
   posts reach only its friends; the official account still sees and opens
   everything (locked, friends-only, private communities, banned personas).
+  Marketplace listings are the exception, on purpose: locking hides
+  someone's personal life, not what they sell, so their listings stay
+  visible and askable to anyone.
 
 Deliberately left out:
 
@@ -191,6 +178,23 @@ behaviour-based spam signals in chat (`ModerationRules`, `UserRateLimiter`,
   stories, communities, listings and new message requests refuse it; edits
   and replies in existing chats don't.
 
+## Verified HR: checked by hand, not automatically (migration 126)
+Who may post jobs is decided by the app admin reviewing each "Become HR" request.
+- **No identity check (eKYC) or phone OTP** for the person asking. Big job sites
+  (TopCV) add an ID check of the company's representative; it needs a paid
+  identity provider, out of scope here.
+- **The business registry check is manual.** The admin looks the tax code up on
+  the national registry (masothue / dangkykinhdoanh.gov.vn) and ticks it; there is
+  no API call.
+- **The careers link isn't checked automatically yet.** It is a required text
+  field only. Later it should be checked as an `https` URL whose host is the HR's
+  verified company domain (or a subdomain), refusing look-alike domains such as
+  `techviet-jobs.com`. That needs the verified domain stored on `recruiters`.
+- **No in-app re-check** that an HR still works at the company (e.g. a yearly
+  new email code). The admin revokes by hand.
+- The admin screens (HR requests, Jobs to review) were checked through the API
+  only; the official account isn't signed in on the test simulator.
+
 ## Upload metadata, the server's safety net covers JPEG/PNG only
 
 The app strips GPS, capture date, camera model and other metadata from every
@@ -230,6 +234,27 @@ store tokens server-side; send from `messageService`/`notificationService` on
 new-message / new-notification events alongside the existing WebSocket emit.
 
 ---
+
+## Hosting: runs on the developer's Mac, not in the cloud (decided 2026-11-11)
+
+Everything runs locally: Postgres and Redis in Docker, the Swift server on the
+host, and Ollama with the models named in `backend/.env`
+(`qwen2.5:7b-instruct-q4_k_m` for AI search, `qwen3:8b` for translation,
+Qwen3Guard-Gen-4B for text moderation, `mxbai-embed-large` for embeddings).
+
+- **Measured 2026-11-11** on an M1 Pro (10 cores, 16 GB): near 0% CPU when idle;
+  Postgres ~180 MB, Redis ~20 MB, the server ~100–300 MB; the Ollama models
+  need ~9 GB loaded at once, ~14 GB with translation.
+- **Looked at:** Oracle Cloud Always Free, Arm (Ampere A1) instance, 1,500 OCPU
+  hours and 9,000 GB-hours a month, about 2 cores and 12 GB always on (terms
+  checked 2026-11-11).
+- **Why not now:** the models don't fit in 12 GB together, and without a GPU
+  7–8B models on 2 CPU cores take tens of seconds per AI request.
+- **If we move later:** smaller models (qwen2.5 3B, Qwen3Guard 0.6B and
+  mxbai-embed, about 3 GB) or a hosted AI API; media in object storage instead
+  of `backend/uploads/`; HTTPS with Caddy; point `APIConfig.baseURL` at the
+  server. Free tiers that sleep (e.g. Render's) don't suit this app: they break
+  live chat and the scheduled jobs.
 
 ## Age is self-declared (no verified age, no phone verification)
 

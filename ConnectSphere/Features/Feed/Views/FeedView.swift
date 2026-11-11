@@ -174,7 +174,7 @@ struct FeedView: View {
                     }
                 }
                 // Search lives only in the Search tab. No second entry here.
-                FeedChatToolbarItem(button: chatIconButton, unread: appState.chatUnreadCount)
+                BadgedToolbarItem(button: chatIconButton, count: appState.chatUnreadCount)
             }
             .navigationDestination(isPresented: $showMessages) {
                 ConversationListView()
@@ -331,36 +331,6 @@ struct FeedView: View {
             // Scrolled to the last post → load the next page
             if isLast {
                 Task { await viewModel.loadMorePosts(for: appState.currentMode) }
-            }
-        }
-    }
-}
-
-/// The Feed's message button with its unread badge, Messenger-style: a red
-/// count on the button's top-right corner, fully visible. On iOS 26 the bar
-/// puts each item on a shared glass circle that clips anything sticking out
-/// of it, so the item draws its own glass circle instead (shared background
-/// hidden) and the badge sits on its edge.
-private struct FeedChatToolbarItem<Content: View>: ToolbarContent {
-    let button: Content
-    let unread: Int
-
-    var body: some ToolbarContent {
-        if #available(iOS 26.0, *) {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                button
-                    .frame(width: 44, height: 44)
-                    .glassEffect(.regular.interactive(), in: Circle())
-                    .overlay(alignment: .topTrailing) {
-                        UnreadBadge(count: unread).offset(x: 6, y: -4)
-                    }
-            }
-            .sharedBackgroundVisibility(.hidden)
-        } else {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                button.overlay(alignment: .topTrailing) {
-                    UnreadBadge(count: unread).offset(x: 8, y: -6)
-                }
             }
         }
     }

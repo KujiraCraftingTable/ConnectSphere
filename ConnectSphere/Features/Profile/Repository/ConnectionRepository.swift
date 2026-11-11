@@ -85,6 +85,17 @@ struct ConnectionRepository {
         )
     }
 
+    /// Takes back a request I sent that hasn't been answered yet.
+    func cancel(connectionId: String) async throws {
+        _ = try await client.fetch(
+            StatusOnly.self,
+            path: "/connections/cancel",
+            method: "POST",
+            token: try token(),
+            bodyData: NetworkClient.encode(["connection_id": connectionId])
+        )
+    }
+
     func decline(connectionId: String) async throws {
         _ = try await client.fetch(
             StatusOnly.self,

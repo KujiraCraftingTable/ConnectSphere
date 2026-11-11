@@ -6,6 +6,7 @@ struct AccountStatusView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.appBundle) private var bundle
     @Environment(ThemeManager.self) private var themeManager
+    @Environment(AppState.self) private var appState
 
     @State private var viewModel = AccountStatusViewModel()
 
@@ -49,7 +50,7 @@ struct AccountStatusView: View {
                         NavigationLink { MyReportDetailView(report: report) } label: {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(bundle.loc(report.targetType.reportTargetLabel)).font(.system(size: 15, weight: .medium))
+                                Text(report.title(bundle)).font(.system(size: 15, weight: .medium))
                                 Text(bundle.loc(report.reason.policyLabel))
                                     .font(.system(size: 13))
                                     .foregroundColor(AppColors.textSecondary(colorScheme))
@@ -57,7 +58,7 @@ struct AccountStatusView: View {
                             Spacer()
                             Text(bundle.loc(outcomeLabel(report.outcome)))
                                 .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(report.outcome == "removed" ? .green : AppColors.textSecondary(colorScheme))
+                                .foregroundColor(["removed", "action_taken"].contains(report.outcome) ? .green : AppColors.textSecondary(colorScheme))
                         }
                         }
                     }
@@ -93,12 +94,12 @@ struct AccountStatusView: View {
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
             } icon: { Image(systemName: "exclamationmark.octagon.fill").foregroundColor(.red) }
-        } else if let until = status.restrictedUntil {
+        } else if let until = status.restriction(in: appState.currentMode.rawValue) {
             Label {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Some features are paused", bundle: bundle).font(.system(size: 16, weight: .semibold))
-                    Text(String(format: bundle.loc("You can't post, comment or message new people until %@."),
-                                until.formatted(date: .abbreviated, time: .shortened)))
+                    Text(String(format: bundle.loc("Your account is read-only until %@. You can browse, change settings, block, report and appeal."),
+                                until.dayMonthYear))
                         .font(.system(size: 14))
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
@@ -222,13 +223,7 @@ struct AccountStatusView: View {
         }
     }
 
-    private func outcomeLabel(_ outcome: String) -> String {
-        switch outcome {
-        case "removed": "Removed"
-        case "kept": "Didn't break the rules"
-        default: "Under review"
-        }
-    }
+    private func outcomeLabel(_ outcome: String) -> String { ReportOutcomeLabel.text(outcome) }
 
     private func appealLabel(_ status: String) -> String {
         switch status {
@@ -390,7 +385,7 @@ private struct MyReportDetailView: View {
             Section {
                 row(bundle.loc("Reason"), bundle.loc(report.reason.policyLabel))
                 row(bundle.loc("Decision"), bundle.loc(outcomeLabel))
-                if let note = report.decisionNote, !note.isEmpty {
+                if let note = report.reporterMessage, !note.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Moderator's comment", bundle: bundle)
                             .font(.system(size: 13))
@@ -400,22 +395,16 @@ private struct MyReportDetailView: View {
                     .padding(.vertical, 2)
                 }
             }
-            // Removed content is gone, so there's nothing to open.
+            // Removed content is gone, so there's nothing to open; restored content is back.
             if report.outcome != "removed", let link = openLink {
                 Section { link }
             }
         }
-        .navigationTitle(bundle.loc(report.targetType.reportTargetLabel))
+        .navigationTitle(report.title(bundle))
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    private var outcomeLabel: String {
-        switch report.outcome {
-        case "removed": "Removed"
-        case "kept": "Didn't break the rules"
-        default: "Under review"
-        }
-    }
+    private var outcomeLabel: String { ReportOutcomeLabel.text(report.outcome) }
 
     private var openLink: AnyView? {
         switch report.targetType {
@@ -443,6 +432,19 @@ private struct MyReportDetailView: View {
             Text(label).font(.system(size: 15))
             Spacer()
             Text(value).font(.system(size: 15)).foregroundColor(AppColors.textSecondary(colorScheme))
+        }
+    }
+}
+
+/// How a report you filed ended, in the reporter's words.
+enum ReportOutcomeLabel {
+    static func text(_ outcome: String) -> String {
+        switch outcome {
+        case "removed": "Removed"
+        case "action_taken": "Action taken"
+        case "restored": "Put back after review"
+        case "kept": "Didn't break the rules"
+        default: "Under review"
         }
     }
 }

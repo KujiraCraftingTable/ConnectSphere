@@ -96,7 +96,10 @@ enum ChatStore {
           CASE WHEN m.deleted_at IS NULL THEN m.voice_duration_seconds ELSE NULL END AS voice_duration_seconds,
           CASE WHEN m.deleted_at IS NULL THEN m.voice_waveform ELSE NULL END AS voice_waveform,
           CASE WHEN m.deleted_at IS NULL THEN m.shared_post_id::text ELSE NULL END AS shared_post_id,
-          CASE WHEN m.deleted_at IS NULL THEN m.shared_community_id::text ELSE NULL END AS shared_community_id,
+          -- A disbanded or suspended community can't be reached from old chats.
+          CASE WHEN m.deleted_at IS NULL AND EXISTS (SELECT 1 FROM communities sc WHERE sc.id = m.shared_community_id
+                 AND sc.disbanded_at IS NULL AND sc.suspended_at IS NULL)
+               THEN m.shared_community_id::text ELSE NULL END AS shared_community_id,
           m.created_at, m.reply_to_message_id::text AS reply_to_message_id, (m.deleted_at IS NOT NULL) AS is_deleted,
           m.is_auto_reply, m.is_forwarded,
           m.edited_at, CASE WHEN m.deleted_at IS NULL THEN m.previous_content ELSE NULL END AS previous_content,

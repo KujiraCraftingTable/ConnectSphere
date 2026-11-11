@@ -110,6 +110,8 @@ struct UserProfileView: View {
                             ProgressView().padding(.top, 120)
                         }
                     }
+                } else if viewModel.isUnavailable {
+                    unavailableState
                 } else {
                     ProgressView().padding(.top, 120)
                 }
@@ -207,6 +209,15 @@ struct UserProfileView: View {
         }
         // Follow/Unfollow on this profile moves the follower count right away.
         .onChange(of: connect.followDelta) { old, new in viewModel.adjustFollowerCount(by: new - old) }
+        // Accepting their request or unfriending them changes what a locked
+        // profile shows (posts, lists, age), so load it again. Only those two
+        // taps: the first status load goes from .none and must not reload.
+        .onChange(of: connect.status) { old, new in
+            let becameFriends = old == .pendingReceived && new == .accepted
+            let unfriended = old == .accepted && new == .none
+            guard becameFriends || unfriended else { return }
+            Task { await viewModel.refresh(userId: userId, mode: appState.currentMode.rawValue) }
+        }
         .alert(bundle.loc("Error"), isPresented: .constant(viewModel.actionError != nil)) {
             Button(bundle.loc("OK")) { viewModel.actionError = nil }
         } message: {
@@ -316,6 +327,27 @@ struct UserProfileView: View {
     // MARK: Posts
 
     /// In place of the posts for someone outside a locked persona.
+    /// Deleted, suspended or blocked all read the same, so a blocked person
+    /// can't tell they were blocked.
+    private var unavailableState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "person.crop.circle.badge.questionmark")
+                .scaledFont(44)
+                .foregroundColor(AppColors.textTertiary(colorScheme))
+            Text("This user may not be available", bundle: bundle)
+                .scaledFont(17, .semibold)
+                .foregroundColor(AppColors.textPrimary(colorScheme))
+            Text("The link may be broken, or the profile may have been removed.", bundle: bundle)
+                .scaledFont(14)
+                .foregroundColor(AppColors.textSecondary(colorScheme))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 32)
+        .padding(.top, 160)
+        .frame(maxWidth: .infinity)
+    }
+
     private func lockedPostsNote(_ user: UserProfile) -> some View {
         VStack(spacing: 8) {
             Image(systemName: "lock.shield.fill")

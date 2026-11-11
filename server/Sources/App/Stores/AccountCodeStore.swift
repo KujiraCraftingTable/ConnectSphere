@@ -14,6 +14,8 @@ enum AccountCodeStore {
         case login
         case twoFactor = "two_factor"
         case exportData = "export_data"
+        /// Proves a "Become HR" request's company email (migration 126).
+        case hrEmail = "hr_email"
 
         var mailKind: Mailer.Kind {
             switch self {
@@ -25,6 +27,7 @@ enum AccountCodeStore {
             case .login: .loginCode
             case .twoFactor: .twoFactor
             case .exportData: .exportData
+            case .hrEmail: .hrEmail
             }
         }
     }

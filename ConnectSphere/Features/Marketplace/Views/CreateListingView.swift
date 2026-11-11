@@ -1,7 +1,8 @@
 import SwiftUI
 import PhotosUI
 
-/// "Sell" in the Marketplace: what's for sale, then (Next) which of your
+/// "Sell" in the Marketplace: what's for sale (one item or several, each with
+/// its own photos and price), then (Next) which of your
 /// communities to also list it in. Up to 5, or none for the Marketplace only.
 struct CreateListingView: View {
     @Environment(AppState.self) private var appState
@@ -25,22 +26,9 @@ struct CreateListingView: View {
     var body: some View {
         NavigationStack {
             Form {
-                ListingPhotosSection(photos: viewModel.photos)
+                ListingItemsSection(items: viewModel.items, headline: $viewModel.headline, description: $viewModel.details)
                 Section {
-                    TextField(bundle.loc("What are you selling?"), text: $viewModel.title)
-                    ListingPriceField(placeholder: bundle.loc("Price (0 = free)"), text: $viewModel.price)
-                    Picker(bundle.loc("Condition"), selection: $viewModel.condition) {
-                        ForEach(ListingCondition.allCases, id: \.self) { Text(bundle.loc($0.label)).tag($0) }
-                    }
                     ListingLocationRow(place: $viewModel.place)
-                } header: {
-                    Text("Listing details", bundle: bundle)
-                }
-                Section {
-                    MarkdownTextEditor(text: $viewModel.details, placeholder: bundle.loc("Describe what you're selling…"),
-                                       minHeight: 80, maxHeight: 200)
-                } header: {
-                    Text("Description", bundle: bundle)
                 }
                 Section {
                     Toggle(bundle.loc("Auto-reply"), isOn: $viewModel.autoReplyOn)
@@ -95,26 +83,13 @@ struct CreateListingView: View {
                     Text("You haven't joined any communities in this mode.", bundle: bundle)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }
-                ForEach(viewModel.communities) { c in
-                    let on = viewModel.isSelected(c.id)
-                    Button { viewModel.toggle(c.id) } label: {
-                        HStack(spacing: 12) {
-                            Text(c.iconEmoji).frame(width: 28)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(c.name).foregroundColor(AppColors.textPrimary(colorScheme))
-                                if viewModel.waitsForApproval(c) {
-                                    Text("Waits for admin approval", bundle: bundle)
-                                        .scaledFont(12)
-                                        .foregroundColor(AppColors.textSecondary(colorScheme))
-                                }
-                            }
-                            Spacer()
-                            Image(systemName: on ? "checkmark.circle.fill" : "circle")
-                                .foregroundColor(on ? themeManager.theme.primary : AppColors.textTertiary(colorScheme))
-                        }
-                    }
-                    .disabled(!on && viewModel.isFull)
-                }
+                ListingCommunityList(
+                    options: viewModel.communities.map {
+                        .init(id: $0.id, name: $0.name,
+                              note: viewModel.waitsForApproval($0) ? bundle.loc("Waits for admin approval") : nil)
+                    },
+                    isSelected: viewModel.isSelected, isFull: viewModel.isFull, toggle: viewModel.toggle,
+                    collapses: false)
             } header: {
                 HStack {
                     Text("Also list in", bundle: bundle)

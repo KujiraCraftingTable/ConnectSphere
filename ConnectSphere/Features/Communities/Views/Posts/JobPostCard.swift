@@ -19,6 +19,7 @@ struct JobPostCard: View {
 
     /// The pay range (VND million / month) or the poster's own text.
     private var payText: String? {
+        if vm.jobData.salaryNegotiable { return bundle.loc("Negotiable") }
         switch (vm.jobData.salaryMin, vm.jobData.salaryMax) {
         case let (lo?, hi?): return String(format: bundle.loc("%lld–%lld million ₫/month"), lo, hi)
         case let (lo?, nil): return String(format: bundle.loc("From %lld million ₫/month"), lo)

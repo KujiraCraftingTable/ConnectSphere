@@ -58,6 +58,14 @@ struct MessagesController {
         }
     }
 
+    /// Refuses either side of an undecided request anything but sending (the
+    /// sender) or accepting and declining (the recipient).
+    static func requireNoPendingRequest(_ conversationID: String, _ req: Request) async throws {
+        if try await MessageRequests.isPendingRequest(conversationID: conversationID, on: req.db.sql()) {
+            throw Abort(.forbidden, reason: MessageRequests.pendingRequestReason)
+        }
+    }
+
     /// Owner-only gate for group management (participant already verified by
     /// the caller). Mirrors `messageService.requireGroupOwner`.
     static func requireGroupOwner(_ conversationID: String, _ userID: String, on db: any SQLDatabase) async throws {
@@ -207,10 +215,14 @@ struct MessagesController {
               let kind = attachmentType(forFilename: file.filename) else {
             throw Abort(.badRequest, reason: "Invalid or missing file")
         }
+        let raw = Array(file.data.readableBytesView)
+        guard MediaSniffer.matches(raw, ext: String(kind.ext.dropFirst())) else {
+            throw Abort(.badRequest, reason: "Unsupported file")
+        }
         let name = "\(Int(Date().timeIntervalSince1970 * 1000))-\(UUID().uuidString.prefix(8).lowercased())\(kind.ext)"
         try FileManager.default.createDirectory(atPath: uploadDir, withIntermediateDirectories: true)
         // GPS, camera and other identifying metadata never reach the disk.
-        let cleaned = ByteBuffer(bytes: MetadataStripper.strip(Array(file.data.readableBytesView)))
+        let cleaned = ByteBuffer(bytes: MetadataStripper.strip(raw))
         try await req.fileio.writeFile(cleaned, at: "\(uploadDir)/\(name)")
         return UploadResult(data: .init(url: "/uploads/messages/\(name)", message_type: kind.messageType))
     }
@@ -241,7 +253,10 @@ struct MessagesController {
         try await OfficialAccount.refuse(req.userID, "only replies to people who message it first", on: req.db.sql())
         // Not friends in this mode → the chat waits for them to accept.
         let connected = try await MessageRequests.areConnected(req.userID, other, mode: mode, on: req.db.sql())
-        if !connected { try req.requireNotRestricted(spending: .newChat) }
+        if !connected {
+            try req.requireNotRestricted(in: mode)
+            try req.requireRoom(for: .newChat)
+        }
         let id = try await ChatStore.createConversation(req.userID, other, mode: mode,
                                                         requestFrom: connected ? nil : req.userID, on: req.db)
         return IDData(data: .init(id: id))
@@ -293,6 +308,19 @@ struct MessagesController {
     }
     struct PollIn: Content { var options: [String]?; var ends_at: String? }
     /// The `messages_message_type_check` values; anything else would be a 500 from the DB.
+    /// A voice note's length and waveform. Only voice notes carry them; a
+    /// negative or absurd length would show as a broken player.
+    static func validateVoice(type: String, seconds: Int?, waveform: [Double]?) throws -> (seconds: Int?, waveform: [Double]?) {
+        guard type == "voice" else { return (nil, nil) }
+        guard let seconds, (1...3600).contains(seconds) else {
+            throw Abort(.badRequest, reason: "Voice messages must be 1 second to 1 hour long")
+        }
+        if let waveform, waveform.count > 200 || waveform.contains(where: { !(0...1).contains($0) }) {
+            throw Abort(.badRequest, reason: "Invalid voice waveform")
+        }
+        return (seconds, waveform)
+    }
+
     static let messageTypes: Set<String> = ["text", "image", "video", "voice", "album", "meeting", "poll", "post", "community"]
     static let maxAlbumPhotos = 10
     /// One of our own chat uploads, image types only. An album can't point
@@ -336,6 +364,7 @@ struct MessagesController {
             throw Abort(.badRequest, reason: "Media URL is required")
         }
         if let c = b.content, c.count > 2000 { throw Abort(.badRequest, reason: "Message is too long") }
+        let voice = try Self.validateVoice(type: type, seconds: b.voice_duration_seconds, waveform: b.voice_waveform)
         try ModerationGate.check([b.content, b.meeting_proposal?.title, b.meeting_proposal?.location], .chat, confirm: b.confirm ?? false)
         let album = try validateAlbum(type: type, items: b.media_items)
 
@@ -413,7 +442,7 @@ struct MessagesController {
         let newID = try await ChatStore.insertMessage(id, senderID: req.userID,
             content: storedContent, messageType: type,
             mediaUrl: album?.first?.url ?? mediaURL, mediaItems: album, replyToMessageID: replyTo,
-            voiceDuration: b.voice_duration_seconds, voiceWaveform: b.voice_waveform,
+            voiceDuration: voice.seconds, voiceWaveform: voice.waveform,
             sharedPostID: sharedPost, sharedCommunityID: sharedCommunity,
             isForwarded: b.is_forwarded ?? false, on: db)
         if let v = validated {
@@ -479,6 +508,7 @@ struct MessagesController {
         let id = req.parameters.get("id")!, mid = req.parameters.get("messageId")!
         let db = req.db.sql()
         try await requireParticipant(id, req)
+        try await requireNoPendingRequest(id, req)
         let b = try req.content.decode(EditBody.self)
         guard let content = b.content?.trimmedText.nilIfEmpty else {
             throw Abort(.badRequest, reason: "Message content is required")
@@ -516,6 +546,7 @@ struct MessagesController {
         let id = req.parameters.get("id")!, mid = req.parameters.get("messageId")!
         let db = req.db.sql()
         try await requireParticipant(id, req)
+        try await requireNoPendingRequest(id, req)
         guard let emoji = try req.content.decode(ReactBody.self).emoji else { throw Abort(.badRequest, reason: "emoji is required") }
         guard ChatStore.reactionEmoji.contains(emoji) else { throw Abort(.badRequest, reason: "Unsupported emoji") }
         guard let target = try await ChatStore.messageBasic(mid, on: db), target.conversation_id == id else {
@@ -642,6 +673,7 @@ struct MessagesController {
         let id = req.parameters.get("id")!
         let db = req.db.sql()
         try await requireParticipant(id, req)
+        try await requireNoPendingRequest(id, req)
         try await OfficialAccount.refuseInSupportChat(id, "messages can't be pinned", on: db)
         guard let mid = try req.content.decode(PinBody.self).message_id else { throw Abort(.badRequest, reason: "message_id is required") }
         var expiresAt: String? = nil
@@ -744,7 +776,7 @@ struct MessagesController {
         let db = req.db.sql()
         // The sender "accepting" their own request changed nothing yet said 200.
         let acceptance = try await MessageRequests.accept(conversationID: id, by: req.userID, on: db)
-        if acceptance == nil, try await MessageRequests.isOwnPendingRequest(conversationID: id, by: req.userID, on: db) {
+        if acceptance == nil, try await MessageRequests.isPendingRequest(conversationID: id, on: db) {
             throw Abort(.forbidden, reason: "Only the person who received the request can accept it")
         }
         // The starter's open chat drops its "N messages left" banner and shows
@@ -802,11 +834,19 @@ struct MessagesController {
         return try await ConnectionsController.encode(DataResponse(data: conv), req, .created)
     }
 
+    /// The app's chat palettes (`ThemePalette.allPalettes`). Any other id would
+    /// be shown raw in the "changed the theme" note and has no colours.
+    static let chatThemes: Set<String> = [
+        "sunset", "tropical", "candy", "amber", "blue", "rose",
+        "navy", "slate", "forest", "charcoal", "deep-purple",
+    ]
+
     struct SettingsPatchBody: Content { var theme: String?; var nickname: String?; var target_user_id: String? }
     static func updateSettings(_ req: Request) async throws -> Response {
         let id = req.parameters.get("id")!
         let db = req.db.sql()
         try await requireParticipant(id, req)
+        try await requireNoPendingRequest(id, req)
         guard let conv = try await ChatStore.conversationByID(id, on: db) else { throw Abort(.notFound, reason: "Conversation not found") }
         let raw = try req.content.decode(SettingsPatchBody.self)
         let present: Set<String> = {
@@ -817,7 +857,7 @@ struct MessagesController {
         var events: [ConversationEvents.Event?] = []
 
         if present.contains("theme") {
-            if let t = raw.theme, t.count > 20 { throw Abort(.badRequest, reason: "Invalid theme") }
+            if let t = raw.theme, !t.isEmpty, !Self.chatThemes.contains(t) { throw Abort(.badRequest, reason: "Invalid theme") }
             let value = (raw.theme?.isEmpty ?? true) ? nil : raw.theme
             try await ChatStore.updateTheme(id, theme: value, on: db)
             if value != conv.theme {
@@ -1032,6 +1072,7 @@ struct MessagesController {
         let id = req.parameters.get("id")!, mid = req.parameters.get("messageId")!
         let db = req.db.sql()
         try await requireParticipant(id, req)
+        try await requireNoPendingRequest(id, req)
         let p = try await resolveMeetingProposal(id, mid, on: db)
         guard req.userID == p.sender_id else { throw Abort(.forbidden, reason: "Only the proposer can reschedule this meeting") }
         guard p.status == "active" else { throw Abort(.conflict, reason: "Cannot reschedule a cancelled meeting") }
@@ -1069,6 +1110,7 @@ struct MessagesController {
         let id = req.parameters.get("id")!, mid = req.parameters.get("messageId")!
         let db = req.db.sql()
         try await requireParticipant(id, req)
+        try await requireNoPendingRequest(id, req)
         let p = try await resolveMeetingProposal(id, mid, on: db)
         guard req.userID == p.sender_id else { throw Abort(.forbidden, reason: "Only the proposer can cancel this meeting") }
         guard p.status == "active" else { throw Abort(.conflict, reason: "Meeting is already cancelled") }

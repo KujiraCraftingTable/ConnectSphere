@@ -41,6 +41,11 @@ enum CommunityStore {
         var is_pinned: Bool
         /// all | friends | off. Null for a non-member.
         @NullCoded var notify_level: String?
+        /// What's waiting for review; admins and moderators only, null for anyone else.
+        @NullCoded var pending_post_count: Int?
+        @NullCoded var pending_join_count: Int?
+        /// Reported posts and members waiting for a decision, staff only.
+        @NullCoded var pending_report_count: Int?
     }
 
     /// List endpoints (`search`, `/me`, `recommendations`, `trending`,
@@ -82,7 +87,18 @@ enum CommunityStore {
                   (cm.user_id IS NOT NULL) AS is_member, cm.role, jr.status AS join_request_status,
                   (cm.user_id IS NOT NULL OR c.privacy = 'public'
                    OR EXISTS (SELECT 1 FROM users a WHERE a.id = \(uuid: viewer) AND a.app_role = 'admin' AND a.deleted_at IS NULL)) AS can_view,
-                  COALESCE(cm.muted, false) AS is_muted, (cm.pinned_at IS NOT NULL) AS is_pinned, cm.notify_level
+                  COALESCE(cm.muted, false) AS is_muted, (cm.pinned_at IS NOT NULL) AS is_pinned, cm.notify_level,
+                  -- The same set Pending posts lists: the community's own posts and Marketplace listings.
+                  CASE WHEN cm.role IN ('admin', 'moderator') THEN (
+                    (SELECT COUNT(*) FROM posts pp WHERE pp.community_id = c.id AND pp.status = 'pending')
+                    + (SELECT COUNT(*) FROM listing_communities pl WHERE pl.community_id = c.id AND pl.status = 'pending'))::int
+                  END AS pending_post_count,
+                  CASE WHEN cm.role IN ('admin', 'moderator') THEN
+                    (SELECT COUNT(*) FROM community_join_requests pj WHERE pj.community_id = c.id AND pj.status = 'pending')::int
+                  END AS pending_join_count,
+                  CASE WHEN cm.role IN ('admin', 'moderator') THEN
+                    (SELECT COUNT(DISTINCT pr.target_id) FROM community_reports pr WHERE pr.community_id = c.id AND pr.status = 'pending')::int
+                  END AS pending_report_count
                 FROM communities c
                 LEFT JOIN community_members cm ON cm.community_id = c.id AND cm.user_id = \(uuid: viewer)
                 LEFT JOIN community_join_requests jr ON jr.community_id = c.id AND jr.user_id = \(uuid: viewer)
@@ -98,7 +114,8 @@ enum CommunityStore {
                   c.require_post_approval, c.disbanded_at,
                   false AS is_member, NULL::VARCHAR AS role, NULL::VARCHAR AS join_request_status,
                   (c.privacy = 'public') AS can_view,
-                  false AS is_muted, false AS is_pinned, NULL::VARCHAR AS notify_level
+                  false AS is_muted, false AS is_pinned, NULL::VARCHAR AS notify_level,
+                  NULL::int AS pending_post_count, NULL::int AS pending_join_count, NULL::int AS pending_report_count
                 FROM communities c WHERE c.id = \(uuid: id) AND c.suspended_at IS NULL AND c.disbanded_at IS NULL
                 """
         }
@@ -121,6 +138,14 @@ enum CommunityStore {
         struct One: Decodable { let one: Int }
         return try await db.raw("SELECT 1 AS one FROM community_bans WHERE community_id = \(uuid: communityID) AND user_id = \(uuid: userID)")
             .first(decoding: One.self) != nil
+    }
+
+    static func countModerators(_ communityID: String, on db: any SQLDatabase) async throws -> Int {
+        struct N: Decodable { let n: Int }
+        return try await db.raw("""
+            SELECT COUNT(*)::int AS n FROM community_members
+            WHERE community_id = \(uuid: communityID) AND role = 'moderator'
+            """).first(decoding: N.self)?.n ?? 0
     }
 
     static func incrementMemberCount(_ communityID: String, _ delta: Int, on db: any SQLDatabase) async throws {
@@ -161,17 +186,6 @@ enum CommunityStore {
             UPDATE community_members SET pinned_at = CASE WHEN \(bind: pinned) THEN COALESCE(pinned_at, NOW()) END
             WHERE community_id = \(uuid: communityID) AND user_id = \(uuid: userID)
             """).run()
-    }
-
-    /// False when this person already reported it.
-    static func reportCommunity(_ communityID: String, by reporter: String, reason: String, detail: String?,
-                                on db: any SQLDatabase) async throws -> Bool {
-        struct R: Decodable { let id: String }
-        return try await db.raw("""
-            INSERT INTO community_reports (reporter_id, target_type, target_id, community_id, reason, detail)
-            VALUES (\(uuid: reporter), 'community', \(uuid: communityID), \(uuid: communityID), \(bind: reason), \(bind: detail))
-            ON CONFLICT DO NOTHING RETURNING id::text AS id
-            """).first(decoding: R.self) != nil
     }
 
     // MARK: member profile
@@ -221,11 +235,12 @@ enum CommunityStore {
             + " WHERE (p.community_id = \(uuid: communityID) OR " + ListingStore.listedInClause(communityID) + ")"
             + " AND p.author_id = \(uuid: userID) AND p.status = 'posted'"
             + " AND " + ListingStore.notHiddenFromFriendClause(viewer)
-            + " GROUP BY p.id, u.id ORDER BY p.created_at DESC LIMIT 20 OFFSET \(bind: offset)")
+            + " GROUP BY p.id, u.id ORDER BY " + ListingStore.communityShownAt(communityID) + " DESC LIMIT 20 OFFSET \(bind: offset)")
             .all(decoding: PostStore.PostRow.self).map(PostStore.map)
+        let dated = try await ListingStore.datedForCommunity(posts, communityID, on: db)
         return MemberProfile(id: r.id, username: r.username, display_name: r.display_name, avatar_url: r.avatar_url,
                              cover_url: r.cover_url, avatar_color: r.avatar_color, connections_count: r.connections_count,
-                             role: r.role, joined_at: r.joined_at, post_count: r.post_count, posts: posts)
+                             role: r.role, joined_at: r.joined_at, post_count: r.post_count, posts: dated)
     }
 
     // MARK: notifications
@@ -531,8 +546,25 @@ enum CommunityStore {
             .all(decoding: RecommendedRow.self)
     }
 
+    /// `open_score` as of now: it halves every 14 days since the last open.
+    static let decayedOpenScore: SQLQueryString =
+        "cm.open_score * power(0.5, extract(epoch FROM now() - COALESCE(cm.last_opened_at, now())) / 1209600.0)"
+
+    /// One more open of the community page. Opens within a minute of the last
+    /// one don't count, so going back and forth doesn't inflate the score.
+    /// A non-member matches no row, so nothing is written.
+    static func recordOpen(_ communityID: String, _ userID: String, on db: any SQLDatabase) async throws {
+        try await db.raw("""
+            UPDATE community_members cm
+            SET open_score = \(decayedOpenScore) + 1, last_opened_at = now()
+            WHERE cm.community_id = \(uuid: communityID) AND cm.user_id = \(uuid: userID)
+              AND (cm.last_opened_at IS NULL OR cm.last_opened_at < now() - interval '1 minute')
+            """).run()
+    }
+
     /// The viewer's communities (both modes; the app shows one): pinned
-    /// first in the order they were pinned, then the most recently joined.
+    /// first in the order they were pinned, then the ones opened most often
+    /// lately, then the most recently joined.
     static func byUser(_ userID: String, on db: any SQLDatabase) async throws -> [CommunityRow] {
         try await db.raw("""
             SELECT \(rowColumns), cm.role, true AS is_member, COALESCE(tr.score, 0)::float AS trending_score,
@@ -541,7 +573,7 @@ enum CommunityStore {
             LEFT JOIN community_trending tr ON tr.community_id = c.id
             WHERE cm.user_id = \(uuid: userID) AND c.suspended_at IS NULL
               AND (c.disbanded_at IS NULL OR cm.role = 'admin')
-            ORDER BY (cm.pinned_at IS NULL), cm.pinned_at, cm.joined_at DESC
+            ORDER BY (cm.pinned_at IS NULL), cm.pinned_at, \(decayedOpenScore) DESC, cm.joined_at DESC
             """).all(decoding: CommunityRow.self)
     }
 
@@ -624,6 +656,23 @@ enum CommunityStore {
             """).first(decoding: ReviewedRow.self)
     }
 
+    /// Approves every pending join request (a community that went public has
+    /// nothing to approve) and adds those people as members, skipping anyone
+    /// banned meanwhile. Returns who joined. Run inside a transaction.
+    static func approveAllPending(_ communityID: String, reviewerID: String, on db: any SQLDatabase) async throws -> [String] {
+        struct R: Decodable { let user_id: String }
+        let approved = try await db.raw("""
+            UPDATE community_join_requests jr SET status = 'approved', reviewed_by = \(uuid: reviewerID), reviewed_at = NOW()
+            WHERE jr.community_id = \(uuid: communityID) AND jr.status = 'pending'
+              AND NOT EXISTS (SELECT 1 FROM community_bans cb WHERE cb.community_id = jr.community_id AND cb.user_id = jr.user_id)
+            RETURNING jr.user_id::text AS user_id
+            """).all(decoding: R.self).map(\.user_id)
+        var joined: [String] = []
+        for user in approved where try await joinCommunity(communityID, user, on: db) { joined.append(user) }
+        if !joined.isEmpty { try await incrementMemberCount(communityID, joined.count, on: db) }
+        return joined
+    }
+
     // MARK: pin / kick / role
 
     static func pinPost(_ postID: String, _ communityID: String, adminID: String, on db: any SQLDatabase) async throws -> Bool {
@@ -650,7 +699,7 @@ enum CommunityStore {
     /// written), same convention as `UserQueries.updateProfile`. Returns false
     /// when nothing matched `id` (already-deleted community).
     static func update(_ id: String, name: String?, description: String?, privacy: String?,
-                        iconEmoji: String?, coverColor: String?, avatarURL: String?,
+                        avatarURL: String?,
                         coverURL: String? = nil, requirePostApproval: Bool? = nil, descriptionFormat: String? = nil,
                         on db: any SQLDatabase) async throws -> Bool {
         var sets: [SQLQueryString] = []
@@ -668,8 +717,6 @@ enum CommunityStore {
             sets.append("description_format = \(bind: PostStore.contentFormats.contains(descriptionFormat ?? "") ? descriptionFormat! : "plain")")
         }
         if let privacy { sets.append("privacy = \(bind: privacy)") }
-        if let iconEmoji { sets.append("icon_emoji = \(bind: iconEmoji)") }
-        if let coverColor { sets.append("cover_color = \(bind: coverColor)") }
         if let avatarURL { sets.append("avatar_url = \(bind: avatarURL.trimmingCharacters(in: .whitespaces).nilIfEmpty)") }
         guard !sets.isEmpty else { return true }
         var q: SQLQueryString = "UPDATE communities SET "
@@ -702,7 +749,7 @@ extension CommunityStore.CommunityDetail {
 extension CommunityStore {
     static let modActions: Set<String> = [
         "approve_member", "deny_member", "approve_post", "decline_post", "resolve_report", "remove_content",
-        "remove_member", "ban", "unban", "role_change", "transfer_admin", "pin", "disband", "restore",
+        "remove_member", "ban", "unban", "role_change", "transfer_admin", "pin", "disband", "restore", "warn",
     ]
 
     /// Records a staff action. A failed write never fails the action itself.

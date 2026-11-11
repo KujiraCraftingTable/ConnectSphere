@@ -39,10 +39,12 @@ struct ModerationRepository {
         try await client.fetch(DataBox<ModerationCaseDetail>.self, path: "/admin/moderation/cases/\(id)", token: try token()).data
     }
 
-    func decide(caseId: String, decision: ModerationDecisionKind, days: Int?, note: String?) async throws -> ModerationCaseDetail {
+    func decide(caseId: String, decision: ModerationDecisionKind, days: Int?, note: String?,
+                reporterMessage: String?) async throws -> ModerationCaseDetail {
         var body: [String: Any] = ["decision": decision.rawValue]
         if let days { body["days"] = days }
         if let note { body["note"] = note }
+        if let reporterMessage { body["reporter_message"] = reporterMessage }
         return try await client.fetch(DataBox<ModerationCaseDetail>.self, path: "/admin/moderation/cases/\(caseId)/decide",
                                       method: "POST", token: try token(),
                                       bodyData: try JSONSerialization.data(withJSONObject: body)).data
@@ -53,9 +55,11 @@ struct ModerationRepository {
                                token: try token(), queryItems: [URLQueryItem(name: "status", value: "pending")]).data
     }
 
-    func decideAppeal(_ appealId: String, overturn: Bool, note: String?) async throws -> ModerationCaseDetail {
+    func decideAppeal(_ appealId: String, overturn: Bool, note: String?,
+                      reporterMessage: String?) async throws -> ModerationCaseDetail {
         var body: [String: Any] = ["result": overturn ? "overturn" : "uphold"]
         if let note { body["note"] = note }
+        if let reporterMessage { body["reporter_message"] = reporterMessage }
         return try await client.fetch(DataBox<ModerationCaseDetail>.self, path: "/admin/moderation/appeals/\(appealId)/decide",
                                       method: "POST", token: try token(),
                                       bodyData: try JSONSerialization.data(withJSONObject: body)).data

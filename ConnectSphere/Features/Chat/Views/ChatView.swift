@@ -40,6 +40,8 @@ struct ChatView: View {
     @State private var isTyping = false
     @State private var appearedMessageIDs: Set<String> = []
     @State private var showChatSettings = false
+    /// A pending request's sender gets the other person's profile, not settings.
+    @State private var showPeerProfile = false
     @State private var mediaViewer: MediaViewerSelection?
     @State private var mediaSaver = MediaSaveViewModel()
     // Whether either side has blocked the other. Disables the input bar and
@@ -226,7 +228,7 @@ struct ChatView: View {
 
             // Tappable display name (+ member count for groups) → chat settings
             ToolbarItem(placement: .principal) {
-                Button { showChatSettings = true } label: {
+                Button { openHeader() } label: {
                     VStack(spacing: 1) {
                         HStack(spacing: 5) {
                             Text(headerName)
@@ -253,7 +255,7 @@ struct ChatView: View {
 
             // Avatar → chat settings
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button { showChatSettings = true } label: {
+                Button { openHeader() } label: {
                     headerAvatar
                 }
                 .buttonStyle(.plain)
@@ -282,6 +284,11 @@ struct ChatView: View {
                         .foregroundColor(AppColors.textPrimary(colorScheme))
                 }
                 .accessibilityLabel(Bundle.app.loc("Minimize chat"))
+            }
+        }
+        .sheet(isPresented: $showPeerProfile) {
+            ProfilePopup {
+                UserProfileView(userId: peer.otherUserId ?? "")
             }
         }
         .sheet(isPresented: $showChatSettings) {
@@ -1001,6 +1008,16 @@ struct ChatView: View {
     }
 
     /// Puts the message's text in the composer; sending saves the edit.
+    /// The name and avatar open chat settings, or while a request is still
+    /// undecided (either side), the other person's profile as a pop-up.
+    private func openHeader() {
+        if viewModel.isPendingRequest && !viewModel.isGroup && peer.otherUserId != nil {
+            showPeerProfile = true
+        } else {
+            showChatSettings = true
+        }
+    }
+
     private func beginEditing(_ message: Message) {
         replyingTo = nil
         pendingMedia = []
@@ -1143,6 +1160,11 @@ struct ChatView: View {
         return VStack(spacing: 8) {
             if blocking {
                 blockedNotice
+            } else if appState.isRestricted {
+                Text("Your account is read-only, so you can't send messages right now", bundle: bundle)
+                    .scaledFont(12, .medium)
+                    .foregroundColor(AppColors.textSecondary(colorScheme))
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
 
             // "Replying to X" preview, clearable with an X button
@@ -1283,6 +1305,7 @@ struct ChatView: View {
             }
             .disabled(blocking)
             .opacity(blocking ? 0.5 : 1)
+            .disabledWhenRestricted()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -1515,7 +1538,7 @@ struct ChatView: View {
             sharedPost: sharedPost,
             onSharedPostAppear: { Task { await viewModel.loadSharedPost(message.sharedPostId) } },
             onOpenSharedPost: { openedSharedPost = OpenedSharedPost(id: $0.id) },
-            onDoubleTap: { Task { await viewModel.toggleWhale(messageId: message.id) } },
+            onDoubleTap: viewModel.isPendingRequest ? nil : { Task { await viewModel.toggleWhale(messageId: message.id) } },
             menuItems: AnyView(messageMenu(for: message, isOwn: isOwn)))
     }
 
@@ -1548,7 +1571,7 @@ struct ChatView: View {
             }
 
             // Only my own text messages, and only for 15 minutes after sending.
-            if message.canEdit(userId: appState.currentUser?.id ?? "") && !viewModel.withOfficial {
+            if message.canEdit(userId: appState.currentUser?.id ?? "") && !viewModel.withOfficial && !viewModel.isPendingRequest {
                 Button {
                     beginEditing(message)
                 } label: {
@@ -1576,8 +1599,8 @@ struct ChatView: View {
                 }
             }
 
-            // Nobody pins in a chat with ConnectSphere.
-            if viewModel.withOfficial {
+            // Nobody pins in a chat with ConnectSphere, or before a request is accepted.
+            if viewModel.withOfficial || viewModel.isPendingRequest {
                 EmptyView()
             } else if viewModel.pinnedMessageIds.contains(message.id) {
                 Button {

@@ -155,25 +155,33 @@ enum JobStore {
     /// The Jobs-tab details of a job, checked.
     struct Extra {
         var companyID: String?
+        var careersURL: String?
         var workFormat: String?
         var level: String?
         var salaryMin: Int?
         var salaryMax: Int?
+        var salaryNegotiable = false
+        /// Where the job is, for distance (migration 129); its label replaces the typed location.
+        var wardID: String?
+        var wardLabel: String?
+        /// The HR's own uploaded job description PDF; checked in `PostService`.
+        var jdPath: String?
         var skills: [String] = []
     }
 
-    /// Checks the details; a company page can only be used by its admins.
-    static func validateDetails(_ d: PostsController.CreateBody.JobDataIn?, author: String,
+    /// Checks the details. The company isn't taken from them: it's the poster's
+    /// verified HR company (see `PostService.createJobPost`).
+    static func validateDetails(_ d: PostsController.CreateBody.JobDataIn?,
                                 on db: any SQLDatabase) async throws -> Extra {
-        guard let d else { return Extra() }
         var extra = Extra()
-        if let id = d.companyId?.nilIfEmpty {
-            guard UUID(uuidString: id) != nil else { throw Abort(.badRequest, reason: "Invalid company") }
-            guard try await CompanyStore.role(of: author, in: id, on: db) != nil else {
-                throw Abort(.forbidden, reason: "Only the company's admins can post jobs as it")
-            }
-            extra.companyID = id.lowercased()
+        // Only required for now, not checked against the company's domain (KNOWN_GAPS).
+        let careers = d?.careersUrl?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        guard let careers else { throw Abort(.badRequest, reason: "Add the job's link on your company careers page") }
+        guard careers.count <= HRStore.maxCareersURL else {
+            throw Abort(.badRequest, reason: "The careers link must be at most \(HRStore.maxCareersURL) characters")
         }
+        extra.careersURL = careers
+        guard let d else { return extra }
         if let f = d.workFormat?.nilIfEmpty {
             guard workFormats.contains(f) else { throw Abort(.badRequest, reason: "Invalid work format") }
             extra.workFormat = f
@@ -188,8 +196,23 @@ enum JobStore {
         if let lo = d.salaryMin, let hi = d.salaryMax, lo > hi {
             throw Abort(.badRequest, reason: "The minimum salary can't be above the maximum")
         }
-        extra.salaryMin = d.salaryMin
-        extra.salaryMax = d.salaryMax
+        // Negotiable stands in for the range, never beside it.
+        extra.salaryNegotiable = d.salaryNegotiable ?? false
+        extra.salaryMin = extra.salaryNegotiable ? nil : d.salaryMin
+        extra.salaryMax = extra.salaryNegotiable ? nil : d.salaryMax
+        if let w = d.wardId?.trimmingCharacters(in: .whitespaces).nilIfEmpty {
+            struct W: Decodable { let id: String; let label: String }
+            guard UUID(uuidString: w) != nil, let ward = try await db.raw("""
+                SELECT id::text AS id, full_name || ', ' || province_name AS label FROM vn_wards WHERE id = \(uuid: w)
+                """).first(decoding: W.self) else { throw Abort(.badRequest, reason: "Unknown ward") }
+            extra.wardID = ward.id
+            extra.wardLabel = ward.label
+        }
+        extra.jdPath = d.jdPath?.trimmingCharacters(in: .whitespaces).nilIfEmpty
+        // Without a place a job can never be "near", so only remote work skips it.
+        guard extra.workFormat == "remote" || extra.wardID != nil else {
+            throw Abort(.badRequest, reason: "Pick the ward where the job is")
+        }
         // Same catalogue as profiles, so job matching compares like with like.
         extra.skills = try await SkillStore.cleanPicks(d.skills ?? [], userID: nil, limit: maxSkills, on: db)
         return extra
@@ -201,11 +224,11 @@ enum JobStore {
         struct R: Decodable { let id: String }
         let jobID = try await db.raw("""
             INSERT INTO job_posts (post_id, title, company, location, employment_type, salary_range, application_deadline,
-                                   company_id, work_format, level, salary_min, salary_max)
-            VALUES (\(uuid: postID), \(bind: title), \(bind: company), \(bind: location),
+                                   company_id, work_format, level, salary_min, salary_max, careers_url, salary_negotiable, ward_id, jd_path)
+            VALUES (\(uuid: postID), \(bind: title), \(bind: company), \(bind: extra.wardLabel ?? location),
                     \(bind: employmentType), \(bind: salaryRange), \(bind: applicationDeadline)::date,
                     \(uuid: extra.companyID), \(bind: extra.workFormat), \(bind: extra.level),
-                    \(bind: extra.salaryMin), \(bind: extra.salaryMax))
+                    \(bind: extra.salaryMin), \(bind: extra.salaryMax), \(bind: extra.careersURL), \(bind: extra.salaryNegotiable), \(uuid: extra.wardID), \(bind: extra.jdPath))
             RETURNING id::text AS id
             """).first(decoding: R.self)!.id
         if !extra.skills.isEmpty {

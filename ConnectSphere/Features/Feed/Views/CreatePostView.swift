@@ -7,6 +7,7 @@ struct CreatePostView: View {
     @Environment(\.appBundle) var bundle
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) private var dismiss
+    @Environment(UndoToastPresenter.self) private var toast
 
     /// The picked photo/video whose alt text is being written.
     @State private var altTarget: PickedPostMedia?
@@ -43,6 +44,9 @@ struct CreatePostView: View {
     /// The draft being continued: posting or saving again replaces it.
     @State private var draftId: String?
     @State private var showLeaveDialog = false
+    /// The leave question came from tapping Sell: whatever is chosen, New
+    /// listing opens after this composer closes.
+    @State private var leavingForSell = false
     @State private var showDraftPicker = false
     /// Set = the post is scheduled for this time instead of going out now.
     @State private var scheduleAt: Date?
@@ -60,7 +64,13 @@ struct CreatePostView: View {
     /// having to reload from the server (and the user having to notice a
     /// silent background refresh) to see their own post appear.
     var onPostCreated: ((Post) -> Void)?
+    /// Sell tapped: the presenter closes this composer and opens New listing
+    /// in its place. Without it, New listing stacks on top of the composer.
+    var onSell: (() -> Void)? = nil
     var onPostUpdated: ((Post) -> Void)?
+    /// Opens on this type, e.g. Job from the Jobs tab's "+". Ignored where the
+    /// type isn't offered (Job needs Work mode and a verified HR).
+    var initialPostType: PostType = .text
 
     private var isEditMode: Bool { editingPost != nil }
 
@@ -77,7 +87,7 @@ struct CreatePostView: View {
 
     /// A community's mode comes from its type; the feed's from the app.
     private var effectiveMode: AppMode {
-        community.map { $0.type == .work ? .work : .hobby } ?? appState.currentMode
+        community.map { _ in .hobby } ?? appState.currentMode
     }
 
     private var isPosting: Bool { viewModel.isPosting || composerViewModel.isPosting }
@@ -94,12 +104,16 @@ struct CreatePostView: View {
          privacy.rawValue,
          viewModel.linkPreview?.url ?? "",
          String(selectedMedia.count),
-         postType.rawValue,
+         // Picking the Poll/Event/Sell tab on a new, empty post loses nothing,
+         // so the type only counts once a saved post or draft is open.
+         isEditMode || draftId != nil ? postType.rawValue : "",
          communityAudience.rawValue,
          scheduleAt.map { String($0.timeIntervalSince1970) } ?? "",
-         composerViewModel.pollOptions.joined(separator: "|"),
+         // The Poll tab adds blank option rows; only typed options count.
+         composerViewModel.pollOptions.map { $0.trimmingCharacters(in: .whitespaces) }
+             .filter { !$0.isEmpty }.joined(separator: "|"),
          composerViewModel.eventTitle, composerViewModel.eventLocation,
-         composerViewModel.jobTitle, composerViewModel.jobCompany]
+         composerViewModel.jobTitle, composerViewModel.jobCareersUrl]
     }
     @State private var openedSignature: [String]?
     /// Cancel only asks when something changed since the screen opened.
@@ -205,10 +219,10 @@ struct CreatePostView: View {
                                 Text("Text", bundle: bundle).tag(PostType.text)
                                 Text("Poll", bundle: bundle).tag(PostType.poll)
                                 Text("Event", bundle: bundle).tag(PostType.event)
-                                // Job posts are a Work-mode-only concept. Hidden
-                                // from the picker in Hobby mode (also enforced
-                                // server-side, see PostService.createJobPost).
-                                if effectiveMode == .work {
+                                // Job posts are Work-mode only and only for a
+                                // verified HR (both enforced server-side too,
+                                // see PostService.createJobPost).
+                                if effectiveMode == .work && appState.hrCompany != nil {
                                     Text("Job", bundle: bundle).tag(PostType.job)
                                 }
                                 // In a community: sell an item there straight away.
@@ -222,7 +236,17 @@ struct CreatePostView: View {
                                 // "Sell" opens the Sell form; the composer stays on its tab.
                                 if new == .listing {
                                     postType = old
-                                    showSell = true
+                                    if onSell != nil {
+                                        // Typed text gets the usual save-or-discard question first.
+                                        if hasChanges {
+                                            leavingForSell = true
+                                            showLeaveDialog = true
+                                        } else {
+                                            leaveForSell()
+                                        }
+                                    } else {
+                                        showSell = true
+                                    }
                                 } else {
                                     composerViewModel.postType = new
                                 }
@@ -264,7 +288,8 @@ struct CreatePostView: View {
                                 endsAt:      $composerViewModel.pollEndsAt,
                                 showEndDate: $composerViewModel.showPollEndDate
                             )
-                            .padding(.horizontal, 16)
+                            // Same inset as the text box above, so the edges line up.
+                            .padding(.horizontal, 8)
                             .padding(.top, 10)
                         } else if postType == .event {
                             CreateEventSheet(
@@ -274,20 +299,20 @@ struct CreatePostView: View {
                                 endsAt:      $composerViewModel.eventEndsAt,
                                 showEndDate: $composerViewModel.showEventEndDate
                             )
-                            .padding(.horizontal, 16)
+                            // Same inset as the text box above, so the edges line up.
+                            .padding(.horizontal, 8)
                             .padding(.top, 10)
                         } else if postType == .job {
                             CreateJobSheet(
                                 title:                    $composerViewModel.jobTitle,
-                                company:                  $composerViewModel.jobCompany,
-                                location:                 $composerViewModel.jobLocation,
                                 employmentType:           $composerViewModel.jobEmploymentType,
                                 salaryRange:              $composerViewModel.jobSalaryRange,
                                 applicationDeadline:      $composerViewModel.jobApplicationDeadline,
                                 showApplicationDeadline:  $composerViewModel.showJobApplicationDeadline,
                                 details: composerViewModel
                             )
-                            .padding(.horizontal, 16)
+                            // Same inset as the text box above, so the edges line up.
+                            .padding(.horizontal, 8)
                             .padding(.top, 10)
                         }
 
@@ -454,10 +479,16 @@ struct CreatePostView: View {
                                         isPresented: $showLeaveDialog, titleVisibility: .visible) {
                         // A draft is a new post's safety net; editing a posted one has none.
                         if !isEditMode && !isPostDisabled {
-                            Button(bundle.loc("Save draft")) { savePost(as: .draft) }
+                            Button(bundle.loc("Save draft")) {
+                                // savePost closes the composer once the draft is saved.
+                                if leavingForSell { onSell?() }
+                                savePost(as: .draft)
+                            }
                         }
-                        Button(bundle.loc(draftId == nil ? "Discard" : "Discard changes"), role: .destructive) { dismiss() }
-                        Button(bundle.loc("Keep editing"), role: .cancel) {}
+                        Button(bundle.loc(draftId == nil ? "Discard" : "Discard changes"), role: .destructive) {
+                            if leavingForSell { leaveForSell() } else { dismiss() }
+                        }
+                        Button(bundle.loc("Keep editing"), role: .cancel) { leavingForSell = false }
                     }
                 }
                 if !isEditMode && !feedDrafts.isEmpty {
@@ -490,6 +521,10 @@ struct CreatePostView: View {
                 await drafts.load()
             }
             .onAppear {
+                if initialPostType == .job, postType == .text, editingPost == nil, draft == nil,
+                   effectiveMode == .work, appState.hrCompany != nil {
+                    postType = .job
+                }
                 if let draft, draftId == nil { loadDraft(draft) }
                 if let post = editingPost {
                     content = post.content
@@ -563,10 +598,17 @@ struct CreatePostView: View {
 
     /// Posts now, or saves a draft. Opened from a draft, either one replaces
     /// it on the server (`replaces_draft`).
+    /// Hands over to the presenter, which opens New listing once this closes.
+    private func leaveForSell() {
+        onSell?()
+        dismiss()
+    }
+
     private func savePost(as publish: PublishChoice) {
         moveTagsOutOfText()
-        let finish: (Post) -> Void = { post in
-            if publish.isLive {
+        // `held`: saved but waiting for review (a new HR's job), so not in any feed yet.
+        let finish: (Post, Bool) -> Void = { post, held in
+            if publish.isLive && !held {
                 // Broadcast beyond just this composer's own caller. E.g.
                 // `AppState.currentUser.postCount` and a `ProfileViewModel`
                 // that's still alive in memory (Profile tab visited earlier,
@@ -578,6 +620,7 @@ struct CreatePostView: View {
             if !publish.isLive || draftId != nil {
                 NotificationCenter.default.post(name: .draftsChanged, object: nil)
             }
+            confirmSaved(publish, awaitingApproval: held)
             dismiss()
         }
         if let community {
@@ -593,7 +636,7 @@ struct CreatePostView: View {
                 publish: publish,
                 replacesDraft: draftId,
                 alsoOtherMode: canCrossPost && postInBothModes,
-                onSuccess: finish
+                onSuccess: { finish($0, false) }
             )
         } else {
             composerViewModel.publish = publish
@@ -605,9 +648,31 @@ struct CreatePostView: View {
                     mode: appState.currentMode,
                     privacy: privacy,
                     hashtags: hashtags
-                ) { communityPost in finish(feedPost(from: communityPost)) }
+                ) { communityPost in
+                    finish(feedPost(from: communityPost), communityPost.publishStatus == "pending")
+                }
             }
         }
+    }
+
+    /// What happened to the post, as a toast at the bottom edge: it doesn't
+    /// interrupt like an alert, and it stays on screen after the composer closes.
+    private func confirmSaved(_ publish: PublishChoice, awaitingApproval: Bool) {
+        let message: String
+        switch publish {
+        case .now where awaitingApproval && postType == .job:
+            message = bundle.loc("Sent for review. ConnectSphere checks a new HR's first jobs before they go live.")
+        case .now where awaitingApproval:
+            message = bundle.loc("Your post is waiting for approval. An admin or moderator will review it.")
+        case .now:
+            message = bundle.loc("Your post is now published.")
+        case .schedule(let at):
+            message = String(format: bundle.loc("Your post is scheduled for %@"),
+                             at.formatted(date: .abbreviated, time: .shortened))
+        case .draft:
+            message = bundle.loc("Saved to drafts.")
+        }
+        toast.show(message: message)
     }
 
     /// Only the official account cross-posts, and only a text post on its own
@@ -637,7 +702,8 @@ struct CreatePostView: View {
                 privacy: .publicAll,
                 hashtags: hashtags
             ) { communityPost in
-                if publish.isLive {
+                // A held post (a new HR's job under review) isn't in the feed yet.
+                if publish.isLive && communityPost.publishStatus != "pending" {
                     onPostCreated?(communityPost.toPost(
                         author: appState.currentUser ?? MockData.currentUser,
                         mode: mode, privacy: .publicAll
@@ -646,6 +712,7 @@ struct CreatePostView: View {
                 if !publish.isLive || replaced != nil {
                     NotificationCenter.default.post(name: .draftsChanged, object: nil)
                 }
+                confirmSaved(publish, awaitingApproval: communityPost.publishStatus == "pending")
                 dismiss()
             }
         }

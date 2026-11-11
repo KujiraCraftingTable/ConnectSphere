@@ -58,7 +58,7 @@ enum APIConfig {
         guard let link = link?.trimmingCharacters(in: .whitespacesAndNewlines), !link.isEmpty else { return nil }
         guard link.hasPrefix("/") else { return URL(string: link) }
         let full = serverBase + link
-        guard link.hasPrefix("/uploads/messages/") || link.hasPrefix("/uploads/cv/"),
+        guard link.hasPrefix("/uploads/messages/") || link.hasPrefix("/uploads/cv/") || link.hasPrefix("/uploads/hr/"),
               let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey),
               var comps = URLComponents(string: full) else {
             return URL(string: full)

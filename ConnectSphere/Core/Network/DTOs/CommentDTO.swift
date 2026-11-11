@@ -33,7 +33,7 @@ struct CommentAuthorDTO: Decodable {
 
 struct CommentDTO: Decodable, Identifiable {
     let id: String
-    let content: String
+    var content: String
     let createdAt: Date
     let parentCommentId: String?
     var likeCount: Int
@@ -47,15 +47,15 @@ struct CommentDTO: Decodable, Identifiable {
     /// until you tap Show.
     let muted: Bool
     /// The comment's language and its English/Vietnamese translation (server-made).
-    let lang: String?
-    let translatedText: String?
+    var lang: String?
+    var translatedText: String?
     /// The comment's photo (a stored `/uploads/…` path), if it has one.
     let imageUrl: String?
     /// 'markdown' when written with Markdown; comments from before it are plain.
-    let contentFormat: String?
+    var contentFormat: String?
     var isMarkdown: Bool { contentFormat == "markdown" }
     /// Last edit that changed the text; nil when never edited (no history to show).
-    let editedAt: Date?
+    var editedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case id, content, author, muted, lang
@@ -102,28 +102,6 @@ struct CommentReplyToDTO: Decodable {
 struct CommentsResponse: Decodable {
     let data:  [CommentDTO]
     let total: Int
-}
-
-/// One of the current user's own soft-deleted comments. Shape returned by
-/// `GET /posts/comments/deleted` (no `author`; the "Recently Deleted" screen
-/// only ever lists the viewer's own comments, so it's always "you").
-struct DeletedComment: Decodable, Identifiable {
-    let id: String
-    let postId: String
-    let content: String
-    let createdAt: Date
-    let deletedAt: Date
-    let parentCommentId: String?
-    let likeCount: Int
-
-    enum CodingKeys: String, CodingKey {
-        case id, content
-        case postId          = "post_id"
-        case createdAt       = "created_at"
-        case deletedAt       = "deleted_at"
-        case parentCommentId = "parent_comment_id"
-        case likeCount       = "like_count"
-    }
 }
 
 struct LikeResponse: Decodable {

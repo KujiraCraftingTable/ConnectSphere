@@ -152,7 +152,7 @@ enum SearchStore {
             FROM community_members cm
             JOIN communities c ON c.id = cm.community_id
             WHERE cm.user_id = ANY(\(bind: userIDs)::uuid[])
-              AND c.privacy = 'public'
+              AND c.privacy = 'public' AND c.disbanded_at IS NULL AND c.suspended_at IS NULL
               AND (LOWER(c.name) LIKE ANY(\(bind: patterns)::text[])
                    OR LOWER(COALESCE(c.description, '')) LIKE ANY(\(bind: patterns)::text[])
                    OR EXISTS (SELECT 1 FROM community_tags ct
@@ -580,6 +580,7 @@ extension SearchStore {
                    ta.taste,
                    (SELECT COUNT(*)::int FROM community_members a
                       JOIN community_members b ON b.community_id = a.community_id
+                      JOIN communities sc ON sc.id = a.community_id AND sc.disbanded_at IS NULL
                      WHERE a.user_id = \(uuid: searcher) AND b.user_id = cand.user_id) AS shared_communities,
                    (EXTRACT(EPOCH FROM NOW() - GREATEST(
                       (SELECT MAX(created_at) FROM posts WHERE author_id = cand.user_id AND status = 'posted'),

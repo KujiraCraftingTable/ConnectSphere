@@ -246,7 +246,9 @@ struct ProfileView: View {
             HStack(spacing: AppSpacing.sm) {
                 ProfileCardButton(title: bundle.loc("Edit profile"), icon: "pencil",
                                   prominent: true) { showEditProfile = true }
+                    .disabledWhenRestricted()
                 ProfileCardButton(title: bundle.loc("New post"), icon: "plus") { showCreatePost = true }
+                    .disabledWhenRestricted()
             }
         }
     }

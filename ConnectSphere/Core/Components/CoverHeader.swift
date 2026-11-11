@@ -85,12 +85,13 @@ struct CoverHeader<Card: View>: View {
     /// and buttons stay legible. Its bottom dissolves into a soft copy of itself behind it.
     private var cover: some View {
         CoverPhotoView(coverUrl: coverUrl)
-            // A long, eased fade so the photo's bottom edge never shows as a
-            // line: it melts into the soft copy behind over its lower third.
+            // An eased fade so the photo's bottom edge never shows as a line:
+            // it melts into the soft copy behind over its lower quarter (a
+            // third hid too much of the photo).
             .mask(LinearGradient(stops: [
-                .init(color: .black, location: 0.62),
-                .init(color: .black.opacity(0.7), location: 0.78),
-                .init(color: .black.opacity(0.25), location: 0.92),
+                .init(color: .black, location: 0.75),
+                .init(color: .black.opacity(0.8), location: 0.86),
+                .init(color: .black.opacity(0.4), location: 0.95),
                 .init(color: .clear, location: 1),
             ], startPoint: .top, endPoint: .bottom))
             .overlay(alignment: .top) {

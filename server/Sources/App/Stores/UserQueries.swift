@@ -32,8 +32,10 @@ extension UserStore {
         // Marketplace listings are left out for the same reason: they live on
         // the Marketplace tab, and the profile's list (`includeListings` off)
         // doesn't show them, so counting them put "9 posts" over a list of 5.
+        // Public and friends posts count, for every viewer; only-me posts are
+        // private notes and never do.
         let postCount = modeRef.map {
-            "(SELECT COUNT(*)::int FROM posts p WHERE p.author_id = u.id AND p.mode = \($0) AND p.status = 'posted' AND p.community_id IS NULL AND p.post_type <> 'listing') AS post_count"
+            "(SELECT COUNT(*)::int FROM posts p WHERE p.author_id = u.id AND p.mode = \($0) AND p.status = 'posted' AND p.community_id IS NULL AND p.post_type <> 'listing' AND p.privacy IN ('public', 'friends')) AS post_count"
         } ?? "u.post_count"
         // Mode-scoped and friends-excluded (FollowStore); the legacy
         // users.follower_count/following_count columns only mirrored friends.
@@ -41,6 +43,10 @@ extension UserStore {
         let hobbyDetails = modeRef.map {
             "CASE WHEN \($0) = 'work' THEN ARRAY[]::text[] ELSE u.languages END AS languages, CASE WHEN \($0) = 'work' THEN NULL ELSE u.relationship_status END AS relationship_status"
         } ?? "u.languages, u.relationship_status"
+        // HR is a Work identity: a Hobby (or mode-less) view never shows it.
+        let hrCompany = modeRef.map {
+            "CASE WHEN \($0) = 'work' THEN (SELECT r.company_name FROM recruiters r WHERE r.user_id = u.id) END AS hr_company"
+        } ?? "NULL::text AS hr_company"
         let followCounts = modeRef.map { FollowStore.countColumns(userRef: "u.id", modeRef: $0) }
             ?? "u.follower_count, u.following_count"
         return """
@@ -56,6 +62,7 @@ extension UserStore {
           \(hobbyDetails),
           \(followCounts), \(postCount),
           u.app_role = 'admin' AS is_official,
+          \(hrCompany),
           u.created_at,
           COALESCE(array_agg(DISTINCT ui.interest) FILTER (WHERE ui.interest IS NOT NULL), ARRAY[]::text[]) AS interests,
           COALESCE(array_agg(DISTINCT us.skill)    FILTER (WHERE us.skill    IS NOT NULL), ARRAY[]::text[]) AS skills
@@ -191,54 +198,64 @@ extension UserStore {
     /// `r` and not yet ordered or limited. Shared by `findAll` and `countAll`
     /// so the total always counts exactly what the list can page through.
     private static func rankedSearchSQL(_ f: ListFilters, query: String) -> SQLQueryString {
-        "SELECT r.* FROM (SELECT c.*, "
-            + peopleRelevance(query: query, words: SearchTokenizer.words(query), mode: f.mode)
-            + " AS search_score FROM (" + eligibleUsersSQL(f) + ") c) r WHERE r.search_score > 0"
+        let words = SearchTokenizer.words(query)
+        return "SELECT r.* FROM (SELECT c.*, "
+            + peopleRelevance(query: query, words: words)
+            + " AS search_score FROM (" + eligibleUsersSQL(f) + ") c) r WHERE "
+            + peopleMatch(words: words, alias: "r")
     }
 
     /// `unaccent(lower(coalesce(col, '')))`, both sides of every keyword
     /// comparison are folded this way, so "meo" finds "Mèo".
     private static func folded(_ col: String) -> String { "unaccent(lower(coalesce(\(col), '')))" }
 
-    /// Relevance of one `userSelectSQL` row (alias `c`) to a keyword search.
-    /// Rewards, in order: an exact name/username match, each word starting the
-    /// name or username, each word matching an interest/skill (exactly beats
-    /// contains), location, then bio/job/company. Plus a bonus when every
-    /// word matched somewhere, and a typo-tolerant trigram nudge on the name.
-    /// Words come from `SearchTokenizer` (letters/digits only) and are bound.
-    static func peopleRelevance(query: String, words: [String], mode: String?) -> SQLQueryString {
-        let name = folded("c.display_name")
-        // Leading space + non-alphanumerics → spaces, so "% word" matches the
-        // start of any word in the name, including the first.
-        let nameWords = "(' ' || regexp_replace(\(name), '[^[:alnum:]]+', ' ', 'g'))"
-        let username = "lower(c.username)"
-        let tags = mode == "work" ? "c.skills" : mode == "hobby" ? "c.interests" : "array_cat(c.interests, c.skills)"
-        let blurb = mode == "hobby"
-            ? folded("c.bio")
-            : "(\(folded("c.bio")) || ' ' || \(folded("c.job_title")) || ' ' || \(folded("c.company")))"
-        let q = query.lowercased().trimmingCharacters(in: .whitespaces)
+    /// A word typed without accents matches any accents ("thanh" finds Thành);
+    /// one typed with accents is the more specific ask and matches them exactly
+    /// ("thành" skips Thanh). Both sides are NFC so composed/decomposed tone
+    /// marks compare equal.
+    static func isPlain(_ word: String) -> Bool { word.unicodeScalars.allSatisfy(\.isASCII) }
 
-        var score: SQLQueryString = "(CASE WHEN \(unsafeRaw: name) = unaccent(\(bind: q)) OR \(unsafeRaw: username) = \(bind: q) THEN 100 ELSE 0 END"
-        var everyWord: SQLQueryString = "TRUE"
+    private static func displayName(_ alias: String, plain: Bool) -> String {
+        plain ? folded("\(alias).display_name") : "normalize(lower(coalesce(\(alias).display_name, '')), NFC)"
+    }
+
+    /// Whether `word` starts any word of the display name. Leading space +
+    /// non-alphanumerics → spaces, so "% word" also matches the first word.
+    private static func startsNameWord(_ alias: String, _ word: String) -> SQLQueryString {
+        let name = "(' ' || regexp_replace(\(displayName(alias, plain: isPlain(word))), '[^[:alnum:]]+', ' ', 'g'))"
+        return "\(unsafeRaw: name) LIKE '% ' || \(bind: word.precomposedStringWithCanonicalMapping) || '%'"
+    }
+
+    /// Typed (non-AI) search is a word search over who someone *is*: every
+    /// word must start a word of the display name or appear in the @username.
+    /// Bio, job, interests and location are left to AI search, a substring hit
+    /// there (accent-folded "hoàn thành" contains "thanh") surfaced strangers.
+    /// Words come from `SearchTokenizer` (letters/digits only) and are bound.
+    static func peopleMatch(words: [String], alias: String) -> SQLQueryString {
+        guard !words.isEmpty else { return "FALSE" }
+        var all: SQLQueryString = "(TRUE"
         for w in words {
-            let starts: SQLQueryString = "(\(unsafeRaw: nameWords) LIKE '% ' || unaccent(\(bind: w)) || '%' OR \(unsafeRaw: username) LIKE \(bind: w) || '%')"
-            let tagIs: SQLQueryString = "EXISTS (SELECT 1 FROM unnest(\(unsafeRaw: tags)) t WHERE unaccent(lower(t)) = unaccent(\(bind: w)))"
-            let tagHas: SQLQueryString = "EXISTS (SELECT 1 FROM unnest(\(unsafeRaw: tags)) t WHERE unaccent(lower(t)) LIKE '%' || unaccent(\(bind: w)) || '%')"
-            let place: SQLQueryString = "\(unsafeRaw: folded("c.location")) LIKE '%' || unaccent(\(bind: w)) || '%'"
-            let about: SQLQueryString = "\(unsafeRaw: blurb) LIKE '%' || unaccent(\(bind: w)) || '%'"
+            all = all + " AND (" + startsNameWord(alias, w)
+                + " OR lower(\(unsafeRaw: alias).username) LIKE '%' || \(bind: w) || '%')"
+        }
+        return all + ")"
+    }
+
+    /// Ranks rows that pass `peopleMatch`: an exact name/username match first,
+    /// then words that start the name or username over ones only inside it.
+    static func peopleRelevance(query: String, words: [String]) -> SQLQueryString {
+        let username = "lower(c.username)"
+        let q = query.lowercased().trimmingCharacters(in: .whitespaces).precomposedStringWithCanonicalMapping
+        let name = displayName("c", plain: isPlain(q))
+
+        var score: SQLQueryString = "(CASE WHEN \(unsafeRaw: name) = \(bind: q) OR \(unsafeRaw: username) = \(bind: q) THEN 100 ELSE 0 END"
+        for w in words {
             score = score
-                + " + CASE WHEN " + starts + " THEN 40 ELSE 0 END"
-                + " + CASE WHEN " + tagIs + " THEN 25 WHEN " + tagHas + " THEN 15 ELSE 0 END"
-                + " + CASE WHEN " + place + " THEN 10 ELSE 0 END"
-                + " + CASE WHEN " + about + " THEN 5 ELSE 0 END"
-            everyWord = everyWord + " AND (" + starts + " OR " + tagHas + " OR " + place + " OR " + about + ")"
+                + " + CASE WHEN " + startsNameWord("c", w) + " THEN 40 ELSE 0 END"
+                + " + CASE WHEN \(unsafeRaw: username) LIKE \(bind: w) || '%' THEN 40"
+                + " WHEN \(unsafeRaw: username) LIKE '%' || \(bind: w) || '%' THEN 20 ELSE 0 END"
         }
-        if !words.isEmpty {
-            score = score + " + CASE WHEN " + everyWord + " THEN 15 ELSE 0 END"
-        }
-        return score
-            + " + CASE WHEN similarity(\(unsafeRaw: name), unaccent(\(bind: q))) >= 0.3"
-            + " THEN similarity(\(unsafeRaw: name), unaccent(\(bind: q))) * 20 ELSE 0 END)"
+        return score + ")"
     }
 
     static func countAll(mode: String?, search: String?, viewerID: String, on db: any SQLDatabase) async throws -> Int {
@@ -456,12 +473,19 @@ extension UserStore {
             WHERE users.id = g.other_id
             """).run()
         try await t.raw("DELETE FROM connections WHERE requester_id = \(uuid: userID) OR addressee_id = \(uuid: userID)").run()
+        // `community_members_one_admin` is checked row by row, so the leaver
+        // gives up the role before a successor takes it; their row is deleted
+        // just below anyway.
+        try await t.raw("""
+            UPDATE community_members SET role = 'member'
+            WHERE user_id = \(uuid: userID) AND role = 'admin'
+            """).run()
         try await t.raw("""
             WITH sole_admin AS (
               SELECT cm.community_id FROM community_members cm
-              WHERE cm.user_id = \(uuid: userID) AND cm.role = 'admin'
+              WHERE cm.user_id = \(uuid: userID)
                 AND NOT EXISTS (SELECT 1 FROM community_members o
-                  WHERE o.community_id = cm.community_id AND o.user_id <> \(uuid: userID) AND o.role = 'admin')
+                  WHERE o.community_id = cm.community_id AND o.role = 'admin')
             ),
             successor AS (
               SELECT DISTINCT ON (m.community_id) m.community_id, m.user_id

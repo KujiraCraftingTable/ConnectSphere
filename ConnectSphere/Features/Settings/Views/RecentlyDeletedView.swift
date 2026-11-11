@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// "Recently Deleted", the user's own soft-deleted posts and comments
-/// (30-day retention, auto-purged server-side), each restorable in place.
+/// "Recently Deleted", the user's own soft-deleted posts (30-day
+/// retention, auto-purged server-side), each restorable in place.
 /// Reached from Settings → Account, alongside Notifications/Privacy & Security.
 struct RecentlyDeletedView: View {
     @Environment(ThemeManager.self) var themeManager
@@ -9,25 +9,20 @@ struct RecentlyDeletedView: View {
     @Environment(\.colorScheme) var colorScheme
 
     @State private var viewModel = RecentlyDeletedViewModel()
-    /// Post/comment awaiting restore confirmation. This screen's "Restore"
-    /// button used to restore on a single tap; per your decision, confirming
-    /// applies here (browsed anytime, well after the fact) but NOT the quick
-    /// Undo toast right after deleting, which stays a single instant tap.
+    /// Post awaiting restore confirmation: browsed well after the fact, so a
+    /// restore here is confirmed, unlike the post Undo toast.
     @State private var pendingRestore: PendingRestore? = nil
 
     private enum PendingRestore: Identifiable {
         case post(Post)
-        case comment(DeletedComment)
         var id: String {
             switch self {
             case .post(let p):    return "post-\(p.id)"
-            case .comment(let c): return "comment-\(c.id)"
             }
         }
         var alertTitleKey: String {
             switch self {
             case .post:    return "Restore this post?"
-            case .comment: return "Restore this comment?"
             }
         }
     }
@@ -35,7 +30,6 @@ struct RecentlyDeletedView: View {
     var body: some View {
         List {
             postsSection
-            commentsSection
         }
         .listStyle(.insetGrouped)
         .navigationTitle(bundle.loc("Recently Deleted"))
@@ -68,7 +62,6 @@ struct RecentlyDeletedView: View {
                 pendingRestore = nil
                 switch item {
                 case .post(let post):       Task { await viewModel.restorePost(post) }
-                case .comment(let comment): Task { await viewModel.restoreComment(comment) }
                 }
             }
             Button(bundle.loc("Cancel"), role: .cancel) {}
@@ -91,21 +84,7 @@ struct RecentlyDeletedView: View {
         } header: {
             Text("Posts", bundle: bundle)
         } footer: {
-            Text("Deleted posts and comments are kept for 30 days, then removed permanently.", bundle: bundle)
-        }
-    }
-
-    private var commentsSection: some View {
-        Section {
-            if viewModel.deletedComments.isEmpty {
-                emptyRow(bundle.loc("No recently deleted comments"))
-            } else {
-                ForEach(viewModel.deletedComments) { comment in
-                    deletedCommentRow(comment)
-                }
-            }
-        } header: {
-            Text("Comments", bundle: bundle)
+            Text("Deleted posts are kept for 30 days, then removed permanently.", bundle: bundle)
         }
     }
 
@@ -135,25 +114,6 @@ struct RecentlyDeletedView: View {
             Spacer(minLength: 8)
             restoreButton(isLoading: viewModel.restoringPostIds.contains(post.id)) {
                 pendingRestore = .post(post)
-            }
-        }
-        .padding(.vertical, 6)
-    }
-
-    private func deletedCommentRow(_ comment: DeletedComment) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(comment.content)
-                    .scaledFont(14)
-                    .foregroundColor(AppColors.textPrimary(colorScheme))
-                    .lineLimit(3)
-                Text(comment.createdAt.timeAgoString)
-                    .scaledFont(12)
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-            }
-            Spacer(minLength: 8)
-            restoreButton(isLoading: viewModel.restoringCommentIds.contains(comment.id)) {
-                pendingRestore = .comment(comment)
             }
         }
         .padding(.vertical, 6)

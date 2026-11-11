@@ -86,6 +86,14 @@ struct ApplySheet: View {
                 } footer: {
                     Text("Optional. PDF, up to 10 MB. Only the people hiring can open it.", bundle: bundle)
                 }
+                Section {
+                    Label {
+                        Text("Never pay to apply. A real employer won't ask you for money, a deposit or bank details to get a job. If they do, report the job.", bundle: bundle)
+                            .scaledFont(13)
+                    } icon: {
+                        Image(systemName: "exclamationmark.shield.fill").foregroundColor(.orange)
+                    }
+                }
                 if let error = viewModel.errorMessage {
                     Section { Text(error).foregroundColor(.red).scaledFont(14) }
                 }

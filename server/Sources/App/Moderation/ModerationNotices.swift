@@ -7,8 +7,11 @@ import SQLKit
 /// Fire-and-forget, like every notification: a failed notice never undoes
 /// the decision.
 enum ModerationNotices {
-    static func reportReceived(reporter: String, type: ReportTarget, on db: any SQLDatabase, hub: SocketHub, logger: Logger) async {
-        await NotifyService.pushUserNotification(userID: reporter, type: "report_received",
+    /// `communityID`: the report went to that community's moderators, and the
+    /// reporter is told so, so they know it reached someone who'll act on it.
+    static func reportReceived(reporter: String, type: ReportTarget, communityID: String? = nil,
+                               on db: any SQLDatabase, hub: SocketHub, logger: Logger) async {
+        await NotifyService.pushUserNotification(userID: reporter, type: "report_received", communityID: communityID,
                                                  payload: ["targetType": type.rawValue], on: db, hub: hub, logger: logger)
     }
 
@@ -27,12 +30,10 @@ enum ModerationNotices {
         let reporters = (try? await db.raw("""
             SELECT DISTINCT reporter_id::text AS reporter_id FROM content_reports WHERE case_id = \(uuid: o.caseID)
             """).all(decoding: R.self)) ?? []
-        // The moderator's note goes to reporters too: it's the decision as they
-        // wrote it, about content that isn't the reporter's.
-        struct N: Decodable { let decision_note: String? }
-        let note = (try? await db.raw("SELECT decision_note FROM moderation_cases WHERE id = \(uuid: o.caseID)")
-            .first(decoding: N.self))??.decision_note?.trimmingCharacters(in: .whitespacesAndNewlines)
-        var reporterPayload: [String: Any] = ["targetType": c.target_type, "outcome": o.decision == .keep ? "kept" : "removed"]
+        // Only the message written for reporters; the private note stays with staff.
+        let note = await reporterMessage(o.caseID, on: db)
+        var reporterPayload: [String: Any] = ["targetType": c.target_type,
+                                              "outcome": ReportOutcome.of(decision: o.decision, targetType: c.target_type)]
         if let note, !note.isEmpty { reporterPayload["note"] = note }
         for r in reporters {
             await NotifyService.pushUserNotification(
@@ -41,6 +42,13 @@ enum ModerationNotices {
         }
         // A kept report is nothing the author needs to hear about — unless the
         // check had already hidden it, and now it's back.
+        // A kept report still reaches the author: they hear it was looked at
+        // and nothing was done, never who reported it.
+        if o.decision == .keep, !c.auto_hidden, let author = o.authorID {
+            await NotifyService.pushUserNotification(userID: author, type: "report_reviewed", groupTargetID: o.caseID,
+                                                     payload: ["caseId": o.caseID, "targetType": c.target_type],
+                                                     on: db, hub: hub, logger: logger)
+        }
         if o.decision == .keep, c.auto_hidden, let author = o.authorID {
             await NotifyService.pushUserNotification(userID: author, type: "appeal_outcome", groupTargetID: o.caseID,
                                                      payload: ["caseId": o.caseID, "outcome": "overturned"],
@@ -58,6 +66,25 @@ enum ModerationNotices {
         await NotifyService.pushUserNotification(userID: o.userID, type: "appeal_outcome", groupTargetID: o.caseID,
                                                  payload: ["caseId": o.caseID, "outcome": o.overturned ? "overturned" : "upheld"],
                                                  on: db, hub: hub, logger: logger)
+        // Reporters were told it came down; they hear it's back, never who appealed.
+        guard o.overturned, let c = try? await ModerationService.loadCase(o.caseID, on: db) else { return }
+        struct R: Decodable { let reporter_id: String }
+        let reporters = (try? await db.raw("""
+            SELECT DISTINCT reporter_id::text AS reporter_id FROM content_reports WHERE case_id = \(uuid: o.caseID)
+            """).all(decoding: R.self)) ?? []
+        var payload: [String: Any] = ["targetType": c.target_type, "outcome": "restored"]
+        if let note = await reporterMessage(o.caseID, on: db) { payload["note"] = note }
+        for r in reporters where r.reporter_id != o.userID {
+            await NotifyService.pushUserNotification(userID: r.reporter_id, type: "report_restored",
+                                                     payload: payload, on: db, hub: hub, logger: logger)
+        }
+    }
+
+    private static func reporterMessage(_ caseID: String, on db: any SQLDatabase) async -> String? {
+        struct N: Decodable { let reporter_message: String? }
+        let n = (try? await db.raw("SELECT reporter_message FROM moderation_cases WHERE id = \(uuid: caseID)")
+            .first(decoding: N.self))??.reporter_message?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (n?.isEmpty ?? true) ? nil : n
     }
 
     /// Emails a warning or ban to the person's verified address, if they have one.

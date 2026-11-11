@@ -18,6 +18,10 @@ class ProfileViewModel {
     var isLoadingMore = false
     var hasMore = true
     var error: String?
+    /// The profile came back "not found": deleted, suspended, or its owner
+    /// blocked you. The page then says so instead of loading forever, without
+    /// telling which.
+    private(set) var isUnavailable = false
 
     // Viewing someone else's profile:
     /// Whether the current user has blocked this profile's user.
@@ -90,6 +94,7 @@ class ProfileViewModel {
 
     func removePost(id: String) {
         let wasPresent = posts.contains { $0.id == id }
+        if let i = posts.firstIndex(where: { $0.id == id }) { removedAt[id] = i }
         posts.removeAll { $0.id == id }
         // Read postCount into a local BEFORE the `user?.postCount = ...` assignment:
         // reading and writing `user?.postCount` in the same optional-chained
@@ -113,13 +118,16 @@ class ProfileViewModel {
     /// post genuinely wasn't already present (a patch-in-place means some
     /// other reload already restored it, whose fresh `postCount` from the
     /// server we shouldn't then double-increment).
+    /// Where each deleted post was, so an Undo puts it back in place.
+    private var removedAt: [String: Int] = [:]
+
     func restorePost(_ post: Post) {
         guard post.mode.rawValue == loadedMode else { return }
         let wasAbsent = !posts.contains { $0.id == post.id }
         if let i = posts.firstIndex(where: { $0.id == post.id }) {
             posts[i] = post
         } else {
-            posts.insert(post, at: 0)
+            posts.insert(post, at: min(removedAt.removeValue(forKey: post.id) ?? 0, posts.count))
         }
         if wasAbsent, let currentCount = user?.postCount {
             user?.postCount = currentCount + 1
@@ -153,8 +161,10 @@ class ProfileViewModel {
             posts = p
             hasMore = p.count == pageSize
             offset = p.count
+            isUnavailable = false
         } catch {
             self.error = friendlyError(error)
+            if case APIError.serverError(404, _) = error { isUnavailable = true }
         }
         isLoading = false
     }
@@ -175,7 +185,10 @@ class ProfileViewModel {
             offset = p.count
             error = nil
         } catch {
-            if user == nil { self.error = friendlyError(error) }
+            if user == nil {
+                self.error = friendlyError(error)
+                if case APIError.serverError(404, _) = error { isUnavailable = true }
+            }
         }
     }
 

@@ -72,10 +72,14 @@ struct UserNotificationPayloadDTO: Decodable {
     // Community
     let communityId: String?
     let communityName: String?
+    /// community_renamed: the name before the change.
+    let previousName: String?
     let requestId: String?
     let newRole: String?
     let previousRole: String?
     let reportCount: Int?
+    /// post_requests / join_request: how many are waiting in all.
+    let requestCount: Int?
 
     // Moderation (report_outcome / moderation_decision / appeal_outcome)
     let outcome: String?
@@ -86,6 +90,8 @@ struct UserNotificationPayloadDTO: Decodable {
     let targetType: String?
     let restrictedDays: Int?
     let hours: Int?
+    /// Verified HR (hr_request_new / hr_request_decided).
+    let companyName: String?
 }
 
 /// Where tapping a notification should take the user. Computed server-side, so

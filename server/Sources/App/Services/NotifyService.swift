@@ -22,7 +22,10 @@ enum NotifyService {
           entity_type, entity_id::text AS entity_id,
           COALESCE(group_key, type || ':' || id::text) AS group_key,
           payload::text AS payload, collapse_count, is_read, resolved_at, created_at, updated_at,
-          NULL::text AS community_name
+          NULL::text AS community_name,
+          -- Same seal check as NotificationsController.selectColumns: Row decodes it.
+          EXISTS (SELECT 1 FROM users au WHERE au.id = actor_id AND au.app_role = 'admin'
+                  AND au.deleted_at IS NULL) AS actor_is_official
         """
 
     struct Refs { var entityType: String?; var entityID: String?; var groupKey: String }
@@ -43,10 +46,13 @@ enum NotifyService {
                              "meeting_rsvp": "meeting", "meeting_reminder": "meeting", "message_reaction": "message",
                              "group_added": "conversation", "group_removed": "conversation"][type]
         case "community": return ["new_post": "post", "pinned_post": "post", "post_approved": "post",
-                                 "post_declined": "community", "join_request": "join_request",
+                                 "post_declined": "community", "join_request": "community", "post_requests": "community",
+                                 "community_reports": "community", "community_warning": "community",
+                                 "community_report_outcome": "community", "community_report_result": "community",
                                  "join_approved": "join_request", "join_rejected": "join_request",
                                  "role_changed": "community", "new_report": "report", "content_removed": "community",
-                                 "community_disbanded": "community", "community_restored": "community"][type]
+                                 "community_disbanded": "community", "community_restored": "community",
+                                 "community_renamed": "community"][type]
         default: return nil
         }
     }
@@ -101,6 +107,7 @@ enum NotifyService {
 
     @discardableResult
     static func pushToMany(userIDs: [String], type: String, actorID: String? = nil, conversationID: String? = nil,
+                           communityID: String? = nil,
                            entityID: String? = nil, groupTargetID: String? = nil, payload: [String: Any] = [:],
                            on db: any SQLDatabase, hub: SocketHub, logger: Logger) async -> Int {
         guard NotificationsController.types[type] != nil else { return 0 }
@@ -108,18 +115,18 @@ enum NotifyService {
         guard !recipients.isEmpty else { return 0 }
         do {
             let refs = resolveRefs(type: type, entityType: nil, entityID: entityID, groupTargetID: groupTargetID,
-                                   postID: nil, conversationID: conversationID, communityID: nil)
+                                   postID: nil, conversationID: conversationID, communityID: communityID)
             var pl = payload
             if let aid = actorID, pl["fromUserId"] == nil {
                 let mode = await actorMode(type: type, given: nil, postID: nil, conversationID: conversationID,
-                                           communityID: nil, on: db)
+                                           communityID: communityID, on: db)
                 for (k, v) in try await actorPayload(aid, mode: mode, on: db) { pl[k] = v }
             }
             let plJSON = String(data: (try? JSONSerialization.data(withJSONObject: pl)) ?? Data("{}".utf8), encoding: .utf8) ?? "{}"
             let rows = try await db.raw("""
                 INSERT INTO user_notifications
-                  (user_id, type, actor_id, conversation_id, entity_type, entity_id, group_key, payload)
-                SELECT uid, \(bind: type), \(uuid: actorID), \(uuid: conversationID), \(bind: refs.entityType),
+                  (user_id, type, actor_id, conversation_id, community_id, entity_type, entity_id, group_key, payload)
+                SELECT uid, \(bind: type), \(uuid: actorID), \(uuid: conversationID), \(uuid: communityID), \(bind: refs.entityType),
                        \(uuid: refs.entityID), \(bind: refs.groupKey), \(bind: plJSON)::jsonb
                 FROM UNNEST(\(bind: recipients)::uuid[]) AS uid
                 """ + returningRow).all(decoding: NotificationsController.Row.self)
@@ -256,7 +263,8 @@ enum NotifyService {
     static func actorMode(type: String, given: String?, postID: String?, conversationID: String?,
                           communityID: String?, on db: any SQLDatabase) async -> String? {
         if let given, ["hobby", "work"].contains(given) { return given }
-        if ["skill_endorsed", "job_application", "application_status"].contains(type) { return "work" }
+        if ["skill_endorsed", "job_application", "application_status", "hr_request_new", "hr_request_decided", "hr_revoked",
+            "job_approved", "job_declined", "job_removed"].contains(type) { return "work" }
         struct M: Decodable { let mode: String? }
         if let postID {
             return try? await db.raw("SELECT mode FROM posts WHERE id = \(uuid: postID)").first(decoding: M.self)?.mode

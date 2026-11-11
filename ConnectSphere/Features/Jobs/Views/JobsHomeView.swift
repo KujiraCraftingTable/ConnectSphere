@@ -1,16 +1,27 @@
 import SwiftUI
 
 /// Work mode's Jobs tab: For you (best matches with why), Search with
-/// filters, Saved, and Applied. Communities live behind the toolbar button here.
+/// filters, Saved, and Applied. A verified HR posts a job from the "+".
+/// Work mode has no communities (they're Hobby-only, migration 127).
 struct JobsHomeView: View {
     @Environment(AppState.self) private var appState
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.appBundle) private var bundle
     @Environment(\.colorScheme) private var colorScheme
 
-    let onOpenCommunities: () -> Void
     @State private var viewModel = JobsHomeViewModel()
-    @State private var showFilters = false
+    /// One sheet slot: two `.sheet`s on the same view means only one presents.
+    @State private var sheet: Sheet?
+
+    private enum Sheet: Identifiable {
+        case filters, postJob
+        var id: Self { self }
+    }
+
+    /// Posting jobs lives with browsing them, not with what you saved or applied to.
+    private var showsPostJob: Bool {
+        appState.hrCompany != nil && (viewModel.segment == .forYou || viewModel.segment == .search)
+    }
 
     private var token: String { appState.authToken ?? "" }
 
@@ -69,15 +80,26 @@ struct JobsHomeView: View {
             .background(AppColors.base(colorScheme))
             .navigationTitle(bundle.loc("Jobs"))
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: onOpenCommunities) { Image(systemName: "person.3") }
-                        .accessibilityLabel(Text(bundle.loc("Communities")))
+                if showsPostJob {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button { sheet = .postJob } label: { Image(systemName: "plus") }
+                            .accessibilityLabel(Text(bundle.loc("Post a job")))
+                    }
                 }
             }
             .refreshable { await viewModel.load(token: token) }
             .task(id: viewModel.segment) { await viewModel.load(token: token) }
             .onChange(of: viewModel.filters) { _, _ in viewModel.searchSoon(token: token) }
-            .sheet(isPresented: $showFilters) { JobFiltersSheet(filters: $viewModel.filters) }
+            .sheet(item: $sheet) { which in
+                switch which {
+                case .filters:
+                    JobFiltersSheet(filters: $viewModel.filters)
+                case .postJob:
+                    // A live job shows up on reload; a trial one waits for review.
+                    CreatePostView(onPostCreated: { _ in Task { await viewModel.load(token: token) } },
+                                   initialPostType: .job)
+                }
+            }
         }
     }
 
@@ -91,7 +113,7 @@ struct JobsHomeView: View {
             .padding(.horizontal, 12)
             .frame(height: 40)
             .background(AppColors.elevated(colorScheme), in: Capsule())
-            Button { showFilters = true } label: {
+            Button { sheet = .filters } label: {
                 Image(systemName: viewModel.filters.isEmpty || viewModel.filters == .init(query: viewModel.filters.query)
                       ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
                     .scaledFont(24)
@@ -134,7 +156,12 @@ struct JobFiltersSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                LocationSearchField(bundle.loc("Location (e.g. Ho Chi Minh City)"), text: $filters.location)
+                Picker(bundle.loc("Distance"), selection: $filters.radiusKm) {
+                    Text("Any", bundle: bundle).tag(Int?.none)
+                    ForEach([5, 10, 15, 20, 25, 30], id: \.self) {
+                        Text(String(format: bundle.loc("Within %lld km"), $0)).tag(Int?.some($0))
+                    }
+                }
                 Picker(bundle.loc("Employment type"), selection: $filters.employmentType) {
                     Text("Any", bundle: bundle).tag(EmploymentType?.none)
                     ForEach(EmploymentType.allCases, id: \.self) { Text(bundle.loc($0.label)).tag(EmploymentType?.some($0)) }

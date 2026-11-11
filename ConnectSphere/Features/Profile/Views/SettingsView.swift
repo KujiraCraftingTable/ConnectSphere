@@ -37,6 +37,21 @@ struct SettingsView: View {
                 }
             }
 
+            // Hiring is a Work identity: only verified HR post jobs (migration 126).
+            if appState.currentMode == .work {
+                Section {
+                    NavigationLink {
+                        BecomeHRView()
+                    } label: {
+                        settingsRow(icon: "person.badge.shield.checkmark.fill",
+                                    label: bundle.loc(appState.hrCompany == nil ? "Become a verified HR" : "Verified HR"),
+                                    color: Color(hex: "#0A66C2"), showsChevron: false)
+                    }
+                } header: {
+                    Text("Hiring", bundle: bundle)
+                }
+            }
+
             // Theme color (per mode) and app icon (app-wide) share a section; Light/Dark
             // is its own, below.
             Section {
@@ -238,6 +253,8 @@ struct SettingsView: View {
         .listStyle(.insetGrouped)
         .navigationTitle(bundle.loc("Settings"))
         .navigationBarTitleDisplayMode(.large)
+        // Settings is a place you go into, not a tab: no tab bar over its rows.
+        .toolbar(.hidden, for: .tabBar)
         .alert(bundle.loc("Error"), isPresented: Binding(
             get: { appState.appIconError != nil },
             set: { if !$0 { appState.appIconError = nil } }

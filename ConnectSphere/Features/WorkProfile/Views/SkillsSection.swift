@@ -55,6 +55,8 @@ struct SkillsSection: View {
                         Text(error).scaledFont(13).foregroundColor(.red)
                     }
                 }
+                // Empty, the card would shrink to its one line of text.
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
                 .background(AppColors.surface(colorScheme), in: RoundedRectangle(cornerRadius: 16))
                 .padding(.horizontal, AppSpacing.sm)

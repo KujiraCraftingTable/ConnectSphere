@@ -256,8 +256,13 @@ struct ModerationCaseView: View {
                 VStack(alignment: .trailing, spacing: 10) {
                     // The same box as the post composer's "What's on your mind?".
                     MarkdownTextEditor(text: $viewModel.note,
-                                       placeholder: bundle.loc("Note for the record (optional)"),
-                                       minHeight: 100, maxHeight: 200)
+                                       placeholder: bundle.loc("Private note, staff only (optional)"),
+                                       minHeight: 80, maxHeight: 160)
+                        .padding(.horizontal, 6)
+                        .background(AppColors.base(colorScheme), in: RoundedRectangle(cornerRadius: 12))
+                    MarkdownTextEditor(text: $viewModel.reporterMessage,
+                                       placeholder: bundle.loc("Message to the reporter (optional)"),
+                                       minHeight: 80, maxHeight: 160)
                         .padding(.horizontal, 6)
                         .background(AppColors.base(colorScheme), in: RoundedRectangle(cornerRadius: 12))
                     Button { confirmingSubmit = true } label: {
@@ -291,9 +296,16 @@ struct ModerationCaseView: View {
         } else if let decision = d.case.decision {
             Section(bundle.loc("Decision")) {
                 Text(bundle.loc(decision == "warn" ? "Warned" : (ModerationDecisionKind(rawValue: decision)?.outcome ?? decision)))
-                if let note = d.decisionNote { Text(note).foregroundColor(AppColors.textSecondary(colorScheme)) }
+                if let note = d.decisionNote {
+                    LabeledContent(bundle.loc("Private note")) { Text(note).foregroundColor(AppColors.textSecondary(colorScheme)) }
+                }
+                if let message = d.reporterMessage {
+                    LabeledContent(bundle.loc("To the reporter")) { Text(message).foregroundColor(AppColors.textSecondary(colorScheme)) }
+                }
                 if viewModel.pendingAppeal != nil {
-                    TextField(bundle.loc("Note for the record (optional)"), text: $viewModel.note, axis: .vertical)
+                    TextField(bundle.loc("Private note, staff only (optional)"), text: $viewModel.note, axis: .vertical)
+                    TextField(bundle.loc("Message to the reporter if you put it back (optional)"),
+                              text: $viewModel.reporterMessage, axis: .vertical)
                     ConfirmingButton(title: bundle.loc("Overturn — put it back"), question: bundle.loc("Put it back?")) {
                         Task<Void, Never>(name: nil) { await viewModel.decideAppeal(overturn: true) }
                     }

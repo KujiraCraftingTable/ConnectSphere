@@ -217,6 +217,13 @@ final class ApplicantsViewModel {
     let jobId: String
     private let repository = JobsRepository()
 
+    /// Moves waiting out their Undo window, by application id: the status
+    /// shown before the first of them, and the send that's waiting.
+    private var pending: [String: (before: JobApplication, send: Task<Void, Never>)] = [:]
+    /// The applicant is told about every move, so it waits this long, as long
+    /// as the Undo toast shows, before it's sent.
+    static let undoWindow: Duration = .seconds(5)
+
     init(jobId: String) { self.jobId = jobId }
 
     var shown: [JobApplication] {
@@ -247,13 +254,45 @@ final class ApplicantsViewModel {
               applications[i].status != status else { return }
         let before = applications[i]
         applications[i].status = status
+        await send(status, applicationId: application.id, restoringTo: before, token: token)
+    }
+
+    private func send(_ status: String, applicationId: String, restoringTo before: JobApplication, token: String) async {
         do {
-            let updated = try await repository.setStatus(status, applicationId: application.id, token: token)
+            let updated = try await repository.setStatus(status, applicationId: applicationId, token: token)
             if let j = applications.firstIndex(where: { $0.id == updated.id }) { applications[j] = updated }
         } catch {
             if let j = applications.firstIndex(where: { $0.id == before.id }) { applications[j] = before }
             errorMessage = friendlyError(error)
         }
+    }
+
+    /// A move the manager made: shown at once, sent once the Undo window has
+    /// passed. A second move inside the window replaces the first, so the
+    /// applicant only hears about where they ended up. The send keeps the view
+    /// model alive, so leaving the screen doesn't drop it.
+    func stage(_ status: String, for application: JobApplication, token: String) {
+        guard let i = applications.firstIndex(where: { $0.id == application.id }),
+              applications[i].status != status else { return }
+        let before = pending[application.id]?.before ?? applications[i]
+        pending[application.id]?.send.cancel()
+        applications[i].status = status
+        let send = Task { [self] in
+            try? await Task.sleep(for: Self.undoWindow)
+            guard !Task.isCancelled else { return }
+            pending[application.id] = nil
+            // Back where it started: nothing to tell anyone.
+            guard before.status != status else { return }
+            await send(status, applicationId: application.id, restoringTo: before, token: token)
+        }
+        pending[application.id] = (before, send)
+    }
+
+    /// Puts the application back as it was before the waiting move; nothing is sent.
+    func undo(_ applicationId: String) {
+        guard let staged = pending.removeValue(forKey: applicationId) else { return }
+        staged.send.cancel()
+        if let i = applications.firstIndex(where: { $0.id == applicationId }) { applications[i] = staged.before }
     }
 
     /// Opening a new application marks it "viewed".

@@ -39,6 +39,9 @@ class CommunityDetailViewModel {
     /// of `.postUpdated`'s original observers (`FeedViewModel`/`ProfileViewModel`),
     /// so it needs its own to patch `posts` the same way `pinPost`/`unpinPost` do.
     private var postUpdatedObserver: NSObjectProtocol?
+    /// A post deleted here and brought back with Undo goes back where it was.
+    private var postRestoredObserver: NSObjectProtocol?
+    private var removedAt: [String: Int] = [:]
     /// A seller re-upped an item from its card here: the new post replaces the
     /// old one and goes to the top, as the server now sorts it.
     private var listingReuppedObserver: NSObjectProtocol?
@@ -57,10 +60,21 @@ class CommunityDetailViewModel {
         // spurious error alert plus a misleading "No posts yet". The view shows
         // a dedicated locked state for that case instead.
         await fetchDetail()
+        recordOpenOnce()
         guard community?.isMember == true || community?.privacy == .public else { return }
         async let feed: ()   = fetchPosts(reset: true)
         async let roster: () = fetchMembers()
         _ = await (feed, roster)
+    }
+
+    /// Counted once per page, not on pull-to-refresh. Chat cards and Drafts
+    /// fetch the detail too, which is why this isn't in `fetchDetail`.
+    private var openRecorded = false
+    private func recordOpenOnce() {
+        guard !openRecorded, community?.isMember == true else { return }
+        openRecorded = true
+        let (repository, id, token) = (repository, communityId, token)
+        Task { try? await repository.recordOpened(communityId: id, token: token) }
     }
 
     /// Pull-to-refresh. The system spinner shows above the cover; the page
@@ -158,6 +172,17 @@ class CommunityDetailViewModel {
                   let idx = self.posts.firstIndex(where: { $0.id == post.id }) else { return }
             self.posts[idx].tags = post.tags
         }
+        postRestoredObserver = NotificationCenter.default.addObserver(
+            forName: .postRestored, object: nil, queue: .main
+        ) { [weak self] notification in
+            guard let self, let post = notification.userInfo?["post"] as? Post,
+                  post.community?.id.caseInsensitiveCompare(self.communityId) == .orderedSame,
+                  !self.posts.contains(where: { $0.id == post.id }) else { return }
+            self.posts.insert(post, at: min(self.removedAt.removeValue(forKey: post.id) ?? 0, self.posts.count))
+            if let currentCount = self.community?.postCount {
+                self.community?.postCount = currentCount + 1
+            }
+        }
 
         listingReuppedObserver = NotificationCenter.default.addObserver(
             forName: .listingReupped, object: nil, queue: .main
@@ -245,6 +270,10 @@ class CommunityDetailViewModel {
             NotificationCenter.default.removeObserver(reconnectObserver)
             self.reconnectObserver = nil
         }
+        if let postRestoredObserver {
+            NotificationCenter.default.removeObserver(postRestoredObserver)
+            self.postRestoredObserver = nil
+        }
         if let postUpdatedObserver {
             NotificationCenter.default.removeObserver(postUpdatedObserver)
             self.postUpdatedObserver = nil
@@ -304,15 +333,10 @@ class CommunityDetailViewModel {
     // the same statement triggers a Swift exclusivity-access crash
     // (overlapping getter/setter access on the @Observable `community`
     // property).
-    /// Set after posting into a community that approves posts first.
-    var awaitingApprovalNotice = false
-
     func prependPost(_ post: Post) {
-        // Held for approval: not in the feed yet (it's in Manage your content).
-        guard post.publishStatus != "pending" else {
-            awaitingApprovalNotice = true
-            return
-        }
+        // Held for approval: not in the feed yet (it's in Manage your content);
+        // the composer's toast says so.
+        guard post.publishStatus != "pending" else { return }
         posts.insert(post, at: 0)
         if let currentCount = community?.postCount {
             community?.postCount = currentCount + 1
@@ -320,6 +344,7 @@ class CommunityDetailViewModel {
     }
 
     func removePost(id: String) {
+        if let i = posts.firstIndex(where: { $0.id == id }) { removedAt[id] = i }
         posts.removeAll { $0.id == id }
         if let currentCount = community?.postCount, currentCount > 0 {
             community?.postCount = currentCount - 1
@@ -327,12 +352,6 @@ class CommunityDetailViewModel {
     }
 
     // MARK: - Join / Request
-
-    /// Non-members get a "Join to post" prompt where the post bar would be.
-    /// Pending members see nothing: they already asked and can't act on it.
-    var showsJoinToPost: Bool {
-        community != nil && community?.isMember == false && joinStatus == .notMember
-    }
 
     func requestToJoin() async {
         guard joinStatus == .notMember else { return }

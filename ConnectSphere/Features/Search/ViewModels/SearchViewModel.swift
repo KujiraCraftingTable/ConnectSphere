@@ -68,6 +68,10 @@ class SearchViewModel {
     /// nil = last load was `loadAll` (browse); set = the active text search
     /// query, lets `loadMore()` continue the right fetch with no parameter.
     private var lastQuery: String? = nil
+    /// The text whose search has finished. "No results" waits for it to match
+    /// what's typed, so it never shows during the typing delay or before an
+    /// AI search is submitted.
+    private(set) var settledQuery: String? = nil
 
     private let repository = UserRepository()
     private let postRepository = PostRepository()
@@ -218,6 +222,7 @@ class SearchViewModel {
         }
         print("✅ aiSearch done, criteria: \(String(describing: aiCriteria))")
         isLoading = false
+        settledQuery = prompt.trimmingCharacters(in: .whitespaces)
     }
 
     private func apply(_ result: UserRepository.AISearchResult) {
@@ -381,7 +386,7 @@ class SearchViewModel {
                 self.error = error.localizedDescription
             }
         }
-        if generation == loadGeneration { isLoading = false }
+        if generation == loadGeneration { isLoading = false; settledQuery = query.trimmingCharacters(in: .whitespaces) }
     }
 
     private func loadMorePosts(mode: AppMode) async {
@@ -424,7 +429,7 @@ class SearchViewModel {
             postMatchScores = [:]
             aiSearchFailed = true
         }
-        if generation == loadGeneration { isLoading = false }
+        if generation == loadGeneration { isLoading = false; settledQuery = prompt.trimmingCharacters(in: .whitespaces) }
     }
 
     // MARK: - Private
@@ -473,6 +478,6 @@ class SearchViewModel {
                 self.error = error.localizedDescription
             }
         }
-        if generation == loadGeneration { isLoading = false }
+        if generation == loadGeneration { isLoading = false; settledQuery = query.trimmingCharacters(in: .whitespaces) }
     }
 }

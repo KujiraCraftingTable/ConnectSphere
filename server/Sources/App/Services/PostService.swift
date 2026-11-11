@@ -111,8 +111,12 @@ enum PostService {
         guard let options, options.count >= 2 else { throw Abort(.badRequest, reason: "Poll must have at least 2 options") }
         if options.count > 6 { throw Abort(.badRequest, reason: "Poll can have at most 6 options") }
         try validateMode(mode)
-        let trimmedOptions = options.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let trimmedOptions = options.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         if trimmedOptions.count < 2 { throw Abort(.badRequest, reason: "Poll options must not be empty") }
+        // "a" and "A " are the same answer to a voter; two of them split the votes.
+        guard Set(trimmedOptions.map { $0.lowercased() }).count == trimmedOptions.count else {
+            throw Abort(.badRequest, reason: "Options must be different from each other")
+        }
         if let communityID {
             guard try await CommunityMemberStore.membership(communityID, authorID, on: db.sql()) != nil else {
                 throw Abort(.forbidden, reason: "You must be a member of this community to post")
@@ -213,7 +217,23 @@ enum PostService {
             effectiveMode = nil
         }
         guard effectiveMode == "work" else { throw Abort(.badRequest, reason: "Job posts are only available in Work mode") }
-        let extra = try await JobStore.validateDetails(details, author: authorID, on: db.sql())
+        // Only a verified HR posts jobs, always for their own company (migration 126).
+        guard let recruiter = try await HRStore.recruiter(authorID, on: db.sql()) else {
+            throw Abort(.forbidden, reason: "Only verified HR can post jobs")
+        }
+        var extra = try await JobStore.validateDetails(details, on: db.sql())
+        extra.companyID = recruiter.company_id
+        if let jd = extra.jdPath {
+            let file = String(jd.dropFirst("/uploads/jd/".count))
+            guard jd.hasPrefix("/uploads/jd/"), file.hasPrefix(authorID.lowercased() + "_"),
+                  !file.contains("/"), !file.contains(".."),
+                  FileManager.default.fileExists(atPath: "\(HRController.jdDir)/\(file)") else {
+                throw Abort(.badRequest, reason: "Attach the job description again")
+            }
+        }
+        // A new HR's first jobs wait for the admin; drafts and schedules keep
+        // their status (a scheduled one is held when it goes out, see goingOutStatus).
+        let publishing = publishing.isLive && recruiter.trial_left > 0 ? .pending : publishing
         // A deadline is a calendar day: it may fall on the day the post goes out.
         if let after = publishing.datesAfter, let deadline = basics.applicationDeadline,
            let day = Self.dayFormatter.date(from: deadline),
@@ -225,7 +245,7 @@ enum PostService {
             imageUrls: nil, linkUrl: nil, articleTitle: nil,
             hashtags: hashtags, mode: mode, privacy: privacy, publishing: publishing, on: db)
         do {
-            try await JobStore.create(postID: id, title: basics.title, company: basics.company, location: basics.location,
+            try await JobStore.create(postID: id, title: basics.title, company: recruiter.company_name, location: basics.location,
                 employmentType: basics.employmentType, salaryRange: basics.salaryRange,
                 applicationDeadline: basics.applicationDeadline, extra: extra, on: db.sql())
         } catch {
@@ -244,19 +264,19 @@ enum PostService {
     /// also listed in up to 5 of the seller's communities. Returns the post
     /// and the communities it went live in (the rest wait for approval).
     static func createListingPost(
-        authorID: String, mode: String, content: String?, imageUrls: [String]?,
+        authorID: String, mode: String, content: String?,
         details: PostsController.CreateBody.ListingDataIn?, communityIDs: [String]?,
         on db: AppDatabase
     ) async throws -> (post: PostObject, liveIn: [String]) {
         let description = content?.trimmedText ?? ""
         if description.count > 2000 { throw Abort(.badRequest, reason: "Post content must be at most 2000 characters") }
-        guard let photos = imageUrls, !photos.isEmpty else { throw Abort(.badRequest, reason: "Add at least one photo") }
+        // Every item has its own photos; syncSummary sets which the post shows.
         let listing = try ListingStore.validate(details)
         let ids = try ListingStore.communityIDs(communityIDs)
         let links = try await ListingStore.links(ids, seller: authorID, mode: mode, on: db.sql())
         let id = try await createCommunityPostRow(
             content: description, authorID: authorID, communityID: nil, postType: "listing",
-            imageUrls: imageUrls, linkUrl: nil, articleTitle: nil,
+            imageUrls: listing.items.map { $0.imageUrls[0] }, linkUrl: nil, articleTitle: nil,
             hashtags: [], mode: mode, privacy: "public", on: db)
         do {
             try await db.tx { t in

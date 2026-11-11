@@ -120,9 +120,85 @@ enum Enforcement {
     }
 }
 
+/// A restricted account is read-only in that mode: it can look at everything
+/// but change or interact with nothing, apart from its settings, safety tools
+/// (block, mute, report, appeal) and the passive calls reading makes.
 enum Restrictions {
-    /// The app shows its own wording; the date is for it to format.
-    static func message(until: Date) -> String {
-        "Your account can't post, comment or message new people until \(ISO8601DateFormatter().string(from: until))"
+    /// The app shows the end date itself (Account Status), in the reader's format.
+    static let message = "Your account is read-only for now. See Account Status for details."
+
+    /// `PATCH /users/me` keys that are settings, not profile content.
+    static let settingsKeys: Set<String> = [
+        "allow_friend_requests", "show_in_suggestions", "links_other_mode", "locked",
+        "dob_visibility", "hobby_theme", "work_theme", "mode",
+    ]
+
+    /// Writes a restricted account may still make, as (methods, path after
+    /// `/api/`). `*` is one segment, a trailing `**` any rest.
+    private static let open: [(Set<String>, String)] = [
+        // What reading does on its own.
+        (["POST"], "feed/impressions"), (["POST"], "stories/*/view"), (["POST"], "communities/*/opened"),
+        (["POST"], "search/**"), (["POST"], "entities/alias"), (["POST"], "link-preview"),
+        (["PUT"], "messages/conversations/*/read"), (["PUT"], "messages/conversations/*/delivered"),
+        (["POST"], "messages/conversations/*/block-alert-ack"),
+        (["POST", "PATCH", "DELETE"], "notifications/**"), (["POST", "PATCH", "DELETE"], "user-notifications/**"),
+        // Settings and personal organisation.
+        (["PATCH"], "users/me"), (["PATCH"], "users/me/default-mode"), (["DELETE"], "users/me"),
+        (["POST", "PATCH", "DELETE"], "users/me/email/**"), (["POST"], "users/me/export"), (["POST"], "users/me/export/**"),
+        (["POST"], "users/me/deletion/code"), (["DELETE"], "users/me/personas/*"),
+        (["POST", "PATCH"], "users/me/two-factor"), (["POST"], "users/me/two-factor/**"),
+        (["POST"], "auth/change-password"),
+        (["PUT"], "messages/conversations/*/pin"), (["PUT"], "messages/conversations/*/archive"), (["PUT"], "messages/conversations/*/mute"),
+        (["PUT", "DELETE"], "communities/*/mute"), (["PUT", "DELETE"], "communities/*/pin"),
+        (["PUT"], "communities/*/notifications"),
+        (["POST", "PUT", "PATCH", "DELETE"], "spaces/**"), (["POST", "PUT", "PATCH", "DELETE"], "spaces"),
+        (["POST", "DELETE"], "posts/*/hide"), (["POST", "DELETE"], "posts/*/feedback"), (["POST"], "people/suggestions/*/dismiss"),
+        // Safety tools.
+        (["POST", "DELETE"], "users/*/block"), (["PUT", "DELETE"], "users/*/hide-posts"),
+        (["POST", "DELETE"], "muted-words/**"), (["POST"], "muted-words"),
+        (["POST"], "reports"), (["POST"], "appeals"), (["POST"], "posts/*/report"),
+        (["POST"], "communities/*/report"), (["POST"], "communities/*/members/*/report"),
+    ]
+
+    /// Whether a restricted account may make this request.
+    static func allows(method: String, path: String) -> Bool {
+        let method = method.uppercased()
+        if ["GET", "HEAD", "OPTIONS"].contains(method) { return true }
+        guard path.hasPrefix("/api/") else { return false }
+        let parts = path.dropFirst(5).split(separator: "/").map(String.init)
+        return open.contains { methods, pattern in
+            methods.contains(method) && matches(parts, pattern.split(separator: "/").map(String.init))
+        }
     }
+
+    private static func matches(_ parts: [String], _ pattern: [String]) -> Bool {
+        if pattern.last == "**" {
+            let head = Array(pattern.dropLast())
+            return parts.count > head.count && matches(Array(parts.prefix(head.count)), head)
+        }
+        guard parts.count == pattern.count else { return false }
+        return zip(parts, pattern).allSatisfy { $1 == "*" || $0 == $1 }
+    }
+}
+
+/// How a report ended, as its reporter sees it. Shared by account-status and
+/// the report_outcome notification so both say the same thing.
+enum ReportOutcome {
+    /// A profile banned or warned stays up, so "removed" would be wrong.
+    static func of(decision: ModerationDecision, targetType: String) -> String {
+        if decision == .keep { return "kept" }
+        if targetType == ReportTarget.user.rawValue && (decision == .ban || decision == .warn) { return "action_taken" }
+        return "removed"
+    }
+
+    /// The same rule in SQL over `mc` (moderation_cases), plus "restored"
+    /// once an appeal put the item back.
+    static let sql = """
+        CASE
+          WHEN EXISTS (SELECT 1 FROM moderation_appeals ma WHERE ma.case_id = mc.id AND ma.status = 'overturned') THEN 'restored'
+          WHEN mc.status = 'dismissed' THEN 'kept'
+          WHEN mc.status = 'actioned' AND mc.target_type = 'user' AND mc.decision IN ('ban', 'warn') THEN 'action_taken'
+          WHEN mc.status = 'actioned' THEN 'removed'
+          ELSE 'pending' END
+        """
 }

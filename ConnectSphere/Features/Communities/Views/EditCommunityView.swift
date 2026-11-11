@@ -1,7 +1,7 @@
 import SwiftUI
 import PhotosUI
 
-/// "..." › Edit community (admins and moderators).
+/// "..." › Edit community (admin only). The cover can be changed, not removed.
 struct EditCommunityView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.appBundle) private var bundle
@@ -33,26 +33,25 @@ struct EditCommunityView: View {
                                  ? bundle.loc("Add cover photo") : bundle.loc("Change cover photo"))
                         }
                     }
-                    if viewModel.pickedCover != nil || viewModel.showsExistingCover {
-                        Button(role: .destructive) { viewModel.clearCover() } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: "trash").frame(width: 24)
-                                Text("Remove cover photo", bundle: bundle)
-                            }
-                            .foregroundStyle(.red)
-                        }
-                    }
                 } header: {
                     Text("Cover photo", bundle: bundle)
                 }
 
                 Section {
                     TextField(bundle.loc("Name"), text: $viewModel.name)
+                        .task(id: viewModel.name) {
+                            // Half a second after typing stops.
+                            try? await Task.sleep(nanoseconds: 500_000_000)
+                            guard !Task.isCancelled else { return }
+                            await viewModel.checkName(token: appState.authToken ?? "")
+                        }
+                } header: {
+                    Text("Name", bundle: bundle)
+                } footer: {
+                    // Right under the name card, in red.
                     if let problem = viewModel.nameProblem {
                         Text(problem).scaledFont(13).foregroundStyle(.red)
                     }
-                } header: {
-                    Text("Name", bundle: bundle)
                 }
 
                 Section {

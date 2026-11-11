@@ -26,24 +26,31 @@ final class CommunityInfoViewModel {
     }
 
     /// Who to show after the admins and moderators: your connections who
-    /// joined, or, with none, the five latest to join. `roster` is the
-    /// members the community page has loaded; `viewerId` is left out.
+    /// joined, or, with none, the latest to join. `roster` is the members the
+    /// community page has loaded. A regular-member viewer comes first, as
+    /// "You", so a community whose only regular member is you still shows one.
     func otherMembers(roster: [CommunityMember], viewerId: String) -> (people: [CommunityInfo.Person], line: String)? {
         guard let info else { return nil }
         if info.friendsCount > 0 {
             return (info.friends, Self.alsoMembers(info.friends.map(\.displayName),
                                                    total: info.friendsCount, connections: true))
         }
-        let others = roster.filter { $0.role == .member && $0.id != viewerId }
-        guard !others.isEmpty else { return nil }
-        let latest = others.sorted { $0.joinedAt > $1.joinedAt }.prefix(5).map {
+        let members = roster.filter { $0.role == .member }
+        guard !members.isEmpty else { return nil }
+        let viewer = members.first { $0.id == viewerId }
+        let others = members.filter { $0.id != viewerId }.sorted { $0.joinedAt > $1.joinedAt }
+        let shown = (viewer.map { [$0] } ?? []) + others.prefix(viewer == nil ? 5 : 4)
+        let people = shown.map {
             CommunityInfo.Person(id: $0.id, displayName: $0.displayName, avatarUrl: $0.avatarUrl,
                                  avatarColor: $0.avatarColor, role: nil)
         }
+        let names = shown.map { $0.id == viewerId ? Bundle.app.loc("You") : $0.displayName }
         // The roster is only the first page; the count covers everyone else.
-        let viewerIsMember = roster.contains { $0.id == viewerId && $0.role == .member }
-        let total = max(others.count, info.memberCount - info.staff.count - (viewerIsMember ? 1 : 0))
-        return (latest, Self.alsoMembers(latest.map(\.displayName), total: total, connections: false))
+        let total = max(members.count, info.memberCount - info.staff.count)
+        if viewer != nil && total == 1 {
+            return (people, Bundle.app.loc("You're a member."))
+        }
+        return (people, Self.alsoMembers(names, total: total, connections: false))
     }
 
     /// "Beso, Nguyệt and 3 other connections are also members."

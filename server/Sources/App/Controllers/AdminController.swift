@@ -159,7 +159,7 @@ struct AdminController {
         guard let user = try await req.db.sql().raw("""
             SELECT u.id::text AS id, u.username, u.hobby_display_name, u.work_display_name, u.app_role,
               u.created_at, u.deleted_at, u.banned_at,
-              CASE WHEN u.restricted_until > NOW() THEN u.restricted_until END AS restricted_until,
+              GREATEST(\(unsafeRaw: AccountRestrictions.untilSQL("u.id", mode: "hobby")), \(unsafeRaw: AccountRestrictions.untilSQL("u.id", mode: "work"))) AS restricted_until,
               (SELECT COUNT(*) FROM moderation_strikes s
                  WHERE s.user_id = u.id AND s.revoked_at IS NULL AND s.expires_at > NOW())::int AS active_strikes,
               (SELECT COUNT(*) FROM posts p WHERE p.author_id = u.id AND p.status = 'posted')::int AS posts,

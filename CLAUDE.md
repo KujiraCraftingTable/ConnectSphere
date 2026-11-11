@@ -19,6 +19,10 @@ Who the app is for, what people do in it and what sets it apart: see
 iOS app is MVVM (views → `@Observable` ViewModels → repositories); backend is
 Controller → Service/Store → SQL. See [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
+## Design
+Looks the user has approved (e.g. the profile cover photo's fade) are in
+[`DESIGN.md`](DESIGN.md). Keep them unless asked to change one.
+
 ## Known gaps
 Deliberately deferred scope (e.g. push notifications; the Dating space is archived in `legacy/dating/`) is tracked in [`KNOWN_GAPS.md`](KNOWN_GAPS.md). Check it before assuming a missing feature is an oversight.
 

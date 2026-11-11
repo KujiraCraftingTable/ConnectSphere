@@ -44,6 +44,20 @@ struct MarketplaceRepository {
                                       token: token, bodyData: body).data.toPost()
     }
 
+    /// Marks one item of a listing sold or for sale again; the listing's post.
+    func setItemStatus(listingId: String, itemId: String, sold: Bool, token: String) async throws -> Post {
+        let body = try JSONSerialization.data(withJSONObject: ["status": sold ? "sold" : "available"])
+        return try await client.fetch(DataResponse<PostDTO>.self, path: "/listings/\(listingId)/items/\(itemId)",
+                                      method: "PATCH", token: token, bodyData: body).data.toPost()
+    }
+
+    /// Tells the server the buyer is asking about one item; refused (429) when
+    /// they already did in the last 20 minutes.
+    func askAboutItem(listingId: String, itemId: String, token: String) async throws {
+        struct Asked: Decodable { let asked: Bool }
+        _ = try await client.fetch(Asked.self, path: "/listings/\(listingId)/items/\(itemId)/ask", method: "POST", token: token)
+    }
+
     /// Posts the item again as new; the new post (the old one is retired).
     func reup(id: String, token: String) async throws -> Post {
         try await client.fetch(DataResponse<PostDTO>.self, path: "/listings/\(id)/reup", method: "POST", token: token).data.toPost()

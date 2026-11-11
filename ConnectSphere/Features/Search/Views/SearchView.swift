@@ -112,12 +112,6 @@ struct SearchView: View {
                 guard newValue else { return }
                 resetToBrowse()
                 appState.shouldResetSearch = false
-                focusFieldSoon()
-            }
-            .onAppear {
-                // Opening the tab with nothing typed goes straight to typing;
-                // coming back from a pushed profile keeps the results as they were.
-                if searchText.isEmpty { focusFieldSoon() }
             }
             .onChange(of: searchText) { _, query in
                 if isResettingSearch { isResettingSearch = false; return }
@@ -263,21 +257,20 @@ struct SearchView: View {
         }
     }
 
-    /// Waits out the tab switch animation. Focusing mid-transition drops the keyboard.
-    private func focusFieldSoon() {
-        Task {
-            try? await Task.sleep(nanoseconds: 350_000_000)
-            isFieldFocused = true
-        }
-    }
-
     private func resetToBrowse() {
-        isResettingSearch = !searchText.isEmpty
-        searchText = ""
         isFieldFocused = false
         viewModel.scope = .people
         viewModel.currentUserId = appState.currentUser?.id
-        Task { await viewModel.loadAll(mode: appState.currentMode) }
+        Task {
+            // A field giving up focus lets the keyboard commit its pending
+            // suggestion, which writes the old text back into `searchText`
+            // (the list reset but the text and its clear button stayed).
+            // Clear once the field has let go.
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            isResettingSearch = !searchText.isEmpty
+            searchText = ""
+            await viewModel.loadAll(mode: appState.currentMode)
+        }
     }
 
     // MARK: Results
@@ -321,7 +314,7 @@ struct SearchView: View {
                 kujiraEmptyState
             }
         } else if viewModel.results.isEmpty && !trimmedText.isEmpty && !viewModel.isLoading {
-            emptyKeywordState
+            if viewModel.settledQuery == trimmedText { emptyKeywordState }
         } else {
             ForEach(viewModel.results) { user in
                 Group {
@@ -374,7 +367,7 @@ struct SearchView: View {
         } else if viewModel.postResults.isEmpty && !viewModel.isLoading {
             if viewModel.aiSearchFailed {
                 kujiraRetryState
-            } else if !explainsEmptyResult {
+            } else if !explainsEmptyResult && viewModel.settledQuery == trimmedText {
                 emptyKeywordState
             }
         } else {

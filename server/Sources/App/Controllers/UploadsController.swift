@@ -83,10 +83,12 @@ struct UploadsController {
               let ext = extByMime[mime] else {
             throw Abort(.badRequest, reason: "Invalid or missing file")
         }
+        let raw = Array(file.data.readableBytesView)
+        guard MediaSniffer.matches(raw, ext: ext) else { throw Abort(.badRequest, reason: "Unsupported file") }
         let name = "\(UUID().uuidString).\(ext)"
         try FileManager.default.createDirectory(atPath: uploadDir, withIntermediateDirectories: true)
         // GPS, camera and other identifying metadata never reach the disk.
-        let cleanedBytes = MetadataStripper.strip(Array(file.data.readableBytesView))
+        let cleanedBytes = MetadataStripper.strip(raw)
         let cleaned = ByteBuffer(bytes: cleanedBytes)
         // A photo a moderator removed for nudity, child safety or violence can't be sent again.
         let hash = MediaScan.sha256Hex(cleanedBytes)
@@ -96,7 +98,8 @@ struct UploadsController {
         try await req.fileio.writeFile(cleaned, at: "\(uploadDir)/\(name)")
         if mime.hasPrefix("image/"), let thumb = upload?.thumbnail,
            thumb.contentType.map({ "\($0.type)/\($0.subType)" }) == "image/jpeg",
-           thumb.data.readableBytes <= maxThumbnailBytes {
+           thumb.data.readableBytes <= maxThumbnailBytes,
+           MediaSniffer.matches(Array(thumb.data.readableBytesView), ext: "jpg") {
             let base = String(name.prefix(while: { $0 != "." }))
             let cleanThumb = ByteBuffer(bytes: MetadataStripper.strip(Array(thumb.data.readableBytesView)))
             try await req.fileio.writeFile(cleanThumb, at: "\(uploadDir)/\(base)_t.jpg")

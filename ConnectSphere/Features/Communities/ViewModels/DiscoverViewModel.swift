@@ -38,6 +38,9 @@ class DiscoverViewModel {
         isLoading = false
     }
 
+    /// The query whose results are showing; "No results" waits for it.
+    private(set) var searchedQuery: String?
+
     func search(query: String, type: CommunityType) async {
         searchGeneration += 1
         let generation = searchGeneration
@@ -46,8 +49,11 @@ class DiscoverViewModel {
             let results = try await repository.fetchCommunities(query: query, type: type, token: token)
             guard generation == searchGeneration else { return }
             searchResults = results
+            searchedQuery = query
         } catch {
             guard generation == searchGeneration else { return }
+            searchResults = []
+            searchedQuery = query
             errorMessage = friendlyError(error)
         }
         if generation == searchGeneration { isSearching = false }

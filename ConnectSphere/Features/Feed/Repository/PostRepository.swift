@@ -120,13 +120,6 @@ struct PostRepository {
         return response.data.toPost()
     }
 
-    func analyzePost(content: String, currentMode: AppMode) async throws -> PostAnalyzeDTO {
-        return try await client.fetch(
-            PostAnalyzeDTO.self,
-            from: .analyzePost(content: content, currentMode: currentMode.rawValue)
-        )
-    }
-
     func fetchLinkPreview(url: String) async throws -> LinkPreviewDTO {
         return try await client.fetch(
             LinkPreviewDTO.self,
@@ -251,29 +244,6 @@ struct PostRepository {
         return response.data.map { $0.toPost() }
     }
 
-    /// Restore a soft-deleted comment. Note: authorization here is the
-    /// COMMENT's own author, not the post's author. Different from
-    /// `restorePost` above, per the backend's restore-comment endpoint.
-    func restoreComment(postId: String, commentId: String) async throws {
-        guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
-            throw APIError.serverError(statusCode: 401, message: "Not authenticated")
-        }
-        struct RestoreCommentResponse: Decodable {
-            let data: CommentDTO
-            let commentCount: Int
-            enum CodingKeys: String, CodingKey {
-                case data
-                case commentCount = "comment_count"
-            }
-        }
-        _ = try await client.fetch(
-            RestoreCommentResponse.self,
-            path: "/posts/\(postId)/comments/\(commentId)/restore",
-            method: "POST",
-            token: token
-        )
-    }
-
     /// Edit the content of your own comment. Note: authorization here is the
     /// COMMENT's own author only, NOT the post's author (unlike delete,
     /// which also allows the post owner to moderate). Per the backend's
@@ -314,26 +284,6 @@ struct PostRepository {
             method: "POST",
             token: token,
             bodyData: try? JSONSerialization.data(withJSONObject: body)
-        )
-        return response.data
-    }
-
-    /// Your own soft-deleted comments across all posts, newest deleted_at
-    /// first, feeds the Comments section of "Recently Deleted".
-    func fetchDeletedComments(limit: Int = 30, offset: Int = 0) async throws -> [DeletedComment] {
-        guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
-            throw APIError.serverError(statusCode: 401, message: "Not authenticated")
-        }
-        struct DeletedCommentsResponse: Decodable { let data: [DeletedComment] }
-        let response = try await client.fetch(
-            DeletedCommentsResponse.self,
-            path: "/posts/comments/deleted",
-            method: "GET",
-            token: token,
-            queryItems: [
-                .init(name: "limit",  value: "\(limit)"),
-                .init(name: "offset", value: "\(offset)"),
-            ]
         )
         return response.data
     }

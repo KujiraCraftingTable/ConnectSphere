@@ -23,6 +23,10 @@ struct ChatMediaViewerView: View {
     @State private var isZoomed = false
     /// How far the media has been pulled down.
     @State private var pull: CGFloat = 0
+    /// Close, save, counter and the bottom bar, hidden by a single tap.
+    @State private var chromeHidden = false
+    /// One per video, shared by its page (gestures) and the progress bar (overlay).
+    @State private var videos: [String: VideoPlaybackViewModel]
 
     /// 0 at rest, 1 at the point where letting go closes the viewer.
     private var pullProgress: CGFloat { min(max(pull / Self.closeDistance, 0), 1) }
@@ -31,10 +35,17 @@ struct ChatMediaViewerView: View {
     /// Shown along the bottom, e.g. a post's whale / comment / save / share.
     var bottomBar: AnyView? = nil
 
-    init(items: [ChatMediaViewerItem], startIndex: Int = 0, bottomBar: AnyView? = nil) {
+    /// Off for Marketplace listings: a seller's photos aren't offered for
+    /// download, so they're harder to lift into another listing.
+    let allowsSaving: Bool
+
+    init(items: [ChatMediaViewerItem], startIndex: Int = 0, bottomBar: AnyView? = nil, allowsSaving: Bool = true) {
         self.bottomBar = bottomBar
+        self.allowsSaving = allowsSaving
         self.items = items
         _currentIndex = State(initialValue: min(max(0, startIndex), max(0, items.count - 1)))
+        _videos = State(initialValue: Dictionary(uniqueKeysWithValues:
+            items.filter(\.isVideo).map { ($0.id, VideoPlaybackViewModel(url: $0.url)) }))
     }
 
     var body: some View {
@@ -44,18 +55,21 @@ struct ChatMediaViewerView: View {
             TabView(selection: $currentIndex) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     Group {
-                        if item.isVideo {
-                            VideoPlayerPage(url: item.url, isActive: currentIndex == index)
+                        if item.isVideo, let video = videos[item.id] {
+                            VideoPlayerPage(video: video, isActive: currentIndex == index, onEdgeTap: toggleChrome)
                         } else {
-                            ZoomableAsyncImage(url: item.url, isZoomed: $isZoomed)
+                            ZoomableAsyncImage(url: item.url, isZoomed: $isZoomed, onSingleTap: toggleChrome)
                         }
                     }
                     .tag(index)
                     .contextMenu {
-                        Button {
-                            save(item)
-                        } label: {
-                            Label(Bundle.app.loc("Save to Photos"), systemImage: "square.and.arrow.down")
+                        // Not on videos: holding an edge there plays at 2×.
+                        if allowsSaving && !item.isVideo {
+                            Button {
+                                save(item)
+                            } label: {
+                                Label(Bundle.app.loc("Save to Photos"), systemImage: "square.and.arrow.down")
+                            }
                         }
                     }
                 }
@@ -77,7 +91,7 @@ struct ChatMediaViewerView: View {
                     }
                     .accessibilityLabel(Bundle.app.loc("Close"))
                     Spacer()
-                    if items.indices.contains(currentIndex) {
+                    if allowsSaving, items.indices.contains(currentIndex) {
                         Button { save(items[currentIndex]) } label: {
                             Image(systemName: "arrow.down.to.line")
                                 .scaledFont(16, .semibold)
@@ -100,14 +114,29 @@ struct ChatMediaViewerView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
                 Spacer()
+                if let video = currentVideo {
+                    VideoProgressBar(video: video)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, bottomBar == nil ? 24 : 4)
+                }
                 if let bottomBar { bottomBar }
             }
-            .opacity(1 - pullProgress)
+            // One tap on the photo or video hides all of this (like Facebook); another brings it back.
+            .opacity(chromeHidden ? 0 : 1 - pullProgress)
+            .allowsHitTesting(!chromeHidden)
         }
         // See-through while pulled, so the screen behind shows as it fades.
         .presentationBackground(.clear)
         .mediaSaveStatus(saver)
         .statusBarHidden()
+    }
+
+    private var currentVideo: VideoPlaybackViewModel? {
+        items.indices.contains(currentIndex) ? videos[items[currentIndex].id] : nil
+    }
+
+    private func toggleChrome() {
+        withAnimation(.easeInOut(duration: 0.2)) { chromeHidden.toggle() }
     }
 
     /// Far enough, or a quick flick, closes; otherwise it springs back.
@@ -126,24 +155,126 @@ struct ChatMediaViewerView: View {
 
 // MARK: - Video page
 
-/// Video page: auto-plays when it's the current page, pauses when swiping to another page.
+/// Video page: plays while it's the current page. Tap the middle to pause or
+/// play; tap an edge to hide or show the overlay; hold an edge for 2×.
 private struct VideoPlayerPage: View {
-    let url: URL
+    let video: VideoPlaybackViewModel
     let isActive: Bool
+    var onEdgeTap: () -> Void = {}
 
-    @State private var player: AVPlayer?
+    /// Flashes on a middle tap, stays while paused.
+    @State private var showsPlayIcon = false
 
     var body: some View {
-        VideoPlayer(player: player)
-            .ignoresSafeArea()
-            .onAppear {
-                if player == nil { player = AVPlayer(url: url) }
-                if isActive { player?.play() }
+        GeometryReader { geo in
+            ZStack {
+                PlayerLayerView(player: video.player)
+                    .ignoresSafeArea()
+                HStack(spacing: 0) {
+                    edgeZone.frame(width: geo.size.width * 0.25)
+                    Color.clear.contentShape(Rectangle())
+                        .onTapGesture {
+                            video.togglePlay()
+                            showsPlayIcon = true
+                        }
+                    edgeZone.frame(width: geo.size.width * 0.25)
+                }
+                if showsPlayIcon || !video.isPlaying {
+                    Image(systemName: video.isPlaying ? "play.fill" : "pause.fill")
+                        .font(.system(size: 34, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(22)
+                        .background(Circle().fill(Color.black.opacity(0.45)))
+                        .allowsHitTesting(false)
+                        .transition(.opacity)
+                }
+                if video.isFast {
+                    VStack {
+                        Label("2×", systemImage: "forward.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Capsule().fill(Color.black.opacity(0.55)))
+                            .padding(.top, 64)
+                        Spacer()
+                    }
+                    .allowsHitTesting(false)
+                }
             }
-            .onChange(of: isActive) { _, active in
-                if active { player?.play() } else { player?.pause() }
+        }
+        .onAppear { if isActive { video.activate() } }
+        .onChange(of: isActive) { _, active in active ? video.activate() : video.deactivate() }
+        .onDisappear { video.deactivate() }
+        .task(id: showsPlayIcon) {
+            guard showsPlayIcon else { return }
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            withAnimation { showsPlayIcon = false }
+        }
+    }
+
+    /// Left or right quarter: tap toggles the overlay, holding plays at 2×.
+    private var edgeZone: some View {
+        Color.clear.contentShape(Rectangle())
+            .onTapGesture { onEdgeTap() }
+            .onLongPressGesture(minimumDuration: 0.3, maximumDistance: 40, perform: {}, onPressingChanged: { pressing in
+                // onPressingChanged fires at touch-down too; only a real hold speeds up.
+                if !pressing { video.setFast(false) }
+            })
+            .simultaneousGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in video.setFast(true) })
+    }
+}
+
+/// `AVPlayerLayer` without the system controls, so taps and holds reach our gestures.
+private struct PlayerLayerView: UIViewRepresentable {
+    let player: AVPlayer?
+
+    final class LayerView: UIView {
+        override static var layerClass: AnyClass { AVPlayerLayer.self }
+        var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
+    }
+
+    func makeUIView(context: Context) -> LayerView {
+        let view = LayerView()
+        view.playerLayer.videoGravity = .resizeAspect
+        view.backgroundColor = .clear
+        return view
+    }
+
+    func updateUIView(_ view: LayerView, context: Context) {
+        if view.playerLayer.player !== player { view.playerLayer.player = player }
+    }
+}
+
+/// Elapsed / total and a draggable bar, under the video and above the post's bar.
+private struct VideoProgressBar: View {
+    let video: VideoPlaybackViewModel
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(VideoPlaybackViewModel.clock(video.currentSeconds))
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.white.opacity(0.3)).frame(height: 3)
+                    Capsule().fill(Color.white).frame(width: geo.size.width * video.progress, height: 3)
+                    Circle().fill(Color.white)
+                        .frame(width: video.isScrubbing ? 14 : 10, height: video.isScrubbing ? 14 : 10)
+                        .offset(x: geo.size.width * video.progress - (video.isScrubbing ? 7 : 5))
+                }
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .gesture(DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        if !video.isScrubbing { video.beginScrubbing() }
+                        video.scrub(to: value.location.x / max(geo.size.width, 1))
+                    }
+                    .onEnded { _ in video.endScrubbing() })
             }
-            .onDisappear { player?.pause() }
+            .frame(height: 24)
+            Text(VideoPlaybackViewModel.clock(video.durationSeconds))
+        }
+        .font(.system(size: 12, weight: .medium).monospacedDigit())
+        .foregroundColor(.white)
     }
 }
 
@@ -155,6 +286,7 @@ private struct ZoomableAsyncImage: View {
     let url: URL
     /// Tells the viewer when the photo is zoomed in (so swipe-down stays off).
     @Binding var isZoomed: Bool
+    var onSingleTap: () -> Void = {}
 
     @State private var scale: CGFloat = 1
     @State private var lastScale: CGFloat = 1
@@ -177,6 +309,8 @@ private struct ZoomableAsyncImage: View {
                         // horizontal swipe, so the pager couldn't leave a photo.
                         .simultaneousGesture(panGesture, including: scale > 1 ? .all : .none)
                         .onTapGesture(count: 2) { toggleZoom() }
+                        // After the double-tap, so a zoom isn't also read as a single tap.
+                        .onTapGesture(count: 1) { onSingleTap() }
                 case .failure:
                     failurePlaceholder
                         .frame(width: geo.size.width, height: geo.size.height)

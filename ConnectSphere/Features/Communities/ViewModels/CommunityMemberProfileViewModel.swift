@@ -10,7 +10,6 @@ final class CommunityMemberProfileViewModel {
     private(set) var posts: [Post] = []
     private(set) var isLoading = false
     private(set) var canLoadMore = true
-    private(set) var isRefreshing = false
     var errorMessage: String?
 
     private let communityId: String
@@ -26,14 +25,6 @@ final class CommunityMemberProfileViewModel {
         posts = []
         canLoadMore = true
         await loadMore(token: token)
-    }
-
-    /// Pull-to-refresh: drives the page's own spinner, since the cover hides
-    /// the system one.
-    func refresh(token: String) async {
-        isRefreshing = true
-        defer { isRefreshing = false }
-        await load(token: token)
     }
 
     func loadMore(token: String) async {

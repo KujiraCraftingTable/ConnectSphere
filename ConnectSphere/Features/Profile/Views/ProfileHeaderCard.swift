@@ -18,6 +18,7 @@ struct ProfileHeaderCard<Actions: View>: View {
     private let interestNames = InterestNames.shared
     @Environment(\.colorScheme) private var colorScheme
     @Environment(ThemeManager.self) private var themeManager
+    @Environment(AppState.self) private var appState
 
     let user: UserProfile
     let mode: AppMode
@@ -88,6 +89,13 @@ struct ProfileHeaderCard<Actions: View>: View {
                 y: AppElevation.overlay.y)
     }
 
+    /// HR is a Work identity: never shown on a Hobby profile. Your own
+    /// profile comes from /me, which doesn't carry it, so AppState's is used.
+    private var hrCompany: String? {
+        guard mode == .work else { return nil }
+        return user.hrCompany ?? (user.id == appState.currentUser?.id ? appState.hrCompany : nil)
+    }
+
     private var identity: some View {
         VStack(spacing: 4) {
             HStack(spacing: 6) {
@@ -110,6 +118,7 @@ struct ProfileHeaderCard<Actions: View>: View {
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .multilineTextAlignment(.center)
             }
+            if let company = hrCompany { HRBadge(company: company) }
             if let location = user.location, !location.isEmpty {
                 Label(location, systemImage: "mappin.and.ellipse")
                     .scaledFont(13)

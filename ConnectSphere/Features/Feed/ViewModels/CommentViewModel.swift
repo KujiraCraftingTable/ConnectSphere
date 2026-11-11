@@ -173,10 +173,9 @@ class CommentViewModel {
         return refusedText
     }
 
-    /// Deletes one of your own comments (or one on your own post). Backend
-    /// soft-deletes replies too. Returns how many comments were actually
-    /// removed (deleting a root cascades to its replies), so the caller can
-    /// decrement the post's displayed comment count by the right amount;
+    /// Deletes one of your own comments for good. The backend soft-deletes its
+    /// replies too, and the list drops the same rows at once. Returns how many
+    /// comments were removed, so the caller can lower the post's count;
     /// `0` if the request failed (nothing was actually removed).
     func deleteComment(postId: String, commentId: String) async -> Int {
         guard let token = authToken() else { return 0 }
@@ -187,22 +186,62 @@ class CommentViewModel {
             method: "DELETE",
             token: token
         ))?.removed ?? 0
-        await load(postId: postId)
+        if removed > 0 {
+            // Same two-level cascade as the server: the comment, its replies,
+            // and their replies. Kept with their places for an Undo.
+            let gone = Set([commentId] + comments.filter { $0.parentCommentId == commentId }.map(\.id))
+            let isGone: (CommentDTO) -> Bool = { gone.contains($0.id) || gone.contains($0.parentCommentId ?? "") }
+            undoable[commentId] = comments.enumerated().filter { isGone($0.element) }.map { ($0.offset, $0.element) }
+            comments.removeAll(where: isGone)
+        }
         return removed
     }
 
-    /// Edits the content of one of your own comments. Same approach as
-    /// addComment/deleteComment: reload the whole comment list on success
-    /// (simpler than patching it in place).
+    /// What each delete took, at its places in `comments`, until Undo or the toast goes.
+    private var undoable: [String: [(index: Int, comment: CommentDTO)]] = [:]
+
+    /// Undo of a delete, while its toast shows: the server brings the
+    /// comment (and its replies) back, and they go back where they were.
+    /// Returns how many came back, 0 if the server refused (too late).
+    func restoreComment(postId: String, commentId: String) async -> Int {
+        guard let token = authToken(), let saved = undoable.removeValue(forKey: commentId) else { return 0 }
+        struct Response: Decodable { let restored: Int }
+        do {
+            let restored = try await NetworkClient.shared.fetch(
+                Response.self,
+                path: "/posts/\(postId)/comments/\(commentId)/restore",
+                method: "POST",
+                token: token
+            ).restored
+            for (index, comment) in saved.sorted(by: { $0.index < $1.index })
+            where !comments.contains(where: { $0.id == comment.id }) {
+                comments.insert(comment, at: min(index, comments.count))
+            }
+            return restored
+        } catch {
+            return 0
+        }
+    }
+
+    /// Edits the content of one of your own comments and swaps the server's
+    /// copy into the list in place, keeping what the edit response leaves out
+    /// (who it replies to, mute state).
     func updateComment(postId: String, commentId: String, content: String) async -> Bool {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         // Editing changes the text only; a comment with a photo may lose it.
         let hasPhoto = comments.first { $0.id == commentId }?.imageUrl != nil
         guard !trimmed.isEmpty || hasPhoto else { return false }
-        guard (try? await repository.updateComment(postId: postId, commentId: commentId, content: trimmed)) != nil else {
+        guard let updated = try? await repository.updateComment(postId: postId, commentId: commentId, content: trimmed) else {
             return false
         }
-        await load(postId: postId)
+        if let i = comments.firstIndex(where: { $0.id == commentId }) {
+            comments[i].content = updated.content
+            comments[i].contentFormat = updated.contentFormat
+            comments[i].editedAt = updated.editedAt
+            // The old translation no longer matches; the server re-translates.
+            comments[i].translatedText = nil
+            comments[i].lang = updated.lang
+        }
         return true
     }
 
@@ -226,13 +265,5 @@ class CommentViewModel {
         } else {
             (comments[j].isLiked, comments[j].likeCount) = before
         }
-    }
-
-    /// Undo of a delete: brings back that one comment (never its
-    /// cascade-deleted replies), then reloads the list.
-    func restoreComment(postId: String, commentId: String) async -> Bool {
-        let restored = (try? await repository.restoreComment(postId: postId, commentId: commentId)) != nil
-        await load(postId: postId)
-        return restored
     }
 }

@@ -53,7 +53,8 @@ enum PostStore {
               'application_deadline', jp.application_deadline, 'interested_count', jp.interested_count,
               'user_interested', EXISTS(SELECT 1 FROM job_interests ji WHERE ji.job_id = jp.id AND ji.user_id = \(uuid: v)),
               'company_id', jp.company_id, 'company_logo_url', jc.logo_url, 'company_verified', COALESCE(jc.is_verified, FALSE),
-              'work_format', jp.work_format, 'level', jp.level, 'salary_min', jp.salary_min, 'salary_max', jp.salary_max,
+              'work_format', jp.work_format, 'level', jp.level, 'salary_min', jp.salary_min, 'salary_max', jp.salary_max, 'salary_negotiable', jp.salary_negotiable, 'ward_id', jp.ward_id, 'jd_path', jp.jd_path,
+              'careers_url', jp.careers_url,
               'skills', COALESCE((SELECT json_agg(js.skill ORDER BY js.skill) FROM job_skills js WHERE js.job_id = jp.id), '[]'))
             FROM job_posts jp LEFT JOIN companies jc ON jc.id = jp.company_id WHERE jp.post_id = p.id
           ) ELSE NULL END)::text AS job_data,
@@ -85,13 +86,16 @@ enum PostStore {
                 OR (sp.privacy = 'friends' AND EXISTS (SELECT 1 FROM connections c WHERE c.status = 'accepted' AND c.mode = sp.mode
                      AND ((c.requester_id = sp.author_id AND c.addressee_id = \(uuid: v))
                        OR (c.addressee_id = sp.author_id AND c.requester_id = \(uuid: v))))))
+              AND NOT EXISTS (SELECT 1 FROM communities spd WHERE spd.id = sp.community_id AND spd.disbanded_at IS NOT NULL)
+              AND NOT EXISTS (SELECT 1 FROM community_bans spb WHERE spb.community_id = sp.community_id AND spb.user_id = \(uuid: v))
               AND (sp.community_id IS NULL OR sp.author_id = \(uuid: v)
                 OR EXISTS (SELECT 1 FROM communities co WHERE co.id = sp.community_id AND co.privacy = 'public' AND sp.community_audience = 'public')
                 OR EXISTS (SELECT 1 FROM community_members cm WHERE cm.community_id = sp.community_id AND cm.user_id = \(uuid: v)))
           ) ELSE NULL END)::text AS shared_post,
           (SELECT json_build_object('id', sc.id, 'name', sc.name, 'cover_url', sc.cover_url, 'cover_color', sc.cover_color,
               'icon_emoji', sc.icon_emoji, 'member_count', sc.member_count, 'privacy', sc.privacy)
-            FROM communities sc WHERE sc.id = p.shared_community_id)::text AS shared_community,
+            FROM communities sc WHERE sc.id = p.shared_community_id
+                  AND sc.disbanded_at IS NULL AND sc.suspended_at IS NULL)::text AS shared_community,
           COALESCE(json_agg(DISTINCT pt.tag) FILTER (WHERE pt.tag IS NOT NULL AND pt.source = 'user'), '[]')::text AS tags,
           json_build_object('id', u.id, 'username', u.username, 'display_name', \(unsafeRaw: dnP),
             'avatar_color', u.avatar_color, 'avatar_url', \(unsafeRaw: avP),
@@ -150,6 +154,8 @@ enum PostStore {
 
     /// A community post shows to its members and author; to anyone else only
     /// when the poster chose Public and the community is (still) public.
+    /// Someone banned from the community sees none of its posts, their own
+    /// included, wherever they turn up (feed, search, shares, a link).
     /// `officialReads`: also to the official account, read only, so it can look
     /// into a report. Only a community's own page and a single post pass it,
     /// never the feed or search, so private communities don't fill its Home.
@@ -159,6 +165,7 @@ enum PostStore {
             : ""
         return """
         (NOT EXISTS (SELECT 1 FROM communities cd WHERE cd.id = p.community_id AND cd.disbanded_at IS NOT NULL)
+         AND NOT EXISTS (SELECT 1 FROM community_bans cb WHERE cb.community_id = p.community_id AND cb.user_id = \(uuid: v))
          AND (p.community_id IS NULL OR p.author_id = \(uuid: v)
          OR EXISTS (SELECT 1 FROM communities co WHERE co.id = p.community_id AND co.privacy = 'public' AND p.community_audience = 'public')
          OR EXISTS (SELECT 1 FROM community_members cm WHERE cm.community_id = p.community_id AND cm.user_id = \(uuid: v))
@@ -337,6 +344,8 @@ enum PostStore {
 
     static func feedWhere(_ v: String, _ f: FeedFilters) -> SQLQueryString {
         var w: SQLQueryString = "WHERE p.status = 'posted' AND "
+        // A job hidden after enough reports (migration 126), until the admin decides.
+        w = w + "NOT EXISTS (SELECT 1 FROM job_posts jhid WHERE jhid.post_id = p.id AND jhid.hidden_at IS NOT NULL) AND "
         w = w + communityVisibilityClause(v) + " AND " + notMutedClause(v) + " AND "
         // A profile's own list opens to the official account even when locked
         // or friends-only; every other list keeps the viewer's rules.
@@ -739,8 +748,10 @@ enum PostStore {
         if let search {
             q = q + " AND (p.content ILIKE '%' || \(bind: UserStore.escapeLike(search)) || '%' OR " + authorNameMatch(search, communityID) + ")"
         }
-        q = q + " GROUP BY p.id, u.id ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT \(bind: limit) OFFSET \(bind: offset)"
-        return try await db.raw(q).all(decoding: PostRow.self).map(map)
+        q = q + " GROUP BY p.id, u.id ORDER BY p.is_pinned DESC, " + ListingStore.communityShownAt(communityID)
+            + " DESC LIMIT \(bind: limit) OFFSET \(bind: offset)"
+        let posts = try await db.raw(q).all(decoding: PostRow.self).map(map)
+        return try await ListingStore.datedForCommunity(posts, communityID, on: db)
     }
 
     static func listSaved(_ userID: String, listings: Bool, limit: Int, offset: Int, on db: any SQLDatabase) async throws -> [PostObject] {

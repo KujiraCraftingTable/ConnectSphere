@@ -46,7 +46,7 @@ struct PostOptionsMenu: View {
             .sheet(isPresented: $showEditListing) {
                 // A listing post is bound to one item: its edits go through the listing.
                 if let listing = post.listingData {
-                    EditListingSheet(post: post, listing: listing) { fields in
+                    EditListingSheet(listing: listing, mode: post.mode, description: post.content) { fields in
                         let viewModel = ListingViewModel(post: post)
                         guard await viewModel.save(fields, token: appState.authToken ?? "") else { return false }
                         onPostUpdated?(viewModel.post)

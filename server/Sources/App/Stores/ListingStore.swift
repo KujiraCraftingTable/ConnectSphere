@@ -11,17 +11,79 @@ enum ListingStore {
     static let maxLocation = 150
     static let maxAutoReply = 500
 
-    /// What the seller typed, checked.
+    /// The database allows 30 (migration 117); 20 is the product limit, so
+    /// listings made with 30 before it still load (editing one asks to cut it down).
+    static let maxItems = 20
+    static let maxItemPhotos = 6
+
+    /// What the seller typed, checked. Price, condition and sold state live on
+    /// each item (migration 117); the listing keeps a summary of them.
     struct Details {
+        /// The headline; with one item, that item's title unless one was given.
         var title: String
-        var price: Int64
-        var condition: String
+        var items: [Item]
         var location: String?
         var autoReply: String?
         var hideFromFriends: Bool
         var latitude: Double? = nil
         var longitude: Double? = nil
         var autoReup: PostObject.ListingData.AutoReup? = nil
+    }
+
+    /// One thing for sale in a listing, as sent. `id` names an item that's
+    /// already there when editing (it keeps its sold state); nil adds one.
+    struct ItemIn: Content {
+        var id: String?
+        var title: String?
+        /// Whole VND; 0 = free.
+        var price: Int64?
+        var condition: String?
+        var image_urls: [String]?
+        var image_alts: [String]?
+    }
+
+    struct Item {
+        var id: String?
+        var title: String
+        var price: Int64
+        var condition: String
+        var imageUrls: [String]
+        var imageAlts: [String]?
+    }
+
+    /// 1–20 items, each with a title, a price, a condition and 1–6 photos.
+    static func validateItems(_ raw: [ItemIn]?) throws -> [Item] {
+        guard let raw, !raw.isEmpty else { throw Abort(.badRequest, reason: "Add at least one item") }
+        guard raw.count <= maxItems else { throw Abort(.badRequest, reason: "A listing can have up to \(maxItems) items") }
+        var seen = Set<String>()
+        return try raw.enumerated().map { i, r in
+            let n = i + 1
+            let title = r.title?.trimmedText ?? ""
+            guard !title.isEmpty, title.count <= maxTitle else {
+                throw Abort(.badRequest, reason: "Item \(n): the title must be 1–\(maxTitle) characters")
+            }
+            guard let price = r.price, (0...maxPrice).contains(price) else {
+                throw Abort(.badRequest, reason: "Item \(n): the price must be between 0 and \(maxPrice) VND")
+            }
+            guard let condition = r.condition, conditions.contains(condition) else {
+                throw Abort(.badRequest, reason: "Item \(n): invalid condition")
+            }
+            var id: String?
+            if let raw = r.id {
+                guard let uuid = UUID(uuidString: raw), seen.insert(uuid.uuidString.lowercased()).inserted else {
+                    throw Abort(.badRequest, reason: "Item \(n): invalid item")
+                }
+                id = uuid.uuidString.lowercased()
+            }
+            guard let urls = try MediaPath.uploaded(r.image_urls), !urls.isEmpty else {
+                throw Abort(.badRequest, reason: "Item \(n): add at least one photo")
+            }
+            guard urls.count <= maxItemPhotos else {
+                throw Abort(.badRequest, reason: "Item \(n): up to \(maxItemPhotos) photos")
+            }
+            return Item(id: id, title: title, price: price, condition: condition,
+                        imageUrls: urls, imageAlts: PostStore.cleanAlts(r.image_alts, count: urls.count))
+        }
     }
 
     // MARK: auto re-up (migration 095)
@@ -72,15 +134,11 @@ enum ListingStore {
 
     static func validate(_ d: PostsController.CreateBody.ListingDataIn?) throws -> Details {
         guard let d else { throw Abort(.badRequest, reason: "Listing details are required") }
-        let title = d.title?.trimmedText ?? ""
-        guard !title.isEmpty else { throw Abort(.badRequest, reason: "Listing title is required") }
+        let items = try validateItems(d.items)
+        var title = d.title?.trimmedText ?? ""
+        if title.isEmpty, items.count == 1 { title = items[0].title }
+        guard !title.isEmpty else { throw Abort(.badRequest, reason: "Give the listing a title") }
         guard title.count <= maxTitle else { throw Abort(.badRequest, reason: "Listing title must be at most \(maxTitle) characters") }
-        guard let price = d.price, (0...maxPrice).contains(price) else {
-            throw Abort(.badRequest, reason: "Price must be between 0 and \(maxPrice) VND")
-        }
-        guard let condition = d.condition, conditions.contains(condition) else {
-            throw Abort(.badRequest, reason: "Invalid condition")
-        }
         let location = d.location?.trimmedText.nilIfEmpty
         if let location, location.count > maxLocation {
             throw Abort(.badRequest, reason: "Location must be at most \(maxLocation) characters")
@@ -91,24 +149,113 @@ enum ListingStore {
         }
         let point = try coordinates(d.latitude, d.longitude)
         try validateAutoReup(d.autoReup)
-        return Details(title: title, price: price, condition: condition, location: location,
+        return Details(title: title, items: items, location: location,
                        autoReply: autoReply, hideFromFriends: d.hideFromFriends ?? false,
                        latitude: point?.0, longitude: point?.1, autoReup: d.autoReup)
     }
 
-    /// Returns the listing's id.
+    /// Returns the listing's id. Its price, condition and status start from the
+    /// items and `syncSummary` keeps them (and the post's photos) in step.
     static func create(postID: String, _ d: Details, on db: any SQLDatabase) async throws -> String {
         struct R: Decodable { let id: String }
-        return try await db.raw("""
+        let id = try await db.raw("""
             INSERT INTO listing_posts (post_id, title, price, condition, location, auto_reply, hide_from_friends,
                                        latitude, longitude, auto_reup_days, auto_reup_hour, next_auto_reup_at)
-            VALUES (\(uuid: postID), \(bind: d.title), \(bind: d.price), \(bind: d.condition),
+            VALUES (\(uuid: postID), \(bind: d.title), \(bind: d.items.map(\.price).min() ?? 0), \(bind: d.items.first?.condition),
                     \(bind: d.location), \(bind: d.autoReply), \(bind: d.hideFromFriends),
                     \(bind: d.latitude), \(bind: d.longitude),
                     \(bind: d.autoReup?.every_days), \(bind: d.autoReup?.hour),
                     \(bind: d.autoReup.map { nextAutoReup(from: Date(), days: $0.every_days, hour: $0.hour) }))
             RETURNING id::text AS id
             """).first(decoding: R.self)!.id
+        for (i, item) in d.items.enumerated() { try await insertItem(item, at: i, listingID: id, on: db) }
+        try await syncSummary(listingID: id, on: db)
+        return id
+    }
+
+    // MARK: items (migration 117)
+
+    static func insertItem(_ item: Item, at position: Int, listingID: String, on db: any SQLDatabase) async throws {
+        try await db.raw("""
+            INSERT INTO listing_items (listing_id, position, title, price, condition, image_urls, image_alts)
+            VALUES (\(uuid: listingID), \(bind: position), \(bind: item.title), \(bind: item.price),
+                    \(bind: item.condition), \(bind: item.imageUrls), \(bind: item.imageAlts))
+            """).run()
+    }
+
+    /// The seller's edited item list, replacing the old one: items sent with
+    /// their id are updated (and keep their sold state), new ones are added and
+    /// any left out are removed. Run inside a transaction.
+    static func replaceItems(listingID: String, _ items: [Item], on db: any SQLDatabase) async throws {
+        struct R: Decodable { let id: String }
+        let existing = Set(try await db.raw("""
+            SELECT id::text AS id FROM listing_items WHERE listing_id = \(uuid: listingID) FOR UPDATE
+            """).all(decoding: R.self).map(\.id))
+        let kept = items.compactMap(\.id)
+        guard kept.allSatisfy(existing.contains) else { throw Abort(.badRequest, reason: "That item isn't in this listing") }
+        try await db.raw("""
+            DELETE FROM listing_items WHERE listing_id = \(uuid: listingID) AND NOT (id = ANY(\(bind: kept)::uuid[]))
+            """).run()
+        for (i, item) in items.enumerated() {
+            if let id = item.id {
+                try await db.raw("""
+                    UPDATE listing_items SET position = \(bind: i), title = \(bind: item.title), price = \(bind: item.price),
+                      condition = \(bind: item.condition), image_urls = \(bind: item.imageUrls),
+                      image_alts = \(bind: item.imageAlts), updated_at = NOW()
+                    WHERE id = \(uuid: id) AND listing_id = \(uuid: listingID)
+                    """).run()
+            } else {
+                try await insertItem(item, at: i, listingID: listingID, on: db)
+            }
+        }
+    }
+
+    /// Marks one item sold or for sale again.
+    static func setItemStatus(listingID: String, itemID: String, status: String, on db: AppDatabase) async throws {
+        guard statuses.contains(status) else { throw Abort(.badRequest, reason: "Invalid status") }
+        try await db.tx { t in
+            let hit = try await t.raw("""
+                UPDATE listing_items SET status = \(bind: status), updated_at = NOW()
+                WHERE id = \(uuid: itemID) AND listing_id = \(uuid: listingID) RETURNING id
+                """).all()
+            guard !hit.isEmpty else { throw Abort(.notFound, reason: "Item not found") }
+            try await syncSummary(listingID: listingID, on: t)
+        }
+    }
+
+    /// Rewrites what the rest of the app reads off the listing from its items:
+    /// the lowest price still for sale, 'sold' once every item is (which, like
+    /// marking a listing sold always has, ends auto re-up for good), the first
+    /// item's condition, and the post's photos: each item's first photo, or
+    /// all of them when there's only one item (so it looks as it always did).
+    /// Sold items' covers go last: a "SOLD" first photo reads as "all sold".
+    /// The app orders items the same way (`ListingData.displayItems`).
+    static func syncSummary(listingID: String, on db: any SQLDatabase) async throws {
+        try await db.raw("""
+            WITH s AS (
+              SELECT COUNT(*) AS n,
+                     COALESCE(MIN(price) FILTER (WHERE status = 'available'), MIN(price)) AS price,
+                     CASE WHEN bool_and(status = 'sold') THEN 'sold' ELSE 'available' END AS status,
+                     (array_agg(condition ORDER BY position))[1] AS condition,
+                     array_agg(image_urls[1] ORDER BY (status = 'sold'), position) AS covers,
+                     array_agg(COALESCE(image_alts[1], '') ORDER BY (status = 'sold'), position) AS alts
+              FROM listing_items WHERE listing_id = \(uuid: listingID)
+            ), l AS (
+              UPDATE listing_posts lp SET price = s.price, status = s.status, condition = s.condition, updated_at = NOW(),
+                auto_reup_days = CASE WHEN s.status = 'sold' THEN NULL ELSE lp.auto_reup_days END,
+                auto_reup_hour = CASE WHEN s.status = 'sold' THEN NULL ELSE lp.auto_reup_hour END,
+                next_auto_reup_at = CASE WHEN s.status = 'sold' THEN NULL ELSE lp.next_auto_reup_at END
+              FROM s WHERE lp.id = \(uuid: listingID) AND s.price IS NOT NULL
+              RETURNING lp.post_id
+            )
+            UPDATE posts p SET
+              image_urls = CASE WHEN s.n = 1
+                THEN (SELECT image_urls FROM listing_items WHERE listing_id = \(uuid: listingID)) ELSE s.covers END,
+              image_alts = CASE WHEN s.n = 1
+                THEN (SELECT image_alts FROM listing_items WHERE listing_id = \(uuid: listingID))
+                WHEN array_to_string(s.alts, '') = '' THEN NULL ELSE s.alts END
+            FROM s, l WHERE p.id = l.post_id
+            """).run()
     }
 
     // MARK: communities it's listed in (migration 073)
@@ -166,6 +313,44 @@ enum ListingStore {
         }
     }
 
+    /// Edit listing: the listing is now in exactly these communities. A removed
+    /// one loses the post (or its waiting request); an added one is checked and
+    /// linked as at creation, waiting where the admins approve posts. Ticking a
+    /// community that declined it asks its admins again. Returns the communities
+    /// it just went live in, to notify.
+    static func setCommunities(listingID: String, _ raw: [String], seller: String, on db: AppDatabase) async throws -> [String] {
+        let ids = try communityIDs(raw)
+        let sql = db.sql()
+        struct M: Decodable { let mode: String }
+        guard let mode = try await sql.raw("""
+            SELECT p.mode FROM posts p JOIN listing_posts l ON l.post_id = p.id WHERE l.id = \(uuid: listingID)
+            """).first(decoding: M.self)?.mode else { throw Abort(.notFound, reason: "Listing not found") }
+        struct Current: Decodable { let community_id: String; let status: String }
+        let current = try await sql.raw("""
+            SELECT community_id::text AS community_id, status FROM listing_communities WHERE listing_id = \(uuid: listingID)
+            """).all(decoding: Current.self)
+        let active = Set(current.filter { $0.status != "declined" }.map(\.community_id))
+        let removed = Array(active.subtracting(ids))
+        let added = try await links(ids.filter { !active.contains($0) }, seller: seller, mode: mode, on: sql)
+        try await db.tx { t in
+            if !removed.isEmpty {
+                try await t.raw("""
+                    DELETE FROM listing_communities
+                    WHERE listing_id = \(uuid: listingID) AND community_id = ANY(\(bind: removed)::uuid[])
+                    """).run()
+            }
+            for l in added {
+                try await t.raw("""
+                    INSERT INTO listing_communities (listing_id, community_id, status)
+                    VALUES (\(uuid: listingID), \(uuid: l.communityID), \(bind: l.pending ? "pending" : "posted"))
+                    ON CONFLICT (listing_id, community_id) DO UPDATE
+                      SET status = EXCLUDED.status, created_at = NOW(), reviewed_by = NULL, reviewed_at = NULL
+                    """).run()
+            }
+        }
+        return added.filter { !$0.pending }.map(\.communityID)
+    }
+
     /// SQL: post `p` is a listing shown in community `communityID` (its link
     /// there has `status`).
     static func listedInClause(_ communityID: String, status: String = "posted") -> SQLQueryString {
@@ -174,6 +359,37 @@ enum ListingStore {
           JOIN listing_communities lci ON lci.listing_id = li.id
           WHERE li.post_id = p.id AND lci.community_id = \(uuid: communityID) AND lci.status = \(bind: status)))
         """
+    }
+
+    /// When a listing showed up in this community: approval restarts its clock
+    /// there (it's new to the community), while Marketplace and other
+    /// communities keep the listing's own time. A re-up after approval is newer still.
+    static func communityShownAt(_ communityID: String) -> SQLQueryString {
+        """
+        GREATEST(p.created_at, COALESCE((SELECT lcs.reviewed_at FROM listing_posts lps
+          JOIN listing_communities lcs ON lcs.listing_id = lps.id
+          WHERE lps.post_id = p.id AND lcs.community_id = \(uuid: communityID) AND lcs.status = 'posted'), p.created_at))
+        """
+    }
+
+    /// `posts` as this community shows them: each approved listing dated by
+    /// `communityShownAt`.
+    static func datedForCommunity(_ posts: [PostObject], _ communityID: String, on db: any SQLDatabase) async throws -> [PostObject] {
+        let ids = posts.filter { $0.post_type == "listing" }.map(\.id)
+        guard !ids.isEmpty else { return posts }
+        struct R: Decodable { let post_id: String; let reviewed_at: Date }
+        let rows = try await db.raw("""
+            SELECT lp.post_id::text AS post_id, lc.reviewed_at FROM listing_posts lp
+            JOIN listing_communities lc ON lc.listing_id = lp.id
+            WHERE lp.post_id = ANY(\(bind: ids)::uuid[]) AND lc.community_id = \(uuid: communityID)
+              AND lc.status = 'posted' AND lc.reviewed_at IS NOT NULL
+            """).all(decoding: R.self)
+        let approved = Dictionary(rows.map { ($0.post_id, $0.reviewed_at) }, uniquingKeysWith: max)
+        return posts.map { post in
+            var post = post
+            if let at = approved[post.id], at > post.created_at { post.created_at = at }
+            return post
+        }
     }
 
     /// An admin's decision on a listing waiting in their community. nil when
@@ -216,12 +432,24 @@ enum ListingStore {
               'auto_reup', CASE WHEN p.author_id = \(uuid: v) AND lp.auto_reup_days IS NOT NULL
                   THEN json_build_object('every_days', lp.auto_reup_days, 'hour', lp.auto_reup_hour) END,
               'next_auto_reup_at', CASE WHEN p.author_id = \(uuid: v) THEN lp.next_auto_reup_at END,
+              'next_reup_at', CASE WHEN p.author_id = \(uuid: v)
+                  AND p.created_at > NOW() - make_interval(secs => \(unsafeRaw: String(Int(reupCooldown))))
+                  THEN p.created_at + make_interval(secs => \(unsafeRaw: String(Int(reupCooldown)))) END,
               'has_auto_reply', lp.auto_reply IS NOT NULL,
               'auto_reply', CASE WHEN p.author_id = \(uuid: v) THEN lp.auto_reply END,
+              'items', COALESCE((SELECT json_agg(json_build_object('id', li.id, 'title', li.title, 'price', li.price,
+                  'condition', li.condition, 'status', li.status, 'image_urls', li.image_urls,
+                  'image_alts', li.image_alts,
+                  'ask_again_at', (SELECT a.asked_at + make_interval(secs => \(bind: askCooldown)) FROM listing_item_asks a
+                    WHERE a.item_id = li.id AND a.buyer_id = \(uuid: v)
+                      AND a.asked_at > NOW() - make_interval(secs => \(bind: askCooldown)))) ORDER BY li.position)
+                FROM listing_items li WHERE li.listing_id = lp.id), '[]'),
               'communities', COALESCE((SELECT json_agg(json_build_object('id', lc.community_id, 'name', lcc.name,
-                  'icon_emoji', lcc.icon_emoji) ORDER BY lc.created_at)
+                  'icon_emoji', lcc.icon_emoji, 'pending', lc.status = 'pending') ORDER BY lc.created_at)
                 FROM listing_communities lc JOIN communities lcc ON lcc.id = lc.community_id
-                WHERE lc.listing_id = lp.id AND lc.status = 'posted'), '[]'))
+                -- The seller also sees the ones waiting for approval (Edit listing ticks them).
+                WHERE lc.listing_id = lp.id
+                  AND (lc.status = 'posted' OR (lc.status = 'pending' AND p.author_id = \(uuid: v)))), '[]'))
             FROM listing_posts lp WHERE lp.post_id = p.id
           ) ELSE NULL END)::text AS listing_data,
         """
@@ -246,7 +474,8 @@ enum ListingStore {
         if let sellerID { q = q + " AND p.author_id = \(uuid: sellerID)" }
         if let query {
             let like = "%" + UserStore.escapeLike(query) + "%"
-            q = q + " AND (lm.title ILIKE \(bind: like) OR p.content ILIKE \(bind: like))"
+            q = q + " AND (lm.title ILIKE \(bind: like) OR p.content ILIKE \(bind: like)"
+                + " OR EXISTS (SELECT 1 FROM listing_items lq WHERE lq.listing_id = lm.id AND lq.title ILIKE \(bind: like)))"
         }
         q = q + " GROUP BY p.id, u.id, lm.status ORDER BY (lm.status = 'sold'), p.created_at DESC"
             + " LIMIT \(bind: limit) OFFSET \(bind: offset)"
@@ -269,40 +498,40 @@ enum ListingStore {
     }
 
     struct Patch: Content {
+        /// The headline.
         var title: String?
-        var price: Int64?
-        var condition: String?
+        /// The description (the post's text), written however the seller likes.
+        var content: String?
+        /// "markdown" when the description was written with Markdown.
+        var content_format: String?
         var location: String?
         var auto_reply: String?
         var hide_from_friends: Bool?
+        /// Every item at once ("sold" / "available"); one item has its own route.
         var status: String?
         /// Both together; `clear_coordinates` removes the map location.
         var latitude: Double?
         var longitude: Double?
         var clear_coordinates: Bool?
-        /// The photos, replaced as a whole (1–10); alts line up with them.
-        var image_urls: [String]?
-        var image_alts: [String]?
+        /// The whole item list, replacing the old one (see `replaceItems`).
+        var items: [ItemIn]?
         /// Set or change the auto re-up schedule, or `clear_auto_reup` to stop it.
         var auto_reup: PostObject.ListingData.AutoReup?
         var clear_auto_reup: Bool?
+        /// Every community it should be listed in (0–5); see `setCommunities`.
+        /// Applied by the controller, which knows the seller.
+        var community_ids: [String]?
     }
 
     /// Applies only the fields sent; an empty location or auto-reply clears it.
-    static func update(listingID: String, _ p: Patch, on db: any SQLDatabase) async throws {
+    /// True when the description changed (the caller re-translates and re-scans it).
+    @discardableResult
+    static func update(listingID: String, _ p: Patch, on db: AppDatabase) async throws -> Bool {
         var sets: [SQLQueryString] = []
         if let t = p.title {
             let title = t.trimmedText
             guard !title.isEmpty, title.count <= maxTitle else { throw Abort(.badRequest, reason: "Listing title must be 1–\(maxTitle) characters") }
             sets.append("title = \(bind: title)")
-        }
-        if let price = p.price {
-            guard (0...maxPrice).contains(price) else { throw Abort(.badRequest, reason: "Price must be between 0 and \(maxPrice) VND") }
-            sets.append("price = \(bind: price)")
-        }
-        if let c = p.condition {
-            guard conditions.contains(c) else { throw Abort(.badRequest, reason: "Invalid condition") }
-            sets.append("condition = \(bind: c)")
         }
         if let l = p.location {
             let location = l.trimmedText.nilIfEmpty
@@ -322,13 +551,10 @@ enum ListingStore {
             sets.append("latitude = \(bind: point.0)")
             sets.append("longitude = \(bind: point.1)")
         }
-        if let s = p.status {
-            guard statuses.contains(s) else { throw Abort(.badRequest, reason: "Invalid status") }
-            sets.append("status = \(bind: s)")
-        }
+        if let s = p.status, !statuses.contains(s) { throw Abort(.badRequest, reason: "Invalid status") }
         try validateAutoReup(p.auto_reup)
-        // Sold cancels auto re-up for good; otherwise the patch sets or clears it.
-        if p.status == "sold" || p.clear_auto_reup == true {
+        // Sold cancels auto re-up for good (syncSummary); otherwise the patch sets or clears it.
+        if p.clear_auto_reup == true {
             sets.append("auto_reup_days = NULL")
             sets.append("auto_reup_hour = NULL")
             sets.append("next_auto_reup_at = NULL")
@@ -337,29 +563,103 @@ enum ListingStore {
             sets.append("auto_reup_hour = \(bind: a.hour)")
             sets.append("next_auto_reup_at = \(bind: nextAutoReup(from: Date(), days: a.every_days, hour: a.hour))")
         }
-        let photos = try photoUpdate(p)
-        guard !sets.isEmpty || photos != nil else { throw Abort(.badRequest, reason: "Nothing to update") }
-        if let photos {
-            try await db.raw("""
-                UPDATE posts SET image_urls = \(bind: photos.urls), image_alts = \(bind: photos.alts), updated_at = NOW()
-                WHERE id = (SELECT post_id FROM listing_posts WHERE id = \(uuid: listingID))
-                """).run()
+        let items = try p.items.map(validateItems)
+        let content = p.content?.trimmedText
+        if let content, content.count > 2000 { throw Abort(.badRequest, reason: "Description must be at most 2000 characters") }
+        let format = p.content_format.flatMap { PostStore.contentFormats.contains($0) ? $0 : nil }
+        guard !sets.isEmpty || items != nil || p.status != nil || content != nil || p.community_ids != nil else {
+            throw Abort(.badRequest, reason: "Nothing to update")
         }
-        guard !sets.isEmpty else { return }
+        var contentChanged = false
+        if let content { contentChanged = try await descriptionDiffers(listingID: listingID, content, on: db.sql()) }
+        let changed = contentChanged
         var q: SQLQueryString = "UPDATE listing_posts SET updated_at = NOW()"
         for s in sets { q = q + ", " + s }
-        try await db.raw(q + " WHERE id = \(uuid: listingID)").run()
+        let listingUpdate: SQLQueryString? = sets.isEmpty ? nil : q + " WHERE id = \(uuid: listingID)"
+        try await db.tx { t in
+            if let listingUpdate { try await t.raw(listingUpdate).run() }
+            if let items { try await replaceItems(listingID: listingID, items, on: t) }
+            if let status = p.status {
+                try await t.raw("""
+                    UPDATE listing_items SET status = \(bind: status), updated_at = NOW() WHERE listing_id = \(uuid: listingID)
+                    """).run()
+            }
+            if items != nil || p.status != nil { try await syncSummary(listingID: listingID, on: t) }
+            if changed, let content {
+                // Keep the version being replaced, like any post edit (post_revisions).
+                try await t.raw("""
+                    INSERT INTO post_revisions (post_id, content, content_format, image_urls, image_alts, article_title, link_url)
+                    SELECT id, content, content_format, image_urls, image_alts, article_title, link_url
+                    FROM posts WHERE id = (SELECT post_id FROM listing_posts WHERE id = \(uuid: listingID))
+                    """).run()
+                try await t.raw("""
+                    UPDATE posts SET content = \(bind: content), content_format = COALESCE(\(bind: format), content_format),
+                      edited_at = NOW(), updated_at = NOW()
+                    WHERE id = (SELECT post_id FROM listing_posts WHERE id = \(uuid: listingID))
+                    """).run()
+            }
+        }
+        return changed
     }
 
-    /// The new photo list from a patch, nil when it doesn't touch photos. A
-    /// listing can never be left without one.
-    static func photoUpdate(_ p: Patch) throws -> (urls: [String], alts: [String]?)? {
-        guard let raw = p.image_urls else { return nil }
-        guard let urls = try PostsController.normalizeImageUrls(raw) else { throw Abort(.badRequest, reason: "Add at least one photo") }
-        return (urls, PostStore.cleanAlts(p.image_alts, count: urls.count))
+    private static func descriptionDiffers(listingID: String, _ content: String, on db: any SQLDatabase) async throws -> Bool {
+        struct R: Decodable { let content: String? }
+        let row = try await db.raw("""
+            SELECT p.content FROM posts p JOIN listing_posts l ON l.post_id = p.id WHERE l.id = \(uuid: listingID)
+            """).first(decoding: R.self)
+        return (row?.content ?? "") != content
+    }
+
+    // MARK: asking about an item (migration 119)
+
+    /// How often one buyer may ask about one item: keeps "Ask about this" from
+    /// flooding the seller's chat.
+    static let askCooldown: TimeInterval = 20 * 60
+
+    /// Whole minutes left (rounded up, at least 1) before a buyer who last asked
+    /// at `lastAsked` may ask again.
+    static func askWaitMinutes(lastAsked: Date, now: Date = Date()) -> Int {
+        let left = askCooldown - now.timeIntervalSince(lastAsked)
+        return max(1, Int((left / 60).rounded(.up)))
+    }
+
+    /// Records that `buyer` asks about the item now. Refuses a sold or missing
+    /// item, and a second ask within `askCooldown` (with how long to wait).
+    static func claimItemAsk(listingID: String, itemID: String, buyer: String, on db: any SQLDatabase) async throws {
+        struct Item: Decodable { let status: String }
+        guard let item = try await db.raw("""
+            SELECT status FROM listing_items WHERE id = \(uuid: itemID) AND listing_id = \(uuid: listingID)
+            """).first(decoding: Item.self) else { throw Abort(.notFound, reason: "Item not found") }
+        guard item.status == "available" else { throw Abort(.conflict, reason: "This item has been sold") }
+        // One statement, so two quick taps can't both get through.
+        let claimed = try await db.raw("""
+            INSERT INTO listing_item_asks (item_id, buyer_id) VALUES (\(uuid: itemID), \(uuid: buyer))
+            ON CONFLICT (item_id, buyer_id) DO UPDATE SET asked_at = NOW()
+            WHERE listing_item_asks.asked_at <= NOW() - make_interval(secs => \(bind: askCooldown))
+            RETURNING 1 AS one
+            """).all()
+        guard claimed.isEmpty else { return }
+        struct Last: Decodable { let asked_at: Date }
+        let last = try await db.raw("""
+            SELECT asked_at FROM listing_item_asks WHERE item_id = \(uuid: itemID) AND buyer_id = \(uuid: buyer)
+            """).first(decoding: Last.self)
+        let minutes = askWaitMinutes(lastAsked: last?.asked_at ?? Date())
+        throw Abort(.tooManyRequests, reason: "You can ask about this item again in \(minutes) minutes")
     }
 
     // MARK: re-up (migration 093)
+
+    /// A seller re-ups by hand at most once in this long. The current post's
+    /// `created_at` is when it was last listed, since a re-up makes a new post.
+    static let reupCooldown: TimeInterval = 8 * 3600
+
+    /// "3h 20m" left before the next re-up, or nil when it's allowed now.
+    static func reupWait(lastListed: Date, now: Date = Date()) -> String? {
+        let left = reupCooldown - now.timeIntervalSince(lastListed)
+        guard left > 0 else { return nil }
+        let minutes = max(1, Int((left / 60).rounded(.up)))
+        return minutes >= 60 ? "\(minutes / 60)h \(minutes % 60)m" : "\(minutes)m"
+    }
 
     /// Posts the item again as new: a fresh `posts` row takes over the listing
     /// and the old post is retired as 'replaced'. The new post starts with no
@@ -369,10 +669,13 @@ enum ListingStore {
     static func reup(listingID: String, seller: String?, on db: AppDatabase) async throws -> String {
         var newID = ""
         try await db.tx { t in
-            struct Row: Decodable { let post_id: String; let author_id: String; let status: String; let post_status: String }
+            struct Row: Decodable {
+                let post_id: String; let author_id: String; let status: String; let post_status: String; let created_at: Date
+            }
             // Locking the item row serialises two quick taps into two re-ups, not one lost update.
             guard let cur = try await t.raw("""
-                SELECT l.post_id::text AS post_id, p.author_id::text AS author_id, l.status, p.status::text AS post_status
+                SELECT l.post_id::text AS post_id, p.author_id::text AS author_id, l.status, p.status::text AS post_status,
+                       p.created_at
                 FROM listing_posts l JOIN posts p ON p.id = l.post_id
                 WHERE l.id = \(uuid: listingID) FOR UPDATE OF l
                 """).first(decoding: Row.self), cur.post_status == "posted" else {
@@ -380,6 +683,10 @@ enum ListingStore {
             }
             if let seller, cur.author_id != seller { throw Abort(.forbidden, reason: "Only the seller can re-up this listing") }
             guard cur.status == "available" else { throw Abort(.badRequest, reason: "A sold item can't be re-upped") }
+            // The auto re-up job runs on its own schedule (at least a day apart).
+            if seller != nil, let wait = reupWait(lastListed: cur.created_at) {
+                throw Abort(.tooManyRequests, reason: "You can re-up this listing again in \(wait)")
+            }
             struct New: Decodable { let id: String }
             let new = try await t.raw("""
                 INSERT INTO posts (author_id, content, content_format, mode, privacy, community_id, post_type, image_urls, image_alts,

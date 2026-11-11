@@ -10,8 +10,6 @@ struct MainTabView: View {
     @State private var profileNavPath = NavigationPath()
     @State private var searchNavPath = NavigationPath()
     @State private var communityNavPath = NavigationPath()
-    /// Work mode's tab is Jobs; communities open over it from there.
-    @State private var showCommunities = false
     /// Owned here rather than by the assistant sheet: `.sheet` destroys its
     /// content on dismiss, so a view model created inside it would lose the
     /// conversation every time. Including when "Take me there" dismisses.
@@ -47,7 +45,6 @@ struct MainTabView: View {
             }
         }
         // First switch to a mode without a persona set up yet → show the persona creation form
-        .sheet(isPresented: $showCommunities) { CommunitiesView(navPath: $communityNavPath) }
         .sheet(item: $appState.pendingPersonaMode) { mode in
             PersonaSetupView(mode: mode)
                 .environment(appState)
@@ -55,7 +52,7 @@ struct MainTabView: View {
         }
         // Undo toast for post soft-deletes (comment deletes use their own local
         // presenter inside CommentSheet, which is presented modally above this).
-        .undoToastOverlay(toastPresenter)
+        .undoToastOverlay(toastPresenter, bottomInset: 64)
         // Floating "chat head" mini windows, persist above every tab the
         // same way the undo toast does (see `FloatingChatPresenter.swift`).
         .floatingChatOverlay(floatingChatPresenter)
@@ -165,7 +162,7 @@ struct MainTabView: View {
     @ViewBuilder
     private var communityOrJobs: some View {
         if appState.currentMode == .work {
-            JobsHomeView { showCommunities = true }
+            JobsHomeView()
         } else {
             CommunitiesView(navPath: $communityNavPath)
         }
@@ -249,8 +246,8 @@ struct MainTabView: View {
         guard case let .community(id)? = appState.pendingDeepLink else { return }
         appState.pendingDeepLink = nil
         selectedTab = 2
-        // In Work mode that tab is Jobs; the community opens over it.
-        if appState.currentMode == .work { showCommunities = true }
+        // Communities are Hobby-only; in Work mode that tab is Jobs.
+        if appState.currentMode == .work { appState.requestModeSwitch(to: .hobby) }
         communityNavPath = NavigationPath()
         communityNavPath.append(id)
     }

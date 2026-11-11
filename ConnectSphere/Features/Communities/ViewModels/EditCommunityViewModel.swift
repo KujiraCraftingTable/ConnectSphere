@@ -18,7 +18,6 @@ final class EditCommunityViewModel {
     var privacy: CommunityPrivacy
     var requirePostApproval: Bool
     private(set) var pickedCover: UIImage?
-    private(set) var removeCover = false
     private(set) var isSaving = false
     var errorMessage: String?
 
@@ -39,25 +38,35 @@ final class EditCommunityViewModel {
     /// Has anything been changed from the community as it is now? Cancel only asks then.
     var hasChanges: Bool {
         trimmedName != original.name || about != (original.description ?? "") || privacy != original.privacy
-            || requirePostApproval != original.requirePostApproval || pickedCover != nil || removeCover
+            || requirePostApproval != original.requirePostApproval || pickedCover != nil
     }
 
     var nameProblem: String? {
-        (3...100).contains(trimmedName.count) ? nil : Bundle.app.loc("Community name must be 3-100 characters")
+        guard (3...100).contains(trimmedName.count) else { return Bundle.app.loc("Community name must be 3-100 characters") }
+        return takenName == trimmedName.lowercased() ? Bundle.app.loc("A community with this name already exists") : nil
     }
 
-    /// Shows the existing cover unless a new one was picked or it was removed.
-    var showsExistingCover: Bool { pickedCover == nil && !removeCover && original.coverUrl != nil }
+    /// The last name (lowercased) found taken, by the live check or a refused save.
+    private var takenName: String?
+
+    /// Checks the typed name with the server; the view calls it after a short
+    /// pause in typing. The community's own name is always fine.
+    func checkName(token: String) async {
+        let candidate = trimmedName
+        guard (3...100).contains(candidate.count),
+              candidate.caseInsensitiveCompare(original.name) != .orderedSame else { return }
+        guard let available = try? await repository.isNameAvailable(candidate, except: original.id, token: token),
+              candidate == trimmedName else { return }
+        if !available { takenName = candidate.lowercased() }
+        else if takenName == candidate.lowercased() { takenName = nil }
+    }
+
+    /// Shows the existing cover unless a new one was picked.
+    var showsExistingCover: Bool { pickedCover == nil && original.coverUrl != nil }
 
     func loadCover(from item: PhotosPickerItem) async {
         guard let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else { return }
         pickedCover = image
-        removeCover = false
-    }
-
-    func clearCover() {
-        pickedCover = nil
-        removeCover = true
     }
 
     /// The saved community, or nil with `errorMessage` set.
@@ -72,8 +81,6 @@ final class EditCommunityViewModel {
                 errorMessage = Bundle.app.loc("Couldn't upload photo, please try again")
                 return nil
             }
-        } else if removeCover {
-            coverUrl = ""   // removes it
         }
         do {
             return try await repository.updateCommunity(
@@ -85,7 +92,11 @@ final class EditCommunityViewModel {
                 requirePostApproval: requirePostApproval == original.requirePostApproval ? nil : requirePostApproval,
                 token: token)
         } catch {
-            errorMessage = friendlyError(error)
+            if case APIError.serverError(409, _) = error {
+                takenName = trimmedName.lowercased()
+            } else {
+                errorMessage = friendlyError(error)
+            }
             return nil
         }
     }

@@ -4,29 +4,81 @@ import XCTest
 
 final class ListingValidationTests: XCTestCase {
     private typealias In = PostsController.CreateBody.ListingDataIn
+    private typealias ItemIn = ListingStore.ItemIn
 
-    private func input(title: String? = "Road bike", price: Int64? = 2_500_000, condition: String? = "good",
+    private func item(_ title: String? = "Road bike", price: Int64? = 2_500_000, condition: String? = "good",
+                      photos: [String]? = ["/uploads/a.jpg"]) -> ItemIn {
+        ItemIn(title: title, price: price, condition: condition, image_urls: photos)
+    }
+
+    private func input(title: String? = nil, items: [ItemIn]? = nil,
                        location: String? = nil, autoReply: String? = nil, hide: Bool? = nil) -> In {
-        In(title: title, price: price, condition: condition, location: location, autoReply: autoReply, hideFromFriends: hide)
+        In(title: title, items: items ?? [item()], location: location, autoReply: autoReply, hideFromFriends: hide)
     }
 
     func testValidListingIsTrimmedAndDefaulted() throws {
-        let d = try ListingStore.validate(input(title: "  Road bike  ", location: "  ", autoReply: " Yes, still here! "))
-        XCTAssertEqual(d.title, "Road bike")
+        let d = try ListingStore.validate(input(items: [item("  Road bike  ")], location: "  ", autoReply: " Yes, still here! "))
+        XCTAssertEqual(d.title, "Road bike", "one item: its title is the headline")
+        XCTAssertEqual(d.items.first?.title, "Road bike")
         XCTAssertNil(d.location, "a blank location is no location")
         XCTAssertEqual(d.autoReply, "Yes, still here!")
         XCTAssertFalse(d.hideFromFriends)
     }
 
     func testFreeIsAllowed() throws {
-        XCTAssertEqual(try ListingStore.validate(input(price: 0)).price, 0)
+        XCTAssertEqual(try ListingStore.validate(input(items: [item(price: 0)])).items.first?.price, 0)
     }
 
     func testMissingDetailsAreRejected() {
         XCTAssertThrowsError(try ListingStore.validate(nil))
-        XCTAssertThrowsError(try ListingStore.validate(input(title: "   ")))
-        XCTAssertThrowsError(try ListingStore.validate(input(price: nil)))
-        XCTAssertThrowsError(try ListingStore.validate(input(condition: nil)))
+        XCTAssertThrowsError(try ListingStore.validate(In(title: "Sale", items: nil)))
+        XCTAssertThrowsError(try ListingStore.validate(input(items: [])))
+        XCTAssertThrowsError(try ListingStore.validate(input(items: [item("   ")])))
+        XCTAssertThrowsError(try ListingStore.validate(input(items: [item(price: nil)])))
+        XCTAssertThrowsError(try ListingStore.validate(input(items: [item(condition: nil)])))
+    }
+
+    func testSeveralItemsNeedAHeadline() throws {
+        let two = [item("Doujinshi", price: 100_000), item("Bromide 🌸", price: 25_000, condition: "new")]
+        XCTAssertThrowsError(try ListingStore.validate(input(items: two)))
+        let d = try ListingStore.validate(input(title: " Shelf clear-out ✨ ", items: two))
+        XCTAssertEqual(d.title, "Shelf clear-out ✨")
+        XCTAssertEqual(d.items.map(\.title), ["Doujinshi", "Bromide 🌸"])
+    }
+
+    func testUpToTwentyItems() {
+        XCTAssertNoThrow(try ListingStore.validate(input(title: "Sale", items: Array(repeating: item(), count: 20))))
+        XCTAssertThrowsError(try ListingStore.validate(input(title: "Sale", items: Array(repeating: item(), count: 21))))
+    }
+
+    func testEachItemHasOneToSixPhotos() throws {
+        XCTAssertThrowsError(try ListingStore.validateItems([item(photos: nil)]))
+        XCTAssertThrowsError(try ListingStore.validateItems([item(photos: [])]))
+        XCTAssertNoThrow(try ListingStore.validateItems([item(photos: (1...6).map { "/uploads/\($0).jpg" })]))
+        XCTAssertThrowsError(try ListingStore.validateItems([item(photos: (1...7).map { "/uploads/\($0).jpg" })]))
+        XCTAssertThrowsError(try ListingStore.validateItems([item(photos: ["https://evil.example/x.jpg"])]))
+        var withAlt = item(photos: ["/uploads/a.jpg", "/uploads/b.jpg"])
+        withAlt.image_alts = ["front"]
+        let v = try ListingStore.validateItems([withAlt])
+        XCTAssertEqual(v.first?.imageUrls.count, 2)
+        XCTAssertEqual(v.first?.imageAlts?.count, 2, "alts line up with the photos")
+    }
+
+    func testItemIdsMustBeValidAndUnique() {
+        let id = UUID().uuidString
+        var a = item(), b = item()
+        a.id = id; b.id = id
+        XCTAssertThrowsError(try ListingStore.validateItems([a, b]))
+        a.id = "nope"
+        XCTAssertThrowsError(try ListingStore.validateItems([a]))
+    }
+
+    func testAskWaitIsRoundedUpToWholeMinutes() {
+        let now = Date()
+        XCTAssertEqual(ListingStore.askWaitMinutes(lastAsked: now, now: now), 20)
+        XCTAssertEqual(ListingStore.askWaitMinutes(lastAsked: now.addingTimeInterval(-61), now: now), 19)
+        XCTAssertEqual(ListingStore.askWaitMinutes(lastAsked: now.addingTimeInterval(-19 * 60 - 30), now: now), 1)
+        XCTAssertEqual(ListingStore.askWaitMinutes(lastAsked: now.addingTimeInterval(-25 * 60), now: now), 1, "never says 0")
     }
 
     func testCommunitiesAreOptionalDedupedAndCappedAtFive() throws {
@@ -51,23 +103,12 @@ final class ListingValidationTests: XCTestCase {
     }
 
     func testValuesOutsideTheRulesAreRejected() {
-        XCTAssertThrowsError(try ListingStore.validate(input(price: -1)))
-        XCTAssertThrowsError(try ListingStore.validate(input(price: ListingStore.maxPrice + 1)))
-        XCTAssertThrowsError(try ListingStore.validate(input(condition: "broken")))
+        XCTAssertThrowsError(try ListingStore.validate(input(items: [item(price: -1)])))
+        XCTAssertThrowsError(try ListingStore.validate(input(items: [item(price: ListingStore.maxPrice + 1)])))
+        XCTAssertThrowsError(try ListingStore.validate(input(items: [item(condition: "broken")])))
+        XCTAssertThrowsError(try ListingStore.validate(input(items: [item(String(repeating: "a", count: 101))])))
         XCTAssertThrowsError(try ListingStore.validate(input(title: String(repeating: "a", count: 101))))
         XCTAssertThrowsError(try ListingStore.validate(input(autoReply: String(repeating: "a", count: 501))))
-    }
-
-    func testPhotoEditsNeedAtLeastOnePhoto() throws {
-        var patch = ListingStore.Patch()
-        XCTAssertNil(try ListingStore.photoUpdate(patch), "a patch without photos leaves them alone")
-        patch.image_urls = []
-        XCTAssertThrowsError(try ListingStore.photoUpdate(patch))
-        patch.image_urls = ["/uploads/a.jpg", "/uploads/b.jpg"]
-        patch.image_alts = ["front"]
-        let update = try ListingStore.photoUpdate(patch)
-        XCTAssertEqual(update?.urls.count, 2)
-        XCTAssertEqual(update?.alts?.count, 2, "alts line up with the photos")
     }
 
     // MARK: auto re-up (migration 095)

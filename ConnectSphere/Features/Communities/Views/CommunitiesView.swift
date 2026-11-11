@@ -56,8 +56,6 @@ struct CommunitiesView: View {
                     MarketplaceView(sellRequest: $sellRequest)
                 }
             }
-            // Swipe the content to move between the three segments.
-            .swipeBetween(CommunityTab.allCases, selection: $selectedTab)
             .appBackground()
             .navigationTitle(bundle.loc(selectedTab == .marketplace ? "Marketplace" : "Community"))
             .navigationBarTitleDisplayMode(.large)
@@ -76,6 +74,7 @@ struct CommunitiesView: View {
                             .foregroundColor(themeManager.theme.primary)
                             .padding(.horizontal, 6)
                         }
+                        .disabledWhenRestricted()
                         }
                     } else if !(appState.currentUser?.isOfficial ?? false) {
                         // Creating a community would make the official account its member.
@@ -86,19 +85,20 @@ struct CommunitiesView: View {
                                 .foregroundColor(themeManager.theme.primary)
                         }
                         .accessibilityLabel(Bundle.app.loc("Create community"))
+                        .disabledWhenRestricted()
                     }
                 }
             }
             .task {
                 await viewModel.fetchInitial(token: appState.authToken ?? "",
-                                             type: appState.currentMode == .hobby ? .fandom : .work)
+                                             type: .fandom)
             }
             // Tab re-tapped: reload the lists.
             .onChange(of: appState.communitiesReloadTick) {
                 // Back to My communities from Marketplace or Discover.
                 withAnimation { selectedTab = .myCommunities }
                 Task { await viewModel.fetchInitial(token: appState.authToken ?? "",
-                                                    type: appState.currentMode == .hobby ? .fandom : .work) }
+                                                    type: .fandom) }
             }
             // Joined, left, pinned or edited elsewhere: refresh the list.
             .onReceive(NotificationCenter.default.publisher(for: .communitiesChanged)) { _ in
@@ -142,7 +142,7 @@ struct CommunitiesView: View {
                 } else if let myError = viewModel.myError, viewModel.myCommunities.isEmpty {
                     myCommunitiesError(myError)
                 } else {
-                    typeSection(appState.currentMode == .hobby ? .fandom : .work)
+                    typeSection(.fandom)
                 }
             }
             .padding(.top, AppSpacing.sm)

@@ -9,14 +9,12 @@ struct PostsController {
 
         posts.get(use: list)
         posts.post(use: create)
-        posts.post("analyze", use: analyze)
         posts.get("deleted", use: listDeleted)
         posts.get("saved", use: listSaved)
         posts.get("drafts", use: listDrafts)
         posts.delete(":id", "draft", use: deleteDraft)
         posts.post(":id", "unschedule", use: unschedule)
         posts.post(":id", "publish", use: publishScheduled)
-        posts.get("comments", "deleted", use: listDeletedComments)
         posts.get(":id", use: getOne)
         posts.get(":id", "history", use: history)
         posts.delete(":id", use: softDelete)
@@ -108,28 +106,6 @@ struct PostsController {
         return DataResponse(data: rows)
     }
 
-    // MARK: POST /api/posts/analyze
-
-    struct AnalyzeBody: Content { var content: String?; var currentMode: String? }
-    struct AnalyzeResponse: Content {
-        var suggestedMode: String
-        var confidence: Double
-        var reason: String
-        var fast: Bool?
-        var isMismatch: Bool
-    }
-    static func analyze(_ req: Request) async throws -> AnalyzeResponse {
-        let b = try req.content.decode(AnalyzeBody.self)
-        guard let content = b.content?.trimmingCharacters(in: .whitespaces), !content.isEmpty else {
-            throw InlineError(.badRequest, "content is required")
-        }
-        let r = await PostAnalyzeService.analyze(req.ollama, content, logger: req.logger)
-        let isMismatch = r.confidence >= 0.75 && r.suggestedMode != "neutral"
-            && (b.currentMode.map { !$0.isEmpty && r.suggestedMode != $0 } ?? false)
-        return AnalyzeResponse(suggestedMode: r.suggestedMode, confidence: r.confidence, reason: r.reason,
-                               fast: r.fast, isMismatch: isMismatch)
-    }
-
     // MARK: POST /api/posts
 
     struct CreateBody: Content {
@@ -164,10 +140,10 @@ struct PostsController {
         var listingData: ListingDataIn?
         /// A marketplace listing (community posts only); the description is `content`.
         struct ListingDataIn: Content {
+            /// The headline; may be left out with a single item.
             var title: String?
-            /// Whole VND; 0 = free.
-            var price: Int64?
-            var condition: String?
+            /// What's for sale, 1–20 (migration 117).
+            var items: [ListingStore.ItemIn]?
             var location: String?
             var autoReply: String?
             var hideFromFriends: Bool?
@@ -190,13 +166,20 @@ struct PostsController {
             var employmentType: String?
             var salaryRange: String?
             var applicationDeadline: String?
-            /// Post as this company page (you must be one of its admins).
-            var companyId: String?
+            /// The job on the company's own careers page, so applicants can
+            /// check it's real (required; migration 126).
+            var careersUrl: String?
             var workFormat: String?
             var level: String?
             /// VND million / month.
             var salaryMin: Int?
             var salaryMax: Int?
+            /// Pay is "Negotiable" (migration 128); the range is then ignored.
+            var salaryNegotiable: Bool?
+            /// vn_wards id of where the job is (migration 129).
+            var wardId: String?
+            /// `/uploads/jd/…` from `POST /hr/jd` (migration 130).
+            var jdPath: String?
             var skills: [String]?
         }
     }
@@ -234,7 +217,7 @@ struct PostsController {
             guard let created = try await PostStore.create(.init(
                 authorID: req.userID, content: b.content?.trimmedText ?? "",
                 mode: mode, privacy: b.privacy ?? "public",
-                imageUrl: try MediaPath.thumbnail(b.image_url, hasLink: b.link_url?.nilIfEmpty != nil), imageUrls: imageUrls, linkUrl: b.link_url?.nilIfEmpty,
+                imageUrl: try MediaPath.thumbnail(b.image_url, hasLink: b.link_url?.nilIfEmpty != nil), imageUrls: imageUrls, linkUrl: try MediaPath.webLink(b.link_url),
                 articleTitle: b.article_title?.nilIfEmpty, sharedPostID: nil,
                 hashtags: hashtags, publishing: publishing), on: req.db)
             else { throw Abort(.internalServerError) }
@@ -250,7 +233,6 @@ struct PostsController {
     }
 
     static func create(_ req: Request) async throws -> Response {
-        try req.requireNotRestricted(spending: .post)
         let b = try req.content.decode(CreateBody.self)
         try checkText(b)
         let hashtags = b.hashtags ?? []
@@ -258,6 +240,8 @@ struct PostsController {
             throw InlineError(.badRequest, "mode must be hobby or work")
         }
         let mode = b.mode!
+        try req.requireNotBanned(in: mode)
+        try req.requireNotRestricted(in: mode)
         _ = try PostStore.validatedPrivacy(b.privacy)
         let postType = b.post_type ?? "text"
         let publishing = try Publishing.from(b.publish, at: b.publish_at)
@@ -277,7 +261,8 @@ struct PostsController {
             // Saved fine, so the version it replaces can go.
             try await PostStore.deleteUnpublished(old, author: req.userID, on: req.db.sql())
         }
-        if publishing.isLive {
+        // A new HR's job waits for review (`pending`): its side effects run when approved.
+        if publishing.isLive, post.status ?? "posted" == "posted" {
             await PostPublisher.afterPublish(req, post: post)
             if let crossPosted { await PostPublisher.afterPublish(req, post: crossPosted) }
         }
@@ -356,12 +341,13 @@ struct PostsController {
     struct ShareBody: Content { var content: String?; var mode: String?; var privacy: String? }
 
     static func share(_ req: Request) async throws -> Response {
-        try req.requireNotRestricted(spending: .post)
         let b = try req.content.decode(ShareBody.self)
         try ModerationGate.check([b.content], .text)
         guard ["hobby", "work"].contains(b.mode ?? "") else {
             throw InlineError(.badRequest, "mode must be hobby or work")
         }
+        try req.requireNotBanned(in: b.mode!)
+        try req.requireNotRestricted(in: b.mode!)
         let privacy = try PostStore.validatedPrivacy(b.privacy) ?? "public"
         // The official account may share a community post without joining;
         // the shared post's own rules still hide a private one from outsiders.
@@ -459,7 +445,7 @@ struct PostsController {
             id, content: contentProvided ? (b.content ?? "").trimmedText : nil,
             contentProvided: contentProvided, privacy: privacy,
             imageUrl: try MediaPath.thumbnail(b.image_url, hasLink: b.link_url?.nilIfEmpty != nil), imageUrls: imageUrls,
-            linkUrl: b.link_url?.nilIfEmpty, articleTitle: b.article_title?.nilIfEmpty, on: sdb)
+            linkUrl: try MediaPath.webLink(b.link_url), articleTitle: b.article_title?.nilIfEmpty, on: sdb)
         switch result {
         case .empty: throw Abort(.badRequest, reason: "A post must have a caption, image, or link")
         case .notFound: throw Abort(.notFound, reason: "Post not found or already deleted")
@@ -511,30 +497,6 @@ struct PostsController {
         return PagedNoTotal(data: try await PostStore.listSaved(req.userID, listings: kind == "listings",
                                                                 limit: limit, offset: offset, on: req.db.sql()),
                             pagination: .init(limit: limit, offset: offset))
-    }
-
-    // MARK: GET /api/posts/comments/deleted
-
-    struct DeletedComment: Content {
-        var id: String
-        var post_id: String
-        @NullCoded var content: String?
-        var created_at: Date
-        @NullCoded var deleted_at: Date?
-        @NullCoded var parent_comment_id: String?
-        var like_count: Int
-    }
-    static func listDeletedComments(_ req: Request) async throws -> PagedNoTotal<DeletedComment> {
-        let limit = clamp(try? req.query.get(Int.self, at: "limit"), 20, 1, 50)
-        let offset = req.pageOffset
-        let rows = try await req.db.sql().raw("""
-            SELECT c.id, c.post_id, c.content, c.created_at, c.deleted_at, c.parent_comment_id, c.like_count
-            FROM comments c JOIN posts p ON p.id = c.post_id
-            WHERE c.author_id = \(uuid: req.userID) AND c.status = 'deleted'
-            ORDER BY c.deleted_at DESC NULLS LAST
-            LIMIT \(bind: limit) OFFSET \(bind: offset)
-            """).all(decoding: DeletedComment.self)
-        return PagedNoTotal(data: rows, pagination: .init(limit: limit, offset: offset))
     }
 
     // MARK: poll vote / report

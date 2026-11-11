@@ -32,6 +32,7 @@ enum ModerationService {
 
     /// `banDays`: for a ban, how long (one of `AccountBans.allowedDays`); nil is permanent.
     static func decide(caseID: String, decision asked: ModerationDecision, restrictDays: Int?, note: String?,
+                       reporterMessage: String? = nil,
                        actor: String, banDays: Int? = nil, on app: AppDatabase) async throws -> Outcome {
         let db = app.sql()
         guard let c = try await loadCase(caseID, on: db) else { throw InlineError(.notFound, "Case not found") }
@@ -63,9 +64,14 @@ enum ModerationService {
             } else if c.auto_hidden {
                 try await restore(c, on: t)
             }
+            // A job hidden by its reports (migration 126) shows again when kept.
+            if !takesDown, c.target_type == ReportTarget.post.rawValue {
+                try await HRStore.unhide(postID: c.target_id, on: t)
+            }
             try await t.raw("""
                 UPDATE moderation_cases SET status = \(bind: decision == .keep ? "dismissed" : "actioned"),
-                  decision = \(bind: decision.rawValue), decision_note = \(bind: note), decided_by = \(uuid: actor),
+                  decision = \(bind: decision.rawValue), decision_note = \(bind: note),
+                  reporter_message = \(bind: reporterMessage), decided_by = \(uuid: actor),
                   decided_at = NOW(), updated_at = NOW()
                 WHERE id = \(uuid: caseID)
                 """).run()
@@ -80,7 +86,7 @@ enum ModerationService {
                     try await addWarning(author, caseID: caseID, policy: policy, mode: c.mode, on: t)
                 case .restrict:
                     days = restrictDays
-                    try await restrictAccount(author, days: restrictDays!, on: t)
+                    try await restrictAccount(author, days: restrictDays!, caseID: caseID, mode: c.mode, on: t)
                 case .ban:
                     try await addWarning(author, caseID: caseID, policy: policy, mode: c.mode, on: t)
                     try await AccountBans.ban(author, modes: banModes, caseID: caseID, days: banDays, on: t)
@@ -100,7 +106,7 @@ enum ModerationService {
                                   on db: any SQLDatabase) async throws -> Int? {
         try await addWarning(user, caseID: caseID, policy: policy, mode: mode, on: db)
         guard let days = Enforcement.restrictionDays(activeStrikes: try await activeStrikes(user, on: db)) else { return nil }
-        try await restrictAccount(user, days: days, on: db)
+        try await restrictAccount(user, days: days, caseID: caseID, mode: mode, on: db)
         return days
     }
 
@@ -123,12 +129,12 @@ enum ModerationService {
             """).first(decoding: N.self)!.n
     }
 
-    /// Never shortens a restriction already running.
-    private static func restrictAccount(_ user: String, days: Int, on db: any SQLDatabase) async throws {
-        try await db.raw("""
-            UPDATE users SET restricted_until = GREATEST(COALESCE(restricted_until, NOW()), NOW() + make_interval(days => \(bind: days)::int))
-            WHERE id = \(uuid: user)
-            """).run()
+    /// In the case's mode, or both for a case with none (a message). Never
+    /// shortens a restriction already running there.
+    private static func restrictAccount(_ user: String, days: Int, caseID: String, mode: String?,
+                                        on db: any SQLDatabase) async throws {
+        try await AccountRestrictions.restrict(user, modes: mode.map { [$0] } ?? AccountBans.modes, caseID: caseID,
+                                               until: "NOW() + make_interval(days => \(bind: days)::int)", on: db)
     }
 
     // MARK: taking content down and putting it back
@@ -217,10 +223,7 @@ enum ModerationService {
                 """).run()
         case .user:
             // A spam-signal pause (auto_hidden on a user case) is lifted with it.
-            try await db.raw("""
-                UPDATE users SET restricted_until = NULL
-                WHERE id = \(uuid: id) AND restricted_until <= NOW() + INTERVAL '25 hours'
-                """).run()
+            try await AccountRestrictions.lift(caseID: c.id, on: db)
             let p = personaPrefix(c.mode)
             try await db.raw("""
                 UPDATE users u SET
@@ -274,8 +277,9 @@ enum ModerationService {
 
     struct AppealOutcome: Sendable { let caseID: String; let userID: String; let overturned: Bool }
 
-    static func decideAppeal(_ appealID: String, overturn: Bool, note: String?, actor: String,
-                             on app: AppDatabase) async throws -> AppealOutcome {
+    /// `reporterMessage`, on an overturn, replaces what reporters read about the case.
+    static func decideAppeal(_ appealID: String, overturn: Bool, note: String?, reporterMessage: String? = nil,
+                             actor: String, on app: AppDatabase) async throws -> AppealOutcome {
         let db = app.sql()
         struct A: Decodable { let case_id: String; let user_id: String; let status: String }
         guard let a = try await db.raw("""
@@ -295,12 +299,17 @@ enum ModerationService {
                 """).run()
             if overturn {
                 try await restore(c, on: t)
+                try await t.raw("""
+                    UPDATE moderation_cases SET reporter_message = \(bind: reporterMessage), updated_at = NOW()
+                    WHERE id = \(uuid: c.id)
+                    """).run()
                 try await t.raw("UPDATE moderation_strikes SET revoked_at = NOW() WHERE case_id = \(uuid: c.id)").run()
                 switch ModerationDecision(rawValue: c.decision ?? "") {
                 case .ban:
                     try await AccountBans.lift(caseID: c.id, on: t)
                 case .restrict, .removeStrike:
-                    try await t.raw("UPDATE users SET restricted_until = NULL WHERE id = \(uuid: a.user_id)").run()
+                    // Only what this case restricted; others keep running.
+                    try await AccountRestrictions.lift(caseID: c.id, on: t)
                 default: break
                 }
             }

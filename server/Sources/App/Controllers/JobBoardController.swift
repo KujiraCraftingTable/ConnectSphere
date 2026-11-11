@@ -33,6 +33,10 @@ struct JobBoardController {
             guard JobStore.levels.contains(lv) else { throw Abort(.badRequest, reason: "Invalid level") }
             f.level = lv
         }
+        if let r = try? req.query.get(Double.self, at: "radius_km") {
+            guard SearchStore.radiusStepsKm.contains(r) else { throw Abort(.badRequest, reason: "Invalid distance") }
+            f.radiusKm = r
+        }
         if let s = try? req.query.get(Int.self, at: "salary_min") {
             guard (0...100_000).contains(s) else { throw Abort(.badRequest, reason: "Invalid salary") }
             f.salaryMin = s

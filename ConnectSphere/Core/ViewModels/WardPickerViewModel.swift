@@ -28,6 +28,13 @@ final class WardPickerViewModel {
         return wards.filter { Self.folded($0.full_name).contains(q) || Self.folded($0.name_en).contains(q) }
     }
 
+    /// Same search for provinces ("ho chi minh" finds "Thành phố Hồ Chí Minh").
+    func provinces(matching query: String) -> [ProvinceDTO] {
+        let q = Self.folded(query.trimmingCharacters(in: .whitespaces))
+        guard !q.isEmpty else { return provinces }
+        return provinces.filter { Self.folded($0.province_name).contains(q) || Self.folded($0.province_name_en).contains(q) }
+    }
+
     /// "đ" isn't a diacritic to Foundation, so it is mapped by hand.
     private static func folded(_ s: String) -> String {
         s.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)

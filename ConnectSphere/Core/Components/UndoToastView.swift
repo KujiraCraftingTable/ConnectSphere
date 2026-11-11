@@ -68,27 +68,30 @@ struct UndoToastView: View {
 
     let item: UndoToastItem
     var onUndo: () -> Void
+    /// Room kept below the toast, e.g. for a tab bar it must not cover.
+    var bottomInset: CGFloat = 0
 
     var body: some View {
         HStack(spacing: 12) {
             Text(item.message)
-                .scaledFont(14)
+                .scaledFont(16, .medium)
                 .foregroundColor(.white)
                 .lineLimit(2)
             Spacer(minLength: 8)
             if item.onUndo != nil {
                 Button(action: onUndo) {
                     Text("Undo", bundle: bundle)
-                        .scaledFont(14, .semibold)
+                        .scaledFont(16, .semibold)
                         .foregroundColor(themeManager.theme.primary)
                 }
             }
         }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
+        .frame(minHeight: 56)
+        .background(Color.black.opacity(0.88), in: RoundedRectangle(cornerRadius: 16))
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color.black.opacity(0.88), in: RoundedRectangle(cornerRadius: 12))
-        .padding(.horizontal, 16)
-        .padding(.bottom, 8)
+        .padding(.bottom, 8 + bottomInset)
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 }
@@ -97,10 +100,12 @@ extension View {
     /// Attaches the shared Undo-toast overlay bound to `presenter`'s current
     /// item, put this on a screen-level view (see `MainTabView`,
     /// `CommentSheet`).
-    func undoToastOverlay(_ presenter: UndoToastPresenter) -> some View {
+    /// `bottomInset` keeps it clear of a tab bar: the floating one takes the
+    /// taps where they overlap, so an Undo drawn over it can't be pressed.
+    func undoToastOverlay(_ presenter: UndoToastPresenter, bottomInset: CGFloat = 0) -> some View {
         overlay(alignment: .bottom) {
             if let item = presenter.current {
-                UndoToastView(item: item, onUndo: { presenter.undo() })
+                UndoToastView(item: item, onUndo: { presenter.undo() }, bottomInset: bottomInset)
                     .id(item.id)
             }
         }

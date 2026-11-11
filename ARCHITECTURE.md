@@ -73,8 +73,9 @@ current mode.
 
 ### Realtime and caching
 
-- **`WebSocketClient`** (Socket.IO) delivers chat messages, typing,
-  notification counts, and so on. ViewModels register and unregister their
+- **`WebSocketClient`** (Socket.IO) delivers chat messages, typing, read
+  receipts (`messages_read`), chat notes (`conversation_event`,
+  `message_request_accepted`), notification counts, and so on. ViewModels register and unregister their
   listeners, for example `FeedViewModel.startChatBadge` and
   `NotificationBadgeViewModel.startRealtime`.
 - **`CacheStore`** keeps raw response bodies in SwiftData so a screen can

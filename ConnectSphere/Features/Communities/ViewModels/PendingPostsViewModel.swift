@@ -21,6 +21,8 @@ final class PendingPostsViewModel {
         do {
             posts = try await repository.fetchPendingPosts(communityId: communityId, token: token)
         } catch {
+            // Pull-to-refresh cancels the request it replaces; that isn't a failure.
+            guard !error.isCancellation else { return }
             errorMessage = friendlyError(error)
         }
     }

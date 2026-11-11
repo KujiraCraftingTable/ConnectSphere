@@ -40,6 +40,9 @@ func routes(_ app: Application) throws {
     AppealsController.register(routes: api)         // POST /api/appeals. Ask for a review of a decision
     AccountStatusController.register(routes: api)   // GET /api/account-status. Strikes, decisions, your reports
     AdminModerationController.register(routes: api) // /api/admin/moderation. The app-wide review queue
+    AdminInterestsController.register(routes: api)  // /api/admin/interests. Review suggested interests
+    HRController.register(routes: api, app: app)    // /api/hr. Asking to become a verified HR (migration 126)
+    AdminHRController.register(routes: api)         // /api/admin/hr. Reviewing HR requests and new HRs' jobs
     AdminController.register(routes: api)           // /api/admin/stats, /users/lookup. Official account only (migration 104)
 
     // Socket.IO v4 / Engine.IO 4 shim. Mounted on `app` (not `api`), auth via

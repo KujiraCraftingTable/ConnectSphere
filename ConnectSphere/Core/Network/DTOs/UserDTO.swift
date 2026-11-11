@@ -46,6 +46,8 @@ struct UserDTO: Decodable {
     /// AI search with a radius only (rounded up to 5 km).
     let distanceKm: Int?
     let isOfficial: Bool?
+    /// The company this person is verified HR for; Work views only (server migration 126).
+    let hrCompany: String?
     /// The owner's own response only: the private home ward and its province.
     let wardId: String?
     let wardProvinceCode: String?
@@ -79,6 +81,7 @@ struct UserDTO: Decodable {
         case matchEvidence   = "match_evidence"
         case distanceKm      = "distance_km"
         case isOfficial      = "is_official"
+        case hrCompany       = "hr_company"
         case wardId          = "ward_id"
         case wardProvinceCode = "ward_province_code"
     }
@@ -123,7 +126,8 @@ struct UserDTO: Decodable {
             mutualCount:    mutualCount ?? 0,
             score:          score,
             distanceKm:     distanceKm,
-            isOfficial:     isOfficial ?? false
+            isOfficial:     isOfficial ?? false,
+            hrCompany:      hrCompany
         )
     }
 }

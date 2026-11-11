@@ -75,6 +75,8 @@ struct UserProfile: Identifiable {
     /// The official @connectsphere account, the app's only admin: shown with a
     /// badge, and never offered Report or Block.
     var isOfficial: Bool = false
+    /// Verified HR for this company (Work only): shown as a badge.
+    var hrCompany: String? = nil
 }
 
 extension UserProfile {

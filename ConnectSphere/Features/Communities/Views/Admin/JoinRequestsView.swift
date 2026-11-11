@@ -1,13 +1,19 @@
 import SwiftUI
 
-/// Shows pending join requests for a private community; visible to admins and moderators only.
+/// The Join tab of a private community's Requests (admins and moderators).
 struct JoinRequestsView: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.appBundle) var bundle
     @State private var viewModel: JoinRequestsViewModel
+    /// A decision waiting for its confirmation.
+    @State private var pending: (request: JoinRequest, approve: Bool)?
 
-    init(communityId: String, token: String) {
+    /// How many are waiting, for the tab's label.
+    var onCount: (Int) -> Void = { _ in }
+
+    init(communityId: String, token: String, onCount: @escaping (Int) -> Void = { _ in }) {
         _viewModel = State(initialValue: JoinRequestsViewModel(communityId: communityId, token: token))
+        self.onCount = onCount
     }
 
     var body: some View {
@@ -23,14 +29,14 @@ struct JoinRequestsView: View {
                         requestRow(request)
                             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                 Button(role: .destructive) {
-                                    Task<Void, Never>(name: nil) { await viewModel.reject(request.id) }
+                                    pending = (request, false)
                                 } label: {
                                     Label(bundle.loc("Decline"), systemImage: "xmark")
                                 }
                             }
                             .swipeActions(edge: .leading, allowsFullSwipe: true) {
                                 Button {
-                                    Task<Void, Never>(name: nil) { await viewModel.approve(request.id) }
+                                    pending = (request, true)
                                 } label: {
                                     Label(bundle.loc("Approve"), systemImage: "checkmark")
                                 }
@@ -41,11 +47,26 @@ struct JoinRequestsView: View {
                 .listStyle(.plain)
             }
         }
-        .navigationTitle(bundle.loc("Join Requests"))
-        .navigationBarTitleDisplayMode(.inline)
         .task { await viewModel.fetchRequests() }
+        .onChange(of: viewModel.requests.count) { _, n in onCount(n) }
         .onAppear { viewModel.startListening() }
         .onDisappear { viewModel.stopListening() }
+        .alert(pending.map { String(format: bundle.loc($0.approve ? "Let %@ join?" : "Decline %@'s request?"),
+                                    $0.request.user.displayName) } ?? "",
+               isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } })) {
+            Button(bundle.loc("Cancel"), role: .cancel) {}
+            if let p = pending {
+                Button(bundle.loc(p.approve ? "Approve" : "Decline"), role: p.approve ? nil : .destructive) {
+                    let id = p.request.id
+                    Task<Void, Never>(name: nil) {
+                        if p.approve { await viewModel.approve(id) } else { await viewModel.reject(id) }
+                    }
+                }
+            }
+        } message: {
+            Text(pending?.approve == true ? bundle.loc("They'll become a member and can see and post in the community.")
+                                          : bundle.loc("They won't join. They can ask again later."))
+        }
         .alert(bundle.loc("Error"), isPresented: .constant(viewModel.errorMessage != nil)) {
             Button(bundle.loc("OK")) { viewModel.errorMessage = nil }
         } message: {
@@ -80,10 +101,10 @@ struct JoinRequestsView: View {
             // Quick action buttons
             HStack(spacing: 8) {
                 actionButton(icon: "xmark", color: .red) {
-                    Task<Void, Never>(name: nil) { await viewModel.reject(request.id) }
+                    pending = (request, false)
                 }
                 actionButton(icon: "checkmark", color: .green) {
-                    Task<Void, Never>(name: nil) { await viewModel.approve(request.id) }
+                    pending = (request, true)
                 }
             }
         }

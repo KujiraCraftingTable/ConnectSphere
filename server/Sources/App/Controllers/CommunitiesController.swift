@@ -8,7 +8,7 @@ import SQLKit
 /// ON CONFLICT + counter-on-real-insert; incrementMemberCount 0 floor;
 /// create/approve+join+counter wrapped in one txn.
 struct CommunitiesController {
-    static let validTypes = ["fandom", "work"]
+    static let validTypes = ["fandom"]
     static let validPrivacy = ["public", "private"]
     static let validRoles = ["admin", "moderator", "member"]
 
@@ -18,10 +18,12 @@ struct CommunitiesController {
         c.get("recommendations", use: recommendations)
         c.get("trending", use: trending)
         c.get("discover", use: discover)
+        c.get("name-available", use: nameAvailable)
         c.post(use: create)
         c.get(use: search)
         c.get(":id", use: getOne)
         c.post(":id", "join", use: join)
+        c.post(":id", "opened", use: opened)
         c.delete(":id", "leave", use: leave)
         c.get(":id", "members", use: members)
         c.get(":id", "posts", use: posts)
@@ -60,13 +62,13 @@ struct CommunitiesController {
 
     static func staff(_ role: String?) -> Bool { role == "admin" || role == "moderator" }
 
-    /// Discovery is per mode, Hobby shows fandom communities, Work shows work
-    /// ones, never both. `mode=hobby|work` (or the stored `type=fandom|work`).
+    /// Communities are Hobby-only (migration 127): a company's people already
+    /// talk on their own tools. `mode=hobby` (or the stored `type=fandom`).
     static func requiredType(_ req: Request) throws -> String {
         switch (try? req.query.get(String.self, at: "mode")) ?? (try? req.query.get(String.self, at: "type")) {
         case "hobby", "fandom": return "fandom"
-        case "work": return "work"
-        default: throw Abort(.badRequest, reason: "mode must be hobby or work")
+        case "work": throw Abort(.badRequest, reason: "Communities are in Hobby mode only")
+        default: throw Abort(.badRequest, reason: "mode must be hobby")
         }
     }
 
@@ -74,12 +76,11 @@ struct CommunitiesController {
 
     struct CreateBody: Content {
         var name: String?; var description: String?; var type: String?; var privacy: String?
-        var icon_emoji: String?; var cover_color: String?; var avatar_url: String?; var cover_url: String?
+        var avatar_url: String?; var cover_url: String?
         /// "markdown" when the description was written with Markdown.
         var description_format: String?
     }
     static func create(_ req: Request) async throws -> Response {
-        try req.requireNotRestricted()
         // Creating one would make it that community's admin and member.
         try await OfficialAccount.refuse(req.userID, "doesn't join communities", on: req.db.sql())
         let b = try req.content.decode(CreateBody.self)
@@ -89,27 +90,27 @@ struct CommunitiesController {
         guard !name.isEmpty else { throw Abort(.badRequest, reason: "Community name is required") }
         guard name.count >= 3 else { throw Abort(.badRequest, reason: "Community name must be at least 3 characters") }
         guard name.count <= 100 else { throw Abort(.badRequest, reason: "Community name must be at most 100 characters") }
-        guard let type = b.type, validTypes.contains(type) else { throw Abort(.badRequest, reason: "type must be fandom or work") }
+        guard let type = b.type, validTypes.contains(type) else { throw Abort(.badRequest, reason: "Communities are in Hobby mode only") }
         if let p = b.privacy, !validPrivacy.contains(p) { throw Abort(.badRequest, reason: "privacy must be public or private") }
         try validateDescription(b.description)
-        try validateAppearance(icon: b.icon_emoji, color: b.cover_color)
+        // Every community has a cover photo: there's no icon or colour to fall back on.
+        guard let coverURL = try MediaPath.uploaded(b.cover_url) else {
+            throw Abort(.badRequest, reason: "A cover photo is required")
+        }
 
         let privacy = b.privacy ?? "public"
-        let icon = b.icon_emoji ?? "👥"
-        let cover = b.cover_color ?? "#7F5AF0"
         let desc = b.description?.trimmingCharacters(in: .whitespaces).nilIfEmpty
         let descFormat = PostStore.contentFormats.contains(b.description_format ?? "") ? b.description_format! : "plain"
         let avatarURL = MediaPath.storable(b.avatar_url)
-        let coverURL = MediaPath.storable(b.cover_url)
 
         var newID = ""
         do {
             try await req.db.tx { t in
                 struct R: Decodable { let id: String }
                 newID = try await t.raw("""
-                    INSERT INTO communities (name, description, description_format, type, privacy, icon_emoji, avatar_url, cover_url, cover_color, created_by)
-                    VALUES (\(bind: name), \(bind: desc), \(bind: descFormat), \(bind: type), \(bind: privacy), \(bind: icon), \(bind: avatarURL),
-                            \(bind: coverURL), \(bind: cover), \(uuid: req.userID))
+                    INSERT INTO communities (name, description, description_format, type, privacy, avatar_url, cover_url, created_by)
+                    VALUES (\(bind: name), \(bind: desc), \(bind: descFormat), \(bind: type), \(bind: privacy), \(bind: avatarURL),
+                            \(bind: coverURL), \(uuid: req.userID))
                     RETURNING id::text AS id
                     """).first(decoding: R.self)!.id
                 _ = try await CommunityStore.joinCommunity(newID, req.userID, role: "admin", on: t)
@@ -126,27 +127,6 @@ struct CommunitiesController {
 
     /// A community's description: up to 200 words (and 2,000 characters).
     static let maxDescriptionWords = 200
-    static let colorRegex = try! NSRegularExpression(pattern: "^#[0-9A-Fa-f]{6}$")
-
-    /// `icon_emoji` is VARCHAR(10) (counted in code points, which is what a
-    /// multi-part emoji adds up to) and `cover_color` VARCHAR(7); a longer value
-    /// was a 500, and any 7-character text passed as a colour.
-    static func validateAppearance(icon: String?, color: String?) throws {
-        if let icon {
-            let count = icon.unicodeScalars.count
-            // Emoji only: no ASCII at all ("<b>", "abc"), and at least one real
-            // emoji scalar (digits and "#" carry the emoji property too).
-            let isEmoji = !icon.unicodeScalars.contains { $0.isASCII }
-                && icon.unicodeScalars.contains { $0.properties.isEmoji }
-            guard count >= 1, count <= 10, isEmoji, icon.trimmingCharacters(in: .whitespacesAndNewlines) == icon else {
-                throw Abort(.badRequest, reason: "icon_emoji must be a single emoji")
-            }
-        }
-        if let color, !AuthController.matches(colorRegex, color) {
-            throw Abort(.badRequest, reason: "cover_color must be a hex colour like #7F5AF0")
-        }
-    }
-
     static func validateDescription(_ d: String?) throws {
         guard let d else { return }
         if d.count > 2000 { throw Abort(.badRequest, reason: "Description is too long") }
@@ -156,11 +136,11 @@ struct CommunitiesController {
         }
     }
 
-    // MARK: update (avatar/name/description/icon/cover, admin/moderator only)
+    // MARK: update (avatar/name/description/cover, admin only)
 
     struct UpdateBody: Content {
         var name: String?; var description: String?; var privacy: String?
-        var icon_emoji: String?; var cover_color: String?; var avatar_url: String?
+        var avatar_url: String?
         var cover_url: String?; var require_post_approval: Bool?
         var description_format: String?
     }
@@ -180,17 +160,69 @@ struct CommunitiesController {
             }
         }
         try validateDescription(b.description)
-        try validateAppearance(icon: b.icon_emoji, color: b.cover_color)
+        // The cover can be replaced, never removed.
+        let coverURL: String? = b.cover_url == nil ? nil : try MediaPath.uploaded(b.cover_url)
+        if b.cover_url != nil && coverURL == nil { throw Abort(.badRequest, reason: "A cover photo is required") }
         if let p = b.privacy, !CommunitiesController.validPrivacy.contains(p) { throw Abort(.badRequest, reason: "privacy must be public or private") }
-        guard try await CommunityStore.update(id, name: b.name, description: b.description, privacy: b.privacy,
-            iconEmoji: b.icon_emoji, coverColor: b.cover_color, avatarURL: b.avatar_url.map { MediaPath.storable($0) ?? "" },
-            coverURL: b.cover_url.map { MediaPath.storable($0) ?? "" }, requirePostApproval: b.require_post_approval,
-            descriptionFormat: b.description_format, on: db) else {
-            throw Abort(.notFound, reason: "Community not found")
+        let oldName = try await CommunityStore.disbandInfo(id, on: db)?.name
+        struct Privacy: Decodable { let privacy: String }
+        let oldPrivacy = try await db.raw("SELECT privacy FROM communities WHERE id = \(uuid: id)").first(decoding: Privacy.self)?.privacy
+        do {
+            guard try await CommunityStore.update(id, name: b.name, description: b.description, privacy: b.privacy,
+                avatarURL: b.avatar_url.map { MediaPath.storable($0) ?? "" },
+                coverURL: coverURL, requirePostApproval: b.require_post_approval,
+                descriptionFormat: b.description_format, on: db) else {
+                throw Abort(.notFound, reason: "Community not found")
+            }
+        } catch where PGError.isUniqueViolation(error) {
+            // Names are unique ignoring case (idx_communities_name_lower).
+            throw Abort(.conflict, reason: "A community with this name already exists")
+        }
+        // Going public: anyone waiting is let in, as anyone could now just join.
+        var autoJoined: [String] = []
+        if oldPrivacy == "private", b.privacy == "public" {
+            try await req.db.tx { t in autoJoined = try await CommunityStore.approveAllPending(id, reviewerID: req.userID, on: t) }
+            for user in autoJoined { await CommunityStore.logAction(id, actor: req.userID, "approve_member", targetUser: user, on: db) }
         }
         guard let community = try await CommunityStore.byID(id, viewer: req.userID, on: db) else { throw Abort(.internalServerError) }
+        if !autoJoined.isEmpty {
+            let admin = req.userID, name = community.name
+            NotifyService.fireAndForget(req) { db, hub, log in
+                await NotifyService.pushToMany(userIDs: autoJoined, type: "join_approved", actorID: admin, communityID: id,
+                                               payload: ["communityName": name, "communityId": id],
+                                               on: db, hub: hub, logger: log)
+            }
+        }
         if b.name != nil || b.description != nil { await ModerationScan.enqueue(req, .community, id: id) }
+        if let oldName, community.name != oldName {
+            let members = try await CommunityStore.memberIDs(id, except: req.userID, on: db)
+            let admin = req.userID, newName = community.name
+            NotifyService.fireAndForget(req) { db, hub, log in
+                await NotifyService.pushToMany(userIDs: members, type: "community_renamed", actorID: admin, communityID: id,
+                                               payload: ["communityName": newName, "previousName": oldName, "communityId": id],
+                                               on: db, hub: hub, logger: log)
+            }
+        }
         return DataResponse(data: community)
+    }
+
+    struct NameAvailability: Content { var available: Bool }
+
+    /// `GET /communities/name-available?name=…&except=<id>`: whether a name is
+    /// free, ignoring case like the unique index, so the edit and create
+    /// screens can warn while the name is typed. `except` is the community
+    /// being renamed (its own name is fine).
+    static func nameAvailable(_ req: Request) async throws -> DataResponse<NameAvailability> {
+        guard let name = (try? req.query.get(String.self, at: "name"))?.trimmingCharacters(in: .whitespaces),
+              !name.isEmpty, name.count <= 100 else {
+            throw Abort(.badRequest, reason: "name is required")
+        }
+        let except = (try? req.query.get(String.self, at: "except")).flatMap(UUID.init(uuidString:))
+        struct One: Decodable { let one: Int }
+        var q: SQLQueryString = "SELECT 1 AS one FROM communities WHERE LOWER(name) = LOWER(\(bind: name))"
+        if let except { q = q + " AND id <> \(uuid: except.uuidString)" }
+        let taken = try await req.db.sql().raw(q + " LIMIT 1").first(decoding: One.self) != nil
+        return DataResponse(data: NameAvailability(available: !taken))
     }
 
     // MARK: search / me / getOne
@@ -212,6 +244,13 @@ struct CommunitiesController {
         DataListResponse(data: try await CommunityStore.byUser(req.userID, on: req.db.sql()))
     }
 
+    /// The viewer opened this community's page: feeds the My communities
+    /// order. Answers the same whether or not they're a member.
+    static func opened(_ req: Request) async throws -> OKMsg {
+        try await CommunityStore.recordOpen(req.parameters.get("id")!, req.userID, on: req.db.sql())
+        return OKMsg(message: "ok")
+    }
+
     static func loadForView(_ id: String, _ req: Request) async throws -> CommunityStore.CommunityDetail {
         guard var community = try await CommunityStore.byID(id, viewer: req.userID, on: req.db.sql()) else {
             throw Abort(.notFound, reason: "Community not found")
@@ -228,7 +267,6 @@ struct CommunitiesController {
     struct OKMsg: Content { var status = "ok"; var message: String }
 
     static func join(_ req: Request) async throws -> OKMsg {
-        try req.requireNotRestricted()
         let id = req.parameters.get("id")!
         let db = req.db.sql()
         // It visits every community without joining (it can read, like, comment and share).
@@ -288,23 +326,25 @@ struct CommunitiesController {
 
     struct ReportBody: Content { var reason: String?; var detail: String? }
 
-    /// A whole community, reported to the app owner (its own admins can't
-    /// judge it), reviewed with `swift run App community-reports`.
+    /// A whole community goes to the app's moderation queue, the same case
+    /// `POST /api/reports` (target `community`) opens: its own admins can't
+    /// judge it. Takes the older community reason names too.
     static func reportCommunity(_ req: Request) async throws -> OKMsg {
-        let id = req.parameters.get("id")!
-        let b = try req.content.decode(ReportBody.self)
-        guard let reason = b.reason, ReportsController.validReasons.contains(reason) else {
-            throw Abort(.badRequest, reason: "Invalid reason")
-        }
-        let detail = b.detail?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
-        if let detail, detail.count > 500 { throw Abort(.badRequest, reason: "Details must be at most 500 characters") }
-        let db = req.db.sql()
-        guard try await CommunityStore.byID(id, viewer: nil, on: db) != nil else {
+        guard let id = req.parameters.get("id").flatMap(UUID.init(uuidString:))?.uuidString.lowercased() else {
             throw Abort(.notFound, reason: "Community not found")
         }
-        guard try await CommunityStore.reportCommunity(id, by: req.userID, reason: reason, detail: detail, on: db) else {
-            throw Abort(.conflict, reason: "You already reported this community")
+        let b = try req.content.decode(ReportBody.self)
+        let legacy = ["hate_speech": ModerationPolicy.hate.rawValue, "off_topic": ModerationPolicy.offTopic.rawValue]
+        let reason: ModerationPolicy, detail: String?
+        do {
+            (_, reason, detail) = try ReportRules.validate(target: ReportTarget.community.rawValue,
+                                                           reason: b.reason.map { legacy[$0] ?? $0 }, detail: b.detail)
+        } catch ReportRules.Problem.detailTooLong {
+            throw Abort(.badRequest, reason: "Details must be at most \(ReportRules.maxDetail) characters")
+        } catch {
+            throw Abort(.badRequest, reason: "Invalid reason")
         }
+        try await ReportsController.file(req, type: .community, id: id, mode: nil, reason: reason, detail: detail)
         return OKMsg(message: "Thanks, we'll review it")
     }
 
@@ -369,7 +409,6 @@ struct CommunitiesController {
     }
 
     static func createPost(_ req: Request) async throws -> Response {
-        try req.requireNotRestricted(spending: .post)
         let id = req.parameters.get("id")!
         let b = try req.content.decode(PostsController.CreateBody.self)
         try PostsController.checkText(b)
@@ -408,7 +447,7 @@ struct CommunitiesController {
             throw Abort(.badRequest, reason: "Listings are created from the Marketplace")
         } else {
             post = try await PostService.createTextCommunityPost(userID: req.userID, content: b.content, communityID: id,
-                imageUrls: try PostsController.normalizeImageUrls(b.image_urls), linkUrl: b.link_url?.nilIfEmpty,
+                imageUrls: try PostsController.normalizeImageUrls(b.image_urls), linkUrl: try MediaPath.webLink(b.link_url),
                 articleTitle: b.article_title?.nilIfEmpty, hashtags: hashtags, mode: nil, privacy: nil, publishing: publishing, on: req.db)
         }
         post.community?.audience = try await PostStore.setCommunityAudience(post.id, audience, on: req.db.sql())
@@ -451,7 +490,7 @@ struct CommunitiesController {
         }
         guard let post = try await PostStore.create(.init(
             authorID: req.userID, content: b.content?.trimmedText ?? "",
-            mode: community.type == "work" ? "work" : "hobby", privacy: privacy,
+            mode: "hobby", privacy: privacy,
             imageUrl: nil, imageUrls: nil, linkUrl: nil, articleTitle: nil,
             sharedPostID: nil, hashtags: []), on: req.db)
         else { throw Abort(.internalServerError) }
@@ -592,7 +631,6 @@ struct CommunitiesController {
 
     struct RequestJoinResult: Content { var status: String; @NullCoded var requestId: String? }
     static func requestJoin(_ req: Request) async throws -> Response {
-        try req.requireNotRestricted()
         let id = req.parameters.get("id")!
         let db = req.db.sql()
         try await OfficialAccount.refuse(req.userID, "doesn't join communities", on: db)
@@ -611,7 +649,7 @@ struct CommunitiesController {
             throw Abort(.conflict, reason: "You already have a pending request")
         }
         let requestID = try await CommunityStore.createRequest(id, req.userID, on: db)
-        // TODO(notify): fanOutCommunityNotification + join_request_created emit
+        // Staff hear about it in a batch: RequestDigestJob.
         return try await ConnectionsController.encode(DataResponse(data: RequestJoinResult(status: "pending", requestId: requestID)), req, .accepted)
     }
 
@@ -722,6 +760,7 @@ struct CommunitiesController {
         guard let result = try await CommunityStore.updateRole(id, targetID, newRole, on: db) else { throw Abort(.internalServerError) }
         emitRoleChanged(req, id, [RoleChange(user_id: targetID, role: newRole)])
         await CommunityStore.logAction(id, actor: req.userID, "role_change", targetUser: targetID, detail: newRole, on: db)
+        notifyRoleChanged(req, id, targetID, from: targetRole, to: newRole)
         return DataResponse(data: result)
     }
 
@@ -733,6 +772,19 @@ struct CommunitiesController {
         let event = RoleChangedEvent(community_id: communityID, changes: changes)
         req.socketHub.emit(room: "community:\(communityID)", event: "community_role_changed", event)
         for change in changes { req.socketHub.emitToUser(change.user_id, event: "community_role_changed", event) }
+    }
+
+    /// Tells the member in their Notifications tab that their role moved.
+    /// The old admin isn't told about their own step down: they did it.
+    static func notifyRoleChanged(_ req: Request, _ communityID: String, _ userID: String, from: String, to: String) {
+        guard from != to else { return }
+        let actor = req.userID
+        NotifyService.fireAndForget(req) { db, hub, log in
+            _ = await NotifyService.pushUserNotification(
+                userID: userID, type: "role_changed", actorID: actor, communityID: communityID,
+                entityType: "community", entityID: communityID,
+                payload: ["newRole": to, "previousRole": from], on: db, hub: hub, logger: log)
+        }
     }
 
     struct TransferAdminBody: Content { var user_id: String? }
@@ -748,7 +800,7 @@ struct CommunitiesController {
         guard try await CommunityStore.membership(id, req.userID, on: db) == "admin" else {
             throw Abort(.forbidden, reason: "Only the admin can transfer the role")
         }
-        guard try await CommunityStore.membership(id, targetID, on: db) != nil else {
+        guard let targetRole = try await CommunityStore.membership(id, targetID, on: db) else {
             throw Abort(.notFound, reason: "User is not a member of this community")
         }
         try await req.db.tx { t in
@@ -759,6 +811,7 @@ struct CommunitiesController {
         }
         emitRoleChanged(req, id, [RoleChange(user_id: req.userID, role: "moderator"), RoleChange(user_id: targetID, role: "admin")])
         await CommunityStore.logAction(id, actor: req.userID, "transfer_admin", targetUser: targetID, on: db)
+        notifyRoleChanged(req, id, targetID, from: targetRole, to: "admin")
         return OKMsg(message: "Admin transferred")
     }
 
@@ -863,7 +916,11 @@ struct CommunitiesController {
     static func modLog(_ req: Request) async throws -> DataListResponse<CommunityStore.ModLogRow> {
         let id = req.parameters.get("id")!
         let db = req.db.sql()
-        try await requireAdmin(id, req, on: db)
+        // Admins and moderators see each other's actions: the log is how staff
+        // in one community keep each other accountable.
+        guard staff(try await CommunityStore.membership(id, req.userID, on: db)) else {
+            throw Abort(.forbidden, reason: "Only admins and moderators can see the moderation log")
+        }
         return DataListResponse(data: try await CommunityStore.modLog(id, limit: req.pageLimit(default: 30, max: 100),
                                                                       offset: req.pageOffset, on: db))
     }

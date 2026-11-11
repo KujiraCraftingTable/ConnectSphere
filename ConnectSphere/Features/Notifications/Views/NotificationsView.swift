@@ -11,11 +11,17 @@ enum NotificationDestination: Identifiable, Hashable {
     case conversation(ChatRoute)
     case conversationList
     case community(id: String)
+    /// Batched "N post / join requests": straight to the review screen.
+    case pendingPosts(communityId: String)
+    case joinRequests(communityId: String)
+    case communityReports(communityId: String)
     case job(id: String)
     case jobApplicants(jobId: String)
     case accountStatus
     /// The official account's digest: open Admin tools.
     case adminTools
+    /// Your "Become HR" request or HR status.
+    case hrStatus
 
     var id: String {
         switch self {
@@ -24,10 +30,14 @@ enum NotificationDestination: Identifiable, Hashable {
         case .conversation(let route):      return "chat:\(route.conversationId)"
         case .conversationList:             return "chats"
         case .community(let id):            return "community:\(id)"
+        case .pendingPosts(let id):         return "pendingPosts:\(id)"
+        case .joinRequests(let id):         return "joinRequests:\(id)"
+        case .communityReports(let id):     return "communityReports:\(id)"
         case .job(let id):                  return "job:\(id)"
         case .jobApplicants(let id):        return "applicants:\(id)"
         case .accountStatus:                return "accountStatus"
         case .adminTools:                   return "adminTools"
+        case .hrStatus:                     return "hrStatus"
         }
     }
 
@@ -62,9 +72,21 @@ enum NotificationDestination: Identifiable, Hashable {
             guard let communityId = dest.communityId else { return nil }
             return .community(id: communityId)
 
-        case "community", "communityJoinRequests", "communityReports":
+        case "community":
             guard let communityId = dest.communityId else { return nil }
             return .community(id: communityId)
+
+        case "communityReports":
+            guard let communityId = dest.communityId else { return nil }
+            return .communityReports(communityId: communityId)
+
+        case "communityPendingPosts":
+            guard let communityId = dest.communityId else { return nil }
+            return .pendingPosts(communityId: communityId)
+
+        case "communityJoinRequests":
+            guard let communityId = dest.communityId else { return nil }
+            return .joinRequests(communityId: communityId)
 
         case "job":
             guard let jobId = dest.jobId else { return nil }
@@ -79,6 +101,9 @@ enum NotificationDestination: Identifiable, Hashable {
 
         case "adminTools":
             return .adminTools
+
+        case "hrStatus":
+            return .hrStatus
 
         default:
             return nil
@@ -333,6 +358,12 @@ struct NotificationsView: View {
                 token: token,
                 currentUserId: appState.currentUser?.id ?? ""
             )
+        case .pendingPosts(let id):
+            CommunityRequestsView(communityId: id, showsJoin: true, initialTab: .posts).toolbar(.hidden, for: .tabBar)
+        case .joinRequests(let id):
+            CommunityRequestsView(communityId: id, showsJoin: true, initialTab: .join).toolbar(.hidden, for: .tabBar)
+        case .communityReports(let id):
+            CommunityReportsView(communityId: id, isAdmin: nil).toolbar(.hidden, for: .tabBar)
         case .job(let id):
             JobDetailView(jobId: id) { _ in }
         case .jobApplicants(let jobId):
@@ -341,6 +372,8 @@ struct NotificationsView: View {
             AccountStatusView()
         case .adminTools:
             AdminToolsView()
+        case .hrStatus:
+            BecomeHRView()
         }
     }
 
@@ -416,6 +449,23 @@ struct ActorNotifRow: View {
                     : "New sign-in to your account with your password on %@. Not you? Change your password."),
                           // The stored device is "iPhone 17 · iOS 27.0"; the alert names only the phone.
                           (notif.payload.device ?? "").components(separatedBy: " · ").first ?? "")
+        case "hr_request_new":
+            return String(format: bundle.loc("%@ asked to become HR for %@"), senderName, notif.payload.companyName ?? "")
+        case "hr_request_decided":
+            let company = notif.payload.companyName ?? ""
+            if notif.payload.decision == "approve" {
+                return String(format: bundle.loc("You're now a verified HR for %@. You can post jobs."), company)
+            }
+            return String(format: bundle.loc("Your request to become HR for %@ wasn't approved: %@"), company, notif.payload.note ?? "")
+        case "hr_revoked":
+            return String(format: bundle.loc("You're no longer a verified HR, so your jobs were removed: %@"), notif.payload.note ?? "")
+        case "job_approved":
+            return String(format: bundle.loc("Your job %@ was approved and is now live"), notif.payload.jobTitle ?? "")
+        case "job_declined":
+            return String(format: bundle.loc("Your job %@ wasn't approved: %@"), notif.payload.jobTitle ?? "", notif.payload.reason ?? "")
+        case "job_removed":
+            return String(format: bundle.loc("The job %@ you applied to was removed: its poster is no longer a verified HR. Never pay anyone to get a job."),
+                          notif.payload.jobTitle ?? "")
         case "application_status":
             let job = notif.payload.jobTitle ?? ""
             switch notif.payload.status {
@@ -486,13 +536,51 @@ struct ActorNotifRow: View {
         case "pinned_post":
             return String(format: bundle.loc("A post was pinned in %@"), communityLabel)
         case "join_request":
-            return String(format: bundle.loc("%@ wants to join %@"), senderName, communityLabel)
+            let n = notif.payload.requestCount ?? 1
+            return n == 1 ? String(format: bundle.loc("There is 1 join request in %@"), communityLabel)
+                          : String(format: bundle.loc("There are %lld join requests in %@"), n, communityLabel)
+        case "community_reports":
+            let n = notif.payload.requestCount ?? 1
+            return n == 1 ? String(format: bundle.loc("There is 1 report in %@"), communityLabel)
+                          : String(format: bundle.loc("There are %lld reports in %@"), n, communityLabel)
+        case "community_warning":
+            let base = String(format: bundle.loc("You got a warning in %@ for a post that broke its rules"), communityLabel)
+            guard let note = notif.payload.note, !note.isEmpty else { return base }
+            return base + "\n" + String(format: bundle.loc("Moderator's comment: %@"), note)
+        case "community_report_result":
+            if notif.payload.outcome == "banned" {
+                return String(format: bundle.loc("You were removed from %@ after a report and can't join again"), communityLabel)
+            }
+            return String(format: bundle.loc(notif.payload.targetType == "member"
+                                             ? "You were reported in %@. Its moderators looked into it and took no action."
+                                             : "Your post in %@ was reported. Its moderators looked at it and kept it."),
+                          communityLabel)
+        case "report_reviewed":
+            return bundle.loc("Something you shared was reported. We looked at it and it doesn't break our rules, so it stays up.")
+        case "community_report_outcome":
+            return String(format: bundle.loc(notif.payload.outcome == "removed"
+                                             ? "%@'s moderators removed something you reported. Thanks for the report."
+                                             : "%@'s moderators looked at something you reported and kept it."),
+                          communityLabel)
+        case "post_requests":
+            let n = notif.payload.requestCount ?? 1
+            return n == 1 ? String(format: bundle.loc("There is 1 post request in %@"), communityLabel)
+                          : String(format: bundle.loc("There are %lld post requests in %@"), n, communityLabel)
         case "join_approved":
             return String(format: bundle.loc("You were approved to join %@"), communityLabel)
         case "join_rejected":
             return String(format: bundle.loc("Your request to join %@ was declined"), communityLabel)
         case "role_changed":
-            return String(format: bundle.loc("Your role in %@ changed"), communityLabel)
+            switch notif.payload.newRole {
+            case "admin":
+                return String(format: bundle.loc("%@ made you the admin of %@"), senderName, communityLabel)
+            case "moderator":
+                return String(format: bundle.loc("%@ made you a moderator of %@"), senderName, communityLabel)
+            case "member" where notif.payload.previousRole == "moderator":
+                return String(format: bundle.loc("You're no longer a moderator of %@"), communityLabel)
+            default:
+                return String(format: bundle.loc("Your role in %@ changed"), communityLabel)
+            }
         case "new_report":
             return String(format: bundle.loc("Content in %@ needs review"), communityLabel)
         case "content_removed":
@@ -501,6 +589,11 @@ struct ActorNotifRow: View {
             return String(format: bundle.loc("%@ was disbanded by its admin"), communityLabel)
         case "community_restored":
             return String(format: bundle.loc("%@ is back: its admin restored it"), communityLabel)
+        case "community_renamed":
+            if let old = notif.payload.previousName {
+                return String(format: bundle.loc("%@ is now called %@"), old, communityLabel)
+            }
+            return String(format: bundle.loc("A community you're in is now called %@"), communityLabel)
 
         // ── Moderation (migration 089) — names no reporter ─────────────────
         case "account_limited":
@@ -515,11 +608,20 @@ struct ActorNotifRow: View {
                                              ? "There are %lld appeals waiting. Check them in Admin tools."
                                              : "There are %lld reports waiting. Check them in Admin tools."), n)
         case "report_received":
+            // A community report names who has it, so the reporter knows it reached someone.
+            if notif.communityId != nil {
+                return String(format: bundle.loc("Your report reached %@'s moderators. We'll let you know what they decide."),
+                              communityLabel)
+            }
             return bundle.loc("Thanks for your report. We'll let you know what we decide.")
         case "report_outcome":
-            let result = bundle.loc(notif.payload.outcome == "removed"
+            let result = bundle.loc(["removed", "action_taken"].contains(notif.payload.outcome ?? "")
                                     ? "We removed something you reported. Thanks for helping keep ConnectSphere safe."
                                     : "We looked at something you reported and it doesn't break our rules. You can block or mute them.")
+            guard let note = notif.payload.note, !note.isEmpty else { return result }
+            return result + "\n" + String(format: bundle.loc("Moderator's comment: %@"), note)
+        case "report_restored":
+            let result = bundle.loc("Something you reported was put back after another review. You can block or mute them.")
             guard let note = notif.payload.note, !note.isEmpty else { return result }
             return result + "\n" + String(format: bundle.loc("Moderator's comment: %@"), note)
         case "moderation_decision":
@@ -528,7 +630,7 @@ struct ActorNotifRow: View {
                 return String(format: bundle.loc("Your account was suspended for breaking our rules on %@. You can ask for a review."), rule)
             }
             if let days = notif.payload.restrictedDays {
-                return String(format: bundle.loc("We removed your %@ for breaking our rules on %@. You can't post, comment or message new people for %lld days. You can ask for a review."),
+                return String(format: bundle.loc("We removed your %@ for breaking our rules on %@. Your account is read-only for %lld days. You can ask for a review."),
                               bundle.loc((notif.payload.targetType ?? "post").reportTargetLabel).lowercased(), rule, days)
             }
             return String(format: bundle.loc("We removed your %@ for breaking our rules on %@. You can ask for a review."),
@@ -577,6 +679,10 @@ struct ActorNotifRow: View {
         case "job_application":     return "doc.text.fill"
         case "new_login":           return "lock.shield.fill"
         case "application_status":  return "briefcase.fill"
+        case "hr_request_new", "hr_request_decided": return "person.badge.shield.checkmark.fill"
+        case "hr_revoked", "job_removed": return "exclamationmark.shield.fill"
+        case "job_approved":        return "checkmark.seal.fill"
+        case "job_declined":        return "xmark.octagon.fill"
         case "post_liked":          return "hand.thumbsup.fill"
         case "comment_liked":       return "hand.thumbsup.fill"
         case "post_commented":      return "bubble.left.fill"
@@ -596,6 +702,10 @@ struct ActorNotifRow: View {
         case "new_post":            return "doc.text.fill"
         case "pinned_post":         return "pin.fill"
         case "join_request":        return "person.badge.clock"
+        case "post_requests":       return "tray.full"
+        case "community_reports":   return "exclamationmark.shield.fill"
+        case "community_warning":   return "exclamationmark.triangle.fill"
+        case "community_report_outcome", "community_report_result", "report_reviewed": return "checkmark.shield.fill"
         case "join_approved":       return "checkmark.seal.fill"
         case "join_rejected":       return "xmark.seal.fill"
         case "role_changed":        return "shield.lefthalf.filled"
@@ -603,7 +713,8 @@ struct ActorNotifRow: View {
         case "content_removed":     return "trash.fill"
         case "community_disbanded": return "archivebox.fill"
         case "community_restored":  return "arrow.uturn.backward.circle.fill"
-        case "report_received", "report_outcome": return "flag.fill"
+        case "community_renamed":   return "pencil.circle.fill"
+        case "report_received", "report_outcome", "report_restored": return "flag.fill"
         case "content_held":        return "eye.slash.fill"
         case "account_limited":     return "pause.circle.fill"
         case "moderation_decision": return "exclamationmark.shield.fill"
@@ -620,8 +731,10 @@ struct ActorNotifRow: View {
         case "message", "meeting_proposed", "meeting_updated",
              "meeting_rsvp", "meeting_reminder", "group_added", "group_removed":
             return chatTitle
-        case "new_post", "pinned_post", "join_approved", "join_rejected",
-             "role_changed", "new_report", "content_removed", "community_disbanded", "community_restored":
+        case "new_post", "pinned_post", "join_approved", "join_rejected", "join_request", "post_requests",
+             "community_reports", "community_warning", "community_report_outcome", "community_report_result",
+             "role_changed", "new_report", "content_removed", "community_disbanded", "community_restored",
+             "community_renamed":
             return communityLabel
         default:
             return senderName

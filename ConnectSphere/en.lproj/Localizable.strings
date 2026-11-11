@@ -446,7 +446,6 @@
 "Delete post?" = "Delete post?";
 "This post won't be shown in the app. You can restore it from Recently Deleted within 30 days." = "This post won't be shown in the app. You can restore it from Recently Deleted within 30 days.";
 "Delete comment?" = "Delete comment?";
-"This comment won't be shown in the app. You can restore it from Recently Deleted within 30 days." = "This comment won't be shown in the app. You can restore it from Recently Deleted within 30 days.";
 
 /* Group-B password management */
 "Change password" = "Change password";
@@ -603,16 +602,13 @@
 "Recently Deleted" = "Recently Deleted";
 "Restore" = "Restore";
 "No recently deleted posts" = "No recently deleted posts";
-"No recently deleted comments" = "No recently deleted comments";
 "No saved posts" = "No saved posts";
-"Deleted posts and comments are kept for 30 days, then removed permanently." = "Deleted posts and comments are kept for 30 days, then removed permanently.";
+"Deleted posts are kept for 30 days, then removed permanently." = "Deleted posts are kept for 30 days, then removed permanently.";
 "Restore this post?" = "Restore this post?";
-"Restore this comment?" = "Restore this comment?";
 "It will be shown in the app again." = "It will be shown in the app again.";
 "Photo post" = "Photo post";
 "Link post" = "Link post";
 "Could not restore this post. Please try again." = "Could not restore this post. Please try again.";
-"Could not restore this comment. Please try again." = "Could not restore this comment. Please try again.";
 
 // MARK: - Voice messages (chat)
 "Voice message" = "Voice message";
@@ -674,11 +670,6 @@
 "Exact match! 😆 Make your community stand out with its own name!" = "Exact match! 😆 Make your community stand out with its own name!";
 
 // MARK: - Create community duplicate-name warnings (work, formal tone)
-"This community name already exists. Please choose a different name to continue." = "This community name already exists. Please choose a different name to continue.";
-"A community with this name already exists in the system. Please use a distinct identifier." = "A community with this name already exists in the system. Please use a distinct identifier.";
-"This name matches an existing community. Please adjust it to ensure uniqueness." = "This name matches an existing community. Please adjust it to ensure uniqueness.";
-"A community with this name has already been created. Please choose another name." = "A community with this name has already been created. Please choose another name.";
-"Invalid name: already exists in the system. Please enter a different name." = "Invalid name: already exists in the system. Please enter a different name.";
 
 // MARK: - Join requests / moderation / analytics (Community admin)
 "Approve" = "Approve";
@@ -1529,8 +1520,6 @@
 "Decline this post?" = "Decline this post?";
 "Reason (optional)" = "Reason (optional)";
 "The author will see it as declined, with your reason." = "The author will see it as declined, with your reason.";
-"Your post is waiting for approval" = "Your post is waiting for approval";
-"An admin or moderator will review it. You'll find it in \"...\" › Manage your content." = "An admin or moderator will review it. You'll find it in \"...\" › Manage your content.";
 "Your post was approved and is now live in the community" = "Your post was approved and is now live in the community";
 "Your post wasn't approved: %@" = "Your post wasn't approved: %@";
 "Your post wasn't approved by the community's moderators" = "Your post wasn't approved by the community's moderators";
@@ -1558,6 +1547,7 @@
 "6-digit code, %lld of %lld entered" = "6-digit code, %lld of %lld entered";
 "Admins & moderators" = "Admins & moderators";
 "%@ is also a member." = "%@ is also a member.";
+"You're a member." = "You're a member.";
 "%@ and %@ are also members." = "%@ and %@ are also members.";
 "%@ and %lld other connections are also members." = "%@ and %lld other connections are also members.";
 "%@, %@ and %lld other connections are also members." = "%@, %@ and %lld other connections are also members.";
@@ -1605,8 +1595,11 @@
 "New listing" = "New listing";
 "Price (₫), 0 = free" = "Price (₫), 0 = free";
 "Publish" = "Publish";
-"Up to 10. The first one is the cover." = "Up to 10. The first one is the cover.";
 "Waits for admin approval" = "Waits for admin approval";
+"Search your communities" = "Search your communities";
+"No communities match." = "No communities match.";
+"Waiting for admin approval" = "Waiting for admin approval";
+"Untick a community to take the listing out of it." = "Untick a community to take the listing out of it.";
 "You haven't joined any communities in this mode." = "You haven't joined any communities in this mode.";
 
 /* Marketplace, map location */
@@ -1765,7 +1758,6 @@
 "Show more" = "Show more";
 "Show password" = "Show password";
 "Please tick to agree before continuing" = "Please tick to agree before continuing";
-"Join to post" = "Join to post";
 "Job Details" = "Job Details";
 "Deadline" = "Deadline";
 "Add application deadline" = "Add application deadline";
@@ -1914,9 +1906,9 @@
 "Under review" = "Under review";
 "Uphold — keep the decision" = "Uphold — keep the decision";
 "We removed your %@ for breaking our rules on %@. You can ask for a review." = "We removed your %@ for breaking our rules on %@. You can ask for a review.";
-"We removed your %@ for breaking our rules on %@. You can't post, comment or message new people for %lld days. You can ask for a review." = "We removed your %@ for breaking our rules on %@. You can't post, comment or message new people for %lld days. You can ask for a review.";
+"We removed your %@ for breaking our rules on %@. Your account is read-only for %lld days. You can ask for a review." = "We removed your %@ for breaking our rules on %@. Your account is read-only for %lld days. You can ask for a review.";
 "Why should we look again? (optional)" = "Why should we look again? (optional)";
-"You can't post, comment or message new people until %@." = "You can't post, comment or message new people until %@.";
+"Your account is read-only until %@. You can browse, change settings, block, report and appeal." = "Your account is read-only until %@. You can browse, change settings, block, report and appeal.";
 "You haven't reported anything." = "You haven't reported anything.";
 "Your account is in good standing" = "Your account is in good standing";
 "Your account is suspended" = "Your account is suspended";
@@ -1967,7 +1959,7 @@
 "Role" = "Role";
 "Deleted" = "Deleted";
 "Suspended" = "Suspended";
-"Restricted until %@" = "Restricted until %@";
+"Read-only until %@" = "Read-only until %@";
 "Shows no email, phone, birthday or messages." = "Shows no email, phone, birthday or messages.";
 "Hobby %lld · Work %lld" = "Hobby %lld · Work %lld";
 "The official ConnectSphere account can't be reported" = "The official ConnectSphere account can't be reported";
@@ -2082,7 +2074,7 @@
 "Choose…" = "Choose…";
 "Submit" = "Submit";
 
-"You can browse and message friends, but you can't post, comment, join communities, sell or add friends." = "You can browse and message friends, but you can't post, comment, join communities, sell or add friends.";
+"Your account is read-only. You can browse, change settings, block and report, but you can't post, comment, message, react, join, sell or add friends." = "Your account is read-only. You can browse, change settings, block and report, but you can't post, comment, message, react, join, sell or add friends.";
 "You can't comment right now" = "You can't comment right now";
 
 "View edit history" = "View edit history";
@@ -2111,6 +2103,8 @@
 "%@ reset the theme" = "%@ reset the theme";
 "You changed the theme to %@" = "You changed the theme to %@";
 "%@ changed the theme to %@" = "%@ changed the theme to %@";
+"You changed the theme" = "You changed the theme";
+"%@ changed the theme" = "%@ changed the theme";
 "You set %@'s nickname to %@" = "You set %@'s nickname to %@";
 "%@ set your nickname to %@" = "%@ set your nickname to %@";
 "%@ set %@'s nickname to %@" = "%@ set %@'s nickname to %@";
@@ -2194,3 +2188,264 @@
 "Manage community" = "Manage community";
 "Manage\ncommunity" = "Manage\ncommunity";
 "Manage\nnotifications" = "Manage\nnotifications";
+"%@ made you the admin of %@" = "%@ made you the admin of %@";
+"%@ made you a moderator of %@" = "%@ made you a moderator of %@";
+"You're no longer a moderator of %@" = "You're no longer a moderator of %@";
+"Moderators" = "Moderators";
+
+/* Marketplace: several items in one listing */
+"Is “%@” still available?" = "Is “%@” still available?";
+"e.g. Shelf clear-out, 7 sets" = "e.g. Shelf clear-out, 7 sets";
+"Listing title" = "Listing title";
+"Shown on the Marketplace card. Your description stays exactly as you write it." = "Shown on the Marketplace card. Your description stays exactly as you write it.";
+"Add another item" = "Add another item";
+"Selling several things? Add each with its own photos and price, up to %lld." = "Selling several things? Add each with its own photos and price, up to %lld.";
+"Item %lld" = "Item %lld";
+"Remove item %lld" = "Remove item %lld";
+"Up to %lld photos per item." = "Up to %lld photos per item.";
+"Which item are you asking about?" = "Which item are you asking about?";
+"%lld items" = "%lld items";
+"%lld of %lld left" = "%lld of %lld left";
+"Items (%lld)" = "Items (%lld)";
+"Ask about this" = "Ask about this";
+"Mark all as available" = "Mark all as available";
+"Mark all as sold" = "Mark all as sold";
+"Mark every item as available?" = "Mark every item as available?";
+"Mark every item as sold?" = "Mark every item as sold?";
+"Ask the seller about this item?" = "Ask the seller about this item?";
+"The seller gets: Is “%@” still available?" = "The seller gets: Is “%@” still available?";
+"You can ask about this item again in %d minute" = "You can ask about this item again in %d minute";
+"You can ask about this item again in %d minutes" = "You can ask about this item again in %d minutes";
+"Item not found" = "Item not found";
+"This is your own listing" = "This is your own listing";
+"%lld min" = "%lld min";
+"Opens the item page" = "Opens the item page";
+"See more (%lld)" = "See more (%lld)";
+"The first photo is the cover: it's shown first on the Marketplace card and in posts." = "The first photo is the cover: it's shown first on the Marketplace card and in posts.";
+"Please add a cover photo" = "Please add a cover photo";
+
+"Save changes to this listing?" = "Save changes to this listing?";
+"There is 1 join request in %@" = "There is 1 join request in %@";
+"There are %lld join requests in %@" = "There are %lld join requests in %@";
+"There is 1 post request in %@" = "There is 1 post request in %@";
+"There are %lld post requests in %@" = "There are %lld post requests in %@";
+"Your post is waiting for approval. An admin or moderator will review it." = "Your post is waiting for approval. An admin or moderator will review it.";
+"Your post is now published." = "Your post is now published.";
+"Your post is scheduled for %@" = "Your post is scheduled for %@";
+"Saved to drafts." = "Saved to drafts.";
+"Approve this post?" = "Approve this post?";
+"It goes live in the community, and the author is told." = "It goes live in the community, and the author is told.";
+"Let %@ join?" = "Let %@ join?";
+"Decline %@'s request?" = "Decline %@'s request?";
+"They'll become a member and can see and post in the community." = "They'll become a member and can see and post in the community.";
+"They won't join. They can ask again later." = "They won't join. They can ask again later.";
+"Deleted account" = "Deleted account";
+"Kept, no action" = "Kept, no action";
+"Action taken" = "Action taken";
+"1 report" = "1 report";
+"History here" = "History here";
+"Nothing before this." = "Nothing before this.";
+"Note (optional, sent with a warning)" = "Note (optional, sent with a warning)";
+"A moderator" = "A moderator";
+"%@ removed a post" = "%@ removed a post";
+"%@ gave a warning" = "%@ gave a warning";
+"%@ lifted the ban" = "%@ lifted the ban";
+"%@ removed them from the community" = "%@ removed them from the community";
+"%@ kept it after a report" = "%@ kept it after a report";
+"%@ took action" = "%@ took action";
+"Keep, no action" = "Keep, no action";
+"Remove post" = "Remove post";
+"Remove post and warn" = "Remove post and warn";
+"Remove post and ban" = "Remove post and ban";
+"Ban from community" = "Ban from community";
+"Keep it?" = "Keep it?";
+"Remove this post?" = "Remove this post?";
+"Remove and warn?" = "Remove and warn?";
+"Ban them from this community?" = "Ban them from this community?";
+"The reports are closed and the reporters are told no action was taken." = "The reports are closed and the reporters are told no action was taken.";
+"The post is taken down and its author is told. The reporters hear it was removed." = "The post is taken down and its author is told. The reporters hear it was removed.";
+"The post is taken down and its author gets a warning, with your note." = "The post is taken down and its author gets a warning, with your note.";
+"The post is taken down, they're removed from the community and can't join again." = "The post is taken down, they're removed from the community and can't join again.";
+"They're removed from the community and can't join again." = "They're removed from the community and can't join again.";
+"Requests" = "Requests";
+"There is 1 report in %@" = "There is 1 report in %@";
+"There are %lld reports in %@" = "There are %lld reports in %@";
+"You got a warning in %@ for a post that broke its rules" = "You got a warning in %@ for a post that broke its rules";
+"%@'s moderators removed something you reported. Thanks for the report." = "%@'s moderators removed something you reported. Thanks for the report.";
+"%@'s moderators looked at something you reported and kept it." = "%@'s moderators looked at something you reported and kept it.";
+"%1$@ warned %2$@" = "%1$@ warned %2$@";
+"%@ approved this post" = "%@ approved this post";
+"%@ declined a post" = "%@ declined a post";
+"You were removed from %@ after a report and can't join again" = "You were removed from %@ after a report and can't join again";
+"You were reported in %@. Its moderators looked into it and took no action." = "You were reported in %@. Its moderators looked into it and took no action.";
+"Your post in %@ was reported. Its moderators looked at it and kept it." = "Your post in %@ was reported. Its moderators looked at it and kept it.";
+"Something you shared was reported. We looked at it and it doesn't break our rules, so it stays up." = "Something you shared was reported. We looked at it and it doesn't break our rules, so it stays up.";
+"Your report reached %@'s moderators. We'll let you know what they decide." = "Your report reached %@'s moderators. We'll let you know what they decide.";
+"What reporters said" = "What reporters said";
+"Approved by" = "Approved by";
+
+// community_renamed
+"%@ is now called %@" = "%@ is now called %@";
+"A community you're in is now called %@" = "A community you're in is now called %@";
+
+// Re-up cooldown (8 hours)
+"Re-up in %@" = "Re-up in %@";
+
+// Profile not available (deleted, suspended or blocked)
+"This user may not be available" = "This user may not be available";
+"The link may be broken, or the profile may have been removed." = "The link may be broken, or the profile may have been removed.";
+
+// Moderation: two notes, reporter outcomes
+"Private note, staff only (optional)" = "Private note, staff only (optional)";
+"Message to the reporter (optional)" = "Message to the reporter (optional)";
+"Message to the reporter if you put it back (optional)" = "Message to the reporter if you put it back (optional)";
+"Private note" = "Private note";
+"To the reporter" = "To the reporter";
+"Something you reported was put back after another review. You can block or mute them." = "Something you reported was put back after another review. You can block or mute them.";
+"You reported this, so another moderator or the admin will decide it." = "You reported this, so another moderator or the admin will decide it.";
+"Another moderator or the admin needs to decide this" = "Another moderator or the admin needs to decide this";
+"Community · %@" = "Community · %@";
+"Post in %@" = "Post in %@";
+"Comment in %@" = "Comment in %@";
+"Member of %@" = "Member of %@";
+"Your account is read-only for now. See Account Status for details." = "Your account is read-only for now. See Account Status for details.";
+"Your account is read-only, so you can't send messages right now" = "Your account is read-only, so you can't send messages right now";
+"Join now" = "Join now";
+"You need to join a community to post" = "You need to join a community to post";
+"Links must start with http:// or https://" = "Links must start with http:// or https://";
+"Options must be different from each other" = "Options must be different from each other";
+"Voice messages must be 1 second to 1 hour long" = "Voice messages must be 1 second to 1 hour long";
+"Invalid theme" = "Invalid theme";
+"Only admins and moderators can see the moderation log" = "Only admins and moderators can see the moderation log";
+"You can do this once the message request is accepted" = "You can do this once the message request is accepted";
+"Couldn't restore comment" = "Couldn't restore comment";
+"This comment and its replies will be deleted." = "This comment and its replies will be deleted.";
+"A community with this name already exists" = "A community with this name already exists";
+
+/* Verified HR (server migration 126) */
+"Verified HR" = "Verified HR";
+"You can post jobs for this company. Your next %lld jobs are checked by ConnectSphere before they go live." = "You can post jobs for this company. Your next %lld jobs are checked by ConnectSphere before they go live.";
+"You can post jobs for this company. Pick Job in the post composer in Work mode." = "You can post jobs for this company. Pick Job in the post composer in Work mode.";
+"Waiting for review" = "Waiting for review";
+"ConnectSphere checks your company's tax code, business registration and website. You'll get a notification when it's done." = "ConnectSphere checks your company's tax code, business registration and website. You'll get a notification when it's done.";
+"Not approved" = "Not approved";
+"No longer verified" = "No longer verified";
+"You can ask again below." = "You can ask again below.";
+"Only a company's verified HR can post jobs on ConnectSphere, so job seekers know every offer is real. One HR per company." = "Only a company's verified HR can post jobs on ConnectSphere, so job seekers know every offer is real. One HR per company.";
+"name@yourcompany.com" = "name@yourcompany.com";
+"Send a new code" = "Send a new code";
+"1. Company email" = "1. Company email";
+"Use your email on the company's own domain. Personal email like Gmail isn't accepted." = "Use your email on the company's own domain. Personal email like Gmail isn't accepted.";
+"Tax code (MST)" = "Tax code (MST)";
+"Company website" = "Company website";
+"2. Company" = "2. Company";
+"The tax code is 10 digits, or 13 for a branch (0101234567-001)." = "The tax code is 10 digits, or 13 for a branch (0101234567-001).";
+"The email must be on the website's domain." = "The email must be on the website's domain.";
+"Attach business registration (PDF)" = "Attach business registration (PDF)";
+"3. Business registration" = "3. Business registration";
+"The certificate of business registration (GPKD), PDF up to 10 MB. Only ConnectSphere's reviewer can open it." = "The certificate of business registration (GPKD), PDF up to 10 MB. Only ConnectSphere's reviewer can open it.";
+"Send for review" = "Send for review";
+"The file must be 10 MB or smaller." = "The file must be 10 MB or smaller.";
+"Become a verified HR" = "Become a verified HR";
+"Hiring" = "Hiring";
+"HR" = "HR";
+"HR at %@" = "HR at %@";
+"Verified HR at %@" = "Verified HR at %@";
+"Posting for %@" = "Posting for %@";
+"Careers page link" = "Careers page link";
+"https://yourcompany.com/careers/…" = "https://yourcompany.com/careers/…";
+"Where this job is listed on your company's website, so applicants can check it's real." = "Where this job is listed on your company's website, so applicants can check it's real.";
+"Sent for review. ConnectSphere checks a new HR's first jobs before they go live." = "Sent for review. ConnectSphere checks a new HR's first jobs before they go live.";
+"Report job" = "Report job";
+"Check on the company's careers page" = "Check on the company's careers page";
+"Make sure this is the company's real website. Never pay anyone to apply or get a job." = "Make sure this is the company's real website. Never pay anyone to apply or get a job.";
+"Never pay to apply. A real employer won't ask you for money, a deposit or bank details to get a job. If they do, report the job." = "Never pay to apply. A real employer won't ask you for money, a deposit or bank details to get a job. If they do, report the job.";
+"%@ asked to become HR for %@" = "%@ asked to become HR for %@";
+"You're now a verified HR for %@. You can post jobs." = "You're now a verified HR for %@. You can post jobs.";
+"Your request to become HR for %@ wasn't approved: %@" = "Your request to become HR for %@ wasn't approved: %@";
+"You're no longer a verified HR, so your jobs were removed: %@" = "You're no longer a verified HR, so your jobs were removed: %@";
+"Your job %@ was approved and is now live" = "Your job %@ was approved and is now live";
+"Your job %@ wasn't approved: %@" = "Your job %@ wasn't approved: %@";
+"The job %@ you applied to was removed: its poster is no longer a verified HR. Never pay anyone to get a job." = "The job %@ you applied to was removed: its poster is no longer a verified HR. Never pay anyone to get a job.";
+"HR requests" = "HR requests";
+"Jobs to review" = "Jobs to review";
+"Already HR: %@" = "Already HR: %@";
+"No requests" = "No requests";
+"Approved" = "Approved";
+"Rejected" = "Rejected";
+"Revoked" = "Revoked";
+"Tax code" = "Tax code";
+"Company email" = "Company email";
+"Person" = "Person";
+"Open business registration (PDF)" = "Open business registration (PDF)";
+"%@ is already HR for this tax code. Only one HR per company, so this can't be approved." = "%@ is already HR for this tax code. Only one HR per company, so this can't be approved.";
+"The company email was verified by code" = "The company email was verified by code";
+"The tax code is in the national business registry" = "The tax code is in the national business registry";
+"The company name matches the business registration" = "The company name matches the business registration";
+"The email domain is the company's real website" = "The email domain is the company's real website";
+"Before approving" = "Before approving";
+"Look the tax code up on the national business registry, compare the name with the PDF, and open the website. If anything's unclear, contact the company using the details on its official website, not those in the request." = "Look the tax code up on the national business registry, compare the name with the PDF, and open the website. If anything's unclear, contact the company using the details on its official website, not those in the request.";
+"Reason (required to reject)" = "Reason (required to reject)";
+"Reason (required)" = "Reason (required)";
+"The person reads this." = "The person reads this.";
+"Approve as HR" = "Approve as HR";
+"Reject" = "Reject";
+"Revoke HR" = "Revoke HR";
+"Revoke" = "Revoke";
+"Make %@ the verified HR for %@?" = "Make %@ the verified HR for %@?";
+"Reject this request?" = "Reject this request?";
+"Revoke HR? Their jobs are removed and everyone who applied is told." = "Revoke HR? Their jobs are removed and everyone who applied is told.";
+"No jobs to review" = "No jobs to review";
+"Decline this job?" = "Decline this job?";
+"Reason the HR will read" = "Reason the HR will read";
+"Only verified HR can post jobs" = "Only verified HR can post jobs";
+"Add the job's link on your company careers page" = "Add the job's link on your company careers page";
+"The email must be on the company website's domain" = "The email must be on the company website's domain";
+"Add the business registration PDF" = "Add the business registration PDF";
+"Tax code must be 10 digits, or 13 for a branch (0101234567-001)" = "Tax code must be 10 digits, or 13 for a branch (0101234567-001)";
+"Your request is already waiting for review" = "Your request is already waiting for review";
+"You're already a verified HR" = "You're already a verified HR";
+"Set up your Work profile first" = "Set up your Work profile first";
+"Company name is required" = "Company name is required";
+"Enter the company's website" = "Enter the company's website";
+"Enter a valid email" = "Enter a valid email";
+"That code was sent to another email. Ask for a new one" = "That code was sent to another email. Ask for a new one";
+"The business registration must be a PDF" = "The business registration must be a PDF";
+"Job posts are only available in Work mode" = "Job posts are only available in Work mode";
+
+"Post a job" = "Post a job";
+"Communities are in Hobby mode only" = "Communities are in Hobby mode only";
+"Pay is negotiable" = "Pay is negotiable";
+"Distance" = "Distance";
+"Within %lld km" = "Within %lld km";
+"Applicants see the ward and province, and how far it is from their own ward." = "Applicants see the ward and province, and how far it is from their own ward.";
+"Location *" = "Location *";
+"Pick the ward where the job is" = "Pick the ward where the job is";
+"%@ moved to %@" = "%@ moved to %@";
+"Friend requests sent" = "Friend requests sent";
+"Connection requests sent" = "Connection requests sent";
+"No friends yet, try searching and sending a request" = "No friends yet, try searching and sending a request";
+"Withdraw connection request?" = "Withdraw connection request?";
+"Withdraw" = "Withdraw";
+"Interest suggestions" = "Interest suggestions";
+"No suggestions waiting" = "No suggestions waiting";
+"%d people" = "%d people";
+"Suggested by %d people" = "Suggested by %d people";
+"English" = "English";
+"Vietnamese" = "Vietnamese";
+"Category" = "Category";
+"Allows a specific item (e.g. Gaming · Roblox)" = "Allows a specific item (e.g. Gaming · Roblox)";
+"Add to catalog" = "Add to catalog";
+"Review suggestion" = "Review suggestion";
+"Reject this suggestion?" = "Reject this suggestion?";
+"Search province" = "Search province";
+
+"Job description" = "Job description";
+"Job description (PDF)" = "Job description (PDF)";
+"Attach job description (PDF)" = "Attach job description (PDF)";
+"Optional. PDF, up to 10 MB. Anyone who can see the job can open it." = "Optional. PDF, up to 10 MB. Anyone who can see the job can open it.";
+"Tap to read" = "Tap to read";
+"Couldn't open this PDF." = "Couldn't open this PDF.";
+"The job description must be 10 MB or smaller." = "The job description must be 10 MB or smaller.";
+"The job description must be a PDF" = "The job description must be a PDF";
+"Attach the job description again" = "Attach the job description again";
