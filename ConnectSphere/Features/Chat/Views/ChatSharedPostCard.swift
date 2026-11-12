@@ -181,6 +181,7 @@ struct ChatSharedPostCard: View {
         case .listing:
             // The listing a buyer sent with "Message seller": what it's about at a glance.
             return (post.listingData.map { $0.priceText(loc: bundle.loc) + " · " + $0.title } ?? bundle.loc("Listing"), "bag.fill")
+        case .legit: return (bundle.loc("Reviews"), "checkmark.seal.fill")
         case .text:  return nil
         }
     }

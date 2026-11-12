@@ -119,6 +119,9 @@ struct PostsController {
         var also_other_mode: Bool?
         var privacy: String?
         var post_type: String?
+        /// A Work text post looking for a job (migration 132): verified HRs can
+        /// answer it with one of their jobs.
+        var open_to_work: Bool?
         var image_url: String?
         var image_urls: [String]?
         var image_alts: [String]?
@@ -228,6 +231,10 @@ struct PostsController {
         }
         if b.content_format != nil {
             post.content_format = try await PostStore.setContentFormat(post.id, b.content_format, on: req.db.sql())
+        }
+        if b.open_to_work == true, mode == "work", postType == "text" {
+            try await req.db.sql().raw("UPDATE posts SET open_to_work = TRUE WHERE id = \(uuid: post.id)").run()
+            post.open_to_work = true
         }
         return post
     }
@@ -360,7 +367,7 @@ struct PostsController {
             throw Abort(.badRequest, reason: "A post can only be shared in the mode it was posted in")
         }
         // Marketplace items are passed on by message only, never reposted.
-        guard original.post_type != "listing" else {
+        guard original.post_type != "listing", original.post_type != "legit" else {
             throw Abort(.badRequest, reason: "Listings can only be shared in a message")
         }
         let rootID = original.shared_post_id ?? original.id
@@ -388,6 +395,10 @@ struct PostsController {
     struct DeleteResponse: Content { var status = "ok"; var message = "Post deleted" }
     static func softDelete(_ req: Request) async throws -> DeleteResponse {
         let id = req.parameters.get("id")!
+        // The check-legit post holds buyers' reviews: hide it, never delete it.
+        if try await PostStore.findMeta(id, on: req.db.sql())?.post_type == "legit" {
+            throw Abort(.badRequest, reason: "Hide your reviews post instead")
+        }
         try await PostService.deletePost(requesterID: req.userID, postID: id, on: req.db)
         try? await ChunkService.deletePostChunks(id, on: req.db.sql())
         return DeleteResponse()
@@ -437,6 +448,10 @@ struct PostsController {
             throw Abort(.badRequest, reason: "community_audience must be public or members")
         }
         let privacy = try PostStore.validatedPrivacy(b.privacy)
+        // A check-legit post is shown to everyone or hidden, nothing in between.
+        if meta.post_type == "legit", let privacy, !["public", "only_me"].contains(privacy) {
+            throw Abort(.badRequest, reason: "A reviews post is public or only you")
+        }
         // Same cap as create; the content column is TEXT, so only this stops a huge edit.
         if let c = b.content, c.count > 2000 { throw InlineError(.badRequest, "content must be at most 2000 characters") }
         let contentProvided = (try? req.content.decode([String: AnyCodableValue].self))?.keys.contains("content") ?? false

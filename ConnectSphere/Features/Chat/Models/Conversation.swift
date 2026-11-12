@@ -233,6 +233,7 @@ struct Conversation: Identifiable, Decodable, Equatable {
         case "poll":    return "\(prefix)📊 " + (lastMessageContent ?? Bundle.app.loc("Poll"))
         case "post":    return "\(prefix)📰 " + ((lastMessageContent?.isEmpty == false ? lastMessageContent : nil) ?? Bundle.app.loc("Shared a post"))
         case "voice":   return "\(prefix)🎤 " + Bundle.app.loc("Voice message")
+        case "legit_check": return "\(prefix)✅ " + Bundle.app.loc("Review card")
         case "event":
             guard let e = lastEvent else { return Bundle.app.loc("No messages yet") }
             return ChatEvent.text(kind: e.kind, actorId: e.actorId, actorName: e.actorName, theme: e.theme,

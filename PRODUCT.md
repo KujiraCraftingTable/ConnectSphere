@@ -77,8 +77,18 @@ feed. Most features exist in both, and content stays in the mode it was made in.
   and "Manage your content" to see your own posts and comments there.
 
 **Marketplace** (inside Communities)
-- Sell an item with photos/videos, price, condition, description and a place
-  picked on a map.
+- Sell with photos/videos, price, condition, description and a place picked on
+  a map. One listing can hold **1–20 items**, each with its own title, price,
+  condition, up to 6 photos and a **quantity** (1–999). The seller's caption is
+  shown as written, never reformatted. Buyers pick which item to ask about.
+- **Deposits and sales**: the seller records a buyer's deposit (units held for
+  one of their chats), which comes off what others can buy. When the delivery
+  arrives, the seller confirms that deposit as sold. Sales are final, and the
+  sold count can't be typed in, only confirmed from deposits.
+- **Reviews**: each seller's Marketplace page opens with a Reviews post. A
+  confirmed sale sends that buyer a review card (valid 3 days): 0–5 stars and a
+  comment. The seller can reply or report but not delete. A Legit badge shows at
+  an average of 4.6 or more over at least 50 reviews.
 - List it in the Marketplace and, optionally, in up to 5 of your communities,
   where it also appears as a post.
 - Seller tools: an automatic first reply to buyers, hide the listing from your
@@ -86,6 +96,13 @@ feed. Most features exist in both, and content stays in the mode it was made in.
 - **Re-up**: a seller can re-up an item (by hand, or automatically every 1 / 3 / 7
   days at a chosen hour) so it shows as new. A re-up is a new post: likes and
   comments don't carry over, and the item shows how many times it was re-upped.
+- **Seller profile**: selling stays apart from your personal life. A seller can
+  set a Marketplace name, photo, cover and bio that show only on their listings
+  and seller page (empty fields fall back to the normal profile). Tapping the
+  seller on a listing opens the seller page, never the personal profile.
+- **Follow a seller**: separate from friends and follows. Followers get a
+  notification for each new listing (not re-ups) and see the seller's listings
+  in their Home feed; the seller page shows the follower count.
 
 **Jobs & companies**
 - Company pages; job posts; a Jobs tab with recommendations, search and saved
@@ -104,6 +121,11 @@ feed. Most features exist in both, and content stays in the mode it was made in.
   straight-line, ward centre to ward centre, never a shared city name (Thạnh Mỹ
   Tây and Vũng Tàu are both "Ho Chi Minh City" but ~65 km apart). Cards show
   "~N km"; Search filters "Within 5–30 km". Pay can be "Negotiable".
+- An HR can attach the company's job description (PDF); applicants read it
+  full screen. Applicants keep a CV (PDF) on their Work profile: Easy Apply
+  attaches it, and only verified HRs can open it.
+- A Work post can be marked **Open to work**; on those posts a verified HR
+  can reply with one of their open jobs, which shows as a job card.
 
 **Search & assistant**
 - **AI search** over people and posts in plain language (see below).

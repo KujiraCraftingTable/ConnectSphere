@@ -498,6 +498,12 @@ struct ActorNotifRow: View {
             return String(format: bundle.loc("%@ liked your comment"), actorLabel)
         case "post_shared":
             return String(format: bundle.loc("%@ shared your post"), actorLabel)
+        case "seller_listed":
+            let seller = notif.payload.sellerName ?? actorLabel
+            if let title = notif.payload.title, !title.isEmpty {
+                return String(format: bundle.loc("%@ listed %@"), seller, title)
+            }
+            return String(format: bundle.loc("%@ listed a new item"), seller)
         case "scheduled_post_live":
             return bundle.loc("Your scheduled post is live")
         case "post_approved":
@@ -688,6 +694,7 @@ struct ActorNotifRow: View {
         case "post_commented":      return "bubble.left.fill"
         case "comment_replied":     return "arrowshape.turn.up.left.fill"
         case "post_shared":         return "arrowshape.turn.up.right.fill"
+        case "seller_listed":       return "tag.fill"
         case "scheduled_post_live": return "clock.fill"
         case "post_approved":       return "checkmark.seal.fill"
         case "post_declined":       return "xmark.octagon.fill"

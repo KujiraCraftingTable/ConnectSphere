@@ -22,6 +22,8 @@ struct CommentSheet: View {
 
     let postId: String
     let postAuthorId: String
+    /// An "Open to work" Work post: a verified HR gets the offer-a-job button.
+    var openToWork = false
     /// Called with the change in comment count (+1 on send, -N on delete, +1
     /// on undo), see `CommentsSection.onCommentCountChange`, which this
     /// passes straight through.
@@ -83,6 +85,12 @@ struct CommentSheet: View {
                     // ── Input bar ───────────────────────────────────────────────
                     HStack(alignment: CommentInputBox.isExpanded(text: input, hasPhoto: viewModel.attachedPhoto != nil)
                                ? .bottom : .center, spacing: 10) {
+                        if openToWork && appState.hrCompany != nil {
+                            OfferJobButton(postId: postId, viewModel: viewModel) {
+                                onCommentCountChange?(1)
+                                withAnimation { proxy.scrollTo("bottom") }
+                            }
+                        }
                         CommentInputBox(text: $input, viewModel: viewModel)
                             .focused($focused)
 

@@ -116,6 +116,8 @@ struct InteractionsController {
             let reply_to: String?; let muted: Bool
             let lang: String?; let translated_text: String?; let image_url: String?; let content_format: String?
             let edited_at: Date?
+            let job: String?
+            let rating: Int?
         }
         let rows = try await db.raw("""
             SELECT c.id, c.content, c.created_at, c.parent_comment_id, c.like_count,
@@ -126,8 +128,12 @@ struct InteractionsController {
               CASE WHEN rc.id IS NULL THEN NULL ELSE json_build_object('id', ru.id,
                 'display_name', \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "p.mode", alias: "ru")))::text END AS reply_to,
               (c.author_id <> \(uuid: req.userID) AND \(PostStore.mutedWordHit(req.userID, textSQL: "c.content", modeRef: "p.mode"))) AS muted,
-              c.lang, \(unsafeRaw: TranslationService.translatedColumn("c")) AS translated_text, c.image_url, c.content_format, c.edited_at
+              c.lang, \(unsafeRaw: TranslationService.translatedColumn("c")) AS translated_text, c.image_url, c.content_format, c.edited_at,
+              CASE WHEN cj.id IS NULL THEN NULL ELSE json_build_object('id', cj.id, 'title', cj.title, 'company', cj.company,
+                'location', cj.location, 'work_format', cj.work_format)::text END AS job,
+              (SELECT lr.rating::int FROM legit_reviews lr WHERE lr.comment_id = c.id) AS rating
             FROM comments c JOIN posts p ON p.id = c.post_id JOIN users u ON u.id = c.author_id
+            LEFT JOIN job_posts cj ON cj.id = c.job_id
             LEFT JOIN comments rc ON rc.id = COALESCE(c.reply_to_comment_id, c.parent_comment_id)
             LEFT JOIN users ru ON ru.id = rc.author_id
             WHERE c.post_id = \(uuid: postID) AND c.status = 'posted'
@@ -144,7 +150,9 @@ struct InteractionsController {
                           author: try dec.decode(CommentObject.CommentAuthor.self, from: Data(r.author.utf8)),
                           reply_to: try r.reply_to.map { try dec.decode(CommentObject.ReplyTo.self, from: Data($0.utf8)) },
                           muted: r.muted, lang: r.lang, translated_text: r.translated_text, image_url: r.image_url,
-                          content_format: r.content_format, edited_at: r.edited_at)
+                          content_format: r.content_format, edited_at: r.edited_at,
+                          job: try r.job.map { try dec.decode(CommentObject.CommentJob.self, from: Data($0.utf8)) },
+                          rating: r.rating)
         }
         return CommentsListResponse(data: comments, total: total)
     }
@@ -159,7 +167,7 @@ struct InteractionsController {
         }
     }
 
-    struct AddCommentBody: Content { var content: String?; var parent_comment_id: String?; var image_url: String?; var content_format: String?; var confirm: Bool? }
+    struct AddCommentBody: Content { var content: String?; var parent_comment_id: String?; var image_url: String?; var content_format: String?; var confirm: Bool?; var job_id: String? }
 
     static func addComment(_ req: Request) async throws -> Response {
         try req.requireRoom(for: .comment)
@@ -175,11 +183,38 @@ struct InteractionsController {
         if let imageURL, !imageURL.hasPrefix("/uploads/") || imageURL.hasPrefix("/uploads/messages/") {
             throw InlineError(.badRequest, "image_url must be an uploaded photo")
         }
-        guard !content.isEmpty || imageURL != nil else {
+        guard !content.isEmpty || imageURL != nil || b.job_id != nil else {
             throw InlineError(.badRequest, "content or image_url is required")
         }
         guard let meta = try await visibleMeta(postID, viewer: req.userID, officialReads: true, db) else {
             throw InlineError(.notFound, "Post not found")
+        }
+        // A check-legit post takes reviews only through a legit card (see
+        // LegitStore), so strangers can't pile on; the seller may answer one.
+        if try await PostStore.findMeta(postID, on: db)?.post_type == "legit" {
+            guard b.parent_comment_id != nil, meta.authorID == req.userID else {
+                throw InlineError(.forbidden, "Only buyers the seller sends a review card can review")
+            }
+        }
+        // An HR offering one of their live jobs on an "Open to work" post.
+        var job: CommentObject.CommentJob? = nil
+        if let jobID = b.job_id {
+            guard UUID(uuidString: jobID) != nil else { throw InlineError(.badRequest, "Invalid job") }
+            struct O: Decodable { let open_to_work: Bool; let mode: String }
+            guard let post = try await db.raw("SELECT open_to_work, mode FROM posts WHERE id = \(uuid: postID)").first(decoding: O.self),
+                  post.mode == "work", post.open_to_work else {
+                throw InlineError(.badRequest, "Jobs can only be offered on Open to work posts")
+            }
+            guard try await HRStore.recruiter(req.userID, on: db) != nil else {
+                throw InlineError(.forbidden, "Only verified HR can post jobs")
+            }
+            job = try await db.raw("""
+                SELECT jp.id::text AS id, jp.title, jp.company, jp.location, jp.work_format
+                FROM job_posts jp JOIN posts jpp ON jpp.id = jp.post_id
+                WHERE jp.id = \(uuid: jobID) AND jpp.author_id = \(uuid: req.userID) AND jpp.status = 'posted'
+                  AND jp.hidden_at IS NULL
+                """).first(decoding: CommentObject.CommentJob.self)
+            guard job != nil else { throw InlineError(.badRequest, "Pick one of your open jobs") }
         }
         try req.requireNotBanned(in: meta.mode)
         try req.requireNotRestricted(in: meta.mode)
@@ -210,9 +245,9 @@ struct InteractionsController {
         var created: C!
         try await req.db.tx { t in
             created = try await t.raw("""
-                INSERT INTO comments (post_id, author_id, content, parent_comment_id, reply_to_comment_id, image_url, content_format)
+                INSERT INTO comments (post_id, author_id, content, parent_comment_id, reply_to_comment_id, image_url, content_format, job_id)
                 VALUES (\(uuid: postID), \(uuid: req.userID), \(bind: content), \(uuid: placement?.parentID),
-                        \(uuid: placement?.replyToID), \(bind: imageURL), \(bind: format))
+                        \(uuid: placement?.replyToID), \(bind: imageURL), \(bind: format), \(uuid: job?.id))
                 RETURNING id, content, created_at, parent_comment_id, like_count, image_url, content_format
                 """).first(decoding: C.self)
             try await t.raw("UPDATE posts SET comment_count = comment_count + 1 WHERE id = \(uuid: postID)").run()
@@ -224,7 +259,7 @@ struct InteractionsController {
                                     parent_comment_id: created.parent_comment_id, like_count: created.like_count,
                                     is_liked: false, author: author,
                                     reply_to: answered.map { .init(id: $0.id, display_name: $0.display_name) },
-                                    image_url: created.image_url, content_format: created.content_format)
+                                    image_url: created.image_url, content_format: created.content_format, job: job)
 
         // Notify the post's author for any comment (grouped by post so several
         // collapse), plus the parent comment's author when this is a reply,
@@ -533,6 +568,18 @@ struct CommentObject: Content {
     var content_format: String? = nil
     /// Last edit that changed the text (migration 110); null when never edited.
     @NullCoded var edited_at: Date? = nil
+    /// An HR's job offered on an "Open to work" post (migration 132).
+    @NullCoded var job: CommentJob? = nil
+    /// A buyer's 0–5 star review on a check-legit post (migration 133).
+    @NullCoded var rating: Int? = nil
+    struct CommentJob: Content {
+        /// job_posts.id, what the Jobs tab opens.
+        var id: String
+        var title: String
+        @NullCoded var company: String?
+        @NullCoded var location: String?
+        @NullCoded var work_format: String?
+    }
     struct ReplyTo: Content {
         var id: String
         var display_name: String

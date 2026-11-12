@@ -1577,7 +1577,6 @@
 "Description" = "Description";
 "Listed in %@" = "Listed in %@";
 "Mark as sold" = "Mark as sold";
-"Mark as available" = "Mark as available";
 "Edit listing" = "Edit listing";
 "Delete this listing?" = "Delete this listing?";
 "Couldn't delete post, please try again" = "Couldn't delete post, please try again";
@@ -1614,10 +1613,6 @@
 
 /* Forms, Cancel always asks; Marketplace, sold */
 "Discard changes?" = "Discard changes?";
-"Mark this item as sold?" = "Mark this item as sold?";
-"Mark this item as available?" = "Mark this item as available?";
-"Buyers will be able to message you about it again." = "Buyers will be able to message you about it again.";
-"Buyers won't be able to message you about it anymore." = "Buyers won't be able to message you about it anymore.";
 "This item has been sold" = "This item has been sold";
 
 /* Marketplace, save & share */
@@ -1631,7 +1626,7 @@
 "Send to %lld" = "Send to %lld";
 "Couldn't send to some chats" = "Couldn't send to some chats";
 "items listed" = "items listed";
-"No other items" = "No other items";
+"No items listed" = "No items listed";
 
 /* Communities, who can see a post */
 "Community only" = "Community only";
@@ -1691,7 +1686,6 @@
 "Stop auto re-up?" = "Stop auto re-up?";
 "Stop auto re-up" = "Stop auto re-up";
 "The item stays listed; you can turn it on again from Edit listing." = "The item stays listed; you can turn it on again from Edit listing.";
-"Buyers won't be able to message you about it anymore. Auto re-up will be turned off." = "Buyers won't be able to message you about it anymore. Auto re-up will be turned off.";
 
 "Open app" = "Open app";
 "No app found" = "No app found";
@@ -2208,10 +2202,7 @@
 "%lld of %lld left" = "%lld of %lld left";
 "Items (%lld)" = "Items (%lld)";
 "Ask about this" = "Ask about this";
-"Mark all as available" = "Mark all as available";
 "Mark all as sold" = "Mark all as sold";
-"Mark every item as available?" = "Mark every item as available?";
-"Mark every item as sold?" = "Mark every item as sold?";
 "Ask the seller about this item?" = "Ask the seller about this item?";
 "The seller gets: Is “%@” still available?" = "The seller gets: Is “%@” still available?";
 "You can ask about this item again in %d minute" = "You can ask about this item again in %d minute";
@@ -2449,3 +2440,88 @@
 "The job description must be 10 MB or smaller." = "The job description must be 10 MB or smaller.";
 "The job description must be a PDF" = "The job description must be a PDF";
 "Attach the job description again" = "Attach the job description again";
+
+"Offer one of your open jobs. It's posted as a comment with the job's card." = "Offer one of your open jobs. It's posted as a comment with the job's card.";
+"You have no open jobs yet." = "You have no open jobs yet.";
+"Offer a job" = "Offer a job";
+"Open to work" = "Open to work";
+"Verified HRs can reply with one of their jobs." = "Verified HRs can reply with one of their jobs.";
+"CV (PDF)" = "CV (PDF)";
+"Replace" = "Replace";
+"Add your CV (PDF)" = "Add your CV (PDF)";
+"Only verified HRs can open it. Easy Apply attaches it for you." = "Only verified HRs can open it. Easy Apply attaches it for you.";
+"CV from your profile" = "CV from your profile";
+"Jobs can only be offered on Open to work posts" = "Jobs can only be offered on Open to work posts";
+"Pick one of your open jobs" = "Pick one of your open jobs";
+"Attach the CV again" = "Attach the CV again";
+
+/* Reviews (Marketplace; was "check legit") */
+"In %@" = "In %@";
+"In the same communities" = "In the same communities";
+"Other listings" = "Other listings";
+"Reviews" = "Reviews";
+"Only you" = "Only you";
+"See reviews" = "See reviews";
+"Show to everyone" = "Show to everyone";
+"Hide (only you)" = "Hide (only you)";
+"Reviews options" = "Reviews options";
+"Only buyers you send a review card to can review you here." = "Only buyers you send a review card to can review you here.";
+"Legit" = "Legit";
+"Legit seller" = "Legit seller";
+"No reviews yet" = "No reviews yet";
+"%lld of 5 stars" = "%lld of 5 stars";
+"This review card isn't available" = "This review card isn't available";
+"Reviewed" = "Reviewed";
+"Expired" = "Expired";
+"Rate this seller" = "Rate this seller";
+"expires %@" = "expires %@";
+"Waiting for their review · expires %@" = "Waiting for their review · expires %@";
+"How did it go?" = "How did it go?";
+"Your review shows on the seller's reviews post. You can only send one with this card." = "Your review shows on the seller's reviews post. You can only send one with this card.";
+"This profile isn't available" = "This profile isn't available";
+"Your items" = "Your items";
+"Review card" = "Review card";
+"Rated %@ of 5 stars" = "Rated %@ of 5 stars";
+
+/* Marketplace seller profile (migration 135) */
+"follower" = "follower";
+"followers" = "followers";
+"Edit marketplace profile" = "Edit marketplace profile";
+"Use my profile's cover" = "Use my profile's cover";
+"Change photo" = "Change photo";
+"Use my profile photo" = "Use my profile photo";
+"Shop name" = "Shop name";
+"What do you sell?" = "What do you sell?";
+"About your shop" = "About your shop";
+"Only shows on your listings and seller page. Anything left empty uses your profile's." = "Only shows on your listings and seller page. Anything left empty uses your profile's.";
+"Save your marketplace profile?" = "Save your marketplace profile?";
+"%@ listed %@" = "%1$@ listed %2$@";
+"%@ listed a new item" = "%@ listed a new item";
+
+/* Listing item quantity (migration 138) */
+"Quantity" = "Quantity";
+"Qty %lld" = "Qty %lld";
+"%lld sold · %lld left" = "%lld sold · %lld left";
+"Quantity must be 1–%lld." = "Quantity must be 1–%lld.";
+
+/* Deposits and confirmed sales (migration 139) */
+"Deposit" = "Deposit";
+"Who's it on deposit for?" = "Who's it on deposit for?";
+"Who received it?" = "Who received it?";
+"Save deposit" = "Save deposit";
+"Mark %lld as sold to %@ and send a review card? This can't be undone." = "Mark %lld as sold to %@ and send a review card? This can't be undone.";
+"Mark all of %@'s deposits as sold and send review cards? This can't be undone." = "Mark all of %@'s deposits as sold and send review cards? This can't be undone.";
+"Put %lld on deposit for %@?" = "Put %lld on deposit for %@?";
+"Remove %@'s deposit of %lld?" = "Remove %@'s deposit of %lld?";
+"Change %@'s deposit from %lld to %lld?" = "Change %@'s deposit from %lld to %lld?";
+"You can put up to %lld on deposit for this buyer." = "You can put up to %lld on deposit for this buyer.";
+"Confirm sold & send review card" = "Confirm sold & send review card";
+"%lld on hold" = "%lld on hold";
+"%lld on deposit" = "%lld on deposit";
+"× %lld" = "× %lld";
+"No deposits yet" = "No deposits yet";
+"No chats yet. Message the buyer first." = "No chats yet. Message the buyer first.";
+"You can't raise the quantity. Post a new listing to sell more." = "You can't raise the quantity. Post a new listing to sell more.";
+"%lld are sold or on deposit, so the quantity can't be less." = "%lld are sold or on deposit, so the quantity can't be less.";
+"Decrease" = "Decrease";
+"Increase" = "Increase";

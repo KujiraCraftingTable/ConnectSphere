@@ -117,40 +117,70 @@ final class MarketplaceViewModel {
     }
 }
 
-/// A seller as the Marketplace shows them: their other items for sale in this
-/// mode (sold ones last), not their whole profile.
+/// A seller as the Marketplace shows them: their check-legit post first,
+/// then their items in the community you came from, then the rest (sold ones
+/// last in each), not their whole profile.
 @MainActor
 @Observable
 final class MarketplaceSellerViewModel {
     /// Starts as the item's author (name and photo), then the full profile
     /// (cover, location) once it loads.
     private(set) var seller: UserProfile
+    /// The check-legit post and rating; Hobby only for now.
+    private(set) var legit: LegitSummary?
+    /// Their Marketplace identity and followers; Hobby only for now.
+    private(set) var profile: SellerProfile?
+    private(set) var isTogglingFollow = false
+    /// Their items in `communities`.
+    private(set) var nearby: [Post] = []
+    /// Everything else of theirs.
     private(set) var items: [Post] = []
     private(set) var isLoading = false
     private(set) var canLoadMore = true
     var errorMessage: String?
 
-    private let mode: AppMode
-    /// The item the page was opened from, not repeated in "other items".
-    private let excludedId: String
-    /// How many the server has returned, the excluded item included. The next page's offset.
+    let mode: AppMode
+    /// The community the item was opened in, or the ones it's listed in.
+    let communities: [ListingData.ListedIn]
+    /// How many the server has returned for `items`. The next page's offset.
     private var fetched = 0
     private let repository = MarketplaceRepository()
 
-    init(seller: UserProfile, mode: AppMode, excluding postId: String) {
+    init(seller: UserProfile, mode: AppMode, communities: [ListingData.ListedIn]) {
         self.seller = seller
         self.mode = mode
-        self.excludedId = postId
+        self.communities = communities
+    }
+
+    private var communityIds: [String] { communities.map(\.id) }
+
+    var listedCount: Int { nearby.count + items.count }
+
+    /// "In biribiri fandom", or nil when there's no community section.
+    var nearbyTitle: String? {
+        guard !communities.isEmpty else { return nil }
+        return communities.count == 1
+            ? String(format: Bundle.app.loc("In %@"), communities[0].name)
+            : Bundle.app.loc("In the same communities")
     }
 
     func load(token: String) async {
         isLoading = true
         defer { isLoading = false }
         if let full = try? await ProfileRepository().fetchUser(userId: seller.id, mode: mode.rawValue) { seller = full }
+        if mode == .hobby {
+            async let legitLoad = try? repository.legitSummary(sellerId: seller.id, token: token)
+            async let profileLoad = try? repository.sellerProfile(sellerId: seller.id, token: token)
+            (legit, profile) = await (legitLoad, profileLoad)
+        }
         do {
+            if !communityIds.isEmpty {
+                nearby = try await repository.listings(mode: mode, query: "", communityId: nil, sellerId: seller.id,
+                                                       inCommunities: communityIds, offset: 0, token: token)
+            }
             let page = try await repository.listings(mode: mode, query: "", communityId: nil, sellerId: seller.id,
-                                                     offset: 0, token: token)
-            items = page.filter { $0.id != excludedId }
+                                                     outsideCommunities: communityIds, offset: 0, token: token)
+            items = page
             fetched = page.count
             canLoadMore = page.count == 30
         } catch {
@@ -163,10 +193,41 @@ final class MarketplaceSellerViewModel {
         isLoading = true
         defer { isLoading = false }
         guard let page = try? await repository.listings(mode: mode, query: "", communityId: nil, sellerId: seller.id,
-                                                         offset: fetched, token: token) else { return }
-        items += page.filter { new in new.id != excludedId && !items.contains { $0.id == new.id } }
+                                                         outsideCommunities: communityIds, offset: fetched,
+                                                         token: token) else { return }
+        items += page.filter { new in !items.contains { $0.id == new.id } }
         fetched += page.count
         canLoadMore = page.count == 30
+    }
+
+    /// The check-legit post after its author edited it from its card.
+    func replaceLegitPost(_ post: Post) { legit?.post = post }
+
+    /// After the seller saved their Marketplace profile.
+    func replaceProfile(_ new: SellerProfile) { profile = new }
+
+    var displayName: String { profile?.displayName ?? seller.name }
+    var avatarUrl: String? { profile == nil ? seller.avatarUrl : profile?.avatarUrl }
+    var coverUrl: String? { profile == nil ? seller.coverUrl : profile?.coverUrl }
+
+    /// Follow or unfollow the seller, shown at once and undone if it fails.
+    func toggleFollow(token: String) async {
+        guard var current = profile, !isTogglingFollow else { return }
+        isTogglingFollow = true
+        defer { isTogglingFollow = false }
+        let follow = !current.isFollowing
+        current.isFollowing = follow
+        current.followerCount += follow ? 1 : -1
+        let before = profile
+        profile = current
+        do {
+            let state = try await repository.setFollowingSeller(follow, sellerId: seller.id, token: token)
+            profile?.isFollowing = state.isFollowing
+            profile?.followerCount = state.followerCount
+        } catch {
+            profile = before
+            errorMessage = friendlyError(error)
+        }
     }
 }
 
@@ -242,22 +303,10 @@ final class ListingViewModel {
         }
     }
 
-    func setSold(_ sold: Bool, token: String) async {
-        await save(["status": sold ? "sold" : "available"], token: token)
-    }
-
-    /// Marks one item of several sold or for sale again; the listing is sold
-    /// once all of them are.
-    func setItemSold(_ item: ListingItem, sold: Bool, token: String) async {
-        guard let id = listing?.id else { return }
-        isWorking = true
-        defer { isWorking = false }
-        do {
-            post = try await repository.setItemStatus(listingId: id, itemId: item.id, sold: sold, token: token)
-            NotificationCenter.default.post(name: .postUpdated, object: nil, userInfo: ["post": post])
-        } catch {
-            errorMessage = friendlyError(error)
-        }
+    /// The post after a deposit or confirmed sale in the buyer sheet.
+    func replacePost(_ updated: Post) {
+        post = updated
+        NotificationCenter.default.post(name: .postUpdated, object: nil, userInfo: ["post": updated])
     }
 
     /// Posts the item again as new, in the communities it was listed in. True when done.

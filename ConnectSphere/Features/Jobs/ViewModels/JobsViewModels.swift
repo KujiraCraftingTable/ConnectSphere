@@ -188,6 +188,14 @@ final class ApplyViewModel {
         cvName = nil
     }
 
+    /// The CV saved on your Work profile goes in by default; you can still
+    /// remove it or pick another for this job.
+    func useSavedCV(token: String) async {
+        guard cvUrl == nil, let saved = try? await repository.myCV(token: token) else { return }
+        cvUrl = saved
+        cvName = Bundle.app.loc("CV from your profile")
+    }
+
     /// The application, or nil (with a message) if it was refused.
     func submit(token: String) async -> JobApplication? {
         guard canSubmit else { return nil }

@@ -49,6 +49,13 @@ struct PostDetailView: View {
 
     private var post: Post? { viewModel.post }
 
+    /// A check-legit post takes reviews only from legit cards; its seller can
+    /// answer one (the server holds the same rule).
+    private var canWrite: Bool {
+        guard let post, post.postType == .legit else { return true }
+        return post.author.id.lowercased() == appState.currentUser?.id.lowercased() && commentVM.replyingTo != nil
+    }
+
     // A Marketplace item opens here like any post. Likes and comments
     // included. The seller's tools (sold, re-up, edit) are on its item page,
     // reached from the Marketplace grid and "Your items".
@@ -91,7 +98,7 @@ struct PostDetailView: View {
                 .task { await loadAll(proxy: proxy) }
                 .confirmBeforePosting(commentVM, text: $draft) { adjustCommentCount(by: 1) }
 
-                if post != nil && !isEditingComment {
+                if post != nil && !isEditingComment && canWrite {
                     composerBar(proxy: proxy)
                 }
             }
@@ -220,6 +227,14 @@ struct PostDetailView: View {
 
             HStack(alignment: CommentInputBox.isExpanded(text: draft, hasPhoto: commentVM.attachedPhoto != nil)
                        ? .bottom : .center, spacing: 10) {
+                if let post, post.openToWork, post.mode == .work, appState.hrCompany != nil {
+                    OfferJobButton(postId: postId, viewModel: commentVM) {
+                        adjustCommentCount(by: 1)
+                        if let last = commentVM.comments.last {
+                            withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
+                        }
+                    }
+                }
                 CommentInputBox(text: $draft, viewModel: commentVM)
                     .focused($composerFocused)
 

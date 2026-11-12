@@ -364,6 +364,11 @@ struct MessageBubble: View {
                     CommunityUnavailableCard()
                 }
             }
+
+        case .legitCheck:
+            if let id = message.legitInviteId {
+                ChatLegitCard(inviteId: id)
+            }
         }
     }
 

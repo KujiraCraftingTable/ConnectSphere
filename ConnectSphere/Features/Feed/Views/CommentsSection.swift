@@ -405,9 +405,20 @@ struct CommentRow: View {
                                 }
                             }
                         }
+                    if let rating = comment.rating {
+                        StarRow(rating: Double(rating), size: 12)
+                            .padding(.top, 2)
+                            .accessibilityElement()
+                            .accessibilityLabel(Text(String(format: bundle.loc("%lld of 5 stars"), rating)))
+                    }
                     // The photo is its own part, right under the text bubble, not inside it.
                     if let photo = comment.imageUrl {
                         CommentPhoto(path: photo)
+                            .padding(.top, 2)
+                    }
+                    if let job = comment.job {
+                        CommentJobCard(job: job)
+                            .frame(maxWidth: 300)
                             .padding(.top, 2)
                     }
                 }

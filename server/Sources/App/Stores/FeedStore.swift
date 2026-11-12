@@ -350,6 +350,7 @@ enum FeedStore {
         var id: String
         var content: String?
         var content_format: String?
+        var open_to_work: Bool?
         var mode: String
         var privacy: String
         var image_url: String?
@@ -493,10 +494,16 @@ enum FeedStore {
                   UNION SELECT fo.followee_id FROM follows fo
                     WHERE fo.follower_id = \(uuid: userID) AND fo.mode = \(bind: mode))
               UNION
+              -- Listings by Marketplace sellers you follow (migration 135).
+              SELECT np.id FROM posts np
+                WHERE np.mode = \(bind: mode) AND np.status = 'posted' AND np.post_type = 'listing'
+                  AND np.author_id IN (SELECT sf.seller_id FROM seller_follows sf
+                                       WHERE sf.follower_id = \(uuid: userID) AND sf.mode = \(bind: mode))
+              UNION
               SELECT post_id FROM cf
             ),
             scored AS (
-              SELECT p.id::text AS id, p.content, p.content_format, p.mode, p.privacy, p.image_urls[1] AS image_url, p.image_urls, p.image_alts, p.article_title, p.link_url,
+              SELECT p.id::text AS id, p.content, p.content_format, p.open_to_work, p.mode, p.privacy, p.image_urls[1] AS image_url, p.image_urls, p.image_alts, p.article_title, p.link_url,
                 p.lang, \(unsafeRaw: TranslationService.translatedColumn("p")) AS translated_text,
                 p.like_count, p.comment_count, p.share_count, p.created_at, p.edited_at, p.post_type, p.is_pinned, p.pinned_at, p.shared_post_id::text AS shared_post_id,
                 EXISTS(SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = \(uuid: userID)) AS is_liked,
@@ -504,8 +511,12 @@ enum FeedStore {
                   AND ((co.requester_id = p.author_id AND co.addressee_id = \(uuid: userID))
                     OR (co.addressee_id = p.author_id AND co.requester_id = \(uuid: userID)))) AS is_connection,
                 \(semanticExpr) AS semantic,
-                EXISTS(SELECT 1 FROM follows fo WHERE fo.follower_id = \(uuid: userID) AND fo.followee_id = p.author_id
-                  AND fo.mode = \(bind: mode)) AS is_following,
+                (EXISTS(SELECT 1 FROM follows fo WHERE fo.follower_id = \(uuid: userID) AND fo.followee_id = p.author_id
+                  AND fo.mode = \(bind: mode))
+                 -- A followed seller's listing gets the same lift as a followed author.
+                 OR (p.post_type = 'listing' AND EXISTS(SELECT 1 FROM seller_follows sf
+                   WHERE sf.follower_id = \(uuid: userID) AND sf.seller_id = p.author_id AND sf.mode = \(bind: mode))))
+                  AS is_following,
                 COALESCE(MAX(aff.raw), 0)::float AS affinity,
                 COALESCE(MAX(cf.s), 0)::float AS peer_score,
                 u.location AS author_location,
@@ -544,8 +555,8 @@ enum FeedStore {
                   FROM communities sc WHERE sc.id = p.shared_community_id
                   AND sc.disbanded_at IS NULL AND sc.suspended_at IS NULL)::text AS shared_community,
                 json_build_object('id', u.id, 'username', u.username,
-                  'display_name', \(unsafeRaw: PersonaSQL.expr("display_name", modeRef: "p.mode")),
-                  'avatar_color', u.avatar_color, 'avatar_url', \(unsafeRaw: PersonaSQL.expr("avatar_url", modeRef: "p.mode")),
+                  'display_name', \(unsafeRaw: SellerProfileStore.authorExpr("display_name", post: "p", fallback: PersonaSQL.expr("display_name", modeRef: "p.mode"))),
+                  'avatar_color', u.avatar_color, 'avatar_url', \(unsafeRaw: SellerProfileStore.authorExpr("avatar_url", post: "p", fallback: PersonaSQL.expr("avatar_url", modeRef: "p.mode"))),
                   'job_title', u.job_title, 'company', u.company, 'is_official', u.app_role = 'admin')::text AS author,
                 COALESCE(json_agg(DISTINCT pt.tag) FILTER (WHERE pt.tag IS NOT NULL AND pt.source = 'user'), '[]')::text AS tags,
                 \(PostStore.typeDataColumns(userID))
@@ -569,7 +580,7 @@ enum FeedStore {
               LEFT JOIN post_tags pt ON pt.post_id = p.id
               LEFT JOIN aff ON aff.author_id = p.author_id
               LEFT JOIN cf ON cf.post_id = p.id
-              WHERE p.mode = \(bind: mode) AND p.status = 'posted'
+              WHERE p.mode = \(bind: mode) AND p.status = 'posted' AND p.post_type <> 'legit'
                 -- Items for sale compete like any post; sold ones drop out.
                 AND NOT EXISTS (SELECT 1 FROM listing_posts lsold WHERE lsold.post_id = p.id AND lsold.status = 'sold')
                 AND \(ListingStore.notHiddenFromFriendClause(userID))
@@ -694,7 +705,7 @@ enum FeedStore {
         }
         let posts = try page.map { r -> FeedPostObject in
             FeedPostObject(
-                id: r.id, content: r.content, content_format: r.content_format, mode: r.mode, privacy: r.privacy,
+                id: r.id, content: r.content, content_format: r.content_format, open_to_work: r.open_to_work ?? false, mode: r.mode, privacy: r.privacy,
                 image_url: r.image_url, image_urls: r.image_urls, image_alts: r.image_alts, lang: r.lang, translated_text: r.translated_text, article_title: r.article_title, link_url: r.link_url,
                 like_count: r.like_count, comment_count: r.comment_count, share_count: r.share_count,
                 created_at: r.created_at, edited_at: r.edited_at, post_type: r.post_type, is_pinned: r.is_pinned, pinned_at: r.pinned_at,
@@ -728,6 +739,8 @@ struct FeedPostObject: Content {
     @NullCoded var content: String?
     /// "markdown" or "plain"; without it the app showed Markdown posts as raw text.
     var content_format: String? = nil
+    /// Work post looking for a job (migration 132).
+    var open_to_work: Bool = false
     var mode: String
     var privacy: String
     @NullCoded var image_url: String?

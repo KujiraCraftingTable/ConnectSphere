@@ -2,6 +2,8 @@ import Foundation
 
 enum MessageType: String, Decodable {
     case text, image, video, meeting, voice, album, poll, post, community
+    /// A seller's legit card (server migration 133): the buyer rates them from it.
+    case legitCheck = "legit_check"
     /// Any type a newer server introduced (sticker, file, system…). Decoding
     /// falls back here so an unknown message renders as plain text rather than
     /// failing the whole history fetch.
@@ -194,6 +196,7 @@ struct PinnedMessage: Identifiable, Decodable, Equatable {
         case .poll:    return "📊 " + (content ?? Bundle.app.loc("Poll"))
         case .post:    return "📰 " + ((content?.isEmpty == false ? content : nil) ?? Bundle.app.loc("Shared a post"))
         case .community: return "👥 " + ((content?.isEmpty == false ? content : nil) ?? Bundle.app.loc("Shared a community"))
+        case .legitCheck: return "✅ " + Bundle.app.loc("Review card")
         }
     }
 
@@ -311,6 +314,8 @@ struct Message: Identifiable, Decodable, Equatable {
     var sharedPostId: String?
     /// A community shared into the chat (`.community`); the card loads it as the viewer.
     var sharedCommunityId: String?
+    /// A seller's legit card (`.legitCheck`); the card loads its state as the viewer.
+    var legitInviteId: String?
     /// Present only when `messageType == .voice`. Playback length in seconds.
     var voiceDurationSeconds: Int?
     /// Present only when `messageType == .voice`. A fixed-length (~40 point)
@@ -354,6 +359,7 @@ struct Message: Identifiable, Decodable, Equatable {
         case poll
         case sharedPostId = "shared_post_id"
         case sharedCommunityId = "shared_community_id"
+        case legitInviteId = "legit_invite_id"
         case voiceDurationSeconds = "voice_duration_seconds"
         case voiceWaveform        = "voice_waveform"
         case isForwarded          = "is_forwarded"
@@ -383,6 +389,7 @@ struct Message: Identifiable, Decodable, Equatable {
         poll = try c.decodeIfPresent(ChatPoll.self, forKey: .poll)
         sharedPostId = try c.decodeIfPresent(String.self, forKey: .sharedPostId)
         sharedCommunityId = try c.decodeIfPresent(String.self, forKey: .sharedCommunityId)
+        legitInviteId = try c.decodeIfPresent(String.self, forKey: .legitInviteId)
         voiceDurationSeconds = try c.decodeIfPresent(Int.self, forKey: .voiceDurationSeconds)
         voiceWaveform = try c.decodeIfPresent([Float].self, forKey: .voiceWaveform)
         isForwarded = try c.decodeIfPresent(Bool.self, forKey: .isForwarded) ?? false

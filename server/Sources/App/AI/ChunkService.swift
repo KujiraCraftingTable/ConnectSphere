@@ -163,10 +163,10 @@ enum ChunkService {
 
         struct R: Decodable {
             let author_id: String; let content: String?; let content_format: String?; let article_title: String?
-            let status: String; let tags: String
+            let status: String; let tags: String; let post_type: String
         }
         guard let post = try await db.raw("""
-            SELECT p.author_id::text AS author_id, p.content, p.content_format, p.article_title, p.status,
+            SELECT p.author_id::text AS author_id, p.content, p.content_format, p.article_title, p.status, p.post_type,
               COALESCE(array_to_json(array_agg(pt.tag) FILTER (WHERE pt.tag IS NOT NULL)), '[]')::text AS tags
             FROM posts p
             LEFT JOIN post_tags pt ON pt.post_id = p.id
@@ -175,7 +175,8 @@ enum ChunkService {
             try await db.raw("DELETE FROM user_embedding_chunks WHERE source_type = 'post' AND source_id = \(uuid: postID)").run()
             return false
         }
-        if post.status != "posted" {
+        // A check-legit post stays out of search: it's only on the seller's Marketplace page.
+        if post.status != "posted" || post.post_type == "legit" {
             try await db.raw("DELETE FROM user_embedding_chunks WHERE source_type = 'post' AND source_id = \(uuid: postID)").run()
             return false
         }

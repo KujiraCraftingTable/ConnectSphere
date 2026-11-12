@@ -20,6 +20,15 @@ on 2026-11-11.)
   inert `dating_*` tables and `conversations.dating_match_id`
   (migrations 081–082); nothing reads or writes them. AI search ignores
   partner wording ("to date", "người yêu") and searches the rest.
+- **Communities and the Marketplace are Hobby-only for now (decided 2026-11-11).**
+  They're switched off in Work mode. So Reviews (the seller's reviews post,
+  formerly "check legit"; buyer ratings via review cards) is built for Hobby only, and its routes refuse
+  `mode=work`. Anything new for communities or selling should target Hobby until
+  Work mode gets them back. The same goes for the seller profile and seller
+  follows (migration 135).
+- **Inside a community, tapping a listing's seller still opens their community
+  member profile**, not the Marketplace seller page (the community post header
+  wasn't changed). Everywhere else a listing opens the seller page.
 
 ## Backend, deferred query rewrites (correctness is fine; scale is not tuned)
 

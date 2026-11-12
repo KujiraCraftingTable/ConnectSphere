@@ -219,6 +219,7 @@ enum JobBoardStore {
         /// Within this many km of the viewer's ward (5 km steps, see SearchStore.radiusStepsKm).
         var radiusKm: Double?
         var companyID: String?
+        var authorID: String?
         var savedOnly = false
         var limit = 30
         var offset = 0
@@ -242,6 +243,7 @@ enum JobBoardStore {
         if let lv = f.level { q = q + " AND jp.level = \(bind: lv)" }
         if let s = f.salaryMin { q = q + " AND COALESCE(jp.salary_max, jp.salary_min) >= \(bind: s)" }
         if let c = f.companyID { q = q + " AND jp.company_id = \(uuid: c)" }
+        if let a = f.authorID { q = q + " AND p.author_id = \(uuid: a)" }
         if f.savedOnly { q = q + " AND EXISTS(SELECT 1 FROM job_interests ji2 WHERE ji2.job_id = jp.id AND ji2.user_id = \(uuid: viewer))" }
         q = q + " ORDER BY p.created_at DESC LIMIT \(bind: f.limit) OFFSET \(bind: f.offset)"
         let rows = try await db.raw(q).all(decoding: Row.self)

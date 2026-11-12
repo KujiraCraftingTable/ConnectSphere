@@ -63,7 +63,10 @@ struct UserNotificationPayloadDTO: Decodable {
     let lastMessageType: String?
     let messageId: String?
     let proposalId: String?
+    /// Chat extras, and seller_listed: the item's title.
     let title: String?
+    /// seller_listed: the seller's Marketplace name (not their profile's).
+    let sellerName: String?
     let startsAt: Date?
     let changeKind: String?
     let status: String?

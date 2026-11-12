@@ -253,6 +253,22 @@ struct CreatePostView: View {
                             }
                         }
 
+                        // Work text post looking for a job: verified HRs can answer
+                        // it with one of their jobs (server migration 132).
+                        if postType == .text && effectiveMode == .work && community == nil && !isEditMode {
+                            Toggle(isOn: $composerViewModel.openToWork) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "briefcase.fill").foregroundColor(.green)
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text("Open to work", bundle: bundle).scaledFont(15, .semibold)
+                                        Text("Verified HRs can reply with one of their jobs.", bundle: bundle)
+                                            .scaledFont(12).foregroundColor(AppColors.textSecondary(colorScheme))
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 8)
+                        }
+
                         // ── Row 2: Text box ────────────────────────────────────
                         // Same size and line width as the text in a post card (15pt body,
                         // 8pt card margin + 12pt padding, so 20pt in from the screen edge
@@ -729,7 +745,7 @@ struct CreatePostView: View {
         case .poll:  return bundle.loc("What do you want to ask?")
         case .event: return bundle.loc("Describe this event…")
         case .job:   return bundle.loc("Describe this role…")
-        case .listing: return bundle.loc("Describe what you're selling…")
+        case .listing, .legit: return bundle.loc("Describe what you're selling…")
         }
     }
 

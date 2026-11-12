@@ -111,6 +111,8 @@ struct FloatingChatMessageRow: View {
                 case .community:
                     // The mini window has no room for the card; the chat shows it.
                     textBubble("👥 " + ((message.content?.isEmpty == false ? message.content : nil) ?? bundle.loc("Shared a community")))
+                case .legitCheck:
+                    textBubble("✅ " + bundle.loc("Review card"))
                 case .text, .unknown:
                     textBubble(message.content ?? "")
                 }

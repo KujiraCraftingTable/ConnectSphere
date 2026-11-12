@@ -124,6 +124,8 @@ struct Post: Identifiable {
     var contentLang: String? = nil
     var translatedContent: String? = nil
     /// 'markdown' when the text was written with Markdown; older posts are plain.
+    /// A Work post looking for a job (server migration 132).
+    var openToWork: Bool = false
     var contentFormat: String? = nil
     var isMarkdown: Bool { contentFormat == "markdown" }
     var likeCount: Int

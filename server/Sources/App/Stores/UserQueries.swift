@@ -35,7 +35,7 @@ extension UserStore {
         // Public and friends posts count, for every viewer; only-me posts are
         // private notes and never do.
         let postCount = modeRef.map {
-            "(SELECT COUNT(*)::int FROM posts p WHERE p.author_id = u.id AND p.mode = \($0) AND p.status = 'posted' AND p.community_id IS NULL AND p.post_type <> 'listing' AND p.privacy IN ('public', 'friends')) AS post_count"
+            "(SELECT COUNT(*)::int FROM posts p WHERE p.author_id = u.id AND p.mode = \($0) AND p.status = 'posted' AND p.community_id IS NULL AND p.post_type NOT IN ('listing', 'legit') AND p.privacy IN ('public', 'friends')) AS post_count"
         } ?? "u.post_count"
         // Mode-scoped and friends-excluded (FollowStore); the legacy
         // users.follower_count/following_count columns only mirrored friends.

@@ -104,6 +104,7 @@ struct UserProfileView: View {
                                 ExperienceSection(userId: user.id, isMe: user.id == appState.currentUser?.id)
                                 SkillsSection(userId: user.id, isMe: user.id == appState.currentUser?.id,
                                               allowsEndorsing: !showingOther)
+                                ProfileCVSection(userId: user.id, isMe: user.id == appState.currentUser?.id)
                             }
                             if user.lockedOut { lockedPostsNote(user) } else { postsSection.id("posts") }
                         } else {

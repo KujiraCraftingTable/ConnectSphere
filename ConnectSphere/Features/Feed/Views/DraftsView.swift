@@ -15,6 +15,7 @@ struct DraftRow: View {
         case .event: return "calendar"
         case .job: return "briefcase.fill"
         case .listing: return "bag.fill"
+        case .legit: return "checkmark.seal.fill"
         case .text: return post.imageUrls.isEmpty ? (post.linkUrl == nil ? "text.alignleft" : "link") : "photo"
         }
     }

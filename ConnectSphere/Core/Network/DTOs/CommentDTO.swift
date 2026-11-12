@@ -56,9 +56,13 @@ struct CommentDTO: Decodable, Identifiable {
     var isMarkdown: Bool { contentFormat == "markdown" }
     /// Last edit that changed the text; nil when never edited (no history to show).
     var editedAt: Date?
+    /// An HR's job offered on an "Open to work" post (server migration 132).
+    let job: CommentJobDTO?
+    /// A buyer's 0–5 stars on a seller's check-legit post (server migration 133).
+    let rating: Int?
 
     enum CodingKeys: String, CodingKey {
-        case id, content, author, muted, lang
+        case id, content, author, muted, lang, job, rating
         case contentFormat   = "content_format"
         case translatedText  = "translated_text"
         case imageUrl        = "image_url"
@@ -86,6 +90,22 @@ struct CommentDTO: Decodable, Identifiable {
         imageUrl        = try c.decodeIfPresent(String.self, forKey: .imageUrl)
         contentFormat   = try c.decodeIfPresent(String.self, forKey: .contentFormat)
         editedAt        = try? c.decodeIfPresent(Date.self, forKey: .editedAt)
+        job             = try c.decodeIfPresent(CommentJobDTO.self, forKey: .job)
+        rating          = try c.decodeIfPresent(Int.self, forKey: .rating)
+    }
+}
+
+/// The job card in an HR's comment; `id` is what the Jobs tab opens.
+struct CommentJobDTO: Decodable, Hashable {
+    let id: String
+    let title: String
+    let company: String?
+    let location: String?
+    let workFormat: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, company, location
+        case workFormat = "work_format"
     }
 }
 

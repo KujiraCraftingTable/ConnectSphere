@@ -60,6 +60,8 @@ struct PostObject: Content {
     @NullCoded var shared_community: SharedCommunity? = nil
     /// 'plain' (every post made before Markdown) or 'markdown' (migration 098).
     var content_format: String? = nil
+    /// Work post looking for a job (migration 132).
+    var open_to_work: Bool? = nil
 
     struct SharedCommunity: Content {
         var id: String
@@ -155,6 +157,14 @@ struct PostObject: Content {
             var price: Int64
             var condition: String
             var status: String
+            /// How many there are and how many have sold (migration 138).
+            var quantity: Int = 1
+            var sold_count: Int = 0
+            /// Units on deposit for buyers (migration 139), and, for the seller
+            /// only, whose they are.
+            var on_hold: Int = 0
+            @NullCoded var deposits: [Deposit]? = nil
+            struct Deposit: Content { var buyer_id: String; var conversation_id: String; var quantity: Int }
             var image_urls: [String]
             @NullCoded var image_alts: [String]?
             /// When this viewer may next "Ask about this" (migration 119); nil = now.

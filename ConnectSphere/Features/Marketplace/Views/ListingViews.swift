@@ -19,10 +19,14 @@ struct ListingPostCard: View {
     @State private var showDetail = false
     /// The post photo on screen; with several items, photo N is item N's cover.
     let photoIndex: Int
+    /// The community feed it's shown in, if any: the seller page lists their
+    /// items there first.
+    let communityId: String?
 
-    init(post: Post, photoIndex: Int = 0) {
+    init(post: Post, photoIndex: Int = 0, communityId: String? = nil) {
         _viewModel = State(initialValue: ListingViewModel(post: post))
         self.photoIndex = photoIndex
+        self.communityId = communityId
     }
 
     var body: some View {
@@ -67,7 +71,7 @@ struct ListingPostCard: View {
             // swipe down to close.
             .sheet(isPresented: $showDetail) {
                 NavigationStack {
-                    ListingDetailView(post: viewModel.post)
+                    ListingDetailView(post: viewModel.post, communityId: communityId)
                         .toolbar {
                             ToolbarItem(placement: .cancellationAction) {
                                 Button { showDetail = false } label: { Image(systemName: "xmark") }
@@ -117,9 +121,13 @@ struct ListingItemLines: View {
                         if item.isSold {
                             SoldBadge()
                         } else {
-                            Text(item.priceText(loc: bundle.loc))
-                                .fontWeight(.semibold)
-                                .foregroundColor(on ? themeManager.theme.primary : AppColors.textPrimary(colorScheme))
+                            HStack(spacing: 6) {
+                                Text(item.priceText(loc: bundle.loc))
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(on ? themeManager.theme.primary : AppColors.textPrimary(colorScheme))
+                                Text(String(format: bundle.loc("Qty %lld"), item.remaining))
+                                    .foregroundColor(AppColors.textSecondary(colorScheme))
+                            }
                         }
                     }
                     .fixedSize()
@@ -242,6 +250,14 @@ struct ListingSummary: View {
                     Text(ListingItemCount.text(listing, bundle: bundle))
                 } else {
                     Text(bundle.loc(listing.condition.label))
+                    if let item = listing.items.first, !item.isSold {
+                        Text("·")
+                        Text(String(format: bundle.loc("Qty %lld"), item.remaining))
+                        if item.onHold > 0 {
+                            Text("·")
+                            Text(String(format: bundle.loc("%lld on hold"), item.onHold))
+                        }
+                    }
                 }
                 if let location = listing.location {
                     Text("·")
@@ -363,12 +379,26 @@ struct ListingDetailView: View {
     @State private var showSeller = false
     @State private var confirmCancelAuto = false
     @State private var pickItem = false
-    /// The item the seller tapped Mark as sold / available on, waiting for them to confirm.
-    @State private var itemToToggle: ListingItem?
+    /// The seller's Deposit / Mark as sold sheet for one item.
+    @State private var buyerSheet: ListingBuyerRoute?
     /// The item a buyer tapped "Ask about this" on, waiting for them to confirm.
     @State private var itemToAsk: ListingItem?
 
-    init(post: Post) { _viewModel = State(initialValue: ListingViewModel(post: post)) }
+    /// The community it was opened from, if any (see `sellerCommunities`).
+    private let communityId: String?
+
+    init(post: Post, communityId: String? = nil) {
+        _viewModel = State(initialValue: ListingViewModel(post: post))
+        self.communityId = communityId
+    }
+
+    /// Where the seller page looks first for their other items: the community
+    /// this was opened from, else every community it's listed in.
+    private var sellerCommunities: [ListingData.ListedIn] {
+        let posted = viewModel.listing?.postedCommunities ?? []
+        if let communityId, let here = posted.first(where: { $0.id == communityId }) { return [here] }
+        return posted
+    }
 
     private var isSeller: Bool { viewModel.isSeller(appState.currentUser?.id) }
 
@@ -426,6 +456,11 @@ struct ListingDetailView: View {
         .inAppBrowser(url: $inAppBrowserURL)
         .safeAreaInset(edge: .bottom) { actionBar }
         .listingChat(conversationId: $chatId, seller: viewModel.post.author)
+        .sheet(item: $buyerSheet) { route in
+            if let listing = viewModel.listing {
+                ListingBuyerSheet(mode: route.mode, listing: listing) { viewModel.replacePost($0) }
+            }
+        }
     }
 
     /// Everything for sale in a listing of several: each item's own photos
@@ -450,7 +485,19 @@ struct ListingDetailView: View {
                                 .scaledFont(15, .bold)
                                 .strikethrough(item.isSold)
                                 .foregroundColor(AppColors.textPrimary(colorScheme))
-                            if item.isSold { SoldBadge() }
+                            if item.isSold {
+                                SoldBadge()
+                            } else {
+                                Text(String(format: bundle.loc("Qty %lld"), item.remaining))
+                                    .scaledFont(13, .semibold)
+                                    .foregroundColor(AppColors.textSecondary(colorScheme))
+                            }
+                        }
+                        if !item.isSold && item.onHold > 0 {
+                            // "Qty N" above already shows what's free, so only the hold is added.
+                            Text(String(format: bundle.loc("%lld on hold"), item.onHold))
+                                .scaledFont(13)
+                                .foregroundColor(AppColors.textSecondary(colorScheme))
                         }
                         Text(bundle.loc(item.condition.label))
                             .scaledFont(13)
@@ -465,28 +512,24 @@ struct ListingDetailView: View {
         }
     }
 
-    /// The seller's Mark as sold / available, or a buyer's "Ask about this".
-    /// Both ask first, in a pop-up on the button itself (so it points at the
-    /// item tapped): a stray tap shouldn't change an item or message the seller.
+    /// The seller's Deposit and Mark as sold (both pick the buyer from their
+    /// chats; selling confirms a deposit and sends a review card), or a buyer's
+    /// "Ask about this", which asks first in a pop-up on the button itself.
     @ViewBuilder
     private func itemAction(_ item: ListingItem) -> some View {
         if isSeller {
-            Button(bundle.loc(item.isSold ? "Mark as available" : "Mark as sold")) { itemToToggle = item }
+            if !item.isSold {
+                HStack(spacing: 16) {
+                    Button(bundle.loc("Deposit")) { buyerSheet = .init(mode: .deposit(item)) }
+                    Button(bundle.loc("Mark as sold")) { buyerSheet = .init(mode: .confirm(item)) }
+                        .disabled(item.deposits.isEmpty)
+                }
                 .scaledFont(13, .semibold)
                 .foregroundColor(themeManager.theme.primary)
                 .buttonStyle(.plain)
                 .disabled(viewModel.isWorking)
                 .padding(.top, 2)
-                .confirmationDialog(bundle.loc(item.isSold ? "Mark this item as available?" : "Mark this item as sold?"),
-                                    isPresented: isShowing($itemToToggle, item), titleVisibility: .visible) {
-                    Button(bundle.loc(item.isSold ? "Mark as available" : "Mark as sold")) {
-                        Task<Void, Never>(name: nil) {
-                            await viewModel.setItemSold(item, sold: !item.isSold, token: appState.authToken ?? "")
-                        }
-                    }
-                } message: {
-                    Text(item.title)
-                }
+            }
         } else if !item.isSold && !(appState.currentUser?.isOfficial ?? false) {
             // One question per item every 20 minutes: until then the button is
             // off, with the minutes left beside it (re-checked every few seconds).
@@ -611,7 +654,8 @@ struct ListingDetailView: View {
         .buttonStyle(.plain)
         .sheet(isPresented: $showSeller) {
             ProfilePopup {
-                MarketplaceSellerView(seller: viewModel.post.author, mode: viewModel.post.mode, excluding: viewModel.post.id)
+                MarketplaceSellerView(seller: viewModel.post.author, mode: viewModel.post.mode,
+                                      communities: sellerCommunities)
             }
         }
     }
@@ -715,6 +759,12 @@ private struct ListingSquareButton: View {
 
 /// The seller's tools for one of their items, Mark as sold, Re-up, and "…"
 /// (edit, share, delete). Shared by the item page and the post card.
+/// Which Deposit / Mark as sold sheet the seller opened.
+struct ListingBuyerRoute: Identifiable {
+    let id = UUID()
+    let mode: ListingBuyerViewModel.Mode
+}
+
 struct ListingSellerBar: View {
     @Environment(AppState.self) private var appState
     @Environment(ThemeManager.self) private var themeManager
@@ -731,35 +781,15 @@ struct ListingSellerBar: View {
     @State private var showEdit = false
     @State private var showActions = false
     @State private var confirmDelete = false
-    @State private var confirmSoldChange = false
     @State private var confirmReup = false
     @State private var showShare = false
+    /// Deposit / Mark as sold: both pick the buyer from the seller's chats.
+    @State private var buyerSheet: ListingBuyerRoute?
 
     var body: some View {
         if let listing = viewModel.listing {
             HStack(spacing: 10) {
-                // With several items this changes them all; each one also has its own button.
-                let soldLabel = listing.hasSeveralItems
-                    ? (listing.isSold ? "Mark all as available" : "Mark all as sold")
-                    : (listing.isSold ? "Mark as available" : "Mark as sold")
-                Button { confirmSoldChange = true } label: {
-                    Text(bundle.loc(soldLabel))
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(ListingButtonStyle(fill: themeManager.theme.primary))
-                .confirmationDialog(bundle.loc(listing.hasSeveralItems
-                                               ? (listing.isSold ? "Mark every item as available?" : "Mark every item as sold?")
-                                               : (listing.isSold ? "Mark this item as available?" : "Mark this item as sold?")),
-                                    isPresented: $confirmSoldChange, titleVisibility: .visible) {
-                    Button(bundle.loc(soldLabel)) {
-                        Task<Void, Never>(name: nil) { await viewModel.setSold(!listing.isSold, token: appState.authToken ?? "") }
-                    }
-                } message: {
-                    Text(bundle.loc(listing.isSold ? "Buyers will be able to message you about it again."
-                                    : listing.autoReup != nil
-                                    ? "Buyers won't be able to message you about it anymore. Auto re-up will be turned off."
-                                    : "Buyers won't be able to message you about it anymore."))
-                }
+                soldButton(listing)
                 if !listing.isSold {
                     // Ticks each minute so the countdown and the button free up on time.
                     TimelineView(.periodic(from: .now, by: 60)) { context in
@@ -790,6 +820,9 @@ struct ListingSellerBar: View {
                     // On the button itself so the pop-up points at it, not the page.
                     .confirmationDialog("", isPresented: $showActions) {
                         Button(bundle.loc("Edit listing")) { showEdit = true }
+                        if !listing.hasSeveralItems, let item = listing.items.first, !item.isSold {
+                            Button(bundle.loc("Deposit")) { buyerSheet = .init(mode: .deposit(item)) }
+                        }
                         if showsShare && !listing.isSold { Button(bundle.loc("Share")) { showShare = true } }
                         Button(bundle.loc("Delete"), role: .destructive) { confirmDelete = true }
                     }
@@ -805,12 +838,36 @@ struct ListingSellerBar: View {
                     await viewModel.save(fields, token: appState.authToken ?? "")
                 }
             }
+            .sheet(item: $buyerSheet) { route in
+                ListingBuyerSheet(mode: route.mode, listing: listing) { viewModel.replacePost($0) }
+            }
             .sheet(isPresented: $showShare) {
                 SharePostSheet(post: viewModel.post)
                     .environment(appState)
                     .environment(themeManager)
             }
         }
+    }
+
+    /// Mark as sold: confirms a buyer's deposit (on every item of theirs, with
+    /// several) and sends them a review card. Sales are final, so a sold
+    /// listing has nothing to undo.
+    @ViewBuilder
+    private func soldButton(_ listing: ListingData) -> some View {
+        let item = listing.hasSeveralItems ? nil : listing.items.first
+        let label: String = listing.isSold ? bundle.loc("Sold")
+            : listing.hasSeveralItems ? bundle.loc("Mark all as sold")
+            : item.map { $0.quantity > 1
+                ? String(format: bundle.loc("%lld sold · %lld left"), $0.soldCount, $0.left)
+                : bundle.loc("Mark as sold") } ?? bundle.loc("Mark as sold")
+        let hasDeposits = (item.map { [$0] } ?? listing.items).contains { !$0.deposits.isEmpty }
+        Button {
+            buyerSheet = .init(mode: item.map { .confirm($0) } ?? .confirmAll)
+        } label: {
+            Text(label).frame(maxWidth: .infinity)
+        }
+        .buttonStyle(ListingButtonStyle(fill: themeManager.theme.primary.opacity(hasDeposits ? 1 : 0.45)))
+        .disabled(listing.isSold || !hasDeposits)
     }
 }
 

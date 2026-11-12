@@ -78,6 +78,18 @@ private struct ListingItemSection: View {
             Picker(bundle.loc("Condition"), selection: $draft.condition) {
                 ForEach(ListingCondition.allCases, id: \.self) { Text(bundle.loc($0.label)).tag($0) }
             }
+            // Typed for big stacks (30 of a card), the stepper for small changes.
+            Stepper(value: $draft.quantity, in: draft.minQuantity...max(draft.minQuantity, draft.maxQuantity)) {
+                HStack {
+                    Text("Quantity", bundle: bundle)
+                    Spacer()
+                    TextField("1", value: $draft.quantity, format: .number)
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 64)
+                        .accessibilityLabel(Text("Quantity", bundle: bundle))
+                }
+            }
         } header: {
             HStack {
                 if showsNumber {
@@ -95,7 +107,14 @@ private struct ListingItemSection: View {
                 }
             }
         } footer: {
-            if draft.photos.isOverLimit {
+            if !draft.quantityIsValid {
+                Text(draft.quantity > draft.maxQuantity && draft.listedQuantity != nil
+                     ? bundle.loc("You can't raise the quantity. Post a new listing to sell more.")
+                     : draft.soldCount > 1
+                     ? String(format: bundle.loc("%lld are sold or on deposit, so the quantity can't be less."), draft.soldCount)
+                     : String(format: bundle.loc("Quantity must be 1–%lld."), ListingItemDraft.maxQuantity))
+                    .foregroundColor(AppColors.danger(colorScheme))
+            } else if draft.photos.isOverLimit {
                 Text(String(format: bundle.loc("Up to %lld photos per item."), ListingPhotosViewModel.maxMedia))
                     .foregroundColor(AppColors.danger(colorScheme))
             } else if draft.photos.hasPhotos {

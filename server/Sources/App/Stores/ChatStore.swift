@@ -57,6 +57,7 @@ enum ChatStore {
         var created_at: Date; var reply_to_message_id: String?; var is_deleted: Bool
         var replied_message: String?; var reactions: String; var meeting_proposal: String?
         var poll: String?; var shared_post_id: String?; var shared_community_id: String?
+        var legit_invite_id: String?
         var is_pinned: Bool; var delivered_to: String; var read_by: String
         var is_auto_reply: Bool
         var is_forwarded: Bool
@@ -84,6 +85,7 @@ enum ChatStore {
             read_by: obj(r.read_by, [String].self) ?? [],
             poll: obj(r.poll, MessageObject.Poll.self),
             shared_post_id: r.shared_post_id, shared_community_id: r.shared_community_id,
+            legit_invite_id: r.legit_invite_id,
             is_auto_reply: r.is_auto_reply, is_forwarded: r.is_forwarded,
             edited_at: r.edited_at, previous_content: r.previous_content)
     }
@@ -100,6 +102,7 @@ enum ChatStore {
           CASE WHEN m.deleted_at IS NULL AND EXISTS (SELECT 1 FROM communities sc WHERE sc.id = m.shared_community_id
                  AND sc.disbanded_at IS NULL AND sc.suspended_at IS NULL)
                THEN m.shared_community_id::text ELSE NULL END AS shared_community_id,
+          CASE WHEN m.deleted_at IS NULL THEN m.legit_invite_id::text ELSE NULL END AS legit_invite_id,
           m.created_at, m.reply_to_message_id::text AS reply_to_message_id, (m.deleted_at IS NOT NULL) AS is_deleted,
           m.is_auto_reply, m.is_forwarded,
           m.edited_at, CASE WHEN m.deleted_at IS NULL THEN m.previous_content ELSE NULL END AS previous_content,
@@ -189,16 +192,16 @@ enum ChatStore {
     static func insertMessage(_ conversationID: String, senderID: String, content: String?, messageType: String,
                               mediaUrl: String?, mediaItems: [MessageObject.MediaItem]? = nil,
                               replyToMessageID: String?, voiceDuration: Int?, voiceWaveform: [Double]?,
-                              sharedPostID: String? = nil, sharedCommunityID: String? = nil,
+                              sharedPostID: String? = nil, sharedCommunityID: String? = nil, legitInviteID: String? = nil,
                               isAutoReply: Bool = false, isForwarded: Bool = false,
                               on db: any SQLDatabase) async throws -> String {
         struct R: Decodable { let id: String }
         let itemsJSON = try mediaItems.map { String(decoding: try JSONEncoder().encode($0), as: UTF8.self) }
         let id = try await db.raw("""
-            INSERT INTO messages (conversation_id, sender_id, content, message_type, media_url, media_items, reply_to_message_id, voice_duration_seconds, voice_waveform, shared_post_id, shared_community_id, is_auto_reply, is_forwarded)
+            INSERT INTO messages (conversation_id, sender_id, content, message_type, media_url, media_items, reply_to_message_id, voice_duration_seconds, voice_waveform, shared_post_id, shared_community_id, legit_invite_id, is_auto_reply, is_forwarded)
             VALUES (\(uuid: conversationID), \(uuid: senderID), \(bind: content), \(bind: messageType), \(bind: mediaUrl),
                     \(bind: itemsJSON)::jsonb, \(uuid: replyToMessageID), \(bind: voiceDuration), \(bind: voiceWaveform),
-                    \(uuid: sharedPostID), \(uuid: sharedCommunityID), \(bind: isAutoReply), \(bind: isForwarded))
+                    \(uuid: sharedPostID), \(uuid: sharedCommunityID), \(uuid: legitInviteID), \(bind: isAutoReply), \(bind: isForwarded))
             RETURNING id::text AS id
             """).first(decoding: R.self)!.id
         try await db.raw("UPDATE conversations SET updated_at = NOW() WHERE id = \(uuid: conversationID)").run()
@@ -459,6 +462,9 @@ struct MessageObject: Content {
     @NullCoded var shared_post_id: String? = nil
     /// A community shared into the chat (`message_type == "community"`, migration 071).
     @NullCoded var shared_community_id: String? = nil
+    /// A seller's legit card (`message_type == "legit_check"`, migration 133);
+    /// each side loads the card's state by id.
+    @NullCoded var legit_invite_id: String? = nil
     /// Sent for the sender by their listing's auto-reply (migration 072).
     var is_auto_reply: Bool = false
     /// Forwarded from another chat (migration 107); the source is never stored.

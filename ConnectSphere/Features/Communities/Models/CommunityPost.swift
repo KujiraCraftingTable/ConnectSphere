@@ -9,6 +9,8 @@ enum PostType: String, Codable {
     case job   = "job"
     /// A marketplace listing. Community posts only.
     case listing = "listing"
+    /// A seller's check-legit post: only on their Marketplace page (migration 133).
+    case legit = "legit"
 }
 
 // MARK: - Poll
@@ -258,6 +260,13 @@ struct ListingData: Equatable {
     }()
 }
 
+/// Units of an item held for one buyer until the seller confirms them as sold.
+struct ListingDeposit: Equatable {
+    let buyerId: String
+    let conversationId: String
+    let quantity: Int
+}
+
 /// One thing for sale in a listing, with its own photos and sold state.
 struct ListingItem: Equatable, Identifiable {
     let id: String
@@ -265,12 +274,25 @@ struct ListingItem: Equatable, Identifiable {
     /// Whole VND; 0 = free.
     var price: Int64
     var condition: ListingCondition
+    /// Sold out: every one of `quantity` has sold.
     var isSold: Bool
+    /// How many the seller has and how many have sold (migration 138).
+    var quantity: Int = 1
+    var soldCount: Int = 0
+    /// Units on deposit for buyers (migration 139), and, for the seller only,
+    /// whose they are.
+    var onHold: Int = 0
+    var deposits: [ListingDeposit] = []
     /// Bare `/uploads/` paths, 1–6.
     var imageUrls: [String]
     var imageAlts: [String]
     /// When this viewer may next "Ask about this" (once every 20 minutes); nil = now.
     var askAgainAt: Date? = nil
+
+    /// How many anyone can still buy: not sold and not on deposit.
+    var remaining: Int { max(0, quantity - soldCount - onHold) }
+    /// Not sold yet (on deposit or free); only a confirmed sale lowers it.
+    var left: Int { max(0, quantity - soldCount) }
 
     func canAsk(at now: Date = Date()) -> Bool { askAgainAt.map { $0 <= now } ?? true }
 

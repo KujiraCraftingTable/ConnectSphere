@@ -435,14 +435,30 @@ struct ListingDataDTO: Decodable {
         let price: Int64
         let condition: String
         let status: String
+        let quantity: Int?
+        let soldCount: Int?
+        let onHold: Int?
+        let deposits: [DepositDTO]?
         let imageUrls: [String]
         let imageAlts: [String]?
         let askAgainAt: Date?
         enum CodingKeys: String, CodingKey {
-            case id, title, price, condition, status
+            case id, title, price, condition, status, quantity
+            case soldCount = "sold_count"
+            case onHold = "on_hold"
+            case deposits
             case imageUrls = "image_urls"
             case imageAlts = "image_alts"
             case askAgainAt = "ask_again_at"
+        }
+    }
+
+    struct DepositDTO: Decodable {
+        let buyerId: String
+        let conversationId: String
+        let quantity: Int
+        enum CodingKeys: String, CodingKey {
+            case quantity, buyerId = "buyer_id", conversationId = "conversation_id"
         }
     }
 
@@ -492,7 +508,14 @@ struct ListingDataDTO: Decodable {
                     items: (items ?? []).map {
                         ListingItem(id: $0.id, title: $0.title, price: $0.price,
                                     condition: ListingCondition(rawValue: $0.condition) ?? .good,
-                                    isSold: $0.status == "sold", imageUrls: $0.imageUrls, imageAlts: $0.imageAlts ?? [], askAgainAt: $0.askAgainAt)
+                                    isSold: $0.status == "sold", quantity: $0.quantity ?? 1,
+                                    soldCount: $0.soldCount ?? ($0.status == "sold" ? ($0.quantity ?? 1) : 0),
+                                    onHold: $0.onHold ?? 0,
+                                    deposits: ($0.deposits ?? []).map {
+                                        ListingDeposit(buyerId: $0.buyerId.lowercased(),
+                                                       conversationId: $0.conversationId.lowercased(), quantity: $0.quantity)
+                                    },
+                                    imageUrls: $0.imageUrls, imageAlts: $0.imageAlts ?? [], askAgainAt: $0.askAgainAt)
                     })
     }
 }

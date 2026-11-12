@@ -13,13 +13,29 @@ final class ListingItemDraft: Identifiable {
     /// Whole đồng, shown grouped ("150.000"); empty or 0 = free.
     var price: String
     var condition: ListingCondition
+    /// How many of it the seller has, 1–999.
+    var quantity: Int
+    /// Sold or on deposit when editing: the quantity can't go below it.
+    let soldCount: Int
+    /// The listed quantity when editing: it can only go down (selling more is
+    /// a new listing); nil for a new item.
+    let listedQuantity: Int?
     let photos: ListingPhotosViewModel
+
+    /// Same cap as the server (`ListingStore.maxQuantity`).
+    static let maxQuantity = 999
+    var minQuantity: Int { max(1, soldCount) }
+    var maxQuantity: Int { listedQuantity ?? Self.maxQuantity }
+    var quantityIsValid: Bool { (minQuantity...maxQuantity).contains(quantity) }
 
     init(item: ListingItem? = nil) {
         itemId = item?.id
         title = item?.title ?? ""
         price = item.map { $0.price > 0 ? ListingPrice.grouped($0.price) : "" } ?? ""
         condition = item?.condition ?? .good
+        quantity = item?.quantity ?? 1
+        soldCount = (item?.soldCount ?? 0) + (item?.onHold ?? 0)
+        listedQuantity = item?.quantity
         photos = ListingPhotosViewModel(urls: item?.imageUrls ?? [], alts: item?.imageAlts ?? [])
     }
 
@@ -27,12 +43,13 @@ final class ListingItemDraft: Identifiable {
 
     var isValid: Bool {
         !trimmedTitle.isEmpty && trimmedTitle.count <= 100 && ListingPrice.value(price) != nil && photos.isReady
+            && quantityIsValid
     }
 
     var isEmpty: Bool { trimmedTitle.isEmpty && price.isEmpty && !photos.hasPhotos }
 
     var signature: String {
-        [title, price, condition.rawValue, photos.media.map { $0.id.uuidString }.joined(separator: ",")]
+        [title, price, condition.rawValue, String(quantity), photos.media.map { $0.id.uuidString }.joined(separator: ",")]
             .joined(separator: "|")
     }
 
@@ -43,6 +60,7 @@ final class ListingItemDraft: Identifiable {
             "title": trimmedTitle,
             "price": ListingPrice.value(price) ?? 0,
             "condition": condition.rawValue,
+            "quantity": quantity,
             "image_urls": uploaded.urls,
         ]
         if let alts = uploaded.alts { body["image_alts"] = alts }

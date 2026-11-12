@@ -16,7 +16,7 @@ struct ApplicationsController {
         j.put("my-cv", use: setMyCV)
         j.delete("my-cv", use: removeMyCV)
         // Someone's saved CV: only verified HRs (and the owner) get it.
-        routes.grouped("users").grouped(AuthMiddleware()).get(":userId", "cv", use: profileCV)
+        routes.grouped("users").grouped(AuthMiddleware()).get(":id", "cv", use: profileCV)
         // CVs are private: only their owner and the managers of a job they
         // were sent to can open one (token in the query, like chat media).
         app.get("uploads", "cv", ":filename", use: serveCV)
@@ -170,9 +170,10 @@ struct ApplicationsController {
     /// The person's saved CV, for a verified HR (or themselves); 404 otherwise,
     /// so others can't even tell whether there is one.
     static func profileCV(_ req: Request) async throws -> DataResponse<MyCV> {
-        guard let id = req.parameters.get("userId"), UUID(uuidString: id) != nil else { throw Abort(.notFound) }
+        guard let id = req.parameters.get("id"), UUID(uuidString: id) != nil else { throw Abort(.notFound) }
         let isSelf = id.lowercased() == req.userID.lowercased()
-        guard isSelf || (try await HRStore.recruiter(req.userID, on: req.db.sql())) != nil else { throw Abort(.notFound) }
+        let isHR = try await HRStore.recruiter(req.userID, on: req.db.sql()) != nil
+        guard isSelf || isHR else { throw Abort(.notFound) }
         struct R: Decodable { let cv_path: String? }
         guard let path = try await req.db.sql().raw("SELECT cv_path FROM users WHERE id = \(uuid: id)")
             .first(decoding: R.self)?.cv_path else { throw Abort(.notFound) }

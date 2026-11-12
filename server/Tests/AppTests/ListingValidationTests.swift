@@ -142,4 +142,19 @@ final class ListingValidationTests: XCTestCase {
         XCTAssertThrowsError(try ListingStore.validateAutoReup(.init(every_days: 1, hour: 10)))
         XCTAssertThrowsError(try ListingStore.validateAutoReup(.init(every_days: 7, hour: 0)))
     }
+
+    // MARK: quantity (migration 138)
+
+    func testItemQuantityDefaultsToOne() throws {
+        XCTAssertEqual(try ListingStore.validateItems([item()]).first?.quantity, 1)
+    }
+
+    func testItemQuantityBounds() throws {
+        func withQuantity(_ q: Int) -> ItemIn { var i = item(); i.quantity = q; return i }
+        XCTAssertEqual(try ListingStore.validateItems([withQuantity(30)]).first?.quantity, 30)
+        XCTAssertNoThrow(try ListingStore.validateItems([withQuantity(ListingStore.maxQuantity)]))
+        XCTAssertThrowsError(try ListingStore.validateItems([withQuantity(0)]))
+        XCTAssertThrowsError(try ListingStore.validateItems([withQuantity(-3)]))
+        XCTAssertThrowsError(try ListingStore.validateItems([withQuantity(ListingStore.maxQuantity + 1)]))
+    }
 }

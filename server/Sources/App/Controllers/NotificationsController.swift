@@ -21,6 +21,8 @@ struct NotificationsController {
         "comment_replied":     .init(category: "social", destination: "post"),
         "comment_liked":       .init(category: "social", destination: "post"),
         "post_shared":         .init(category: "social", destination: "post"),
+        // A seller you follow in the Marketplace listed something (migration 135).
+        "seller_listed":       .init(category: "social", destination: "post"),
         "connection_request":  .init(category: "social", destination: "profile"),
         "connection_accepted": .init(category: "social", destination: "profile"),
         "birthday":            .init(category: "social", destination: "profile"),

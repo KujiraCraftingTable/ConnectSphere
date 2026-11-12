@@ -1578,7 +1578,6 @@
 "Description" = "Mô tả";
 "Listed in %@" = "Đăng trong %@";
 "Mark as sold" = "Đánh dấu đã bán";
-"Mark as available" = "Đánh dấu còn hàng";
 "Edit listing" = "Sửa tin đăng";
 "Delete this listing?" = "Xóa tin đăng này?";
 "Couldn't delete post, please try again" = "Không xóa được bài viết, vui lòng thử lại";
@@ -1615,10 +1614,6 @@
 
 /* Forms, Cancel always asks; Marketplace, sold */
 "Discard changes?" = "Bỏ các thay đổi?";
-"Mark this item as sold?" = "Đánh dấu món đồ này là đã bán?";
-"Mark this item as available?" = "Đánh dấu món đồ này là còn hàng?";
-"Buyers will be able to message you about it again." = "Người mua sẽ có thể nhắn tin cho bạn về món đồ này trở lại.";
-"Buyers won't be able to message you about it anymore." = "Người mua sẽ không thể nhắn tin cho bạn về món đồ này nữa.";
 "This item has been sold" = "Món đồ này đã được bán";
 
 /* Marketplace, save & share */
@@ -1632,7 +1627,7 @@
 "Send to %lld" = "Gửi đến %lld";
 "Couldn't send to some chats" = "Không gửi được đến một số cuộc trò chuyện";
 "items listed" = "món đã đăng";
-"No other items" = "Không có món đồ nào khác";
+"No items listed" = "Chưa có món đồ nào";
 
 /* Communities, who can see a post */
 "Community only" = "Chỉ cộng đồng";
@@ -1692,7 +1687,6 @@
 "Stop auto re-up?" = "Dừng tự động đăng lại?";
 "Stop auto re-up" = "Dừng tự động đăng lại";
 "The item stays listed; you can turn it on again from Edit listing." = "Món vẫn được đăng bán; bạn có thể bật lại trong Chỉnh sửa tin.";
-"Buyers won't be able to message you about it anymore. Auto re-up will be turned off." = "Người mua sẽ không nhắn tin về món này nữa. Tự động đăng lại sẽ tắt.";
 
 "Open app" = "Mở ứng dụng";
 "No app found" = "Không tìm thấy ứng dụng";
@@ -2208,10 +2202,7 @@
 "%lld of %lld left" = "Còn %lld/%lld món";
 "Items (%lld)" = "Các món (%lld)";
 "Ask about this" = "Hỏi món này";
-"Mark all as available" = "Đánh dấu tất cả còn hàng";
 "Mark all as sold" = "Đánh dấu tất cả đã bán";
-"Mark every item as available?" = "Đánh dấu tất cả các món còn hàng?";
-"Mark every item as sold?" = "Đánh dấu tất cả các món đã bán?";
 "Ask the seller about this item?" = "Hỏi người bán về món này?";
 "The seller gets: Is “%@” still available?" = "Người bán sẽ nhận: “%@” còn không bạn?";
 "You can ask about this item again in %d minute" = "Bạn có thể hỏi lại về món này sau %d phút";
@@ -2449,3 +2440,88 @@
 "The job description must be 10 MB or smaller." = "Mô tả công việc phải nhỏ hơn hoặc bằng 10 MB.";
 "The job description must be a PDF" = "Mô tả công việc phải là tệp PDF";
 "Attach the job description again" = "Hãy đính kèm lại mô tả công việc";
+
+"Offer one of your open jobs. It's posted as a comment with the job's card." = "Chọn một tin tuyển dụng đang mở của bạn. Nó sẽ được đăng thành bình luận kèm thẻ công việc.";
+"You have no open jobs yet." = "Bạn chưa có tin tuyển dụng nào đang mở.";
+"Offer a job" = "Gợi ý việc làm";
+"Open to work" = "Đang tìm việc";
+"Verified HRs can reply with one of their jobs." = "HR đã xác minh có thể trả lời bằng một tin tuyển dụng của họ.";
+"CV (PDF)" = "CV (PDF)";
+"Replace" = "Thay thế";
+"Add your CV (PDF)" = "Thêm CV của bạn (PDF)";
+"Only verified HRs can open it. Easy Apply attaches it for you." = "Chỉ HR đã xác minh mới mở được. Ứng tuyển nhanh sẽ tự đính kèm.";
+"CV from your profile" = "CV từ hồ sơ của bạn";
+"Jobs can only be offered on Open to work posts" = "Chỉ có thể gợi ý việc làm trên bài đăng Đang tìm việc";
+"Pick one of your open jobs" = "Hãy chọn một tin tuyển dụng đang mở của bạn";
+"Attach the CV again" = "Hãy đính kèm lại CV";
+
+/* Reviews (Marketplace; was "check legit") */
+"In %@" = "Trong %@";
+"In the same communities" = "Trong cùng cộng đồng";
+"Other listings" = "Món khác";
+"Reviews" = "Đánh giá";
+"Only you" = "Chỉ mình bạn";
+"See reviews" = "Xem đánh giá";
+"Show to everyone" = "Hiện cho mọi người";
+"Hide (only you)" = "Ẩn (chỉ mình bạn)";
+"Reviews options" = "Tuỳ chọn bài đánh giá";
+"Only buyers you send a review card to can review you here." = "Chỉ người mua được bạn gửi thẻ đánh giá mới có thể đánh giá bạn ở đây.";
+"Legit" = "Legit";
+"Legit seller" = "Người bán legit";
+"No reviews yet" = "Chưa có đánh giá";
+"%lld of 5 stars" = "%lld trên 5 sao";
+"This review card isn't available" = "Thẻ đánh giá này không còn";
+"Reviewed" = "Đã đánh giá";
+"Expired" = "Đã hết hạn";
+"Rate this seller" = "Đánh giá người bán";
+"expires %@" = "hết hạn %@";
+"Waiting for their review · expires %@" = "Đang chờ đánh giá · hết hạn %@";
+"How did it go?" = "Giao dịch thế nào?";
+"Your review shows on the seller's reviews post. You can only send one with this card." = "Đánh giá của bạn hiện trên bài đánh giá của người bán. Mỗi thẻ chỉ gửi được một đánh giá.";
+"This profile isn't available" = "Không thể xem trang này";
+"Your items" = "Món của bạn";
+"Review card" = "Thẻ đánh giá";
+"Rated %@ of 5 stars" = "Được đánh giá %@ trên 5 sao";
+
+/* Marketplace seller profile (migration 135) */
+"follower" = "người theo dõi";
+"followers" = "người theo dõi";
+"Edit marketplace profile" = "Sửa hồ sơ bán hàng";
+"Use my profile's cover" = "Dùng ảnh bìa hồ sơ";
+"Change photo" = "Đổi ảnh";
+"Use my profile photo" = "Dùng ảnh đại diện hồ sơ";
+"Shop name" = "Tên cửa hàng";
+"What do you sell?" = "Bạn bán gì?";
+"About your shop" = "Về cửa hàng của bạn";
+"Only shows on your listings and seller page. Anything left empty uses your profile's." = "Chỉ hiện trên tin đăng bán và trang người bán của bạn. Mục nào để trống sẽ dùng thông tin hồ sơ.";
+"Save your marketplace profile?" = "Lưu hồ sơ bán hàng?";
+"%@ listed %@" = "%1$@ đã đăng bán %2$@";
+"%@ listed a new item" = "%@ đã đăng bán món mới";
+
+/* Listing item quantity (migration 138) */
+"Quantity" = "Số lượng";
+"Qty %lld" = "SL %lld";
+"%lld sold · %lld left" = "Đã bán %lld · còn %lld";
+"Quantity must be 1–%lld." = "Số lượng phải từ 1–%lld.";
+
+/* Deposits and confirmed sales (migration 139) */
+"Deposit" = "Đặt cọc";
+"Who's it on deposit for?" = "Ai đã đặt cọc?";
+"Who received it?" = "Ai đã nhận hàng?";
+"Save deposit" = "Lưu tiền cọc";
+"Mark %lld as sold to %@ and send a review card? This can't be undone." = "Xác nhận đã bán %lld cho %@ và gửi thẻ đánh giá? Không thể hoàn tác.";
+"Mark all of %@'s deposits as sold and send review cards? This can't be undone." = "Xác nhận đã bán mọi món %@ đặt cọc và gửi thẻ đánh giá? Không thể hoàn tác.";
+"Put %lld on deposit for %@?" = "Giữ cọc %lld cho %@?";
+"Remove %@'s deposit of %lld?" = "Huỷ %2$lld tiền cọc của %1$@?";
+"Change %@'s deposit from %lld to %lld?" = "Đổi tiền cọc của %1$@ từ %2$lld thành %3$lld?";
+"You can put up to %lld on deposit for this buyer." = "Bạn chỉ có thể giữ cọc tối đa %lld cho người mua này.";
+"Confirm sold & send review card" = "Xác nhận đã bán & gửi thẻ đánh giá";
+"%lld on hold" = "%lld đang giữ";
+"%lld on deposit" = "%lld đã cọc";
+"× %lld" = "× %lld";
+"No deposits yet" = "Chưa có ai đặt cọc";
+"No chats yet. Message the buyer first." = "Chưa có đoạn chat nào. Hãy nhắn tin với người mua trước.";
+"You can't raise the quantity. Post a new listing to sell more." = "Không thể tăng số lượng. Hãy đăng tin mới để bán thêm.";
+"%lld are sold or on deposit, so the quantity can't be less." = "Đã bán hoặc đã cọc %lld, nên số lượng không thể ít hơn.";
+"Decrease" = "Giảm";
+"Increase" = "Tăng";

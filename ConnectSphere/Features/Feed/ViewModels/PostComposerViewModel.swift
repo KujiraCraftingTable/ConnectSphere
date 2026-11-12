@@ -35,6 +35,8 @@ class PostComposerViewModel {
     /// The job on your company's careers page, so applicants can check it's
     /// real. Required; the company itself is your verified HR company.
     var jobCareersUrl: String = ""
+    /// A Work text post looking for a job: verified HRs can offer one (migration 132).
+    var openToWork = false
     /// The company's job description PDF, once uploaded (`/uploads/jd/…`).
     private(set) var jobJDPath: String?
     private(set) var jobJDName: String?
@@ -110,8 +112,9 @@ class PostComposerViewModel {
                 && !jobCareersUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 && jobSalaryValid && jobSkills.count <= 10
                 && (jobWorkFormat == "remote" || jobWardId != nil)
-        case .listing:
-            // Listings are made in the Marketplace (CreateListingView), not here.
+        case .listing, .legit:
+            // Listings are made in the Marketplace (CreateListingView), and the
+            // check-legit post is made for each seller; neither comes from here.
             return false
         }
     }
@@ -153,7 +156,7 @@ class PostComposerViewModel {
             case .poll:  post = try await submitPoll(communityId: communityId, token: token, mode: mode, privacy: privacy, hashtags: hashtags)
             case .event: post = try await submitEvent(communityId: communityId, token: token, mode: mode, privacy: privacy, hashtags: hashtags)
             case .job:   post = try await submitJob(communityId: communityId, token: token, mode: mode, privacy: privacy, hashtags: hashtags)
-            case .listing:
+            case .listing, .legit:
                 throw APIError.serverError(statusCode: 400, message: Bundle.app.loc("Listings are created from the Marketplace"))
             }
             content = ""
@@ -327,6 +330,7 @@ class PostComposerViewModel {
         if !hashtags.isEmpty                    { dict["hashtags"]      = hashtags }
         publish.apply(to: &dict, replacing: replacesDraftId)
         if communityId != nil { dict["community_audience"] = communityAudience.rawValue }
+        if openToWork, mode == .work, communityId == nil { dict["open_to_work"] = true }
 
         let body = try? JSONSerialization.data(withJSONObject: dict)
         let res = try await client.fetch(DataResponse<CommunityPostDTO>.self,

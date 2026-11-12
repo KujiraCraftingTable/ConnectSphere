@@ -60,6 +60,9 @@ struct ChatView: View {
     // `MeetingProposalComposerView`, see its doc comment for why.
     @State private var showMeetingComposer = false
     @State private var showPollComposer = false
+    /// The legit card being rated (presented here, not from the card in the list).
+    @State private var ratingLegitCard: LegitReviewRoute?
+    @State private var openedLegitSeller: LegitReviewRoute?
     /// A shared post tapped in the chat, shown over it.
     @State private var openedSharedPost: OpenedSharedPost?
     @State private var meetingTitle = ""
@@ -404,6 +407,14 @@ struct ChatView: View {
             }
             .environment(appState)
         }
+        .sheet(item: $ratingLegitCard) { route in
+            LegitReviewScreen(inviteId: route.id)
+        }
+        .environment(\.rateLegitCard) { ratingLegitCard = LegitReviewRoute(id: $0) }
+        .sheet(item: $openedLegitSeller) { route in
+            LegitSellerPage(sellerId: route.id)
+        }
+        .environment(\.openLegitSeller) { openedLegitSeller = LegitReviewRoute(id: $0) }
         .sheet(isPresented: $showPollComposer) {
             ChatPollComposer { question, options, endsAt in
                 await viewModel.sendPoll(question: question, options: options, endsAt: endsAt)
@@ -1365,6 +1376,7 @@ struct ChatView: View {
             case .poll:    return "📊 " + (message.content ?? bundle.loc("Poll"))
             case .post:    return "📰 " + bundle.loc("Shared a post")
             case .community: return "👥 " + bundle.loc("Shared a community")
+            case .legitCheck: return "✅ " + bundle.loc("Review card")
             }
         }()
 

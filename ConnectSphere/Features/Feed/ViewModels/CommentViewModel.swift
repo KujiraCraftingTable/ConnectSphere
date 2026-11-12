@@ -133,6 +133,21 @@ class CommentViewModel {
         return await send(postId: postId, text: trimmed, imageUrl: imageUrl, confirmed: false)
     }
 
+    /// An HR offering one of their jobs on an "Open to work" post: a comment
+    /// that is just the job's card.
+    func offerJob(_ job: JobListing, postId: String) async -> Bool {
+        isSending = true
+        defer { isSending = false }
+        do {
+            let created = try await repository.addComment(postId: postId, content: "", jobId: job.id)
+            comments.append(created)
+            return true
+        } catch {
+            refusal = friendlyError(error)
+            return false
+        }
+    }
+
     private func send(postId: String, text: String, imageUrl: String?, confirmed: Bool) async -> Bool {
         do {
             let created = try await repository.addComment(postId: postId, content: text, parentCommentId: replyingTo?.id,

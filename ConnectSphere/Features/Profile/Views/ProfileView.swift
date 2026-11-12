@@ -106,6 +106,7 @@ struct ProfileView: View {
                             if mode == .work && !user.isOfficial {
                                 ExperienceSection(userId: user.id, isMe: !showingOther)
                                 SkillsSection(userId: user.id, isMe: !showingOther, refreshKey: user.skills)
+                                if !showingOther { ProfileCVSection(userId: user.id, isMe: true) }
                             }
                             if mode == .hobby && !user.isOfficial {
                                 HobbyAboutSection(user: user, isMe: !showingOther)

@@ -269,7 +269,7 @@ struct PostRepository {
     /// the created comment. `POST /posts/:id/comments` → 201 `{ data: CommentDTO }`.
     /// `confirmed`: the person saw "Are you sure?" about rude wording and sent it anyway.
     func addComment(postId: String, content: String, parentCommentId: String? = nil,
-                    imageUrl: String? = nil, confirmed: Bool = false) async throws -> CommentDTO {
+                    imageUrl: String? = nil, confirmed: Bool = false, jobId: String? = nil) async throws -> CommentDTO {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")
         }
@@ -278,6 +278,7 @@ struct PostRepository {
         if let parentCommentId { body["parent_comment_id"] = parentCommentId }
         if let imageUrl { body["image_url"] = imageUrl }
         if confirmed { body["confirm"] = true }
+        if let jobId { body["job_id"] = jobId }
         let response = try await client.fetch(
             AddCommentResponse.self,
             path: "/posts/\(postId)/comments",

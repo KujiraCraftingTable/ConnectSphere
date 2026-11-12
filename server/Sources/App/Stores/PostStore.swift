@@ -62,13 +62,17 @@ enum PostStore {
     }
 
     static func buildPostSelect(_ v: String) -> SQLQueryString {
-        let dnP  = PersonaSQL.expr("display_name", modeRef: "p.mode")
-        let avP  = PersonaSQL.expr("avatar_url", modeRef: "p.mode")
+        // A listing (and check-legit) post shows the seller's Marketplace
+        // identity when they set one (migration 135).
+        let dnP  = SellerProfileStore.authorExpr("display_name", post: "p",
+                                                 fallback: PersonaSQL.expr("display_name", modeRef: "p.mode"))
+        let avP  = SellerProfileStore.authorExpr("avatar_url", post: "p",
+                                                 fallback: PersonaSQL.expr("avatar_url", modeRef: "p.mode"))
         let dnSp = PersonaSQL.expr("display_name", modeRef: "sp.mode", alias: "su")
         let avSp = PersonaSQL.expr("avatar_url", modeRef: "sp.mode", alias: "su")
         return """
         SELECT
-          p.id::text AS id, p.content, p.content_format, p.mode, p.privacy, p.image_urls[1] AS image_url, p.image_urls, p.image_alts, p.status::text AS status, p.publish_at, p.decline_reason,
+          p.id::text AS id, p.content, p.content_format, p.open_to_work, p.mode, p.privacy, p.image_urls[1] AS image_url, p.image_urls, p.image_alts, p.status::text AS status, p.publish_at, p.decline_reason,
           p.lang, \(unsafeRaw: TranslationService.translatedColumn("p")) AS translated_text, p.article_title, p.link_url,
           p.like_count, p.comment_count, p.share_count, p.created_at, p.edited_at,
           p.post_type, p.is_pinned, p.pinned_at, p.shared_post_id::text AS shared_post_id,
@@ -124,7 +128,7 @@ enum PostStore {
     static func audienceClause(_ v: String) -> SQLQueryString {
         """
         (p.author_id = \(uuid: v)
-         OR (p.privacy = 'public' AND (p.community_id IS NOT NULL OR p.post_type = 'listing' OR NOT COALESCE(
+         OR (p.privacy = 'public' AND (p.community_id IS NOT NULL OR p.post_type IN ('listing', 'legit') OR NOT COALESCE(
               (SELECT CASE WHEN p.mode = 'work' THEN lu.work_locked ELSE lu.hobby_locked END
                FROM users lu WHERE lu.id = p.author_id), FALSE)))
          OR (p.privacy = 'public' AND EXISTS (SELECT 1 FROM connections c WHERE c.status = 'accepted' AND c.mode = p.mode
@@ -244,12 +248,16 @@ enum PostStore {
     /// privacyClause already limits these to public posts.
     static func followingOnlyClause(_ v: String) -> SQLQueryString {
         """
-        (p.community_id IS NULL
+        ((p.community_id IS NULL
          AND EXISTS (SELECT 1 FROM follows fw WHERE fw.follower_id = \(uuid: v)
                      AND fw.followee_id = p.author_id AND fw.mode = p.mode)
          AND NOT EXISTS (SELECT 1 FROM connections c3 WHERE c3.status = 'accepted' AND c3.mode = p.mode
               AND ((c3.requester_id = p.author_id AND c3.addressee_id = \(uuid: v))
                 OR (c3.addressee_id = p.author_id AND c3.requester_id = \(uuid: v)))))
+         -- Listings by Marketplace sellers the viewer follows (migration 135).
+         OR (p.post_type = 'listing' AND p.community_id IS NULL
+             AND EXISTS (SELECT 1 FROM seller_follows sfw WHERE sfw.follower_id = \(uuid: v)
+                         AND sfw.seller_id = p.author_id AND sfw.mode = p.mode)))
         """
     }
 
@@ -259,6 +267,7 @@ enum PostStore {
         var id: String
         var content: String?
         var content_format: String?
+        var open_to_work: Bool?
         var mode: String
         var privacy: String
         var image_url: String?
@@ -317,7 +326,8 @@ enum PostStore {
             listing_data: try parse(r.listing_data, PostObject.ListingData.self),
             community: try parse(r.community, PostObject.CommunityRef.self),
             shared_community: try parse(r.shared_community, PostObject.SharedCommunity.self),
-            content_format: r.content_format ?? "plain"
+            content_format: r.content_format ?? "plain",
+            open_to_work: r.open_to_work ?? false
         )
     }
 
@@ -353,6 +363,8 @@ enum PostStore {
             ? "(" + privacyClause(v) + " OR " + AccountBans.adminViewer(v) + ")" : privacyClause(v)
         w = w + audience + " AND " + notBlockedClause(v) + " AND " + notHiddenClause(v)
         w = w + " AND " + notMutedWordsClause(v)
+        // A seller's check-legit post lives on their Marketplace page only.
+        w = w + " AND p.post_type <> 'legit'"
         if f.authorID == nil { w = w + " AND " + notHiddenAuthorClause(v) }
         if f.includeListings {
             if f.listingsForSaleOnly { w = w + " AND NOT EXISTS (SELECT 1 FROM listing_posts lsold WHERE lsold.post_id = p.id AND lsold.status = 'sold')" }
@@ -755,7 +767,7 @@ enum PostStore {
     }
 
     static func listSaved(_ userID: String, listings: Bool, limit: Int, offset: Int, on db: any SQLDatabase) async throws -> [PostObject] {
-        let kind: SQLQueryString = listings ? " AND p.post_type = 'listing'" : " AND p.post_type <> 'listing'"
+        let kind: SQLQueryString = listings ? " AND p.post_type = 'listing'" : " AND p.post_type NOT IN ('listing', 'legit')"
         let q = buildPostSelect(userID)
             + " JOIN saved_posts sap ON sap.post_id = p.id AND sap.user_id = \(uuid: userID)"
             + " WHERE p.status = 'posted'" + kind + " AND " + privacyClause(userID) + " AND " + notBlockedClause(userID)

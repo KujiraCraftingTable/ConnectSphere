@@ -121,6 +121,7 @@ struct ApplySheet: View {
                     }
                 }
             }
+            .task { await viewModel.useSavedCV(token: token) }
             .fileImporter(isPresented: $pickingCV, allowedContentTypes: [.pdf]) { result in
                 if case .success(let url) = result {
                     Task { await viewModel.attachCV(at: url, token: token) }

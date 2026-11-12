@@ -141,7 +141,8 @@ struct PostCard: View {
         .inAppBrowser(url: $inAppBrowserURL)
         // Comment sheet
         .sheet(isPresented: $showComments) {
-            CommentSheet(postId: post.id, postAuthorId: post.author.id) { delta in
+            CommentSheet(postId: post.id, postAuthorId: post.author.id,
+                         openToWork: post.openToWork && post.mode == .work) { delta in
                 actions.adjustCommentCount(by: delta)
                 if delta > 0 { onCommentAdded?() }
             }
@@ -174,6 +175,19 @@ struct PostCard: View {
     @ViewBuilder
     private var postBody: some View {
         VStack(alignment: .leading, spacing: 0) {
+            if post.openToWork && post.mode == .work {
+                HStack(spacing: 4) {
+                    Image(systemName: "briefcase.fill")
+                    Text("Open to work", bundle: bundle)
+                }
+                .scaledFont(12, .semibold)
+                .foregroundColor(.green)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Color.green.opacity(0.12), in: Capsule())
+                .padding(.horizontal, 12)
+                .padding(.bottom, 6)
+            }
             // Content, only shown if there's actual text
             if !post.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(linkifiedContent)
@@ -265,9 +279,9 @@ struct PostCard: View {
                     .padding(.top, 10)
                 }
             case .listing:
-                ListingPostCard(post: post, photoIndex: listingPhotoIndex)
+                ListingPostCard(post: post, photoIndex: listingPhotoIndex, communityId: insideCommunityId)
                     .padding(.top, 10)
-            case .text:
+            case .text, .legit:
                 EmptyView()
             }
         }
@@ -490,6 +504,15 @@ struct PostCard: View {
         } else if isSelf, let onTap = onOwnAvatarTapped {
             Button { onTap() } label: { label() }
                 .buttonStyle(.plain)
+        } else if post.postType == .listing {
+            // A listing shows the seller's Marketplace identity, so it opens
+            // their seller page, never their personal profile.
+            NavigationLink(destination:
+                MarketplaceSellerView(seller: post.author, mode: post.mode,
+                                      communities: listingCommunities)
+                    .environment(appState)
+            ) { label() }
+            .buttonStyle(.plain)
         } else {
             NavigationLink(destination:
                 UserProfileView(userId: post.author.id, preloadedUser: post.author)
@@ -497,6 +520,13 @@ struct PostCard: View {
             ) { label() }
             .buttonStyle(.plain)
         }
+    }
+
+    /// Where a listing opened from (this community), else everywhere it's listed.
+    private var listingCommunities: [ListingData.ListedIn] {
+        let posted = post.listingData?.postedCommunities ?? []
+        if let insideCommunityId, let here = posted.first(where: { $0.id == insideCommunityId }) { return [here] }
+        return posted
     }
 
     private var regularPostHeader: some View {
@@ -666,8 +696,7 @@ struct PostCard: View {
                     .accessibilityLabel(actions.isSaved ? Bundle.app.loc("Unsave") : Bundle.app.loc("Save"))
                 }
 
-                // The official account monitors the Marketplace without sharing items.
-                if !(post.postType == .listing && (appState.currentUser?.isOfficial ?? false)) {
+                if canShare {
                 Button { showShareSheet = true } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "arrowshape.turn.up.right")
@@ -684,6 +713,12 @@ struct PostCard: View {
         .padding(.vertical, 10)
     }
 
+    /// A seller's reviews post stays on their Marketplace page, so it's never
+    /// shared; the official account monitors the Marketplace without sharing items.
+    private var canShare: Bool {
+        post.postType != .legit && !(post.postType == .listing && (appState.currentUser?.isOfficial ?? false))
+    }
+
     /// The post's whale / comment / save / share under a full-screen photo.
     /// Comments open full height over the photo; share closes the photo first.
     private func viewerActionBar(closeThen: @escaping (@escaping () -> Void) -> Void) -> some View {
@@ -692,7 +727,7 @@ struct PostCard: View {
             post: post,
             accent: themeManager.theme.primary,
             canSave: !((post.community != nil || post.postType == .listing) && (appState.currentUser?.isOfficial ?? false)),
-            canShare: !(post.postType == .listing && (appState.currentUser?.isOfficial ?? false)),
+            canShare: canShare,
             onCommentAdded: onCommentAdded,
             onShare: { closeThen { showShareSheet = true } })
     }
@@ -840,7 +875,8 @@ private struct PostViewerActionBar: View {
         .background(LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .top, endPoint: .bottom)
             .ignoresSafeArea())
         .sheet(isPresented: $showComments) {
-            CommentSheet(postId: post.id, postAuthorId: post.author.id, onCommentCountChange: { delta in
+            CommentSheet(postId: post.id, postAuthorId: post.author.id,
+                         openToWork: post.openToWork && post.mode == .work, onCommentCountChange: { delta in
                 actions.adjustCommentCount(by: delta)
                 if delta > 0 { onCommentAdded?() }
             }, fullHeight: true)

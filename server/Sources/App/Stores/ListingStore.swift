@@ -15,6 +15,8 @@ enum ListingStore {
     /// listings made with 30 before it still load (editing one asks to cut it down).
     static let maxItems = 20
     static let maxItemPhotos = 6
+    /// How many of one item a seller can list (migration 138).
+    static let maxQuantity = 999
 
     /// What the seller typed, checked. Price, condition and sold state live on
     /// each item (migration 117); the listing keeps a summary of them.
@@ -38,6 +40,8 @@ enum ListingStore {
         /// Whole VND; 0 = free.
         var price: Int64?
         var condition: String?
+        /// How many there are; 1 when left out.
+        var quantity: Int?
         var image_urls: [String]?
         var image_alts: [String]?
     }
@@ -47,6 +51,7 @@ enum ListingStore {
         var title: String
         var price: Int64
         var condition: String
+        var quantity: Int
         var imageUrls: [String]
         var imageAlts: [String]?
     }
@@ -68,6 +73,10 @@ enum ListingStore {
             guard let condition = r.condition, conditions.contains(condition) else {
                 throw Abort(.badRequest, reason: "Item \(n): invalid condition")
             }
+            let quantity = r.quantity ?? 1
+            guard (1...maxQuantity).contains(quantity) else {
+                throw Abort(.badRequest, reason: "Item \(n): the quantity must be 1–\(maxQuantity)")
+            }
             var id: String?
             if let raw = r.id {
                 guard let uuid = UUID(uuidString: raw), seen.insert(uuid.uuidString.lowercased()).inserted else {
@@ -81,7 +90,7 @@ enum ListingStore {
             guard urls.count <= maxItemPhotos else {
                 throw Abort(.badRequest, reason: "Item \(n): up to \(maxItemPhotos) photos")
             }
-            return Item(id: id, title: title, price: price, condition: condition,
+            return Item(id: id, title: title, price: price, condition: condition, quantity: quantity,
                         imageUrls: urls, imageAlts: PostStore.cleanAlts(r.image_alts, count: urls.count))
         }
     }
@@ -177,22 +186,35 @@ enum ListingStore {
 
     static func insertItem(_ item: Item, at position: Int, listingID: String, on db: any SQLDatabase) async throws {
         try await db.raw("""
-            INSERT INTO listing_items (listing_id, position, title, price, condition, image_urls, image_alts)
+            INSERT INTO listing_items (listing_id, position, title, price, condition, quantity, image_urls, image_alts)
             VALUES (\(uuid: listingID), \(bind: position), \(bind: item.title), \(bind: item.price),
-                    \(bind: item.condition), \(bind: item.imageUrls), \(bind: item.imageAlts))
+                    \(bind: item.condition), \(bind: item.quantity), \(bind: item.imageUrls), \(bind: item.imageAlts))
             """).run()
     }
 
     /// The seller's edited item list, replacing the old one: items sent with
-    /// their id are updated (and keep their sold state), new ones are added and
-    /// any left out are removed. Run inside a transaction.
+    /// their id are updated (and keep how many have sold), new ones are added
+    /// and any left out are removed. Run inside a transaction.
     static func replaceItems(listingID: String, _ items: [Item], on db: any SQLDatabase) async throws {
-        struct R: Decodable { let id: String }
-        let existing = Set(try await db.raw("""
-            SELECT id::text AS id FROM listing_items WHERE listing_id = \(uuid: listingID) FOR UPDATE
-            """).all(decoding: R.self).map(\.id))
+        struct R: Decodable { let id: String; let quantity: Int; let taken: Int }
+        let existing = Dictionary(uniqueKeysWithValues: try await db.raw("""
+            SELECT id::text AS id, quantity,
+              sold_count + COALESCE((SELECT SUM(d.quantity) FROM listing_item_deposits d WHERE d.item_id = li.id), 0)::int AS taken
+            FROM listing_items li WHERE listing_id = \(uuid: listingID) FOR UPDATE
+            """).all(decoding: R.self).map { ($0.id, $0) })
         let kept = items.compactMap(\.id)
-        guard kept.allSatisfy(existing.contains) else { throw Abort(.badRequest, reason: "That item isn't in this listing") }
+        guard kept.allSatisfy({ existing[$0] != nil }) else { throw Abort(.badRequest, reason: "That item isn't in this listing") }
+        for (i, item) in items.enumerated() {
+            guard let id = item.id, let old = existing[id] else { continue }
+            // Raising it would make room for more sales, and more review cards,
+            // on a listing buyers already trust: selling more is a new listing.
+            guard item.quantity <= old.quantity else {
+                throw Abort(.badRequest, reason: "Item \(i + 1): the quantity can't go up. Post a new listing to sell more")
+            }
+            guard item.quantity >= old.taken else {
+                throw Abort(.badRequest, reason: "Item \(i + 1): \(old.taken) are sold or on deposit, so the quantity can't be less")
+            }
+        }
         try await db.raw("""
             DELETE FROM listing_items WHERE listing_id = \(uuid: listingID) AND NOT (id = ANY(\(bind: kept)::uuid[]))
             """).run()
@@ -201,7 +223,9 @@ enum ListingStore {
                 try await db.raw("""
                     UPDATE listing_items SET position = \(bind: i), title = \(bind: item.title), price = \(bind: item.price),
                       condition = \(bind: item.condition), image_urls = \(bind: item.imageUrls),
-                      image_alts = \(bind: item.imageAlts), updated_at = NOW()
+                      image_alts = \(bind: item.imageAlts), quantity = \(bind: item.quantity),
+                      status = CASE WHEN sold_count >= \(bind: item.quantity) THEN 'sold' ELSE 'available' END,
+                      updated_at = NOW()
                     WHERE id = \(uuid: id) AND listing_id = \(uuid: listingID)
                     """).run()
             } else {
@@ -210,17 +234,78 @@ enum ListingStore {
         }
     }
 
-    /// Marks one item sold or for sale again.
-    static func setItemStatus(listingID: String, itemID: String, status: String, on db: AppDatabase) async throws {
-        guard statuses.contains(status) else { throw Abort(.badRequest, reason: "Invalid status") }
+    /// Sets the buyer's deposit on one item: `quantity` units held for them
+    /// (0 clears it). At most their current deposit plus the free units.
+    static func setDeposit(listingID: String, itemID: String, buyer: String, conversationID: String,
+                           quantity: Int, on db: AppDatabase) async throws {
+        guard (0...maxQuantity).contains(quantity) else { throw Abort(.badRequest, reason: "Invalid deposit") }
         try await db.tx { t in
-            let hit = try await t.raw("""
-                UPDATE listing_items SET status = \(bind: status), updated_at = NOW()
-                WHERE id = \(uuid: itemID) AND listing_id = \(uuid: listingID) RETURNING id
-                """).all()
-            guard !hit.isEmpty else { throw Abort(.notFound, reason: "Item not found") }
-            try await syncSummary(listingID: listingID, on: t)
+            struct R: Decodable { let quantity: Int; let sold_count: Int; let held: Int; let mine: Int }
+            guard let row = try await t.raw("""
+                SELECT li.quantity, li.sold_count,
+                  COALESCE((SELECT SUM(d.quantity) FROM listing_item_deposits d WHERE d.item_id = li.id), 0)::int AS held,
+                  COALESCE((SELECT d.quantity FROM listing_item_deposits d
+                            WHERE d.item_id = li.id AND d.buyer_id = \(uuid: buyer)), 0)::int AS mine
+                FROM listing_items li WHERE li.id = \(uuid: itemID) AND li.listing_id = \(uuid: listingID) FOR UPDATE
+                """).first(decoding: R.self) else { throw Abort(.notFound, reason: "Item not found") }
+            let most = row.mine + (row.quantity - row.sold_count - row.held)
+            guard quantity <= most else {
+                throw Abort(.badRequest, reason: "Only \(most) can be on deposit for this buyer")
+            }
+            if quantity == 0 {
+                try await t.raw("""
+                    DELETE FROM listing_item_deposits WHERE item_id = \(uuid: itemID) AND buyer_id = \(uuid: buyer)
+                    """).run()
+            } else {
+                try await t.raw("""
+                    INSERT INTO listing_item_deposits (item_id, buyer_id, conversation_id, quantity)
+                    VALUES (\(uuid: itemID), \(uuid: buyer), \(uuid: conversationID), \(bind: quantity))
+                    ON CONFLICT (item_id, buyer_id) DO UPDATE SET quantity = EXCLUDED.quantity,
+                      conversation_id = EXCLUDED.conversation_id, updated_at = NOW()
+                    """).run()
+            }
         }
+    }
+
+    /// What one confirmed deposit turned into: the card's contents.
+    struct ConfirmedSale: Decodable {
+        let item_id: String
+        let conversation_id: String
+        let quantity: Int
+        let title: String
+        let price: Int64
+        let image: String
+    }
+
+    /// Turns the buyer's deposit on one item (or on every item of the listing
+    /// when `itemID` is nil) into sold units. Sales are final.
+    static func confirmDeposits(listingID: String, itemID: String?, buyer: String,
+                                on db: AppDatabase) async throws -> [ConfirmedSale] {
+        var confirmed: [ConfirmedSale] = []
+        try await db.tx { t in
+            let itemFilter: SQLQueryString = itemID.map { " AND li.id = \(uuid: $0)" } ?? ""
+            let sales = try await t.raw("""
+                SELECT li.id::text AS item_id, d.conversation_id::text AS conversation_id, d.quantity::int AS quantity,
+                  li.title, li.price, li.image_urls[1] AS image
+                FROM listing_item_deposits d JOIN listing_items li ON li.id = d.item_id
+                WHERE li.listing_id = \(uuid: listingID) AND d.buyer_id = \(uuid: buyer)
+                """ + itemFilter + " ORDER BY li.position FOR UPDATE OF li, d").all(decoding: ConfirmedSale.self)
+            guard !sales.isEmpty else { throw Abort(.badRequest, reason: "No deposit from this buyer") }
+            for sale in sales {
+                try await t.raw("""
+                    UPDATE listing_items SET sold_count = sold_count + \(bind: sale.quantity),
+                      status = CASE WHEN sold_count + \(bind: sale.quantity) >= quantity THEN 'sold' ELSE 'available' END,
+                      updated_at = NOW()
+                    WHERE id = \(uuid: sale.item_id)
+                    """).run()
+                try await t.raw("""
+                    DELETE FROM listing_item_deposits WHERE item_id = \(uuid: sale.item_id) AND buyer_id = \(uuid: buyer)
+                    """).run()
+            }
+            try await syncSummary(listingID: listingID, on: t)
+            confirmed = sales
+        }
+        return confirmed
     }
 
     /// Rewrites what the rest of the app reads off the listing from its items:
@@ -361,6 +446,15 @@ enum ListingStore {
         """
     }
 
+    /// Listed (and live) in any of these communities.
+    static func listedInAnyClause(_ communityIDs: [String]) -> SQLQueryString {
+        """
+        EXISTS (SELECT 1 FROM listing_posts lia
+          JOIN listing_communities lcia ON lcia.listing_id = lia.id
+          WHERE lia.post_id = p.id AND lcia.community_id = ANY(\(bind: communityIDs)::uuid[]) AND lcia.status = 'posted')
+        """
+    }
+
     /// When a listing showed up in this community: approval restarts its clock
     /// there (it's new to the community), while Marketplace and other
     /// communities keep the listing's own time. A re-up after approval is newer still.
@@ -439,6 +533,12 @@ enum ListingStore {
               'auto_reply', CASE WHEN p.author_id = \(uuid: v) THEN lp.auto_reply END,
               'items', COALESCE((SELECT json_agg(json_build_object('id', li.id, 'title', li.title, 'price', li.price,
                   'condition', li.condition, 'status', li.status, 'image_urls', li.image_urls,
+                  'quantity', li.quantity, 'sold_count', li.sold_count,
+                  'on_hold', COALESCE((SELECT SUM(dh.quantity) FROM listing_item_deposits dh WHERE dh.item_id = li.id), 0),
+                  -- Who the deposits are from is the seller's business only.
+                  'deposits', CASE WHEN p.author_id = \(uuid: v) THEN COALESCE((SELECT json_agg(json_build_object(
+                      'buyer_id', dd.buyer_id, 'conversation_id', dd.conversation_id, 'quantity', dd.quantity)
+                      ORDER BY dd.updated_at) FROM listing_item_deposits dd WHERE dd.item_id = li.id), '[]') END,
                   'image_alts', li.image_alts,
                   'ask_again_at', (SELECT a.asked_at + make_interval(secs => \(bind: askCooldown)) FROM listing_item_asks a
                     WHERE a.item_id = li.id AND a.buyer_id = \(uuid: v)
@@ -460,7 +560,10 @@ enum ListingStore {
     /// Every available listing in `mode` the viewer may see, newest first,
     /// or only those listed in `communityID`. The feed's visibility rules
     /// (privacy and hide-from-friends, blocks, hidden, muted words) apply.
+    /// `inCommunities` / `outsideCommunities` split a seller's page into the
+    /// listings in the community you came from and the rest.
     static func marketplace(viewer: String, mode: String, query: String?, communityID: String?, sellerID: String? = nil,
+                            inCommunities: [String]? = nil, outsideCommunities: [String]? = nil,
                             limit: Int, offset: Int, on db: any SQLDatabase) async throws -> [PostObject] {
         // A seller's own page lists their sold items too; the Marketplace doesn't.
         let status: SQLQueryString = sellerID == nil ? " AND lm.status = 'available'" : ""
@@ -472,6 +575,8 @@ enum ListingStore {
             + " AND " + PostStore.notHiddenClause(viewer) + " AND " + PostStore.notMutedWordsClause(viewer)
         if let communityID { q = q + " AND " + listedInClause(communityID) }
         if let sellerID { q = q + " AND p.author_id = \(uuid: sellerID)" }
+        if let inCommunities { q = q + " AND " + listedInAnyClause(inCommunities) }
+        if let outsideCommunities, !outsideCommunities.isEmpty { q = q + " AND NOT " + listedInAnyClause(outsideCommunities) }
         if let query {
             let like = "%" + UserStore.escapeLike(query) + "%"
             q = q + " AND (lm.title ILIKE \(bind: like) OR p.content ILIKE \(bind: like)"
@@ -507,7 +612,7 @@ enum ListingStore {
         var location: String?
         var auto_reply: String?
         var hide_from_friends: Bool?
-        /// Every item at once ("sold" / "available"); one item has its own route.
+        /// No longer accepted: a sale is recorded from a buyer's deposit (migration 139).
         var status: String?
         /// Both together; `clear_coordinates` removes the map location.
         var latitude: Double?
@@ -551,7 +656,8 @@ enum ListingStore {
             sets.append("latitude = \(bind: point.0)")
             sets.append("longitude = \(bind: point.1)")
         }
-        if let s = p.status, !statuses.contains(s) { throw Abort(.badRequest, reason: "Invalid status") }
+        // Sales are final and each one is tied to a buyer (migration 139).
+        if p.status != nil { throw Abort(.badRequest, reason: "Record a sale from a buyer's deposit instead") }
         try validateAutoReup(p.auto_reup)
         // Sold cancels auto re-up for good (syncSummary); otherwise the patch sets or clears it.
         if p.clear_auto_reup == true {
@@ -567,7 +673,7 @@ enum ListingStore {
         let content = p.content?.trimmedText
         if let content, content.count > 2000 { throw Abort(.badRequest, reason: "Description must be at most 2000 characters") }
         let format = p.content_format.flatMap { PostStore.contentFormats.contains($0) ? $0 : nil }
-        guard !sets.isEmpty || items != nil || p.status != nil || content != nil || p.community_ids != nil else {
+        guard !sets.isEmpty || items != nil || content != nil || p.community_ids != nil else {
             throw Abort(.badRequest, reason: "Nothing to update")
         }
         var contentChanged = false
@@ -579,12 +685,7 @@ enum ListingStore {
         try await db.tx { t in
             if let listingUpdate { try await t.raw(listingUpdate).run() }
             if let items { try await replaceItems(listingID: listingID, items, on: t) }
-            if let status = p.status {
-                try await t.raw("""
-                    UPDATE listing_items SET status = \(bind: status), updated_at = NOW() WHERE listing_id = \(uuid: listingID)
-                    """).run()
-            }
-            if items != nil || p.status != nil { try await syncSummary(listingID: listingID, on: t) }
+            if items != nil { try await syncSummary(listingID: listingID, on: t) }
             if changed, let content {
                 // Keep the version being replaced, like any post edit (post_revisions).
                 try await t.raw("""

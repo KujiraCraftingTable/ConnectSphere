@@ -44,6 +44,37 @@ struct JobsRepository {
         try await client.fetch(DataResponse<JobListing>.self, path: "/jobs/\(id)", token: token).data
     }
 
+    /// Your own open jobs (an HR offering one on an "Open to work" post).
+    func mine(token: String) async throws -> [JobListing] {
+        try await client.fetch(DataListResponse<JobListing>.self, path: "/jobs/mine", token: token).data
+    }
+
+    // MARK: Saved CV (Work profile, server migration 131)
+
+    private struct SavedCV: Decodable {
+        let cvUrl: String?
+        enum CodingKeys: String, CodingKey { case cvUrl = "cv_url" }
+    }
+
+    func myCV(token: String) async throws -> String? {
+        try await client.fetch(DataResponse<SavedCV>.self, path: "/jobs/my-cv", token: token).data.cvUrl
+    }
+
+    /// Saves a CV uploaded with `uploadCV` on your profile.
+    func saveMyCV(_ path: String, token: String) async throws {
+        _ = try await client.fetch(DataResponse<SavedCV>.self, path: "/jobs/my-cv", method: "PUT", token: token,
+                                   bodyData: try JSONSerialization.data(withJSONObject: ["cv_url": path]))
+    }
+
+    func removeMyCV(token: String) async throws {
+        _ = try await client.fetch(DataResponse<SavedCV>.self, path: "/jobs/my-cv", method: "DELETE", token: token)
+    }
+
+    /// Someone's saved CV; only a verified HR gets one (404 otherwise).
+    func profileCV(userId: String, token: String) async throws -> String? {
+        try await client.fetch(DataResponse<SavedCV>.self, path: "/users/\(userId)/cv", token: token).data.cvUrl
+    }
+
     func companyJobs(companyId: String, token: String) async throws -> [JobListing] {
         try await client.fetch(DataListResponse<JobListing>.self, path: "/companies/\(companyId)/jobs", token: token).data
     }

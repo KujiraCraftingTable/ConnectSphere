@@ -8,6 +8,8 @@ struct JobBoardController {
         j.get(use: search)
         j.get("recommended", use: recommended)
         j.get("saved", use: saved)
+        // Your own open jobs, e.g. to offer one on an "Open to work" post.
+        j.get("mine", use: mine)
         j.get(":id", use: get)
         routes.grouped("companies").grouped(AuthMiddleware()).get(":id", "jobs", use: companyJobs)
     }
@@ -48,6 +50,13 @@ struct JobBoardController {
 
     static func search(_ req: Request) async throws -> DataListResponse<JobBoardStore.Listing> {
         DataListResponse(data: try await JobBoardStore.search(try filters(req), viewer: req.userID, on: req.db.sql()))
+    }
+
+    static func mine(_ req: Request) async throws -> DataListResponse<JobBoardStore.Listing> {
+        var f = JobBoardStore.Filters()
+        f.authorID = req.userID
+        f.limit = 50
+        return DataListResponse(data: try await JobBoardStore.search(f, viewer: req.userID, on: req.db.sql()))
     }
 
     static func saved(_ req: Request) async throws -> DataListResponse<JobBoardStore.Listing> {

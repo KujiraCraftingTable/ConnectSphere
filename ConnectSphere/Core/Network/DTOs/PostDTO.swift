@@ -139,6 +139,7 @@ struct PostDTO: Decodable {
     let imageAlts: [String]?
     let lang: String?
     let translatedText: String?
+    let openToWork: Bool
     let contentFormat: String?
     let articleTitle: String?
     let linkUrl: String?
@@ -174,6 +175,7 @@ struct PostDTO: Decodable {
         case lang
         case translatedText     = "translated_text"
         case contentFormat      = "content_format"
+        case openToWork         = "open_to_work"
         case articleTitle  = "article_title"
         case linkUrl       = "link_url"
         case isLiked       = "is_liked"
@@ -214,6 +216,7 @@ struct PostDTO: Decodable {
         lang     = try c.decodeIfPresent(String.self, forKey: .lang)
         translatedText = try c.decodeIfPresent(String.self, forKey: .translatedText)
         contentFormat = try c.decodeIfPresent(String.self, forKey: .contentFormat)
+        openToWork    = try c.decodeIfPresent(Bool.self, forKey: .openToWork) ?? false
         articleTitle  = try c.decodeIfPresent(String.self, forKey: .articleTitle)
         linkUrl       = try c.decodeIfPresent(String.self, forKey: .linkUrl)
         isLiked       = try c.decodeIfPresent(Bool.self, forKey: .isLiked) ?? false
@@ -258,6 +261,7 @@ struct PostDTO: Decodable {
             imageAlts:              imageAlts ?? [],
             contentLang:              lang,
             translatedContent: translatedText,
+            openToWork: openToWork,
             contentFormat: contentFormat,
             likeCount:              likeCount,
             commentCount:           commentCount,

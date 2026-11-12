@@ -43,7 +43,7 @@ enum UserStore {
               -- marketplace listings (each has its own page): the profile list's rule.
               -- Only-me posts are private notes, so they never count (UserQueries too).
               (SELECT COUNT(*)::int FROM posts pc WHERE pc.author_id = u.id AND pc.mode = \(unsafeRaw: modeRef)
-                 AND pc.status = 'posted' AND pc.community_id IS NULL AND pc.post_type <> 'listing'
+                 AND pc.status = 'posted' AND pc.community_id IS NULL AND pc.post_type NOT IN ('listing', 'legit')
                  AND pc.privacy IN ('public', 'friends')) AS post_count,
               u.created_at, u.updated_at, u.deleted_at,
               \(unsafeRaw: cv)  AS cover_url,

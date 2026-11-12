@@ -39,7 +39,8 @@ enum NotifyService {
     static func defaultEntityType(_ type: String) -> String? {
         switch NotificationsController.types[type]?.category {
         case "social": return ["post_liked": "post", "post_commented": "comment", "comment_replied": "comment",
-                               "comment_liked": "comment", "post_shared": "post", "connection_request": "user",
+                               "comment_liked": "comment", "post_shared": "post", "seller_listed": "post",
+                               "connection_request": "user",
                                "connection_accepted": "user", "birthday": "user", "mode_mismatch": "post",
                                "skill_endorsed": "user", "job_application": "job", "application_status": "job", "new_login": "user"][type]
         case "chat": return ["message": "conversation", "meeting_proposed": "meeting", "meeting_updated": "meeting",
@@ -366,6 +367,27 @@ enum NotifyService {
         }
     }
 
+    /// A seller just listed something: tell everyone who follows them in the
+    /// Marketplace. Detached, it never holds up or fails the listing.
+    static func sellerListed(app: Application, postID: String, sellerID: String, mode: String, title: String?,
+                             logger: Logger) {
+        let db = app.db.sql(), hub = app.socketHub
+        Task {
+            do {
+                let followers = try await SellerProfileStore.followers(of: sellerID, mode: mode, on: db)
+                guard !followers.isEmpty else { return }
+                let name = try await SellerProfileStore.displayName(of: sellerID, mode: mode, on: db)
+                for user in followers {
+                    _ = await pushUserNotification(userID: user, type: "seller_listed", actorID: sellerID,
+                                                   postID: postID, payload: ["sellerName": name, "title": title ?? ""],
+                                                   actorMode: mode, on: db, hub: hub, logger: logger)
+                }
+            } catch {
+                logger.warning("seller_listed for \(postID) failed: \(error)")
+            }
+        }
+    }
+
     static func messagePreview(_ m: MessageObject) -> String? {
         switch m.message_type {
         case "image": return "📷 Photo"
@@ -381,6 +403,7 @@ enum NotifyService {
         case "community":
             let note = m.content?.trimmedText ?? ""
             return note.isEmpty ? "👥 Shared a community" : "👥 " + String(note.prefix(previewLength))
+        case "legit_check": return "✅ Legit card"
         default:
             let c = m.content ?? ""
             return c.isEmpty ? nil : String(c.prefix(previewLength))
