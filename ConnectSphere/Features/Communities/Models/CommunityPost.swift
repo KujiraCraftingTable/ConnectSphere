@@ -417,6 +417,10 @@ struct CommunityRef {
     var privacy: String? = nil
     /// Who the post is for: anyone, or the community's members only.
     var audience: CommunityAudience = .members
+    /// Whether the viewer belongs to it (true when the server didn't say, so
+    /// no Join pill shows by mistake), or has a pending request to join.
+    var isMember: Bool = true
+    var joinRequested: Bool = false
 }
 
 /// Who a community post is for (migration 075). A private community's posts

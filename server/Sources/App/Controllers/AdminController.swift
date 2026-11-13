@@ -70,7 +70,7 @@ struct AdminController {
         }
         let caseID = try await ModerationStore.openAdminCase(type: type, id: id, target: target, policy: policy, on: db)
         let outcome = try await ModerationService.decide(
-            caseID: caseID, decision: action == "ban" ? .ban : .warn, restrictDays: nil,
+            caseID: caseID, decision: action == "ban" ? .ban : .warn, restrictHours: nil,
             note: b.note?.trimmedText.nilIfEmpty, actor: req.userID, banDays: b.days, on: req.db)
         NotifyService.fireAndForget(req) { db, hub, log in await ModerationNotices.decided(outcome, on: db, hub: hub, logger: log) }
         ModerationNotices.email(outcome, app: req.application, logger: req.logger)
@@ -153,8 +153,8 @@ struct AdminController {
     static func lookup(_ req: Request) async throws -> DataResponse<LookedUp> {
         let raw = (try? req.query.get(String.self, at: "username")) ?? ""
         let name = raw.trimmingCharacters(in: CharacterSet(charactersIn: "@ ")).lowercased()
-        guard name.range(of: "^[a-z0-9_]{3,30}$", options: .regularExpression) != nil else {
-            throw InlineError(.badRequest, "Username must be 3-30 characters: lowercase letters, numbers, underscore")
+        guard UsernameRules.isValidFormat(name) else {
+            throw InlineError(.badRequest, UsernameRules.formatReason)
         }
         guard let user = try await req.db.sql().raw("""
             SELECT u.id::text AS id, u.username, u.hobby_display_name, u.work_display_name, u.app_role,

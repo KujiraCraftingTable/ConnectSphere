@@ -75,6 +75,9 @@ feed. Most features exist in both, and content stays in the mode it was made in.
   Zalo, Viber or Slack, so Work mode has none; a community about a company lives in Hobby); a community page with cover,
   members and info.
 - Post text, polls and events inside a community.
+- A community post in the feed from a community you're not in has a Join pill
+  beside its name (a long name is cut with "…" so the pill always shows), or
+  Requested when the community approves members.
 - Admin tools: post approval, a report queue, analytics, member roles.
 - Per-member choice of new-post notifications (all / friends' posts / off),
   and "Manage your content" to see your own posts and comments there.
@@ -137,9 +140,14 @@ feed. Most features exist in both, and content stays in the mode it was made in.
 - An in-app assistant chat.
 
 **Account & safety**
-- Sign in (incl. Google), email verification, two-factor authentication.
+- Sign in (incl. Google), email verification, two-factor authentication. The
+  2FA step shows only the code boxes (no Google button); Resend clears and
+  refocuses them, and every code email has the code at the start of its subject
+  so a resent one never hides in the earlier thread.
 - Saved accounts on the device for quick switching, sign in with email or
   `@username`.
+- Change your `@username` once every 6 months (Manage account › Username);
+  the server enforces it, and an old username is never handed to someone else.
 - Blocked users, muted words, activity log, recently deleted, lock profile,
   privacy and security settings, links open in an in-app browser.
 - English / Vietnamese, light/dark themes.

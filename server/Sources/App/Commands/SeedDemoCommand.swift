@@ -10,12 +10,12 @@ import SQLKit
 /// database up with `pg_dump` first and commits.
 struct SeedDemoCommand: AsyncCommand {
     struct Signature: CommandSignature {
-        @Argument(name: "action", help: "wipe | seed | embed") var action: String
+        @Argument(name: "action", help: "wipe | seed | embed | communities") var action: String
         @Flag(name: "commit", help: "Back up, then actually delete (default is a rolled-back dry run).") var commit: Bool
     }
 
     var help: String {
-        "Demo data: `wipe` removes seed / contract-test / QA accounts; `seed` writes the 40 demo people from Seeds/; `embed` builds their vectors and AI tags."
+        "Demo data: `wipe` removes seed / contract-test / QA accounts; `seed` writes the 40 demo people from Seeds/; `embed` builds their vectors and AI tags; `communities` replaces all communities and listings with Seeds/demo-communities.json."
     }
 
     func run(using context: CommandContext, signature: Signature) async throws {
@@ -26,8 +26,10 @@ struct SeedDemoCommand: AsyncCommand {
             try await seed(context)
         case "embed":
             try await embed(context)
+        case "communities":
+            try await seedCommunities(context, commit: signature.commit)
         default:
-            context.console.error("Unknown action \(signature.action). Available: wipe, seed, embed")
+            context.console.error("Unknown action \(signature.action). Available: wipe, seed, embed, communities")
         }
     }
 
@@ -69,7 +71,7 @@ struct SeedDemoCommand: AsyncCommand {
 
     private struct Doomed: Decodable { let id: UUID; let username: String; let google: Bool; let grp: String }
     private struct N: Decodable { let n: Int }
-    private struct DryRun: Error { let lines: [String] }
+    struct DryRun: Error { let lines: [String] }
 
     /// Tables whose row counts are reported before and after (literals only).
     private static let reportedTables = [
@@ -237,7 +239,7 @@ struct SeedDemoCommand: AsyncCommand {
     /// `pg_dump` of the Postgres container into `backend/backups/`. Never
     /// overwrites an earlier backup, so a second run can't replace the
     /// pre-wipe copy with a post-wipe one.
-    private func backUp(_ context: CommandContext) throws {
+    func backUp(_ context: CommandContext) throws {
         let app = context.application
         let dir = URL(fileURLWithPath: app.directory.workingDirectory + "../backend/backups").standardizedFileURL
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

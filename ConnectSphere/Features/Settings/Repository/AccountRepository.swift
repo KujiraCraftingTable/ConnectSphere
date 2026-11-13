@@ -48,6 +48,12 @@ struct AccountRepository {
                                bodyData: try body(["code": code])).email
     }
 
+    /// A new @username (once per 6 months); the updated user.
+    func changeUsername(_ username: String, token: String) async throws -> AuthUserDTO {
+        try await client.fetch(MeResponse.self, path: "/users/me/username", method: "PATCH", token: token,
+                               bodyData: try body(["username": username])).user
+    }
+
     /// A code for turning two-factor sign-in on or off.
     func sendTwoFactorCode(token: String) async throws -> Sent {
         try await client.fetch(Sent.self, path: "/users/me/two-factor/code", method: "POST", token: token,

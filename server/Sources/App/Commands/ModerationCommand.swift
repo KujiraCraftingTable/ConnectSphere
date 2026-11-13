@@ -1,7 +1,7 @@
 import Vapor
 import SQLKit
 
-/// `swift run App moderation list | show --case <id> | decide --case <id> --decision <d> [--days N] [--note …] --as <username>`
+/// `swift run App moderation list | show --case <id> | decide --case <id> --decision <d> [--days N | --hours 6|12] [--note …] --as <username>`
 /// — the review queue from the terminal, for when the app isn't to hand.
 /// `--as` names the moderator the decision is recorded against.
 struct ModerationCommand: AsyncCommand {
@@ -10,6 +10,7 @@ struct ModerationCommand: AsyncCommand {
         @Option(name: "case", help: "Case id.") var caseID: String?
         @Option(name: "decision", help: "keep, remove, remove_strike, restrict or ban") var decision: String?
         @Option(name: "days", help: "Days, for restrict.") var days: Int?
+        @Option(name: "hours", help: "Hours, for restrict (6 or 12; longer is --days).") var hours: Int?
         @Option(name: "note", help: "Why, for the audit log.") var note: String?
         @Option(name: "as", help: "Your moderator username.") var actor: String?
     }
@@ -45,10 +46,10 @@ struct ModerationCommand: AsyncCommand {
                 context.console.error("Pass --as <username> of an app moderator or admin."); return
             }
             do {
-                let o = try await ModerationService.decide(caseID: id, decision: decision, restrictDays: signature.days,
+                let o = try await ModerationService.decide(caseID: id, decision: decision, restrictHours: signature.hours ?? signature.days.map { $0 * 24 },
                                                            note: signature.note, actor: actor.id, on: app.db)
                 await ModerationNotices.decided(o, on: db, hub: app.socketHub, logger: app.logger)
-                context.console.info("Case \(id): \(o.decision.rawValue)" + (o.restrictedDays.map { ", restricted \($0) days" } ?? ""))
+                context.console.info("Case \(id): \(o.decision.rawValue)" + (o.restrictedHours.map { ", restricted \($0) hours" } ?? ""))
             } catch let e as InlineError {
                 context.console.error(e.reason)
             }

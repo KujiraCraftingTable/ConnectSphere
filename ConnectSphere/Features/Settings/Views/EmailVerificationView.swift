@@ -27,9 +27,16 @@ struct OTPCodeField: View {
                 .accessibilityLabel(Text(String(format: bundle.loc("6-digit code, %lld of %lld entered"), code.count, length)))
         }
         .frame(maxWidth: .infinity)
+        // The hidden field's UITextField is only a text line tall, so most
+        // taps on a box miss it; the whole row focuses it instead.
+        .contentShape(Rectangle())
+        .onTapGesture { focused = true }
+        .keepsKeyboard()
         .onChange(of: code) { _, new in
             let digits = String(new.filter(\.isNumber).prefix(length))
             if digits != new { code = digits }
+            // Cleared (a fresh code was sent): ready for the new one.
+            if new.isEmpty { focused = true }
         }
         .onAppear { focused = true }
     }
@@ -87,7 +94,8 @@ struct CodeEntry: View {
             // Waits out the server's one-code-a-minute limit.
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 let left = AccountCode.secondsLeft(until: resendAt, now: context.date)
-                Button(action: onResend) {
+                // The old code dies with the resend; clearing also refocuses the boxes.
+                Button { code = ""; onResend() } label: {
                     Text(left > 0 ? String(format: bundle.loc("Resend code in %llds"), left) : bundle.loc("Resend code"))
                         .fontWeight(.semibold)
                         .frame(maxWidth: .infinity)

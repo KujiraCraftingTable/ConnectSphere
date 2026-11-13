@@ -20,6 +20,11 @@ final class PostActionsViewModel {
     /// A delete / hide / restore failure, shown as an alert.
     var actionErrorMessage: String?
 
+    /// The viewer's standing in the post's community, for the card's Join pill.
+    enum CommunityJoin { case member, notMember, requested }
+    private(set) var communityJoin: CommunityJoin
+    private let communityId: String?
+
     private let repository = PostRepository()
     private let userRepository = UserRepository()
     private let postId: String
@@ -35,6 +40,33 @@ final class PostActionsViewModel {
         likeCount = post.likeCount
         commentCount = post.commentCount
         shareCount = post.shareCount
+        communityId = post.community?.id
+        communityJoin = post.community.map { $0.isMember ? .member : $0.joinRequested ? .requested : .notMember } ?? .member
+    }
+
+    // MARK: Join the post's community from the card
+
+    /// Joins at once (public community) or sends a request (private one).
+    /// Other cards from the same community follow through `.communitiesChanged`.
+    func joinCommunity(token: String) async {
+        guard let communityId, communityJoin == .notMember else { return }
+        communityJoin = .member
+        do {
+            let status = try await CommunityRepository().requestToJoin(communityId: communityId, token: token)
+            communityJoin = status == "joined" ? .member : .requested
+            NotificationCenter.default.post(name: .communitiesChanged, object: nil,
+                                            userInfo: ["communityId": communityId, "joined": status == "joined"])
+        } catch {
+            communityJoin = .notMember
+            actionErrorMessage = friendlyError(error)
+        }
+    }
+
+    /// Another card joined (or asked to join) this post's community.
+    func applyCommunityChange(_ note: Notification) {
+        guard let id = note.userInfo?["communityId"] as? String, id == communityId,
+              let joined = note.userInfo?["joined"] as? Bool, communityJoin == .notMember else { return }
+        communityJoin = joined ? .member : .requested
     }
 
     // MARK: Counts kept in step with the parent and the sheets

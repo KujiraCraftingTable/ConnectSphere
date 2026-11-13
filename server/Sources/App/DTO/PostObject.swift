@@ -216,5 +216,9 @@ struct PostObject: Content {
         /// (anyone) or "members" (migration 075).
         var privacy: String? = nil
         var audience: String? = nil
+        /// Whether the viewer belongs to it, or has asked to join; drives the
+        /// feed card's Join pill.
+        var is_member: Bool? = nil
+        var join_requested: Bool? = nil
     }
 }

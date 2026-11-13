@@ -239,4 +239,47 @@ extension ChatStore {
         return GroupSettings(id: conv.id, theme: conv.theme, name: conv.name, avatar_url: conv.avatar_url,
                              avatar_color: conv.avatar_color, created_by: conv.created_by, members: members)
     }
+
+    // MARK: people row
+
+    struct ChatContact: Content {
+        var conversation_id: String
+        var user_id: String
+        var username: String
+        var display_name: String
+        @NullCoded var nickname: String?
+        @NullCoded var avatar_url: String?
+        var avatar_color: String
+        var last_message_at: Date
+    }
+
+    /// One row per person I have a 1:1 chat with in `mode`, newest first.
+    /// Unlike the chat list it keeps chats I deleted (cleared) or archived.
+    /// Requests still waiting for me to accept, and anyone blocked either
+    /// way, stay out; so do chats with no message at all.
+    static func listContacts(_ userID: String, mode: String, on db: any SQLDatabase) async throws -> [ChatContact] {
+        let dn = PersonaSQL.expr("display_name", modeRef: "c.mode")
+        let av = PersonaSQL.expr("avatar_url", modeRef: "c.mode")
+        let pending = MessageRequests.pendingSQL(me: MessageRequests.quoted(userID), other: "u.id")
+        return try await db.raw("""
+            SELECT * FROM (
+              SELECT DISTINCT ON (u.id)
+                c.id::text AS conversation_id, u.id::text AS user_id, u.username,
+                \(unsafeRaw: dn) AS display_name, other_cp.nickname AS nickname,
+                \(unsafeRaw: av) AS avatar_url, u.avatar_color, lm.at AS last_message_at
+              FROM conversations c
+              JOIN conversation_participants my_cp ON my_cp.conversation_id = c.id AND my_cp.user_id = \(uuid: userID)
+              JOIN conversation_participants other_cp ON other_cp.conversation_id = c.id AND other_cp.user_id <> \(uuid: userID)
+              JOIN users u ON u.id = other_cp.user_id
+              JOIN LATERAL (SELECT MAX(created_at) AS at FROM messages WHERE conversation_id = c.id) lm ON lm.at IS NOT NULL
+              WHERE c.mode = \(bind: mode) AND c.is_group = FALSE
+                AND NOT (\(unsafeRaw: pending) AND c.request_from <> \(uuid: userID))
+                AND NOT EXISTS (SELECT 1 FROM user_blocks b
+                                WHERE (b.blocker_id = \(uuid: userID) AND b.blocked_id = u.id)
+                                   OR (b.blocker_id = u.id AND b.blocked_id = \(uuid: userID)))
+              ORDER BY u.id, lm.at DESC
+            ) people
+            ORDER BY last_message_at DESC
+            """).all(decoding: ChatContact.self)
+    }
 }

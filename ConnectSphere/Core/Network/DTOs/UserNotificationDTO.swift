@@ -92,6 +92,8 @@ struct UserNotificationPayloadDTO: Decodable {
     let decision: String?
     let targetType: String?
     let restrictedDays: Int?
+    /// The restriction's length in hours (6 and 12 have no whole-day form).
+    let restrictedHours: Int?
     let hours: Int?
     /// Verified HR (hr_request_new / hr_request_decided).
     let companyName: String?

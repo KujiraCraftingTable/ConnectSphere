@@ -89,7 +89,9 @@ struct Mailer {
             logger.warning("[DEV MAIL] \(kind) code for \(email): \(code)")
             return
         }
-        try await send(to: email, subject: kind.subject, text: kind.body(code, minutes: minutes))
+        // The code leads the subject: with one fixed subject Gmail filed a
+        // resent code under the earlier mail, so it looked like nothing came.
+        try await send(to: email, subject: "\(code) · \(kind.subject)", text: kind.body(code, minutes: minutes))
     }
 
     /// "Someone just signed in": how, on what, when.

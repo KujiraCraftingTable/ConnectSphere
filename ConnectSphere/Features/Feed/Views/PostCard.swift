@@ -98,6 +98,12 @@ struct PostCard: View {
 
     @ViewBuilder
     var body: some View {
+        content
+            // Another card joined this post's community: drop the pill here too.
+            .onReceive(NotificationCenter.default.publisher(for: .communitiesChanged)) { actions.applyCommunityChange($0) }
+    }
+
+    private var content: some View {
         Group {
             if let kind = actions.hiddenKind {
                 // Stays in place, with Undo, until the feed is refreshed.
@@ -448,16 +454,27 @@ struct PostCard: View {
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                NavigationLink(destination:
-                    CommunityDetailView(communityId: community.id, token: appState.authToken ?? "",
-                                         currentUserId: appState.currentUser?.id ?? "")
-                        .environment(appState).environment(themeManager)
-                ) {
-                    Text(community.name)
-                        .appFont(.headline)
-                        .foregroundColor(AppColors.textPrimary(colorScheme))
+                // The name gives way ("…") so the Join pill always fits beside it.
+                HStack(spacing: 8) {
+                    NavigationLink(destination:
+                        CommunityDetailView(communityId: community.id, token: appState.authToken ?? "",
+                                             currentUserId: appState.currentUser?.id ?? "")
+                            .environment(appState).environment(themeManager)
+                    ) {
+                        Text(community.name)
+                            .appFont(.headline)
+                            .foregroundColor(AppColors.textPrimary(colorScheme))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    .buttonStyle(.plain)
+
+                    if actions.communityJoin != .member && post.author.id != appState.currentUser?.id {
+                        communityJoinPill
+                            .fixedSize()
+                            .layoutPriority(1)
+                    }
                 }
-                .buttonStyle(.plain)
 
                 CommunityProfileLink(communityId: community.id, userId: post.author.id) {
                     Text(String(format: bundle.loc("Posted by %@"), post.author.name))
@@ -611,6 +628,26 @@ struct PostCard: View {
         }
         .padding(.horizontal, 12)
         .padding(.top, 12)
+    }
+
+    /// "Join" for a community the viewer isn't in; "Requested" once a private
+    /// one has their request.
+    private var communityJoinPill: some View {
+        let requested = actions.communityJoin == .requested
+        return Button {
+            Task { await actions.joinCommunity(token: appState.authToken ?? "") }
+        } label: {
+            Text(requested ? "Requested" : "Join", bundle: bundle)
+                .appFont(.caption)
+                .fontWeight(.semibold)
+                .foregroundColor(requested ? AppColors.textSecondary(colorScheme) : themeManager.theme.primary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 3)
+                .background(requested ? AppColors.base(colorScheme) : themeManager.theme.primary.opacity(0.12),
+                            in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(requested)
     }
 
     @ViewBuilder

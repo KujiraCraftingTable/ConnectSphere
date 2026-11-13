@@ -52,6 +52,9 @@ struct AuthUserObject: Content {
     @NullCoded var age: Int?
     /// Birthday changes still allowed (migration 083, `BirthdayRules`).
     var dob_changes_left: Int
+    /// Until then the @username can't change again; null when it can now
+    /// (migration 141, `UsernameRules`).
+    var username_next_change_at: Date? = nil
     var hobby_setup: Bool
     var work_setup: Bool
     var has_password: Bool

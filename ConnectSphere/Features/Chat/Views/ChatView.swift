@@ -952,15 +952,9 @@ struct ChatView: View {
         VStack(spacing: 12) {
             Spacer().frame(height: 60)
 
-            // Large avatar
-            ZStack {
-                Circle()
-                    .fill(Color(hex: peer.avatarColor))
-                    .frame(width: 80, height: 80)
-                Text(String(avatarInitialName.prefix(1)))
-                    .scaledFont(32, .bold)
-                    .foregroundColor(.white)
-            }
+            // Large avatar: their photo, or the initial when they have none.
+            Avatar(name: avatarInitialName, colorHex: peer.avatarColor,
+                   imageURL: peer.avatarUrl, diameter: 80)
 
             // Display name
             Text(peer.name)
@@ -1323,7 +1317,7 @@ struct ChatView: View {
             }
             .disabled(blocking)
             .opacity(blocking ? 0.5 : 1)
-            .disabledWhenRestricted()
+            .messagingDisabledWhenRestricted()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

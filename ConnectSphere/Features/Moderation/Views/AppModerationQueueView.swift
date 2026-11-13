@@ -124,7 +124,8 @@ struct ModerationCaseView: View {
     @Environment(\.appBundle) private var bundle
 
     @State private var viewModel: ModerationCaseViewModel
-    @State private var restrictDays = 3
+    /// In hours, one of `ModerationCaseViewModel.restrictOptions`.
+    @State private var restrictHours = 72
     /// The decision picked on an open case; nothing happens until it's confirmed.
     @State private var selectedDecision: ModerationDecisionKind?
     @State private var confirmingSubmit = false
@@ -220,7 +221,8 @@ struct ModerationCaseView: View {
 
     private var submitQuestion: String {
         switch selectedDecision {
-        case .restrict: String(format: bundle.loc("Restrict the account for %lld days"), restrictDays) + "?"
+        case .restrict: String(format: bundle.loc("Restrict the account for %@"),
+                               RestrictionCountdown.length(hours: restrictHours, bundle: bundle)) + "?"
         case let kind?: bundle.loc(kind.label) + "?"
         case nil: ""
         }
@@ -247,9 +249,9 @@ struct ModerationCaseView: View {
                     }
                 }
                 if selectedDecision == .restrict {
-                    Picker(bundle.loc("Restrict for"), selection: $restrictDays) {
-                        ForEach(ModerationCaseViewModel.restrictOptions, id: \.self) { days in
-                            Text(String(format: bundle.loc("%lld days"), days)).tag(days)
+                    Picker(bundle.loc("Restrict for"), selection: $restrictHours) {
+                        ForEach(ModerationCaseViewModel.restrictOptions, id: \.self) { hours in
+                            Text(RestrictionCountdown.length(hours: hours, bundle: bundle)).tag(hours)
                         }
                     }
                 }
@@ -281,7 +283,7 @@ struct ModerationCaseView: View {
                     Button(bundle.loc("Submit"), role: selectedDecision == .keep ? nil : .destructive) {
                         guard let kind = selectedDecision else { return }
                         Task<Void, Never>(name: nil) {
-                            await viewModel.decide(kind, days: kind == .restrict ? restrictDays : nil)
+                            await viewModel.decide(kind, hours: kind == .restrict ? restrictHours : nil)
                         }
                     }
                     Button(bundle.loc("Cancel"), role: .cancel) {}
@@ -348,8 +350,11 @@ struct ModerationCaseView: View {
             case "remove": return say("%@ removed it")
             case "remove_strike": return say("%@ removed it and gave a strike")
             case "restrict":
-                return String(format: bundle.loc("%@ removed it and restricted the account for %@ days"),
-                              who, detail["restricted_days"] ?? "?")
+                // Older entries only have days.
+                let hours = detail["restricted_hours"].flatMap(Int.init)
+                    ?? detail["restricted_days"].flatMap(Int.init).map { $0 * 24 }
+                return String(format: bundle.loc("%@ removed it and restricted the account for %@"),
+                              who, hours.map { RestrictionCountdown.length(hours: $0, bundle: bundle) } ?? "?")
             case "ban": return say("%@ banned them")
             case "warn": return say("%@ warned them")
             default: return say("%@ decided")

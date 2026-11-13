@@ -212,13 +212,15 @@ struct ConversationListView: View {
     private var recentPeopleBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .top, spacing: 10) {
-                ForEach(viewModel.recentPeople) { conversation in
-                    Button { open(conversation) } label: {
+                ForEach(viewModel.recentPeople) { contact in
+                    Button {
+                        activeRoute = ChatRoute(conversationId: contact.conversationId, peer: contact.peer, location: nil)
+                    } label: {
                         VStack(spacing: 6) {
-                            Avatar(name: conversation.avatarName, colorHex: conversation.avatarColor,
-                                   imageURL: conversation.avatarUrl, diameter: 60)
+                            Avatar(name: contact.name, colorHex: contact.avatarColor,
+                                   imageURL: contact.avatarUrl, diameter: 60)
                                 .overlay(alignment: .bottomTrailing) {
-                                    if viewModel.isOnline(conversation) {
+                                    if viewModel.isOnline(contact) {
                                         Circle()
                                             .fill(Color.green)
                                             .frame(width: 14, height: 14)
@@ -226,8 +228,8 @@ struct ConversationListView: View {
                                             .offset(x: -2, y: -2)
                                     }
                                 }
-                            Text(conversation.displayName.split(separator: " ").first.map(String.init)
-                                 ?? conversation.displayName)
+                            Text(contact.displayName.split(separator: " ").first.map(String.init)
+                                 ?? contact.displayName)
                                 .scaledFont(11, .medium)
                                 .foregroundColor(AppColors.textPrimary(colorScheme))
                                 .lineLimit(1)
@@ -235,21 +237,21 @@ struct ConversationListView: View {
                         .frame(width: 70)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(viewModel.isOnline(conversation)
-                        ? "\(conversation.displayName), \(bundle.loc("Online"))" : conversation.displayName)
+                    .accessibilityLabel(viewModel.isOnline(contact)
+                        ? "\(contact.displayName), \(bundle.loc("Online"))" : contact.displayName)
                     .contextMenu {
                         Button {
-                            if let id = conversation.otherUserId { profileTarget = ProfileTarget(id: id) }
+                            profileTarget = ProfileTarget(id: contact.userId)
                         } label: {
                             Label(bundle.loc("View profile"), systemImage: "person.crop.circle")
                         }
                         Button {
-                            Task { await viewModel.hide(conversation, mode: mode, token: token) }
+                            Task { await viewModel.hide(contact, mode: mode, token: token) }
                         } label: {
                             Label(bundle.loc("Hide contact"), systemImage: "eye.slash")
                         }
                     } preview: {
-                        recentPersonPreview(conversation)
+                        recentPersonPreview(contact)
                     }
                 }
             }
@@ -262,11 +264,11 @@ struct ConversationListView: View {
     }
 
     /// Long-press preview: the person's photo, large, over their name.
-    private func recentPersonPreview(_ conversation: Conversation) -> some View {
+    private func recentPersonPreview(_ contact: ChatContact) -> some View {
         VStack(spacing: 14) {
-            Avatar(name: conversation.avatarName, colorHex: conversation.avatarColor,
-                   imageURL: conversation.avatarUrl, diameter: 120)
-            Text(conversation.displayName)
+            Avatar(name: contact.name, colorHex: contact.avatarColor,
+                   imageURL: contact.avatarUrl, diameter: 120)
+            Text(contact.displayName)
                 .scaledFont(22, .bold)
                 .foregroundColor(AppColors.textPrimary(colorScheme))
                 .lineLimit(1)

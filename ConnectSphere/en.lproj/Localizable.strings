@@ -1899,7 +1899,7 @@
 "Under review" = "Under review";
 "Uphold — keep the decision" = "Uphold — keep the decision";
 "We removed your %@ for breaking our rules on %@. You can ask for a review." = "We removed your %@ for breaking our rules on %@. You can ask for a review.";
-"We removed your %@ for breaking our rules on %@. Your account is read-only for %lld days. You can ask for a review." = "We removed your %@ for breaking our rules on %@. Your account is read-only for %lld days. You can ask for a review.";
+"We removed your %@ for breaking our rules on %@. Your account is read-only for %@. You can ask for a review." = "We removed your %@ for breaking our rules on %@. Your account is read-only for %@. You can ask for a review.";
 "Why should we look again? (optional)" = "Why should we look again? (optional)";
 "Your account is read-only until %@. You can browse, change settings, block, report and appeal." = "Your account is read-only until %@. You can browse, change settings, block, report and appeal.";
 "You haven't reported anything." = "You haven't reported anything.";
@@ -2013,7 +2013,7 @@
 "%@ kept it up" = "%@ kept it up";
 "%@ removed it" = "%@ removed it";
 "%@ removed it and gave a strike" = "%@ removed it and gave a strike";
-"%@ removed it and restricted the account for %@ days" = "%@ removed it and restricted the account for %@ days";
+"%@ removed it and restricted the account for %@" = "%@ removed it and restricted the account for %@";
 "%@ banned them" = "%@ banned them";
 "%@ warned them" = "%@ warned them";
 "%@ decided" = "%@ decided";
@@ -2061,7 +2061,7 @@
 "The content is taken down and the author gets a strike." = "The content is taken down and the author gets a strike.";
 "Removes the content and pauses posting, commenting and messaging new people." = "Removes the content and pauses posting, commenting and messaging new people.";
 "Removes the content and bans the account." = "Removes the content and bans the account.";
-"Restrict the account for %lld days" = "Restrict the account for %lld days";
+"Restrict the account for %@" = "Restrict the account for %@";
 "Pick a decision above" = "Pick a decision above";
 "Everything except Keep removes the content." = "Everything except Keep removes the content.";
 "Choose…" = "Choose…";
@@ -2539,3 +2539,18 @@
 "People you hid from the row at the top of Messages." = "People you hid from the row at the top of Messages.";
 "Sending…" = "Sending…";
 "Seen by %@" = "Seen by %@";
+"%dd %dh %dm" = "%dd %dh %dm";
+"Restricted in %@" = "Restricted in %@";
+"%@ left" = "%@ left";
+"You're restricted in %@ for %@, so you can't send messages." = "You're restricted in %@ for %@, so you can't send messages.";
+"%lld hours" = "%lld hours";
+
+/* Change username (once every 6 months) */
+"Current" = "Current";
+"New username" = "New username";
+"3-30 characters: lowercase letters, numbers and underscore. You can change it once every 6 months. Your old username stays reserved for you, and you'll sign in with the new one." = "3-30 characters: lowercase letters, numbers and underscore. You can change it once every 6 months. Your old username stays reserved for you, and you'll sign in with the new one.";
+"You can change your username again on %@." = "You can change your username again on %@.";
+"Change to @%@?" = "Change to @%@?";
+"You won't be able to change it again until %@." = "You won't be able to change it again until %@.";
+"That's already your username" = "That's already your username";
+"You can change your username only once every 6 months." = "You can change your username only once every 6 months.";

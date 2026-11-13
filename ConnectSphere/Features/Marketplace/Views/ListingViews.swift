@@ -544,7 +544,7 @@ struct ListingDetailView: View {
                         .foregroundColor(canAsk ? themeManager.theme.primary : AppColors.textTertiary(colorScheme))
                         .buttonStyle(.plain)
                         .disabled(viewModel.isOpeningChat || !canAsk)
-                        .disabledWhenRestricted()
+                        .messagingDisabledWhenRestricted()
                     if !canAsk {
                         Label(String(format: bundle.loc("%lld min"), item.askWaitMinutes(at: context.date)),
                               systemImage: "clock")

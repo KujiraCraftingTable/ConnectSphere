@@ -64,6 +64,11 @@ final class ModerationPolicyTests: XCTestCase {
         XCTAssertEqual(Enforcement.restrictionDays(activeStrikes: 9), 30)
     }
 
+    func testRestrictionLengthsAreSixOrTwelveHoursOrWholeDays() {
+        for hours in [6, 12, 24, 72, 168, 720] { XCTAssertTrue(Enforcement.isValidRestriction(hours: hours), "\(hours)") }
+        for hours in [0, 1, 5, 18, 36, 744, -24] { XCTAssertFalse(Enforcement.isValidRestriction(hours: hours), "\(hours)") }
+    }
+
     func testChildSafetyStrikeBecomesABan() {
         XCTAssertEqual(Enforcement.escalate(.removeStrike, policy: .childSafety), .ban)
         XCTAssertEqual(Enforcement.escalate(.removeStrike, policy: .spam), .removeStrike)

@@ -48,6 +48,8 @@ struct AuthUserDTO: Decodable {
     let dobVisibility: String?
     /// Birthday changes still allowed (2 per account).
     let dobChangesLeft: Int?
+    /// The @username can't change again until then; nil when it can now.
+    let usernameNextChangeAt: Date?
     let defaultMode: String
     let followerCount: Int
     let followingCount: Int
@@ -84,6 +86,7 @@ struct AuthUserDTO: Decodable {
         case workRestrictedUntil = "work_restricted_until"
         case dobVisibility  = "dob_visibility"
         case dobChangesLeft = "dob_changes_left"
+        case usernameNextChangeAt = "username_next_change_at"
         case displayName    = "display_name"
         case avatarColor    = "avatar_color"
         case avatarUrl      = "avatar_url"
@@ -139,6 +142,7 @@ struct AuthUserDTO: Decodable {
         dob            = try c.decodeIfPresent(String.self, forKey: .dob)
         dobVisibility  = try c.decodeIfPresent(String.self, forKey: .dobVisibility)
         dobChangesLeft = try c.decodeIfPresent(Int.self, forKey: .dobChangesLeft)
+        usernameNextChangeAt = (try? c.decodeIfPresent(Date.self, forKey: .usernameNextChangeAt)) ?? nil
         defaultMode    = try c.decodeIfPresent(String.self, forKey: .defaultMode) ?? "hobby"
         followerCount  = try c.decodeIfPresent(Int.self, forKey: .followerCount) ?? 0
         followingCount = try c.decodeIfPresent(Int.self, forKey: .followingCount) ?? 0
@@ -179,6 +183,7 @@ struct AuthUserDTO: Decodable {
             dob: dob,
             dobVisibility: dobVisibility,
             dobChangesLeft: dobChangesLeft,
+            usernameNextChangeAt: usernameNextChangeAt,
             followerCount: followerCount,
             followingCount: followingCount,
             postCount: postCount,

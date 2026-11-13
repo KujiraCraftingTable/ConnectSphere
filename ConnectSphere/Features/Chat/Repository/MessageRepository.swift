@@ -587,6 +587,11 @@ struct MessageRepository {
 
     // MARK: - Hidden contacts (people row)
 
+    func fetchContacts(mode: String, token: String) async throws -> [ChatContact] {
+        try await client.fetch(DataListResponse<ChatContact>.self, path: "/messages/contacts", method: "GET",
+                               token: token, queryItems: [URLQueryItem(name: "mode", value: mode)]).data
+    }
+
     func fetchHiddenContacts(mode: String, token: String) async throws -> [HiddenContact] {
         try await client.fetch(DataListResponse<HiddenContact>.self, path: "/hidden-contacts", method: "GET",
                                token: token, queryItems: [URLQueryItem(name: "mode", value: mode)]).data

@@ -41,8 +41,11 @@ struct LoginView: View {
                                     credentialSection
                                 }
                                 Spacer(minLength: 4)
-                                LabelDivider(label: bundle.loc("or continue with"))
-                                socialSection
+                                // The code step finishes a sign-in already under way.
+                                if viewModel.challenge == nil {
+                                    LabelDivider(label: bundle.loc("or continue with"))
+                                    socialSection
+                                }
                                 registerPrompt
                             }
                             .padding(24)

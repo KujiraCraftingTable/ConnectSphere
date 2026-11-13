@@ -513,6 +513,48 @@ extension UserStore {
     }
 }
 
+extension UserStore {
+    /// A new @username, at most once per `UsernameRules.cooldownMonths`. The
+    /// old one goes into `username_history`, where nobody else can take it.
+    static func changeUsername(userID: String, to raw: String?, now: Date = Date(), on db: AppDatabase) async throws {
+        let username = UsernameRules.normalized(raw)
+        guard UsernameRules.isValidFormat(username) else { throw InlineError(.badRequest, UsernameRules.formatReason) }
+        do {
+            try await db.tx { t in
+                // Locked so two requests at once can't both use the same change.
+                struct Row: Decodable { let username: String; let username_changed_at: Date? }
+                guard let current = try await t.raw("""
+                    SELECT username, username_changed_at FROM users
+                    WHERE id = \(uuid: userID) AND deleted_at IS NULL FOR UPDATE
+                    """).first(decoding: Row.self) else {
+                    throw InlineError(.notFound, "User not found")
+                }
+                guard current.username != username else { throw InlineError(.badRequest, UsernameRules.sameReason) }
+                if !UsernameRules.canChange(lastChangedAt: current.username_changed_at, now: now),
+                   let next = UsernameRules.nextChange(after: current.username_changed_at) {
+                    throw InlineError(.forbidden, UsernameRules.cooldownReason(until: next))
+                }
+                if try await usernameTaken(username, excluding: userID, on: t) {
+                    throw InlineError(.conflict, UsernameRules.takenReason)
+                }
+                try await t.raw("""
+                    INSERT INTO username_history (username, user_id) VALUES (\(bind: current.username), \(uuid: userID))
+                    ON CONFLICT (username) DO UPDATE SET user_id = EXCLUDED.user_id, released_at = NOW()
+                    """).run()
+                // Taking back a name you released: it's yours again, not history.
+                try await t.raw("DELETE FROM username_history WHERE username = \(bind: username) AND user_id = \(uuid: userID)").run()
+                try await t.raw("""
+                    UPDATE users SET username = \(bind: username), username_changed_at = NOW(), updated_at = NOW()
+                    WHERE id = \(uuid: userID)
+                    """).run()
+            }
+        } catch where PGError.isUniqueViolation(error) {
+            // Someone signed up with it between the check and the update.
+            throw InlineError(.conflict, UsernameRules.takenReason)
+        }
+    }
+}
+
 /// Tiny protocol so store methods can take "something that runs a transaction".
 protocol AppDatabaseTx {
     func tx(_ work: @Sendable @escaping (any SQLDatabase) async throws -> Void) async throws

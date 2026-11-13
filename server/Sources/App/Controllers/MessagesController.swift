@@ -16,6 +16,7 @@ struct MessagesController {
         m.post("conversations", use: openConversation)
         m.post("conversations", "group", use: createGroupConversation)
         m.get("conversations", use: listConversations)
+        m.get("contacts", use: listContacts)
         m.put("conversations", ":id", "pin", use: setPinned)
         m.put("conversations", ":id", "archive", use: setArchived)
         m.post("conversations", ":id", "accept", use: acceptRequest)
@@ -56,6 +57,18 @@ struct MessagesController {
         guard try await ChatStore.isParticipant(conversationID, req.userID, on: req.db.sql()) else {
             throw Abort(.notFound, reason: "Conversation not found")
         }
+    }
+
+    /// `requireParticipant` for a write into the chat. AuthMiddleware only checks
+    /// the mode the app claims, so the chat's own mode is checked here too (as the
+    /// socket's `writeEvents` do): a request claiming Work mode can't write into a
+    /// Hobby chat while restricted in Hobby.
+    static func requireWritable(_ conversationID: String, _ req: Request) async throws {
+        try await requireParticipant(conversationID, req)
+        guard let conv = try await ChatStore.conversationByID(conversationID, on: req.db.sql()) else {
+            throw Abort(.notFound, reason: "Conversation not found")
+        }
+        try req.requireNotRestricted(in: conv.mode)
     }
 
     /// Refuses either side of an undecided request anything but sending (the
@@ -268,6 +281,15 @@ struct MessagesController {
         return DataListResponse(data: try await ChatStore.listConversations(req.userID, mode: mode, on: req.db.sql()))
     }
 
+    /// The people row at the top of Messages: everyone with a 1:1 chat in this
+    /// mode, whether or not the chat is still in the list (deleting or
+    /// archiving a chat doesn't take the person off the row).
+    static func listContacts(_ req: Request) async throws -> DataListResponse<ChatStore.ChatContact> {
+        guard let mode = try? req.query.get(String.self, at: "mode") else { throw Abort(.badRequest, reason: "mode is required") }
+        guard ["hobby", "work"].contains(mode) else { throw Abort(.badRequest, reason: "Invalid mode") }
+        return DataListResponse(data: try await ChatStore.listContacts(req.userID, mode: mode, on: req.db.sql()))
+    }
+
     // MARK: messages
 
     static func listMessages(_ req: Request) async throws -> DataListResponse<MessageObject> {
@@ -352,7 +374,7 @@ struct MessagesController {
     static func sendMessage(_ req: Request) async throws -> Response {
         let id = req.parameters.get("id")!
         let db = req.db.sql()
-        try await requireParticipant(id, req)
+        try await requireWritable(id, req)
         let b = try req.content.decode(SendBody.self)
         let type = b.message_type ?? "text"
         guard messageTypes.contains(type) else { throw Abort(.badRequest, reason: "Unsupported message type") }
@@ -478,7 +500,7 @@ struct MessagesController {
     static func recallMessage(_ req: Request) async throws -> StatusOK {
         let id = req.parameters.get("id")!, mid = req.parameters.get("messageId")!
         let db = req.db.sql()
-        try await requireParticipant(id, req)
+        try await requireWritable(id, req)
         guard let target = try await ChatStore.messageBasic(mid, on: db),
               target.conversation_id.caseInsensitiveCompare(id) == .orderedSame else {
             throw Abort(.notFound, reason: "Message not found")
@@ -507,7 +529,7 @@ struct MessagesController {
     static func editMessage(_ req: Request) async throws -> DataResponse<MessageObject> {
         let id = req.parameters.get("id")!, mid = req.parameters.get("messageId")!
         let db = req.db.sql()
-        try await requireParticipant(id, req)
+        try await requireWritable(id, req)
         try await requireNoPendingRequest(id, req)
         let b = try req.content.decode(EditBody.self)
         guard let content = b.content?.trimmedText.nilIfEmpty else {
@@ -545,7 +567,7 @@ struct MessagesController {
     static func reactToMessage(_ req: Request) async throws -> ReactionsResponse {
         let id = req.parameters.get("id")!, mid = req.parameters.get("messageId")!
         let db = req.db.sql()
-        try await requireParticipant(id, req)
+        try await requireWritable(id, req)
         try await requireNoPendingRequest(id, req)
         guard let emoji = try req.content.decode(ReactBody.self).emoji else { throw Abort(.badRequest, reason: "emoji is required") }
         guard ChatStore.reactionEmoji.contains(emoji) else { throw Abort(.badRequest, reason: "Unsupported emoji") }
@@ -672,7 +694,7 @@ struct MessagesController {
     static func pinMessage(_ req: Request) async throws -> Response {
         let id = req.parameters.get("id")!
         let db = req.db.sql()
-        try await requireParticipant(id, req)
+        try await requireWritable(id, req)
         try await requireNoPendingRequest(id, req)
         try await OfficialAccount.refuseInSupportChat(id, "messages can't be pinned", on: db)
         guard let mid = try req.content.decode(PinBody.self).message_id else { throw Abort(.badRequest, reason: "message_id is required") }
@@ -700,7 +722,7 @@ struct MessagesController {
     static func unpinMessage(_ req: Request) async throws -> UnpinData {
         let id = req.parameters.get("id")!, mid = req.parameters.get("messageId")!
         let db = req.db.sql()
-        try await requireParticipant(id, req)
+        try await requireWritable(id, req)
         guard try await ChatStore.unpinMessage(id, messageID: mid, on: db) else {
             throw Abort(.notFound, reason: "Pin not found")
         }
@@ -1071,7 +1093,7 @@ struct MessagesController {
     static func updateMeetingProposal(_ req: Request) async throws -> Response {
         let id = req.parameters.get("id")!, mid = req.parameters.get("messageId")!
         let db = req.db.sql()
-        try await requireParticipant(id, req)
+        try await requireWritable(id, req)
         try await requireNoPendingRequest(id, req)
         let p = try await resolveMeetingProposal(id, mid, on: db)
         guard req.userID == p.sender_id else { throw Abort(.forbidden, reason: "Only the proposer can reschedule this meeting") }
@@ -1109,7 +1131,7 @@ struct MessagesController {
     static func cancelMeetingProposal(_ req: Request) async throws -> Response {
         let id = req.parameters.get("id")!, mid = req.parameters.get("messageId")!
         let db = req.db.sql()
-        try await requireParticipant(id, req)
+        try await requireWritable(id, req)
         try await requireNoPendingRequest(id, req)
         let p = try await resolveMeetingProposal(id, mid, on: db)
         guard req.userID == p.sender_id else { throw Abort(.forbidden, reason: "Only the proposer can cancel this meeting") }
@@ -1135,7 +1157,7 @@ struct MessagesController {
     static func respondToMeeting(_ req: Request) async throws -> Response {
         let id = req.parameters.get("id")!, mid = req.parameters.get("messageId")!
         let db = req.db.sql()
-        try await requireParticipant(id, req)
+        try await requireWritable(id, req)
         guard let status = try req.content.decode(RsvpBody.self).status else {
             throw Abort(.badRequest, reason: "status is required")
         }
@@ -1185,7 +1207,7 @@ struct MessagesController {
     private static func setPollVote(_ optionID: String?, _ req: Request) async throws -> Response {
         let id = req.parameters.get("id")!, mid = req.parameters.get("messageId")!
         let db = req.db.sql()
-        try await requireParticipant(id, req)
+        try await requireWritable(id, req)
         guard let msg = try await ChatStore.messageBasic(mid, on: db), msg.conversation_id == id else {
             throw Abort(.notFound, reason: "Poll not found")
         }

@@ -24,25 +24,23 @@ class ConversationListViewModel {
     var isSearching = false
     private var searchTask: Task<Void, Never>?
 
-    /// People row under the search box: everyone with a 1:1 chat in the inbox,
+    /// Everyone with a 1:1 chat in this mode, including chats I deleted or
+    /// archived (see `ChatContact`). Errors keep the last list.
+    private(set) var contacts: [ChatContact] = []
+
+    /// People row under the search box: my chat contacts minus the ones I hid,
     /// online first, then most recent message.
-    var recentPeople: [Conversation] {
-        inbox
-            .filter { c in
-                guard !c.isGroup, let id = c.otherUserId, !id.isEmpty else { return false }
-                return !hiddenUserIds.contains(id)
-            }
+    var recentPeople: [ChatContact] {
+        contacts
+            .filter { !hiddenUserIds.contains($0.userId) }
             .sorted { a, b in
                 let (aOn, bOn) = (isOnline(a), isOnline(b))
                 if aOn != bOn { return aOn }
-                return (a.lastMessageAt ?? a.updatedAt) > (b.lastMessageAt ?? b.updatedAt)
+                return a.lastMessageAt > b.lastMessageAt
             }
     }
 
-    func isOnline(_ conversation: Conversation) -> Bool {
-        guard let id = conversation.otherUserId else { return false }
-        return onlineUserIds.contains(id)
-    }
+    func isOnline(_ contact: ChatContact) -> Bool { onlineUserIds.contains(contact.userId) }
 
     private let repository = MessageRepository()
     private let connectionRepo = ConnectionRepository()
@@ -75,6 +73,7 @@ class ConversationListViewModel {
         } catch {
             self.error = friendlyError(error)
         }
+        if let people = try? await repository.fetchContacts(mode: mode, token: token) { contacts = people }
     }
 
     /// Fetch the current mode's accepted connections for the active row.
@@ -97,8 +96,8 @@ class ConversationListViewModel {
     }
 
     /// Optimistic: the photo leaves the row at once and comes back if the server refuses.
-    func hide(_ conversation: Conversation, mode: String, token: String) async {
-        guard let userId = conversation.otherUserId, !userId.isEmpty else { return }
+    func hide(_ contact: ChatContact, mode: String, token: String) async {
+        let userId = contact.userId
         hiddenMode = mode
         hiddenUserIds.insert(userId)
         do {

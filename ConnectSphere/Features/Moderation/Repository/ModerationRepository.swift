@@ -39,10 +39,10 @@ struct ModerationRepository {
         try await client.fetch(DataBox<ModerationCaseDetail>.self, path: "/admin/moderation/cases/\(id)", token: try token()).data
     }
 
-    func decide(caseId: String, decision: ModerationDecisionKind, days: Int?, note: String?,
+    func decide(caseId: String, decision: ModerationDecisionKind, hours: Int?, note: String?,
                 reporterMessage: String?) async throws -> ModerationCaseDetail {
         var body: [String: Any] = ["decision": decision.rawValue]
-        if let days { body["days"] = days }
+        if let hours { body["hours"] = hours }
         if let note { body["note"] = note }
         if let reporterMessage { body["reporter_message"] = reporterMessage }
         return try await client.fetch(DataBox<ModerationCaseDetail>.self, path: "/admin/moderation/cases/\(caseId)/decide",

@@ -5,7 +5,6 @@ import SQLKit
 /// `{ "error": "…" }` shape (via `InlineError`).
 struct AuthController {
     static let bcryptCost = 12
-    static let usernameRegex = try! NSRegularExpression(pattern: "^[a-z0-9_]{3,30}$")
     static let minPasswordLen = 8
     /// bcrypt only reads the first 72 bytes, so a longer password would
     /// silently match any password sharing those bytes.
@@ -79,15 +78,15 @@ struct AuthController {
         }
     }
 
-    /// Lowercased and format-checked; 409 when someone has (or had) it,
-    /// usernames are never freed.
+    /// Lowercased and format-checked; 409 when someone has (or had) it:
+    /// usernames are never freed, a changed one included (`username_history`).
     static func newUsername(_ raw: String?, on db: any SQLDatabase) async throws -> String {
         let username = (raw ?? "").trimmingCharacters(in: .whitespaces).lowercased()
-        guard matches(usernameRegex, username) else {
-            throw InlineError(.badRequest, "Username must be 3-30 characters: lowercase letters, numbers, underscore")
+        guard UsernameRules.isValidFormat(username) else {
+            throw InlineError(.badRequest, UsernameRules.formatReason)
         }
         if try await UserStore.usernameTaken(username, on: db) {
-            throw InlineError(.conflict, "Username already taken")
+            throw InlineError(.conflict, UsernameRules.takenReason)
         }
         return username
     }
@@ -126,11 +125,11 @@ struct AuthController {
 
     static func usernameAvailable(_ req: Request) async throws -> Availability {
         let username = ((try? req.query.get(String.self, at: "username")) ?? "").trimmingCharacters(in: .whitespaces).lowercased()
-        guard matches(usernameRegex, username) else {
-            return Availability(available: false, reason: "Username must be 3-30 characters: lowercase letters, numbers, underscore")
+        guard UsernameRules.isValidFormat(username) else {
+            return Availability(available: false, reason: UsernameRules.formatReason)
         }
         let taken = try await UserStore.usernameTaken(username, on: req.db.sql())
-        return Availability(available: !taken, reason: taken ? "Username already taken" : nil)
+        return Availability(available: !taken, reason: taken ? UsernameRules.takenReason : nil)
     }
 
     struct RegisterVerifyBody: Content { var email: String?; var code: String? }
@@ -409,7 +408,7 @@ struct AuthController {
             .trimmingCharacters(in: .whitespaces).lowercased() ?? ""
         guard !username.isEmpty else { throw InlineError(.badRequest, "username is required") }
         // The app calls this while typing: a name that /setup would refuse isn't available.
-        guard matches(usernameRegex, username) else { return AvailableResponse(available: false) }
+        guard UsernameRules.isValidFormat(username) else { return AvailableResponse(available: false) }
         let taken = try await UserStore.usernameTaken(username, excluding: req.userID, on: req.db.sql())
         return AvailableResponse(available: !taken)
     }
@@ -521,11 +520,11 @@ struct AuthController {
         let username = (b.username ?? "").trimmingCharacters(in: .whitespaces).lowercased()
         guard !username.isEmpty else { throw InlineError(.badRequest, "username is required") }
         // Same format as /register. A Google account picks its name here.
-        guard matches(usernameRegex, username) else {
-            throw InlineError(.badRequest, "Username must be 3-30 characters: lowercase letters, numbers, underscore")
+        guard UsernameRules.isValidFormat(username) else {
+            throw InlineError(.badRequest, UsernameRules.formatReason)
         }
         if try await UserStore.usernameTaken(username, excluding: req.userID, on: db) {
-            throw InlineError(.conflict, "Username already taken")
+            throw InlineError(.conflict, UsernameRules.takenReason)
         }
         // A Google account has agreed to nothing yet; it does so on the last
         // onboarding step. (Someone who already has is not asked twice.)

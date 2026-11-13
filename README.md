@@ -133,5 +133,6 @@ The MVVM rule check (must print nothing) is in
 `GET /health` reports Postgres, Redis and Ollama. The server binary also has
 maintenance commands (`swift run App <name>`, defined in
 `server/Sources/App/Commands/`): `seed-demo` (wipe, seed and embed demo
-people; use `--commit`), `strip-upload-metadata`, `verify-company`,
+people; `seed-demo communities` replaces all communities and listings with the
+6 in `server/Seeds/demo-communities.json`; use `--commit`), `strip-upload-metadata`, `verify-company`,
 `community-reports`.

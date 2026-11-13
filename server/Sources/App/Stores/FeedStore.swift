@@ -562,7 +562,10 @@ enum FeedStore {
                 \(PostStore.typeDataColumns(userID))
                 (CASE WHEN p.community_id IS NOT NULL THEN (
                   SELECT json_build_object('id', co.id, 'name', co.name, 'icon_emoji', co.icon_emoji, 'avatar_url', co.avatar_url,
-                'privacy', co.privacy, 'audience', COALESCE(p.community_audience, 'members'))
+                'privacy', co.privacy, 'audience', COALESCE(p.community_audience, 'members'),
+                'is_member', EXISTS (SELECT 1 FROM community_members cmv WHERE cmv.community_id = co.id AND cmv.user_id = \(uuid: userID)),
+                'join_requested', EXISTS (SELECT 1 FROM community_join_requests jrv WHERE jrv.community_id = co.id
+                                          AND jrv.user_id = \(uuid: userID) AND jrv.status = 'pending'))
                   FROM communities co WHERE co.id = p.community_id
                 ) ELSE NULL END)::text AS community
               FROM cand

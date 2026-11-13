@@ -8,6 +8,8 @@ struct UsersController {
 
         users.get(use: listUsers)                                  // GET  /api/users
         users.patch("me", use: updateMe)                           // PATCH /api/users/me
+        users.grouped(RateLimitMiddleware.passwordAuth())
+            .patch("me", "username", use: changeUsername)          // PATCH /api/users/me/username
         // DELETE /api/users/me, confirmed with an emailed code (AccountController).
         users.grouped(RateLimitMiddleware.accountCodes()).delete("me", use: AccountController.deleteAccount)
         users.post("me", "personas", use: createPersona)           // POST /api/users/me/personas
@@ -181,6 +183,17 @@ struct UsersController {
             throw InlineError(.badRequest, "Up to \(maxLanguages) languages, each at most 40 characters")
         }
         return clean
+    }
+
+    // MARK: PATCH /api/users/me/username
+
+    struct ChangeUsernameBody: Content { var username: String? }
+
+    /// Once per `UsernameRules.cooldownMonths`; answers like `/auth/me`.
+    static func changeUsername(_ req: Request) async throws -> MeResponse {
+        let b = try req.content.decode(ChangeUsernameBody.self)
+        try await UserStore.changeUsername(userID: req.userID, to: b.username, on: req.db)
+        return MeResponse(user: try await AuthController.loadUser(req.userID, req.db.sql()))
     }
 
     static func updateMe(_ req: Request) async throws -> DataResponse<PrivateUserObject> {

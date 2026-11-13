@@ -95,6 +95,14 @@ enum ModerationDecision: String, CaseIterable, Sendable {
 
 enum Enforcement {
     static let maxRestrictDays = 30
+    /// Restrictions shorter than a day a moderator can pick; anything longer is
+    /// whole days, up to `maxRestrictDays`.
+    static let shortRestrictHours: Set<Int> = [6, 12]
+
+    static func isValidRestriction(hours: Int) -> Bool {
+        shortRestrictHours.contains(hours)
+            || (hours % 24 == 0 && (1...maxRestrictDays).contains(hours / 24))
+    }
     static let appealWindowDays = 30
 
     /// Meta-style ladder over the strikes active in the last 90 days: the

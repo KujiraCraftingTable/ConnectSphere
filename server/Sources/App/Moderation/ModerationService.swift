@@ -17,7 +17,8 @@ enum ModerationService {
         let caseID: String
         let decision: ModerationDecision
         let authorID: String?
-        let restrictedDays: Int?
+        /// How long the account was restricted for, in hours.
+        let restrictedHours: Int?
     }
 
     static func loadCase(_ id: String, on db: any SQLDatabase) async throws -> OpenCase? {
@@ -31,7 +32,8 @@ enum ModerationService {
     // MARK: cases
 
     /// `banDays`: for a ban, how long (one of `AccountBans.allowedDays`); nil is permanent.
-    static func decide(caseID: String, decision asked: ModerationDecision, restrictDays: Int?, note: String?,
+    /// `restrictHours`: for a restrict decision, 6, 12 or whole days (see `Enforcement.isValidRestriction`).
+    static func decide(caseID: String, decision asked: ModerationDecision, restrictHours: Int?, note: String?,
                        reporterMessage: String? = nil,
                        actor: String, banDays: Int? = nil, on app: AppDatabase) async throws -> Outcome {
         let db = app.sql()
@@ -40,8 +42,8 @@ enum ModerationService {
         let policy = ModerationPolicy(rawValue: c.policy) ?? .other
         let decision = Enforcement.escalate(asked, policy: policy)
         if decision == .restrict {
-            guard let d = restrictDays, (1...Enforcement.maxRestrictDays).contains(d) else {
-                throw InlineError(.badRequest, "Restrict for 1–\(Enforcement.maxRestrictDays) days")
+            guard let h = restrictHours, Enforcement.isValidRestriction(hours: h) else {
+                throw InlineError(.badRequest, "Restrict for 6 or 12 hours, or 1–\(Enforcement.maxRestrictDays) days")
             }
         }
         if decision != .keep && c.author_id == nil {
@@ -76,38 +78,42 @@ enum ModerationService {
                 WHERE id = \(uuid: caseID)
                 """).run()
 
-            var days: Int?
+            var hours: Int?
             if let author = c.author_id {
                 switch decision {
                 case .keep, .remove: break
                 case .removeStrike:
-                    days = try await addStrike(author, caseID: caseID, policy: policy, mode: c.mode, on: t)
+                    hours = try await addStrike(author, caseID: caseID, policy: policy, mode: c.mode, on: t)
                 case .warn:
                     try await addWarning(author, caseID: caseID, policy: policy, mode: c.mode, on: t)
                 case .restrict:
-                    days = restrictDays
-                    try await restrictAccount(author, days: restrictDays!, caseID: caseID, mode: c.mode, on: t)
+                    hours = restrictHours
+                    try await restrictAccount(author, hours: restrictHours!, caseID: caseID, mode: c.mode, on: t)
                 case .ban:
                     try await addWarning(author, caseID: caseID, policy: policy, mode: c.mode, on: t)
                     try await AccountBans.ban(author, modes: banModes, caseID: caseID, days: banDays, on: t)
                 }
             }
             var detail = ["decision": decision.rawValue]
-            if let days { detail["restricted_days"] = String(days) }
+            if let hours {
+                detail["restricted_hours"] = String(hours)
+                // Older apps read only days; they get them when the length is whole days.
+                if hours % 24 == 0 { detail["restricted_days"] = String(hours / 24) }
+            }
             try await ModerationStore.log(caseID: caseID, actor: actor, action: "decided", detail: detail, on: t)
-            box.days = days
+            box.hours = hours
         }
         if takesDown { await MediaScan.banPhotos(in: c.snapshot, policy: policy, on: db) }
-        return Outcome(caseID: caseID, decision: decision, authorID: c.author_id, restrictedDays: box.days)
+        return Outcome(caseID: caseID, decision: decision, authorID: c.author_id, restrictedHours: box.hours)
     }
 
-    /// Records a strike and applies the ladder; returns the restriction, if any.
+    /// Records a strike and applies the ladder; returns the restriction in hours, if any.
     private static func addStrike(_ user: String, caseID: String, policy: ModerationPolicy, mode: String?,
                                   on db: any SQLDatabase) async throws -> Int? {
         try await addWarning(user, caseID: caseID, policy: policy, mode: mode, on: db)
         guard let days = Enforcement.restrictionDays(activeStrikes: try await activeStrikes(user, on: db)) else { return nil }
-        try await restrictAccount(user, days: days, caseID: caseID, mode: mode, on: db)
-        return days
+        try await restrictAccount(user, hours: days * 24, caseID: caseID, mode: mode, on: db)
+        return days * 24
     }
 
     /// A strike in `mode` with no restriction ladder: the official account's
@@ -131,10 +137,10 @@ enum ModerationService {
 
     /// In the case's mode, or both for a case with none (a message). Never
     /// shortens a restriction already running there.
-    private static func restrictAccount(_ user: String, days: Int, caseID: String, mode: String?,
+    private static func restrictAccount(_ user: String, hours: Int, caseID: String, mode: String?,
                                         on db: any SQLDatabase) async throws {
         try await AccountRestrictions.restrict(user, modes: mode.map { [$0] } ?? AccountBans.modes, caseID: caseID,
-                                               until: "NOW() + make_interval(days => \(bind: days)::int)", on: db)
+                                               until: "NOW() + make_interval(hours => \(bind: hours)::int)", on: db)
     }
 
     // MARK: taking content down and putting it back
@@ -328,5 +334,5 @@ enum ModerationService {
     }
 
     /// Carries a value out of `tx`'s `Void` closure.
-    private final class ResultBox: @unchecked Sendable { var days: Int? }
+    private final class ResultBox: @unchecked Sendable { var hours: Int? }
 }

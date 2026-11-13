@@ -635,9 +635,10 @@ struct ActorNotifRow: View {
             if notif.payload.decision == "ban" {
                 return String(format: bundle.loc("Your account was suspended for breaking our rules on %@. You can ask for a review."), rule)
             }
-            if let days = notif.payload.restrictedDays {
-                return String(format: bundle.loc("We removed your %@ for breaking our rules on %@. Your account is read-only for %lld days. You can ask for a review."),
-                              bundle.loc((notif.payload.targetType ?? "post").reportTargetLabel).lowercased(), rule, days)
+            if let hours = notif.payload.restrictedHours ?? notif.payload.restrictedDays.map({ $0 * 24 }) {
+                return String(format: bundle.loc("We removed your %@ for breaking our rules on %@. Your account is read-only for %@. You can ask for a review."),
+                              bundle.loc((notif.payload.targetType ?? "post").reportTargetLabel).lowercased(), rule,
+                              RestrictionCountdown.length(hours: hours, bundle: bundle))
             }
             return String(format: bundle.loc("We removed your %@ for breaking our rules on %@. You can ask for a review."),
                           bundle.loc((notif.payload.targetType ?? "post").reportTargetLabel).lowercased(), rule)

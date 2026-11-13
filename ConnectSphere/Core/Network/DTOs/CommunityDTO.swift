@@ -299,16 +299,21 @@ struct CommunityRefDTO: Decodable {
     let avatarUrl: String?
     let privacy: String?
     let audience: String?
+    let isMember: Bool?
+    let joinRequested: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id, name, privacy, audience
         case iconEmoji = "icon_emoji"
         case avatarUrl = "avatar_url"
+        case isMember = "is_member"
+        case joinRequested = "join_requested"
     }
 
     func toCommunityRef() -> CommunityRef {
         CommunityRef(id: id, name: name, iconEmoji: iconEmoji, avatarUrl: avatarUrl, privacy: privacy,
-                     audience: audience.flatMap(CommunityAudience.init(rawValue:)) ?? .members)
+                     audience: audience.flatMap(CommunityAudience.init(rawValue:)) ?? .members,
+                     isMember: isMember ?? true, joinRequested: joinRequested ?? false)
     }
 }
 

@@ -21,7 +21,7 @@ struct ManageAccountView: View {
     var body: some View {
         List {
             Section {
-                usernameRow
+                NavigationLink { ChangeUsernameView() } label: { usernameRow }
                 Button { editingEmail = true } label: { emailRow }
                 Button { showEditProfile = true } label: {
                     SettingsRowLabel(icon: "person.fill", label: bundle.loc("Edit profile"), color: themeManager.theme.primary)
@@ -125,14 +125,17 @@ struct ManageAccountView: View {
                 .foregroundColor(AppColors.textPrimary(colorScheme))
             Spacer()
             if let email = user?.email, user?.emailVerified == true {
-                Text(email)
-                    .scaledFont(15)
-                    .foregroundColor(AppColors.textSecondary(colorScheme))
-                    .lineLimit(1)
-                Image(systemName: "checkmark.seal.fill")
-                    .scaledFont(13)
-                    .foregroundColor(.green)
-                    .accessibilityLabel(Text(bundle.loc("Verified")))
+                // Tight to the address; always green, whatever the theme colour.
+                HStack(spacing: 4) {
+                    Text(email)
+                        .scaledFont(15)
+                        .foregroundColor(AppColors.textSecondary(colorScheme))
+                        .lineLimit(1)
+                    Image(systemName: "checkmark")
+                        .scaledFont(13, .bold)
+                        .foregroundColor(.green)
+                        .accessibilityLabel(Text(bundle.loc("Verified")))
+                }
             } else {
                 Text("Add email", bundle: bundle)
                     .scaledFont(15)
@@ -141,7 +144,8 @@ struct ManageAccountView: View {
         }
     }
 
-    /// Your @username, what you sign in with, and a Copy button.
+    /// Your @username, what you sign in with, and a Copy button. The row opens
+    /// Change username (once every 6 months).
     private var usernameRow: some View {
         let username = appState.currentUser?.username ?? ""
         return HStack(spacing: 12) {

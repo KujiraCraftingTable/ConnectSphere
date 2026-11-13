@@ -1,0 +1,309 @@
+{
+  "communities": [
+    {
+      "name": "J-pop Saigon",
+      "emoji": "🎌",
+      "color": "#E11D48",
+      "description": "**J-pop, city pop and anisong lovers in Saigon.**\n\n- Share what you're listening to\n- Concert trips to Japan and Bangkok\n- CD, vinyl and penlight swaps\n\nBe kind, no piracy links.",
+      "tags": ["jpop", "citypop", "music"],
+      "admin": "kujira_sigma",
+      "mods": [],
+      "members": ["sam_slowtravel", "ngoc_filmroll", "ellie_cosplay", "thao_tiktok", "mai_caphe_sang", "long_podcast", "thanhphong3007"],
+      "posts": [
+        {"u": "kujira_sigma", "d": 20, "likes": 7, "t": "Welcome to J-pop Saigon! 🎌 Introduce yourself with the song that got you into J-pop. Mine was a YOASOBI track on a late-night bus ride.",
+          "c": [
+            {"u": "sam_slowtravel", "t": "Tatsuro Yamashita on a Tokyo train in 2019. Never recovered.", "r": [{"u": "kujira_sigma", "t": "The city pop pipeline is real 😂"}]},
+            {"u": "ngoc_filmroll", "t": "Mình vào hố nhờ nhạc phim anime, sau đó nghe Aimer suốt luôn."},
+            {"u": "thao_tiktok", "t": "Idol hồi nhỏ của mình là Perfume, nhảy theo cả tuổi thơ 🥹"}
+          ]},
+        {"u": "sam_slowtravel", "d": 16, "likes": 5, "t": "Found a tiny record shop in District 3 with a whole shelf of Japanese pressings with the obi strips still on. Prices are fair, owner knows his stuff. Ask me for the address. #citypop",
+          "c": [
+            {"u": "long_podcast", "t": "Address please! Đang tìm bản Plastic Love gốc mà khó quá."},
+            {"u": "mai_caphe_sang", "t": "Có phải tiệm gần hồ Con Rùa không ạ?", "r": [{"u": "sam_slowtravel", "t": "Gần đó luôn, đi bộ 5 phút."}]}
+          ]},
+        {"u": "ngoc_filmroll", "d": 14, "likes": 6, "t": "Nghe album mới của Kenshi Yonezu trên đường đi làm, bài nào cũng như nhạc phim. Mọi người thích bài nào nhất?",
+          "c": [
+            {"u": "ellie_cosplay", "t": "KICK BACK forever, but the slower ones on this album are so good."},
+            {"u": "kujira_sigma", "t": "Mình nghe đi nghe lại phần cuối album, phối khí đỉnh thật."}
+          ]},
+        {"u": "thao_tiktok", "d": 12, "likes": 8, "t": "Ai đi concert ở Bangkok tháng sau không? Mình đã có vé, đang tìm bạn đi chung để share phòng 🙌",
+          "c": [
+            {"u": "ellie_cosplay", "t": "Me! Still deciding on the hotel, DM me."},
+            {"u": "thanhphong3007", "t": "Lịch làm của mình chưa chốt, nếu đi được mình nhắn nha."}
+          ]},
+        {"u": "mai_caphe_sang", "d": 10, "likes": 4, "t": "Sáng nay cà phê muối + playlist city pop, cuối tuần đúng nghĩa ☕️",
+          "c": [{"u": "sam_slowtravel", "t": "Share the playlist!"}]},
+        {"u": "long_podcast", "d": 9, "likes": 6, "t": "Which should we pick for the next listening night?",
+          "poll": {"options": ["City pop classics", "2020s J-pop hits", "Anisong only", "Vocaloid night"], "endsInDays": 4},
+          "c": [{"u": "ngoc_filmroll", "t": "Anisong pls, mình mang lightstick 😆"}]},
+        {"u": "kujira_sigma", "d": 6, "likes": 7, "t": "Our third J-pop listening night is on! Bring a song request on paper, we'll play them all on the café's speakers.",
+          "event": {"title": "J-pop listening night #3", "location": "Okkio Caffe, 120 Lý Tự Trọng, Quận 1", "startsInDays": 9, "hours": 3},
+          "c": [
+            {"u": "thao_tiktok", "t": "Đi đi đi, mình rủ thêm 2 bạn nữa nha."},
+            {"u": "sam_slowtravel", "t": "I'll bring my portable turntable for the vinyl round."}
+          ]},
+        {"u": "ellie_cosplay", "d": 3, "likes": 5, "t": "Finished my penlight holder for concerts — 3D printed, holds 6 colours. Will post the file if anyone wants it.",
+          "c": [{"u": "thao_tiktok", "t": "Cần cái này gấp, concert nào cũng làm rơi 😭"}]}
+      ],
+      "listings": [
+        {"u": "sam_slowtravel", "d": 5, "title": "Japanese city pop vinyl", "caption": "Clearing some doubles from my shelf. All Japanese pressings, played on a good needle. Pick up in Q1 or I can ship.", "location": "Takashimaya Saigon Centre, Quận 1", "lat": 10.7730, "lng": 106.7006,
+          "items": [
+            {"title": "City pop compilation LP (coloured vinyl)", "price": 750000, "condition": "like_new", "quantity": 2, "photos": ["seed-citypop-1", "seed-citypop-3"]},
+            {"title": "City pop LP lot with obi strips", "price": 2400000, "condition": "good", "quantity": 1, "photos": ["seed-citypop-2"]}
+          ]},
+        {"u": "thao_tiktok", "d": 4, "title": "YOASOBI THE BOOK CDs", "caption": "Bản Nhật, đầy đủ booklet. Bán lẻ hoặc cả bộ.", "location": "Crescent Mall, Quận 7", "lat": 10.7290, "lng": 106.7187,
+          "items": [
+            {"title": "THE BOOK 3-album set", "price": 1500000, "condition": "like_new", "quantity": 1, "photos": ["seed-yoasobi-1"]},
+            {"title": "THE BOOK 2-album set", "price": 950000, "condition": "good", "quantity": 1, "photos": ["seed-yoasobi-2"]}
+          ]},
+        {"u": "ellie_cosplay", "d": 2, "title": "Concert penlights", "caption": "Multi-colour penlights, fresh batteries included. Great for the Bangkok trip.", "location": "Nhà Văn hóa Thanh niên, Quận 1", "lat": 10.7814, "lng": 106.6990,
+          "items": [
+            {"title": "15-colour penlight", "price": 180000, "condition": "new", "quantity": 5, "photos": ["seed-penlight-1"]},
+            {"title": "Penlight with wrist strap", "price": 150000, "condition": "new", "quantity": 4, "photos": ["seed-penlight-2"]}
+          ]}
+      ]
+    },
+    {
+      "name": "Anime Corner VN",
+      "emoji": "🍥",
+      "color": "#7C3AED",
+      "description": "Seasonal anime talk, manga, figures and cosplay. **Spoilers go under a spoiler tag** or in the comments with a warning.",
+      "tags": ["anime", "manga", "cosplay"],
+      "admin": "tuan_lmht",
+      "mods": ["ellie_cosplay"],
+      "members": ["jess_nguyen", "chiu_streamer", "memlord_kien", "khoa_valorant", "kujira_sigma", "thuha_phimdem"],
+      "posts": [
+        {"u": "tuan_lmht", "d": 19, "likes": 6, "t": "Mùa này mọi người đang theo bộ nào? Mình đang cày 3 bộ cùng lúc, ngủ không đủ 😵",
+          "c": [
+            {"u": "jess_nguyen", "t": "Frieren rewatch while waiting for the new season. No regrets."},
+            {"u": "chiu_streamer", "t": "Tối nào stream xong cũng xem 2 tập, nghiện rồi.", "r": [{"u": "tuan_lmht", "t": "Chíu mở watch party đi!"}]}
+          ]},
+        {"u": "ellie_cosplay", "d": 15, "likes": 7, "t": "Progress on my next cosplay: the armour is finally sealed and primed. Painting this weekend! #cosplay",
+          "c": [
+            {"u": "kujira_sigma", "t": "That foam work is so clean 😮"},
+            {"u": "thuha_phimdem", "t": "Bạn mua foam ở đâu vậy? Mình cũng muốn thử.", "r": [{"u": "ellie_cosplay", "t": "Tiệm vật liệu ở Q10 nha, mình gửi địa chỉ."}]}
+          ]},
+        {"u": "memlord_kien", "d": 13, "likes": 5, "t": "Đọc manga xong rồi xem anime, cảm giác như được spoil bởi chính mình 😂",
+          "c": [{"u": "khoa_valorant", "t": "Chuẩn, nhưng vẫn khóc như thường."}]},
+        {"u": "jess_nguyen", "d": 11, "likes": 6, "t": "Best opening this year?",
+          "poll": {"options": ["The one with the sakuga dance", "The rock one", "The sad piano one"], "endsInDays": -1},
+          "c": [{"u": "chiu_streamer", "t": "Rock one easily, mở lúc chơi game là auto win."}]},
+        {"u": "khoa_valorant", "d": 8, "likes": 4, "t": "Ai có bản dịch tiếng Việt của bộ manga mới ra không? Mình mua bản tiếng Anh nhưng đọc chậm quá.",
+          "c": [{"u": "tuan_lmht", "t": "NXB Kim Đồng đang có rồi đó, ra Nhà sách Phương Nam xem thử."}]},
+        {"u": "ellie_cosplay", "d": 7, "likes": 8, "t": "Cosplay meetup at the youth centre! Come in costume or just come say hi. We'll do a group photo at 4pm.",
+          "event": {"title": "Anime Corner cosplay meetup", "location": "Nhà Văn hóa Thanh niên, 4 Phạm Ngọc Thạch, Quận 1", "startsInDays": 12, "hours": 4},
+          "c": [
+            {"u": "jess_nguyen", "t": "Bringing my Souls-like knight, it counts as anime adjacent 😂"},
+            {"u": "thuha_phimdem", "t": "Mình đi chụp ảnh cho mọi người nha."}
+          ]},
+        {"u": "chiu_streamer", "d": 2, "likes": 5, "t": "Tối nay 8h stream xem anime cùng nhau, ai vào chat cho vui nha 🍜",
+          "c": [{"u": "memlord_kien", "t": "Có meme mới chuẩn bị sẵn rồi."}]}
+      ],
+      "listings": [
+        {"u": "tuan_lmht", "d": 6, "title": "One Piece manga bundle", "caption": "Bán bộ One Piece bản tiếng Anh, giữ kỹ, không gãy gáy.", "location": "Đường sách Nguyễn Văn Bình, Quận 1", "lat": 10.7808, "lng": 106.6993,
+          "items": [
+            {"title": "One Piece vol. 1–20", "price": 1800000, "condition": "good", "quantity": 1, "photos": ["seed-onepiece-1"]},
+            {"title": "One Piece single volumes", "price": 95000, "condition": "good", "quantity": 5, "photos": ["seed-onepiece-2"]}
+          ]},
+        {"u": "jess_nguyen", "d": 3, "title": "Nendoroid and acrylic stands", "caption": "Downsizing my shelf. Figures are boxed and complete.", "location": "Vincom Thảo Điền, Thủ Đức", "lat": 10.8029, "lng": 106.7386,
+          "items": [
+            {"title": "Nendoroid 1361 (boxed)", "price": 950000, "condition": "like_new", "quantity": 1, "photos": ["seed-nendo-1"]},
+            {"title": "Anime acrylic stand", "price": 120000, "condition": "new", "quantity": 4, "photos": ["seed-acrylic-1", "seed-acrylic-2"]}
+          ]}
+      ]
+    },
+    {
+      "name": "CORTIS Vietnam",
+      "emoji": "🖤",
+      "color": "#111827",
+      "description": "Vietnamese fans of **CORTIS**. News, streams, album unboxings and photocard trades.\n\nPosts are reviewed by the admin before they go up.",
+      "tags": ["cortis", "kpop"],
+      "approval": true,
+      "admin": "thanhphong3007",
+      "mods": [],
+      "members": ["thao_tiktok", "thuha_phimdem", "vy_traxanh", "trang_gymrat", "ellie_cosplay"],
+      "posts": [
+        {"u": "thanhphong3007", "d": 18, "likes": 5, "t": "Chào mừng mọi người đến CORTIS Vietnam! Bài đăng sẽ được duyệt trước khi hiện, nhớ đọc nội quy nhé 🖤",
+          "c": [
+            {"u": "thao_tiktok", "t": "Cuối cùng cũng có hội ở VN 😭"},
+            {"u": "vy_traxanh", "t": "Hello cả nhà, mình ở Cần Thơ nè."}
+          ]},
+        {"u": "thao_tiktok", "d": 15, "likes": 5, "t": "Tập nhảy cover bài debut 3 ngày rồi mà phần điệp khúc vẫn chưa đều 😅 Ai muốn quay cover chung không?",
+          "c": [
+            {"u": "trang_gymrat", "t": "Mình tham gia! Tập ở phòng gym của mình cũng được, có gương lớn."},
+            {"u": "ellie_cosplay", "t": "I can film it, I've got a gimbal."}
+          ]},
+        {"u": "thuha_phimdem", "d": 11, "likes": 4, "t": "Unboxing album về rồi, photocard random ra đúng bias, vui cả ngày 🥹",
+          "c": [{"u": "vy_traxanh", "t": "Hên quá, mình mở 2 album đều trùng."}]},
+        {"u": "vy_traxanh", "d": 9, "likes": 5, "t": "Which version of the album did you get?",
+          "poll": {"options": ["Version 1", "Version 2", "Both 😅"], "endsInDays": 5},
+          "c": [{"u": "thao_tiktok", "t": "Both, no self control."}]},
+        {"u": "thanhphong3007", "d": 5, "likes": 5, "t": "Listening party cho album! Mang lightstick, có quà cho ai mặc đồ theo concept.",
+          "event": {"title": "CORTIS album listening party", "location": "The Workshop Coffee, 27 Ngô Đức Kế, Quận 1", "startsInDays": 16, "hours": 3},
+          "c": [{"u": "trang_gymrat", "t": "Đăng ký 2 người nha admin."}]},
+        {"u": "trang_gymrat", "d": 1, "likes": 0, "pending": true, "t": "Có ai muốn gom đơn merch chính hãng từ Hàn không? Mình có người quen bên đó, phí ship chia đều."},
+        {"u": "ellie_cosplay", "d": 0, "likes": 0, "pending": true, "t": "Made a fan art of the members as chibis — can I share it here and as stickers?"}
+      ],
+      "listings": [
+        {"u": "thao_tiktok", "d": 4, "title": "CORTIS album, sealed", "caption": "Album còn seal, mua dư. Giao Q7 hoặc gửi ship.", "location": "Crescent Mall, Quận 7", "lat": 10.7290, "lng": 106.7187,
+          "items": [
+            {"title": "COLOR OUTSIDE THE LINES (sealed)", "price": 420000, "condition": "new", "quantity": 3, "photos": ["seed-cortis-album-1"]}
+          ]},
+        {"u": "thuha_phimdem", "d": 2, "title": "CORTIS photocards", "caption": "Pass card trùng, card sạch, đã bọc sleeve.", "location": "Aeon Mall Tân Phú", "lat": 10.8016, "lng": 106.6177,
+          "items": [
+            {"title": "Photocard set A", "price": 150000, "condition": "like_new", "quantity": 2, "photos": ["seed-cortis-pc-1"]},
+            {"title": "Photocard set B", "price": 150000, "condition": "like_new", "quantity": 1, "photos": ["seed-cortis-pc-2"]},
+            {"title": "Single photocard", "price": 60000, "condition": "good", "quantity": 5, "photos": ["seed-cortis-pc-3"]}
+          ]}
+      ]
+    },
+    {
+      "name": "Chiikawa Fan Club",
+      "emoji": "🐹",
+      "color": "#F472B6",
+      "description": "Chiikawa, Hachiware, Usagi and friends 🐹 Share your plushies, gacha pulls and cute finds around Saigon.",
+      "tags": ["chiikawa", "plush", "cute"],
+      "admin": "vy_traxanh",
+      "mods": [],
+      "members": ["mai_caphe_sang", "ngoc_filmroll", "thao_tiktok", "jess_nguyen", "thanhphong3007", "kujira_sigma", "lan_marathon"],
+      "posts": [
+        {"u": "vy_traxanh", "d": 17, "likes": 7, "t": "Hai bé mèo nhà mình rất thích nằm cạnh bé Hachiware bông 🐱 Mọi người khoe góc Chiikawa của mình đi!",
+          "c": [
+            {"u": "mai_caphe_sang", "t": "Bàn làm việc của mình có 6 bé rồi, sếp nhìn lắc đầu 😂"},
+            {"u": "kujira_sigma", "t": "Usagi là chân ái, không bàn cãi."}
+          ]},
+        {"u": "ngoc_filmroll", "d": 14, "likes": 6, "t": "Chụp film bé Chiikawa đi dạo Sở thú, màu Portra lên dễ thương xỉu.",
+          "c": [{"u": "thao_tiktok", "t": "Đẹp quá, phải học chụp film thôi 📷"}]},
+        {"u": "jess_nguyen", "d": 12, "likes": 5, "t": "Gacha luck report: 5 pulls, 3 Usagi. I think the machine likes me.",
+          "c": [
+            {"u": "lan_marathon", "t": "Đổi 1 Usagi lấy Momonga không bạn?", "r": [{"u": "jess_nguyen", "t": "Deal! Bring it to the picnic."}]}
+          ]},
+        {"u": "thao_tiktok", "d": 10, "likes": 6, "t": "Who's your favourite?",
+          "poll": {"options": ["Chiikawa", "Hachiware", "Usagi", "Momonga"], "endsInDays": 6},
+          "c": [{"u": "vy_traxanh", "t": "Hachiware vì hát hay 🎤"}]},
+        {"u": "vy_traxanh", "d": 6, "likes": 7, "t": "Picnic Chiikawa cuối tháng! Mang theo bé bông, đồ ăn vặt và khăn trải. Có mini game đổi gacha.",
+          "event": {"title": "Chiikawa picnic", "location": "Công viên Gia Định, Gò Vấp", "startsInDays": 10, "hours": 3},
+          "c": [
+            {"u": "mai_caphe_sang", "t": "Mình làm bánh hình Chiikawa mang theo nha 🍪"},
+            {"u": "lan_marathon", "t": "Chạy bộ xong ghé luôn 🏃‍♀️"}
+          ]},
+        {"u": "mai_caphe_sang", "d": 3, "likes": 4, "t": "Quán cà phê mới ở Thảo Điền có ly Chiikawa, đi sớm còn chỗ ngồi đẹp.",
+          "c": [{"u": "thanhphong3007", "t": "Cuối tuần mình ghé thử."}]},
+        {"u": "lan_marathon", "d": 1, "likes": 5, "t": "Treo bé Usagi lên balo chạy marathon, cả đường ai cũng cổ vũ 😂",
+          "c": [{"u": "jess_nguyen", "t": "Usagi energy carried you to the finish line."}]}
+      ],
+      "listings": [
+        {"u": "vy_traxanh", "d": 5, "title": "Chiikawa plush", "caption": "Hàng chính hãng, còn tag. Giao Gò Vấp hoặc ship toàn quốc.", "location": "Công viên Gia Định, Gò Vấp", "lat": 10.8128, "lng": 106.6776,
+          "items": [
+            {"title": "Chiikawa plush", "price": 390000, "condition": "new", "quantity": 3, "photos": ["seed-chiikawa-1", "seed-chiikawa-2"]},
+            {"title": "Hachiware plush", "price": 390000, "condition": "new", "quantity": 2, "photos": ["seed-hachiware-1", "seed-hachiware-2"]},
+            {"title": "Usagi plush", "price": 420000, "condition": "like_new", "quantity": 1, "photos": ["seed-usagi-1", "seed-usagi-2"]}
+          ]},
+        {"u": "mai_caphe_sang", "d": 3, "title": "Chiikawa keychains and mugs", "caption": "Pass bớt đồ sưu tầm, ly chưa dùng lần nào.", "location": "Vincom Thảo Điền, Thủ Đức", "lat": 10.8029, "lng": 106.7386,
+          "items": [
+            {"title": "Acrylic keychain", "price": 85000, "condition": "new", "quantity": 5, "photos": ["seed-chiikawa-key-1"]},
+            {"title": "Magical girl keychain", "price": 110000, "condition": "new", "quantity": 3, "photos": ["seed-chiikawa-key-2"]},
+            {"title": "Chiikawa mug", "price": 250000, "condition": "new", "quantity": 2, "photos": ["seed-chiikawa-mug-1", "seed-chiikawa-mug-2"]}
+          ]},
+        {"u": "jess_nguyen", "d": 1, "title": "Spare Usagi plush", "caption": "Got a double from a Japan order. Selling at cost.", "location": "Landmark 81, Bình Thạnh", "lat": 10.7951, "lng": 106.7218,
+          "items": [
+            {"title": "Usagi plush (boxed)", "price": 450000, "condition": "new", "quantity": 1, "photos": ["seed-usagi-1"]}
+          ]}
+      ]
+    },
+    {
+      "name": "Saigon Car Spotters",
+      "emoji": "🏎️",
+      "color": "#2563EB",
+      "description": "Car spotting, weekend drives, diecast models and **Cars & Coffee** meetups around Saigon. Drive safe, no street racing posts.",
+      "tags": ["cars", "diecast", "carspotting"],
+      "admin": "duc_dabanh",
+      "mods": ["nam_climb"],
+      "members": ["quang_dilang", "hieu_caulong", "long_podcast", "khoa_valorant", "memlord_kien"],
+      "posts": [
+        {"u": "duc_dabanh", "d": 18, "likes": 5, "t": "Tối qua thấy một chiếc 911 GT3 màu xanh ở Thảo Điền, tiếng pô nghe sướng tai thật. Ai spot được xe hiếm thì khoe ở đây nha!",
+          "c": [
+            {"u": "nam_climb", "t": "Chiếc đó hay đậu ở Landmark 81 cuối tuần."},
+            {"u": "khoa_valorant", "t": "GT3 màu đó hiếm lắm, có ảnh không anh?"}
+          ]},
+        {"u": "quang_dilang", "d": 14, "likes": 6, "t": "Chạy đèo Bảo Lộc cuối tuần, đường mới làm lại đẹp, xe ít. Nhớ đi sớm tránh sương mù.",
+          "c": [{"u": "hieu_caulong", "t": "Đi xe máy được không anh, hay chỉ ô tô?", "r": [{"u": "quang_dilang", "t": "Xe máy càng vui, nhớ kiểm tra phanh."}]}]},
+        {"u": "long_podcast", "d": 11, "likes": 4, "t": "Just recorded a podcast episode on how EV range is tested. Short version: always assume 20% less than the brochure.",
+          "c": [{"u": "memlord_kien", "t": "Meme ‘xe điện hết pin giữa cầu’ incoming 😂"}]},
+        {"u": "nam_climb", "d": 9, "likes": 5, "t": "Where should the next Cars & Coffee be?",
+          "poll": {"options": ["Sala, Thủ Thiêm", "Phú Mỹ Hưng", "Gigamall Thủ Đức"], "endsInDays": 3},
+          "c": [{"u": "duc_dabanh", "t": "Sala đường rộng, chụp ảnh đẹp."}]},
+        {"u": "duc_dabanh", "d": 4, "likes": 6, "t": "Cars & Coffee tháng này! Bãi đỗ rộng, có khu riêng cho xe độ. Đến sớm để có chỗ đẹp chụp ảnh.",
+          "event": {"title": "Cars & Coffee Thủ Thiêm", "location": "Sala, Thủ Thiêm, Thủ Đức", "startsInDays": 8, "hours": 3},
+          "c": [{"u": "khoa_valorant", "t": "Không có xe nhưng đi xem được không? 😅", "r": [{"u": "duc_dabanh", "t": "Tất nhiên, ai cũng được đến."}]}]},
+        {"u": "memlord_kien", "d": 2, "likes": 5, "t": "Sưu tầm Hot Wheels được 120 chiếc, vợ bắt chọn: xe hay tủ quần áo 🫠",
+          "c": [{"u": "nam_climb", "t": "Chọn xe, quần áo mua lại được."}]},
+        {"u": "nam_climb", "d": 21, "likes": 3, "t": "Cars & Coffee ở Phú Mỹ Hưng, lần đầu của nhóm. Đi xe gì cũng được, chỉ cần mê xe!",
+          "event": {"title": "Cars & Coffee Phú Mỹ Hưng", "location": "Crescent Mall, Quận 7", "startsInDays": -12, "hours": 3},
+          "c": [{"u": "hieu_caulong", "t": "Lần đầu đi mà vui quá, hẹn lần sau."}]}
+      ],
+      "listings": [
+        {"u": "memlord_kien", "d": 5, "title": "Diecast models", "caption": "Dọn bớt tủ mô hình. Hot Wheels nguyên vỉ, Maisto 1:18 còn hộp.", "location": "Gigamall Thủ Đức", "lat": 10.8273, "lng": 106.7216,
+          "items": [
+            {"title": "Hot Wheels 1:64 Japanese 6-pack", "price": 320000, "condition": "new", "quantity": 3, "photos": ["seed-hotwheels-1"]},
+            {"title": "Hot Wheels Ferrari 5-pack", "price": 290000, "condition": "new", "quantity": 2, "photos": ["seed-hotwheels-2"]},
+            {"title": "Porsche 911 GT3 1:18 (blue)", "price": 1100000, "condition": "like_new", "quantity": 1, "photos": ["seed-porsche-1", "seed-porsche-2"]},
+            {"title": "Porsche 911 Dakar 1:18", "price": 1450000, "condition": "new", "quantity": 1, "photos": ["seed-porsche-dakar"]}
+          ]},
+        {"u": "nam_climb", "d": 2, "title": "Dash cams", "caption": "Front + rear dash cams, used a few months, upgraded to 4K. Memory card included.", "location": "Phú Mỹ Hưng, Quận 7", "lat": 10.7295, "lng": 106.7085,
+          "items": [
+            {"title": "Front & rear dash cam 1080p", "price": 650000, "condition": "good", "quantity": 2, "photos": ["seed-dashcam-2"]},
+            {"title": "Compact dash cam", "price": 480000, "condition": "like_new", "quantity": 1, "photos": ["seed-dashcam-1"]}
+          ]}
+      ]
+    },
+    {
+      "name": "Board Game Night Saigon",
+      "emoji": "🎲",
+      "color": "#16A34A",
+      "description": "Weekly board game nights in Saigon. New players welcome — we teach every game. Catan, Codenames, Splendor, Werewolf and more.",
+      "tags": ["boardgames", "catan", "gamenight"],
+      "admin": "baoan_boardgame",
+      "mods": [],
+      "members": ["sam_slowtravel", "khoa_valorant", "tuan_lmht", "hieu_caulong", "jess_nguyen"],
+      "posts": [
+        {"u": "baoan_boardgame", "d": 19, "likes": 5, "t": "Tối thứ Bảy vừa rồi chơi Catan tới 1h sáng, trận cuối thắng nhờ một con đường dài 😎 Cảm ơn cả nhà!",
+          "c": [
+            {"u": "hieu_caulong", "t": "Lần sau mình phục thù nha anh."},
+            {"u": "sam_slowtravel", "t": "I'm still salty about the robber placement 😂"}
+          ]},
+        {"u": "jess_nguyen", "d": 13, "likes": 4, "t": "Hot take: Codenames is better with 4 players than 8. Fight me.",
+          "c": [
+            {"u": "tuan_lmht", "t": "8 người mới vui, cãi nhau mới vui 😂"},
+            {"u": "khoa_valorant", "t": "Đồng ý với Jess, ít người đoán nhanh hơn."}
+          ]},
+        {"u": "khoa_valorant", "d": 10, "likes": 5, "t": "Game for next Saturday?",
+          "poll": {"options": ["Catan", "Splendor", "Ticket to Ride", "Werewolf"], "endsInDays": 2},
+          "c": [{"u": "sam_slowtravel", "t": "Ticket to Ride! Haven't played it in years."}]},
+        {"u": "hieu_caulong", "d": 7, "likes": 3, "t": "Mới chuyển lên Sài Gòn, có ai chỉ mình mấy quán board game ở Q1 không?",
+          "c": [{"u": "baoan_boardgame", "t": "Đến buổi tối thứ Bảy của nhóm đi em, có người dạy luật luôn."}]},
+        {"u": "baoan_boardgame", "d": 3, "likes": 6, "t": "Board game night tuần này: Ticket to Ride dẫn đầu poll! Có bàn riêng cho người mới.",
+          "event": {"title": "Saturday board game night", "location": "Boardgame café, 54 Nguyễn Huệ, Quận 1", "startsInDays": 2, "hours": 4},
+          "c": [
+            {"u": "tuan_lmht", "t": "Giữ cho mình 1 ghế nha anh."},
+            {"u": "jess_nguyen", "t": "Bringing snacks 🍿"}
+          ]},
+        {"u": "sam_slowtravel", "d": 1, "likes": 4, "t": "Learned Splendor last week and now I see gem engines everywhere. Lovely quick game for two.",
+          "c": [{"u": "khoa_valorant", "t": "Chơi với bạn gái suốt, nhanh gọn."}]}
+      ],
+      "listings": [
+        {"u": "baoan_boardgame", "d": 4, "title": "Board games, complete sets", "caption": "Thanh lý bớt game trùng ở nhà, đã kiểm đủ thẻ và quân. Tới buổi thứ Bảy lấy luôn cũng được.", "location": "Phố đi bộ Nguyễn Huệ, Quận 1", "lat": 10.7743, "lng": 106.7038,
+          "items": [
+            {"title": "Catan (base game)", "price": 650000, "condition": "good", "quantity": 1, "photos": ["seed-catan-1", "seed-catan-2"]},
+            {"title": "Splendor", "price": 550000, "condition": "like_new", "quantity": 2, "photos": ["seed-splendor-1", "seed-splendor-2"]},
+            {"title": "Codenames", "price": 300000, "condition": "good", "quantity": 2, "photos": ["seed-codenames-1", "seed-codenames-2"]}
+          ]},
+        {"u": "sam_slowtravel", "d": 2, "title": "Ticket to Ride + Dixit", "caption": "Moving back to Melbourne next year so letting a few games go. Played gently, all pieces there.", "location": "Bitexco Financial Tower, Quận 1", "lat": 10.7716, "lng": 106.7044,
+          "items": [
+            {"title": "Ticket to Ride", "price": 900000, "condition": "like_new", "quantity": 1, "photos": ["seed-ttr-1"]},
+            {"title": "Dixit", "price": 600000, "condition": "good", "quantity": 1, "photos": ["seed-dixit-1"]}
+          ]}
+      ]
+    }
+  ]
+}

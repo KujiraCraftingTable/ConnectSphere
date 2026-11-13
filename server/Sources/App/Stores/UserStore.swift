@@ -51,6 +51,8 @@ enum UserStore {
               u.work_display_name, u.work_bio, u.work_avatar_url, u.work_cover_url,
               u.dob_visibility, u.age,
               GREATEST(0, \(unsafeRaw: String(BirthdayRules.maxChanges)) - u.dob_changes) AS dob_changes_left,
+              CASE WHEN u.username_changed_at + INTERVAL '\(unsafeRaw: String(UsernameRules.cooldownMonths)) months' > NOW()
+                   THEN u.username_changed_at + INTERVAL '\(unsafeRaw: String(UsernameRules.cooldownMonths)) months' END AS username_next_change_at,
               (u.hobby_display_name IS NOT NULL) AS hobby_setup,
               (u.work_display_name  IS NOT NULL) AS work_setup,
               (u.password_hash IS NOT NULL AND u.password_hash <> ''
@@ -86,13 +88,23 @@ enum UserStore {
             """).first(decoding: CredRow.self)
     }
 
+    /// Someone else uses it now or used it before a change (migration 141).
+    /// `excluding` may take back a name it released itself.
     static func usernameTaken(_ username: String, excluding userID: String? = nil, on db: any SQLDatabase) async throws -> Bool {
         if let userID {
-            return try await db.raw("SELECT id FROM users WHERE username = \(bind: username) AND id <> \(uuid: userID)")
-                .first(decoding: IdRow.self) != nil
+            return try await db.raw("""
+                SELECT id::text AS id FROM users WHERE username = \(bind: username) AND id <> \(uuid: userID)
+                UNION ALL
+                SELECT user_id::text FROM username_history WHERE username = \(bind: username) AND user_id <> \(uuid: userID)
+                LIMIT 1
+                """).first(decoding: IdRow.self) != nil
         }
-        return try await db.raw("SELECT id FROM users WHERE username = \(bind: username)")
-            .first(decoding: IdRow.self) != nil
+        return try await db.raw("""
+            SELECT id::text AS id FROM users WHERE username = \(bind: username)
+            UNION ALL
+            SELECT user_id::text FROM username_history WHERE username = \(bind: username)
+            LIMIT 1
+            """).first(decoding: IdRow.self) != nil
     }
 
     /// `password_hash` set and not a placeholder → the account can log in with a password.

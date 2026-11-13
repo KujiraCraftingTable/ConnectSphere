@@ -57,7 +57,11 @@ enum ModerationNotices {
         guard o.decision != .keep, let author = o.authorID else { return }
         var payload: [String: Any] = ["caseId": o.caseID, "targetType": c.target_type, "policy": c.policy,
                                       "decision": o.decision.rawValue, "appealDays": Enforcement.appealWindowDays]
-        if let days = o.restrictedDays { payload["restrictedDays"] = days }
+        if let hours = o.restrictedHours {
+            payload["restrictedHours"] = hours
+            // Older apps read only days; they get them when the length is whole days.
+            if hours % 24 == 0 { payload["restrictedDays"] = hours / 24 }
+        }
         await NotifyService.pushUserNotification(userID: author, type: "moderation_decision", groupTargetID: o.caseID,
                                                  payload: payload, on: db, hub: hub, logger: logger)
     }

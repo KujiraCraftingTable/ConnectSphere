@@ -33,7 +33,8 @@ struct AdminModerationController {
     }
 
     /// `note` is staff-only; `reporter_message` is what the reporters read.
-    struct DecideBody: Content { var decision: String?; var days: Int?; var note: String?; var reporter_message: String? }
+    /// A restriction's length is `hours` (6, 12 or whole days); older apps send `days`.
+    struct DecideBody: Content { var decision: String?; var days: Int?; var hours: Int?; var note: String?; var reporter_message: String? }
 
     static func decide(_ req: Request) async throws -> DataResponse<ModerationQueue.CaseDetail> {
         guard let id = uuidParam(req, "id") else { throw InlineError(.notFound, "Case not found") }
@@ -42,7 +43,7 @@ struct AdminModerationController {
             throw InlineError(.badRequest, "decision must be keep, remove, remove_strike, restrict or ban")
         }
         let outcome = try await ModerationService.decide(caseID: id, decision: decision,
-                                                         restrictDays: decision == .restrict ? b.days : nil,
+                                                         restrictHours: decision == .restrict ? (b.hours ?? b.days.map { $0 * 24 }) : nil,
                                                          note: try note(b.note), reporterMessage: try note(b.reporter_message),
                                                          actor: req.userID,
                                                          banDays: decision == .ban ? b.days : nil, on: req.db)

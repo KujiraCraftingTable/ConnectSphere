@@ -52,7 +52,8 @@ final class ModerationCaseViewModel {
     /// What the reporters read about the decision.
     var reporterMessage = ""
 
-    static let restrictOptions = [1, 3, 7, 30]
+    /// Restriction lengths a moderator can pick, in hours: 6h, 12h, 1, 3, 7 and 30 days.
+    static let restrictOptions = [6, 12, 24, 72, 168, 720]
 
     private let repository = ModerationRepository()
 
@@ -77,9 +78,9 @@ final class ModerationCaseViewModel {
         return n.isEmpty ? nil : n
     }
 
-    func decide(_ decision: ModerationDecisionKind, days: Int? = nil) async {
+    func decide(_ decision: ModerationDecisionKind, hours: Int? = nil) async {
         await work {
-            try await self.repository.decide(caseId: self.caseId, decision: decision, days: days, note: self.trimmedNote,
+            try await self.repository.decide(caseId: self.caseId, decision: decision, hours: hours, note: self.trimmedNote,
                                              reporterMessage: self.trimmedReporterMessage)
         }
     }

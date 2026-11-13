@@ -60,6 +60,8 @@ struct UserProfile: Identifiable {
     var dobVisibility: String? = nil
     /// Birthday changes still allowed (2 per account).
     var dobChangesLeft: Int? = nil
+    /// Self-only: the @username can't change again until then (once per 6 months).
+    var usernameNextChangeAt: Date? = nil
     // Stats
     var followerCount: Int
     var followingCount: Int
