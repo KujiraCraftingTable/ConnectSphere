@@ -218,6 +218,21 @@ than this app:
   rotation into the pixels first, but another client's sideways-flagged JPEG
   would be stored sideways.
 
+## AI post search reads text only, not photos or videos
+
+A post's search embedding (`AI/ChunkService.swift`, `buildPostChunk`) is built
+from its caption, article title, tags and, for jobs, the job details. What is
+*in* a photo or video is never looked at, and the poster's alt text
+(`image_alts`) isn't included either. A cat photo captioned "my weekend" won't
+come up for "cat".
+
+**Why deferred:** the AI stack is self-hosted (Ollama on the dev machine). A
+local vision model describing every image at publish, plus sampled frames for
+video, would compete with the embedding and query models on the same hardware
+and slow publishing and search beyond what that machine can keep up with.
+Adding alt text to the embedding is the cheap first step whenever this is
+picked up; a vision description needs a GPU host or a hosted model.
+
 ---
 
 ## Push notifications (APNs)
