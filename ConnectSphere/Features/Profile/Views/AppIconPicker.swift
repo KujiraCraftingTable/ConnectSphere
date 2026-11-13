@@ -15,7 +15,7 @@ struct AppIconRow: View {
     @State private var showPicker = false
 
     private var selected: ThemePalette {
-        appIconPalettes.first { $0.id == appState.appIconId } ?? .amber
+        appIconPalettes.first { $0.id == appState.appIconId } ?? .blueShared
     }
 
     var body: some View {

@@ -600,6 +600,7 @@ struct CreatePostView: View {
                 Text(viewModel.errorMessage ?? composerViewModel.errorMessage ?? "")
             }
         }
+        .processingOverlay(isPosting)
     }
 
     // MARK: - Helpers

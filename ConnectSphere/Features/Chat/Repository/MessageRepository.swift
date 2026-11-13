@@ -585,6 +585,19 @@ struct MessageRepository {
                                    token: token, bodyData: try JSONEncoder().encode(Body(pinned: pinned)))
     }
 
+    // MARK: - Hidden contacts (people row)
+
+    func fetchHiddenContacts(mode: String, token: String) async throws -> [HiddenContact] {
+        try await client.fetch(DataListResponse<HiddenContact>.self, path: "/hidden-contacts", method: "GET",
+                               token: token, queryItems: [URLQueryItem(name: "mode", value: mode)]).data
+    }
+
+    func setContactHidden(userId: String, hidden: Bool, mode: String, token: String) async throws {
+        struct OK: Decodable { let ok: Bool }
+        _ = try await client.fetch(OK.self, path: "/hidden-contacts/\(userId)", method: hidden ? "PUT" : "DELETE",
+                                   token: token, queryItems: [URLQueryItem(name: "mode", value: mode)])
+    }
+
     /// Archive or unarchive a conversation in my own list.
     func setArchived(conversationId: String, archived: Bool, token: String) async throws {
         struct Body: Encodable { let archived: Bool }

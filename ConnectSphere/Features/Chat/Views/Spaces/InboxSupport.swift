@@ -198,4 +198,30 @@ extension View {
                 .listRowBackground(surface)
         }
     }
+
+    /// A row of the plain chat card (Spaces off), drawn by hand in a plain
+    /// list so its corners use the app's card radius (`AppRadius.md`, like the
+    /// people row above): 8 pt side margins, rounded first and last rows, and
+    /// its own hairline in place of the list's full-width separators.
+    func inCard(isFirst: Bool, isLast: Bool, surface: Color) -> some View {
+        let radius = AppRadius.md
+        let margin = AppSpacing.sm
+        return self
+            .listRowInsets(EdgeInsets(top: 0, leading: margin, bottom: 0, trailing: margin))
+            .listRowSeparator(.hidden)
+            .listRowBackground(
+                UnevenRoundedRectangle(topLeadingRadius: isFirst ? radius : 0,
+                                       bottomLeadingRadius: isLast ? radius : 0,
+                                       bottomTrailingRadius: isLast ? radius : 0,
+                                       topTrailingRadius: isFirst ? radius : 0,
+                                       style: .continuous)
+                    .fill(surface)
+                    .overlay(alignment: .bottom) {
+                        if !isLast {
+                            Divider().padding(.leading, ConversationRow.textInset)
+                        }
+                    }
+                    .padding(.horizontal, margin)
+            )
+    }
 }

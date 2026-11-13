@@ -60,18 +60,34 @@ enum SocketHandlers {
 
     // MARK: presence
 
-    static func acceptedConnectionIDs(_ userID: String, on db: any SQLDatabase) async throws -> [String] {
+    /// Who may see `userID`'s online status: accepted connections plus the
+    /// other side of every 1:1 chat that is no longer a pending message request.
+    /// Strangers still waiting in Waiting, and anyone blocked either way, never see it.
+    static func presenceAudienceIDs(_ userID: String, on db: any SQLDatabase) async throws -> [String] {
         struct R: Decodable { let other_id: String }
+        let me = MessageRequests.quoted(userID)
         return try await db.raw("""
-            SELECT (CASE WHEN requester_id = \(uuid: userID) THEN addressee_id ELSE requester_id END)::text AS other_id
-            FROM connections
-            WHERE status = 'accepted' AND (requester_id = \(uuid: userID) OR addressee_id = \(uuid: userID))
+            SELECT DISTINCT other_id::text AS other_id FROM (
+                SELECT (CASE WHEN requester_id = \(uuid: userID) THEN addressee_id ELSE requester_id END) AS other_id
+                FROM connections
+                WHERE status = 'accepted' AND (requester_id = \(uuid: userID) OR addressee_id = \(uuid: userID))
+                UNION
+                SELECT other_cp.user_id AS other_id
+                FROM conversations c
+                JOIN conversation_participants my_cp ON my_cp.conversation_id = c.id AND my_cp.user_id = \(uuid: userID)
+                JOIN conversation_participants other_cp ON other_cp.conversation_id = c.id AND other_cp.user_id <> \(uuid: userID)
+                WHERE NOT c.is_group
+                  AND NOT \(unsafeRaw: MessageRequests.pendingSQL(me: me, other: "other_cp.user_id"))
+            ) a
+            WHERE NOT EXISTS (SELECT 1 FROM user_blocks b
+                              WHERE (b.blocker_id = \(uuid: userID) AND b.blocked_id = a.other_id)
+                                 OR (b.blocker_id = a.other_id AND b.blocked_id = \(uuid: userID)))
             """).all(decoding: R.self).map(\.other_id)
     }
 
     static func broadcastPresence(_ userID: String, online: Bool, session: SocketSession) async {
         do {
-            let ids = try await acceptedConnectionIDs(userID, on: session.db.sql())
+            let ids = try await presenceAudienceIDs(userID, on: session.db.sql())
             let payload = WSPresenceUpdate(userId: userID, online: online)
             for cid in ids { session.hub.emitToUser(cid, event: "presence_update", payload) }
         } catch {
@@ -82,7 +98,7 @@ enum SocketHandlers {
     static func sendPresenceSnapshot(session: SocketSession) async {
         guard let userID = await session.conn?.userID else { return }
         do {
-            let ids = try await acceptedConnectionIDs(userID, on: session.db.sql())
+            let ids = try await presenceAudienceIDs(userID, on: session.db.sql())
             let onlineIDs = ids.filter { session.hub.isOnline($0) }
             await session.emitSelf(event: "presence_snapshot", SocketJSON.data(WSPresenceSnapshot(userIds: onlineIDs)))
         } catch {

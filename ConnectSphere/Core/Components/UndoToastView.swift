@@ -7,6 +7,9 @@ struct UndoToastItem: Identifiable {
     let id = UUID()
     let message: String
     let onUndo: (() -> Void)?
+    /// Where it slides in from. Bottom by default; top for notices about a
+    /// screen the user isn't looking at (e.g. "X is back in Messages").
+    var edge: VerticalEdge = .bottom
 }
 
 /// Presenter for a non-blocking bottom "Undo" toast, shown right after a
@@ -24,9 +27,9 @@ final class UndoToastPresenter {
 
     /// Shows a toast with `message` and an "Undo" action; replaces whatever
     /// toast is currently showing. Auto-dismisses after ~5s unless tapped.
-    func show(message: String, onUndo: (() -> Void)?) {
+    func show(message: String, onUndo: (() -> Void)?, edge: VerticalEdge = .bottom) {
         dismissTask?.cancel()
-        let item = UndoToastItem(message: message, onUndo: onUndo)
+        let item = UndoToastItem(message: message, onUndo: onUndo, edge: edge)
         current = item
         dismissTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 5_000_000_000)
@@ -36,8 +39,8 @@ final class UndoToastPresenter {
     }
 
     /// A plain notice in the same place, without an Undo button.
-    func show(message: String) {
-        show(message: message, onUndo: nil)
+    func show(message: String, edge: VerticalEdge = .bottom) {
+        show(message: message, onUndo: nil, edge: edge)
     }
 
     /// User tapped "Undo", runs the action and dismisses immediately.
@@ -91,8 +94,8 @@ struct UndoToastView: View {
         .frame(minHeight: 56)
         .background(Color.black.opacity(0.88), in: RoundedRectangle(cornerRadius: 16))
         .padding(.horizontal, 16)
-        .padding(.bottom, 8 + bottomInset)
-        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .padding(item.edge == .bottom ? .bottom : .top, item.edge == .bottom ? 8 + bottomInset : 8)
+        .transition(.move(edge: item.edge == .bottom ? .bottom : .top).combined(with: .opacity))
     }
 }
 
@@ -104,8 +107,14 @@ extension View {
     /// taps where they overlap, so an Undo drawn over it can't be pressed.
     func undoToastOverlay(_ presenter: UndoToastPresenter, bottomInset: CGFloat = 0) -> some View {
         overlay(alignment: .bottom) {
-            if let item = presenter.current {
+            if let item = presenter.current, item.edge == .bottom {
                 UndoToastView(item: item, onUndo: { presenter.undo() }, bottomInset: bottomInset)
+                    .id(item.id)
+            }
+        }
+        .overlay(alignment: .top) {
+            if let item = presenter.current, item.edge == .top {
+                UndoToastView(item: item, onUndo: { presenter.undo() })
                     .id(item.id)
             }
         }

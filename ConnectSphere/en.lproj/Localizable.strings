@@ -512,7 +512,6 @@
 "No views yet" = "No views yet";
 
 /* Chat read/delivered receipts (group bubble status) */
-"Read %d/%d" = "Read %d/%d";
 
 /* Pinned messages */
 "Pinned messages" = "Pinned messages";
@@ -2092,7 +2091,6 @@
 "This reminder time has already passed. Pick a later reminder." = "This reminder time has already passed. Pick a later reminder.";
 "%@ accepted your message request at %@" = "%@ accepted your message request at %@";
 "You accepted %@'s message request at %@" = "You accepted %@'s message request at %@";
-"Unseen" = "Unseen";
 "You reset the theme" = "You reset the theme";
 "%@ reset the theme" = "%@ reset the theme";
 "You changed the theme to %@" = "You changed the theme to %@";
@@ -2222,6 +2220,8 @@
 "There are %lld post requests in %@" = "There are %lld post requests in %@";
 "Your post is waiting for approval. An admin or moderator will review it." = "Your post is waiting for approval. An admin or moderator will review it.";
 "Your post is now published." = "Your post is now published.";
+"Your listing is now published." = "Your listing is now published.";
+"Your listing is waiting for approval." = "Your listing is waiting for approval.";
 "Your post is scheduled for %@" = "Your post is scheduled for %@";
 "Saved to drafts." = "Saved to drafts.";
 "Approve this post?" = "Approve this post?";
@@ -2511,6 +2511,7 @@
 "Save deposit" = "Save deposit";
 "Mark %lld as sold to %@ and send a review card? This can't be undone." = "Mark %lld as sold to %@ and send a review card? This can't be undone.";
 "Mark all of %@'s deposits as sold and send review cards? This can't be undone." = "Mark all of %@'s deposits as sold and send review cards? This can't be undone.";
+"Mark all deposits from %lld buyers as sold and send review cards? This can't be undone." = "Mark all deposits from %lld buyers as sold and send review cards? This can't be undone.";
 "Put %lld on deposit for %@?" = "Put %lld on deposit for %@?";
 "Remove %@'s deposit of %lld?" = "Remove %@'s deposit of %lld?";
 "Change %@'s deposit from %lld to %lld?" = "Change %@'s deposit from %lld to %lld?";
@@ -2525,3 +2526,16 @@
 "%lld are sold or on deposit, so the quantity can't be less." = "%lld are sold or on deposit, so the quantity can't be less.";
 "Decrease" = "Decrease";
 "Increase" = "Increase";
+"Type something..." = "Type something...";
+"Alignment" = "Alignment";
+
+"Online" = "Online";
+"Hide contact" = "Hide contact";
+"Hidden contacts" = "Hidden contacts";
+"Unhide" = "Unhide";
+"%@ is back in Messages" = "%@ is back in Messages";
+"No hidden contacts" = "No hidden contacts";
+"People you hide leave the row at the top of Messages. Their chats stay." = "People you hide leave the row at the top of Messages. Their chats stay.";
+"People you hid from the row at the top of Messages." = "People you hid from the row at the top of Messages.";
+"Sending…" = "Sending…";
+"Seen by %@" = "Seen by %@";

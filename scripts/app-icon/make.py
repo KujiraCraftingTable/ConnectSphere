@@ -2,7 +2,7 @@
 
     python3 scripts/app-icon/make.py
 
-Writes ConnectSphere/Assets.xcassets/AppIcon.appiconset (amber, the primary icon)
+Writes ConnectSphere/Assets.xcassets/AppIcon.appiconset (blue, the primary icon)
 and AppIcon-<id>.appiconset for every other palette, each with a light (also used in dark mode) and a
 tinted 1024×1024 PNG. The hex values are the palettes in
 ConnectSphere/Core/Theme/ThemeManager.swift; keep the two in step.
@@ -14,7 +14,7 @@ here = pathlib.Path(__file__).parent
 assets = here.parent.parent / "ConnectSphere" / "Assets.xcassets"
 tpl = (here / "icon-template.svg").read_text()
 
-# id: (primary, secondary, accent), as in ThemeManager.swift. "amber" is the primary icon.
+# id: (primary, secondary, accent), as in ThemeManager.swift. "blue" is the primary icon.
 palettes = {
     "amber":       ("#F59E0B", "#D97706", "#FDE68A"),
     "sunset":      ("#FF6B6B", "#FF8E53", "#FFCA45"),
@@ -67,7 +67,7 @@ def contents():
 with tempfile.TemporaryDirectory() as tmp:
     tmp = pathlib.Path(tmp)
     for pid, colors in palettes.items():
-        out = assets / ("AppIcon.appiconset" if pid == "amber" else f"AppIcon-{pid}.appiconset")
+        out = assets / ("AppIcon.appiconset" if pid == "blue" else f"AppIcon-{pid}.appiconset")
         out.mkdir(exist_ok=True)
         svgs = []
         for name, fills in variants(*colors).items():

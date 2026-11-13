@@ -209,6 +209,30 @@ struct PrivacySecurityView: View {
             } footer: {
                 Text("People you block can't see your posts or message you.", bundle: bundle)
             }
+
+            Section {
+                NavigationLink {
+                    HiddenContactsView()
+                        .environment(appState)
+                        .environment(themeManager)
+                } label: {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 7)
+                                .fill(Color(hex: "#8E8E93"))
+                                .frame(width: 30, height: 30)
+                            Image(systemName: "eye.slash.fill")
+                                .scaledFont(13)
+                                .foregroundColor(.white)
+                        }
+                        Text("Hidden contacts", bundle: bundle)
+                            .scaledFont(16)
+                            .foregroundColor(AppColors.textPrimary(colorScheme))
+                    }
+                }
+            } footer: {
+                Text("People you hid from the row at the top of Messages.", bundle: bundle)
+            }
         }
         .alert(friendRequests.errorMessage ?? "", isPresented: Binding(
             get: { friendRequests.errorMessage != nil },

@@ -16,6 +16,8 @@ struct ConversationListView: View {
     @State private var viewModel = ConversationListViewModel()
     @State private var spacesViewModel = SpacesViewModel()
     @State private var activeRoute: ChatRoute?
+    /// "View profile" from a long-press in the people row.
+    @State private var profileTarget: ProfileTarget?
     @State private var showAssistantChat = false
 
     // Search (name + message content, across all conversations)
@@ -46,10 +48,10 @@ struct ConversationListView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Active friends row. Tap to jump straight into the conversation.
-            // Hidden while searching so the results list has full room.
-            if !viewModel.activeConnections.isEmpty && !isSearchActive {
-                activeConnectionsBar
+            // People you've chatted with. Hidden while searching so the
+            // results list has full room.
+            if !viewModel.recentPeople.isEmpty && !isSearchActive {
+                recentPeopleBar
             }
 
             if !isSearchActive {
@@ -119,6 +121,9 @@ struct ConversationListView: View {
             viewModel.search(query: newValue, mode: mode, token: token)
         }
         .toolbar(.hidden, for: .tabBar)
+        .sheet(item: $profileTarget) { target in
+            ProfilePopup { UserProfileView(userId: target.id) }
+        }
         .navigationDestination(item: $activeRoute) { route in
             ChatView(
                 conversationId: route.conversationId,
@@ -136,6 +141,7 @@ struct ConversationListView: View {
             viewModel.registerPresenceHandlers()
             Task { await viewModel.load(mode: mode, token: authToken) }
             Task { await viewModel.loadConnections(mode: mode) }
+            Task { await viewModel.loadHiddenContacts(mode: mode, token: authToken) }
             Task { await spacesViewModel.load(mode: mode, token: authToken) }
         }
         .onDisappear {
@@ -200,40 +206,51 @@ struct ConversationListView: View {
         }
     }
 
-    // MARK: - Active connections bar
+    // MARK: - Recent people bar
 
-    private var activeConnectionsBar: some View {
+    /// Styled like the feed's Stories row: 60 pt photos, first names, green dot when online.
+    private var recentPeopleBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(alignment: .top, spacing: 16) {
-                ForEach(viewModel.activeConnections) { conn in
-                    Button {
-                        openActiveChat(conn)
-                    } label: {
+            HStack(alignment: .top, spacing: 10) {
+                ForEach(viewModel.recentPeople) { conversation in
+                    Button { open(conversation) } label: {
                         VStack(spacing: 6) {
-                            ZStack(alignment: .bottomTrailing) {
-                                ZStack {
-                                    Circle()
-                                        .fill(Color(hex: conn.user.avatarColor))
-                                        .frame(width: 56, height: 56)
-                                    Text(String(conn.user.displayName.prefix(1)))
-                                        .scaledFont(22, .bold)
-                                        .foregroundColor(.white)
+                            Avatar(name: conversation.avatarName, colorHex: conversation.avatarColor,
+                                   imageURL: conversation.avatarUrl, diameter: 60)
+                                .overlay(alignment: .bottomTrailing) {
+                                    if viewModel.isOnline(conversation) {
+                                        Circle()
+                                            .fill(Color.green)
+                                            .frame(width: 14, height: 14)
+                                            .overlay(Circle().stroke(AppColors.surface(colorScheme), lineWidth: 2))
+                                            .offset(x: -2, y: -2)
+                                    }
                                 }
-                                // Green dot indicating online status
-                                Circle()
-                                    .fill(Color.green)
-                                    .frame(width: 14, height: 14)
-                                    .overlay(Circle().stroke(AppColors.surface(colorScheme), lineWidth: 2))
-                            }
-
-                            Text(conn.user.displayName)
-                                .scaledFont(12)
-                                .foregroundColor(AppColors.textSecondary(colorScheme))
+                            Text(conversation.displayName.split(separator: " ").first.map(String.init)
+                                 ?? conversation.displayName)
+                                .scaledFont(11, .medium)
+                                .foregroundColor(AppColors.textPrimary(colorScheme))
                                 .lineLimit(1)
-                                .frame(width: 64)
                         }
+                        .frame(width: 70)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(viewModel.isOnline(conversation)
+                        ? "\(conversation.displayName), \(bundle.loc("Online"))" : conversation.displayName)
+                    .contextMenu {
+                        Button {
+                            if let id = conversation.otherUserId { profileTarget = ProfileTarget(id: id) }
+                        } label: {
+                            Label(bundle.loc("View profile"), systemImage: "person.crop.circle")
+                        }
+                        Button {
+                            Task { await viewModel.hide(conversation, mode: mode, token: token) }
+                        } label: {
+                            Label(bundle.loc("Hide contact"), systemImage: "eye.slash")
+                        }
+                    } preview: {
+                        recentPersonPreview(conversation)
+                    }
                 }
             }
             .padding(.horizontal, 12)
@@ -244,21 +261,20 @@ struct ConversationListView: View {
         .padding(.top, AppSpacing.sm)
     }
 
-    /// Open (or create) a conversation with an active connection, then navigate to ChatView.
-    private func openActiveChat(_ conn: ConnectionItemDTO) {
-        guard let token = appState.authToken else { return }
-        let mode = appState.currentMode.rawValue
-        Task {
-            guard let convId = try? await viewModel.openConversation(
-                with: conn.user.id, mode: mode, token: token
-            ) else { return }
-            activeRoute = ChatRoute(
-                conversationId: convId,
-                peer: .direct(otherUserId: conn.user.id, name: conn.user.displayName,
-                              avatarColor: conn.user.avatarColor, avatarUrl: conn.user.avatarUrl),
-                location: conn.user.location
-            )
+    /// Long-press preview: the person's photo, large, over their name.
+    private func recentPersonPreview(_ conversation: Conversation) -> some View {
+        VStack(spacing: 14) {
+            Avatar(name: conversation.avatarName, colorHex: conversation.avatarColor,
+                   imageURL: conversation.avatarUrl, diameter: 120)
+            Text(conversation.displayName)
+                .scaledFont(22, .bold)
+                .foregroundColor(AppColors.textPrimary(colorScheme))
+                .lineLimit(1)
         }
+        .padding(.horizontal, 40)
+        .padding(.vertical, 28)
+        .frame(width: 320)
+        .background(AppColors.surface(colorScheme))
     }
 
     // MARK: - Spaces bar
@@ -373,12 +389,15 @@ struct ConversationListView: View {
 
     // MARK: - Conversation list
 
-    /// Inset-grouped `List` (rounded cards like the rest of the app) so each
-    /// row gets native swipe actions. Spaces off: one card. Spaces on: a card
-    /// per space, then "Other chats".
+    /// Spaces on: an inset-grouped `List` of coloured folders, then "Other
+    /// chats". Spaces off: a plain `List` holding one hand-drawn card, so its
+    /// corners match the people row's card (`AppRadius.md`); an inset-grouped
+    /// section is always clipped to the system's much rounder corners.
+    /// Both keep native swipe actions on every row.
+    @ViewBuilder
     private var inboxList: some View {
-        List {
-            if spacesOn {
+        if spacesOn {
+            List {
                 if spacesViewModel.spaces.isEmpty {
                     SpacesIntroCard { spaceEditor = .create }
                         .listRowInsets(EdgeInsets())
@@ -397,27 +416,31 @@ struct ConversationListView: View {
                         }
                     }
                 }
-            } else {
-                Section {
-                    ForEach(viewModel.inbox) { conversationRow($0, showSpaces: true) }
+            }
+            .listStyle(.insetGrouped)
+            .contentMargins(.horizontal, AppSpacing.sm, for: .scrollContent)
+            .listSectionSpacing(AppSpacing.md)
+            .modifier(InboxListChrome(reload: reload))
+        } else {
+            List {
+                let rows = viewModel.inbox
+                ForEach(Array(rows.enumerated()), id: \.element.id) { index, conversation in
+                    conversationRow(conversation, showSpaces: true,
+                                    cardEdges: (index == 0, index == rows.count - 1))
                 }
             }
-        }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .contentMargins(.horizontal, AppSpacing.sm, for: .scrollContent)
-        .listSectionSpacing(AppSpacing.md)
-        // The gap under the bar is the bar's own bottom padding, not a list
-        // margin: a margin scrolls away with the first chat, leaving the rows
-        // running straight into the buttons.
-        .contentMargins(.top, 0, for: .scrollContent)
-        .refreshable {
-            await viewModel.load(mode: mode, token: token)
-            await spacesViewModel.load(mode: mode, token: token)
+            .listStyle(.plain)
+            .modifier(InboxListChrome(reload: reload))
         }
     }
 
-    private func conversationRow(_ conversation: Conversation, showSpaces: Bool, folder: FolderSlot? = nil) -> some View {
+    private func reload() async {
+        await viewModel.load(mode: mode, token: token)
+        await spacesViewModel.load(mode: mode, token: token)
+    }
+
+    private func conversationRow(_ conversation: Conversation, showSpaces: Bool, folder: FolderSlot? = nil,
+                                 cardEdges: (first: Bool, last: Bool)? = nil) -> some View {
         Button { open(conversation) } label: {
             ConversationRow(
                 conversation: conversation,
@@ -427,7 +450,7 @@ struct ConversationListView: View {
             )
         }
         .buttonStyle(.plain)
-        .inFolder(folder, surface: AppColors.surface(colorScheme))
+        .modifier(RowBackground(folder: folder, cardEdges: cardEdges, surface: AppColors.surface(colorScheme)))
         .alignmentGuide(.listRowSeparatorLeading) { _ in ConversationRow.textInset }
         // Order matters: the first button sits at the edge and is the one a
         // full (strong) swipe triggers. Floating the chat.
@@ -922,6 +945,40 @@ struct GroupAvatar: View {
 /// Navigation target used by any flow that jumps straight into a
 /// conversation's `ChatView` from outside its row (active connections bar,
 /// freshly-created group).
+/// A chat row's background: inside a space's folder, a corner of the plain
+/// chat card, or the list's default.
+private struct RowBackground: ViewModifier {
+    let folder: FolderSlot?
+    let cardEdges: (first: Bool, last: Bool)?
+    let surface: Color
+
+    func body(content: Content) -> some View {
+        if folder == nil, let cardEdges {
+            content.inCard(isFirst: cardEdges.first, isLast: cardEdges.last, surface: surface)
+        } else {
+            content.inFolder(folder, surface: surface)
+        }
+    }
+}
+
+/// What both inbox lists share: the page shows through, and pull to refresh.
+private struct InboxListChrome: ViewModifier {
+    let reload: () async -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .scrollContentBackground(.hidden)
+            // The gap under the bar is the bar's own bottom padding, not a list
+            // margin: a margin scrolls away with the first chat, leaving the rows
+            // running straight into the buttons.
+            .contentMargins(.top, 0, for: .scrollContent)
+            .refreshable { await reload() }
+    }
+}
+
+/// Whose profile the people row's "View profile" opens.
+private struct ProfileTarget: Identifiable { let id: String }
+
 struct ChatRoute: Identifiable, Hashable {
     let conversationId: String
     let peer: ChatPeer

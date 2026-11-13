@@ -512,7 +512,6 @@
 "No views yet" = "Chưa có ai xem";
 
 /* Chat read/delivered receipts (group bubble status) */
-"Read %d/%d" = "Đã đọc %d/%d";
 
 /* Pinned messages */
 "Pinned messages" = "Tin nhắn đã ghim";
@@ -2092,7 +2091,6 @@
 "This reminder time has already passed. Pick a later reminder." = "Thời gian nhắc này đã qua. Hãy chọn lời nhắc muộn hơn.";
 "%@ accepted your message request at %@" = "%1$@ đã chấp nhận tin nhắn của bạn lúc %2$@";
 "You accepted %@'s message request at %@" = "Bạn đã chấp nhận tin nhắn của %1$@ lúc %2$@";
-"Unseen" = "Chưa xem";
 "You reset the theme" = "Bạn đã đặt lại chủ đề";
 "%@ reset the theme" = "%@ đã đặt lại chủ đề";
 "You changed the theme to %@" = "Bạn đã đổi chủ đề thành %@";
@@ -2222,6 +2220,8 @@
 "There are %lld post requests in %@" = "Có %lld bài viết chờ duyệt trong %@";
 "Your post is waiting for approval. An admin or moderator will review it." = "Bài viết của bạn đang chờ duyệt. Quản trị viên hoặc người kiểm duyệt sẽ xem xét.";
 "Your post is now published." = "Bài viết của bạn đã được đăng.";
+"Your listing is now published." = "Tin đăng của bạn đã được đăng.";
+"Your listing is waiting for approval." = "Tin đăng của bạn đang chờ duyệt.";
 "Your post is scheduled for %@" = "Bài viết của bạn được lên lịch vào %@";
 "Saved to drafts." = "Đã lưu vào bản nháp.";
 "Approve this post?" = "Duyệt bài viết này?";
@@ -2511,6 +2511,7 @@
 "Save deposit" = "Lưu tiền cọc";
 "Mark %lld as sold to %@ and send a review card? This can't be undone." = "Xác nhận đã bán %lld cho %@ và gửi thẻ đánh giá? Không thể hoàn tác.";
 "Mark all of %@'s deposits as sold and send review cards? This can't be undone." = "Xác nhận đã bán mọi món %@ đặt cọc và gửi thẻ đánh giá? Không thể hoàn tác.";
+"Mark all deposits from %lld buyers as sold and send review cards? This can't be undone." = "Xác nhận đã bán mọi món đặt cọc của %lld người mua và gửi thẻ đánh giá? Không thể hoàn tác.";
 "Put %lld on deposit for %@?" = "Giữ cọc %lld cho %@?";
 "Remove %@'s deposit of %lld?" = "Huỷ %2$lld tiền cọc của %1$@?";
 "Change %@'s deposit from %lld to %lld?" = "Đổi tiền cọc của %1$@ từ %2$lld thành %3$lld?";
@@ -2525,3 +2526,16 @@
 "%lld are sold or on deposit, so the quantity can't be less." = "Đã bán hoặc đã cọc %lld, nên số lượng không thể ít hơn.";
 "Decrease" = "Giảm";
 "Increase" = "Tăng";
+"Type something..." = "Nhập nội dung...";
+"Alignment" = "Căn lề";
+
+"Online" = "Đang hoạt động";
+"Hide contact" = "Ẩn liên hệ";
+"Hidden contacts" = "Liên hệ đã ẩn";
+"Unhide" = "Bỏ ẩn";
+"%@ is back in Messages" = "%@ đã trở lại trong Tin nhắn";
+"No hidden contacts" = "Không có liên hệ nào bị ẩn";
+"People you hide leave the row at the top of Messages. Their chats stay." = "Người bạn ẩn sẽ không còn ở hàng trên cùng của Tin nhắn. Cuộc trò chuyện vẫn được giữ.";
+"People you hid from the row at the top of Messages." = "Những người bạn đã ẩn khỏi hàng trên cùng của Tin nhắn.";
+"Sending…" = "Đang gửi…";
+"Seen by %@" = "%@ đã xem";

@@ -7,6 +7,9 @@ import UIKit
 enum KeyboardDismissal {
     private static let name = "KeyboardDismissal"
     private static let handler = Handler()
+    /// Window-space frames where a tap keeps the keyboard up (see `keepsKeyboard()`).
+    /// Only touched on the main thread, by SwiftUI layout and UIKit touch delivery.
+    nonisolated(unsafe) static var keepRegions: [UUID: CGRect] = [:]
 
     static func install() {
         for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
@@ -38,6 +41,9 @@ enum KeyboardDismissal {
                 c = cur.superview
             }
             guard let window = g.view, let responder = UIResponder.currentFirst as? UIView else { return false }
+            // Controls that work with the field, like a stepper's − and +.
+            let point = touch.location(in: window)
+            if KeyboardDismissal.keepRegions.values.contains(where: { $0.contains(point) }) { return false }
             // Tapping a field (this one or another) just moves the focus.
             var v = touch.view
             while let cur = v {
@@ -72,4 +78,25 @@ private extension UIResponder {
     }
 
     @objc func captureFirst() { UIResponder.found = self }
+}
+
+import SwiftUI
+
+extension View {
+    /// Taps on this view don't hide the keyboard, for buttons that work with
+    /// the field being typed in (SwiftUI buttons aren't UIControls, so the
+    /// window recognizer would otherwise treat them as "outside").
+    func keepsKeyboard() -> some View { modifier(KeepsKeyboard()) }
+}
+
+private struct KeepsKeyboard: ViewModifier {
+    @State private var id = UUID()
+
+    func body(content: Content) -> some View {
+        content
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+                KeyboardDismissal.keepRegions[id] = $0
+            }
+            .onDisappear { KeyboardDismissal.keepRegions[id] = nil }
+    }
 }

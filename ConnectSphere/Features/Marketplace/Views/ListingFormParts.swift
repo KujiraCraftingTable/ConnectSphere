@@ -20,7 +20,7 @@ struct ListingItemsSection: View {
             Section {
                 TextField(bundle.loc("e.g. Shelf clear-out, 7 sets"), text: $headline)
             } header: {
-                Text("Listing title", bundle: bundle)
+                Text(bundle.loc("Listing title") + " *")
             } footer: {
                 Text("Shown on the Marketplace card. Your description stays exactly as you write it.", bundle: bundle)
             }
@@ -73,22 +73,18 @@ private struct ListingItemSection: View {
                     .foregroundColor(AppColors.textSecondary(colorScheme))
                     .fixedSize(horizontal: false, vertical: true)
             }
-            TextField(bundle.loc("What are you selling?"), text: $draft.title)
+            TextField(bundle.loc("What are you selling?") + " *", text: $draft.title)
             ListingPriceField(placeholder: bundle.loc("Price (0 = free)"), text: $draft.price)
             Picker(bundle.loc("Condition"), selection: $draft.condition) {
                 ForEach(ListingCondition.allCases, id: \.self) { Text(bundle.loc($0.label)).tag($0) }
             }
-            // Typed for big stacks (30 of a card), the stepper for small changes.
-            Stepper(value: $draft.quantity, in: draft.minQuantity...max(draft.minQuantity, draft.maxQuantity)) {
-                HStack {
-                    Text("Quantity", bundle: bundle)
-                    Spacer()
-                    TextField("1", value: $draft.quantity, format: .number)
-                        .keyboardType(.numberPad)
-                        .multilineTextAlignment(.trailing)
-                        .frame(width: 64)
-                        .accessibilityLabel(Text("Quantity", bundle: bundle))
-                }
+            // Typed for big stacks (30 of a card), − and + for small changes.
+            HStack {
+                Text(bundle.loc("Quantity") + " *")
+                Spacer()
+                QuantityStepper(value: $draft.quantity,
+                                range: draft.minQuantity...max(draft.minQuantity, draft.maxQuantity),
+                                isInvalid: !draft.quantityIsValid)
             }
         } header: {
             HStack {
@@ -143,7 +139,7 @@ struct ListingPhotosStrip: View {
                              matching: .any(of: [.images, .videos])) {
                     VStack(spacing: 6) {
                         Image(systemName: "photo.badge.plus").font(.system(size: 24))
-                        Text("Add photos / videos", bundle: bundle)
+                        Text(bundle.loc("Add photos / videos") + " *")
                             .font(.system(size: 11, weight: .medium))
                             .multilineTextAlignment(.center)
                     }

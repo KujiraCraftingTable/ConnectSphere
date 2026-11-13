@@ -15,6 +15,7 @@ func routes(_ app: Application) throws {
     LinkPreviewController.register(routes: api)
     ConnectionsController.register(routes: api)
     SpacesController.register(routes: api)
+    HiddenContactsController.register(routes: api)  // Messages people row: hidden contacts (migration 140)
     MutedWordsController.register(routes: api)
     PeopleController.register(routes: api)
     FollowsController.register(routes: api)

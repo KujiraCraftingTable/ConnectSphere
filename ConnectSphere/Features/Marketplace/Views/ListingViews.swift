@@ -331,10 +331,13 @@ struct ListingCard: View {
                 // show: a card without it would be shorter than its neighbour.
                 HStack(spacing: 6) {
                     if listing.isSold { SoldBadge() }
-                    if listing.hasSeveralItems { ItemCountBadge(text: ListingItemCount.text(listing, bundle: bundle)) }
+                    // Once everything is sold, only "Sold" and the re-up count matter.
+                    if listing.hasSeveralItems && !listing.isSold {
+                        ItemCountBadge(text: ListingItemCount.text(listing, bundle: bundle))
+                    }
                     if let text = listing.reupText(bundle: bundle) { ReupBadge(text: text) }
                     // Only the seller's own items carry a schedule.
-                    if listing.autoReup != nil {
+                    if listing.autoReup != nil && !listing.isSold {
                         Image(systemName: "arrow.triangle.2.circlepath")
                             .scaledFont(11, .bold)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
@@ -685,7 +688,7 @@ struct ListingDetailView: View {
                     }
                 } else {
                     if listing.isSold {
-                        Label(bundle.loc("This item has been sold"), systemImage: "checkmark.seal")
+                        Text("This item has been sold", bundle: bundle)
                             .scaledFont(15, .semibold)
                             .foregroundColor(AppColors.textSecondary(colorScheme))
                             .frame(maxWidth: .infinity)

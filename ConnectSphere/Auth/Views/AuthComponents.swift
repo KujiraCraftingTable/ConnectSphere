@@ -95,7 +95,7 @@ struct GlassCard<Content: View>: View {
 // MARK: - Custom Text Field
 
 /// `.focused` when the caller passed a binding.
-private struct OptionalFocus: ViewModifier {
+struct OptionalFocus: ViewModifier {
     let binding: FocusState<Bool>.Binding?
 
     func body(content: Content) -> some View {

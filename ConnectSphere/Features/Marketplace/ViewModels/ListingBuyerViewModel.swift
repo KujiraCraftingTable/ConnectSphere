@@ -13,7 +13,7 @@ final class ListingBuyerViewModel {
         case deposit(ListingItem)
         /// Confirm the picked buyer's deposit on this item as sold.
         case confirm(ListingItem)
-        /// Confirm every deposit the picked buyer has in this listing.
+        /// Confirm every deposit the ticked buyers have in this listing.
         case confirmAll
     }
 
@@ -36,6 +36,8 @@ final class ListingBuyerViewModel {
     var errorMessage: String?
     var query = ""
     var selected: Buyer?
+    /// `.confirmAll`: the buyers ticked, by id.
+    private(set) var checked: Set<String> = []
     /// The deposit being typed or stepped for the picked buyer.
     var amount = 0
 
@@ -67,14 +69,22 @@ final class ListingBuyerViewModel {
     var maxAmount: Int { (selected?.deposit ?? 0) + (item?.remaining ?? 0) }
 
     var canSave: Bool {
-        guard let selected, !isSaving else { return false }
-        switch mode {
-        case .deposit: return amount != selected.deposit && (0...maxAmount).contains(amount)
-        case .confirm, .confirmAll: return selected.deposit > 0
-        }
+        guard !isSaving else { return false }
+        if case .confirmAll = mode { return !checked.isEmpty }
+        guard let selected else { return false }
+        if case .deposit = mode { return amount != selected.deposit && (0...maxAmount).contains(amount) }
+        return selected.deposit > 0
     }
 
+    var allowsSeveral: Bool { mode == .confirmAll }
+
+    func isPicked(_ buyer: Buyer) -> Bool { allowsSeveral ? checked.contains(buyer.id) : selected == buyer }
+
     func pick(_ buyer: Buyer) {
+        if allowsSeveral {
+            if checked.remove(buyer.id) == nil { checked.insert(buyer.id) }
+            return
+        }
         selected = buyer
         amount = buyer.deposit
     }
@@ -88,15 +98,21 @@ final class ListingBuyerViewModel {
     /// What the seller confirms before saving: a deposit changes what other
     /// buyers can still get, and a sale is final and sends a review card.
     var saveConfirmation: String? {
+        if case .confirmAll = mode {
+            let ticked = buyers.filter { checked.contains($0.id) }
+            if ticked.count == 1 {
+                return String(format: Bundle.app.loc("Mark all of %@'s deposits as sold and send review cards? This can't be undone."),
+                              ticked[0].name)
+            }
+            return String(format: Bundle.app.loc("Mark all deposits from %lld buyers as sold and send review cards? This can't be undone."),
+                          ticked.count)
+        }
         guard let selected else { return nil }
         switch mode {
         case .confirm:
             return String(format: Bundle.app.loc("Mark %lld as sold to %@ and send a review card? This can't be undone."),
                           selected.deposit, selected.name)
-        case .confirmAll:
-            return String(format: Bundle.app.loc("Mark all of %@'s deposits as sold and send review cards? This can't be undone."),
-                          selected.name)
-        case .deposit:
+        case .confirmAll, .deposit:
             break
         }
         if selected.deposit == 0 {
@@ -108,10 +124,6 @@ final class ListingBuyerViewModel {
         return String(format: Bundle.app.loc("Change %@'s deposit from %lld to %lld?"),
                       selected.name, selected.deposit, amount)
     }
-
-    func step(_ delta: Int) { amount = clamp(amount + delta) }
-
-    private func clamp(_ value: Int) -> Int { min(max(0, value), maxAmount) }
 
     /// Each deposit the seller holds for a buyer on the items this sheet is about.
     private var deposits: [String: (conversationId: String, quantity: Int)] {
@@ -150,19 +162,21 @@ final class ListingBuyerViewModel {
 
     /// Returns the updated post when it went through.
     func save(token: String) async -> Post? {
-        guard canSave, let selected else { return nil }
+        guard canSave else { return nil }
         isSaving = true
         defer { isSaving = false }
         do {
             switch mode {
             case .deposit(let item):
+                guard let selected else { return nil }
                 return try await repository.setDeposit(listingId: listing.id, itemId: item.id,
                                                        conversationId: selected.conversationId, quantity: amount, token: token)
             case .confirm(let item):
-                return try await repository.confirmSale(listingId: listing.id, itemId: item.id, buyerId: selected.id,
+                guard let selected else { return nil }
+                return try await repository.confirmSale(listingId: listing.id, itemId: item.id, buyerIds: [selected.id],
                                                         token: token)
             case .confirmAll:
-                return try await repository.confirmSale(listingId: listing.id, itemId: nil, buyerId: selected.id,
+                return try await repository.confirmSale(listingId: listing.id, itemId: nil, buyerIds: Array(checked),
                                                         token: token)
             }
         } catch {

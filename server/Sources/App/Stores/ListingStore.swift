@@ -270,6 +270,7 @@ enum ListingStore {
     /// What one confirmed deposit turned into: the card's contents.
     struct ConfirmedSale: Decodable {
         let item_id: String
+        let buyer_id: String
         let conversation_id: String
         let quantity: Int
         let title: String
@@ -277,29 +278,37 @@ enum ListingStore {
         let image: String
     }
 
-    /// Turns the buyer's deposit on one item (or on every item of the listing
-    /// when `itemID` is nil) into sold units. Sales are final.
-    static func confirmDeposits(listingID: String, itemID: String?, buyer: String,
+    /// Turns each buyer's deposit on one item (or on every item of the listing
+    /// when `itemID` is nil) into sold units, all or nothing: a buyer without a
+    /// deposit fails the whole request. Sales are final.
+    static func confirmDeposits(listingID: String, itemID: String?, buyers: [String],
                                 on db: AppDatabase) async throws -> [ConfirmedSale] {
         var confirmed: [ConfirmedSale] = []
         try await db.tx { t in
             let itemFilter: SQLQueryString = itemID.map { " AND li.id = \(uuid: $0)" } ?? ""
             let sales = try await t.raw("""
-                SELECT li.id::text AS item_id, d.conversation_id::text AS conversation_id, d.quantity::int AS quantity,
-                  li.title, li.price, li.image_urls[1] AS image
+                SELECT li.id::text AS item_id, d.buyer_id::text AS buyer_id, d.conversation_id::text AS conversation_id,
+                  d.quantity::int AS quantity, li.title, li.price, li.image_urls[1] AS image
                 FROM listing_item_deposits d JOIN listing_items li ON li.id = d.item_id
-                WHERE li.listing_id = \(uuid: listingID) AND d.buyer_id = \(uuid: buyer)
+                WHERE li.listing_id = \(uuid: listingID) AND d.buyer_id = ANY(\(bind: buyers)::uuid[])
                 """ + itemFilter + " ORDER BY li.position FOR UPDATE OF li, d").all(decoding: ConfirmedSale.self)
-            guard !sales.isEmpty else { throw Abort(.badRequest, reason: "No deposit from this buyer") }
+            guard Set(sales.map(\.buyer_id)) == Set(buyers) else {
+                throw Abort(.badRequest, reason: "No deposit from this buyer")
+            }
+            // Several buyers can hold the same item, so add up per item first.
+            var soldPerItem: [String: Int] = [:]
+            for sale in sales { soldPerItem[sale.item_id, default: 0] += sale.quantity }
+            for (item, quantity) in soldPerItem {
+                try await t.raw("""
+                    UPDATE listing_items SET sold_count = sold_count + \(bind: quantity),
+                      status = CASE WHEN sold_count + \(bind: quantity) >= quantity THEN 'sold' ELSE 'available' END,
+                      updated_at = NOW()
+                    WHERE id = \(uuid: item)
+                    """).run()
+            }
             for sale in sales {
                 try await t.raw("""
-                    UPDATE listing_items SET sold_count = sold_count + \(bind: sale.quantity),
-                      status = CASE WHEN sold_count + \(bind: sale.quantity) >= quantity THEN 'sold' ELSE 'available' END,
-                      updated_at = NOW()
-                    WHERE id = \(uuid: sale.item_id)
-                    """).run()
-                try await t.raw("""
-                    DELETE FROM listing_item_deposits WHERE item_id = \(uuid: sale.item_id) AND buyer_id = \(uuid: buyer)
+                    DELETE FROM listing_item_deposits WHERE item_id = \(uuid: sale.item_id) AND buyer_id = \(uuid: sale.buyer_id)
                     """).run()
             }
             try await syncSummary(listingID: listingID, on: t)

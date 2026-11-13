@@ -10,7 +10,6 @@ struct ListingBuyerSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var viewModel: ListingBuyerViewModel
-    @FocusState private var amountFocused: Bool
     @State private var confirmingSave = false
     private let listing: ListingData
     private let onSaved: (Post) -> Void
@@ -109,40 +108,12 @@ struct ListingBuyerSheet: View {
         .background(AppColors.surface(colorScheme), in: RoundedRectangle(cornerRadius: 12))
     }
 
-    /// `− [n] +`: each part brings up the number keyboard; − and + also step it.
+    /// `− [n] +`, from nothing up to what this buyer holds plus the free units.
     private var depositControl: some View {
-        HStack(spacing: 6) {
-            stepButton("minus", delta: -1)
-            TextField("0", value: $viewModel.amount, format: .number)
-                .keyboardType(.numberPad)
-                .multilineTextAlignment(.center)
-                .scaledFont(17, .semibold)
-                .monospacedDigit()
-                .focused($amountFocused)
-                .frame(width: 52, height: 34)
-                .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 8))
-                // Red when over the limit, matching the warning under the card.
-                .overlay(RoundedRectangle(cornerRadius: 8)
-                    .stroke(AppColors.danger(colorScheme), lineWidth: viewModel.amountLimitWarning == nil ? 0 : 1.5))
-            stepButton("plus", delta: 1)
-        }
-        .disabled(viewModel.selected == nil)
-        .opacity(viewModel.selected == nil ? 0.4 : 1)
-    }
-
-    private func stepButton(_ symbol: String, delta: Int) -> some View {
-        Button {
-            viewModel.step(delta)
-            amountFocused = true
-        } label: {
-            Image(systemName: symbol)
-                .scaledFont(14, .bold)
-                .frame(width: 34, height: 34)
-                .background(AppColors.elevated(colorScheme), in: Circle())
-        }
-        .buttonStyle(.plain)
-        .foregroundColor(themeManager.theme.primary)
-        .accessibilityLabel(Text(delta < 0 ? "Decrease" : "Increase", bundle: bundle))
+        QuantityStepper(value: $viewModel.amount, range: 0...viewModel.maxAmount,
+                        isInvalid: viewModel.amountLimitWarning != nil)
+            .disabled(viewModel.selected == nil)
+            .opacity(viewModel.selected == nil ? 0.4 : 1)
     }
 
     private func row(_ buyer: ListingBuyerViewModel.Buyer) -> some View {
@@ -158,7 +129,12 @@ struct ListingBuyerSheet: View {
                     .scaledFont(13)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }
-            if viewModel.selected == buyer {
+            if viewModel.allowsSeveral {
+                // Checkboxes: several buyers can be confirmed at once.
+                Image(systemName: viewModel.isPicked(buyer) ? "checkmark.circle.fill" : "circle")
+                    .scaledFont(20)
+                    .foregroundColor(viewModel.isPicked(buyer) ? themeManager.theme.primary : AppColors.textTertiary(colorScheme))
+            } else if viewModel.isPicked(buyer) {
                 Image(systemName: "checkmark.circle.fill").foregroundColor(themeManager.theme.primary)
             }
         }
@@ -176,7 +152,6 @@ struct ListingBuyerSheet: View {
 
     private var saveBar: some View {
         Button {
-            amountFocused = false
             confirmingSave = true
         } label: {
             Group {

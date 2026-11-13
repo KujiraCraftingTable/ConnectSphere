@@ -154,33 +154,12 @@ struct SearchView: View {
     private var searchHeader: some View {
         VStack(spacing: 10) {
             HStack(spacing: 8) {
-                HStack(spacing: 8) {
-                    Image(systemName: aiEnabled ? "sparkles" : "magnifyingglass")
-                        .scaledFont(15, .medium)
-                        .foregroundColor(aiEnabled ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
-                    TextField("", text: $searchText, prompt: Text(placeholder))
-                        .scaledFont(15)
-                        .focused($isFieldFocused)
-                        .submitLabel(.search)
-                        .onSubmit(runAI)
-                    if !searchText.isEmpty {
-                        Button {
-                            searchText = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(AppColors.textTertiary(colorScheme))
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(Text("Clear", bundle: bundle))
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                // Grey pill on the white header, like Community's search field.
-                .background(AppColors.base(colorScheme), in: Capsule())
-                .overlay(
-                    Capsule().stroke(aiEnabled ? themeManager.theme.primary : .clear, lineWidth: 1.5)
-                )
+                // The shared grey pill, the same as Community's search box.
+                SearchPillField(text: $searchText, placeholder: placeholder,
+                                icon: aiEnabled ? "sparkles" : "magnifyingglass",
+                                iconColor: aiEnabled ? themeManager.theme.primary : nil,
+                                outline: aiEnabled ? themeManager.theme.primary : .clear,
+                                focus: $isFieldFocused, onSubmit: runAI)
 
                 aiToggle
             }

@@ -31,6 +31,14 @@ struct CommunitiesView: View {
     var body: some View {
         NavigationStack(path: $navPath) {
             VStack(spacing: 0) {
+                // The same search box as the Search tab (My communities only).
+                if selectedTab == .myCommunities {
+                    SearchPillField(text: $searchText, placeholder: bundle.loc("Search communities"))
+                        .padding(.horizontal, 16)
+                        .padding(.top, 4)
+                        .background(AppColors.surface(colorScheme))
+                }
+
                 // Tab picker, pinned below navigation bar
                 Picker("", selection: $selectedTab) {
                     ForEach(CommunityTab.allCases, id: \.self) { tab in
@@ -148,7 +156,6 @@ struct CommunitiesView: View {
             .padding(.top, AppSpacing.sm)
             .padding(.bottom, 20)
         }
-        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: bundle.loc("Search communities"))
     }
 
     private func myCommunitiesError(_ message: String) -> some View {

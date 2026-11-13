@@ -185,24 +185,34 @@ struct MarketplaceController {
         return try await listingPost(listing.postID, req)
     }
 
-    struct SaleBody: Content { var buyer_id: String; var item_id: String?; var all: Bool? }
+    struct SaleBody: Content { var buyer_ids: [String]; var item_id: String?; var all: Bool? }
 
-    /// POST /api/listings/:id/sales, the seller confirms a buyer's deposit as
-    /// sold (one item, or `all` of that buyer's deposits in the listing) once it
-    /// has been delivered. Each item sold sends the buyer a review card.
+    /// The buyers a sale is for, lowercased and de-duplicated: 1 to 50 UUIDs.
+    static func saleBuyers(_ raw: [String]) throws -> [String] {
+        var seen = Set<String>()
+        let buyers = raw.map { $0.lowercased() }.filter { seen.insert($0).inserted }
+        guard (1...50).contains(buyers.count), buyers.allSatisfy({ UUID(uuidString: $0) != nil }) else {
+            throw Abort(.badRequest, reason: "Pick the buyer")
+        }
+        return buyers
+    }
+
+    /// POST /api/listings/:id/sales, the seller confirms buyers' deposits as
+    /// sold (one item, or `all` of each buyer's deposits in the listing) once
+    /// they have been delivered. Each item sold sends its buyer a review card.
     static func confirmSale(_ req: Request) async throws -> DataResponse<PostObject> {
         let listing = try await ownListing(req)
         let b = try req.content.decode(SaleBody.self)
-        let buyer = b.buyer_id.lowercased()
-        guard UUID(uuidString: buyer) != nil else { throw Abort(.badRequest, reason: "Pick the buyer") }
+        let buyers = try saleBuyers(b.buyer_ids)
         let itemID = b.item_id?.lowercased()
         if b.all != true {
             guard let itemID, UUID(uuidString: itemID) != nil else { throw Abort(.badRequest, reason: "Pick the item") }
         }
         let sold = try await ListingStore.confirmDeposits(listingID: listing.id, itemID: b.all == true ? nil : itemID,
-                                                          buyer: buyer, on: req.db)
+                                                          buyers: buyers, on: req.db)
         for sale in sold {
-            try await sendCard(conversationID: sale.conversation_id, buyer: buyer, listingID: listing.id, sale: sale, req)
+            try await sendCard(conversationID: sale.conversation_id, buyer: sale.buyer_id, listingID: listing.id,
+                               sale: sale, req)
         }
         return try await listingPost(listing.postID, req)
     }

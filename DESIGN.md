@@ -16,3 +16,14 @@ community member profiles and Marketplace seller pages.
 - The top fade under the clock and buttons is separate and unchanged.
 
 Approved 2026-11-10.
+
+## App icon
+
+`ConnectSphere/Assets.xcassets/AppIcon.appiconset`, built by `scripts/app-icon/make.py`.
+
+- The default icon is the **blue** whale, matching the default theme colour.
+- Every other theme colour (amber included) is an alternate icon in
+  Settings › App icon, named `AppIcon-<id>`.
+- The picker shows whatever iOS has on the home screen, not a saved choice.
+
+Approved 2026-11-12.

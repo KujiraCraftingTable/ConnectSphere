@@ -35,10 +35,9 @@ struct StoryComposerView: View {
     /// different, so a carried-over value would be meaningless).
     @State private var ratios: [CGFloat] = [0.5, 0.5]
     @State private var textLayers: [TextLayerState] = []
-    /// Which layer the text-editor sheet is currently editing. Always the
-    /// one "Aa" just created; the sheet never re-opens an existing layer.
+    /// The layer open in `TextEditorOverlay`: a new one from "Aa", or a
+    /// placed one the user tapped. nil when not editing text.
     @State private var editingTextLayerID: UUID?
-    @State private var showTextEditor = false
     @State private var showPicker = false
     @State private var replacingFrameIndex: Int?
     @State private var replacementItem: PhotosPickerItem?
@@ -61,6 +60,23 @@ struct StoryComposerView: View {
     private let trashPoint = CGPoint(x: 180, y: 600)
     private let trashRadius: CGFloat = 36
 
+    /// Space above the canvas (below the top buttons) and between the canvas
+    /// and the layout picker. Kept equal so the canvas sits evenly between them.
+    private static let gap: CGFloat = 16
+    /// The nav bar ends ~12 pt below its glass buttons, so the padding under
+    /// it is that much smaller for the visible gap to equal `gap`.
+    private static let topInset: CGFloat = 4
+    /// `layoutPicker`'s height: a 64 pt swatch plus 4 pt padding each side.
+    private static let pickerHeight: CGFloat = 72
+
+    /// Shrinks the canvas on screens too short for 640 pt plus the gaps and
+    /// picker (an iPhone 17 needs ~97%). Display only: gestures run in the
+    /// canvas's own 360×640 space and `post()` renders it unscaled.
+    private func fitScale(availableHeight: CGFloat) -> CGFloat {
+        let room = availableHeight - Self.topInset - Self.gap - (frames.isEmpty ? 0 : Self.pickerHeight)
+        return min(1, max(room, 0) / canvasSize.height)
+    }
+
     private func distance(_ a: CGPoint, _ b: CGPoint) -> CGFloat {
         let dx = a.x - b.x, dy = a.y - b.y
         return (dx * dx + dy * dy).squareRoot()
@@ -68,47 +84,39 @@ struct StoryComposerView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 16) {
-                Spacer(minLength: 0)
-                canvasArea
-                layoutPicker
-                Spacer(minLength: 0)
+            GeometryReader { geo in
+                let scale = fitScale(availableHeight: geo.size.height)
+                VStack(spacing: Self.gap) {
+                    canvasArea
+                        .scaleEffect(scale, anchor: .top)
+                        .frame(width: canvasSize.width * scale, height: canvasSize.height * scale, alignment: .top)
+                    layoutPicker
+                    Spacer(minLength: 0)
+                }
+                .padding(.top, Self.topInset)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // The text editor's keyboard must not shrink the canvas behind it.
+            .ignoresSafeArea(.keyboard)
             .background(Color.black.ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
             .interactiveDismissDisabled(hasWork)
+            .overlay {
+                if let id = editingTextLayerID {
+                    TextEditorOverlay(state: binding(for: id), onDone: finishEditingText)
+                }
+            }
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    ConfirmCancelButton(hasChanges: hasWork) { dismiss() }
-                        .foregroundColor(.white)
-                }
-                ToolbarItem(placement: .principal) {
-                    if !frames.isEmpty {
-                        Button {
-                            addTextLayer()
-                        } label: {
-                            Text("Aa")
-                                .scaledFont(17, .bold)
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 6)
-                                .background(Color.white.opacity(0.18), in: Capsule())
+                // While editing text the bar keeps its height (so the canvas
+                // doesn't jump) but only offers Done.
+                if editingTextLayerID != nil {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(action: finishEditingText) {
+                            Text("Done", bundle: bundle).bold().foregroundColor(.white)
                         }
                     }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        Task { await post() }
-                    } label: {
-                        if viewModel.isPosting {
-                            ProgressView().tint(.white)
-                        } else {
-                            Text("Post", bundle: bundle).bold().foregroundColor(.white)
-                        }
-                    }
-                    .disabled(frames.isEmpty || viewModel.isPosting)
+                } else {
+                    composerToolbar
                 }
             }
         }
@@ -126,13 +134,44 @@ struct StoryComposerView: View {
             guard let item, let index = replacingFrameIndex else { return }
             Task { await loadReplacement(item, at: index) }
         }
-        .sheet(isPresented: $showTextEditor) {
-            textEditorSheet
-        }
         .task {
             // The composer IS the new "+" flow, open the picker immediately
             // on first appearance, matching the old instant-picker behavior.
             if frames.isEmpty { showPicker = true }
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var composerToolbar: some ToolbarContent {
+        ToolbarItem(placement: .navigationBarLeading) {
+            ConfirmCancelButton(hasChanges: hasWork) { dismiss() }
+                .foregroundColor(.white)
+        }
+        ToolbarItem(placement: .principal) {
+            if !frames.isEmpty {
+                Button {
+                    addTextLayer()
+                } label: {
+                    Text("Aa")
+                        .scaledFont(17, .bold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(Color.white.opacity(0.18), in: Capsule())
+                }
+            }
+        }
+        ToolbarItem(placement: .navigationBarTrailing) {
+            Button {
+                Task { await post() }
+            } label: {
+                if viewModel.isPosting {
+                    ProgressView().tint(.white)
+                } else {
+                    Text("Post", bundle: bundle).bold().foregroundColor(.white)
+                }
+            }
+            .disabled(frames.isEmpty || viewModel.isPosting)
         }
     }
 
@@ -215,9 +254,14 @@ struct StoryComposerView: View {
                 EditableFrame(frame: $frames[i], rect: rects[i], onDoubleTap: { replacingFrameIndex = i })
                     .overlay(Rectangle().stroke(Color.black, lineWidth: 1.5))
             }
-            ForEach(textLayers.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) { layer in
+            // The layer being edited is drawn by `TextEditorOverlay` instead,
+            // so it doesn't show twice.
+            ForEach(textLayers.filter {
+                $0.id != editingTextLayerID && !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }) { layer in
                 EditableText(
                     state: binding(for: layer.id),
+                    onTap: { editingTextLayerID = layer.id },
                     onDragMove: { textDragMoved(to: $0) },
                     onDragEnd: { textDragEnded(layer.id, at: $0) }
                 )
@@ -412,73 +456,10 @@ struct StoryComposerView: View {
         }
     }
 
-    // MARK: - Text editor sheet
-
-    /// The layer "Aa" just created and opened the sheet for. Falls back to a
-    /// throwaway, harmlessly-discarded binding if somehow no id is set (the
-    /// sheet is only ever shown right after `addTextLayer()` sets one).
-    private var editingBinding: Binding<TextLayerState> {
-        binding(for: editingTextLayerID ?? UUID())
-    }
-
-    private var textEditorSheet: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField(bundle.loc("Add text..."), text: editingBinding.text, axis: .vertical)
-                }
-                Section(bundle.loc("Color")) {
-                    colorSwatchRow
-                }
-                Section(bundle.loc("Font")) {
-                    Picker(bundle.loc("Font"), selection: editingBinding.fontDesign) {
-                        Text(bundle.loc("Default")).tag(Font.Design.default)
-                        Text(bundle.loc("Serif")).tag(Font.Design.serif)
-                        Text(bundle.loc("Rounded")).tag(Font.Design.rounded)
-                        Text(bundle.loc("Monospaced")).tag(Font.Design.monospaced)
-                    }
-                    .pickerStyle(.segmented)
-                }
-                Section(bundle.loc("Size")) {
-                    Slider(value: editingBinding.fontSize, in: 16...64)
-                }
-                Section {
-                    Toggle(bundle.loc("Background highlight"), isOn: editingBinding.hasBackground)
-                }
-            }
-            .navigationTitle(bundle.loc("Add text"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(bundle.loc("Done")) { showTextEditor = false }
-                }
-            }
-        }
-        .presentationDetents([.medium])
-    }
-
-    private var colorSwatchRow: some View {
-        let colors: [Color] = [.white, .black, .red, .orange, .yellow, .green, .blue, .purple, .pink]
-        return ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                ForEach(colors.indices, id: \.self) { i in
-                    Circle()
-                        .fill(colors[i])
-                        .frame(width: 32, height: 32)
-                        .overlay(Circle().stroke(Color.gray, lineWidth: colors[i] == editingBinding.wrappedValue.color ? 3 : 1))
-                        .onTapGesture { editingBinding.wrappedValue.color = colors[i] }
-                }
-                ColorPicker("", selection: editingBinding.color).labelsHidden()
-            }
-            .padding(.vertical, 4)
-        }
-    }
-
     // MARK: - Text layers
 
-    /// A binding to one specific layer by id. Used both by the editor
-    /// sheet (bound to whichever layer "Aa" just created) and by each
-    /// `EditableText` on the canvas.
+    /// A binding to one specific layer by id. Used both by
+    /// `TextEditorOverlay` and by each `EditableText` on the canvas.
     private func binding(for id: UUID) -> Binding<TextLayerState> {
         Binding(
             get: { textLayers.first { $0.id == id } ?? TextLayerState() },
@@ -490,25 +471,26 @@ struct StoryComposerView: View {
         )
     }
 
-    /// "Aa" always creates a brand-new text layer and opens the editor for
-    /// it, never re-opens an existing one. Staggers the default position
-    /// slightly per existing layer so new texts don't land exactly on top
-    /// of earlier ones.
+    /// "Aa" creates a new text layer and opens the editor on it. A small
+    /// horizontal stagger keeps several unmoved texts from landing on the
+    /// exact same spot.
     private func addTextLayer() {
         var layer = TextLayerState()
-        // Spawn well within the region still visible above the `.medium`
-        // text-editor sheet (which covers roughly the bottom half of the
-        // screen) so the user can actually see what they're typing/styling
-        // as they do it. The previous version accumulated +40pt of Y per
-        // existing layer, which could push a 3rd/4th text down behind the
-        // sheet entirely, a small horizontal-only stagger still keeps
-        // several never-yet-repositioned texts from landing in the exact
-        // same spot, without risking that.
         let stagger = CGFloat(textLayers.count % 4) * 24 - 36
         layer.position = CGPoint(x: canvasSize.width / 2 + stagger, y: canvasSize.height * 0.22)
         textLayers.append(layer)
         editingTextLayerID = layer.id
-        showTextEditor = true
+    }
+
+    /// Closing the editor with no text removes the layer, so an "Aa" tapped
+    /// by mistake leaves nothing behind.
+    private func finishEditingText() {
+        guard let id = editingTextLayerID else { return }
+        if let i = textLayers.firstIndex(where: { $0.id == id }) {
+            let trimmed = textLayers[i].text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty { textLayers.remove(at: i) } else { textLayers[i].text = trimmed }
+        }
+        editingTextLayerID = nil
     }
 
     private func textDragMoved(to point: CGPoint) {
@@ -677,6 +659,7 @@ struct TextLayerState: Identifiable {
     var fontDesign: Font.Design = .default
     var fontSize: CGFloat = 32
     var hasBackground: Bool = false
+    var alignment: TextAlignment = .center
     var position = CGPoint(x: 180, y: 320)
     var scale: CGFloat = 1
     var lastScale: CGFloat = 1
@@ -685,6 +668,8 @@ struct TextLayerState: Identifiable {
 
 private struct EditableText: View {
     @Binding var state: TextLayerState
+    /// Tap re-opens the layer in `TextEditorOverlay`.
+    var onTap: () -> Void = {}
     /// Live absolute position while dragging. Lets the parent track
     /// proximity to the trash zone and show/highlight its icon.
     var onDragMove: (CGPoint) -> Void = { _ in }
@@ -694,37 +679,270 @@ private struct EditableText: View {
     /// in, so that decision has to live one level up).
     var onDragEnd: (CGPoint) -> Void = { _ in }
 
+    static let scaleRange: ClosedRange<CGFloat> = 0.5...4
+    /// Invisible margin around the words that still counts as "the text":
+    /// a pinch's two fingers usually land either side of a word, and
+    /// without it they'd hit the photo below and zoom that instead.
+    private static let touchMargin: CGFloat = 40
+
     var body: some View {
-        Text(state.text)
-            .font(.system(size: state.fontSize, weight: .bold, design: state.fontDesign))
-            .foregroundColor(state.color)
-            .padding(state.hasBackground ? 10 : 0)
-            .background {
-                if state.hasBackground {
-                    Capsule().fill(Color.black.opacity(0.55))
-                }
-            }
-            .scaleEffect(state.scale)
+        StyledStoryText(state: state)
+            .padding(Self.touchMargin)
+            .contentShape(Rectangle())
             .position(x: state.position.x + state.dragOffset.width,
                       y: state.position.y + state.dragOffset.height)
-            .gesture(
-                DragGesture()
-                    .onChanged { value in
-                        state.dragOffset = value.translation
-                        onDragMove(CGPoint(x: state.position.x + value.translation.width,
-                                            y: state.position.y + value.translation.height))
+            .onTapGesture(perform: onTap)
+            // One gesture, so a two-finger touch can move and resize at once
+            // instead of the drag claiming it and the pinch never firing.
+            .gesture(SimultaneousGesture(drag, pinch))
+    }
+
+    private var drag: some Gesture {
+        DragGesture()
+            .onChanged { value in
+                state.dragOffset = value.translation
+                onDragMove(CGPoint(x: state.position.x + value.translation.width,
+                                    y: state.position.y + value.translation.height))
+            }
+            .onEnded { value in
+                let finalPoint = CGPoint(x: state.position.x + value.translation.width,
+                                          y: state.position.y + value.translation.height)
+                state.dragOffset = .zero
+                onDragEnd(finalPoint)
+            }
+    }
+
+    private var pinch: some Gesture {
+        MagnifyGesture()
+            .onChanged { value in
+                state.scale = min(max(state.lastScale * value.magnification, Self.scaleRange.lowerBound),
+                                  Self.scaleRange.upperBound)
+            }
+            .onEnded { _ in state.lastScale = state.scale }
+    }
+}
+
+/// A text layer's look (font, colour, alignment, highlight), shared by the
+/// canvas and the editor so the text looks the same in both.
+private struct StyledStoryText: View {
+    let state: TextLayerState
+
+    var body: some View {
+        // The pinch scale goes into the font size rather than a scaleEffect,
+        // so enlarged text is redrawn sharp instead of stretched blurry.
+        Text(state.text)
+            .font(.system(size: state.fontSize * state.scale, weight: .bold, design: state.fontDesign))
+            .foregroundColor(state.color)
+            .multilineTextAlignment(state.alignment)
+            .padding(state.hasBackground ? 10 * state.scale : 0)
+            .background {
+                if state.hasBackground {
+                    RoundedRectangle(cornerRadius: 10 * state.scale).fill(Color.black.opacity(0.55))
+                }
+            }
+    }
+}
+
+// MARK: - Text editor overlay
+
+/// Full-screen text editing over the composer: the text is typed live in the
+/// upper part of the screen with the keyboard up, and the style tools ride
+/// just above the keyboard, so nothing hides the text being edited.
+private struct TextEditorOverlay: View {
+    @Binding var state: TextLayerState
+    var onDone: () -> Void
+
+    @Environment(\.appBundle) private var bundle
+    @FocusState private var isFocused: Bool
+    @State private var tool: Tool = .font
+    @State private var pinchStartSize: CGFloat?
+
+    private enum Tool { case font, color }
+
+    static let sizeRange: ClosedRange<CGFloat> = 16...96
+    private static let colors: [Color] = [.white, .black, .red, .orange, .yellow, .green, .blue, .purple, .pink]
+    private static let designs: [(Font.Design, String)] = [
+        (.default, "Default"), (.serif, "Serif"), (.rounded, "Rounded"), (.monospaced, "Monospaced"),
+    ]
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            Color.black.opacity(0.6)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onDone)
+
+            VStack(spacing: 0) {
+                HStack(alignment: .top, spacing: 0) {
+                    sizeSlider
+                    textField
+                }
+                .padding(.top, 40)
+                Spacer(minLength: 0)
+            }
+        }
+        .safeAreaInset(edge: .bottom) { toolArea }
+        .simultaneousGesture(
+            MagnificationGesture()
+                .onChanged { value in
+                    let start = pinchStartSize ?? state.fontSize
+                    pinchStartSize = start
+                    state.fontSize = min(max(start * value, Self.sizeRange.lowerBound), Self.sizeRange.upperBound)
+                }
+                .onEnded { _ in pinchStartSize = nil }
+        )
+        .onAppear { isFocused = true }
+    }
+
+    /// Typed text drawn in the layer's own style. Its on-canvas pinch scale is
+    /// folded in so the size matches what lands on the story.
+    private var textField: some View {
+        let font = Font.system(size: state.fontSize * state.scale, weight: .bold, design: state.fontDesign)
+        let placeholder = bundle.loc("Type something...")
+        // An invisible copy of the text sizes the field, so the highlight hugs
+        // the words like it does on the canvas instead of spanning the screen.
+        return Text(state.text.isEmpty ? placeholder : state.text + " ")
+            .font(font)
+            .multilineTextAlignment(state.alignment)
+            .hidden()
+            .overlay {
+                TextField("", text: $state.text, prompt: Text(placeholder).foregroundColor(.white.opacity(0.6)), axis: .vertical)
+                    .font(font)
+                    .foregroundColor(state.color)
+                    .tint(state.color == .black ? .white : state.color)
+                    .multilineTextAlignment(state.alignment)
+                    .focused($isFocused)
+            }
+            .padding(state.hasBackground ? 10 * state.scale : 0)
+            .background {
+                if state.hasBackground {
+                    RoundedRectangle(cornerRadius: 10 * state.scale).fill(Color.black.opacity(0.55))
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: frameAlignment)
+            .padding(.trailing, 24)
+    }
+
+    private var frameAlignment: Alignment {
+        switch state.alignment {
+        case .leading: .leading
+        case .trailing: .trailing
+        default: .center
+        }
+    }
+
+    /// Thin vertical slider on the left edge, like other story editors.
+    private var sizeSlider: some View {
+        Slider(value: $state.fontSize, in: Self.sizeRange)
+            .tint(.white)
+            .controlSize(.mini)
+            .frame(width: 200)
+            .rotationEffect(.degrees(-90))
+            .frame(width: 36, height: 200)
+            .accessibilityLabel(bundle.loc("Size"))
+    }
+
+    // MARK: Tools above the keyboard
+
+    private var toolArea: some View {
+        VStack(spacing: 10) {
+            switch tool {
+            case .font: fontChips
+            case .color: colorRow
+            }
+            HStack(spacing: 6) {
+                toolButton(isOn: tool == .font, label: bundle.loc("Font")) {
+                    Image(systemName: "textformat")
+                } action: { tool = .font }
+                toolButton(isOn: tool == .color, label: bundle.loc("Color")) {
+                    Circle()
+                        .fill(AngularGradient(colors: [.red, .yellow, .green, .blue, .purple, .red], center: .center))
+                        .frame(width: 24, height: 24)
+                        .overlay(Circle().fill(state.color).frame(width: 12, height: 12))
+                } action: { tool = .color }
+                toolButton(isOn: false, label: bundle.loc("Alignment")) {
+                    Image(systemName: alignmentIcon)
+                } action: { cycleAlignment() }
+                toolButton(isOn: state.hasBackground, label: bundle.loc("Background highlight")) {
+                    Image(systemName: "character.textbox")
+                } action: { state.hasBackground.toggle() }
+            }
+            .padding(6)
+            .background(Color.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 14))
+        }
+        .padding(.bottom, 8)
+        // Styling the text mustn't close the keyboard (and drop these tools).
+        .keepsKeyboard()
+    }
+
+    private func toolButton<Icon: View>(isOn: Bool, label: String, @ViewBuilder icon: () -> Icon,
+                                        action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            icon()
+                .scaledFont(20, .semibold)
+                .foregroundColor(.white)
+                .frame(width: 48, height: 40)
+                .background(isOn ? Color.white.opacity(0.22) : .clear, in: RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+
+    private var fontChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(Self.designs, id: \.1) { design, name in
+                    let isOn = state.fontDesign == design
+                    Button { state.fontDesign = design } label: {
+                        Text(bundle.loc(name))
+                            .font(.system(size: 16, weight: .bold, design: design))
+                            .foregroundColor(isOn ? .black : .white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 9)
+                            .background(isOn ? Color.white : Color.white.opacity(0.18), in: RoundedRectangle(cornerRadius: 12))
                     }
-                    .onEnded { value in
-                        let finalPoint = CGPoint(x: state.position.x + value.translation.width,
-                                                  y: state.position.y + value.translation.height)
-                        state.dragOffset = .zero
-                        onDragEnd(finalPoint)
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(isOn ? .isSelected : [])
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+
+    private var colorRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(Self.colors.indices, id: \.self) { i in
+                    let color = Self.colors[i]
+                    Button { state.color = color } label: {
+                        Circle()
+                            .fill(color)
+                            .frame(width: 30, height: 30)
+                            .overlay(Circle().stroke(Color.white, lineWidth: color == state.color ? 3 : 1.5))
                     }
-            )
-            .simultaneousGesture(
-                MagnificationGesture()
-                    .onChanged { value in state.scale = max(state.lastScale * value, 0.5) }
-                    .onEnded { _ in state.lastScale = state.scale }
-            )
+                    .buttonStyle(.plain)
+                }
+                ColorPicker("", selection: $state.color).labelsHidden()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 4)
+        }
+    }
+
+    private var alignmentIcon: String {
+        switch state.alignment {
+        case .leading: "text.alignleft"
+        case .trailing: "text.alignright"
+        default: "text.aligncenter"
+        }
+    }
+
+    private func cycleAlignment() {
+        switch state.alignment {
+        case .leading: state.alignment = .center
+        case .center: state.alignment = .trailing
+        default: state.alignment = .leading
+        }
     }
 }

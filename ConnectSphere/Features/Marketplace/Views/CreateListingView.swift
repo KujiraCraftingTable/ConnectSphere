@@ -10,6 +10,7 @@ struct CreateListingView: View {
     @Environment(\.appBundle) private var bundle
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
+    @Environment(UndoToastPresenter.self) private var toast
 
     @State private var viewModel: CreateListingViewModel
     @State private var showCommunities = false
@@ -59,6 +60,7 @@ struct CreateListingView: View {
             .navigationDestination(isPresented: $showCommunities) { communityStep }
             .task { await viewModel.loadCommunities(token: token) }
         }
+        .processingOverlay(viewModel.isPublishing)
     }
 
     // MARK: Step 2, where else it shows
@@ -112,6 +114,9 @@ struct CreateListingView: View {
                     Task<Void, Never>(name: nil) {
                         if let post = await viewModel.publish(token: token) {
                             onCreated(post)
+                            toast.show(message: bundle.loc(post.publishStatus == "pending"
+                                                           ? "Your listing is waiting for approval."
+                                                           : "Your listing is now published."))
                             dismiss()
                         }
                     }

@@ -26,10 +26,12 @@ struct MessageBubble: View {
     /// Hobby mode = rounder bubble; Work mode = crisper bubble. Threaded in from ChatView
     /// (`appState.currentMode == .hobby`), same convention as `palette`.
     var isPlayful: Bool = false
-    /// Whether this bubble shows "Seen"/"Unseen" under it. `ChatView` turns it
+    /// Whether this bubble shows "Sent" / who has seen it. `ChatView` turns it
     /// on only for my latest message; bubbles carry no time of their own (the
     /// centered separators do).
     var showsMeta: Bool = true
+    /// Who has read this message, shown as small photos under my latest one.
+    var seenBy: [ChatReader] = []
     /// True while this chat is a message request the person hasn't accepted:
     /// the other side's photos and videos stay blurred until tapped.
     var coversStrangerMedia: Bool = false
@@ -427,22 +429,86 @@ struct MessageBubble: View {
         if isOwn { statusIcon }
     }
 
-    /// "Unseen" until the other person has read it, then nothing. Groups show
-    /// "Read n/total" while only some have read it and nothing once all have.
+    /// "Sent" until someone reads it, then their small photos, Messenger style
+    /// (in a group, everyone who has read it so far). "Sending…" lives on
+    /// `PendingTextBubble`, before the message exists on the server.
     @ViewBuilder
     private var statusIcon: some View {
-        let total = otherParticipantIds.count
-        let readCount = message.readCount(among: otherParticipantIds)
-
-        if total > 1, readCount > 0, readCount < total {
-            Text(String(format: bundle.loc("Read %d/%d"), readCount, total))
+        if seenBy.isEmpty {
+            Text(bundle.loc("Sent"))
                 .scaledFont(12, .medium)
                 .foregroundColor(AppColors.textTertiary(colorScheme))
-        } else if total > 0, readCount < total {
-            Text(bundle.loc("Unseen"))
-                .scaledFont(12, .medium)
-                .foregroundColor(AppColors.textTertiary(colorScheme))
+        } else {
+            SeenAvatars(readers: seenBy)
         }
+    }
+}
+
+/// Someone who has read a message, as `MessageBubble.seenBy` shows them.
+struct ChatReader: Identifiable, Equatable {
+    let id: String
+    let name: String
+    let colorHex: String?
+    let avatarUrl: String?
+}
+
+/// Small overlapping reader photos under my latest message: up to 5, then "+N".
+private struct SeenAvatars: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.appBundle) private var bundle
+    let readers: [ChatReader]
+    private let maxShown = 5
+
+    var body: some View {
+        HStack(spacing: -4) {
+            ForEach(readers.prefix(maxShown)) { reader in
+                Avatar(name: reader.name, colorHex: reader.colorHex, imageURL: reader.avatarUrl, diameter: 16)
+                    .overlay(Circle().stroke(AppColors.base(colorScheme), lineWidth: 1.5))
+            }
+            if readers.count > maxShown {
+                Text("+\(readers.count - maxShown)")
+                    .scaledFont(11, .medium)
+                    .foregroundColor(AppColors.textTertiary(colorScheme))
+                    .padding(.leading, 8)
+            }
+        }
+        .padding(.top, 1)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(String(format: bundle.loc("Seen by %@"),
+                                   readers.map(\.name).formatted(.list(type: .and))))
+    }
+}
+
+/// A text I've just sent that the server hasn't confirmed: an own bubble with
+/// "Sending…" under it, replaced by the real message once it's stored.
+struct PendingTextBubble: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.appBundle) private var bundle
+    let text: String
+    let palette: ThemePalette
+    var isPlayful: Bool = false
+    var showsStatus: Bool = true
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 6) {
+            Spacer(minLength: 60)
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(text)
+                    .scaledFont(17)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(palette.primary.opacity(0.75))
+                    .clipShape(BubbleShape(isOwn: true, isPlayful: isPlayful))
+                if showsStatus {
+                    Text(bundle.loc("Sending…"))
+                        .scaledFont(12, .medium)
+                        .foregroundColor(AppColors.textTertiary(colorScheme))
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 2)
     }
 }
 

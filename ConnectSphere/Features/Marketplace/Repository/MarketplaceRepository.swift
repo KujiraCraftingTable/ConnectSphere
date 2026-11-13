@@ -60,10 +60,10 @@ struct MarketplaceRepository {
                                       method: "PUT", token: token, bodyData: body).data.toPost()
     }
 
-    /// Confirms the buyer's deposit as sold, on one item or (`itemId` nil) all
-    /// of theirs in the listing; each sends them a review card. The post.
-    func confirmSale(listingId: String, itemId: String?, buyerId: String, token: String) async throws -> Post {
-        var fields: [String: Any] = ["buyer_id": buyerId]
+    /// Confirms the buyers' deposits as sold, on one item or (`itemId` nil) all
+    /// of theirs in the listing; each sends its buyer a review card. The post.
+    func confirmSale(listingId: String, itemId: String?, buyerIds: [String], token: String) async throws -> Post {
+        var fields: [String: Any] = ["buyer_ids": buyerIds]
         if let itemId { fields["item_id"] = itemId } else { fields["all"] = true }
         let body = try JSONSerialization.data(withJSONObject: fields)
         return try await client.fetch(DataResponse<PostDTO>.self, path: "/listings/\(listingId)/sales",

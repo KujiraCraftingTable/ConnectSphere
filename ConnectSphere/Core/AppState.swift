@@ -167,26 +167,23 @@ class AppState {
     var appLanguage: AppLanguage = .english {
         didSet { UserDefaults.standard.set(appLanguage.rawValue, forKey: "appLanguage") }
     }
-    /// The home-screen icon's colour: a `ThemePalette` id. Amber is the primary
-    /// icon; the others are alternate icons named `AppIcon-<id>` in the asset
-    /// catalog (built by `scripts/app-icon/make.py`).
+    /// The home-screen icon's colour: a `ThemePalette` id. Blue is the primary
+    /// icon, matching the default theme; the others are alternate icons named
+    /// `AppIcon-<id>` in the asset catalog (built by `scripts/app-icon/make.py`).
     private(set) var appIconId: String = AppState.primaryAppIconId
     /// Set when iOS refused the icon change; the view shows it and clears it.
     var appIconError: String? = nil
-    static let primaryAppIconId = "amber"
+    static let primaryAppIconId = "blue"
 
-    /// Switches the home-screen icon. iOS shows its own one-time alert; the
-    /// choice is kept so the picker stays in step after a relaunch.
+    /// Switches the home-screen icon. iOS shows its own one-time alert.
     func selectAppIcon(_ id: String) {
         guard id != appIconId else { return }
         let previous = appIconId
         appIconId = id
-        UserDefaults.standard.set(id, forKey: "appIconId")
         let name = id == Self.primaryAppIconId ? nil : "AppIcon-\(id)"
         UIApplication.shared.setAlternateIconName(name) { [weak self] error in
             guard let self, error != nil else { return }
             self.appIconId = previous
-            UserDefaults.standard.set(previous, forKey: "appIconId")
             self.appIconError = self.bundle.loc("The app icon couldn't be changed.")
         }
     }
@@ -206,8 +203,10 @@ class AppState {
            let saved = AppearanceMode(rawValue: raw) {
             appearanceMode = saved
         }
-        if let saved = UserDefaults.standard.string(forKey: "appIconId") {
-            appIconId = saved
+        // Read back from iOS rather than a saved choice, so the picker always
+        // names the icon on the home screen (no alternate set = the primary).
+        if let name = UIApplication.shared.alternateIconName, name.hasPrefix("AppIcon-") {
+            appIconId = String(name.dropFirst("AppIcon-".count))
         }
         if let raw = UserDefaults.standard.string(forKey: "appLanguage"),
            let saved = AppLanguage(rawValue: raw) {

@@ -17,6 +17,11 @@ struct SwipeToReplyModifier: ViewModifier {
     /// stays a scroll and never nudges the bubble sideways halfway through.
     @State private var lockedAxis: Axis?
     @State private var isPastThreshold = false
+    /// True from the moment a drag is read as a horizontal swipe until just
+    /// after it ends. The bubble's buttons and links are disabled meanwhile:
+    /// the swipe runs alongside them, so lifting the finger on, say, a
+    /// meeting's location would otherwise also open its map.
+    @State private var suppressesTaps = false
 
     private let threshold: CGFloat = 60
     private let maxTravel: CGFloat = 80
@@ -25,7 +30,9 @@ struct SwipeToReplyModifier: ViewModifier {
         ZStack(alignment: direction > 0 ? .leading : .trailing) {
             // Stays put at the row's edge while the bubble slides off it.
             replyIcon
-            content.offset(x: offset)
+            content
+                .offset(x: offset)
+                .disabled(suppressesTaps)
         }
         // Simultaneous, not `.gesture`: inside a ScrollView an exclusive
         // DragGesture swallows vertical scrolling (iOS 18+), and the long-press
@@ -47,6 +54,7 @@ struct SwipeToReplyModifier: ViewModifier {
                     lockedAxis = abs(dx) > abs(dy) * 1.5 ? .horizontal : .vertical
                 }
                 guard lockedAxis == .horizontal else { return }
+                if !suppressesTaps && abs(dx) > 0 { suppressesTaps = true }
                 // Only the allowed direction moves the bubble.
                 let travel = max(0, dx * direction)
                 offset = rubberBanded(travel) * direction
@@ -57,6 +65,11 @@ struct SwipeToReplyModifier: ViewModifier {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { offset = 0 }
                 lockedAxis = nil
                 isPastThreshold = false
+                // Re-enabled a beat later: the button's own touch-up can land
+                // after this, and must still find it disabled.
+                if suppressesTaps {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { suppressesTaps = false }
+                }
             }
     }
 

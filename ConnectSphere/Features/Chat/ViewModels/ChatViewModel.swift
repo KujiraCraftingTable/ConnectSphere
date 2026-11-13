@@ -8,6 +8,14 @@ class ChatViewModel {
     var messages: [Message] = []          // oldest → newest
     var isLoading = false
     var isSending = false
+    /// Texts I've sent that the server hasn't confirmed yet. Shown at the end
+    /// of the chat with "Sending…", so a slow connection doesn't look like
+    /// nothing happened. Each leaves once its message is stored (or fails).
+    private(set) var pendingTexts: [PendingText] = []
+    struct PendingText: Identifiable, Equatable {
+        let id = UUID()
+        let content: String
+    }
     /// Ids of participants currently typing (excludes the current user). A
     /// 1:1 conversation has at most one id in here; a group can have several.
     var typingUserIds: Set<String> = []
@@ -356,7 +364,12 @@ class ChatViewModel {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         isSending = true
-        defer { isSending = false }
+        let pending = PendingText(content: trimmed)
+        pendingTexts.append(pending)
+        defer {
+            isSending = false
+            pendingTexts.removeAll { $0.id == pending.id }
+        }
 
         if ws.connectionState == .connected {
             var payload: [String: Any] = [
@@ -366,14 +379,21 @@ class ChatViewModel {
             ]
             if let replyToMessageId { payload["replyToMessageId"] = replyToMessageId }
             if confirmed { payload["confirm"] = true }
-            if case .failure(let err) = await emitWithAck("send_message", payload) {
+            switch await emitWithAck("send_message", payload) {
+            case .failure(let err):
                 if ModerationMessage.isConfirmRequired(err) {
                     held = HeldMessage(text: trimmed, replyTo: replyToMessageId)
                     return
                 }
                 // Server reasons (e.g. the message-request limit) have vi entries.
                 self.error = Bundle.app.loc(friendlyError(err))
-            } else {
+            case .success(let ack):
+                // The ack carries the stored message; adding it here means the
+                // pending bubble is replaced in place even if the room echo is late.
+                if let data = (ack as? [String: Any])?["data"], let msg = decodeMessage(data),
+                   !messages.contains(where: { $0.id == msg.id }) {
+                    messages.append(msg)
+                }
                 noteMessageSent()
             }
         } else {

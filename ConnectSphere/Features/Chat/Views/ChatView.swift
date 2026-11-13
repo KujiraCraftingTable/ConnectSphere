@@ -841,7 +841,9 @@ struct ChatView: View {
                         let coversStrangerMedia = viewModel.requestState == .waiting
                         let noteIndex = acceptedNoteIndex(in: messages)
                         let myId = appState.currentUser?.id ?? ""
-                        let lastOwnIndex = messages.lastIndex { $0.isOwn(userId: myId) }
+                        // While a text is still sending, its pending bubble carries the status.
+                        let lastOwnIndex = viewModel.pendingTexts.isEmpty
+                            ? messages.lastIndex { $0.isOwn(userId: myId) } : nil
                         let notes = eventSlots(for: messages)
                         ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
                             let isOwn = message.isOwn(userId: appState.currentUser?.id ?? "")
@@ -878,6 +880,11 @@ struct ChatView: View {
                         ForEach(notes[messages.count] ?? []) { centerNote(eventText($0)) }
                         if noteIndex == messages.count, let at = viewModel.requestAcceptedAt {
                             requestAcceptedNote(at: at)
+                        }
+                        ForEach(viewModel.pendingTexts) { pending in
+                            PendingTextBubble(text: pending.content, palette: chatPalette,
+                                              isPlayful: appState.currentMode == .hobby,
+                                              showsStatus: pending == viewModel.pendingTexts.last)
                         }
                     }
 
@@ -1525,6 +1532,17 @@ struct ChatView: View {
 
     // MARK: - Message row
 
+    /// Everyone else who has read `message`, with their photos (1:1: the peer).
+    private func readers(of message: Message) -> [ChatReader] {
+        if viewModel.isGroup {
+            return viewModel.groupMembers
+                .filter { $0.id != appState.currentUser?.id && message.isRead(by: $0.id) }
+                .map { ChatReader(id: $0.id, name: $0.displayName, colorHex: $0.avatarColor, avatarUrl: $0.avatarUrl) }
+        }
+        guard case .direct(let id, let name, let color, let url) = peer, message.isRead(by: id) else { return [] }
+        return [ChatReader(id: id, name: name, colorHex: color, avatarUrl: url)]
+    }
+
     /// One message's bubble and what it does. Built here, not inline in the
     /// list, which was already near the limit of what the compiler can
     /// type-check in reasonable time.
@@ -1538,8 +1556,9 @@ struct ChatView: View {
             otherParticipantIds: otherParticipantIds,
             isGroup: viewModel.isGroup,
             isPlayful: appState.currentMode == .hobby,
-            // Only my latest message says Seen/Unseen; times live in the separators.
+            // Only my latest message says Sent / who saw it; times live in the separators.
             showsMeta: showsStatus,
+            seenBy: showsStatus ? readers(of: message) : [],
             coversStrangerMedia: coversStrangerMedia,
             onMediaTap: openMediaViewer,
             onReplyPreviewTap: { messageId in Task { await jumpToMessage(messageId) } },

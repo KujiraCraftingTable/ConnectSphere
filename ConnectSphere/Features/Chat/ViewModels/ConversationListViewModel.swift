@@ -12,24 +12,55 @@ class ConversationListViewModel {
     var actionError: String?
     var unreadCount: Int = 0
 
-    // Active connections bar (accepted connections + realtime online status)
+    /// Accepted connections, used by the Spaces editor's people picker.
     var connections: [ConnectionItemDTO] = []
     var onlineUserIds: Set<String> = []
+    /// People hidden from the people row in `hiddenMode` (their chats stay listed).
+    private(set) var hiddenUserIds: Set<String> = []
+    private var hiddenMode: String?
 
     // Cross-conversation search (name + message content)
     var searchResults: [ConversationSearchHit] = []
     var isSearching = false
     private var searchTask: Task<Void, Never>?
 
-    /// Connections that are currently online. Used for the active avatar row at the top of the Messages screen.
-    var activeConnections: [ConnectionItemDTO] {
-        connections.filter { onlineUserIds.contains($0.user.id) }
+    /// People row under the search box: everyone with a 1:1 chat in the inbox,
+    /// online first, then most recent message.
+    var recentPeople: [Conversation] {
+        inbox
+            .filter { c in
+                guard !c.isGroup, let id = c.otherUserId, !id.isEmpty else { return false }
+                return !hiddenUserIds.contains(id)
+            }
+            .sorted { a, b in
+                let (aOn, bOn) = (isOnline(a), isOnline(b))
+                if aOn != bOn { return aOn }
+                return (a.lastMessageAt ?? a.updatedAt) > (b.lastMessageAt ?? b.updatedAt)
+            }
+    }
+
+    func isOnline(_ conversation: Conversation) -> Bool {
+        guard let id = conversation.otherUserId else { return false }
+        return onlineUserIds.contains(id)
     }
 
     private let repository = MessageRepository()
     private let connectionRepo = ConnectionRepository()
     private let userRepository = UserRepository()
     private let ws = WebSocketClient.shared
+
+    init() {
+        // Unhiding in Settings › Privacy brings the person back to the row at once.
+        NotificationCenter.default.addObserver(forName: .hiddenContactsChanged, object: nil, queue: .main) { [weak self] note in
+            guard let userId = note.userInfo?["userId"] as? String,
+                  let mode = note.userInfo?["mode"] as? String,
+                  let hidden = note.userInfo?["hidden"] as? Bool else { return }
+            MainActor.assumeIsolated {
+                guard let self, self.hiddenMode == mode else { return }
+                if hidden { self.hiddenUserIds.insert(userId) } else { self.hiddenUserIds.remove(userId) }
+            }
+        }
+    }
 
     // MARK: - Load
 
@@ -53,6 +84,28 @@ class ConversationListViewModel {
             connections = try await connectionRepo.fetchConnections(mode: mode, status: "accepted")
         } catch {
             connections = []
+        }
+    }
+
+    // MARK: - Hidden contacts (people row)
+
+    /// Errors keep the last known set: the row just shows everyone.
+    func loadHiddenContacts(mode: String, token: String) async {
+        guard let contacts = try? await repository.fetchHiddenContacts(mode: mode, token: token) else { return }
+        hiddenMode = mode
+        hiddenUserIds = Set(contacts.map(\.id))
+    }
+
+    /// Optimistic: the photo leaves the row at once and comes back if the server refuses.
+    func hide(_ conversation: Conversation, mode: String, token: String) async {
+        guard let userId = conversation.otherUserId, !userId.isEmpty else { return }
+        hiddenMode = mode
+        hiddenUserIds.insert(userId)
+        do {
+            try await repository.setContactHidden(userId: userId, hidden: true, mode: mode, token: token)
+        } catch {
+            hiddenUserIds.remove(userId)
+            actionError = friendlyError(error)
         }
     }
 

@@ -61,7 +61,10 @@ feed. Most features exist in both, and content stays in the mode it was made in.
   aren't connected to.
 - **Meeting proposals** with a place, time and reminder (at the start, an hour
   before, or 7am on the day / days before; reminders already past can't be picked).
-- Live "Unseen" under your latest message until the other person reads it.
+- Under your latest message: "Sending…", then "Sent", then the reader's photo
+  once they've read it, updated live.
+- A row of people at the top of Messages; long-press someone to hide them from
+  the row (their chat stays). Unhide in Settings › Privacy › Hidden contacts.
 - Centered notes when someone accepts your message request or changes the chat's
   theme or a nickname; they count as unread and show as the chat's preview.
 - Share posts and communities into a chat; a floating chat bubble; chat *spaces*
@@ -84,7 +87,9 @@ feed. Most features exist in both, and content stays in the mode it was made in.
 - **Deposits and sales**: the seller records a buyer's deposit (units held for
   one of their chats), which comes off what others can buy. When the delivery
   arrives, the seller confirms that deposit as sold. Sales are final, and the
-  sold count can't be typed in, only confirmed from deposits.
+  sold count can't be typed in, only confirmed from deposits. Several buyers'
+  deposits can be confirmed at once. A sold-out listing's card shows only
+  "Sold" and its re-up count.
 - **Reviews**: each seller's Marketplace page opens with a Reviews post. A
   confirmed sale sends that buyer a review card (valid 3 days): 0–5 stars and a
   comment. The seller can reply or report but not delete. A Legit badge shows at
