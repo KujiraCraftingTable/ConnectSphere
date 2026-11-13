@@ -10,7 +10,7 @@ import Queues
 /// decides (Meta's approach since 2025: automation acts alone only on severe
 /// harm, everything else waits for a human).
 enum ModerationScan {
-    enum Kind: String, Codable, Sendable { case post, comment, profile, community, company, dating }
+    enum Kind: String, Codable, Sendable { case post, comment, profile, community, company }
 
     struct Payload: Codable, Sendable {
         let kind: Kind
@@ -125,12 +125,6 @@ enum ModerationScan {
                   NULL AS status, u.created_at
                 FROM companies c JOIN users u ON u.id = c.created_by WHERE c.id = \(uuid: p.id)
                 """
-        case .dating:
-            target = .datingProfile
-            q = """
-                SELECT d.user_id::text AS author_id, NULL AS mode, d.bio AS text, NULL AS status, u.created_at
-                FROM dating_profiles d JOIN users u ON u.id = d.user_id WHERE d.user_id = \(uuid: p.id)
-                """
         }
         guard let r = try await db.raw(q).first(decoding: Row.self),
               let text = r.text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
@@ -152,9 +146,7 @@ enum ModerationScan {
             let m = p.mode == "work" ? "work" : "hobby"
             q = "SELECT \(unsafeRaw: m)_avatar_url AS path FROM users WHERE id = \(uuid: p.id) UNION ALL SELECT \(unsafeRaw: m)_cover_url FROM users WHERE id = \(uuid: p.id)"
         case .community: q = "SELECT avatar_url AS path FROM communities WHERE id = \(uuid: p.id) UNION ALL SELECT cover_url FROM communities WHERE id = \(uuid: p.id)"
-        case .company: q = "SELECT logo_url AS path FROM companies WHERE id = \(uuid: p.id) UNION ALL SELECT cover_url FROM companies WHERE id = \(uuid: p.id)"
-        case .dating: q = "SELECT url AS path FROM dating_photos WHERE user_id = \(uuid: p.id)"
-        }
+        case .company: q = "SELECT logo_url AS path FROM companies WHERE id = \(uuid: p.id) UNION ALL SELECT cover_url FROM companies WHERE id = \(uuid: p.id)"        }
         return try await db.raw(q).all(decoding: P.self).compactMap(\.path).filter { $0.hasPrefix("/uploads/") }
     }
 

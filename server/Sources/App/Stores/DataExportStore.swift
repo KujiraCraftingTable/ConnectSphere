@@ -37,9 +37,6 @@ enum DataExportStore {
             ("education", "SELECT to_jsonb(t) AS j FROM educations t WHERE user_id = \(u)"),
             ("job_applications", "SELECT to_jsonb(t) AS j FROM job_applications t WHERE applicant_id = \(u)"),
             ("searches", "SELECT to_jsonb(t) AS j FROM search_sessions t WHERE user_id = \(u)"),
-            ("dating_profile", "SELECT to_jsonb(t) AS j FROM dating_profiles t WHERE user_id = \(u)"),
-            ("dating_photos", "SELECT to_jsonb(t) AS j FROM dating_photos t WHERE user_id = \(u)"),
-            ("dating_likes_and_passes", "SELECT to_jsonb(t) AS j FROM dating_likes t WHERE from_user = \(u)"),
         ]
     }
 

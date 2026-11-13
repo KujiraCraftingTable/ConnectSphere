@@ -76,7 +76,7 @@ struct SeedDemoCommand: AsyncCommand {
     /// Tables whose row counts are reported before and after (literals only).
     private static let reportedTables = [
         "users", "posts", "comments", "post_likes", "connections", "follows", "conversations", "messages",
-        "communities", "companies", "stories", "user_embedding_chunks", "search_sessions", "dating_profiles",
+        "communities", "companies", "stories", "user_embedding_chunks", "search_sessions",
     ]
 
     private func wipe(_ context: CommandContext, commit: Bool) async throws {

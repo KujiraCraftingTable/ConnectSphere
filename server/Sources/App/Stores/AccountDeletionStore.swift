@@ -178,10 +178,6 @@ enum AccountDeletionStore {
         ("chat_poll_votes", "user_id"), ("conversation_nicknames", "setter_id"),
         ("conversation_nicknames", "target_id"), ("conversation_block_acks", "user_id"),
         ("message_receipts", "user_id"), ("listing_auto_replies", "buyer_id"),
-        // The Dating space is archived (legacy/dating), but its tables stay and may still hold rows.
-        ("dating_likes", "from_user"), ("dating_likes", "to_user"),
-        ("dating_matches", "user_a"), ("dating_matches", "user_b"),
-        ("dating_profiles", "user_id"),   // its photos go with it (ON DELETE CASCADE)
     ]
 
     /// Everything account deletion removes beyond `removeActivity`: the Work side
@@ -196,8 +192,7 @@ enum AccountDeletionStore {
     // MARK: uploaded files
 
     /// The `/uploads/…` files only this person's content uses: their post and
-    /// comment photos, stories, avatars and covers, highlights, Dating photos
-    /// and CVs. Chat media stays, the messages stay for the other people.
+    /// comment photos, stories, avatars and covers, highlights and CVs. Chat media stays, the messages stay for the other people.
     static func uploadPaths(of user: String, on db: any SQLDatabase) async throws -> [String] {
         struct P: Decodable { let path: String? }
         let rows = try await db.raw("""
@@ -208,9 +203,7 @@ enum AccountDeletionStore {
               UNION ALL SELECT v FROM users u, LATERAL (VALUES (u.avatar_url), (u.cover_url), (u.hobby_avatar_url),
                 (u.hobby_cover_url), (u.work_avatar_url), (u.work_cover_url)) AS t(v) WHERE u.id = \(uuid: user)
               UNION ALL SELECT cover_url FROM highlights WHERE user_id = \(uuid: user)
-              UNION ALL SELECT i.image_url FROM highlight_items i JOIN highlights h ON h.id = i.highlight_id WHERE h.user_id = \(uuid: user)
-              UNION ALL SELECT url FROM dating_photos WHERE user_id = \(uuid: user)
-              UNION ALL SELECT cv_url FROM job_applications WHERE applicant_id = \(uuid: user)
+              UNION ALL SELECT i.image_url FROM highlight_items i JOIN highlights h ON h.id = i.highlight_id WHERE h.user_id = \(uuid: user)              UNION ALL SELECT cv_url FROM job_applications WHERE applicant_id = \(uuid: user)
             ) f WHERE x IS NOT NULL
             """).all(decoding: P.self)
         return Array(Set(rows.compactMap(\.path)))

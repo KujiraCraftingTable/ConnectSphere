@@ -3,7 +3,6 @@ import Foundation
 /// What can be reported app-wide (server `ReportTarget`, migration 089).
 enum ReportTargetType: String {
     case post, comment, message, user, community, story, company
-    case datingProfile = "dating_profile"
 
     private static let common: [ModerationReason] = [
         .spam, .scam, .harassment, .hate, .nuditySexual, .childSafety,
@@ -15,9 +14,7 @@ enum ReportTargetType: String {
         switch self {
         case .post: Self.common + [.offTopic]
         case .comment, .message, .story: Self.common
-        case .user, .community, .company: Self.common + [.impersonation]
-        case .datingProfile: Self.common + [.impersonation, .underage]
-        }
+        case .user, .community, .company: Self.common + [.impersonation]        }
     }
 
     /// Localization key for the sheet's title.
@@ -29,9 +26,7 @@ enum ReportTargetType: String {
         case .user: "Report profile"
         case .community: "Report community"
         case .story: "Report story"
-        case .company: "Report page"
-        case .datingProfile: "Report dating profile"
-        }
+        case .company: "Report page"        }
     }
 }
 

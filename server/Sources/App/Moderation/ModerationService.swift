@@ -172,8 +172,6 @@ enum ModerationService {
                 """).run()
         case .community:
             try await db.raw("UPDATE communities SET suspended_at = NOW() WHERE id = \(uuid: id)").run()
-        case .datingProfile:
-            try await db.raw("UPDATE dating_profiles SET moderation_hidden = TRUE WHERE user_id = \(uuid: id)").run()
         case .story:
             // Stories are deleted once expired, so this one can't come back.
             try await db.raw("UPDATE stories SET expires_at = LEAST(expires_at, NOW()) WHERE id = \(uuid: id)").run()
@@ -241,8 +239,6 @@ enum ModerationService {
                 """).run()
         case .community:
             try await db.raw("UPDATE communities SET suspended_at = NULL WHERE id = \(uuid: id)").run()
-        case .datingProfile:
-            try await db.raw("UPDATE dating_profiles SET moderation_hidden = FALSE WHERE user_id = \(uuid: id)").run()
         case .story, nil:
             break
         case .company:

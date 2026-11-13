@@ -75,14 +75,6 @@ enum ModerationStore {
                     'avatar_url', c.avatar_url, 'cover_url', c.cover_url)::text AS snapshot
                 FROM communities c WHERE c.id = \(uuid: id)
                 """
-        case .datingProfile:
-            q = """
-                SELECT d.user_id::text AS author_id, NULL::text AS mode, NULL::text AS community_id,
-                  json_build_object('bio', d.bio, 'city', d.city,
-                    'photos', COALESCE((SELECT json_agg(ph.url ORDER BY ph.position) FROM dating_photos ph
-                                        WHERE ph.user_id = d.user_id), '[]'::json))::text AS snapshot
-                FROM dating_profiles d WHERE d.user_id = \(uuid: id)
-                """
         case .story:
             q = """
                 SELECT s.author_id::text AS author_id, s.mode, NULL::text AS community_id,

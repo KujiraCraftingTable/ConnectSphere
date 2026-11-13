@@ -20,8 +20,8 @@ final class ModerationPolicyTests: XCTestCase {
     }
 
     func testReasonsDependOnTarget() {
-        XCTAssertNoThrow(try ReportRules.validate(target: "dating_profile", reason: "underage", detail: nil))
-        XCTAssertThrowsError(try ReportRules.validate(target: "post", reason: "underage", detail: nil)) {
+        XCTAssertNoThrow(try ReportRules.validate(target: "user", reason: "impersonation", detail: nil))
+        XCTAssertThrowsError(try ReportRules.validate(target: "post", reason: "impersonation", detail: nil)) {
             XCTAssertEqual($0 as? ReportRules.Problem, .badReason)
         }
         XCTAssertNoThrow(try ReportRules.validate(target: "post", reason: "off_topic", detail: nil))

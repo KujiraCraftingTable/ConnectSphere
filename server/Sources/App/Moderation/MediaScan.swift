@@ -5,8 +5,7 @@ import Crypto
 
 /// Photo checks (migration 090). Every upload gets a row and, with an OpenAI
 /// key, a background scan of the file itself. The verdict belongs to the file,
-/// so content that uses it — a post, comment, story, profile photo, Dating
-/// photo — is judged when the scan lands *and* when the content is published,
+/// so content that uses it — a post, comment, story, profile photo — is judged when the scan lands *and* when the content is published,
 /// whichever comes second. Chat photos are never scanned.
 enum MediaScan {
     enum Status: String, Sendable { case pending, clean, flagged, unscanned }
@@ -90,7 +89,6 @@ enum MediaScan {
         }
         guard let result else {
             await store(path, .unscanned, nil, [:], on: db, logger: logger)
-            await reconcile(path: path, app: app, logger: logger)   // a Dating photo is no longer waiting forever
             return
         }
         let verdict = decide(result)
@@ -130,7 +128,6 @@ enum MediaScan {
             struct Row: Decodable { let status: String; let policy: String? }
             guard let row = try await db.raw("SELECT status, policy FROM media_scans WHERE path = \(bind: path)")
                 .first(decoding: Row.self) else { return }
-            try await refreshDatingFor(path: path, app: app, on: db)
             guard row.status == "flagged", let policy = row.policy.flatMap(ModerationPolicy.init(rawValue:)) else { return }
             for ref in try await references(of: path, on: db) {
                 try await flag(ref, policy: policy, path: path, app: app, logger: logger)
@@ -141,7 +138,7 @@ enum MediaScan {
     }
 
     struct Reference: Decodable {
-        let kind: String        // post, comment, story, user, community, company, dating
+        let kind: String        // post, comment, story, user, community, company
         let id: String
         let mode: String?
         let live: Bool
@@ -158,22 +155,14 @@ enum MediaScan {
             UNION ALL SELECT 'user', id::text, 'work', TRUE FROM users WHERE work_avatar_url = \(bind: path) OR work_cover_url = \(bind: path)
             UNION ALL SELECT 'community', id::text, NULL, TRUE FROM communities WHERE avatar_url = \(bind: path) OR cover_url = \(bind: path)
             UNION ALL SELECT 'company', id::text, 'work', TRUE FROM companies WHERE logo_url = \(bind: path) OR cover_url = \(bind: path)
-            UNION ALL SELECT 'dating', user_id::text, NULL, TRUE FROM dating_photos WHERE url = \(bind: path)
             """).all(decoding: Reference.self)
     }
 
     private static func flag(_ ref: Reference, policy: ModerationPolicy, path: String, app: Application, logger: Logger) async throws {
         let db = app.db.sql()
-        let type: ReportTarget = switch ref.kind {
-        case "post": .post
-        case "comment": .comment
-        case "story": .story
-        case "user": .user
-        case "community": .community
-        case "company": .company
-        default: .datingProfile
-        }
-        guard let target = try await ModerationStore.target(type, ref.id, mode: ref.mode, reporter: "", on: db) else { return }
+        // Reference kinds are ReportTarget raw values.
+        guard let type = ReportTarget(rawValue: ref.kind),
+              let target = try await ModerationStore.target(type, ref.id, mode: ref.mode, reporter: "", on: db) else { return }
         let cfg = app.appEnv.moderation
         let verdict: [String: Any] = ["source": "image", "policy": policy.rawValue, "path": path, "shadow": !cfg.enforcing]
         let filed = try await ModerationStore.openAutoCase(type: type, id: ref.id, target: target, policy: policy,
@@ -187,7 +176,7 @@ enum MediaScan {
               let c = try await ModerationService.loadCase(filed.case_id, on: db), c.status == "open", !c.auto_hidden else { return }
         try await app.db.tx { t in
             switch ref.kind {
-            case "post", "comment", "story", "dating":
+            case "post", "comment", "story":
                 try await ModerationService.takeDown(c, on: t)
             case "user":
                 // Only the flagged picture goes, not the whole profile.
@@ -204,30 +193,8 @@ enum MediaScan {
             try await t.raw("UPDATE moderation_cases SET auto_hidden = TRUE, updated_at = NOW() WHERE id = \(uuid: c.id)").run()
             try await ModerationStore.log(caseID: c.id, actor: nil, action: "auto_hidden", on: t)
         }
-        if let author = target.author_id, ["post", "comment", "story", "dating", "user"].contains(ref.kind) {
+        if let author = target.author_id, ["post", "comment", "story", "user"].contains(ref.kind) {
             await ModerationNotices.held(caseID: c.id, authorID: author, target: type, on: db, hub: app.socketHub, logger: logger)
-        }
-    }
-
-    // MARK: Dating
-
-    /// While photo checks are enforced (and can run), a Dating profile is shown
-    /// only when every photo has been looked at.
-    static func refreshDating(userID: String, app: Application, on db: any SQLDatabase) async throws {
-        let cfg = app.appEnv.moderation
-        let verifying = cfg.enforcing && !cfg.openAIKey.isEmpty
-        try await db.raw("""
-            UPDATE dating_profiles SET photos_unverified = \(bind: verifying) AND EXISTS (
-              SELECT 1 FROM dating_photos ph LEFT JOIN media_scans s ON s.path = ph.url
-              WHERE ph.user_id = dating_profiles.user_id AND COALESCE(s.status, 'unscanned') IN ('pending', 'flagged'))
-            WHERE user_id = \(uuid: userID)
-            """).run()
-    }
-
-    private static func refreshDatingFor(path: String, app: Application, on db: any SQLDatabase) async throws {
-        struct U: Decodable { let user_id: String }
-        for u in try await db.raw("SELECT user_id::text AS user_id FROM dating_photos WHERE url = \(bind: path)").all(decoding: U.self) {
-            try await refreshDating(userID: u.user_id, app: app, on: db)
         }
     }
 

@@ -16,9 +16,9 @@ on 2026-11-11.)
 
 - **Dating is archived, not running.** The app is for friends and colleagues;
   finding a partner is deliberately out of scope. The code lives in
-  `legacy/dating/` (see its README to restore it). The database keeps the
-  inert `dating_*` tables and `conversations.dating_match_id`
-  (migrations 081–082); nothing reads or writes them. AI search ignores
+  `legacy/dating/` (see its README to restore it). Its tables
+  (`dating_*`, `conversations.dating_match_id`) were dropped in migration 142,
+  with the old `community_notifications_legacy`. AI search ignores
   partner wording ("to date", "người yêu") and searches the rest.
 - **Communities and the Marketplace are Hobby-only for now (decided 2026-11-11).**
   They're switched off in Work mode. So Reviews (the seller's reviews post,
@@ -168,8 +168,6 @@ behaviour-based spam signals in chat (`ModerationRules`, `UserRateLimiter`,
   the blur for strangers in Waiting), minors in images (OpenAI doesn't judge
   them in photos), outside link-preview pictures on link posts, and
   re-encoded copies of a removed photo (only the exact same bytes are refused).
-  Dating profiles are shown only once every photo has been checked, and only
-  while `MODERATION_MODE=enforce` and a key are set.
 - **Photos must be our own uploads** (posts, comments, stories, avatars,
   covers, communities, group photos): a link to another site is refused, except
   the preview picture of a link post, and an old post keeps the image it has.

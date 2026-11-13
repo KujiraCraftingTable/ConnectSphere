@@ -32,7 +32,6 @@ struct NotificationsController {
         "job_application":     .init(category: "social", destination: "jobApplicants"),
         "application_status":  .init(category: "social", destination: "job"),
         "scheduled_post_live": .init(category: "social", destination: "post"),
-        "dating_match":        .init(category: "social", destination: "conversation"),
         // Moderation (migration 089): notices about your own account open
         // Settings › Account status. A reporter's notices open nothing: the
         // reported content isn't theirs, and the text already says the decision.

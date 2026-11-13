@@ -34,7 +34,6 @@ enum ModerationPolicy: String, CaseIterable, Codable, Sendable {
 /// What can be reported, and with which reasons.
 enum ReportTarget: String, CaseIterable, Sendable {
     case post, comment, message, user, community, story, company
-    case datingProfile = "dating_profile"
 
     private static let common: [ModerationPolicy] = [
         .spam, .scam, .harassment, .hate, .nuditySexual, .childSafety,
@@ -45,9 +44,7 @@ enum ReportTarget: String, CaseIterable, Sendable {
         switch self {
         case .post: Self.common + [.offTopic]
         case .comment, .message, .story: Self.common
-        case .user, .community, .company: Self.common + [.impersonation]
-        case .datingProfile: Self.common + [.impersonation, .underage]
-        }
+        case .user, .community, .company: Self.common + [.impersonation]        }
     }
 }
 
