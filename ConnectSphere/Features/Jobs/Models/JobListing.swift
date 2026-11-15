@@ -111,15 +111,17 @@ struct JobListing: Identifiable, Decodable, Hashable {
         }
     }
 
-    /// The card's reason line: "4 of 6 skills match", "Near you"…
-    func matchText(loc: (String) -> String) -> String {
+    /// The card's reason line: "4 of 6 skills match", "Near you"…; nil when
+    /// nothing really matches (the server's "none").
+    func matchText(loc: (String) -> String) -> String? {
         switch match.reason {
         case "skills": return String(format: loc("%lld of %lld skills match"), match.matchedSkills.count, skills.count)
         case "company": return loc("From a company you follow")
         case "near": return loc("Near you")
         case "remote": return loc("Remote")
         case "title": return loc("Similar to your role")
-        default: return loc("Matches your profile")
+        case "profile": return loc("Matches your profile")
+        default: return nil
         }
     }
 

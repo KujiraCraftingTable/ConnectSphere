@@ -130,4 +130,57 @@ final class SearchConceptTests: XCTestCase {
         let parent = SearchConcepts.concepts(prompt: "javascript developer", criteria: criteria(), entries: skills)
         XCTAssertEqual(parent.first?.declared, ["javascript", "react"])
     }
+
+    // MARK: topics in English, posts about any topic
+
+    func testTopicLeftInVietnameseGetsItsEnglishWords() {
+        let c = SearchConcepts.Concept(label: "chó", terms: ["chó"], declared: ["chó"], vectorText: "chó")
+        XCTAssertTrue(SearchConcepts.needsEnglish(c))
+        let en = SearchConcepts.inEnglish(c, translation: " Dog, puppy \n")
+        XCTAssertEqual(en.label, "chó")
+        XCTAssertEqual(en.vectorText, "Dog, puppy")
+        XCTAssertEqual(en.terms, ["Dog", "puppy", "chó"])
+        XCTAssertEqual(en.declared, ["dog", "puppy", "chó"])
+    }
+
+    func testEnglishTopicAndBadTranslationAreLeftAlone() {
+        let dog = SearchConcepts.Concept(label: "dog", terms: ["dog"], declared: ["dog"], vectorText: "dog")
+        XCTAssertFalse(SearchConcepts.needsEnglish(dog))
+        let cho = SearchConcepts.Concept(label: "chó", terms: ["chó"], declared: ["chó"], vectorText: "chó")
+        XCTAssertEqual(SearchConcepts.inEnglish(cho, translation: ""), cho)
+        XCTAssertEqual(SearchConcepts.inEnglish(cho, translation: "chó"), cho)
+        XCTAssertEqual(SearchConcepts.inEnglish(cho, translation: String(repeating: "The word means dog. ", count: 5)), cho)
+    }
+
+    func testPostAboutOneTopicIsFoundAndCriteriaAreCounted() {
+        let m = SearchConcepts.postMatches([["a": 0.7, "b": 0.7], ["b": 0.66], [:]], inPlace: ["a", "z"])
+        XCTAssertEqual(Set(m.keys), ["a", "b"])               // "z" is only about the place
+        XCTAssertEqual(m["a"], .init(match: 0.7, criteria: 2))  // one topic + the place
+        XCTAssertEqual(m["b"]!.match, 0.68, accuracy: 1e-9)
+        XCTAssertEqual(m["b"]!.criteria, 2)                     // two topics
+        XCTAssertTrue(SearchConcepts.postMatches([[:], [:]]).isEmpty)
+    }
+
+    func testPromptWithOnlyAPlaceIsThePostsAboutIt() {
+        XCTAssertEqual(SearchConcepts.postMatches([], inPlace: ["z"]), ["z": .init(match: 0, criteria: 1)])
+        XCTAssertTrue(SearchConcepts.postMatches([], inPlace: nil).isEmpty)
+    }
+
+    // MARK: post search elements
+
+    func testPostQueryIsBoundedAndTrimmed() {
+        let q = OllamaService.cleanPostQuery(
+            topics: [[" sunset over the sea ", "", "a", "b", "c"], [], ["1"], ["2"], ["3"], ["4"]],
+            place: " bình thạnh, ")
+        XCTAssertEqual(q.topics, [["sunset over the sea", "a", "b"], ["1"], ["2"], ["3"]])
+        XCTAssertEqual(q.place, "bình thạnh")
+        XCTAssertNil(OllamaService.cleanPostQuery(topics: [], place: " ").place)
+    }
+
+    func testPhraseTopicHasALowerBarThanAWord() {
+        func c(_ text: String) -> SearchConcepts.Concept { .init(label: text, terms: [text], declared: [], vectorText: text) }
+        XCTAssertEqual(SearchConcepts.postMin(for: c("dog, puppy")), SearchConcepts.conceptPostMin)
+        XCTAssertEqual(SearchConcepts.postMin(for: c("grilled meat")), SearchConcepts.conceptPostMin)
+        XCTAssertEqual(SearchConcepts.postMin(for: c("sunset over the sea, sunset at the beach")), SearchConcepts.phrasePostMin)
+    }
 }

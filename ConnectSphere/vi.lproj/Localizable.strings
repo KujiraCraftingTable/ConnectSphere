@@ -62,6 +62,10 @@
 "Tell us what they're into, e.g. \"bạn nữ thích chụp ảnh film ở Hà Nội\"." = "Hãy nói người ấy thích gì, ví dụ \"bạn nữ thích chụp ảnh film ở Hà Nội\".";
 "No one here is into \"%@\" yet. Try a related interest or check the spelling." = "Chưa có ai ở đây thích \"%@\". Thử một sở thích gần giống hoặc kiểm tra chính tả nhé.";
 "No one is into all of these together: %@. Try fewer of them." = "Chưa có ai thích tất cả những điều này cùng lúc: %@. Thử bớt vài điều nhé.";
+"Tell us what the posts are about, e.g. \"quán cà phê yên tĩnh ở Hà Nội\"." = "Hãy cho biết bài viết nói về điều gì, ví dụ \"quán cà phê yên tĩnh ở Hà Nội\".";
+"No posts about \"%@\" yet. Try other words or a wider topic." = "Chưa có bài viết nào về \"%@\". Thử từ khác hoặc chủ đề rộng hơn nhé.";
+"No one near \"%@\" matches yet. Try a wider area or fewer conditions." = "Chưa có ai gần \"%@\" phù hợp. Thử mở rộng khu vực hoặc bớt điều kiện nhé.";
+"No one in that area matches yet. Try a wider area or fewer conditions." = "Chưa có ai ở khu vực đó phù hợp. Thử mở rộng khu vực hoặc bớt điều kiện nhé.";
 "ConnectSphere doesn't search by height, weight or looks. Try interests, skills or a place." = "ConnectSphere không tìm theo chiều cao, cân nặng hay ngoại hình. Thử tìm theo sở thích, kỹ năng hoặc địa điểm nhé.";
 "Search interests" = "Tìm sở thích";
 "Can't find yours? Suggest it" = "Không thấy sở thích của bạn? Đề xuất nhé";
@@ -277,6 +281,7 @@
 "Search only suggests people within %dkm of your ward, or of the place you name." = "Tìm kiếm chỉ gợi ý người trong vòng %dkm quanh phường/xã của bạn, hoặc quanh địa điểm bạn nêu.";
 "Select ward *" = "Chọn phường/xã *";
 "Search ward" = "Tìm phường/xã";
+"Formerly: %@" = "Trước đây: %@";
 "ward" = "phường/xã";
 "· ~%d km" = "· ~%d km";
 "Your ward stays private. It is only used to tell how far away people are; others see your province." = "Phường/xã của bạn được giữ riêng tư, chỉ dùng để ước tính khoảng cách; người khác chỉ thấy tỉnh/thành của bạn.";
@@ -2554,3 +2559,6 @@
 "You won't be able to change it again until %@." = "Bạn sẽ không thể đổi lại cho đến %@.";
 "That's already your username" = "Đây đã là tên người dùng của bạn";
 "You can change your username only once every 6 months." = "Bạn chỉ có thể đổi tên người dùng 6 tháng một lần.";
+
+"You joined %@" = "Bạn đã tham gia %@";
+"Request sent" = "Đã gửi yêu cầu";

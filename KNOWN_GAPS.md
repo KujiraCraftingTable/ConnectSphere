@@ -219,17 +219,50 @@ than this app:
 ## AI post search reads text only, not photos or videos
 
 A post's search embedding (`AI/ChunkService.swift`, `buildPostChunk`) is built
-from its caption, article title, tags and, for jobs, the job details. What is
-*in* a photo or video is never looked at, and the poster's alt text
-(`image_alts`) isn't included either. A cat photo captioned "my weekend" won't
-come up for "cat".
+from its caption, article title, tags, the alt text its author wrote for the
+photos (migration 145) and, for jobs, the job details. What is *in* a photo or
+video is never looked at. A cat photo captioned "my weekend", with no alt text,
+won't come up for "cat".
 
-**Why deferred:** the AI stack is self-hosted (Ollama on the dev machine). A
-local vision model describing every image at publish, plus sampled frames for
-video, would compete with the embedding and query models on the same hardware
-and slow publishing and search beyond what that machine can keep up with.
-Adding alt text to the embedding is the cheap first step whenever this is
-picked up; a vision description needs a GPU host or a hosted model.
+The feed's recommendations use the same embeddings, so they have the same
+limit: a post is recommended for its words, never for its pictures.
+
+**Why deferred (decided 2026-11-15):** this is a real limitation, not a
+product stance; people post what they like. Two ways to read pictures were
+looked at:
+
+- A local vision model (Ollama on the dev machine) describing every image at
+  publish would compete with the embedding and query models on the same
+  hardware. It needs a GPU host or a hosted model.
+- Apple Vision on the poster's iPhone was built and removed. It costs the
+  server nothing, but its whole-image classifier (1,303 labels) only names what
+  fills the frame: a photo of a small dog in a shoe came back as "Waste Basket"
+  (dog 0.23, under the 0.5 cut-off), and a wrong label is worse for search than
+  none. Its animal detector finds small animals but knows only dogs and cats.
+
+If this is picked up again: add `VNRecognizeAnimalsRequest` and an on-device
+object detector (Core ML) to the labels, test on real photos first, and sample
+a few frames for video.
+
+## Places in posts and prompts are read by name, not by map
+
+Search reads a place as today's wards (`AI/PlaceReader.swift`, former names from
+migration 146) and tags each post with the wards it is about (migration 147).
+Known limits, measured on the 265 local posts (32 got wards, 25 a province only):
+
+- **A place name shared by two things is read as the administrative one.**
+  "Phú Mỹ Hưng" (the urban area in the former District 7) is tagged as the
+  former commune of that name in Củ Chi.
+- **A post that names a landmark or old ward without its province is left
+  untagged** when the author lives in another province ("Cafe sách ở Hàng Bạc"
+  by someone whose ward is in Hồ Chí Minh). Guessing the author's province put
+  such posts in the wrong city.
+- **Which words are places is the local LLM's call**, so a post can be missed
+  or mis-tagged; nothing reviews the tags.
+- **Street addresses depend on Nominatim's public server** (1 request a second,
+  no guarantee). A failed lookup leaves the post untagged until its text changes.
+- A search that names a ward or district matches people within 5 km of those
+  wards' centres, which around a whole former district is a wide area.
 
 ---
 

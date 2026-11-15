@@ -94,32 +94,26 @@ final class AppTests: XCTestCase {
         }
     }
 
-    // MARK: PostRanking, popularity only nudges AI post search order.
+    // MARK: PostRanking: criteria met, then popularity, then closeness.
 
-    func testRankScoreWithoutEngagementIsPureSimilarity() {
-        XCTAssertEqual(PostRanking.rankScore(similarity: 0.72, likes: 0, comments: 0), 0.72, accuracy: 1e-12)
+    func testPostMeetingMoreOfThePromptComesFirst() {
+        let both = PostRanking.Key(criteria: 2, engagement: 0, match: 0.61)
+        let one = PostRanking.Key(criteria: 1, engagement: 5_000, match: 0.9)
+        XCTAssertTrue(PostRanking.comesFirst(both, one))
+        XCTAssertFalse(PostRanking.comesFirst(one, both))
     }
 
-    func testRankScoreBoostIsCapped() {
-        let huge = PostRanking.rankScore(similarity: 0.6, likes: 1_000_000, comments: 1_000_000)
-        XCTAssertEqual(huge, 0.6 + PostRanking.maxBoost, accuracy: 1e-12)
-        XCTAssertEqual(PostRanking.rankScore(similarity: 0.6, likes: 50, comments: 0), 0.6 + PostRanking.maxBoost, accuracy: 1e-12)
+    func testAmongEqualsTheMostPopularComesFirst() {
+        let popular = PostRanking.Key(criteria: 1, engagement: 30, match: 0.62)
+        let closer = PostRanking.Key(criteria: 1, engagement: 2, match: 0.80)
+        XCTAssertTrue(PostRanking.comesFirst(popular, closer))
+        let tie = PostRanking.Key(criteria: 1, engagement: 2, match: 0.70)
+        XCTAssertTrue(PostRanking.comesFirst(closer, tie))
     }
 
-    func testRankScoreCommentsCountDouble() {
-        XCTAssertEqual(PostRanking.rankScore(similarity: 0.7, likes: 0, comments: 3),
-                       PostRanking.rankScore(similarity: 0.7, likes: 6, comments: 0), accuracy: 1e-12)
-    }
-
-    func testRankScorePopularityBreaksTiesButNeverBeatsAClearlyBetterMatch() {
-        XCTAssertGreaterThan(PostRanking.rankScore(similarity: 0.75, likes: 10, comments: 2),
-                             PostRanking.rankScore(similarity: 0.76, likes: 0, comments: 0))
-        XCTAssertGreaterThan(PostRanking.rankScore(similarity: 0.70, likes: 0, comments: 0),
-                             PostRanking.rankScore(similarity: 0.60, likes: 1_000, comments: 1_000))
-    }
-
-    func testRankScoreIgnoresNegativeCounts() {
-        XCTAssertEqual(PostRanking.rankScore(similarity: 0.65, likes: -5, comments: -1), 0.65, accuracy: 1e-12)
+    func testEngagementCountsLikesSharesAndCommentsAlike() {
+        XCTAssertEqual(PostRanking.engagement(likes: 3, shares: 2, comments: 1), 6)
+        XCTAssertEqual(PostRanking.engagement(likes: -5, shares: 0, comments: 4), 4)
     }
 
     // MARK: People search. Reactions as evidence, never revealing likes.

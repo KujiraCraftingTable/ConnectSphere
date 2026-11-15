@@ -24,6 +24,10 @@ extension Bundle {
         return Bundle(path: Bundle.main.path(forResource: code, ofType: "lproj") ?? "") ?? .main
     }
 
+    /// Whether this is the Vietnamese bundle, for names the server sends in
+    /// both languages (wards, provinces) rather than as localized strings.
+    var isVietnamese: Bool { bundlePath.hasSuffix("vi.lproj") }
+
     /// Looks up a localized string in this bundle, falling back to the key itself.
     func loc(_ key: String) -> String {
         localizedString(forKey: key, value: key, table: nil)

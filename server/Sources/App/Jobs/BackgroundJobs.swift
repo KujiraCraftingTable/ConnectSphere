@@ -134,7 +134,7 @@ enum BackgroundJobs {
             try await db.raw("DELETE FROM search_sessions WHERE created_at < NOW() - INTERVAL '90 days'").run()
             try await db.raw("""
                 DELETE FROM search_criteria_cache
-                WHERE created_at < NOW() - make_interval(hours => \(bind: OllamaService.criteriaCacheHours))
+                WHERE created_at < NOW() - make_interval(hours => \(bind: OllamaService.criteriaCacheHours)::int)
                 """).run()
             // AI people search health (AI_SEARCH_REVIEW.md, phase S3).
             if let m = try await SearchStore.weeklyMetrics(on: db) {
@@ -458,7 +458,15 @@ enum BackgroundJobs {
         /// Also called directly by `chunkSweep` when the queue isn't getting through.
         static func build(_ kind: Kind, id: String, app: Application, logger: Logger) async throws -> Bool {
             switch kind {
-            case .post:    return try await ChunkService.buildPostChunk(id, cfg: app.ollama, on: app.db.sql(), logger: logger)
+            case .post:
+                let built = try await ChunkService.buildPostChunk(id, cfg: app.ollama, on: app.db.sql(), logger: logger)
+                // The post can count toward its author's interests now; a
+                // failure here is picked up by the sweep.
+                if built {
+                    do { try await InterestVectorService.refreshAuthor(ofPost: id, on: app.db.sql()) }
+                    catch { logger.warning("interest vectors: refresh after post \(id) failed: \(error)") }
+                }
+                return built
             case .profile: return try await ChunkService.buildProfileChunk(id, cfg: app.ollama, on: app.db.sql(), logger: logger)
             }
         }
@@ -712,7 +720,7 @@ enum BackgroundJobs {
         try await db.raw("""
             DELETE FROM user_embedding_chunks c
             WHERE (c.source_type = 'post' AND post_embed_source_hash(c.source_id) IS NULL)
-               OR (c.source_type = 'user_profile' AND profile_embed_source_hash(c.user_id) IS NULL)
+               OR (c.source_type = 'user_profile' AND profile_embed_source_hash(c.user_id, c.mode) IS NULL)
             """).run()
         try await db.raw("""
             DELETE FROM embedding_backlog b
@@ -724,6 +732,12 @@ enum BackgroundJobs {
             SELECT source_type, source_id FROM embedding_out_of_date
             ON CONFLICT DO NOTHING
             """).run()
+        // Interests follow reactions too, which queue nothing: reconcile here.
+        do {
+            let rebuilt = try await InterestVectorService.sweep(on: db)
+            if rebuilt > 0 { app.logger.info("chunkSweep: rebuilt interests for \(rebuilt) user-mode pair(s)") }
+        } catch { app.logger.warning("chunkSweep: interest vectors failed: \(error)") }
+
         struct Item: Decodable { let source_type: String; let source_id: String; let waited: Double }
         let items = try await db.raw("""
             SELECT source_type, source_id::text AS source_id,

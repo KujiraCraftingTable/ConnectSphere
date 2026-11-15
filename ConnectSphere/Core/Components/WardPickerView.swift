@@ -16,11 +16,11 @@ struct WardPickerView: View {
     @State private var showProvinceList = false
 
     var selectedProvinceName: String {
-        viewModel.provinceName(code: selectedProvinceCode) ?? bundle.loc("Select province")
+        viewModel.provinceName(code: selectedProvinceCode, vietnamese: bundle.isVietnamese) ?? bundle.loc("Select province")
     }
 
     var selectedWardName: String {
-        viewModel.wardName(id: selectedWardId) ?? bundle.loc("Select ward *")
+        viewModel.wardName(id: selectedWardId, vietnamese: bundle.isVietnamese) ?? bundle.loc("Select ward *")
     }
 
     var body: some View {
@@ -82,7 +82,8 @@ struct WardPickerView: View {
     }
 }
 
-/// The 34 provinces, searchable with or without Vietnamese accents.
+/// The 34 provinces, searchable with or without Vietnamese accents, by
+/// today's name or by a province merged into it.
 private struct ProvinceListSheet: View {
     let viewModel: WardPickerViewModel
     let selectedProvinceCode: String?
@@ -93,13 +94,20 @@ private struct ProvinceListSheet: View {
 
     var body: some View {
         NavigationStack {
-            List(viewModel.provinces(matching: searchText)) { province in
+            List(viewModel.provinces(matching: searchText, vietnamese: bundle.isVietnamese)) { province in
                 Button {
                     onPick(province.province_code)
                     dismiss()
                 } label: {
                     HStack {
-                        Text(province.province_name).foregroundColor(.primary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(viewModel.name(of: province, vietnamese: bundle.isVietnamese)).foregroundColor(.primary)
+                            if let former = viewModel.formerNames(of: province, matching: searchText,
+                                                                  vietnamese: bundle.isVietnamese) {
+                                Text(String(format: bundle.loc("Formerly: %@"), former))
+                                    .scaledFont(12).foregroundColor(.secondary)
+                            }
+                        }
                         Spacer()
                         if selectedProvinceCode == province.province_code { Image(systemName: "checkmark") }
                     }
@@ -120,7 +128,8 @@ private struct ProvinceListSheet: View {
     }
 }
 
-/// The chosen province's wards, searchable with or without Vietnamese accents.
+/// The chosen province's wards, searchable with or without Vietnamese
+/// accents, by today's name or by a former ward or district.
 private struct WardListSheet: View {
     let viewModel: WardPickerViewModel
     @Binding var selectedWardId: String?
@@ -130,13 +139,20 @@ private struct WardListSheet: View {
 
     var body: some View {
         NavigationStack {
-            List(viewModel.wards(matching: searchText)) { ward in
+            List(viewModel.wards(matching: searchText, vietnamese: bundle.isVietnamese)) { ward in
                 Button {
                     selectedWardId = ward.id
                     dismiss()
                 } label: {
                     HStack {
-                        Text(ward.full_name).foregroundColor(.primary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(viewModel.name(of: ward, vietnamese: bundle.isVietnamese)).foregroundColor(.primary)
+                            if let former = viewModel.formerNames(of: ward, matching: searchText,
+                                                                  vietnamese: bundle.isVietnamese) {
+                                Text(String(format: bundle.loc("Formerly: %@"), former))
+                                    .scaledFont(12).foregroundColor(.secondary)
+                            }
+                        }
                         Spacer()
                         if selectedWardId == ward.id { Image(systemName: "checkmark") }
                     }

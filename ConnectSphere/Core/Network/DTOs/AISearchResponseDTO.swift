@@ -92,6 +92,8 @@ struct EntitySuggestionDTO: Decodable, Identifiable {
 struct SearchWarningDTO: Decodable {
     let code:  String
     let value: String?
+    /// `value` in English, when it is a place name ("Thu Duc City").
+    let value_en: String?
 }
 
 struct AISearchResponseDTO: Decodable {

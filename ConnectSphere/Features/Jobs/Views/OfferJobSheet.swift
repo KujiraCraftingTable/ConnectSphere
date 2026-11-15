@@ -73,7 +73,7 @@ struct CommentJobCard: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(job.title).scaledFont(15, .semibold)
                         .foregroundColor(AppColors.textPrimary(colorScheme)).lineLimit(1)
-                    Text([job.company, job.workFormat.map { bundle.loc(JobListing.formatLabel($0)) }, job.location]
+                    Text([job.company, job.workFormat.map { bundle.loc(JobListing.formatLabel($0)) }, job.location.map(bundle.address)]
                         .compactMap { $0 }.joined(separator: " · "))
                         .scaledFont(12).lineLimit(1)
                         .foregroundColor(AppColors.textSecondary(colorScheme))

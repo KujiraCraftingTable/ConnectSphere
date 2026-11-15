@@ -320,7 +320,7 @@ enum OllamaService {
         struct Cached: Decodable { let criteria: String }
         if let db, let row = try? await db.raw("""
             SELECT criteria::text AS criteria FROM search_criteria_cache
-            WHERE key = \(bind: key) AND created_at > NOW() - make_interval(hours => \(bind: criteriaCacheHours))
+            WHERE key = \(bind: key) AND created_at > NOW() - make_interval(hours => \(bind: criteriaCacheHours)::int)
             """).first(decoding: Cached.self),
            let hit = try? JSONDecoder().decode(SearchCriteria.self, from: Data(row.criteria.utf8)) {
             return hit
@@ -469,6 +469,147 @@ enum OllamaService {
     }
     static func rawChatArray(_ cfg: Config, system: String, user: String, temperature: Double) async throws -> [String] {
         try parseArray(try await chat(cfg, system: system, user: user, temperature: temperature))
+    }
+}
+
+// MARK: Post search: what the wanted posts are about
+
+extension OllamaService {
+    /// A post-search prompt broken into its elements, the way
+    /// `SearchCriteria` breaks a people-search prompt. People are described by
+    /// interests, skills and titles; a post can be about anything ("sunset
+    /// over the sea"), so its elements are free topic phrases and a place.
+    struct PostQuery: Codable, Sendable {
+        /// One inner array per thing the posts should be about: an English
+        /// phrase and its synonyms (the shape of `interest_groups`).
+        var topics: [[String]]
+        /// The place they should be about, as typed. nil when none.
+        var place: String?
+    }
+
+    static let postAnalyzerPrompt = """
+        You are a query analyzer for searching posts on a social network.
+        Read the search query (any language) and return JSON.
+
+        topics: 2D array. Each inner array is ONE thing the wanted posts are about: a short English phrase, then up to two synonyms. Keep a phrase whole when its words belong together ("sunset over the sea", "recovering after a long run"). Use separate inner arrays for separate things ("dogs" and "football"). Never include filler ("posts about", "find", "good", "best") or place names.
+        place: the place the posts should be about, copied exactly as typed: a ward, district, city, street address or venue. Omit if none.
+
+        Output compact JSON on one line, no explanation.
+
+        Example: "các quán thịt nướng ngon ở bình thạnh"
+        {"topics":[["grilled meat restaurant","barbecue restaurant","bbq"]],"place":"bình thạnh"}
+
+        Example: "hoàng hôn trên biển"
+        {"topics":[["sunset over the sea","sunset at the beach"]]}
+
+        Example: "bài viết về chó và bóng đá"
+        {"topics":[["dog","puppy"],["football","soccer"]]}
+
+        Example: "buồn vì đội mình thua"
+        {"topics":[["team lost a match","losing a game"],["feeling sad"]]}
+
+        Example: "tips for recovering after a long run"
+        {"topics":[["recovering after a long run","post-run recovery"]]}
+        """
+
+    private static var postAnalyzerSchema: [String: Any] {
+        [
+            "type": "object",
+            "properties": [
+                "topics": ["type": "array", "items": ["type": "array", "items": ["type": "string"]]],
+                "place": ["type": ["string", "null"]],
+            ],
+            "required": ["topics"],
+        ]
+    }
+
+    /// Keeps at most this many topics, and phrases per topic: a longer answer
+    /// is the model rambling.
+    static let maxPostTopics = 4
+    static let maxTopicPhrases = 3
+
+    /// The model's answer, bounded and trimmed.
+    static func cleanPostQuery(topics: [[String]], place: String?) -> PostQuery {
+        let cleaned = topics.map { group in
+            group.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty && $0.count <= 60 }.prefix(maxTopicPhrases).map { $0 }
+        }.filter { !$0.isEmpty }.prefix(maxPostTopics)
+        let p = place?.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+        return PostQuery(topics: Array(cleaned), place: (p?.isEmpty ?? true) ? nil : p)
+    }
+
+    /// Reads a post-search prompt. Cached like the people criteria
+    /// (`search_criteria_cache`, under its own key). nil when the model
+    /// failed; that is never cached.
+    static func extractPostQuery(_ cfg: Config, _ userQuery: String, logger: Logger,
+                                 db: any SQLDatabase) async -> PostQuery? {
+        let key = "post|" + criteriaCacheKey(userQuery, mode: nil)
+        struct Cached: Decodable { let criteria: String }
+        if let row = try? await db.raw("""
+            SELECT criteria::text AS criteria FROM search_criteria_cache
+            WHERE key = \(bind: key) AND created_at > NOW() - make_interval(hours => \(bind: criteriaCacheHours)::int)
+            """).first(decoding: Cached.self),
+           let hit = try? JSONDecoder().decode(PostQuery.self, from: Data(row.criteria.utf8)) {
+            return hit
+        }
+        do {
+            let raw = try await chat(cfg, system: postAnalyzerPrompt, user: userQuery.trimmingCharacters(in: .whitespaces),
+                                     temperature: 0.1, schema: postAnalyzerSchema)
+            let j = try parseObject(raw)
+            let groups = (j["topics"] as? [Any])?.compactMap { $0 as? [Any] }.map { $0.compactMap { $0 as? String } } ?? []
+            let query = cleanPostQuery(topics: groups, place: j["place"] as? String)
+            if let json = try? JSONEncoder().encode(query) {
+                try? await db.raw("""
+                    INSERT INTO search_criteria_cache (key, criteria)
+                    VALUES (\(bind: key), \(bind: String(decoding: json, as: UTF8.self))::jsonb)
+                    ON CONFLICT (key) DO UPDATE SET criteria = EXCLUDED.criteria, created_at = NOW()
+                    """).run()
+            }
+            return query
+        } catch {
+            logger.warning("Post query analyzer failed: \(error)")
+            return nil
+        }
+    }
+}
+
+// MARK: Posts: the places written in one
+
+extension OllamaService {
+    static let postPlacesPrompt = """
+        You read a social network post (any language) and list the places it is about.
+
+        places: array of place phrases copied exactly as written in the post: street addresses, wards, districts, cities, provinces, or a venue with its area. Keep the parts of one address together as ONE phrase ("45 Lê Thánh Tôn, Bến Nghé, Q1"). Never list a word that is not a place in this post, even if it could be a place name elsewhere ("thành công", "bình minh", "hòa bình" as ordinary words). Empty array when the post names no place.
+
+        Output compact JSON on one line, no explanation.
+
+        Example: "Quán nướng Ba Chỉ ngon lắm, ở 45 Lê Thánh Tôn, Bến Nghé, Q1. Ba chỉ ướp vừa, giá ổn."
+        {"places":["45 Lê Thánh Tôn, Bến Nghé, Q1"]}
+
+        Example: "Sáng nay chạy 5km quanh Hồ Tây, trời Hà Nội se lạnh."
+        {"places":["Hồ Tây, Hà Nội"]}
+
+        Example: "Chúc cả nhà năm mới thành công, mỗi sớm bình minh đều vui."
+        {"places":[]}
+
+        Example: "Cà phê muối ở Bình Thạnh hay Phú Nhuận ngon hơn mọi người?"
+        {"places":["Bình Thạnh","Phú Nhuận"]}
+        """
+
+    private static var postPlacesSchema: [String: Any] {
+        ["type": "object", "properties": ["places": ["type": "array", "items": ["type": "string"]]], "required": ["places"]]
+    }
+
+    /// A post names a few places at most; more is the model listing words.
+    static let maxPostPlaces = 3
+
+    /// The place phrases in a post's text. Throws when the model fails, so
+    /// the caller can leave the post unread and try again later.
+    static func extractPlaces(_ cfg: Config, _ text: String) async throws -> [String] {
+        let raw = try await chat(cfg, system: postPlacesPrompt, user: text, temperature: 0, schema: postPlacesSchema)
+        return Array(strArray(try parseObject(raw)["places"])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && $0.count <= 80 }.prefix(maxPostPlaces))
     }
 }
 

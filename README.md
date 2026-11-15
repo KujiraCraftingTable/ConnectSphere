@@ -97,8 +97,8 @@ not use it.
 
 ## Database and migrations
 
-- `backend/migrations/` holds 92 SQL files, numbered `001`–`097` (`089`–`092`
-  and `094` do not exist). They are shared by the server and replayed at boot
+- `backend/migrations/` holds 147 SQL files, numbered `001`–`148` (`094`
+  does not exist). They are shared by the server and replayed at boot
   in filename order by `Infra/MigrationRunner.swift`, each in a transaction,
   under a Postgres advisory lock.
 - The replay only happens with `RUN_MIGRATIONS=1` (`dev.sh` and the compose

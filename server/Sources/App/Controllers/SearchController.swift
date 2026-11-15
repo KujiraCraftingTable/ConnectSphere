@@ -103,7 +103,9 @@ struct SearchController {
         var candidates: [Cand]
         struct Cand: Content { var entity_id: String; var canonical_name: String }
     }
-    struct Warning: Content { var code: String; @NullCoded var value: String? }
+    /// `value_en`: `value` in English, when it is a place name the app shows
+    /// in its own language ("Thành phố Thủ Đức" / "Thu Duc City").
+    struct Warning: Content { var code: String; @NullCoded var value: String?; @NullCoded var value_en: String? = nil }
     struct AISearchResponse: Content {
         var data: [SearchUser]
         var criteria: OllamaService.SearchCriteria
@@ -184,10 +186,12 @@ struct SearchController {
             throw StatusMessageError(.badRequest, "radiusKm must be 5, 10, 15, 20, 25 or 30")
         }
 
+        var timer = StepTimer()
         var criteria = await OllamaService.extractSearchCriteria(cfg, userQuery, mode: b.mode, logger: log, db: db)
+        timer.mark("criteria")
 
         async let ctxTask = SearchStore.getUserContext(searcher, on: db)
-        async let tasteTask = SearchStore.searchTaste(searcher, on: db)
+        async let tasteTask = SearchStore.searchTaste(searcher, mode: b.mode ?? criteria.mode, on: db)
         async let entriesTask = SearchConcepts.searchEntries(mode: b.mode ?? criteria.mode, on: db)
         let ctx = try await ctxTask
         let tastes = try await tasteTask
@@ -220,7 +224,8 @@ struct SearchController {
             criteria.target_age_min = nil
             criteria.target_age_max = nil
         }
-        let concepts = SearchConcepts.concepts(prompt: userQuery, criteria: criteria, entries: entries)
+        let concepts = await englishConcepts(
+            cfg, SearchConcepts.concepts(prompt: userQuery, criteria: criteria, entries: entries), logger: log)
 
         let parsed = criteria
         async let entityTask = buildEntityVector(cfg, parsed, on: db, logger: log)
@@ -229,6 +234,7 @@ struct SearchController {
         let entityResult = await entityTask
         let generalVec = await generalTask
         let conceptVecs = await conceptVecTask
+        timer.mark("vectors")
 
         var warnings: [Warning] = []
         var searchCoords: (lat: Double, lng: Double)? = nil
@@ -237,7 +243,30 @@ struct SearchController {
         if b.closer == true, b.radiusKm == nil, criteria.location == nil, criteria.place_name == nil, let home = ctx?.location {
             criteria.location = home
         }
-        if let place = criteria.place_name, criteria.location == nil {
+        // A ward, district or address in the prompt ("ở bình thạnh", "45 Lê
+        // Thánh Tôn") is read as today's wards; people near them match. The
+        // prompt as a whole is read too, for when the LLM drops "quận 1".
+        var searchWards: [String] = []
+        var placeLabels: [String] = []     // the place as understood, for the "no one near" notice
+        let placePhrases = [PlaceReader.placePhrase(in: userQuery), criteria.place_name].compactMap { $0 }
+        if !placePhrases.isEmpty {
+            do {
+                let home = try await WardStore.provinceCode(named: criteria.location, orOfUser: searcher, on: db)
+                let found = try await PlaceReader.resolve(placePhrases, homeProvince: home, client: HTTPClient.shared, on: db, logger: log)
+                searchWards = Array(found.wardIDs)
+                placeLabels = Array(found.labels.prefix(3))
+                if searchWards.isEmpty, criteria.location == nil, let code = found.provinceCodes.first, found.provinceCodes.count == 1 {
+                    criteria.location = try await WardStore.provinceName(code: code, on: db)
+                }
+            } catch { log.warning("Place lookup failed: \(error)") }
+        }
+        if searchWards.isEmpty, let named = try? await PlaceReader.read(userQuery, on: db), !named.wardIDs.isEmpty {
+            searchWards = Array(named.wardIDs)
+            placeLabels = Array(named.labels.prefix(3))
+        }
+        if !searchWards.isEmpty {
+            // The wards decide; the filter below measures from their centres.
+        } else if let place = criteria.place_name, criteria.location == nil {
             if let loc = await VenueLocationService.resolveVenueToCity(
                 place, client: HTTPClient.shared, on: db, logger: log), let prov = loc.provinceName {
                 criteria.location = prov
@@ -254,13 +283,14 @@ struct SearchController {
             searchCoords = try await WardStore.centre(ofUser: searcher, on: db)
         }
 
+        timer.mark("place")
         let entityVec = entityResult.vec
         let entitySuggestions = entityResult.suggestion.map { [$0] } ?? []
 
         // "Like me" and "More like @x" add vectors of their own: your taste,
         // or that person's profile.
         var personalVecs: [[Double]] = criteria.like_me ? Array(tastes.prefix(maxLikeMeVectors)) : []
-        if let ml = b.more_like, let v = try await SearchStore.profileVector(ml, on: db) { personalVecs.append(v) }
+        if let ml = b.more_like, let v = try await SearchStore.profileVector(ml, mode: b.mode ?? criteria.mode, on: db) { personalVecs.append(v) }
 
         let groups = criteria.interest_groups.isEmpty ? nil : criteria.interest_groups
         var base = SearchStore.Params(queryVector: [])
@@ -270,6 +300,7 @@ struct SearchController {
         base.targetAgeMin = criteria.target_age_min
         base.targetAgeMax = criteria.target_age_max
         base.radiusKm = b.radiusKm
+        base.searchWardIDs = searchWards
         base.searchLat = searchCoords?.lat
         base.searchLng = searchCoords?.lng
         base.excludeUserID = searcher
@@ -277,13 +308,14 @@ struct SearchController {
         base.interestGroups = groups
         let params = base
         let hasFilter = criteria.target_gender != nil || criteria.target_age_min != nil
-            || criteria.target_age_max != nil || criteria.location != nil || searchCoords != nil
+            || criteria.target_age_max != nil || criteria.location != nil || searchCoords != nil || !searchWards.isEmpty
 
         // Names typed in the prompt are found whatever else it asks for.
         var keywordParams = params
         keywordParams.threshold = 0
         keywordParams.keyword = SearchStore.KeywordQuery(terms: keywordTerms(criteria), nameQuery: userQuery)
         let kwRows = try await SearchStore.vectorSearch(keywordParams, on: db)
+        timer.mark("keyword")
         let nameHits = kwRows.filter { $0.name_match >= strongNameMatch }
 
         var users: [SearchStore.RawUser] = []
@@ -323,7 +355,7 @@ struct SearchController {
             // Only filters ("bạn nữ ở Hà Nội"): everyone who passes them,
             // nearest your taste first.
             var tasteVecs = Array(tastes.prefix(maxLikeMeVectors))
-            if tasteVecs.isEmpty, let mine = try await SearchStore.profileVector(searcher, on: db) { tasteVecs = [mine] }
+            if tasteVecs.isEmpty, let mine = try await SearchStore.profileVector(searcher, mode: params.mode, on: db) { tasteVecs = [mine] }
             var open = params
             open.threshold = 0
             users = fuse(semantic: [], keyword: nameHits, personal: try await bestOfVectors(open, tasteVecs, on: db))
@@ -333,6 +365,23 @@ struct SearchController {
             warnings.append(Warning(code: "query_unclear", value: nil))
         }
 
+        // People match the rest of the prompt, just none near the place it
+        // names: say so rather than show an unexplained empty list.
+        let placed = !searchWards.isEmpty || searchCoords != nil || criteria.location != nil
+        if users.isEmpty, warnings.isEmpty, placed {
+            // The place as the gazetteer spells it, in both languages; the
+            // app shows the one it is set to.
+            if placeLabels.isEmpty {
+                let typed = (criteria.place_name ?? criteria.location)?
+                    .trimmingCharacters(in: .whitespaces.union(.punctuationCharacters))
+                warnings.append(Warning(code: "no_match_near", value: typed))
+            } else {
+                warnings.append(Warning(code: "no_match_near", value: placeLabels.joined(separator: "; "),
+                                        value_en: placeLabels.map(PlaceReader.english).joined(separator: "; ")))
+            }
+        }
+
+        timer.mark("retrieval")
         // Who fits *you*, then spread by place (phases S2, S3, S5).
         do {
             let features = try await SearchStore.rankFeatures(searcher: searcher, candidates: users.map(\.id),
@@ -341,11 +390,14 @@ struct SearchController {
         } catch { log.warning("Search ranking features failed: \(error)") }
         users = SearchRanking.diversify(users, byPlace: criteria.location == nil && searchCoords == nil)
 
+        timer.mark("rerank")
         let terms = collectCriteriaTerms(criteria)
         var communityByUser: [String: [String]] = [:]
         do {
             communityByUser = try await SearchStore.findCommunityEvidence(users.map(\.id), terms: terms, on: db)
         } catch { log.warning("Community evidence lookup failed: \(error)") }
+        timer.mark("evidence")
+        log.info("ai search timing people \(timer.summary) results=\(users.count)")
         return await respond(users, warnings, terms: terms, communities: communityByUser, suggestions: entitySuggestions)
     }
 
@@ -420,16 +472,16 @@ struct SearchController {
         var data: [PostObject]
         var criteria: OllamaService.SearchCriteria
         var warnings: [Warning]
-        /// Post id → cosine similarity (0…1) of its best-matching query vector.
-        /// It is both the ranking key and the match % the app shows, so the
-        /// order and the percentages can never disagree.
+        /// Post id → how close it is to the topics it is about (0…1), the
+        /// match % the app shows. The order is `PostRanking`'s, not this.
         var match_scores: [String: Double]
     }
 
-    /// AI search over posts: the same LLM breakdown and topics as people
-    /// search, then the posts about every topic. A post's similarity is its
-    /// average closeness to the topics. Radius/location filters don't apply,
-    /// posts carry no location.
+    /// AI search over posts, in the same steps as people search: the LLM
+    /// breaks the prompt into elements (`OllamaService.extractPostQuery`),
+    /// each topic gets its own vector, then the posts about any of them
+    /// (`SearchConcepts.postMatches`), those meeting more of the prompt
+    /// first and the most popular first among equals (`PostRanking`).
     static func aiPostSearch(_ req: Request) async throws -> AIPostSearchResponse {
         let b = try req.content.decode(AIBody.self)
         let userQuery = try cleanQuery(b.query)
@@ -441,61 +493,69 @@ struct SearchController {
         let cfg = req.ollama
         let log = req.logger
 
-        let criteria = await OllamaService.extractSearchCriteria(cfg, userQuery, mode: b.mode, logger: log, db: db)
-        let mode = b.mode ?? criteria.mode
+        // Step 2 for posts: the prompt broken into what the posts are about.
+        var timer = StepTimer()
+        let parsed = await OllamaService.extractPostQuery(cfg, userQuery, logger: log, db: db)
+        timer.mark("criteria")
+        let mode = b.mode
+        let criteria = OllamaService.SearchCriteria(
+            intent_en: userQuery, entity_keywords: [], interest_groups: parsed?.topics ?? [], interests: [],
+            skills: [], bio_keywords: [], job_title_keywords: [], place_name: parsed?.place, mode: mode)
         func empty(_ code: String, _ value: String? = nil) -> AIPostSearchResponse {
             AIPostSearchResponse(data: [], criteria: criteria, warnings: [Warning(code: code, value: value)], match_scores: [:])
         }
 
-        // Same rule as people search (phase S6): every topic the prompt names
-        // must be in the post, and without a topic there is nothing to find.
-        let concepts = SearchConcepts.concepts(prompt: userQuery, criteria: criteria,
-                                               entries: try await SearchConcepts.searchEntries(mode: mode, on: db))
-        guard !concepts.isEmpty else {
+        // One topic per catalogue name in the prompt and per topic the LLM
+        // read; without a topic there is nothing to find.
+        let concepts = await englishConcepts(
+            cfg, SearchConcepts.concepts(prompt: userQuery, criteria: criteria,
+                                         entries: try await SearchConcepts.searchEntries(mode: mode, on: db)), logger: log)
+        // The place the prompt names, as today's wards, and the posts about it.
+        timer.mark("topics")
+        var inPlace: Set<String>?
+        let placePhrases = [PlaceReader.placePhrase(in: userQuery), parsed?.place].compactMap { $0 }
+        if !placePhrases.isEmpty {
+            do {
+                let home = try await WardStore.provinceCode(named: nil, orOfUser: req.userID, on: db)
+                let place = try await PlaceReader.resolve(placePhrases, homeProvince: home, client: HTTPClient.shared, on: db, logger: log)
+                if !place.isEmpty { inPlace = try await SearchStore.postsInPlace(place, mode: mode, on: db) }
+            } catch { log.warning("Post search place lookup failed: \(error)") }
+        }
+        timer.mark("place")
+        guard !concepts.isEmpty || inPlace != nil else {
             try? await SearchStore.logSearch(userQuery, mode: b.mode, on: db)
             return empty("query_unclear")
         }
         let vectors = await conceptVectors(cfg, concepts, logger: log)
+        timer.mark("vectors")
         var perConcept: [[String: Double]] = []
         for (c, v) in zip(concepts, vectors) {
-            let hits = try await SearchStore.conceptPosts(c, vector: v, mode: mode, on: db)
+            let hits = try await SearchStore.conceptPosts(c, vector: v, mode: mode,
+                                                          min: SearchConcepts.postMin(for: c), on: db)
             perConcept.append(Dictionary(hits.map { ($0.id, $0.sim) }, uniquingKeysWith: max))
         }
-        let missing = zip(concepts, perConcept).filter { $0.1.isEmpty }.map(\.0.label)
-        guard missing.isEmpty else { return empty("no_match", missing.joined(separator: ", ")) }
-        let ids = perConcept.dropFirst().reduce(Set(perConcept[0].keys)) { $0.intersection($1.keys) }
-        guard !ids.isEmpty else { return empty("no_match_together", concepts.map(\.label).joined(separator: ", ")) }
-        // How close a post is to everything asked for.
-        let best = Dictionary(uniqueKeysWithValues: ids.map { id in
-            (id, perConcept.reduce(0) { $0 + ($1[id] ?? 0) } / Double(perConcept.count))
-        })
+        timer.mark("retrieval")
+        let best = SearchConcepts.postMatches(perConcept, inPlace: inPlace)
+        // The prompt as typed, not the topics read from it: those are the
+        // LLM's English ("grilled meat restaurant").
+        guard !best.isEmpty else { return empty("no_match", userQuery) }
         let warnings: [Warning] = []
 
         let visible = try await PostStore.findVisible(Array(best.keys), viewer: req.userID, on: db)
-        var personal: [String: SearchStore.PostFeatures] = [:]
-        do {
-            let tastes = try await FeedStore.buildTasteVectors(req.userID, on: db) ?? []
-            personal = try await SearchStore.postFeatures(viewer: req.userID, postIDs: visible.map(\.id),
-                                                          tastes: tastes, on: db)
-        } catch { log.warning("Post search personal features failed: \(error)") }
-        // Engagement and your taste only reorder; `match_scores` below stays
-        // the pure match.
-        func rank(_ p: PostObject) -> Double {
-            let f = personal[p.id]
-            return PostRanking.rankScore(
-                similarity: best[p.id] ?? 0, likes: p.like_count, comments: p.comment_count,
-                taste: SearchRanking.taste(f?.taste),
-                seenPenalty: FeedStore.seenPenalty(firstSeenHoursAgo: f?.seen_hours_ago),
-                feedback: f.map { FeedStore.feedbackAdjustment(lessSimilar: $0.less_similar, lessAuthor: $0.less_author,
-                                                               moreSimilar: $0.more_similar, moreAuthor: $0.more_author) } ?? 0)
+        func key(_ p: PostObject) -> PostRanking.Key {
+            PostRanking.Key(criteria: best[p.id]?.criteria ?? 0,
+                            engagement: PostRanking.engagement(likes: p.like_count, shares: p.share_count, comments: p.comment_count),
+                            match: best[p.id]?.match ?? 0)
         }
         let ranked = visible
-            .sorted { rank($0) > rank($1) }
+            .sorted { PostRanking.comesFirst(key($0), key($1)) }
             .prefix(20)
+        timer.mark("rank")
+        log.info("ai search timing posts \(timer.summary) results=\(ranked.count)")
         try? await SearchStore.logSearch(userQuery, mode: b.mode, on: db)
         return AIPostSearchResponse(
             data: Array(ranked), criteria: criteria, warnings: warnings,
-            match_scores: Dictionary(uniqueKeysWithValues: ranked.map { ($0.id, best[$0.id] ?? 0) })
+            match_scores: Dictionary(uniqueKeysWithValues: ranked.map { ($0.id, best[$0.id]?.match ?? 0) })
         )
     }
 
@@ -627,6 +687,28 @@ struct SearchController {
             return try await SearchStore.vectorSearch(pp, on: db)
         }()
         return mergeWeighted(try await entityRows, try await generalRows)
+    }
+
+    /// Topics the LLM left in another language, put into English before they
+    /// are matched (`SearchConcepts.needsEnglish`). A failed translation keeps
+    /// the topic as typed.
+    static func englishConcepts(_ cfg: OllamaService.Config, _ concepts: [SearchConcepts.Concept],
+                                logger: Logger) async -> [SearchConcepts.Concept] {
+        await withTaskGroup(of: (Int, SearchConcepts.Concept).self) { group in
+            for (i, c) in concepts.enumerated() where SearchConcepts.needsEnglish(c) {
+                group.addTask {
+                    do {
+                        return (i, SearchConcepts.inEnglish(c, translation: try await OllamaService.translateToEnglish(cfg, c.vectorText)))
+                    } catch {
+                        logger.warning("Topic translation failed: \(error)")
+                        return (i, c)
+                    }
+                }
+            }
+            var out = concepts
+            for await (i, c) in group { out[i] = c }
+            return out
+        }
     }
 
     /// Each topic embedded on its own, for the topic gate's post check.

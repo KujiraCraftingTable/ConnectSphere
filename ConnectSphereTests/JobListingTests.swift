@@ -40,6 +40,8 @@ struct JobListingTests {
         #expect(try job(reason: "company").matchText(loc: loc) == "From a company you follow")
         #expect(try job(reason: "near").matchText(loc: loc) == "Near you")
         #expect(try job(reason: "profile").matchText(loc: loc) == "Matches your profile")
+        // Nothing really matches: no reason line at all.
+        #expect(try job(reason: "none").matchText(loc: loc) == nil)
     }
 }
 

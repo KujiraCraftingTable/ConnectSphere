@@ -248,11 +248,11 @@ enum FeedStore {
     /// Your interests: your profile, plus up to `maxInterests` clusters of
     /// what you engage with, each pulled away from what you skip or said
     /// "Not interested" to. Nil when there's nothing to go on.
-    static func buildTasteVectors(_ userID: String, on db: any SQLDatabase) async throws -> [[Double]]? {
+    static func buildTasteVectors(_ userID: String, mode: String?, on db: any SQLDatabase) async throws -> [[Double]]? {
         struct V: Decodable { let vec: String }
-        let profile = try await db.raw("SELECT embedding::text AS vec FROM user_embedding_chunks WHERE user_id = \(uuid: userID) AND source_type = 'user_profile'")
+        let profile = try await db.raw("SELECT embedding::text AS vec FROM user_embedding_chunks WHERE user_id = \(uuid: userID) AND source_type = 'user_profile'" + ChunkService.profileModeSQL("user_embedding_chunks", mode))
             .all(decoding: V.self).map { parseVec($0.vec) }
-        let signals = try await behaviorSignals(userID, on: db)
+        let signals = try await behaviorSignals(userID, mode: mode, on: db)
         let positive = signals.filter { $0.weight > 0 }
         let negative = signals.filter { $0.weight < 0 }
         var tastes: [[Double]] = []
@@ -268,22 +268,28 @@ enum FeedStore {
         if tastes.isEmpty {
             // Brand new: start from the interests picked at sign-up. Posts
             // tagged with or mentioning them, before any profile embedding.
-            tastes = clusterTaste(try await interestPickVectors(userID, on: db), weights: [], maxK: maxInterests)
+            tastes = clusterTaste(try await interestPickVectors(userID, mode: mode, on: db), weights: [], maxK: maxInterests)
         }
         return tastes.isEmpty ? nil : tastes
     }
 
-    /// Embeddings of recent posts about the interests you picked (a tag equal
-    /// to one, or its name in the text).
-    static func interestPickVectors(_ userID: String, on db: any SQLDatabase) async throws -> [[Double]] {
+    /// Embeddings of recent posts about what you picked for this mode (a tag
+    /// equal to a pick, or its name in the text): your interests for Hobby,
+    /// your skills for Work, and only that mode's posts. Hobby and Work are
+    /// separate datasets, so an interest never shapes the Work feed.
+    static func interestPickVectors(_ userID: String, mode: String?, on db: any SQLDatabase) async throws -> [[Double]] {
         struct V: Decodable { let vec: String }
+        let picks: SQLQueryString = mode == "work"
+            ? "SELECT us.skill AS pick FROM user_skills us WHERE us.user_id = \(uuid: userID)"
+            : "SELECT ui.interest AS pick FROM user_interests ui WHERE ui.user_id = \(uuid: userID)"
+        let inMode: SQLQueryString = mode.map { " AND p.mode = \(bind: $0)" } ?? ""
         return try await db.raw("""
             SELECT c.embedding::text AS vec
             FROM posts p JOIN user_embedding_chunks c ON c.source_type = 'post' AND c.source_id = p.id
-            WHERE p.status = 'posted' AND EXISTS (
-              SELECT 1 FROM user_interests ui WHERE ui.user_id = \(uuid: userID) AND (
-                EXISTS (SELECT 1 FROM post_tags pt WHERE pt.post_id = p.id AND lower(pt.tag) = lower(ui.interest))
-                OR position(lower(ui.interest) IN lower(COALESCE(p.content, ''))) > 0))
+            WHERE p.status = 'posted'\(inMode) AND EXISTS (
+              SELECT 1 FROM (\(picks)) k WHERE
+                EXISTS (SELECT 1 FROM post_tags pt WHERE pt.post_id = p.id AND lower(pt.tag) = lower(k.pick))
+                OR position(lower(k.pick) IN lower(COALESCE(p.content, ''))) > 0)
             ORDER BY p.created_at DESC LIMIT 60
             """).all(decoding: V.self).map { parseVec($0.vec) }
     }
@@ -292,9 +298,12 @@ enum FeedStore {
     /// commented on, saved, shared, opened or read for a while, and. With a
     /// negative weight, ones you skipped straight past or said "Not
     /// interested" to; each weighted by the action and how recent it was.
-    static func behaviorSignals(_ userID: String, on db: any SQLDatabase) async throws -> [(vec: [Double], weight: Double)] {
+    /// Only posts in `mode` count: what you like in Hobby says nothing about
+    /// your Work feed, and the other way round.
+    static func behaviorSignals(_ userID: String, mode: String?, on db: any SQLDatabase) async throws -> [(vec: [Double], weight: Double)] {
         struct Row: Decodable { let vec: String; let weight: Double }
         let since: SQLQueryString = "NOW() - INTERVAL '\(unsafeRaw: String(actionWindowDays)) days'"
+        let inMode: SQLQueryString = mode.map { " AND sp.mode = \(bind: $0)" } ?? ""
         let rows = try await db.raw("""
             WITH ev AS (
               SELECT post_id, \(unsafeRaw: String(Action.like)) AS w, created_at AS at
@@ -323,6 +332,7 @@ enum FeedStore {
                    SUM(ev.w * POWER(0.5, EXTRACT(EPOCH FROM (NOW() - ev.at)) / 86400.0
                        / \(unsafeRaw: String(actionHalfLifeDays))))::float AS weight
             FROM ev JOIN user_embedding_chunks c ON c.source_type = 'post' AND c.source_id = ev.post_id
+            JOIN posts sp ON sp.id = ev.post_id\(inMode)
             GROUP BY c.id, c.embedding
             ORDER BY MAX(ev.at) DESC LIMIT \(bind: maxTastePosts)
             """).all(decoding: Row.self)
@@ -389,7 +399,7 @@ enum FeedStore {
     static func getRecommendedFeed(userID: String, mode: String, cursor: String?, limit: Int, on db: any SQLDatabase)
         async throws -> (posts: [FeedPostObject], nextCursor: String?)
     {
-        let tastes = try await buildTasteVectors(userID, on: db)
+        let tastes = try await buildTasteVectors(userID, mode: mode, on: db)
         let hasTaste = tastes != nil
         struct Viewer: Decodable { let location: String?; let languages: [String]? }
         let viewer = try await db.raw("SELECT location, languages FROM users WHERE id = \(uuid: userID)")

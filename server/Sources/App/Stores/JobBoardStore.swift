@@ -21,9 +21,15 @@ enum JobBoardStore {
         var score: Double
         var matched_skills: [String]
         var missing_skills: [String]
-        /// skills | company | remote | near | title | profile
+        /// skills | company | remote | near | title | profile | none
         var reason: String
     }
+
+    /// "Matches your profile" only above this embedding similarity. Calibrated
+    /// on the demo profiles (mxbai-embed-large): same field 0.72–0.85, a
+    /// neighbouring field 0.67–0.70, unrelated 0.56–0.65. Below it there's no
+    /// real reason to show, so the card shows none.
+    static let profileMatchMin = 0.75
 
     /// A job this close (km, ward centre to ward centre) counts as near.
     static let nearKm = 10.0
@@ -88,7 +94,7 @@ enum JobBoardStore {
             COALESCE((SELECT (1 - (pc.embedding <=> pr.embedding))::float
               FROM user_embedding_chunks pc, user_embedding_chunks pr
               WHERE pc.source_type = 'post' AND pc.source_id = p.id AND pc.chunk_index = 0
-                AND pr.user_id = \(uuid: viewer) AND pr.source_type = 'user_profile' AND pr.chunk_index = 0 LIMIT 1), 0)::float
+                AND pr.user_id = \(uuid: viewer) AND pr.source_type = 'user_profile' AND pr.mode = 'work' AND pr.chunk_index = 0 LIMIT 1), 0)::float
             """ : "0::float"
         let all = PostStore.FeedFilters(mode: "work", authorID: nil, tag: nil, search: nil, connectionsOnly: false, limit: 0, offset: 0)
         return """
@@ -186,7 +192,8 @@ enum JobBoardStore {
         else if near { reason = "near" }
         else if remote { reason = "remote" }
         else if titleHit { reason = "title" }
-        else { reason = "profile" }
+        else if r.semantic >= profileMatchMin { reason = "profile" }
+        else { reason = "none" }
         return Match(score: (score * 100).rounded() / 100, matched_skills: matched, missing_skills: missing, reason: reason)
     }
 

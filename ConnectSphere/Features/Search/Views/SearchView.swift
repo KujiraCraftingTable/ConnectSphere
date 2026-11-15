@@ -544,7 +544,7 @@ struct SearchView: View {
             (bundle.loc("Interests"),  criteria.interests),
             (bundle.loc("Skills"),   criteria.skills),
             (bundle.loc("Keywords"),   criteria.bio_keywords + criteria.job_title_keywords),
-            (bundle.loc("Location"),  criteria.location.map { [$0] } ?? []),
+            (bundle.loc("Location"),  criteria.location.map { [bundle.province($0)] } ?? []),
         ].filter { !$0.values.isEmpty }
 
         return VStack(alignment: .leading, spacing: 10) {
@@ -646,13 +646,27 @@ struct SearchView: View {
             guard let place = warning.value, !place.isEmpty else { return nil }
             return String(format: bundle.loc("Couldn't tell which city \"%@\" is in. Add a province to narrow it down."), place)
         case "query_unclear":
+            if viewModel.scope == .posts {
+                return bundle.loc("Tell us what the posts are about, e.g. \"quán cà phê yên tĩnh ở Hà Nội\".")
+            }
             return bundle.loc("Tell us what they're into, e.g. \"bạn nữ thích chụp ảnh film ở Hà Nội\".")
         case "no_match":
+            if viewModel.scope == .posts {
+                return String(format: bundle.loc("No posts about \"%@\" yet. Try other words or a wider topic."),
+                              warning.value ?? "")
+            }
             return String(format: bundle.loc("No one here is into \"%@\" yet. Try a related interest or check the spelling."),
                           warning.value ?? "")
         case "no_match_together":
             return String(format: bundle.loc("No one is into all of these together: %@. Try fewer of them."),
                           warning.value ?? "")
+        case "no_match_near":
+            // The place in the app's language, when the server read one.
+            let named = bundle.isVietnamese ? warning.value : (warning.value_en ?? warning.value)
+            guard let place = named, !place.isEmpty else {
+                return bundle.loc("No one in that area matches yet. Try a wider area or fewer conditions.")
+            }
+            return String(format: bundle.loc("No one near \"%@\" matches yet. Try a wider area or fewer conditions."), place)
         case "unsupported_trait":
             return bundle.loc("ConnectSphere doesn't search by height, weight or looks. Try interests, skills or a place.")
         default:
@@ -663,7 +677,7 @@ struct SearchView: View {
     /// Warnings that say why nothing came back. They replace the generic
     /// empty state rather than sit on top of it.
     private var explainsEmptyResult: Bool {
-        let codes: Set<String> = ["query_unclear", "no_match", "no_match_together", "unsupported_trait"]
+        let codes: Set<String> = ["query_unclear", "no_match", "no_match_together", "no_match_near", "unsupported_trait"]
         return viewModel.searchWarnings.contains { codes.contains($0.code) }
     }
 
@@ -875,7 +889,7 @@ struct FriendSearchCard: View {
                             if let location = user.location {
                                 HStack(spacing: 3) {
                                     Image(systemName: "mappin.circle.fill").scaledFont(11)
-                                    Text(location).scaledFont(12).lineLimit(1)
+                                    Text(bundle.province(location)).scaledFont(12).lineLimit(1)
                                     if let km = user.distanceKm {
                                         Text(String(format: bundle.loc("· ~%d km"), km)).scaledFont(12).lineLimit(1)
                                     }
@@ -969,7 +983,7 @@ struct ColleagueSearchCard: View {
                             if let location = user.location {
                                 HStack(spacing: 3) {
                                     Image(systemName: "mappin.circle.fill").scaledFont(11)
-                                    Text(location).scaledFont(12).lineLimit(1)
+                                    Text(bundle.province(location)).scaledFont(12).lineLimit(1)
                                     if let km = user.distanceKm {
                                         Text(String(format: bundle.loc("· ~%d km"), km)).scaledFont(12).lineLimit(1)
                                     }

@@ -1,30 +1,28 @@
 import Foundation
 
-/// Order for AI post search: how well a post matches the query, nudged up by
-/// how much people engaged with it. The nudge is capped small on purpose. It
-/// reorders close matches but can't lift a weak match over a clearly better one
-/// (hits clear the 0.6 similarity bar and rarely pass 0.85). The match % shown
-/// to users stays the pure similarity; only the order uses this.
+/// Order for AI post search. A post that meets more of what the prompt asks
+/// (its topics and its place) always comes before one that meets less; among
+/// posts that meet the same number, the most popular comes first. Popularity
+/// is likes + shares + comments, counted alike. How close the text is to the
+/// topics only breaks ties. The searcher's own taste and what they have
+/// already seen play no part: the same prompt gives everyone the same order.
 enum PostRanking {
-    static let maxBoost = 0.03
-    /// Engagement at which the boost is full: 50 likes, or 25 comments.
-    static let fullBoostEngagement = 50.0
+    struct Key: Equatable {
+        /// How many of the prompt's criteria the post meets.
+        var criteria: Int
+        var engagement: Int
+        /// Average closeness to the topics it is about.
+        var match: Double
+    }
 
-    /// Personal nudges (AI_SEARCH_REVIEW.md, phase S5), small for the same
-    /// reason: a post close to your taste rises a little, one you've already
-    /// seen sinks a little, and your "Not interested" / "Show more like this"
-    /// carry over from the feed at a tenth of their strength.
-    static let tasteBoost = 0.05, seenWeight = 0.1, feedbackWeight = 0.1
+    static func engagement(likes: Int, shares: Int, comments: Int) -> Int {
+        max(likes, 0) + max(shares, 0) + max(comments, 0)
+    }
 
-    /// `taste` is 0…1 (`SearchRanking.taste`), `seenPenalty` is
-    /// `FeedStore.seenPenalty`, `feedback` is `FeedStore.feedbackAdjustment`.
-    static func rankScore(similarity: Double, likes: Int, comments: Int,
-                          taste: Double = 0, seenPenalty: Double = 0, feedback: Double = 0) -> Double {
-        // A comment takes more effort than a like, so it counts double. Log
-        // scale: the first few interactions matter most.
-        let engagement = Double(max(likes, 0) + 2 * max(comments, 0))
-        let boost = min(1, log1p(engagement) / log1p(fullBoostEngagement))
-        return similarity + maxBoost * boost
-            + tasteBoost * min(1, max(0, taste)) - seenWeight * seenPenalty + feedbackWeight * feedback
+    /// Whether `a` comes before `b`.
+    static func comesFirst(_ a: Key, _ b: Key) -> Bool {
+        if a.criteria != b.criteria { return a.criteria > b.criteria }
+        if a.engagement != b.engagement { return a.engagement > b.engagement }
+        return a.match > b.match
     }
 }

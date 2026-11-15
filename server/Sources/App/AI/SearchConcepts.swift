@@ -24,6 +24,20 @@ enum SearchConcepts {
     /// 0.65–0.71; the closest unrelated post to any topic tried was 0.62.
     static let conceptPostMin = 0.64
 
+    /// The same bar for a topic that is a phrase ("sunset over the sea"): a
+    /// phrase sits lower than a single word. Measured on eight phrases: posts
+    /// that fit were at 0.60–0.72, the closest post to a phrase nothing fits
+    /// ("traffic jam at rush hour") at 0.50–0.55, and one unrelated post at 0.59.
+    static let phrasePostMin = 0.60
+    /// From this many words a topic counts as a phrase.
+    static let phraseWords = 3
+
+    /// How close a post chunk must be to count as about topic `c`.
+    static func postMin(for c: Concept) -> Double {
+        let first = c.vectorText.split(separator: ",").first.map(String.init) ?? c.vectorText
+        return words(first).count >= phraseWords ? phrasePostMin : conceptPostMin
+    }
+
     // MARK: Catalogue aliases
 
     /// Words of `s`, lowercased, split on anything that isn't a letter or digit.
@@ -143,6 +157,62 @@ enum SearchConcepts {
         if !c.job_title_keywords.isEmpty { add(label: c.job_title_keywords.joined(separator: ", "), terms: c.job_title_keywords) }
         let traits = c.bio_keywords.filter { !personWords.contains($0.lowercased()) && !$0.contains(where: \.isNumber) }
         if !traits.isEmpty { add(label: traits.joined(separator: ", "), terms: traits) }
+        return out
+    }
+
+    // MARK: Topics in English
+
+    /// A topic the LLM left in the prompt's language. Stored text and its
+    /// embeddings are English, so "chó" embedded as typed sat nearer unrelated
+    /// posts (0.64–0.66) than posts about dogs (0.48–0.50).
+    static func needsEnglish(_ c: Concept) -> Bool {
+        c.vectorText.contains { $0.isLetter && !$0.isASCII }
+    }
+
+    /// `c` with its English wording added. The label stays as typed. A
+    /// translation that is empty, unchanged or far longer than the topic (the
+    /// model explaining instead of translating) is ignored.
+    static func inEnglish(_ c: Concept, translation: String) -> Concept {
+        let english = unique(translation.split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter(hasLetter))
+        let text = english.joined(separator: ", ")
+        guard !text.isEmpty, text.lowercased() != c.vectorText.lowercased(),
+              text.count <= max(40, c.vectorText.count * 4) else { return c }
+        var out = c
+        out.terms = unique(english + c.terms)
+        out.declared = unique(english.map { $0.lowercased() } + c.declared)
+        out.vectorText = text
+        return out
+    }
+
+    // MARK: Posts about the topics
+
+    struct PostMatch: Equatable {
+        /// How close the post is to the topics it is about (shown as the match).
+        var match: Double
+        /// How many of the prompt's criteria it meets: one per topic, one for the place.
+        var criteria: Int
+    }
+
+    /// Posts for a prompt, from each topic's `id → similarity` and the posts
+    /// about its place (nil when it names none). A post about at least one
+    /// topic is kept; the place then counts as one more criterion met, never
+    /// as a reason on its own ("grilled meat in Bình Thạnh" is not every post
+    /// about Bình Thạnh). A prompt with a place and no topic is the posts
+    /// about that place. Requiring every topic hid good posts whenever the
+    /// LLM named a topic nobody had written about; `PostRanking` puts the
+    /// posts that meet more first instead.
+    static func postMatches(_ perTopic: [[String: Double]], inPlace: Set<String>? = nil) -> [String: PostMatch] {
+        var out: [String: PostMatch] = [:]
+        guard !perTopic.isEmpty else {
+            for id in inPlace ?? [] { out[id] = PostMatch(match: 0, criteria: 1) }
+            return out
+        }
+        for id in Set(perTopic.flatMap(\.keys)) {
+            let sims = perTopic.compactMap { $0[id] }
+            out[id] = PostMatch(match: sims.reduce(0, +) / Double(sims.count),
+                                criteria: sims.count + (inPlace?.contains(id) == true ? 1 : 0))
+        }
         return out
     }
 

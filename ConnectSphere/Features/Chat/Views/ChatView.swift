@@ -977,7 +977,7 @@ struct ChatView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "mappin.circle.fill")
                         .scaledFont(13)
-                    Text(location)
+                    Text(bundle.province(location))
                         .scaledFont(13)
                 }
                 .foregroundColor(AppColors.textSecondary(colorScheme))

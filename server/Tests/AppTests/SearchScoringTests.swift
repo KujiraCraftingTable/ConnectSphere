@@ -144,14 +144,4 @@ final class SearchScoringTests: XCTestCase {
         XCTAssertLessThan(out.firstIndex { $0.id == "s" }!, 6)
         XCTAssertEqual(SearchRanking.diversify(users, byPlace: false).map(\.id), users.map(\.id))
     }
-
-    func testPostSearchPersonalNudgesStaySmall() {
-        let base = PostRanking.rankScore(similarity: 0.7, likes: 0, comments: 0)
-        XCTAssertGreaterThan(PostRanking.rankScore(similarity: 0.7, likes: 0, comments: 0, taste: 1), base)
-        XCTAssertLessThan(PostRanking.rankScore(similarity: 0.7, likes: 0, comments: 0,
-                                                seenPenalty: FeedStore.seenRecentPenalty), base)
-        // A clearly better match still wins over a weaker one you'd like more.
-        XCTAssertGreaterThan(PostRanking.rankScore(similarity: 0.80, likes: 0, comments: 0),
-                             PostRanking.rankScore(similarity: 0.70, likes: 0, comments: 0, taste: 1))
-    }
 }

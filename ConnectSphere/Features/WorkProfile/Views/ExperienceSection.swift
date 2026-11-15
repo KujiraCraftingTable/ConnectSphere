@@ -159,7 +159,7 @@ struct ExperienceSection: View {
 
     @ViewBuilder
     private func details(_ role: WorkExperience) -> some View {
-        let place = [role.location, role.locationType.map { bundle.loc($0.label) }].compactMap { $0 }.joined(separator: " · ")
+        let place = [role.location.map(bundle.province), role.locationType.map { bundle.loc($0.label) }].compactMap { $0 }.joined(separator: " · ")
         if !place.isEmpty {
             Text(place)
                 .scaledFont(13)

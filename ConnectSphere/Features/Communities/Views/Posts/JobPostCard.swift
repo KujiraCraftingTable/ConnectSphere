@@ -54,7 +54,7 @@ struct JobPostCard: View {
             }
 
             if let location = vm.jobData.location, !location.isEmpty {
-                Label(location, systemImage: "mappin.circle")
+                Label(bundle.address(location), systemImage: "mappin.circle")
                     .scaledFont(13)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }

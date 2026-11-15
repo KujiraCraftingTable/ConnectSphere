@@ -131,7 +131,7 @@ struct ConnectionsListView: View {
                         .scaledFont(13)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 } else if let location = user.location, !location.isEmpty {
-                    Text(location)
+                    Text(bundle.province(location))
                         .scaledFont(13)
                         .foregroundColor(AppColors.textSecondary(colorScheme))
                 }

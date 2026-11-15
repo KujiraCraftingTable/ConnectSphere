@@ -33,15 +33,16 @@ final class JobMatchTests: XCTestCase {
         XCTAssertEqual(JobBoardStore.match(row(), skills: [], viewer: me).reason, "near")
         XCTAssertEqual(JobBoardStore.match(row(format: "remote", km: nil), skills: [], viewer: me).reason, "remote")
         XCTAssertEqual(JobBoardStore.match(row(format: "onsite", km: nil), skills: [], viewer: me).reason, "title")
-        XCTAssertEqual(JobBoardStore.match(row(title: "Accountant", format: "onsite", km: nil), skills: [], viewer: me).reason, "profile")
+        XCTAssertEqual(JobBoardStore.match(row(title: "Accountant", format: "onsite", km: nil), skills: [], viewer: me).reason, "none")
+        XCTAssertEqual(JobBoardStore.match(row(title: "Accountant", format: "onsite", km: nil, semantic: 0.8), skills: [], viewer: me).reason, "profile")
     }
 
     /// Near is ward distance, not a shared city name: Thanh My Tay to Vung Tau
     /// (~70 km straight, both once "Ho Chi Minh City") isn't near.
     func testNearIsWardDistanceNotCityName() {
         XCTAssertEqual(JobBoardStore.match(row(km: 10), skills: [], viewer: me).reason, "near")
-        XCTAssertEqual(JobBoardStore.match(row(title: "Accountant", km: 70), skills: [], viewer: me).reason, "profile")
-        XCTAssertEqual(JobBoardStore.match(row(title: "Accountant", km: nil), skills: [], viewer: me).reason, "profile")
+        XCTAssertEqual(JobBoardStore.match(row(title: "Accountant", km: 70), skills: [], viewer: me).reason, "none")
+        XCTAssertEqual(JobBoardStore.match(row(title: "Accountant", km: nil), skills: [], viewer: me).reason, "none")
     }
 
     func testABetterFitScoresHigher() {

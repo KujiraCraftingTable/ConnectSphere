@@ -84,6 +84,8 @@ struct JobDetailView: View {
         }
         .background(AppColors.base(colorScheme))
         .inAppBrowser(url: $inAppBrowserURL)
+        // A job's own page: the Save / Apply bar takes the bottom, not the tabs.
+        .toolbar(.hidden, for: .tabBar)
         .fullScreenCover(isPresented: Binding(get: { viewingJD != nil }, set: { if !$0 { viewingJD = nil } })) {
             if let url = viewingJD { PDFViewerScreen(url: url, title: bundle.loc("Job description")) }
         }
@@ -184,7 +186,7 @@ struct JobDetailView: View {
             Text(job.salaryText(loc: bundle.loc) ?? bundle.loc("Negotiable"))
                 .scaledFont(16, .semibold)
                 .foregroundColor(themeManager.theme.primary)
-            let facts = [job.location, job.distanceKm.map { "~" + String(format: bundle.loc("%d km"), $0) }, job.workFormat.map { bundle.loc(JobListing.formatLabel($0)) },
+            let facts = [job.location.map(bundle.address), job.distanceKm.map { "~" + String(format: bundle.loc("%d km"), $0) }, job.workFormat.map { bundle.loc(JobListing.formatLabel($0)) },
                          job.level.map { bundle.loc(JobListing.levelLabel($0)) },
                          job.employmentType.flatMap(EmploymentType.init(rawValue:)).map { bundle.loc($0.label) }]
                 .compactMap { $0 }
@@ -194,8 +196,8 @@ struct JobDetailView: View {
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }
             HStack {
-                if !job.isMine {
-                    Label(job.matchText(loc: bundle.loc), systemImage: "sparkles")
+                if !job.isMine, let reason = job.matchText(loc: bundle.loc) {
+                    Label(reason, systemImage: "sparkles")
                         .scaledFont(13, .medium)
                         .foregroundColor(themeManager.theme.primary)
                 }

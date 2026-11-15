@@ -34,6 +34,30 @@ enum WardStore {
         return ward
     }
 
+    /// `vn_wards.province_code` of the province with this app name ("Ho Chi
+    /// Minh"), or else of the user's own ward: the province an ambiguous place
+    /// name is read in (`PlaceReader`).
+    static func provinceCode(named province: String?, orOfUser userID: String, on db: any SQLDatabase) async throws -> String? {
+        struct Row: Decodable { let province_code: String }
+        if let province {
+            let named = try await db.raw("""
+                SELECT w.province_code FROM vn_wards w WHERE \(provinceSQL) = \(bind: province) LIMIT 1
+                """).first(decoding: Row.self)
+            if let named { return named.province_code }
+        }
+        return try await db.raw("""
+            SELECT w.province_code FROM users u JOIN vn_wards w ON w.id = u.ward_id WHERE u.id = \(uuid: userID)
+            """).first(decoding: Row.self)?.province_code
+    }
+
+    /// The app name of a province ("Ho Chi Minh") from its code.
+    static func provinceName(code: String, on db: any SQLDatabase) async throws -> String? {
+        struct Row: Decodable { let province: String }
+        return try await db.raw("""
+            SELECT \(provinceSQL) AS province FROM vn_wards w WHERE w.province_code = \(bind: code) LIMIT 1
+            """).first(decoding: Row.self)?.province
+    }
+
     /// The centre of a user's ward, the default point a search radius is measured from.
     static func centre(ofUser userID: String, on db: any SQLDatabase) async throws -> (lat: Double, lng: Double)? {
         struct Row: Decodable { let lat: Double; let lng: Double }

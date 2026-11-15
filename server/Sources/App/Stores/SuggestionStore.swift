@@ -98,11 +98,11 @@ enum SuggestionStore {
             ),
             my_vec AS (
               SELECT embedding FROM user_embedding_chunks
-              WHERE user_id = \(uuid: me) AND source_type = 'user_profile' LIMIT 1
+              WHERE user_id = \(uuid: me) AND source_type = 'user_profile' AND mode = \(bind: mode) LIMIT 1
             ),
             nearest AS (
               SELECT ch.user_id AS uid FROM user_embedding_chunks ch, my_vec
-              WHERE ch.source_type = 'user_profile' AND ch.user_id <> \(uuid: me)
+              WHERE ch.source_type = 'user_profile' AND ch.mode = \(bind: mode) AND ch.user_id <> \(uuid: me)
               ORDER BY ch.embedding <=> my_vec.embedding
               LIMIT \(unsafeRaw: String(nearestProfiles))
             ),
@@ -120,7 +120,7 @@ enum SuggestionStore {
                     ORDER BY t.\(unsafeRaw: tags.1)) AS tags,
               COALESCE(fof.mutual, 0) AS mutual_count,
               (SELECT (1 - (pc.embedding <=> my_vec.embedding))::float FROM user_embedding_chunks pc, my_vec
-                WHERE pc.user_id = u.id AND pc.source_type = 'user_profile' LIMIT 1) AS similarity,
+                WHERE pc.user_id = u.id AND pc.source_type = 'user_profile' AND pc.mode = \(bind: mode) LIMIT 1) AS similarity,
               ARRAY(SELECT t.\(unsafeRaw: tags.1) FROM \(unsafeRaw: tags.0) t
                     WHERE t.user_id = u.id AND lower(t.\(unsafeRaw: tags.1)) IN
                       (SELECT lower(m.\(unsafeRaw: tags.1)) FROM \(unsafeRaw: tags.0) m WHERE m.user_id = \(uuid: me))

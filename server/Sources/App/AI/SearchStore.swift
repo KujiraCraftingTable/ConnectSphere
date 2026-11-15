@@ -7,12 +7,24 @@ import SQLKit
 /// tiers (`exactMatch`, `findEntityCandidates`).
 ///
 /// Retrieval rules:
-///   • `chunk_pool` is filtered BEFORE the 200-row HNSW cap, soft-deleted
-///     authors, non-`posted`/non-public post chunks, and mutual blocks vs the
-///     searcher no longer waste a slot or influence a score.
+///   • hard filters run first (`eligible`), so nobody who can't be shown
+///     takes a slot or influences a score.
+///   • the vector leg picks people, not chunks: the query against each
+///     person's profile chunk and interest vectors (`personHits`); their posts
+///     and reactions are then the evidence.
+///   • the keyword leg still pools chunks (`chunk_pool`, full text).
 ///   • the user-level block exclusion always runs when a searcher is known.
 enum SearchStore {
+    /// Keyword leg: chunks kept before grouping by person.
     static let chunkPoolSize = 200
+    /// Vector leg: people kept before the rerank cuts to a page of 20.
+    static let peoplePoolSize = 100
+    /// What someone shows (their interests, `user_interest_vectors`) counts a
+    /// little more than what they say (their profile); when both match, the
+    /// weaker one is added at `wAgree`: behaviour confirming the profile.
+    static let wDeclared = 0.9, wAgree = 0.3
+    /// Evidence rows kept per person.
+    static let hitsPerPerson = 10
     static let wMax = 0.7, wAvg = 0.3
     /// Reacting to a matching post is evidence of interest, but weaker than
     /// writing about it: a reactor is credited the post's match × this weight.
@@ -56,6 +68,7 @@ enum SearchStore {
     static func conceptPeople(_ c: SearchConcepts.Concept, vector: [Double]?, mode: String?,
                               on db: any SQLDatabase) async throws -> Set<String> {
         let postMode: SQLQueryString = mode.map { "AND pp.mode = \(bind: $0)" } ?? ""
+        let profileMode = ChunkService.profileModeSQL("c", mode)
         var q: SQLQueryString = """
             SELECT ui.user_id::text AS id FROM user_interests ui
             WHERE LOWER(split_part(ui.interest, ' · ', 1)) = ANY(\(bind: c.declared)::text[])
@@ -65,7 +78,7 @@ enum SearchStore {
             UNION
             SELECT c.user_id::text FROM user_embedding_chunks c
             WHERE \(exactText(c.terms))
-              AND (c.source_type = 'user_profile'
+              AND (c.source_type = 'user_profile'\(profileMode)
                    OR EXISTS (SELECT 1 FROM posts pp WHERE pp.id = c.source_id
                               AND pp.status = 'posted' AND pp.privacy = 'public' \(postMode)))
             """
@@ -84,12 +97,13 @@ enum SearchStore {
     struct PostHit: Decodable { let id: String; let sim: Double }
 
     /// Posted posts in `mode` about topic `c`: its words in the text, or the
-    /// chunk within `conceptPostMin` of the topic. `sim` is how close the post
+    /// chunk within `min` of the topic. `sim` is how close the post
     /// is to the topic (0 without a vector). Visibility (privacy, blocks,
     /// communities, hidden, muted) is deliberately not checked here: callers
     /// hydrate through `PostStore.findVisible`, which applies the feed's own
     /// rules, so the two can't drift apart.
     static func conceptPosts(_ c: SearchConcepts.Concept, vector: [Double]?, mode: String?,
+                             min: Double = SearchConcepts.conceptPostMin,
                              on db: any SQLDatabase) async throws -> [PostHit] {
         let sim: SQLQueryString = vector.map { "(1 - (c.embedding <=> \(bind: vecLiteral($0))::vector))::float" } ?? "0::float"
         var q: SQLQueryString = "SELECT c.source_id::text AS id, MAX(" + sim + """
@@ -99,9 +113,25 @@ enum SearchStore {
             """
         if let m = mode { q = q + " AND p.mode = \(bind: m)" }
         q = q + " AND (" + exactText(c.terms)
-        if vector != nil { q = q + " OR " + sim + " >= \(bind: SearchConcepts.conceptPostMin)" }
+        if vector != nil { q = q + " OR " + sim + " >= \(bind: min)" }
         q = q + ") GROUP BY c.source_id"
         return try await db.raw(q).all(decoding: PostHit.self)
+    }
+
+    /// Posted posts in `mode` about the place a prompt names: one of its
+    /// wards, or, when it names only provinces, one of those
+    /// (`posts.place_ward_ids`, migration 147). Visibility is left to
+    /// `PostStore.findVisible`, like `conceptPosts`.
+    static func postsInPlace(_ place: PlaceReader.Places, mode: String?, on db: any SQLDatabase) async throws -> Set<String> {
+        struct Row: Decodable { let id: String }
+        var q: SQLQueryString = "SELECT p.id::text AS id FROM posts p WHERE p.status = 'posted'"
+        if let m = mode { q = q + " AND p.mode = \(bind: m)" }
+        if !place.wardIDs.isEmpty {
+            q = q + " AND p.place_ward_ids && \(bind: Array(place.wardIDs))::uuid[]"
+        } else {
+            q = q + " AND p.place_province_codes && \(bind: Array(place.provinceCodes))::text[]"
+        }
+        return Set(try await db.raw(q).all(decoding: Row.self).map(\.id))
     }
 
     // MARK: getUserContext / logSearch
@@ -177,6 +207,9 @@ enum SearchStore {
         var targetAgeMax: Int?
         var searchLat: Double?
         var searchLng: Double?
+        /// Wards the prompt names (`PlaceReader`): people within the radius
+        /// of any of their centres.
+        var searchWardIDs: [String] = []
         var radiusKm: Double?
         var threshold = 0.6
         var excludeUserID: String?
@@ -228,6 +261,14 @@ enum SearchStore {
 
     /// The radius steps the app offers; anything else is refused.
     static let radiusStepsKm: Set<Double> = [5, 10, 15, 20, 25, 30]
+    /// The radius around a ward the prompt names when the search sets none.
+    static let namedWardRadiusKm = 5.0
+    /// Kilometres between the centres of wards `w` and `t`.
+    private static let kmBetweenWards: SQLQueryString = """
+        (6371 * acos(LEAST(1.0, cos(radians(t.lat)) * cos(radians(w.lat))
+           * cos(radians(w.lng) - radians(t.lng))
+           + sin(radians(t.lat)) * sin(radians(w.lat)))))
+        """
 
     /// Straight-line km from a point to the centre of ward `w` (haversine).
     /// `LEAST` keeps rounding from pushing acos past 1 when both points match.
@@ -257,35 +298,135 @@ enum SearchStore {
         return q + ")"
     }
 
+    /// The vector leg's CTEs, person first: who matches, then why.
+    ///   • `people`: the query against each eligible person's profile chunk
+    ///     (`declared`) and interest vectors (`shown`); in if either clears the
+    ///     threshold, scored by both, best `peoplePoolSize` kept. Posts no
+    ///     longer compete for slots, so a prolific poster takes one, not thirty.
+    ///   • `authored` / `engaged` / `hits`: those people's own chunks and the
+    ///     posts they reacted to, as evidence. Each person keeps their closest
+    ///     hit even under the threshold, so a match by interests alone still
+    ///     shows what it rests on.
+    private static func personHits(_ p: Params, lit: String) -> SQLQueryString {
+        let q: SQLQueryString = "\(bind: lit)::vector"
+        let profileMode = ChunkService.profileModeSQL("c", p.mode)
+        let interestMode: SQLQueryString = p.mode.map { " AND v.mode = \(bind: $0)" } ?? ""
+        let postMode: SQLQueryString = p.mode.map { " AND pp.mode = \(bind: $0)" } ?? ""
+        let notBlockedAuthor: SQLQueryString = p.excludeUserID.map { sid in
+            """
+             AND NOT EXISTS (SELECT 1 FROM user_blocks ub
+               WHERE (ub.blocker_id = \(uuid: sid) AND ub.blocked_id = c.user_id)
+                  OR (ub.blocker_id = c.user_id AND ub.blocked_id = \(uuid: sid)))
+            """
+        } ?? ""
+        return """
+            near_profile AS (
+              SELECT c.user_id FROM user_embedding_chunks c
+              WHERE c.source_type = 'user_profile'\(profileMode) AND c.user_id IN (SELECT id FROM eligible)
+              ORDER BY c.embedding <=> \(q) LIMIT \(unsafeRaw: String(peoplePoolSize))
+            ),
+            near_interest AS (
+              SELECT v.user_id FROM user_interest_vectors v
+              WHERE v.user_id IN (SELECT id FROM eligible)\(interestMode)
+              ORDER BY v.embedding <=> \(q) LIMIT \(unsafeRaw: String(peoplePoolSize * InterestVectorService.maxClusters))
+            ),
+            person_sims AS (
+              SELECT k.user_id,
+                (SELECT MAX(1 - (c.embedding <=> \(q)))::float FROM user_embedding_chunks c
+                  WHERE c.user_id = k.user_id AND c.source_type = 'user_profile'\(profileMode)) AS declared,
+                (SELECT MAX(1 - (v.embedding <=> \(q)))::float FROM user_interest_vectors v
+                  WHERE v.user_id = k.user_id\(interestMode)) AS shown
+              FROM (SELECT user_id FROM near_profile UNION SELECT user_id FROM near_interest) k
+            ),
+            people AS (
+              SELECT user_id,
+                     (GREATEST(COALESCE(shown, 0), \(unsafeRaw: String(wDeclared)) * COALESCE(declared, 0))
+                      + \(unsafeRaw: String(wAgree)) * LEAST(COALESCE(shown, 0), COALESCE(declared, 0)))::float AS retrieval_score
+              FROM person_sims
+              WHERE GREATEST(COALESCE(declared, 0), COALESCE(shown, 0)) >= \(bind: p.threshold)
+              ORDER BY retrieval_score DESC LIMIT \(unsafeRaw: String(peoplePoolSize))
+            ),
+            authored AS (
+              SELECT c.user_id, c.source_type, c.source_id, c.topic, c.content,
+                     (1 - (c.embedding <=> \(q)))::float AS sim
+              FROM user_embedding_chunks c JOIN people pe ON pe.user_id = c.user_id
+              WHERE (c.source_type = 'user_profile'\(profileMode)
+                     OR EXISTS (SELECT 1 FROM posts pp WHERE pp.id = c.source_id
+                                AND pp.status = 'posted' AND pp.privacy = 'public'\(postMode)))
+            ),
+            engaged AS (
+              -- Posts these people reacted to (not their own), once per post at
+              -- their strongest reaction's weight.
+              SELECT x.user_id, x.source_id, x.topic, x.content,
+                     x.psim * MAX(CASE WHEN x.kind = 'like' THEN \(bind: wReactLike)::float8
+                                       ELSE \(bind: wReactCommentOrShare)::float8 END) AS sim,
+                     bool_or(x.kind = 'comment' AND x.is_public) AS commented,
+                     bool_or(x.kind = 'share' AND x.is_public) AS shared
+              FROM (
+                SELECT r.user_id, r.kind, r.is_public, c.source_id, c.topic, c.content,
+                       (1 - (c.embedding <=> \(q)))::float AS psim
+                FROM people pe
+                JOIN post_reactions r ON r.user_id = pe.user_id
+                JOIN user_embedding_chunks c ON c.source_type = 'post' AND c.source_id = r.post_id AND c.user_id <> r.user_id
+                JOIN users a ON a.id = c.user_id AND a.deleted_at IS NULL
+                JOIN posts pp ON pp.id = c.source_id AND pp.status = 'posted' AND pp.privacy = 'public'\(postMode)
+                WHERE TRUE\(notBlockedAuthor)
+              ) x
+              GROUP BY x.user_id, x.source_id, x.topic, x.content, x.psim
+            ),
+            hits AS (
+              SELECT user_id, source_type, source_id, topic, content, sim, rn
+              FROM (
+                SELECT user_id, source_type, source_id, topic, content, sim,
+                       ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY sim DESC) AS rn
+                FROM (
+                  SELECT user_id, source_type, source_id, topic, content, sim FROM authored
+                  UNION ALL
+                  SELECT user_id, 'engagement', source_id, topic, content, sim FROM engaged
+                ) combined
+              ) ranked
+              WHERE rn <= \(unsafeRaw: String(hitsPerPerson)) AND (sim >= \(bind: p.threshold) OR rn = 1)
+            ),
+            text_scores AS (SELECT user_id, retrieval_score FROM people)
+            """
+    }
+
     static func vectorSearch(_ p: Params, on db: any SQLDatabase) async throws -> [RawUser] {
         let lit = vecLiteral(p.queryVector)
         let isKeyword = p.keyword != nil
         let tsq = tsQuery(p.keyword?.terms ?? [])
 
-        // ── chunk_pool (folded fix: pre-filter before the HNSW LIMIT) ──
-        // Keyword leg: `sim` is ts_rank_cd normalised to 0…1 (rank / (rank+1)),
-        // only comparable within this leg; the legs meet by rank (RRF), not score.
-        let simExpr: SQLQueryString = isKeyword
-            ? "ts_rank_cd(c.search_tsv, \(tsq), 32)::float"
-            : "(1 - (c.embedding <=> \(bind: lit)::vector))::float"
+        // ── chunk_pool (keyword leg only; the vector leg is `personHits`) ──
+        // `sim` is ts_rank_cd normalised to 0…1 (rank / (rank+1)), only
+        // comparable within this leg; the legs meet by rank (RRF), not score.
         var pool: SQLQueryString = "SELECT c.user_id, c.source_type, c.source_id, c.topic, c.content, "
-        pool = pool + simExpr + """
+        pool = pool + "ts_rank_cd(c.search_tsv, " + tsq + ", 32)::float" + """
              AS sim
             FROM user_embedding_chunks c
             JOIN users a ON a.id = c.user_id AND a.deleted_at IS NULL
             WHERE
             """
-        if isKeyword { pool = pool + " c.search_tsv @@ " + tsq + " AND" }
-        pool = pool + """
-             (c.source_type = 'user_profile'
+        pool = pool + " c.search_tsv @@ " + tsq + " AND"
+        // Hobby and Work are separate worlds: a profile chunk counts only for
+        // its own persona, and a post only counts as evidence (for its author,
+        // or for anyone who reacted to it) in its own mode.
+        pool = pool + " (c.source_type = 'user_profile'" + ChunkService.profileModeSQL("c", p.mode) + """
+
                    OR EXISTS (SELECT 1 FROM posts pp WHERE pp.id = c.source_id
                               AND pp.status = 'posted' AND pp.privacy = 'public'
             """
-        // Hobby and Work are separate worlds: a post only counts as evidence
-        // (for its author, or for anyone who reacted to it) in its own mode.
         if let m = p.mode { pool = pool + " AND pp.mode = \(bind: m)" }
         pool = pool + "))"
-        if let ids = p.allowedUsers { pool = pool + " AND c.user_id::text = ANY(\(bind: ids)::text[])" }
+        // Hard filters first (`eligible` below): a chunk only takes a pool slot
+        // if its author passes them or, for a post, someone who reacted to it
+        // does, since a reaction credits the reactor (`engaged`). Filtering
+        // after the LIMIT let ineligible people fill the 200 slots.
+        pool = pool + """
+             AND (c.user_id IN (SELECT id FROM eligible)
+                  OR (c.source_type = 'post' AND EXISTS (SELECT 1 FROM post_reactions er
+                        JOIN eligible ee ON ee.id = er.user_id
+                        WHERE er.post_id = c.source_id AND er.user_id <> c.user_id)))
+            """
         if let sid = p.excludeUserID {
             pool = pool + """
                  AND NOT EXISTS (SELECT 1 FROM user_blocks ub
@@ -293,8 +434,7 @@ enum SearchStore {
                       OR (ub.blocker_id = c.user_id AND ub.blocked_id = \(uuid: sid)))
                 """
         }
-        pool = pool + (isKeyword ? " ORDER BY sim DESC" : " ORDER BY c.embedding <=> \(bind: lit)::vector")
-            + " LIMIT \(unsafeRaw: String(chunkPoolSize))"
+        pool = pool + " ORDER BY sim DESC LIMIT \(unsafeRaw: String(chunkPoolSize))"
 
         // ── user-level hard filters (setup clause inlined with the bound mode) ──
         // Reactors can be any user, not just chunk owners from the pool.
@@ -329,7 +469,11 @@ enum SearchStore {
         // province border still matches; the province name is only the
         // fallback when there's no radius.
         var distanceSelect: SQLQueryString = "NULL::int"
-        if let lat = p.searchLat, let lng = p.searchLng, let rad = p.radiusKm {
+        if !p.searchWardIDs.isEmpty {
+            let near: SQLQueryString = "FROM vn_wards w, vn_wards t WHERE w.id = u.ward_id AND t.id = ANY(\(bind: p.searchWardIDs)::uuid[])"
+            wheres.append("EXISTS (SELECT 1 " + near + " AND " + kmBetweenWards + " <= \(bind: p.radiusKm ?? namedWardRadiusKm))")
+            distanceSelect = "(SELECT GREATEST(5, CEIL(MIN(" + kmBetweenWards + ") / 5) * 5)::int " + near + ")"
+        } else if let lat = p.searchLat, let lng = p.searchLng, let rad = p.radiusKm {
             wheres.append("EXISTS (SELECT 1 FROM vn_wards w WHERE w.id = u.ward_id AND " + kmToWard(lat: lat, lng: lng) + " <= \(bind: rad))")
             distanceSelect = "(SELECT GREATEST(5, CEIL(" + kmToWard(lat: lat, lng: lng) + " / 5) * 5)::int FROM vn_wards w WHERE w.id = u.ward_id)"
         } else if let loc = p.location {
@@ -417,8 +561,10 @@ enum SearchStore {
                 + nameSim + " >= \(unsafeRaw: String(nameMatchMin))"
         }
 
-        var sql: SQLQueryString = "WITH chunk_pool AS (" + pool + "),\n"
-        sql = sql + """
+        var sql: SQLQueryString = "WITH eligible AS (SELECT u.id FROM users u " + userFilter + "),\n"
+        if isKeyword {
+            sql = sql + "chunk_pool AS (" + pool + "),\n"
+            sql = sql + """
             authored AS (
               SELECT user_id, source_type, source_id, topic, content, sim
               FROM chunk_pool WHERE sim >= \(bind: p.threshold)
@@ -453,6 +599,11 @@ enum SearchStore {
                     + \(unsafeRaw: String(wAvg)) * (SUM(sim) FILTER (WHERE rn <= 3) / 3.0))::float AS retrieval_score
               FROM hits GROUP BY user_id
             ),
+            """
+        } else {
+            sql = sql + personHits(p, lit: lit) + ",\n"
+        }
+        sql = sql + """
             names AS (\(names)),
             user_scores AS (
               SELECT COALESCE(t.user_id, n.user_id) AS user_id,
@@ -511,11 +662,31 @@ enum SearchStore {
             LEFT JOIN user_interests ui2 ON ui2.user_id = u.id
             LEFT JOIN user_skills us2 ON us2.user_id = u.id
             """
-        sql = sql + "\n" + userFilter + "\n"
+        sql = sql + "\nWHERE u.id IN (SELECT id FROM eligible)\n"
         // Name matches first: someone who typed a person's name wants that person.
         sql = sql + "GROUP BY u.id, s.retrieval_score, s.name_match, e.match_evidence ORDER BY s.name_match DESC, score DESC LIMIT 20"
 
-        return try await db.raw(sql).all(decoding: RawUser.self)
+        // The keyword leg never touches the HNSW index, so it runs as is.
+        guard !isKeyword else { return try await db.raw(sql).all(decoding: RawUser.self) }
+        let query = sql
+        // HNSW only yields `hnsw.ef_search` (40) candidates, and the mode and
+        // `eligible` filters in `near_profile` / `near_interest` run after the
+        // index scan, so once the planner picks an HNSW index those pools would
+        // shrink to ~40 or fewer (doc/hnsw-check.md). strict_order keeps the
+        // index scanning, in exact distance order, until LIMIT rows pass.
+        // SET LOCAL needs the transaction; the session keeps it on one connection.
+        return try await db.withSession { s in
+            try await s.raw("BEGIN").run()
+            do {
+                try await s.raw("SET LOCAL hnsw.iterative_scan = strict_order").run()
+                let rows = try await s.raw(query).all(decoding: RawUser.self)
+                try await s.raw("COMMIT").run()
+                return rows
+            } catch {
+                _ = try? await s.raw("ROLLBACK").run()
+                throw error
+            }
+        }
     }
 }
 
@@ -525,26 +696,26 @@ extension SearchStore {
     /// Your taste for people search: the feed's taste vectors (profile plus
     /// what you engage with) and the profiles of people you connected with
     /// from a search lately. Empty when there's nothing to go on.
-    static func searchTaste(_ userID: String, on db: any SQLDatabase) async throws -> [[Double]] {
+    static func searchTaste(_ userID: String, mode: String?, on db: any SQLDatabase) async throws -> [[Double]] {
         struct V: Decodable { let vec: String }
         let connected = try await db.raw("""
             SELECT c.embedding::text AS vec
             FROM search_results r
             JOIN search_sessions s ON s.id = r.session_id
-            JOIN user_embedding_chunks c ON c.user_id = r.shown_user_id AND c.source_type = 'user_profile'
+            JOIN user_embedding_chunks c ON c.user_id = r.shown_user_id AND c.source_type = 'user_profile'\(ChunkService.profileModeSQL("c", mode))
             WHERE s.user_id = \(uuid: userID) AND r.connected_at IS NOT NULL
               AND r.connected_at > NOW() - INTERVAL '\(unsafeRaw: String(SearchRanking.connectedTasteDays)) days'
             ORDER BY r.connected_at DESC LIMIT \(unsafeRaw: String(SearchRanking.maxConnectedTastes))
             """).all(decoding: V.self).map { FeedStore.normalize(FeedStore.parseVec($0.vec)) }
-        return (try await FeedStore.buildTasteVectors(userID, on: db) ?? []) + connected
+        return (try await FeedStore.buildTasteVectors(userID, mode: mode, on: db) ?? []) + connected
     }
 
-    /// A person's profile embedding ("More like @x").
-    static func profileVector(_ userID: String, on db: any SQLDatabase) async throws -> [Double]? {
+    /// A person's profile embedding for `mode`'s persona ("More like @x").
+    static func profileVector(_ userID: String, mode: String?, on db: any SQLDatabase) async throws -> [Double]? {
         struct V: Decodable { let vec: String }
         return try await db.raw("""
             SELECT embedding::text AS vec FROM user_embedding_chunks
-            WHERE user_id = \(uuid: userID) AND source_type = 'user_profile' LIMIT 1
+            WHERE user_id = \(uuid: userID) AND source_type = 'user_profile'\(ChunkService.profileModeSQL("user_embedding_chunks", mode)) LIMIT 1
             """).first(decoding: V.self).map { FeedStore.parseVec($0.vec) }
     }
 
@@ -554,13 +725,15 @@ extension SearchStore {
         guard !candidates.isEmpty else { return [:] }
         let modeFilter: SQLQueryString = mode.map { " AND pp.mode = \(bind: $0)" } ?? ""
         let dismissSince: SQLQueryString = "NOW() - INTERVAL '\(unsafeRaw: String(SearchRanking.dismissDays)) days'"
+        let cMode = ChunkService.profileModeSQL("c", mode)
+        let cpMode = ChunkService.profileModeSQL("cp", mode), dpMode = ChunkService.profileModeSQL("dp", mode)
         var sql: SQLQueryString = """
             WITH cand AS (SELECT DISTINCT unnest(\(bind: candidates)::uuid[]) AS user_id),
             t AS (SELECT v::vector AS vec FROM unnest(\(bind: tastes.map(vecLiteral))::text[]) v),
             ch AS (
               SELECT c.user_id, c.embedding FROM user_embedding_chunks c
               WHERE c.user_id IN (SELECT user_id FROM cand)
-                AND (c.source_type = 'user_profile'
+                AND (c.source_type = 'user_profile'\(cMode)
                      OR EXISTS (SELECT 1 FROM posts pp WHERE pp.id = c.source_id
                                 AND pp.status = 'posted' AND pp.privacy = 'public'
             """
@@ -591,48 +764,12 @@ extension SearchStore {
                    (SELECT MAX(1 - (cp.embedding <=> dp.embedding))::float
                       FROM user_embedding_chunks cp
                       JOIN dismissed d ON d.user_id <> cand.user_id
-                      JOIN user_embedding_chunks dp ON dp.user_id = d.user_id AND dp.source_type = 'user_profile'
-                     WHERE cp.user_id = cand.user_id AND cp.source_type = 'user_profile') AS dismissed_like
+                      JOIN user_embedding_chunks dp ON dp.user_id = d.user_id AND dp.source_type = 'user_profile'\(dpMode)
+                     WHERE cp.user_id = cand.user_id AND cp.source_type = 'user_profile'\(cpMode)) AS dismissed_like
             FROM cand LEFT JOIN taste ta ON ta.user_id = cand.user_id
             """
         let rows = try await db.raw(sql).all(decoding: SearchRanking.Features.self)
         return Dictionary(rows.map { ($0.user_id, $0) }, uniquingKeysWith: { a, _ in a })
-    }
-
-    struct PostFeatures: Decodable {
-        let id: String; let taste: Double?; let seen_hours_ago: Double?
-        let less_similar: Bool; let less_author: Bool; let more_similar: Bool; let more_author: Bool
-    }
-
-    /// Your taste, what you've seen and your feed feedback for each post hit
-    /// (AI post search, phase S5).
-    static func postFeatures(viewer: String, postIDs: [String], tastes: [[Double]],
-                             on db: any SQLDatabase) async throws -> [String: PostFeatures] {
-        guard !postIDs.isEmpty else { return [:] }
-        let since: SQLQueryString = "NOW() - INTERVAL '\(unsafeRaw: String(FeedStore.feedbackDays)) days'"
-        let similar: SQLQueryString = "(c.embedding <=> fc.embedding) <= \(unsafeRaw: String(FeedStore.similarDistance))"
-        func fb(_ kind: String, similarPosts: Bool) -> SQLQueryString {
-            similarPosts
-                ? "EXISTS (SELECT 1 FROM post_feedback f JOIN user_embedding_chunks fc ON fc.source_type = 'post' AND fc.source_id = f.post_id WHERE f.user_id = \(uuid: viewer) AND f.kind = \(bind: kind) AND f.created_at > \(since) AND \(similar))"
-                : "EXISTS (SELECT 1 FROM post_feedback f WHERE f.user_id = \(uuid: viewer) AND f.kind = \(bind: kind) AND f.created_at > \(since) AND f.author_id = p.author_id)"
-        }
-        let sql: SQLQueryString = """
-            WITH t AS (SELECT v::vector AS vec FROM unnest(\(bind: tastes.map(vecLiteral))::text[]) v)
-            SELECT p.id::text AS id,
-                   (SELECT MAX(1 - (c.embedding <=> t.vec)) FROM t)::float AS taste,
-                   (SELECT EXTRACT(EPOCH FROM NOW() - pi.first_seen_at) / 3600.0 FROM post_impressions pi
-                     WHERE pi.user_id = \(uuid: viewer) AND pi.post_id = p.id)::float AS seen_hours_ago,
-                   \(fb("less", similarPosts: true)) AS less_similar,
-                   \(fb("less", similarPosts: false)) AS less_author,
-                   \(fb("more", similarPosts: true)) AS more_similar,
-                   \(fb("more", similarPosts: false)) AS more_author
-            FROM posts p
-            JOIN LATERAL (SELECT embedding FROM user_embedding_chunks
-                          WHERE source_type = 'post' AND source_id = p.id LIMIT 1) c ON true
-            WHERE p.id = ANY(\(bind: postIDs)::uuid[])
-            """
-        return Dictionary(try await db.raw(sql).all(decoding: PostFeatures.self).map { ($0.id, $0) },
-                          uniquingKeysWith: { a, _ in a })
     }
 
     // MARK: sessions (phase S3)
@@ -715,11 +852,12 @@ extension SearchStore {
                                 on db: any SQLDatabase) async throws -> [OllamaService.ExplainPerson] {
         struct R: Decodable { let id: String; let texts: [String] }
         let modeFilter: SQLQueryString = mode.map { " AND pp.mode = \(bind: $0)" } ?? ""
+        let profileMode = ChunkService.profileModeSQL("c", mode)
         var sql: SQLQueryString = """
             SELECT r.shown_user_id::text AS id,
                    ARRAY(SELECT LEFT(c.content, 300) FROM user_embedding_chunks c
                          WHERE c.user_id = r.shown_user_id AND c.content IS NOT NULL
-                           AND (c.source_type = 'user_profile'
+                           AND (c.source_type = 'user_profile'\(profileMode)
                                 OR EXISTS (SELECT 1 FROM posts pp WHERE pp.id = c.source_id
                                            AND pp.status = 'posted' AND pp.privacy = 'public'
             """

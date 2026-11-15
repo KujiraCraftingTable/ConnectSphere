@@ -51,7 +51,7 @@ struct JobCard: View {
             Text(job.salaryText(loc: bundle.loc) ?? bundle.loc("Negotiable"))
                 .scaledFont(14, .semibold)
                 .foregroundColor(themeManager.theme.primary)
-            let facts = [job.location, job.distanceKm.map { "~" + String(format: bundle.loc("%d km"), $0) }, job.workFormat.map { bundle.loc(JobListing.formatLabel($0)) },
+            let facts = [job.location.map(bundle.address), job.distanceKm.map { "~" + String(format: bundle.loc("%d km"), $0) }, job.workFormat.map { bundle.loc(JobListing.formatLabel($0)) },
                          job.level.map { bundle.loc(JobListing.levelLabel($0)) },
                          job.employmentType.flatMap(EmploymentType.init(rawValue:)).map { bundle.loc($0.label) }]
                 .compactMap { $0 }
@@ -62,8 +62,8 @@ struct JobCard: View {
                     .lineLimit(2)
             }
             HStack(spacing: 8) {
-                if showsMatch && !job.isMine {
-                    Label(job.matchText(loc: bundle.loc), systemImage: "sparkles")
+                if showsMatch && !job.isMine, let reason = job.matchText(loc: bundle.loc) {
+                    Label(reason, systemImage: "sparkles")
                         .scaledFont(12, .medium)
                         .foregroundColor(themeManager.theme.primary)
                         .padding(.horizontal, 8)

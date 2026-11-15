@@ -4,6 +4,10 @@ struct ProvinceDTO: Decodable, Identifiable {
     let province_code: String
     let province_name: String
     let province_name_en: String
+    /// Provinces merged into this one in 2025 ("Tỉnh Bình Dương"), and the
+    /// same names in English, in the same order ("Binh Duong Province").
+    let former_names: [String]?
+    let former_names_en: [String]?
 
     var id: String { province_code }
 }
@@ -22,6 +26,10 @@ struct WardDTO: Decodable, Identifiable {
     let unit_type: String
     let lat: Double
     let lng: Double
+    /// Former wards now part of this one ("Phường Bến Nghé, Quận 1"), and
+    /// the same names in English, in the same order ("Ben Nghe Ward, District 1").
+    let former_names: [String]?
+    let former_names_en: [String]?
 }
 
 struct WardsResponseDTO: Decodable {

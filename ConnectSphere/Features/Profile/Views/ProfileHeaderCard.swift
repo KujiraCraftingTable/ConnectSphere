@@ -120,7 +120,7 @@ struct ProfileHeaderCard<Actions: View>: View {
             }
             if let company = hrCompany { HRBadge(company: company) }
             if let location = user.location, !location.isEmpty {
-                Label(location, systemImage: "mappin.and.ellipse")
+                Label(bundle.province(location), systemImage: "mappin.and.ellipse")
                     .scaledFont(13)
                     .foregroundColor(AppColors.textSecondary(colorScheme))
             }

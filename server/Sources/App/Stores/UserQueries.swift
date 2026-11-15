@@ -145,7 +145,7 @@ extension UserStore {
             // Nothing typed: the people most like the viewer first, by profile
             // vector. The score only orders the list and is never sent, so no
             // match % shows here. No vector on either side falls back to newest.
-            q = q + "SELECT s.* FROM (SELECT c.*, " + profileSimilaritySQL(viewer: f.viewerID)
+            q = q + "SELECT s.* FROM (SELECT c.*, " + profileSimilaritySQL(viewer: f.viewerID, mode: f.mode)
                 + " AS similarity_score FROM (" + eligibleUsersSQL(f) + ") c) s"
                 + " ORDER BY s.similarity_score DESC NULLS LAST, s.created_at DESC LIMIT \(bind: f.limit) OFFSET \(bind: f.offset)"
                 + ") base ORDER BY base.similarity_score DESC NULLS LAST, base.created_at DESC"
@@ -184,12 +184,12 @@ extension UserStore {
 
     /// Cosine similarity between row `c`'s profile vector and the viewer's,
     /// NULL when either has none yet.
-    private static func profileSimilaritySQL(viewer: String) -> SQLQueryString {
+    private static func profileSimilaritySQL(viewer: String, mode: String?) -> SQLQueryString {
         """
         (SELECT (1 - (pc.embedding <=> mv.embedding))::float
            FROM user_embedding_chunks pc, user_embedding_chunks mv
-          WHERE pc.user_id = c.id::uuid AND pc.source_type = 'user_profile' AND pc.chunk_index = 0
-            AND mv.user_id = \(uuid: viewer) AND mv.source_type = 'user_profile' AND mv.chunk_index = 0
+          WHERE pc.user_id = c.id::uuid AND pc.source_type = 'user_profile' AND pc.chunk_index = 0\(ChunkService.profileModeSQL("pc", mode))
+            AND mv.user_id = \(uuid: viewer) AND mv.source_type = 'user_profile' AND mv.chunk_index = 0\(ChunkService.profileModeSQL("mv", mode))
           LIMIT 1)
         """
     }

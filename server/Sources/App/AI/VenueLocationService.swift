@@ -12,7 +12,11 @@ import NIOConcurrencyHelpers
 /// LOW review fix: the process-lifetime `geocodeCache` is now a bounded LRU
 /// (`cap = 500`) instead of an unbounded Map.
 enum VenueLocationService {
-    struct Location: Codable, Sendable { var provinceName: String?; var lat: Double?; var lng: Double? }
+    struct Location: Codable, Sendable {
+        var provinceName: String?; var lat: Double?; var lng: Double?
+        /// The ward the geocoder puts the place in ("Phường Sài Gòn"), when it gives one.
+        var wardName: String? = nil
+    }
 
     static let isoCodeMap: [String: (name: String, lat: Double, lng: Double)] = [
         "VN-HN": ("Hà Nội", 21.0285, 105.8542), "VN-HP": ("Hải Phòng", 20.8449, 106.6881),
@@ -95,15 +99,16 @@ enum VenueLocationService {
         let addr = hit["address"] as? [String: Any] ?? [:]
         guard let latS = hit["lat"] as? String, let lat = Double(latS),
               let lngS = hit["lon"] as? String, let lng = Double(lngS) else { return nil }
+        let ward = ["suburb", "village", "town"].lazy.compactMap { addr[$0] as? String }.first
         if let iso = addr["ISO3166-2-lvl4"] as? String, let mapped = isoCodeMap[iso] {
-            return Location(provinceName: await toEnglishProvince(mapped.name, on: db), lat: lat, lng: lng)
+            return Location(provinceName: await toEnglishProvince(mapped.name, on: db), lat: lat, lng: lng, wardName: ward)
         }
         let rawCity = ((addr["city"] as? String) ?? (addr["state"] as? String) ?? (addr["county"] as? String) ?? "")
             .trimmingCharacters(in: .whitespaces)
         guard !rawCity.isEmpty else { return nil }
         let normalized = rawCity.replacingOccurrences(
             of: #"^(tỉnh|thành phố)\s+"#, with: "", options: [.regularExpression, .caseInsensitive])
-        return Location(provinceName: await toEnglishProvince(normalized, on: db), lat: lat, lng: lng)
+        return Location(provinceName: await toEnglishProvince(normalized, on: db), lat: lat, lng: lng, wardName: ward)
     }
 
     private static func resolveUncached(_ placeName: String, client: HTTPClient, on db: any SQLDatabase, logger: Logger) async -> Location? {

@@ -30,6 +30,10 @@ struct CommunityDetailView: View {
     @State private var barsHidden        = false
     /// Status bar + navigation bar: the cover runs up under both.
     @State private var topInset: CGFloat = 0
+    /// The header's Join button is on screen; once it scrolls away, a copy
+    /// slides up from the bottom so joining doesn't mean losing your place.
+    @State private var headerJoinVisible = true
+    @Environment(UndoToastPresenter.self) private var toast
     @Environment(\.dismiss) private var dismiss
     // Tap-to-open-post-detail, same PostRoute/PostDetailView navigation Feed uses.
     @State private var detailRoute: PostRoute?
@@ -88,6 +92,13 @@ struct CommunityDetailView: View {
                 }
             }
         }
+        .safeAreaInset(edge: .bottom) {
+            if showsFloatingJoin {
+                floatingJoinBar
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.snappy, value: showsFloatingJoin)
         // Inside a community the tab bar stays away; its own top bar still
         // slides with the scroll.
         .hidesBarsOnScroll($barsHidden, tabBarAlwaysHidden: true)
@@ -393,6 +404,7 @@ struct CommunityDetailView: View {
                         .padding(.top, 6)
                 } else if !community.isMember {
                     joinButton.padding(.top, 6)
+                        .onScrollVisibilityChange(threshold: 0.2) { headerJoinVisible = $0 }
                 }
             }
         } else {
@@ -434,6 +446,55 @@ struct CommunityDetailView: View {
 
         case .joined:
             EmptyView()
+        }
+    }
+
+    /// Same visitors as the header's Join button, only while it's off screen.
+    private var showsFloatingJoin: Bool {
+        guard let community = viewModel.community, !community.isMember, !headerJoinVisible,
+              !community.isReadOnlyVisit, !(appState.currentUser?.isOfficial ?? false) else { return false }
+        return viewModel.joinStatus == .notMember || viewModel.joinStatus == .loading
+    }
+
+    private var floatingJoinBar: some View {
+        Button {
+            Task<Void, Never>(name: nil) { await joinFromFloatingBar() }
+        } label: {
+            Group {
+                if viewModel.joinStatus == .loading {
+                    ProgressView().tint(.white)
+                } else {
+                    Text(viewModel.community?.privacy == .private ? bundle.loc("Request to join") : bundle.loc("Join now"))
+                }
+            }
+            .appFont(.subheadline)
+            .fontWeight(.semibold)
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity, minHeight: 22)
+            .padding(.vertical, AppSpacing.sm + 4)
+            .background(themeManager.theme.primary)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(viewModel.joinStatus == .loading)
+        .disabledWhenRestricted()
+        .padding(10)
+        .modifier(FloatingJoinGlass())
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
+    }
+
+    /// Joins in place: the feed and scroll position stay, the page just
+    /// becomes a member's page and a toast says so.
+    private func joinFromFloatingBar() async {
+        await viewModel.requestToJoin()
+        switch viewModel.joinStatus {
+        case .joined:
+            toast.show(message: String(format: bundle.loc("You joined %@"), viewModel.community?.name ?? ""))
+        case .pending:
+            toast.show(message: bundle.loc("Request sent"))
+        default:
+            break
         }
     }
 
@@ -556,5 +617,16 @@ struct CommunityDetailView: View {
         .padding(.horizontal, AppSpacing.sm + 4)
         .padding(.vertical, 10)
         .background(AppColors.surface(colorScheme))
+    }
+}
+
+private struct FloatingJoinGlass: ViewModifier {
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 20, style: .continuous)
+        if #available(iOS 26.0, *) {
+            content.glassEffect(.regular, in: shape)
+        } else {
+            content.background(.ultraThinMaterial, in: shape)
+        }
     }
 }
