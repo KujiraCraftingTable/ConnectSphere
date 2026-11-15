@@ -207,8 +207,8 @@ enum SearchStore {
         var targetAgeMax: Int?
         var searchLat: Double?
         var searchLng: Double?
-        /// Wards the prompt names (`PlaceReader`): people within the radius
-        /// of any of their centres.
+        /// Wards the prompt names (`PlaceReader`): people within `radiusKm`
+        /// of any of their centres, or, with no radius, living in them.
         var searchWardIDs: [String] = []
         var radiusKm: Double?
         var threshold = 0.6
@@ -261,8 +261,6 @@ enum SearchStore {
 
     /// The radius steps the app offers; anything else is refused.
     static let radiusStepsKm: Set<Double> = [5, 10, 15, 20, 25, 30]
-    /// The radius around a ward the prompt names when the search sets none.
-    static let namedWardRadiusKm = 5.0
     /// Kilometres between the centres of wards `w` and `t`.
     private static let kmBetweenWards: SQLQueryString = """
         (6371 * acos(LEAST(1.0, cos(radians(t.lat)) * cos(radians(w.lat))
@@ -470,9 +468,15 @@ enum SearchStore {
         // fallback when there's no radius.
         var distanceSelect: SQLQueryString = "NULL::int"
         if !p.searchWardIDs.isEmpty {
-            let near: SQLQueryString = "FROM vn_wards w, vn_wards t WHERE w.id = u.ward_id AND t.id = ANY(\(bind: p.searchWardIDs)::uuid[])"
-            wheres.append("EXISTS (SELECT 1 " + near + " AND " + kmBetweenWards + " <= \(bind: p.radiusKm ?? namedWardRadiusKm))")
-            distanceSelect = "(SELECT GREATEST(5, CEIL(MIN(" + kmBetweenWards + ") / 5) * 5)::int " + near + ")"
+            if let rad = p.radiusKm {
+                let near: SQLQueryString = "FROM vn_wards w, vn_wards t WHERE w.id = u.ward_id AND t.id = ANY(\(bind: p.searchWardIDs)::uuid[])"
+                wheres.append("EXISTS (SELECT 1 " + near + " AND " + kmBetweenWards + " <= \(bind: rad))")
+                distanceSelect = "(SELECT GREATEST(5, CEIL(MIN(" + kmBetweenWards + ") / 5) * 5)::int " + near + ")"
+            } else {
+                // No distance asked for and none set: "ở bình thạnh" is the
+                // people who live there, not everyone within some guess of it.
+                wheres.append("u.ward_id = ANY(\(bind: p.searchWardIDs)::uuid[])")
+            }
         } else if let lat = p.searchLat, let lng = p.searchLng, let rad = p.radiusKm {
             wheres.append("EXISTS (SELECT 1 FROM vn_wards w WHERE w.id = u.ward_id AND " + kmToWard(lat: lat, lng: lng) + " <= \(bind: rad))")
             distanceSelect = "(SELECT GREATEST(5, CEIL(" + kmToWard(lat: lat, lng: lng) + " / 5) * 5)::int FROM vn_wards w WHERE w.id = u.ward_id)"

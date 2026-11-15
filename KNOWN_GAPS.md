@@ -261,8 +261,11 @@ Known limits, measured on the 265 local posts (32 got wards, 25 a province only)
   or mis-tagged; nothing reviews the tags.
 - **Street addresses depend on Nominatim's public server** (1 request a second,
   no guarantee). A failed lookup leaves the post untagged until its text changes.
-- A search that names a ward or district matches people within 5 km of those
-  wards' centres, which around a whole former district is a wide area.
+- A search that names a ward or district with no radius returns only people
+  who live in those wards, so someone one street over the boundary is left out
+  unless the searcher sets a radius or types a distance.
+- A distance in a prompt is read by pattern ("trong vòng 3 km", "within 10 km");
+  other wordings ("đi bộ 10 phút", "a short drive") are not understood.
 
 ---
 

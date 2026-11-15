@@ -183,4 +183,27 @@ final class SearchConceptTests: XCTestCase {
         XCTAssertEqual(SearchConcepts.postMin(for: c("grilled meat")), SearchConcepts.conceptPostMin)
         XCTAssertEqual(SearchConcepts.postMin(for: c("sunset over the sea, sunset at the beach")), SearchConcepts.phrasePostMin)
     }
+
+    // MARK: distance in the prompt
+
+    func testDistanceAskedForInThePrompt() {
+        XCTAssertEqual(SearchConcepts.distanceKm("tìm bạn ở bình thạnh trong vòng 3 km"), 3)
+        XCTAssertEqual(SearchConcepts.distanceKm("ban kinh 5km quanh quan 1"), 5)
+        XCTAssertEqual(SearchConcepts.distanceKm("friends within 10 km of Thu Duc"), 10)
+        XCTAssertEqual(SearchConcepts.distanceKm("bạn thích cà phê 2,5 km quanh đây"), 2.5)
+        XCTAssertEqual(SearchConcepts.distanceKm("trong vòng 500 km"), 50)
+        XCTAssertEqual(SearchConcepts.distanceKm("dưới 0.2 km"), 1)
+    }
+
+    func testANumberOfKmAloneIsNotADistanceLimit() {
+        XCTAssertNil(SearchConcepts.distanceKm("bạn thích chạy 5km mỗi sáng"))
+        XCTAssertNil(SearchConcepts.distanceKm("tìm bạn ở gò vấp"))
+        XCTAssertNil(SearchConcepts.distanceKm("gần 45 lê thánh tôn"))
+    }
+
+    func testDistanceIsTakenOutBeforeThePlaceIsRead() {
+        XCTAssertEqual(SearchConcepts.withoutDistance("tìm bạn ở gò vấp trong vòng 3 km"), "tìm bạn ở gò vấp")
+        XCTAssertEqual(SearchConcepts.withoutDistance("friends within 10 km of thu duc"), "friends of thu duc")
+        XCTAssertEqual(SearchConcepts.withoutDistance("thích chạy 5km ở gò vấp"), "thích chạy 5km ở gò vấp")
+    }
 }

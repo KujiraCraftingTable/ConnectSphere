@@ -254,6 +254,34 @@ enum SearchConcepts {
         pattern: #"tuổi|tuoi|\bage[sd]?\b|years?[- ]old|\byo\b|\b\d+\s?t\b|\b\d0s\b|\b[0-9]x\b|\b2k\d*\b|sinh năm|thế hệ|teen|đời \d"#,
         options: [.caseInsensitive])
 
+    // MARK: Distance asked for in the prompt
+
+    /// A prompt may ask for anything from next door to a few provinces away.
+    static let promptDistanceKm = 1.0...50.0
+
+    /// The distance a prompt asks for, in km: "trong vòng 3 km", "bán kính
+    /// 5km", "within 10 km", "2 km quanh đây". A number of km on its own is
+    /// not one ("thích chạy 5km" is about running), so it needs a word that
+    /// makes it a limit. Clamped to `promptDistanceKm`.
+    static func distanceKm(_ prompt: String) -> Double? {
+        guard let m = distancePattern.firstMatch(in: prompt, range: NSRange(prompt.startIndex..., in: prompt)) else { return nil }
+        for group in 1...2 {
+            guard let r = Range(m.range(at: group), in: prompt),
+                  let km = Double(prompt[r].replacingOccurrences(of: ",", with: ".")) else { continue }
+            return min(max(km, promptDistanceKm.lowerBound), promptDistanceKm.upperBound)
+        }
+        return nil
+    }
+    /// The prompt with its distance taken out, for reading the place: the
+    /// "3" of "ở gò vấp trong vòng 3 km" would otherwise open a street address.
+    static func withoutDistance(_ prompt: String) -> String {
+        distancePattern.stringByReplacingMatches(in: prompt, range: NSRange(prompt.startIndex..., in: prompt), withTemplate: " ")
+            .split(separator: " ").joined(separator: " ")
+    }
+    private static let distancePattern = try! NSRegularExpression(
+        pattern: #"(?:trong vòng|trong vong|bán kính|ban kinh|within|radius(?: of)?|cách đây|cach day|cách|cach|dưới|duoi|under|tối đa|toi da|max|khoảng|khoang|trong)\s+(\d+(?:[.,]\d+)?)\s?(?:km|kilomet\w*|cây số|cay so)\b|(\d+(?:[.,]\d+)?)\s?(?:km|kilomet\w*|cây số|cay so)\s+(?:quanh|around|gần đây|gan day|trở lại|tro lai)"#,
+        options: [.caseInsensitive])
+
     // MARK: helpers
 
     private static func firstMatch(_ re: NSRegularExpression, in s: String) -> String? {

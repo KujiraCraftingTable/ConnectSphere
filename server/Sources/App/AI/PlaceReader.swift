@@ -250,6 +250,7 @@ enum PlaceReader {
     /// Words that end an address in a prompt ("45 lê thánh tôn nhé").
     private static let addressEnders: Set<String> = Set(
         ["nhé", "nhe", "nha", "ạ", "nhỉ", "đi", "với", "voi", "và", "va", "thích", "thich", "có", "co", "không", "khong",
+         "trong", "within", "bán", "ban", "cách", "cach",
          "ko", "cho", "để", "mà", "ma", "who", "that", "with", "and", "likes"].map(key))
     /// An address is a number or "đường" and at most this many more words.
     private static let addressWords = 6

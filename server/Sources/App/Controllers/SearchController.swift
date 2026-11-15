@@ -240,7 +240,12 @@ struct SearchController {
         var searchCoords: (lat: Double, lng: Double)? = nil
         // "Closer to me" with a radius is measured from your ward (below);
         // without one it narrows to your province.
-        if b.closer == true, b.radiusKm == nil, criteria.location == nil, criteria.place_name == nil, let home = ctx?.location {
+        // How far to look: the distance the prompt asks for ("trong vòng 3
+        // km"), never beyond the searcher's own maximum (the app setting);
+        // with neither, no distance limit.
+        let asked = SearchConcepts.distanceKm(userQuery)
+        let radius: Double? = asked.map { min($0, b.radiusKm ?? $0) } ?? b.radiusKm
+        if b.closer == true, radius == nil, criteria.location == nil, criteria.place_name == nil, let home = ctx?.location {
             criteria.location = home
         }
         // A ward, district or address in the prompt ("ở bình thạnh", "45 Lê
@@ -248,7 +253,8 @@ struct SearchController {
         // prompt as a whole is read too, for when the LLM drops "quận 1".
         var searchWards: [String] = []
         var placeLabels: [String] = []     // the place as understood, for the "no one near" notice
-        let placePhrases = [PlaceReader.placePhrase(in: userQuery), criteria.place_name].compactMap { $0 }
+        let placeText = SearchConcepts.withoutDistance(userQuery)
+        let placePhrases = [PlaceReader.placePhrase(in: placeText), criteria.place_name].compactMap { $0 }
         if !placePhrases.isEmpty {
             do {
                 let home = try await WardStore.provinceCode(named: criteria.location, orOfUser: searcher, on: db)
@@ -260,12 +266,13 @@ struct SearchController {
                 }
             } catch { log.warning("Place lookup failed: \(error)") }
         }
-        if searchWards.isEmpty, let named = try? await PlaceReader.read(userQuery, on: db), !named.wardIDs.isEmpty {
+        if searchWards.isEmpty, let named = try? await PlaceReader.read(placeText, on: db), !named.wardIDs.isEmpty {
             searchWards = Array(named.wardIDs)
             placeLabels = Array(named.labels.prefix(3))
         }
         if !searchWards.isEmpty {
-            // The wards decide; the filter below measures from their centres.
+            // The wards decide: people within the radius of their centres,
+            // or, with no radius, living in them.
         } else if let place = criteria.place_name, criteria.location == nil {
             if let loc = await VenueLocationService.resolveVenueToCity(
                 place, client: HTTPClient.shared, on: db, logger: log), let prov = loc.provinceName {
@@ -274,11 +281,11 @@ struct SearchController {
             } else {
                 warnings.append(Warning(code: "venue_unresolved", value: place))
             }
-        } else if let loc = criteria.location, b.radiusKm != nil,
+        } else if let loc = criteria.location, radius != nil,
                   let g = await VenueLocationService.resolveVenueToCity(loc, client: HTTPClient.shared, on: db, logger: log),
                   let la = g.lat, let ln = g.lng {
             searchCoords = (la, ln)
-        } else if b.radiusKm != nil, criteria.place_name == nil, criteria.location == nil {
+        } else if radius != nil, criteria.place_name == nil, criteria.location == nil {
             // No place named: the radius is measured from your own ward.
             searchCoords = try await WardStore.centre(ofUser: searcher, on: db)
         }
@@ -299,7 +306,7 @@ struct SearchController {
         base.targetGender = criteria.target_gender
         base.targetAgeMin = criteria.target_age_min
         base.targetAgeMax = criteria.target_age_max
-        base.radiusKm = b.radiusKm
+        base.radiusKm = radius
         base.searchWardIDs = searchWards
         base.searchLat = searchCoords?.lat
         base.searchLng = searchCoords?.lng

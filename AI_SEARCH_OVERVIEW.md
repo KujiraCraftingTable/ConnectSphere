@@ -293,8 +293,8 @@ topic are allowed.
 |---|---|
 | `persona` | has set up the search's mode (`hobby_display_name` / `work_display_name`) |
 | `location` | `u.location` contains the place, when there is no radius |
-| `named wards` | The prompt names a ward, district or address (see "Places in a prompt" below): people whose ward centre is within `radiusKm` (5 km when the search sets none) of any of those wards' centres. Takes over from `location` and the `radius` row |
-| `radius` | `radiusKm` ∈ {5,10,15,20,25,30} (else 400). Straight-line (haversine) km from the centre to each person's ward centre (`users.ward_id`, required at sign-up). Centre: the place the prompt names, else the searcher's own ward. Each result carries `distance_km`, rounded up to 5 km |
+| `named wards` | The prompt names a ward, district or address (see "Places in a prompt" below). With a radius: people whose ward centre is within it of any of those wards' centres. With none: only people who live in those wards. Takes over from `location` and the centre of the `radius` row |
+| `radius` | The app setting `radiusKm` ∈ {5,10,15,20,25,30} (else 400; absent = unlimited) is the **most** a search may reach. A distance in the prompt ("trong vòng 3 km", "within 10 km"; `SearchConcepts.distanceKm`, 1–50 km) is used, but never beyond that setting; with no distance in the prompt the setting itself is the radius. The distance is taken out of the prompt before the place is read. Straight-line (haversine) km from the centre to each person's ward centre (`users.ward_id`, required at sign-up). Centre: the place the prompt names, else the searcher's own ward. Each result carries `distance_km`, rounded up to 5 km |
 | `target_gender`, age | only when the prompt states them |
 | `block / ban / self` | not deleted, not banned, not blocked either way, not the searcher |
 | `connections` | people already connected in this mode are left out |
