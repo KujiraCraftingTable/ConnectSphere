@@ -8,14 +8,14 @@ struct ReportTests {
     @Test func reasonsDependOnWhatIsReported() {
         #expect(ReportTargetType.post.reasons.contains(.offTopic))
         #expect(!ReportTargetType.message.reasons.contains(.offTopic))
-        #expect(ReportTargetType.datingProfile.reasons.contains(.underage))
         #expect(!ReportTargetType.post.reasons.contains(.underage))
+        #expect(!ReportTargetType.user.reasons.contains(.underage))
         #expect(ReportTargetType.user.reasons.contains(.impersonation))
         #expect(!ReportTargetType.comment.reasons.contains(.impersonation))
     }
 
     @Test func everyTargetOffersTheSeriousReasons() {
-        for t in [ReportTargetType.post, .comment, .message, .user, .community, .story, .company, .datingProfile] {
+        for t in [ReportTargetType.post, .comment, .message, .user, .community, .story, .company] {
             #expect(t.reasons.contains(.childSafety))
             #expect(t.reasons.contains(.selfHarm))
         }
