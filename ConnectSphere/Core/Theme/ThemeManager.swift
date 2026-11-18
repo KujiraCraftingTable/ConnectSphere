@@ -77,7 +77,7 @@ final class ThemeManager {
     private static let lastUserKey = "themeManager.lastUserID"
     private static func key(_ mode: AppMode, _ userID: String) -> String { "themeManager.\(userID).\(mode.rawValue)" }
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = AppDefaults.store) {
         self.defaults = defaults
         let last = defaults.string(forKey: Self.lastUserKey)
         userID = last

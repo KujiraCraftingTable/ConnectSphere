@@ -91,6 +91,8 @@ struct DiscoverView: View {
                     CommunityRow(community: community) { toggle(community) }
                 }
                 .buttonStyle(.plain)
+                // On the wrapping button: SwiftUI hoists ids from inside a button's label.
+                .axID(AXID.Community.row + community.id)
                 .padding(.horizontal, 16)
             }
         }

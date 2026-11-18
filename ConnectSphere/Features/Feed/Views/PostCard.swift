@@ -702,6 +702,8 @@ struct PostCard: View {
                     }
                 }
                 .accessibilityLabel(Bundle.app.loc("Whale"))
+                .accessibilityAddTraits(actions.isLiked ? .isSelected : [])
+                .axID(AXID.Feed.like)
                 .disabledWhenRestricted()
 
                 Button {
@@ -715,6 +717,7 @@ struct PostCard: View {
                     }
                 }
                 .accessibilityLabel(Bundle.app.loc("Comment"))
+                .axID(AXID.Feed.comment)
             }
 
             Spacer()

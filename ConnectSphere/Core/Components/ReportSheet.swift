@@ -123,6 +123,7 @@ struct ReportSheet: View {
                 .foregroundColor(AppColors.textSecondary(colorScheme))
 
             TextEditor(text: $viewModel.detail)
+                .axID(AXID.Report.details)
                 .scaledFont(16)
                 .frame(height: 80)
                 .padding(10)

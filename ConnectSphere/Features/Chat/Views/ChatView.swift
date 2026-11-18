@@ -94,7 +94,7 @@ struct ChatView: View {
     @State private var forwardingMessage: Message?
     @State private var reportingMessage: Message?
     @State private var connectVM = ConnectViewModel()
-    @AppStorage("messageSoundEnabled") private var messageSoundEnabled = true
+    @AppStorage("messageSoundEnabled", store: AppDefaults.store) private var messageSoundEnabled = true
     private let bottomID = "chatBottom"
 
     // Pin / unpin: lightweight expiry-confirmation sheet shown from the
@@ -136,15 +136,18 @@ struct ChatView: View {
         _pinsSettingsViewModel = State(initialValue: ChatSettingsViewModel(conversationId: conversationId, token: token))
         _pinAutoDeleteRaw = AppStorage(
             wrappedValue: PinAutoDeleteOption.never.rawValue,
-            pinAutoDeleteStorageKey(conversationId: conversationId)
+            pinAutoDeleteStorageKey(conversationId: conversationId),
+            store: AppDefaults.store
         )
         _pinAutoDeleteCustomDateRaw = AppStorage(
             wrappedValue: 0,
-            pinAutoDeleteCustomDateStorageKey(conversationId: conversationId)
+            pinAutoDeleteCustomDateStorageKey(conversationId: conversationId),
+            store: AppDefaults.store
         )
         _quickEmoji = AppStorage(
             wrappedValue: QuickEmoji.defaultValue,
-            quickEmojiStorageKey(conversationId: conversationId)
+            quickEmojiStorageKey(conversationId: conversationId),
+            store: AppDefaults.store
         )
     }
 
@@ -1240,6 +1243,7 @@ struct ChatView: View {
 
                     TextField("", text: $inputText, prompt: Text("Message...", bundle: bundle), axis: .vertical)
                         .focused($isComposerFocused)
+                        .axID(AXID.Chat.messageField)
                         .scaledFont(17)
                         .lineLimit(1...5)
                         .padding(.horizontal, 16)
@@ -1314,6 +1318,7 @@ struct ChatView: View {
                     .padding(.bottom, 2)
                 }
                 .disabled(viewModel.isSending || blocking || (editingMessage != nil && !canSend))
+                .axID(AXID.Chat.send)
             }
             .disabled(blocking)
             .opacity(blocking ? 0.5 : 1)

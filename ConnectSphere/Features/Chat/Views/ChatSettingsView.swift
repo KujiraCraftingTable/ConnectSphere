@@ -79,15 +79,18 @@ struct ChatSettingsView: View {
         _viewModel = State(initialValue: ChatSettingsViewModel(conversationId: conversationId, token: token))
         _pinAutoDeleteRaw = AppStorage(
             wrappedValue: PinAutoDeleteOption.never.rawValue,
-            pinAutoDeleteStorageKey(conversationId: conversationId)
+            pinAutoDeleteStorageKey(conversationId: conversationId),
+            store: AppDefaults.store
         )
         _pinAutoDeleteCustomDateRaw = AppStorage(
             wrappedValue: 0,
-            pinAutoDeleteCustomDateStorageKey(conversationId: conversationId)
+            pinAutoDeleteCustomDateStorageKey(conversationId: conversationId),
+            store: AppDefaults.store
         )
         _quickEmoji = AppStorage(
             wrappedValue: QuickEmoji.defaultValue,
-            quickEmojiStorageKey(conversationId: conversationId)
+            quickEmojiStorageKey(conversationId: conversationId),
+            store: AppDefaults.store
         )
     }
 

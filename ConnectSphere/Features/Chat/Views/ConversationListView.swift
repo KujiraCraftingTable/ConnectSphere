@@ -24,12 +24,12 @@ struct ConversationListView: View {
     @State private var searchQuery = ""
 
     /// Spaces view on/off. A per-device preference, not account data.
-    @AppStorage("chatSpacesView") private var spacesOn = false
+    @AppStorage("chatSpacesView", store: AppDefaults.store) private var spacesOn = false
     /// Set once Spaces has been switched on; until then a one-line hint under
     /// the switch says what it is.
-    @AppStorage("chatSpacesIntroSeen") private var spacesIntroSeen = false
+    @AppStorage("chatSpacesIntroSeen", store: AppDefaults.store) private var spacesIntroSeen = false
     /// Ids of folded space sections ("others" for Other chats), comma-joined.
-    @AppStorage("chatCollapsedSpaces") private var collapsedRaw = ""
+    @AppStorage("chatCollapsedSpaces", store: AppDefaults.store) private var collapsedRaw = ""
 
     // Spaces sheets
     @State private var spaceEditor: SpaceEditorTarget?
@@ -292,6 +292,7 @@ struct ConversationListView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(Text(bundle.loc("Archived chats")))
+                .axID(AXID.Chat.archived)
 
                 // The official account is a support inbox: anyone's message lands
                 // straight in its inbox, so it has no Waiting list.
@@ -314,6 +315,7 @@ struct ConversationListView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(Text(String(format: bundle.loc("Waiting, %lld"), viewModel.waiting.count)))
+                .axID(AXID.Chat.waiting)
                 }
 
                 Spacer()
@@ -452,6 +454,7 @@ struct ConversationListView: View {
             )
         }
         .buttonStyle(.plain)
+        .axID(AXID.Chat.row + conversation.id)
         .modifier(RowBackground(folder: folder, cardEdges: cardEdges, surface: AppColors.surface(colorScheme)))
         .alignmentGuide(.listRowSeparatorLeading) { _ in ConversationRow.textInset }
         // Order matters: the first button sits at the edge and is the one a

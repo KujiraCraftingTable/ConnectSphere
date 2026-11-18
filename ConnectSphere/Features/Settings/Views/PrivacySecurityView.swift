@@ -123,6 +123,7 @@ struct PrivacySecurityView: View {
                     }
                 }
                 .disabled(!(appState.currentUser?.emailVerified ?? false))
+                .axID(AXID.Settings.twoFactorToggle)
             } footer: {
                 Text(bundle.loc((appState.currentUser?.emailVerified ?? false)
                     ? "When on, every sign-in needs a code sent to your email. You're also emailed each time your account is signed in to."

@@ -97,7 +97,8 @@ struct LoginView: View {
             AuthTextField(
                 icon: "person.fill",
                 placeholder: bundle.loc("Username or email"),
-                text: $viewModel.identifier
+                text: $viewModel.identifier,
+                axID: AXID.Auth.loginIdentifier
             )
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
@@ -106,7 +107,8 @@ struct LoginView: View {
                 placeholder: bundle.loc("Password"),
                 text: $viewModel.password,
                 isSecure: true,
-                isFocused: $passwordFocused
+                isFocused: $passwordFocused,
+                axID: AXID.Auth.loginPassword
             )
             .onChange(of: viewModel.passwordFocusRequest) { passwordFocused = true }
 
@@ -123,6 +125,7 @@ struct LoginView: View {
                     Image(systemName: "exclamationmark.triangle.fill")
                     Text(errorMessage)
                         .scaledFont(13)
+                        .accessibilityIdentifier(AXID.Auth.loginError)
                 }
                 .foregroundColor(AppColors.danger(.light))
                 .padding(.horizontal, 12)
@@ -135,6 +138,7 @@ struct LoginView: View {
             GradientButton(title: bundle.loc("Log in"), isLoading: viewModel.isLoading) {
                 Task { await viewModel.loginWithPassword(appState: appState) }
             }
+            .accessibilityIdentifier(AXID.Auth.loginSubmit)
         }
         .animation(.default, value: viewModel.errorMessage)
     }
@@ -156,6 +160,7 @@ struct LoginView: View {
                 Text(errorMessage)
                     .scaledFont(13)
                     .foregroundColor(AppColors.danger(.light))
+                    .accessibilityIdentifier(AXID.Auth.codeError)
             }
             CodeEntry(code: $viewModel.code, confirmTitle: bundle.loc("Verify"),
                       canConfirm: viewModel.canVerify, isWorking: viewModel.isLoading,
@@ -163,6 +168,7 @@ struct LoginView: View {
                       resendAt: viewModel.resendAt,
                       onResend: { Task { await viewModel.resendCode() } })
             Button(bundle.loc("Back")) { viewModel.cancelCode() }
+                .accessibilityIdentifier(AXID.Auth.codeBack)
                 .scaledFont(14)
                 .foregroundColor(AppColors.textSecondary(.light))
                 .frame(maxWidth: .infinity)
@@ -268,6 +274,7 @@ struct LoginView: View {
             Button(bundle.loc("Sign up")) {
                 navigateToRegister = true
             }
+            .accessibilityIdentifier(AXID.Auth.loginSignUp)
             .scaledFont(14, .bold)
             .foregroundStyle(themeManager.theme.primary)
         }

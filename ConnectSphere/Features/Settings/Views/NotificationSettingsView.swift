@@ -7,9 +7,9 @@ struct NotificationSettingsView: View {
     @Environment(\.appBundle) var bundle
 
     /// Read by ChatView.playMessageSound
-    @AppStorage("messageSoundEnabled") private var messageSoundEnabled = true
+    @AppStorage("messageSoundEnabled", store: AppDefaults.store) private var messageSoundEnabled = true
     /// Read by CreatePostViewModel.checkAndNotifyMismatch
-    @AppStorage("aiSuggestionNotifsEnabled") private var aiSuggestionNotifsEnabled = true
+    @AppStorage("aiSuggestionNotifsEnabled", store: AppDefaults.store) private var aiSuggestionNotifsEnabled = true
 
     var body: some View {
         List {

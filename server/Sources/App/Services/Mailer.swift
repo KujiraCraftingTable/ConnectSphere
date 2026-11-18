@@ -8,11 +8,15 @@ struct Mailer {
     let mail: AppEnv.Mail
     let client: any Client
     let logger: Logger
+    /// Only on the UI-test server: codes are stored hashed, so the tests read
+    /// the plaintext from here (`GET /api/test/last-code`).
+    let codeSink: TestCodeSink?
 
     init(_ req: Request) {
         mail = req.application.appEnv.mail
         client = req.client
         logger = req.logger
+        codeSink = req.application.appEnv.uitest.hooksEnabled ? .shared : nil
     }
 
     /// For mail sent after the request has finished (the sign-in alert).
@@ -20,6 +24,7 @@ struct Mailer {
         mail = app.appEnv.mail
         client = app.client
         self.logger = logger
+        codeSink = app.appEnv.uitest.hooksEnabled ? .shared : nil
     }
 
     enum Kind {
@@ -85,6 +90,7 @@ struct Mailer {
     }
 
     func sendCode(_ code: String, to email: String, kind: Kind, minutes: Int) async throws {
+        codeSink?.record(code, for: email)
         guard !mail.brevoKey.isEmpty, !mail.from.isEmpty else {
             logger.warning("[DEV MAIL] \(kind) code for \(email): \(code)")
             return

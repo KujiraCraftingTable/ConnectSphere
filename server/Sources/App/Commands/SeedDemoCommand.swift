@@ -46,6 +46,10 @@ struct SeedDemoCommand: AsyncCommand {
     /// Made by an early API test run; such accounts can still sit in an old database.
     static let contractUsernamePattern = "^p(1|2|3|4|4b|4c|5|u)_[0-9]+_"
 
+    /// Accounts the XCUITest suite makes (`TestHooksController`). Each run
+    /// deletes its own; this catches what a crashed run left behind.
+    static let uiTestUsernamePattern = "^qa_ui_[a-z0-9]{8}_[0-9]+$"
+
     /// Hand-made QA accounts from earlier feature checks, confirmed one by one
     /// on 2026-11-03.
     static let qaUsernames = [
@@ -89,6 +93,7 @@ struct SeedDemoCommand: AsyncCommand {
             FROM users
             WHERE password_hash = 'SEED_DATA'
                OR username ~ \(bind: Self.contractUsernamePattern)
+               OR username ~ \(bind: Self.uiTestUsernamePattern)
                OR username = ANY(\(bind: Self.qaUsernames))
             """).all(decoding: Doomed.self)
 
@@ -125,7 +130,7 @@ struct SeedDemoCommand: AsyncCommand {
     }
 
     /// Returns one report line per step that changed something.
-    private static func deleteAccounts(_ ids: [UUID], on t: any SQLDatabase) async throws -> [String] {
+    static func deleteAccounts(_ ids: [UUID], on t: any SQLDatabase) async throws -> [String] {
         let steps: [(String, SQLQueryString)] = [
             // `pinned_by` is NOT NULL with ON DELETE SET NULL, so the user
             // delete would fail on these.

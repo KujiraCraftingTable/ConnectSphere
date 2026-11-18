@@ -50,7 +50,8 @@ struct RegisterView: View {
     private var detailsStage: some View {
         VStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 6) {
-                AuthTextField(icon: "at", placeholder: bundle.loc("Username"), text: $viewModel.username)
+                AuthTextField(icon: "at", placeholder: bundle.loc("Username"), text: $viewModel.username,
+                              axID: AXID.Auth.registerUsername)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .task(id: viewModel.username) { await viewModel.checkUsername() }
@@ -59,13 +60,15 @@ struct RegisterView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 AuthTextField(icon: "lock.fill", placeholder: bundle.loc("Password"),
-                              text: $viewModel.password, isSecure: true, noStrongPasswordPrompt: true)
+                              text: $viewModel.password, isSecure: true, noStrongPasswordPrompt: true,
+                              axID: AXID.Auth.registerPassword)
                 fieldHint(viewModel.passwordHint, isError: viewModel.passwordError != nil)
             }
 
             VStack(alignment: .leading, spacing: 6) {
                 AuthTextField(icon: "lock.fill", placeholder: bundle.loc("Confirm password"),
-                              text: $viewModel.confirmPassword, isSecure: true, noStrongPasswordPrompt: true)
+                              text: $viewModel.confirmPassword, isSecure: true, noStrongPasswordPrompt: true,
+                              axID: AXID.Auth.registerConfirm)
                 if let confirmError = viewModel.confirmError {
                     fieldHint(confirmError, isError: true)
                 }
@@ -73,7 +76,8 @@ struct RegisterView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 AuthTextField(icon: "envelope.fill", placeholder: bundle.loc("Email (optional)"),
-                              text: $viewModel.email, keyboardType: .emailAddress)
+                              text: $viewModel.email, keyboardType: .emailAddress,
+                              axID: AXID.Auth.registerEmail)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                 fieldHint(viewModel.emailHint, isError: viewModel.emailError != nil)
@@ -89,6 +93,7 @@ struct RegisterView: View {
                            isLoading: viewModel.isLoading, isEnabled: viewModel.isFormValid) {
                 Task { await viewModel.register() }
             }
+            .accessibilityIdentifier(AXID.Auth.registerContinue)
         }
     }
 
@@ -102,6 +107,7 @@ struct RegisterView: View {
             case .taken:     fieldHint(bundle.loc("Username already taken"), isError: true)
             case .available: Label(bundle.loc("Username available"), systemImage: "checkmark.circle.fill")
                                 .scaledFont(12).foregroundColor(.green).padding(.leading, 4)
+                                .accessibilityIdentifier(AXID.Auth.registerUsernameAvailable)
             case .checking:  fieldHint(bundle.loc("Checking…"), isError: false)
             case .failed:    fieldHint(bundle.loc("Couldn't check the username, try again"), isError: true)
             case .idle:      fieldHint(viewModel.usernameHint, isError: false)
@@ -181,6 +187,7 @@ struct RegisterView: View {
             Image(systemName: "exclamationmark.triangle.fill")
             Text(errorMessage)
                 .scaledFont(13)
+                .accessibilityIdentifier(AXID.Auth.registerError)
         }
         .foregroundColor(AppColors.danger(.light))
         .padding(.horizontal, 12)

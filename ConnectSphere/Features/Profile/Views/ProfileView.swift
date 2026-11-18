@@ -140,6 +140,7 @@ struct ProfileView: View {
                         navIconButton(icon: "line.3.horizontal")
                     }
                     .accessibilityLabel(Text("Settings", bundle: bundle))
+                    .accessibilityIdentifier(AXID.Profile.settingsButton)
                 }
             }
             .navigationDestination(for: ProfileRoute.self) { route in

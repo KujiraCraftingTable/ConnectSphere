@@ -190,5 +190,6 @@ struct PostOptionsMenu: View {
             }
         }
         .accessibilityLabel(Text(bundle.loc("More")))
+        .axID(AXID.Feed.more)
     }
 }

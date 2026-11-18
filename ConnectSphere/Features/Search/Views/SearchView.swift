@@ -18,8 +18,8 @@ struct SearchView: View {
     @State private var showsRefinePrompt = false
     @State private var refineText = ""
     @FocusState private var isFieldFocused: Bool
-    @AppStorage("aiSearchEnabled") private var aiEnabled = false
-    @AppStorage("searchRadiusKm") private var searchRadiusKm: Int = 0
+    @AppStorage("aiSearchEnabled", store: AppDefaults.store) private var aiEnabled = false
+    @AppStorage("searchRadiusKm", store: AppDefaults.store) private var searchRadiusKm: Int = 0
 
     /// Binding from MainTabView. Resets to root whenever the tab is re-selected
     @Binding var navPath: NavigationPath
@@ -91,6 +91,8 @@ struct SearchView: View {
                     ZStack(alignment: .top) {
                         AISearchLoadingView()
                             .environment(appState)
+                            .accessibilityElement(children: .contain)
+                            .axID(AXID.Search.aiLoading)
                         if !viewModel.quickMatches.isEmpty { quickMatchesCard }
                     }
                     .transition(.opacity.animation(.easeInOut(duration: 0.25)))
@@ -159,7 +161,7 @@ struct SearchView: View {
                                 icon: aiEnabled ? "sparkles" : "magnifyingglass",
                                 iconColor: aiEnabled ? themeManager.theme.primary : nil,
                                 outline: aiEnabled ? themeManager.theme.primary : .clear,
-                                focus: $isFieldFocused, onSubmit: runAI)
+                                focus: $isFieldFocused, onSubmit: runAI, axID: AXID.Search.field)
 
                 aiToggle
             }
@@ -205,6 +207,8 @@ struct SearchView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(Text("AI search", bundle: bundle))
         .accessibilityValue(Text(aiEnabled ? "On" : "Off", bundle: bundle))
+        .accessibilityAddTraits(aiEnabled ? .isSelected : [])
+        .axID(AXID.Search.aiToggle)
     }
 
     private var placeholder: String {
@@ -321,6 +325,8 @@ struct SearchView: View {
                         ColleagueSearchCard(user: user)
                     }
                 }
+                .accessibilityElement(children: .contain)
+                .axID(AXID.Search.row + user.id)
                 .onAppear {
                     // Last row appearing → fetch the next page
                     // (loadMore itself no-ops mid-AI-search).

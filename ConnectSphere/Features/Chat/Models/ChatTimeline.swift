@@ -63,7 +63,7 @@ enum ChatTimeline {
     /// The app's chosen language as a locale. Same source and fallback as
     /// `Date.timeAgoString` (`appLanguage`, else the device language).
     static var appLanguageLocale: Locale {
-        let language = UserDefaults.standard.string(forKey: "appLanguage")
+        let language = AppDefaults.store.string(forKey: "appLanguage")
             ?? Locale.current.language.languageCode?.identifier ?? "en"
         return Locale(identifier: language == "vi" ? "vi_VN" : "en_US")
     }

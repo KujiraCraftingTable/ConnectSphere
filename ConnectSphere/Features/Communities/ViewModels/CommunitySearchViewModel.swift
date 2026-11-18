@@ -28,7 +28,7 @@ final class CommunitySearchViewModel {
     init(communityId: String, token: String, seedPosts: [Post]) {
         self.communityId = communityId
         self.token = token
-        self.recents = UserDefaults.standard.stringArray(forKey: "communitySearchRecents.\(communityId)") ?? []
+        self.recents = AppDefaults.store.stringArray(forKey: "communitySearchRecents.\(communityId)") ?? []
         self.suggestionPool = Self.topTerms(from: seedPosts.map(\.content), limit: 40)
     }
 
@@ -77,19 +77,19 @@ final class CommunitySearchViewModel {
 
     func forget(_ term: String) {
         recents.removeAll { $0 == term }
-        UserDefaults.standard.set(recents, forKey: recentsKey)
+        AppDefaults.store.set(recents, forKey: recentsKey)
     }
 
     func clearRecents() {
         recents = []
-        UserDefaults.standard.removeObject(forKey: recentsKey)
+        AppDefaults.store.removeObject(forKey: recentsKey)
     }
 
     private func remember(_ text: String) {
         recents.removeAll { $0.caseInsensitiveCompare(text) == .orderedSame }
         recents.insert(text, at: 0)
         recents = Array(recents.prefix(Self.maxRecents))
-        UserDefaults.standard.set(recents, forKey: recentsKey)
+        AppDefaults.store.set(recents, forKey: recentsKey)
     }
 
     // MARK: Suggestion mining

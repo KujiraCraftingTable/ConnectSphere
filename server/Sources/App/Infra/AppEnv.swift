@@ -50,6 +50,13 @@ struct AppEnv: Sendable {
         var openAIKey: String
         var openAIModel: String
     }
+    /// Routes under `/api/test` for the XCUITest suite (`TestHooksController`).
+    /// Off unless `UITEST_HOOKS=1`; then a `UITEST_TOKEN` of at least 32
+    /// characters is required and production refuses to boot.
+    struct UITest: Sendable {
+        var hooksEnabled: Bool
+        var token: String
+    }
 
     var port: Int
     var nodeEnv: String
@@ -63,6 +70,7 @@ struct AppEnv: Sendable {
     var moderation: Moderation
     var redis: Redis
     var db: DB
+    var uitest: UITest
 
     /// Placeholder secrets, production must never boot with one.
     static let weakJWTSecrets: Set<String> = [
@@ -73,10 +81,14 @@ struct AppEnv: Sendable {
     enum ValidationError: Error, CustomStringConvertible {
         case missing([String])
         case weakJWTInProduction
+        case uitestHooksInProduction
+        case weakUITestToken
         var description: String {
             switch self {
             case .missing(let keys): return "Missing required environment variables: \(keys.joined(separator: ", "))"
             case .weakJWTInProduction: return "JWT_SECRET must be set to a strong, unique value in production"
+            case .uitestHooksInProduction: return "UITEST_HOOKS must never be on in production"
+            case .weakUITestToken: return "UITEST_HOOKS=1 needs a UITEST_TOKEN of at least 32 characters"
             }
         }
     }
@@ -93,6 +105,10 @@ struct AppEnv: Sendable {
         let jwtSecret = get("JWT_SECRET") ?? "dev_secret"
         let weakJWT = jwtSecret.isEmpty || weakJWTSecrets.contains(jwtSecret)
         if isProd && weakJWT { throw ValidationError.weakJWTInProduction }
+        let uitestHooks = get("UITEST_HOOKS") == "1"
+        let uitestToken = get("UITEST_TOKEN") ?? ""
+        if uitestHooks && isProd { throw ValidationError.uitestHooksInProduction }
+        if uitestHooks && uitestToken.count < 32 { throw ValidationError.weakUITestToken }
 
         func int(_ key: String, _ fallback: Int) -> Int { Int(get(key) ?? "") ?? fallback }
 
@@ -138,7 +154,8 @@ struct AppEnv: Sendable {
                 poolMax: int("DB_POOL_MAX", 10),
                 idleTimeoutMS: int("DB_POOL_IDLE_TIMEOUT", 30000),
                 connectionTimeoutMS: int("DB_POOL_CONNECTION_TIMEOUT", 2000)
-            )
+            ),
+            uitest: UITest(hooksEnabled: uitestHooks, token: uitestHooks ? uitestToken : "")
         )
     }
 }

@@ -20,7 +20,7 @@ struct SavedAccount: Codable, Identifiable, Equatable {
 struct SavedAccounts {
     static let limit = 5
     private static let key = "savedAccounts"
-    var defaults: UserDefaults = .standard
+    var defaults: UserDefaults = AppDefaults.store
 
     /// Google-only accounts keep their email in the Keychain, not in this list:
     /// it only tells Google which of the phone's accounts to open.

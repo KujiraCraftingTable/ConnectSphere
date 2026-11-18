@@ -258,6 +258,7 @@ struct PostDetailView: View {
                                          ? themeManager.theme.primary : AppColors.textSecondary(colorScheme))
                 }
                 .accessibilityLabel(Bundle.app.loc("Send"))
+                .axID(AXID.Comments.send)
                 // Level with the camera, which sits above the taller box's bottom edge.
                 .padding(.bottom, CommentInputBox.isExpanded(text: draft, hasPhoto: commentVM.attachedPhoto != nil) ? 12 : 0)
                 .disabled(!commentVM.canSend(draft))

@@ -32,6 +32,7 @@ struct CommunityListSection: View {
                     CommunityRow(community: community) { onToggle(community) }
                 }
                 .buttonStyle(.plain)
+                .axID(AXID.Community.row + community.id)
                 .padding(.horizontal, 16)
             }
         }

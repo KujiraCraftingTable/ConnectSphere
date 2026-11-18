@@ -25,6 +25,7 @@ struct OTPCodeField: View {
                 .frame(maxWidth: .infinity, minHeight: 54)
                 .opacity(0.02)
                 .accessibilityLabel(Text(String(format: bundle.loc("6-digit code, %lld of %lld entered"), code.count, length)))
+                .accessibilityIdentifier(AXID.Common.codeField)
         }
         .frame(maxWidth: .infinity)
         // The hidden field's UITextField is only a text line tall, so most
@@ -90,6 +91,7 @@ struct CodeEntry: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!canConfirm || isWorking)
+                .accessibilityIdentifier(AXID.Common.codeConfirm)
             }
             // Waits out the server's one-code-a-minute limit.
             TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -106,6 +108,7 @@ struct CodeEntry: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(left > 0 || isSending)
+                .accessibilityIdentifier(AXID.Common.codeResend)
             }
         }
         .padding(.vertical, 6)

@@ -44,7 +44,7 @@ struct DailySnapshot: Decodable {
     var shortLabel: String {
         guard let date = Self.inputFormatter.date(from: snapshotDate) else { return snapshotDate }
 
-        let languageCode = UserDefaults.standard.string(forKey: "appLanguage")
+        let languageCode = AppDefaults.store.string(forKey: "appLanguage")
             ?? Locale.current.language.languageCode?.identifier ?? "en"
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: languageCode)

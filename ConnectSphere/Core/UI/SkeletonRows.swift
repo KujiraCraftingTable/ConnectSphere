@@ -21,10 +21,13 @@ struct Shimmer: ViewModifier {
                 .allowsHitTesting(false)
             }
             .onAppear {
+                // A never-ending animation keeps XCUITest waiting for the app to go idle.
+                guard !UITestMode.isActive else { return }
                 withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) { phase = 1 }
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text("Loading...", bundle: bundle))
+            .accessibilityIdentifier(AXID.Common.loading)
     }
 }
 

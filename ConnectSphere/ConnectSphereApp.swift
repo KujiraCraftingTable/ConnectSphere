@@ -20,6 +20,7 @@ struct ConnectSphereApp: App {
     @State private var floatingChatPresenter = FloatingChatPresenter()
 
     init() {
+        UITestMode.prepare()
         RemoteImageLoader.configureCache()
     }
 

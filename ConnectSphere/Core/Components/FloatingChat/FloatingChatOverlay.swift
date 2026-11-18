@@ -17,7 +17,7 @@ private struct FloatingChatLayer: View {
     @State private var showsAddSheet = false
 
     /// The size the user last pinched to; the larger one by default.
-    @AppStorage("floatingChatSize") private var sizeRaw = FloatingChatSize.regular.rawValue
+    @AppStorage("floatingChatSize", store: AppDefaults.store) private var sizeRaw = FloatingChatSize.regular.rawValue
     private var chatSize: FloatingChatSize { FloatingChatSize(rawValue: sizeRaw) ?? .regular }
 
     var body: some View {

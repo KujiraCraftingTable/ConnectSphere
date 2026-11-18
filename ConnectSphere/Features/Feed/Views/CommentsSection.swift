@@ -217,6 +217,8 @@ struct CommentsSection: View {
                 .animation(.easeOut(duration: 0.4), value: highlightedCommentId)
         )
         .id(comment.id)
+        .accessibilityElement(children: .contain)
+        .axID(AXID.Comments.row + comment.id)
         .padding(.leading, CGFloat(level) * ThreadLinesShape.indentStep)
     }
 
@@ -316,7 +318,7 @@ struct CommentRow: View {
     static let avatarSpacing: CGFloat = 8
 
     @Environment(AppState.self) private var appState
-    @AppStorage(TranslationMode.storageKey) private var translationModeRaw = TranslationMode.original.rawValue
+    @AppStorage(TranslationMode.storageKey, store: AppDefaults.store) private var translationModeRaw = TranslationMode.original.rawValue
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
     @Environment(\.colorScheme) var colorScheme

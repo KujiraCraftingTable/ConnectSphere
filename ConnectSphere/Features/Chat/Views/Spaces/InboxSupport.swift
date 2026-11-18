@@ -60,6 +60,7 @@ struct ArchivedChatsView: View {
                                                 accentColor: themeManager.theme.primary)
                             }
                             .buttonStyle(.plain)
+                            .axID(AXID.Chat.row + conversation.id)
                             .listRowInsets(EdgeInsets())
                             .listRowBackground(AppColors.surface(colorScheme))
                             .alignmentGuide(.listRowSeparatorLeading) { _ in ConversationRow.textInset }
@@ -114,6 +115,7 @@ struct WaitingChatsView: View {
                                                 accentColor: themeManager.theme.primary)
                             }
                             .buttonStyle(.plain)
+                            .axID(AXID.Chat.row + conversation.id)
                             .listRowInsets(EdgeInsets())
                             .listRowBackground(AppColors.surface(colorScheme))
                             .alignmentGuide(.listRowSeparatorLeading) { _ in ConversationRow.textInset }

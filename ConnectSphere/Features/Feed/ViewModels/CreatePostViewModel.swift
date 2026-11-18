@@ -307,7 +307,7 @@ class CreatePostViewModel {
     /// Fetches the notification from the backend; if there's a mismatch, shows an iOS local notification banner.
     private func checkAndNotifyMismatch(postId: String, token: String) async {
         // Respect the "AI post suggestions" toggle in Notification settings
-        let aiNotifsEnabled = (UserDefaults.standard.object(forKey: "aiSuggestionNotifsEnabled") as? Bool) ?? true
+        let aiNotifsEnabled = (AppDefaults.store.object(forKey: "aiSuggestionNotifsEnabled") as? Bool) ?? true
         guard aiNotifsEnabled else { return }
         // Best-effort and invisible to the user (the post is already live), so a
         // failure is only logged: it was once swallowed whole, which hid a server

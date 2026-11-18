@@ -36,7 +36,8 @@ struct FloatingChatComposerBar: View {
         self.presenter = presenter
         _quickEmoji = AppStorage(
             wrappedValue: QuickEmoji.defaultValue,
-            quickEmojiStorageKey(conversationId: bubble.id)
+            quickEmojiStorageKey(conversationId: bubble.id),
+            store: AppDefaults.store
         )
     }
 

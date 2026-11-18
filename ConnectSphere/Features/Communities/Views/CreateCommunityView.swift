@@ -118,6 +118,8 @@ struct CreateCommunityView: View {
                             }
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel(Text("Cover photo", bundle: bundle))
+                        .axID(AXID.Community.coverButton)
                         .confirmationDialog(bundle.loc("Cover photo"), isPresented: $showCoverOptions) {
                             Button(bundle.loc("Adjust position")) { showCoverCrop = true }
                             Button(bundle.loc("Choose new photo")) { showPhotoPicker = true }

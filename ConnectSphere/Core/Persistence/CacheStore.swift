@@ -21,7 +21,9 @@ final class CacheStore {
         do {
             container = try ModelContainer(
                 for: schema,
-                configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)])
+                // The UI tests get an empty cache each launch, and the
+                // developer's cached profile stays out of their sign-in.
+                configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: UITestMode.isActive)])
         } catch {
             #if DEBUG
             print("[CacheStore] ModelContainer unavailable: \(error)")

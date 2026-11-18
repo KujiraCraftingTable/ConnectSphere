@@ -11,7 +11,7 @@ struct DevServerSettingsView: View {
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
 
-    @AppStorage("devServerOverride") private var devServerOverride: String = ""
+    @AppStorage("devServerOverride", store: AppDefaults.store) private var devServerOverride: String = ""
 
     private var infoPlistDefault: String { APIConfig.builtInServerBase }
 

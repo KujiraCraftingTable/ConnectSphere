@@ -6,7 +6,7 @@ import Foundation
 /// starts unticked.
 struct PolicyConsentMemory {
     private static let key = "acceptedPolicyVersion"
-    var defaults: UserDefaults = .standard
+    var defaults: UserDefaults = AppDefaults.store
 
     var acceptsCurrent: Bool { defaults.string(forKey: Self.key) == LegalDocs.version }
 

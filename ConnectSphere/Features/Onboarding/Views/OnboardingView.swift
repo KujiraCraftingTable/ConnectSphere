@@ -148,10 +148,12 @@ struct OnboardingView: View {
                          title: bundle.loc("Friends & Fun"),
                          desc: bundle.loc("Find friends, share interests"),
                          color: themeManager.theme.primary)
+                    .accessibilityIdentifier(AXID.Onboarding.modeHobby)
                 modeCard(mode: "work", icon: "briefcase.fill",
                          title: bundle.loc("Work & Study"),
                          desc: bundle.loc("Networking, find collaborators"),
                          color: themeManager.theme.primary)
+                    .accessibilityIdentifier(AXID.Onboarding.modeWork)
             }
             nextButton(label: bundle.loc("Continue"))
         }
@@ -209,7 +211,7 @@ struct OnboardingView: View {
                 if viewModel.needsUsername { usernameField }
 
                 AuthTextField(icon: "textformat", placeholder: bundle.loc("Display name *"), text: $viewModel.form.display_name,
-                              characterLimit: DisplayNameRules.maxLength)
+                              characterLimit: DisplayNameRules.maxLength, axID: AXID.Onboarding.displayName)
 
                 if viewModel.offersPassword { passwordBlock }
 
@@ -236,6 +238,7 @@ struct OnboardingView: View {
                                     )
                             }
                             .buttonStyle(.plain)
+                            .accessibilityIdentifier(AXID.Onboarding.gender + value)
                         }
                     }
                 }
@@ -258,6 +261,7 @@ struct OnboardingView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 14))
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier(AXID.Onboarding.dobButton)
                 .sheet(isPresented: $showDobPicker) {
                     dobPickerSheet
                         .preferredColorScheme(.light)
@@ -374,6 +378,7 @@ struct OnboardingView: View {
             GradientButton(title: viewModel.isLoading ? bundle.loc("Saving...") : bundle.loc("Complete 🎉"), isLoading: viewModel.isLoading) {
                 Task { await viewModel.finish(appState: appState) }
             }
+            .accessibilityIdentifier(AXID.Onboarding.complete)
 
             // Bio is optional, finish() never validates it, but nothing
             // on screen said so, so people got stuck typing something
@@ -390,6 +395,7 @@ struct OnboardingView: View {
             .disabled(viewModel.isLoading)
             .frame(maxWidth: .infinity)
             .padding(.top, 4)
+            .accessibilityIdentifier(AXID.Onboarding.skip)
         }
     }
 
@@ -399,12 +405,13 @@ struct OnboardingView: View {
     /// instead of a dimmed button that gives no reason.
     private func nextButton(label: String) -> some View {
         GradientButton(title: label, isLoading: false) { goForward() }
+            .accessibilityIdentifier(AXID.Onboarding.continueButton)
     }
 
     private func errorBanner(_ msg: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "exclamationmark.triangle.fill")
-            Text(msg).scaledFont(13)
+            Text(msg).scaledFont(13).accessibilityIdentifier(AXID.Onboarding.error)
         }
         .foregroundColor(AppColors.danger(.light))
         .padding(.horizontal, 12).padding(.vertical, 8)
@@ -442,6 +449,7 @@ struct OnboardingView: View {
                             viewModel.form.dob = dobFormatter.string(from: dobDraft)
                             showDobPicker = false
                         }
+                        .accessibilityIdentifier(AXID.Onboarding.dobDone)
                     }
                 }
         }

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @AppStorage(TranslationMode.storageKey) private var translationModeRaw = TranslationMode.original.rawValue
+    @AppStorage(TranslationMode.storageKey, store: AppDefaults.store) private var translationModeRaw = TranslationMode.original.rawValue
     @Environment(AppState.self) var appState
     @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
@@ -11,7 +11,7 @@ struct SettingsView: View {
     @State private var showThemePicker = false
     @State private var showLogoutConfirm = false
     @State private var moderationEntry = ModerationEntryViewModel()
-    @AppStorage("searchRadiusKm") private var searchRadiusKm: Int = 0
+    @AppStorage("searchRadiusKm", store: AppDefaults.store) private var searchRadiusKm: Int = 0
 
 
     /// Read from the bundle rather than hardcoded, so it can't silently go
@@ -235,6 +235,7 @@ struct SettingsView: View {
                             .foregroundColor(.red)
                     }
                 }
+                .accessibilityIdentifier(AXID.Settings.logout)
             }
         }
         .task { await moderationEntry.load() }

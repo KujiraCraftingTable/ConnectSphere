@@ -11,6 +11,14 @@ query pipeline and chunk-based pgvector embeddings. See `AI_SEARCH_OVERVIEW.md`.
 - Fast inner loop: `cd server && RUN_MIGRATIONS=1 RUN_JOBS=1 PORT=3000 swift run App serve` (host, reads `../backend/.env`)
 - Tests: `cd server && swift test`; iOS `xcodebuild test -scheme ConnectSphere -only-testing:ConnectSphereTests` (use the iPhone 17 simulator)
 
+## UI tests
+- `scripts/uitest.sh` runs the XCUITest suite (`ConnectSphereUITests/`, 29 tests, ~25 min); add `-only-testing:ConnectSphereUITests/AuthTests` for one class. Needs Postgres + Redis up and the iPhone 17 iOS 27 sim booted
+- It starts a private server on **:3001** (`UITEST_HOOKS=1`, random `UITEST_TOKEN`, no mail, no jobs) on the same DB, then checks that no `qa_ui_` account is left. :3000 is never touched
+- Test-only routes live in `TestHooksController` (`/api/test/*`): loopback + `X-UITest-Token` only, registered only when `UITEST_HOOKS=1`. They create `qa_ui_<run>_<n>` accounts and fixtures, return email codes, and hard-delete a run (users, content and their uploads)
+- The app's test mode (`Core/Testing/UITestMode.swift`, DEBUG only, `-uiTesting`) uses its own Keychain service, defaults suite and cache, so the user's real session on the sim survives a run
+- Identifiers: `AXID` (`Core/Testing/AXID.swift`, symlinked into the test target), `<feature>.<screen>.<element>[.<id>]`. Put a row's id on the wrapping Button/NavigationLink: ids inside a button label are hoisted away
+- Waits use predicates (`waitToAppear`, `tapWhenReady`), never `sleep`. Page objects in `Screens/`, one class per flow in `Flows/`
+
 ## Product
 Who the app is for, what people do in it and what sets it apart: see
 [`PRODUCT.md`](PRODUCT.md). Keep its product principles when adding features.

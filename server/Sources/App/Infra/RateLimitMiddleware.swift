@@ -24,9 +24,13 @@ struct RateLimitMiddleware: AsyncMiddleware {
               message: "Too many requests, please try again later")
     }
     static func passwordAuth() -> RateLimitMiddleware {
-        .init(name: "password", max: 10, windowSeconds: 15 * 60, inlineErrorBody: true,
+        .init(name: "password", max: uitestHooks ? 200 : 10, windowSeconds: 15 * 60, inlineErrorBody: true,
               message: "Too many attempts, please try again later")
     }
+
+    /// The UI-test server (`UITEST_HOOKS=1`, loopback only) signs in many
+    /// times a run from 127.0.0.1; 10 per 15 min would fail the suite midway.
+    private static let uitestHooks = Environment.get("UITEST_HOOKS") == "1"
     /// Emailed codes (verify email, delete a persona / the account).
     static func accountCodes() -> RateLimitMiddleware {
         .init(name: "codes", max: 20, windowSeconds: 15 * 60, inlineErrorBody: false,

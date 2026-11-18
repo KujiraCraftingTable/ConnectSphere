@@ -30,6 +30,7 @@ struct WardPickerView: View {
                 pickerRow(icon: "map.fill", text: selectedProvinceName, isPlaceholder: selectedProvinceCode == nil)
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier(AXID.Common.wardProvinceButton)
 
             // About a hundred wards per province: a searchable list.
             Button { showWardList = true } label: {
@@ -38,6 +39,7 @@ struct WardPickerView: View {
             .buttonStyle(.plain)
             .disabled(selectedProvinceCode == nil)
             .opacity(selectedProvinceCode == nil ? 0.5 : 1)
+            .accessibilityIdentifier(AXID.Common.wardWardButton)
 
             Text(note ?? bundle.loc("Your ward stays private. It is only used to tell how far away people are; others see your province."))
                 .scaledFont(12)
@@ -112,6 +114,7 @@ private struct ProvinceListSheet: View {
                         if selectedProvinceCode == province.province_code { Image(systemName: "checkmark") }
                     }
                 }
+                .accessibilityIdentifier(AXID.Common.wardProvinceRow + "\(province.province_code)")
             }
             .overlay {
                 if viewModel.isLoadingProvinces { ProgressView() }
@@ -157,6 +160,7 @@ private struct WardListSheet: View {
                         if selectedWardId == ward.id { Image(systemName: "checkmark") }
                     }
                 }
+                .accessibilityIdentifier(AXID.Common.wardRow + "\(ward.id)")
             }
             .overlay {
                 if viewModel.isLoadingWards { ProgressView() }

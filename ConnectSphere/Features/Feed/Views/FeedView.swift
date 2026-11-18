@@ -68,6 +68,7 @@ struct FeedView: View {
                                 .scaledFont(14)
                                 .foregroundColor(AppColors.textSecondary(colorScheme))
                         }
+                        .axID(AXID.Feed.empty)
                         .padding(.top, 40)
                     } else {
                         let posts = viewModel.posts(for: appState.currentMode)
@@ -236,6 +237,8 @@ struct FeedView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
+        .accessibilityAddTraits(isActive ? .isSelected : [])
+        .axID(AXID.Feed.mode + mode.rawValue)
     }
 
     /// Signed in as the official account: no suggestions, no feed scopes.
@@ -271,6 +274,8 @@ struct FeedView: View {
                 )
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isActive ? .isSelected : [])
+        .axID(AXID.Feed.scope + scope.rawValue)
     }
 
     // MARK: Create Post Bar
@@ -293,6 +298,7 @@ struct FeedView: View {
                     )
             }
             .disabledWhenRestricted()
+            .axID(AXID.Feed.composerBar)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -306,6 +312,7 @@ struct FeedView: View {
                 .foregroundColor(AppColors.textPrimary(colorScheme))
         }
         .accessibilityLabel(Bundle.app.loc("Messages"))
+        .axID(AXID.Chat.inboxButton)
     }
 
     @ViewBuilder
@@ -322,6 +329,9 @@ struct FeedView: View {
             showConnectButton: false
         )
         .cardStyle()
+        // A container, so the card's own buttons stay reachable inside it.
+        .accessibilityElement(children: .contain)
+        .axID(AXID.Feed.postCell + post.id)
         .tracksImpression(post.id, in: impressions)
         // Makes a just-created post visibly slide/fade in at the top instead
         // of silently popping into place. The "yes, this actually posted"

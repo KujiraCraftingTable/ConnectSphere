@@ -200,6 +200,7 @@ struct CommunitiesView: View {
                     .padding(.horizontal, 16)
                 }
                 .buttonStyle(.plain)
+                .axID(AXID.Community.row + community.id)
             }
         }
     }

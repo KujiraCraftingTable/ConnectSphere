@@ -9,8 +9,9 @@ enum APIConfig {
     /// needed, see Endpoint.swift's baseURL for the one place that still
     /// needs its own fix to stay in sync with this.
     static var serverBase: String {
-        resolveServerBase(
-            override: UserDefaults.standard.string(forKey: "devServerOverride"),
+        if let test = UITestMode.serverOverride { return test }
+        return resolveServerBase(
+            override: AppDefaults.store.string(forKey: "devServerOverride"),
             plistValue: Bundle.main.object(forInfoDictionaryKey: "APIBaseURL") as? String,
             isSimulator: isSimulator)
     }

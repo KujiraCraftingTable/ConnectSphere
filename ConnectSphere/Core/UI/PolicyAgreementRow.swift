@@ -21,6 +21,7 @@ struct PolicyAgreementRow: View {
             .accessibilityLabel(bundle.loc("I agree to the Terms of Service and Privacy Policy"))
             .accessibilityValue(isOn ? "✓" : "")
             .accessibilityAddTraits(.isButton)
+            .accessibilityIdentifier(AXID.Common.policyCheckbox)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(bundle.loc("I am 16 or older and I agree to the"))

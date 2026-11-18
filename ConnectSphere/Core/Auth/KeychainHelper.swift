@@ -3,7 +3,8 @@ import Security
 
 /// Saves/reads/deletes values from the iOS Keychain. Persists across restarts and rebuilds
 enum KeychainHelper {
-    private static let service = "com.connectsphere.app"
+    /// The UI tests keep their own token so a run never signs the developer out.
+    private static let service = UITestMode.isActive ? UITestMode.keychainService : "com.connectsphere.app"
 
     static func save(_ value: String, forKey key: String) {
         guard let data = value.data(using: .utf8) else { return }

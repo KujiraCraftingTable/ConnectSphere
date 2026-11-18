@@ -18,7 +18,7 @@ final class PeopleSuggestionsViewModel {
     private var seeds: [AppMode: UInt64] = [:]
 
     private let repository = SuggestionRepository()
-    private let defaults = UserDefaults.standard
+    private let defaults = AppDefaults.store
     /// Seen ids are kept per device (a convenience, not something to sync),
     /// capped so the list can't grow without bound.
     private static let maxRemembered = 500

@@ -15,6 +15,8 @@ struct SearchPillField: View {
     var outline: Color = .clear
     var focus: FocusState<Bool>.Binding?
     var onSubmit: () -> Void = {}
+    /// For the UI tests (`AXID`), put on the text field itself.
+    var axID: String?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -26,6 +28,7 @@ struct SearchPillField: View {
                 .modifier(OptionalFocus(binding: focus))
                 .submitLabel(.search)
                 .onSubmit(onSubmit)
+                .axID(axID)
             if !text.isEmpty {
                 Button {
                     text = ""

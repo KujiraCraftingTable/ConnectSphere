@@ -24,7 +24,7 @@ struct CommentInputBox: View {
         ZStack(alignment: isExpanded ? .bottomTrailing : .trailing) {
             VStack(alignment: .leading, spacing: 6) {
                 MarkdownTextEditor(text: $text, placeholder: bundle.loc(appState.isRestricted ? "You can't comment right now" : "Write a comment..."), size: 15,
-                                   minHeight: 22, maxHeight: 120)
+                                   minHeight: 22, maxHeight: 120, axID: AXID.Comments.field)
                     .padding(.trailing, isExpanded ? 0 : 34)
                 if viewModel.attachedPhoto != nil {
                     CommentPhotoPreview(viewModel: viewModel)

@@ -45,6 +45,7 @@ func routes(_ app: Application) throws {
     HRController.register(routes: api, app: app)    // /api/hr. Asking to become a verified HR (migration 126)
     AdminHRController.register(routes: api)         // /api/admin/hr. Reviewing HR requests and new HRs' jobs
     AdminController.register(routes: api)           // /api/admin/stats, /users/lookup. Official account only (migration 104)
+    TestHooksController.register(routes: api, app: app) // /api/test. Only with UITEST_HOOKS=1, for the XCUITest suite
 
     // Socket.IO v4 / Engine.IO 4 shim. Mounted on `app` (not `api`), auth via
     // the SIO CONNECT frame's `{token}`, not a header.

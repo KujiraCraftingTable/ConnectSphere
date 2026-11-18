@@ -275,7 +275,7 @@ struct CreatePostView: View {
                         // with the editor's own 5pt inset), so it wraps exactly like the post.
                         MarkdownTextEditor(text: $content, placeholder: placeholderText,
                                            size: AppFont.body.spec.size,
-                                           minHeight: 150, maxHeight: 360)
+                                           minHeight: 150, maxHeight: 360, axID: AXID.Composer.text)
                             .padding(.horizontal, 7)
                             .padding(.vertical, 6)
                         .background(
@@ -474,6 +474,7 @@ struct CreatePostView: View {
                         }
                     }
                     .disabled(isPostDisabled)
+                    .axID(AXID.Composer.post)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
@@ -490,6 +491,7 @@ struct CreatePostView: View {
                         if hasChanges { showLeaveDialog = true } else { dismiss() }
                     }
                     .foregroundColor(AppColors.textSecondary(colorScheme))
+                    .axID(AXID.Composer.cancel)
                     .confirmationDialog(bundle.loc(isEditMode ? "Discard changes?"
                                                    : draftId == nil ? "Save this post as a draft?" : "Save your changes to this draft?"),
                                         isPresented: $showLeaveDialog, titleVisibility: .visible) {
@@ -511,6 +513,7 @@ struct CreatePostView: View {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button(String(format: bundle.loc("Drafts (%lld)"), feedDrafts.count)) { showDraftPicker = true }
                             .foregroundColor(themeManager.theme.primary)
+                            .axID(AXID.Composer.drafts)
                     }
                 }
             }

@@ -19,7 +19,7 @@ extension Bundle {
     /// Bundle for the app's currently selected language (reads UserDefaults). Used where
     /// @Environment(\.appBundle) isn't available, e.g. Date extension / ViewModel / push.
     static var app: Bundle {
-        let code = UserDefaults.standard.string(forKey: "appLanguage")
+        let code = AppDefaults.store.string(forKey: "appLanguage")
             ?? Locale.current.language.languageCode?.identifier ?? "en"
         return Bundle(path: Bundle.main.path(forResource: code, ofType: "lproj") ?? "") ?? .main
     }
@@ -122,6 +122,8 @@ struct AuthTextField: View {
     /// Associated Domains (webcredentials) link to a website it can't fill or
     /// save one, so its Fill button did nothing.
     var noStrongPasswordPrompt = false
+    /// For the UI tests (`AXID`); the eye button gets it + `.reveal`.
+    var axID: String? = nil
 
     @Environment(ThemeManager.self) var themeManager
     @State private var isRevealed = false
@@ -157,6 +159,7 @@ struct AuthTextField: View {
             .modifier(OptionalFocus(binding: isFocused))
             // A non-password content type is the documented way to opt out.
             .textContentType(noStrongPasswordPrompt ? .oneTimeCode : nil)
+            .axID(axID)
 
             if let characterLimit {
                 CharacterCounter(count: text.count, limit: characterLimit)
@@ -169,6 +172,7 @@ struct AuthTextField: View {
                         .scaledFont(14)
                 }
                 .accessibilityLabel(isRevealed ? Bundle.app.loc("Hide password") : Bundle.app.loc("Show password"))
+                .axID(axID.map { $0 + AXID.Common.revealSuffix })
             }
         }
         .padding(.horizontal, 16)

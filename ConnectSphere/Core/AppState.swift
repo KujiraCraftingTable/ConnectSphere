@@ -162,10 +162,10 @@ class AppState {
     /// pattern as `pendingDeepLink`.
     var pendingAssistantSheet: AssistantSheetTarget? = nil
     var appearanceMode: AppearanceMode = .system {
-        didSet { UserDefaults.standard.set(appearanceMode.rawValue, forKey: "appearanceMode") }
+        didSet { AppDefaults.store.set(appearanceMode.rawValue, forKey: "appearanceMode") }
     }
     var appLanguage: AppLanguage = .english {
-        didSet { UserDefaults.standard.set(appLanguage.rawValue, forKey: "appLanguage") }
+        didSet { AppDefaults.store.set(appLanguage.rawValue, forKey: "appLanguage") }
     }
     /// The home-screen icon's colour: a `ThemePalette` id. Blue is the primary
     /// icon, matching the default theme; the others are alternate icons named
@@ -199,7 +199,7 @@ class AppState {
     private(set) var authToken: String? = nil
 
     init() {
-        if let raw = UserDefaults.standard.string(forKey: "appearanceMode"),
+        if let raw = AppDefaults.store.string(forKey: "appearanceMode"),
            let saved = AppearanceMode(rawValue: raw) {
             appearanceMode = saved
         }
@@ -208,7 +208,7 @@ class AppState {
         if let name = UIApplication.shared.alternateIconName, name.hasPrefix("AppIcon-") {
             appIconId = String(name.dropFirst("AppIcon-".count))
         }
-        if let raw = UserDefaults.standard.string(forKey: "appLanguage"),
+        if let raw = AppDefaults.store.string(forKey: "appLanguage"),
            let saved = AppLanguage(rawValue: raw) {
             appLanguage = saved
         } else {

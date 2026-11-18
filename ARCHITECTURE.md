@@ -100,6 +100,11 @@ current mode.
    `vi.lproj` `Localizable.strings`.
 6. **Tests:** test the ViewModel's pure logic (validation, state machines)
    with Swift Testing in `ConnectSphereTests/`.
+7. **UI tests:** give the controls a flow needs an id from `AXID`
+   (`.axID(...)`), add a page object under `ConnectSphereUITests/Screens/`
+   and a test under `Flows/`; create the data it needs through `TestServer`
+   (the `/api/test` hooks), never through real accounts. See "UI tests" in
+   `CLAUDE.md`.
 
 ### Checking the rule
 
