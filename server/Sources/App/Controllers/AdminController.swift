@@ -12,6 +12,32 @@ struct AdminController {
         a.get("users", "lookup", use: lookup)
         a.post("moderate", use: moderate)
         a.get("warnings", use: warnings)
+        // Kept listing copies and deal records, for a request from the authorities (migration 152).
+        a.get("marketplace", "listings", use: archivedListings)
+        a.get("marketplace", "deals", use: dealRecords)
+    }
+
+    /// GET /api/admin/marketplace/listings?listing_id= or ?seller_id=
+    static func archivedListings(_ req: Request) async throws -> DataListResponse<ListingRecordStore.ArchivedListing> {
+        let listingID = (try? req.query.get(String.self, at: "listing_id"))?.nilIfEmpty
+        let sellerID = (try? req.query.get(String.self, at: "seller_id"))?.nilIfEmpty
+        guard (listingID != nil) != (sellerID != nil) else {
+            throw Abort(.badRequest, reason: "Send either listing_id or seller_id")
+        }
+        for id in [listingID, sellerID].compactMap({ $0 }) where UUID(uuidString: id) == nil {
+            throw Abort(.badRequest, reason: "Invalid id")
+        }
+        return DataListResponse(data: try await ListingRecordStore.archivedListings(
+            listingID: listingID, sellerID: sellerID, on: req.db.sql()))
+    }
+
+    /// GET /api/admin/marketplace/deals?user_id=, either side of the sale.
+    static func dealRecords(_ req: Request) async throws -> DataListResponse<ListingRecordStore.AdminDeal> {
+        guard let user = (try? req.query.get(String.self, at: "user_id")).flatMap(UUID.init(uuidString:)) else {
+            throw Abort(.badRequest, reason: "Invalid user_id")
+        }
+        return DataListResponse(data: try await ListingRecordStore.adminDeals(
+            userID: user.uuidString.lowercased(), on: req.db.sql()))
     }
 
     struct ModerateBody: Content {

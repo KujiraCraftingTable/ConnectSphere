@@ -12,7 +12,7 @@
 > **Updated 2026-11-15:** people search now picks people, not chunks. Hard filters run first, each
 > persona has its own profile chunk (migration 143), each person has up to five interest vectors
 > per mode built from what they post and react to (migration 144), and the vector leg scores a
-> person by profile and interests together. Measurements behind this: [`doc/hnsw-check.md`](doc/hnsw-check.md).
+> person by profile and interests together. Measurements behind this: an HNSW recall check (`doc/hnsw-check.md`, kept outside the repository).
 
 ---
 
@@ -217,6 +217,12 @@ are cached for 24 hours.
 - `interest_groups` (Hobby), `skills` / `job_title_keywords` (Work), `bio_keywords`,
   `location`, `place_name`
 
+Each topic becomes a gate a person must pass (`SearchConcepts.concepts`). A job title or
+bio word that repeats a topic already named is not one more gate: "developers" next to
+"iOS developer" is dropped, and "iOS developer" next to the iOS skill is folded into it
+as another way to match. Free terms match in the singular and the plural ("developers"
+finds "iOS Developer").
+
 Partner wording ("to date", "người yêu") is dropped and the rest is searched. A named
 venue is geocoded for the radius filter; with no place named the radius is measured from
 the searcher's own ward.
@@ -244,6 +250,12 @@ then `place_name` from Step 2. The typed one comes first because the LLM respell
    "12 Nguyễn Trãi" exists in many cities. An answer outside that province is refused.
 3. **Nearest ward.** When Nominatim's ward name isn't one of ours, the ward whose centre
    is nearest its coordinates (within 10 km) is used.
+
+A venue or landmark is first looked up in the checked aliases of `location_aliases`
+(migration 149: "Landmark 81", which Nominatim doesn't know by that name), whose
+coordinates pick the nearest ward. Nominatim matches loosely, so for a venue an answer
+whose name drops a number of the name asked for is refused: "landmark 81" came back as
+"PetroVietnam Landmark", in another ward (`VenueLocationService.namesTheSame`).
 
 When people match the rest of the prompt but none is near the place, the response carries
 the warning `no_match_near` with the place as it was understood, in the gazetteer's

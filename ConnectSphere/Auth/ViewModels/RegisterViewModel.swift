@@ -22,10 +22,15 @@ final class RegisterViewModel {
     var confirmPassword = ""
     /// Optional.
     var email = ""
-    /// The Terms of Service and Privacy Policy box, never pre-ticked (Law
-    /// 91/2025 Art. 9: consent must be an explicit act), and required before
-    /// anything is sent or created.
-    var acceptsPolicy = false
+    /// The age and Terms/Privacy tick, required before anything is sent or
+    /// created. It is ticked on the login screen, the only place the box is
+    /// shown, since Sign up waits for it there (Law 91/2025 Art. 9: consent
+    /// must be an explicit act, never a pre-ticked box).
+    var acceptsPolicy: Bool
+
+    init(policyMemory: PolicyConsentMemory = PolicyConsentMemory()) {
+        acceptsPolicy = policyMemory.acceptsCurrent
+    }
     var code = "" { didSet { if code != AccountCode.clean(code) { code = AccountCode.clean(code) } } }
     private(set) var stage: Stage = .details
     /// Set when the form is done. The view opens onboarding with it.

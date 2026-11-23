@@ -37,6 +37,9 @@ struct UserProfile: Identifiable {
     var allowFriendRequests: Bool = true
     /// Self-only. Off = never shown in other people's "People you may know".
     var showInSuggestions: Bool = true
+    /// Self-only. Off = "do not track": no views or taps recorded, and the
+    /// feed and search don't learn from activity (Law 91/2025 Art. 29.4).
+    var trackActivity: Bool = true
     /// This persona's profile has the flip button to the other one (on
     /// unless the person turned it off for this mode).
     var linksOtherMode: Bool = true

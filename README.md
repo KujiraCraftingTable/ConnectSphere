@@ -48,7 +48,7 @@ communities, chat inbox).
   security settings, in-app browser for links, deleting a persona or the
   account.
 - **Not live:** the 16+ Dating space was archived on 2026-11-05 and lives in
-  `legacy/dating/` (see its README). Push notifications are not implemented.
+  `legacy/dating/`, kept outside the repository. Push notifications are not implemented.
 
 ## Repository layout
 
@@ -60,7 +60,6 @@ ConnectSphereUITests/   UI tests
 server/                 Vapor backend: Sources/App/{Controllers,Stores,Services,AI,
                         Jobs,Realtime,Infra,Commands}, Tests/AppTests
 backend/                infra: docker-compose.yml, .env(.example), migrations/, uploads/
-legacy/                 archived Dating space (not built)
 scripts/                lint-design.sh (design-token budget check)
 dev.sh                  start / stop the whole local stack
 ```
@@ -97,7 +96,7 @@ not use it.
 
 ## Database and migrations
 
-- `backend/migrations/` holds 147 SQL files, numbered `001`–`148` (`094`
+- `backend/migrations/` holds 151 SQL files, numbered `001`–`152` (`094`
   does not exist). They are shared by the server and replayed at boot
   in filename order by `Infra/MigrationRunner.swift`, each in a transaction,
   under a Postgres advisory lock.

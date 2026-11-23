@@ -2562,3 +2562,19 @@
 
 "You joined %@" = "You joined %@";
 "Request sent" = "Request sent";
+"See more" = "See more";
+"See less" = "See less";
+
+/* Privacy & security: "do not track" (Law 91/2025 Art. 29.4) */
+"Personalise with my activity" = "Personalise with my activity";
+"Your views, likes, comments, saves and search taps help rank your feed and search. This activity counts as sensitive data. When off, we stop recording it, delete what we recorded, and rank by your profile, interests and follows. \"Not interested\" and \"Show more like this\" still work." = "Your views, likes, comments, saves and search taps help rank your feed and search. This activity counts as sensitive data. When off, we stop recording it, delete what we recorded, and rank by your profile, interests and follows. \"Not interested\" and \"Show more like this\" still work.";
+
+/* Marketplace: Deal history (migration 152) */
+"Deal history" = "Deal history";
+"No sales or purchases yet" = "No sales or purchases yet";
+"Save a copy" = "Save a copy";
+"Sold to @%@" = "Sold to @%@";
+"Bought from @%@" = "Bought from @%@";
+"ConnectSphere deal history" = "ConnectSphere deal history";
+"Each deal is kept for 3 years, even if the listing or an account is deleted, as Vietnamese e-commerce law requires." = "Each deal is kept for 3 years, even if the listing or an account is deleted, as Vietnamese e-commerce law requires.";
+"Copies of your Marketplace listings (1 year) and records of your confirmed sales (3 years), which e-commerce law requires us to keep" = "Copies of your Marketplace listings (1 year) and records of your confirmed sales (3 years), which e-commerce law requires us to keep";

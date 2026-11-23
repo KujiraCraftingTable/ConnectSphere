@@ -818,6 +818,8 @@ extension SearchStore {
     static func stampEvent(sessionID: String, userID: String, shownUserID: String, kind: String,
                            on db: any SQLDatabase) async throws -> Bool {
         guard let col = eventColumns[kind] else { return false }
+        // A tap is tracking; "Not a fit" is a choice and always counts.
+        if kind == "tap", !(try await ActivityTracking.isOn(userID, on: db)) { return true }
         struct R: Decodable { let n: Int }
         let n = try await db.raw("""
             WITH u AS (
@@ -837,6 +839,7 @@ extension SearchStore {
     static func creditOutcome(from userID: String, to otherID: String, column: String,
                               on db: any SQLDatabase) async throws {
         guard ["connected_at", "messaged_at"].contains(column) else { return }
+        guard try await ActivityTracking.isOn(userID, on: db) else { return }
         try await db.raw("""
             UPDATE search_results r SET \(unsafeRaw: column) = NOW()
             WHERE (r.session_id, r.shown_user_id) = (

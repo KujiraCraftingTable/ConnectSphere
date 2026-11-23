@@ -88,6 +88,15 @@ struct ProfileRepository {
                                    bodyData: NetworkClient.encode(body))
     }
 
+    func setTrackActivity(_ track: Bool) async throws {
+        guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
+            throw APIError.serverError(statusCode: 401, message: "Not authenticated")
+        }
+        struct Body: Encodable { let track_activity: Bool }
+        _ = try await client.fetch(SingleResponse<UserDTO>.self, path: "/users/me", method: "PATCH", token: token,
+                                   bodyData: NetworkClient.encode(Body(track_activity: track)))
+    }
+
     func setShowInSuggestions(_ show: Bool) async throws {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")

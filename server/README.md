@@ -34,8 +34,7 @@ people, `--commit` to apply), `strip-upload-metadata`, `verify-company`,
 ## Docker
 
 ```bash
-docker compose -f ../docker-compose.swift.yml up --build   # server on :3001, its own PG/Redis
-# or the infra stack: cd ../backend && docker compose up -d --build   # :3000
+cd ../backend && docker compose up -d --build   # the infra stack (Postgres + Redis)
 ```
 
 ## Layout

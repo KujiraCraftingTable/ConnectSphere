@@ -147,6 +147,8 @@ struct UsersController {
         /// Privacy: off = strangers can only follow, not send friend requests.
         var allow_friend_requests: Bool?
         var show_in_suggestions: Bool?
+        /// "Personalise with my activity" (migration 151, see ActivityTracking).
+        var track_activity: Bool?
         /// The current mode's "See my other profile" button (migration 060).
         var links_other_mode: Bool?
         /// Lock the current mode's profile (migration 064).
@@ -305,6 +307,10 @@ struct UsersController {
         }
         if sent("show_in_suggestions"), let show = raw.show_in_suggestions {
             try await sdb.raw("UPDATE users SET show_in_suggestions = \(bind: show) WHERE id = \(uuid: req.userID)").run()
+        }
+        if sent("track_activity"), let track = raw.track_activity {
+            try await sdb.raw("UPDATE users SET track_activity = \(bind: track) WHERE id = \(uuid: req.userID)").run()
+            if !track { try await ActivityTracking.erase(req.userID, on: sdb) }
         }
         // Hobby-only details: the Work profile has experience and skills instead.
         if sent("languages") || sent("relationship_status") {

@@ -6,19 +6,7 @@ import SwiftUI
 /// on the pushed `PostDetailView` instead (see `CommentsSection`, which this
 /// sheet also reuses for its list).
 struct CommentSheet: View {
-    @Environment(AppState.self) var appState
-    @Environment(ThemeManager.self) var themeManager
     @Environment(\.appBundle) var bundle
-    @Environment(\.colorScheme) var colorScheme
-    @State private var viewModel = CommentViewModel()
-    @State private var input = ""
-    /// A comment is being edited in place: the composer steps aside.
-    @State private var isEditingComment = false
-    @FocusState private var focused: Bool
-    /// Local Undo-toast presenter, `CommentSheet` is a `.sheet`, presented
-    /// above `MainTabView`'s app-wide toast overlay, so it can't reuse that one
-    /// and owns its own instance instead (see `UndoToastView.swift`).
-    @State private var toastPresenter = UndoToastPresenter()
 
     let postId: String
     let postAuthorId: String
@@ -33,6 +21,45 @@ struct CommentSheet: View {
 
     var body: some View {
         NavigationStack {
+            CommentsPanelBody(postId: postId, postAuthorId: postAuthorId, openToWork: openToWork,
+                              onCommentCountChange: onCommentCountChange)
+                .navigationTitle(bundle.loc("Comments"))
+                .navigationBarTitleDisplayMode(.inline)
+        }
+        .presentationDetents(fullHeight ? [.large] : [.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+}
+
+/// The comment list, reply banner and composer, shared by `CommentSheet` and
+/// the photo viewer's comments panel. `header` scrolls above the comments.
+struct CommentsPanelBody<Header: View>: View {
+    @Environment(AppState.self) var appState
+    @Environment(ThemeManager.self) var themeManager
+    @Environment(\.appBundle) var bundle
+    @Environment(\.colorScheme) var colorScheme
+    @State private var viewModel = CommentViewModel()
+    @State private var input = ""
+    /// A comment is being edited in place: the composer steps aside.
+    @State private var isEditingComment = false
+    @FocusState private var focused: Bool
+    /// Local Undo-toast presenter: this is shown inside a sheet or a
+    /// full-screen cover, above `MainTabView`'s app-wide toast overlay, so it
+    /// can't reuse that one and owns its own instance instead.
+    @State private var toastPresenter = UndoToastPresenter()
+
+    let postId: String
+    let postAuthorId: String
+    var openToWork = false
+    var onCommentCountChange: ((Int) -> Void)?
+    /// Off in the photo viewer, where the keyboard shouldn't cover the panel on open.
+    var autoFocus = true
+    /// Each change puts the cursor in the composer (the panel's Comment button).
+    var focusRequest = 0
+    @ViewBuilder var header: () -> Header
+
+    var body: some View {
+        Group {
             // ScrollViewReader wraps the whole VStack (not just the list) so
             // the Send button below can also reach `proxy`. It scrolls to a
             // just-sent comment directly, deterministically, rather than
@@ -43,6 +70,7 @@ struct CommentSheet: View {
                 VStack(spacing: 0) {
                     // ── Comment list ─────────────────────────────────────────────
                     ScrollView {
+                        header()
                         CommentsSection(
                             postId: postId,
                             postAuthorId: postAuthorId,
@@ -123,15 +151,20 @@ struct CommentSheet: View {
                 }
                 // White like the post view's comment card, so the grey bubbles show.
                 .background(AppColors.surface(colorScheme))
-                .navigationTitle(bundle.loc("Comments"))
-                .navigationBarTitleDisplayMode(.inline)
             }
         }
         .confirmBeforePosting(viewModel, text: $input) { onCommentCountChange?(1) }
         .undoToastOverlay(toastPresenter)
-        .presentationDetents(fullHeight ? [.large] : [.medium, .large])
-        .presentationDragIndicator(.visible)
         .task { await viewModel.load(postId: postId) }
-        .onAppear { focused = true }
+        .onAppear { if autoFocus { focused = true } }
+        .onChange(of: focusRequest) { focused = true }
+    }
+}
+
+extension CommentsPanelBody where Header == EmptyView {
+    init(postId: String, postAuthorId: String, openToWork: Bool = false,
+         onCommentCountChange: ((Int) -> Void)? = nil, autoFocus: Bool = true) {
+        self.init(postId: postId, postAuthorId: postAuthorId, openToWork: openToWork,
+                  onCommentCountChange: onCommentCountChange, autoFocus: autoFocus, header: { EmptyView() })
     }
 }

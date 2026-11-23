@@ -168,18 +168,22 @@ struct AuthViewModelTests {
         #expect(vm.isValid)
     }
 
-    @Test func registerNeedsTheTermsAndPrivacyTick() {
-        let vm = RegisterViewModel()
-        vm.username = "good_name"
-        vm.usernameStatus = .available
-        vm.password = "password1"
-        vm.confirmPassword = "password1"
-        #expect(!vm.acceptsPolicy)              // never pre-ticked
-        #expect(!vm.isFormValid)
-        vm.acceptsPolicy = true
-        #expect(vm.isFormValid)
-        vm.acceptsPolicy = false
-        #expect(!vm.isFormValid)
+    @Test func registerTakesTheTickFromTheLoginScreen() {
+        func filled(_ memory: PolicyConsentMemory) -> RegisterViewModel {
+            let vm = RegisterViewModel(policyMemory: memory)
+            vm.username = "good_name"
+            vm.usernameStatus = .available
+            vm.password = "password1"
+            vm.confirmPassword = "password1"
+            return vm
+        }
+        let untouched = filled(freshMemory())
+        #expect(!untouched.acceptsPolicy)       // never ticked on the login screen
+        #expect(!untouched.isFormValid)
+
+        let ticked = freshMemory()
+        ticked.remember()                       // what ticking the login screen's box does
+        #expect(filled(ticked).acceptsPolicy && filled(ticked).isFormValid)
     }
 
     @Test func passwordSignUpAsksNothingMoreAboutThePolicy() {

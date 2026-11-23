@@ -132,5 +132,5 @@ layered instead:
 | **Commands** | `Commands/` | One-off maintenance commands: `seed-demo`, `strip-upload-metadata`, `verify-company`, `community-reports`, `moderator`, `moderation`, `moderation-eval`, `official-account` |
 | **Moderation** | `Moderation/` | Reports, cases, decisions, strikes and appeals (migration 089): `ModerationPolicy` (the shared rule list), `ModerationStore`/`ModerationQueue` (SQL), `ModerationService` (decisions), `ModerationNotices` |
 
-The database schema lives in `backend/migrations/` (147 files, `001`–`148`) and is replayed at boot when `RUN_MIGRATIONS=1`.
+The database schema lives in `backend/migrations/` (151 files, `001`–`152`) and is replayed at boot when `RUN_MIGRATIONS=1`.
 The AI search design is described in `AI_SEARCH_OVERVIEW.md`.

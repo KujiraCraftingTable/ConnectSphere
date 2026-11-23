@@ -22,6 +22,8 @@ struct PostPhotoGrid: View {
     /// The bar under the full-screen photo. It gets `closeThen`: close the viewer,
     /// then run the action, for actions that open a sheet of their own.
     var viewerBar: ((_ closeThen: @escaping (@escaping () -> Void) -> Void) -> AnyView)? = nil
+    /// The comments panel the bar's Comment button opens under the shrunk photo.
+    var viewerPanel: ((_ closeThen: @escaping (@escaping () -> Void) -> Void) -> AnyView)? = nil
     @State private var afterViewerCloses: (() -> Void)?
 
     @State private var viewerTarget: ViewerTarget?
@@ -77,12 +79,28 @@ struct PostPhotoGrid: View {
             afterViewerCloses?()
             afterViewerCloses = nil
         }) { target in
-            ChatMediaViewerView(items: viewerItems, startIndex: target.index,
-                                bottomBar: viewerBar?({ action in
-                                    afterViewerCloses = action
-                                    viewerTarget = nil
-                                }))
+            let viewer = ChatMediaViewerView(items: viewerItems, startIndex: target.index,
+                                             bottomBar: viewerBar?(closeViewerThen),
+                                             panel: viewerPanel?(closeViewerThen))
+            if viewerPanel != nil {
+                // The panel's comments link to people's profiles; without a stack
+                // those links are disabled (and drawn faded). Profiles push over the photo.
+                NavigationStack {
+                    viewer
+                        .toolbar(.hidden, for: .navigationBar)
+                        .containerBackground(.clear, for: .navigation)
+                }
+                .presentationBackground(.clear)
+            } else {
+                viewer
+            }
         }
+    }
+
+    /// Close the viewer, then run `action` once it's gone (it may open a sheet).
+    private func closeViewerThen(_ action: @escaping () -> Void) {
+        afterViewerCloses = action
+        viewerTarget = nil
     }
 
     /// Items for the app's shared viewer (image zoom, video AVPlayer)

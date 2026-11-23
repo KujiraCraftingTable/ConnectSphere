@@ -25,8 +25,11 @@ struct FeedController {
         guard b.items.count <= ImpressionStore.maxItems else {
             throw Abort(.badRequest, reason: "Too many impressions in one batch")
         }
+        let db = req.db.sql()
+        // "Personalise with my activity" off: the sightings are dropped unread.
+        guard try await ActivityTracking.isOn(req.userID, on: db) else { return ImpressionsResp(recorded: 0) }
         let totals = ImpressionStore.fold(b.items)
-        try await ImpressionStore.record(totals, viewer: req.userID, source: b.source, on: req.db.sql())
+        try await ImpressionStore.record(totals, viewer: req.userID, source: b.source, on: db)
         return ImpressionsResp(recorded: totals.count)
     }
     struct CursorResp: Content { var data: [FeedPostObject]; @NullCoded var nextCursor: String? }

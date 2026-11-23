@@ -61,6 +61,8 @@ struct AuthUserObject: Content {
     var allow_friend_requests: Bool
     /// Privacy: off = you never appear in other people's "People you may know".
     var show_in_suggestions: Bool
+    /// "Personalise with my activity" (migration 151); off = do not track.
+    var track_activity: Bool
     /// This persona's profile links to your other one (migration 060).
     var links_other_mode: Bool
     /// The email was confirmed with a code (or by Google). Migration 061.

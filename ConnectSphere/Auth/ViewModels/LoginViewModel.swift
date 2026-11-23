@@ -9,9 +9,11 @@ import GoogleSignIn
 @MainActor
 @Observable
 final class LoginViewModel {
-    /// The Terms/Privacy box above the Google button. A Google account is created
-    /// the moment Google confirms it, so the box must be ticked first; the tick
-    /// is remembered on this phone for the current edition.
+    /// The age and Terms/Privacy box, the only one in the app: the two ways an
+    /// account gets created, Sign up and Google (a Google account is created
+    /// the moment Google confirms it), wait for it; Log in to an existing
+    /// account doesn't. The tick is remembered on this phone for the current
+    /// edition, and sign-up reads it from there.
     var acceptsPolicy = PolicyConsentMemory().acceptsCurrent {
         didSet { acceptsPolicy ? PolicyConsentMemory().remember() : PolicyConsentMemory().forget() }
     }

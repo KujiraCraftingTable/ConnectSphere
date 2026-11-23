@@ -397,7 +397,7 @@ topics:
 
 **Partners.** Search is for friends and colleagues, so normal search no longer
 pairs "dating intent" with the opposite gender. A Dating space was built and
-archived (`legacy/dating/`); partner wording in a prompt is simply ignored.
+archived (`legacy/dating/`, kept outside the repository); partner wording in a prompt is simply ignored.
 
 **Tests.** 19 new server tests: `SearchConceptTests` and `InterestRulesTests`.
 

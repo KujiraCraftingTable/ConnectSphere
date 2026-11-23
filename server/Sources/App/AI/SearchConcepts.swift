@@ -134,7 +134,11 @@ enum SearchConcepts {
             guard seenEntries.insert(entry.id).inserted else { return }
             out.append(concept(for: entry, label: label, in: entries))
         }
-        func add(label: String, terms: [String]) {
+        /// `role`: a job title or bio word ("iOS developer", "developers"). A
+        /// role that repeats a topic already named is not one more thing to
+        /// match: "developers" next to "iOS developer", or "iOS developer"
+        /// next to iOS, would otherwise make the search demand all of them.
+        func add(label: String, terms: [String], role: Bool = false) {
             let t = unique(terms.map { $0.trimmingCharacters(in: .whitespaces) }.filter(hasLetter))
             guard !t.isEmpty else { return }
             if let e = t.lazy.compactMap({ InterestRules.entry(named: $0, in: entries) }).first {
@@ -142,7 +146,15 @@ enum SearchConcepts {
             }
             let lower = t.map { $0.lowercased() }
             guard !out.contains(where: { !Set($0.declared).isDisjoint(with: lower) }) else { return }
-            out.append(Concept(label: label, terms: t, declared: lower, vectorText: t.joined(separator: ", ")))
+            if role {
+                let mine = stems(t)
+                if out.contains(where: { mine.isSubset(of: stems($0.terms)) }) { return }
+                if let i = out.firstIndex(where: { !mine.isDisjoint(with: stems($0.terms)) }) {
+                    out[i].terms = unique(out[i].terms + withNumberForms(t))
+                    return
+                }
+            }
+            out.append(Concept(label: label, terms: withNumberForms(t), declared: lower, vectorText: t.joined(separator: ", ")))
         }
 
         for hit in aliasHits(prompt, entries: entries) { add(hit.entry, label: hit.typed) }
@@ -154,9 +166,11 @@ enum SearchConcepts {
             if let first = group.first { add(label: first, terms: group) }
         }
         if !c.skills.isEmpty { add(label: c.skills.joined(separator: ", "), terms: c.skills) }
-        if !c.job_title_keywords.isEmpty { add(label: c.job_title_keywords.joined(separator: ", "), terms: c.job_title_keywords) }
+        if !c.job_title_keywords.isEmpty {
+            add(label: c.job_title_keywords.joined(separator: ", "), terms: c.job_title_keywords, role: true)
+        }
         let traits = c.bio_keywords.filter { !personWords.contains($0.lowercased()) && !$0.contains(where: \.isNumber) }
-        if !traits.isEmpty { add(label: traits.joined(separator: ", "), terms: traits) }
+        if !traits.isEmpty { add(label: traits.joined(separator: ", "), terms: traits, role: true) }
         return out
     }
 
@@ -290,6 +304,38 @@ enum SearchConcepts {
         return String(s[r])
     }
     private static func hasLetter(_ s: String) -> Bool { s.contains(where: \.isLetter) }
+
+    /// An English word without its plural ending: "developers" → "developer",
+    /// "companies" → "company". Words of three letters or fewer, and endings
+    /// that aren't plurals ("ss", "us", "is"), are left alone.
+    static func singular(_ w: String) -> String {
+        guard w.count > 3, w.allSatisfy(\.isASCII) else { return w }
+        if w.hasSuffix("ies") { return String(w.dropLast(3)) + "y" }
+        if ["ches", "shes", "sses", "xes"].contains(where: w.hasSuffix) { return String(w.dropLast(2)) }
+        if w.hasSuffix("s"), !["ss", "us", "is"].contains(where: w.hasSuffix) { return String(w.dropLast()) }
+        return w
+    }
+
+    /// The words of `terms`, each in its singular form.
+    private static func stems(_ terms: [String]) -> Set<String> {
+        Set(terms.flatMap { words($0).map(singular) })
+    }
+
+    /// `terms` plus each one with its last word singular and plural: the
+    /// text check matches exact words, and "developers" must find a profile
+    /// that says "iOS Developer" (and the other way round).
+    static func withNumberForms(_ terms: [String]) -> [String] {
+        unique(terms.flatMap { t -> [String] in
+            var ws = t.split(separator: " ").map(String.init)
+            guard let last = ws.last, last.allSatisfy({ $0.isASCII && $0.isLetter }), last.count > 2 else { return [t] }
+            let one = singular(last.lowercased())
+            ws[ws.count - 1] = one
+            let singularForm = ws.joined(separator: " ")
+            ws[ws.count - 1] = one + (one.hasSuffix("y") ? "" : "s")
+            let pluralForm = one.hasSuffix("y") ? singularForm : ws.joined(separator: " ")
+            return [t, singularForm, pluralForm]
+        })
+    }
     private static func unique(_ xs: [String]) -> [String] {
         var seen = Set<String>()
         return xs.filter { seen.insert($0.lowercased()).inserted }

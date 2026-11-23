@@ -9,6 +9,8 @@ struct LoginScreen {
     var submit: XCUIElement { app.buttons[AXID.Auth.loginSubmit] }
     var error: XCUIElement { app.staticTexts[AXID.Auth.loginError] }
     var signUp: XCUIElement { app.buttons[AXID.Auth.loginSignUp] }
+    /// The age and Terms/Privacy box: Sign up and Google wait for it, Log in doesn't.
+    var policy: XCUIElement { app.buttons[AXID.Common.policyCheckbox] }
 
     var codeField: XCUIElement { app.textFields[AXID.Common.codeField] }
     var verify: XCUIElement { app.buttons[AXID.Common.codeConfirm] }
@@ -18,6 +20,17 @@ struct LoginScreen {
     func waitUntilShown(timeout: TimeInterval = 15) throws -> Self {
         try identifier.waitToAppear(timeout: timeout)
         return self
+    }
+
+    /// Ticks the box unless it is already ticked (the tick is remembered).
+    func agree() throws {
+        try policy.waitToAppear(timeout: 15)
+        if (policy.value as? String) != "✓" { try policy.tapWhenReady() }
+    }
+
+    func openSignUp() throws {
+        try agree()
+        try signUp.tapWhenReady()
     }
 
     func signIn(_ username: String, _ secret: String) throws {
@@ -41,7 +54,6 @@ struct RegisterScreen {
     var password: XCUIElement { app.secureTextFields[AXID.Auth.registerPassword] }
     var confirm: XCUIElement { app.secureTextFields[AXID.Auth.registerConfirm] }
     var email: XCUIElement { app.textFields[AXID.Auth.registerEmail] }
-    var policy: XCUIElement { app.buttons[AXID.Common.policyCheckbox] }
     var proceed: XCUIElement { app.buttons[AXID.Auth.registerContinue] }
     var codeField: XCUIElement { app.textFields[AXID.Common.codeField] }
 
@@ -53,7 +65,6 @@ struct RegisterScreen {
         try password.enter(secret)
         try confirm.enter(secret)
         if let address { try email.enter(address) }
-        try policy.tapWhenReady()
         try proceed.tapWhenReady()
     }
 }

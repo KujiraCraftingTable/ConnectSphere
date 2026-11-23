@@ -252,7 +252,8 @@ enum FeedStore {
         struct V: Decodable { let vec: String }
         let profile = try await db.raw("SELECT embedding::text AS vec FROM user_embedding_chunks WHERE user_id = \(uuid: userID) AND source_type = 'user_profile'" + ChunkService.profileModeSQL("user_embedding_chunks", mode))
             .all(decoding: V.self).map { parseVec($0.vec) }
-        let signals = try await behaviorSignals(userID, mode: mode, on: db)
+        let tracked = try await ActivityTracking.isOn(userID, on: db)
+        let signals = try await behaviorSignals(userID, mode: mode, explicitOnly: !tracked, on: db)
         let positive = signals.filter { $0.weight > 0 }
         let negative = signals.filter { $0.weight < 0 }
         var tastes: [[Double]] = []
@@ -300,29 +301,34 @@ enum FeedStore {
     /// interested" to; each weighted by the action and how recent it was.
     /// Only posts in `mode` count: what you like in Hobby says nothing about
     /// your Work feed, and the other way round.
-    static func behaviorSignals(_ userID: String, mode: String?, on db: any SQLDatabase) async throws -> [(vec: [Double], weight: Double)] {
+    /// `explicitOnly`: "Personalise with my activity" is off, so only what you
+    /// asked for ("Show more like this" / "Not interested") counts, not likes,
+    /// comments, saves, shares or views (ActivityTracking).
+    static func behaviorSignals(_ userID: String, mode: String?, explicitOnly: Bool = false,
+                                on db: any SQLDatabase) async throws -> [(vec: [Double], weight: Double)] {
         struct Row: Decodable { let vec: String; let weight: Double }
+        let tracked: SQLQueryString = explicitOnly ? " AND FALSE" : ""
         let since: SQLQueryString = "NOW() - INTERVAL '\(unsafeRaw: String(actionWindowDays)) days'"
         let inMode: SQLQueryString = mode.map { " AND sp.mode = \(bind: $0)" } ?? ""
         let rows = try await db.raw("""
             WITH ev AS (
               SELECT post_id, \(unsafeRaw: String(Action.like)) AS w, created_at AS at
-                FROM post_likes WHERE user_id = \(uuid: userID) AND created_at > \(since)
+                FROM post_likes WHERE user_id = \(uuid: userID) AND created_at > \(since)\(tracked)
               UNION ALL SELECT post_id, \(unsafeRaw: String(Action.comment)), created_at
-                FROM comments WHERE author_id = \(uuid: userID) AND status <> 'deleted' AND created_at > \(since)
+                FROM comments WHERE author_id = \(uuid: userID) AND status <> 'deleted' AND created_at > \(since)\(tracked)
               UNION ALL SELECT post_id, \(unsafeRaw: String(Action.save)), created_at
-                FROM saved_posts WHERE user_id = \(uuid: userID) AND created_at > \(since)
+                FROM saved_posts WHERE user_id = \(uuid: userID) AND created_at > \(since)\(tracked)
               UNION ALL SELECT shared_post_id, \(unsafeRaw: String(Action.share)), created_at
                 FROM posts WHERE author_id = \(uuid: userID) AND shared_post_id IS NOT NULL
-                  AND status = 'posted' AND created_at > \(since)
+                  AND status = 'posted' AND created_at > \(since)\(tracked)
               UNION ALL SELECT post_id, \(unsafeRaw: String(Action.open)), opened_at
-                FROM post_impressions WHERE user_id = \(uuid: userID) AND opened_at > \(since)
+                FROM post_impressions WHERE user_id = \(uuid: userID) AND opened_at > \(since)\(tracked)
               UNION ALL SELECT post_id, \(unsafeRaw: String(Action.longRead)), last_seen_at
                 FROM post_impressions WHERE user_id = \(uuid: userID) AND last_seen_at > \(since)
-                  AND view_ms >= \(unsafeRaw: String(longReadMs))
+                  AND view_ms >= \(unsafeRaw: String(longReadMs))\(tracked)
               UNION ALL SELECT post_id, \(unsafeRaw: String(Action.fastSkip)), last_seen_at
                 FROM post_impressions WHERE user_id = \(uuid: userID) AND last_seen_at > \(since)
-                  AND fast_skips = views AND views > 0 AND opened_at IS NULL
+                  AND fast_skips = views AND views > 0 AND opened_at IS NULL\(tracked)
               UNION ALL SELECT post_id,
                   CASE WHEN kind = 'more' THEN \(unsafeRaw: String(Action.showMore))
                        ELSE \(unsafeRaw: String(Action.notInterested)) END, created_at
@@ -401,11 +407,13 @@ enum FeedStore {
     {
         let tastes = try await buildTasteVectors(userID, mode: mode, on: db)
         let hasTaste = tastes != nil
-        struct Viewer: Decodable { let location: String?; let languages: [String]? }
-        let viewer = try await db.raw("SELECT location, languages FROM users WHERE id = \(uuid: userID)")
+        struct Viewer: Decodable { let location: String?; let languages: [String]?; let track_activity: Bool }
+        let viewer = try await db.raw("SELECT location, languages, track_activity FROM users WHERE id = \(uuid: userID)")
             .first(decoding: Viewer.self)
         let place = normalizedPlace(viewer?.location)
         let langs = languageCodes(viewer?.languages ?? [])
+        // "Personalise with my activity" off: no peers, no author closeness.
+        let tracked = viewer?.track_activity ?? true
         let decoded = cursor.flatMap(decodeCursor)
         var relaxed = decoded?.relaxed == true
         // Pin "now" for the whole pagination sequence, not a fresh `NOW()`
@@ -460,9 +468,11 @@ enum FeedStore {
                 WHERE (view_ms >= \(unsafeRaw: String(longReadMs)) OR opened_at IS NOT NULL)
                   AND first_seen_at > \(peerSince) AND first_seen_at <= \(bind: asOf)
             ),
-            mine AS (SELECT post_id FROM pos WHERE uid = \(uuid: userID)),
+            mine AS (SELECT post_id FROM pos WHERE uid = \(uuid: userID) AND \(bind: tracked)),
+            -- Someone who turned personalisation off is nobody's peer.
             peers AS (
               SELECT o.uid, COUNT(*)::float AS shared FROM pos o JOIN mine m ON m.post_id = o.post_id
+              JOIN users pu ON pu.id = o.uid AND pu.track_activity
               WHERE o.uid <> \(uuid: userID) GROUP BY o.uid ORDER BY shared DESC LIMIT \(bind: maxPeers)
             ),
             cf AS (
@@ -484,7 +494,7 @@ enum FeedStore {
                   JOIN conversation_participants me ON me.conversation_id = cv.id AND me.user_id = \(uuid: userID)
                   WHERE m.sender_id <> \(uuid: userID) AND m.deleted_at IS NULL
                     AND m.created_at > \(closeSince) AND m.created_at <= \(bind: asOf)
-              ) x WHERE x.author_id <> \(uuid: userID) GROUP BY x.author_id
+              ) x WHERE x.author_id <> \(uuid: userID) AND \(bind: tracked) GROUP BY x.author_id
             ),
             -- Only these are scored: the newest posts in the mode, everything
             -- by your connections and follows, and what your peers lifted.

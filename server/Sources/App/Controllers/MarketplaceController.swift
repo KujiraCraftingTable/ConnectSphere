@@ -17,6 +17,8 @@ struct MarketplaceController {
         m.patch("profile", use: updateSellerProfile)
         m.post("sellers", ":id", "follow", use: followSeller)
         m.delete("sellers", ":id", "follow", use: unfollowSeller)
+        // Your confirmed sales and purchases, kept 3 years (migration 152).
+        m.get("deals", use: deals)
         let l = routes.grouped("listings").grouped(AuthMiddleware())
         l.post(use: create)
         l.get(":id", use: get)
@@ -32,6 +34,14 @@ struct MarketplaceController {
     /// With `seller_id`: that seller's items, sold ones too (after the rest).
     /// `community_ids` / `exclude_community_ids` (comma-separated, up to 10):
     /// only items listed in, or not listed in, any of those communities.
+    /// GET /api/marketplace/deals?mode=, newest first (Law 19/2023 Art. 39.3h).
+    static func deals(_ req: Request) async throws -> DataListResponse<ListingRecordStore.Deal> {
+        guard let mode = try? req.query.get(String.self, at: "mode"), ["hobby", "work"].contains(mode) else {
+            throw Abort(.badRequest, reason: "mode must be hobby or work")
+        }
+        return DataListResponse(data: try await ListingRecordStore.deals(of: req.userID, mode: mode, on: req.db.sql()))
+    }
+
     static func list(_ req: Request) async throws -> DataListResponse<PostObject> {
         guard let mode = try? req.query.get(String.self, at: "mode"), ["hobby", "work"].contains(mode) else {
             throw Abort(.badRequest, reason: "mode must be hobby or work")

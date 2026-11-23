@@ -259,15 +259,18 @@ struct DeleteScopeView: View {
 
     private var kept: [String] {
         let reserved = String(format: bundle.loc("Your username @%@ stays reserved. Nobody can sign up with it"), username)
+        // Law 91/2025 Art. 14.5: say what a deletion leaves because another law
+        // requires it. The Marketplace is Hobby-only, so Work never has these.
+        let marketplaceRecords = bundle.loc("Copies of your Marketplace listings (1 year) and records of your confirmed sales (3 years), which e-commerce law requires us to keep")
         switch viewModel.scope {
         case .hobby:
             return [bundle.loc("Your account and your Work profile, with everything in it"),
-                    bundle.loc("You can make a new Hobby profile later"), reserved]
+                    bundle.loc("You can make a new Hobby profile later"), reserved, marketplaceRecords]
         case .work:
             return [bundle.loc("Your account and your Hobby profile, with everything in it"),
                     bundle.loc("You can make a new Work profile later"), reserved]
         case .account:
-            return [reserved, bundle.loc("This can't be undone")]
+            return [reserved, marketplaceRecords, bundle.loc("This can't be undone")]
         }
     }
 

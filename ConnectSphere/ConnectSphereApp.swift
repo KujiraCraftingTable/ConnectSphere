@@ -2,7 +2,7 @@
 //  ConnectSphereApp.swift
 //  ConnectSphere
 //
-//  Created by Trị Minh on 14/5/26.
+//  Created by Trị Lê Minh on 14/5/26.
 //
 
 import SwiftUI

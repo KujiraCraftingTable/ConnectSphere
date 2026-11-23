@@ -57,7 +57,7 @@ enum UserStore {
               (u.work_display_name  IS NOT NULL) AS work_setup,
               (u.password_hash IS NOT NULL AND u.password_hash <> ''
                AND u.password_hash <> 'SEED_DATA') AS has_password,
-              u.allow_friend_requests, u.show_in_suggestions, (u.email_verified_at IS NOT NULL) AS email_verified,
+              u.allow_friend_requests, u.show_in_suggestions, u.track_activity, (u.email_verified_at IS NOT NULL) AS email_verified,
               CASE WHEN \(unsafeRaw: modeRef) = 'work' THEN \(unsafeRaw: AccountRestrictions.untilSQL("u.id", mode: "work")) ELSE \(unsafeRaw: AccountRestrictions.untilSQL("u.id", mode: "hobby")) END AS restricted_until,
               \(unsafeRaw: AccountRestrictions.untilSQL("u.id", mode: "hobby")) AS hobby_restricted_until,
               \(unsafeRaw: AccountRestrictions.untilSQL("u.id", mode: "work")) AS work_restricted_until,

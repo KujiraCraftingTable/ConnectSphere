@@ -16,6 +16,9 @@ enum VenueLocationService {
         var provinceName: String?; var lat: Double?; var lng: Double?
         /// The ward the geocoder puts the place in ("Phường Sài Gòn"), when it gives one.
         var wardName: String? = nil
+        /// From `location_aliases` (checked by a person), not the geocoder:
+        /// its coordinates can stand in for a ward name.
+        var fromAlias = false
     }
 
     static let isoCodeMap: [String: (name: String, lat: Double, lng: Double)] = [
@@ -76,7 +79,37 @@ enum VenueLocationService {
             SELECT canonical, province_name, lat, lng FROM location_aliases
             WHERE alias = \(bind: key(placeName)) AND status = 'validated' LIMIT 1
             """).first(decoding: R.self), let prov = hit.province_name else { return nil }
-        return Location(provinceName: prov, lat: hit.lat, lng: hit.lng)
+        return Location(provinceName: prov, lat: hit.lat, lng: hit.lng, fromAlias: true)
+    }
+
+    /// A validated alias that `phrase` starts with, longest first: "landmark
+    /// 81 who like coffee" is Landmark 81. For landmarks the geocoder doesn't
+    /// know by the name people use.
+    static func knownPlace(in phrase: String, on db: any SQLDatabase) async -> Location? {
+        let p = key(phrase)
+        guard !p.isEmpty else { return nil }
+        struct R: Decodable { let province_name: String?; let lat: Double?; let lng: Double? }
+        guard let hit = try? await db.raw("""
+            SELECT province_name, lat, lng FROM location_aliases
+            WHERE status = 'validated' AND lat IS NOT NULL AND lng IS NOT NULL
+              AND (alias = \(bind: p) OR \(bind: p) LIKE alias || ' %')
+            ORDER BY length(alias) DESC LIMIT 1
+            """).first(decoding: R.self) else { return nil }
+        return Location(provinceName: hit.province_name, lat: hit.lat, lng: hit.lng, fromAlias: true)
+    }
+
+    /// Whether a geocoder hit is the place asked for, not just something
+    /// with a similar name: every number in the name asked for ("Landmark
+    /// 81") must be in the hit's name. The public geocoder matches loosely,
+    /// and for "landmark 81" it returned "PetroVietnam Landmark", in
+    /// another ward.
+    static func namesTheSame(_ hit: [String: Any], as query: String) -> Bool {
+        let asked = query.split(separator: ",").first.map(String.init) ?? query
+        let numbers = SearchConcepts.words(asked).filter { $0.allSatisfy(\.isNumber) }
+        guard !numbers.isEmpty else { return true }
+        let addr = hit["address"] as? [String: Any] ?? [:]
+        let named = [hit["name"], addr["house_number"]].compactMap { $0 as? String }.joined(separator: " ")
+        return Set(numbers).isSubset(of: Set(SearchConcepts.words(named)))
     }
 
     // MARK: Nominatim
@@ -111,21 +144,30 @@ enum VenueLocationService {
         return Location(provinceName: await toEnglishProvince(normalized, on: db), lat: lat, lng: lng, wardName: ward)
     }
 
-    private static func resolveUncached(_ placeName: String, client: HTTPClient, on db: any SQLDatabase, logger: Logger) async -> Location? {
+    private static func resolveUncached(_ placeName: String, namedOnly: Bool = false, client: HTTPClient,
+                                        on db: any SQLDatabase, logger: Logger) async -> Location? {
         guard let hit = await nominatim(placeName, limit: 1, client: client, logger: logger).first else { return nil }
+        if namedOnly, !namesTheSame(hit, as: placeName) {
+            logger.info("Geocoder answer for '\(placeName)' is a different place; ignored")
+            return nil
+        }
         return await hitToLocation(hit, on: db)
     }
 
     // MARK: public
 
-    static func resolveVenueToCity(_ placeName: String, client: HTTPClient, on db: any SQLDatabase, logger: Logger) async -> Location? {
+    /// `namedOnly`: for a venue or landmark, refuse an answer that doesn't
+    /// carry the numbers of the name asked for (`namesTheSame`). Not for a
+    /// street address, where a hit on the street alone is still useful.
+    static func resolveVenueToCity(_ placeName: String, namedOnly: Bool = false, client: HTTPClient,
+                                   on db: any SQLDatabase, logger: Logger) async -> Location? {
         guard !placeName.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
-        let k = key(placeName)
+        let k = (namedOnly ? "named|" : "") + key(placeName)
         if let cached = cache.get(k) { return cached }
         if let aliased = await findValidatedAlias(placeName, on: db) {
             cache.set(k, aliased); return aliased
         }
-        let result = await resolveUncached(placeName, client: client, on: db, logger: logger)
+        let result = await resolveUncached(placeName, namedOnly: namedOnly, client: client, on: db, logger: logger)
         cache.set(k, result)
         return result
     }

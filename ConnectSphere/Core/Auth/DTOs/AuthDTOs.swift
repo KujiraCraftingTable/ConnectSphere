@@ -32,6 +32,7 @@ struct AuthUserDTO: Decodable {
     let hasPassword: Bool?
     let allowFriendRequests: Bool?
     let showInSuggestions: Bool?
+    let trackActivity: Bool?
     let linksOtherMode: Bool?
     let emailVerified: Bool?
     let twoFactorEnabled: Bool?
@@ -75,6 +76,7 @@ struct AuthUserDTO: Decodable {
         case hasPassword    = "has_password"
         case allowFriendRequests = "allow_friend_requests"
         case showInSuggestions = "show_in_suggestions"
+        case trackActivity = "track_activity"
         case linksOtherMode = "links_other_mode"
         case emailVerified = "email_verified"
         case twoFactorEnabled = "two_factor_enabled"
@@ -128,6 +130,7 @@ struct AuthUserDTO: Decodable {
         hasPassword    = try c.decodeIfPresent(Bool.self, forKey: .hasPassword)
         allowFriendRequests = try c.decodeIfPresent(Bool.self, forKey: .allowFriendRequests)
         showInSuggestions = try c.decodeIfPresent(Bool.self, forKey: .showInSuggestions)
+        trackActivity = try c.decodeIfPresent(Bool.self, forKey: .trackActivity)
         linksOtherMode = try c.decodeIfPresent(Bool.self, forKey: .linksOtherMode)
         emailVerified = try c.decodeIfPresent(Bool.self, forKey: .emailVerified)
         twoFactorEnabled = try c.decodeIfPresent(Bool.self, forKey: .twoFactorEnabled)
@@ -173,6 +176,7 @@ struct AuthUserDTO: Decodable {
             hasPassword: hasPassword ?? false,
             allowFriendRequests: allowFriendRequests ?? true,
             showInSuggestions: showInSuggestions ?? true,
+            trackActivity: trackActivity ?? true,
             linksOtherMode: linksOtherMode ?? true,
             emailVerified: emailVerified ?? false,
             twoFactorEnabled: twoFactorEnabled ?? false,

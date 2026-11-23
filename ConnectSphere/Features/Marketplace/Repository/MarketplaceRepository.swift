@@ -91,6 +91,13 @@ struct MarketplaceRepository {
                                       token: token, queryItems: items).data.toModel()
     }
 
+    /// Your confirmed sales and purchases in `mode`, newest first, kept 3 years.
+    func deals(mode: AppMode, token: String) async throws -> [Deal] {
+        let items: [URLQueryItem] = [.init(name: "mode", value: mode.rawValue)]
+        return try await client.fetch(DataListResponse<Deal>.self, path: "/marketplace/deals",
+                                      token: token, queryItems: items).data
+    }
+
     func legitCard(id: String, token: String) async throws -> LegitCard {
         try await client.fetch(DataResponse<LegitCardDTO>.self, path: "/marketplace/legit-invites/\(id)",
                                token: token).data.toModel()
@@ -128,6 +135,31 @@ struct MarketplaceRepository {
 // MARK: - Check legit models
 
 /// A seller's check-legit post (only in the Marketplace) and their rating.
+/// One confirmed sale, as you saw it: you sold it or you bought it. Kept 3
+/// years even after the listing or either account is gone (migration 152).
+struct Deal: Decodable, Identifiable, Equatable {
+    enum Role: String, Decodable { case sold, bought }
+    let id: String
+    let role: Role
+    let itemTitle: String
+    /// Whole VND; nil on sales recorded before prices were shown.
+    let itemPrice: Int64?
+    let quantity: Int
+    let otherId: String
+    /// The other person's username when the sale was confirmed.
+    let otherUsername: String
+    let listingId: String?
+    let confirmedAt: Date
+    let keepUntil: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id, role, quantity
+        case itemTitle = "item_title", itemPrice = "item_price", otherId = "other_id"
+        case otherUsername = "other_username", listingId = "listing_id"
+        case confirmedAt = "confirmed_at", keepUntil = "keep_until"
+    }
+}
+
 struct LegitSummary {
     /// nil when the seller hid it.
     var post: Post?

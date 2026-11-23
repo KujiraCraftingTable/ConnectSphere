@@ -212,6 +212,14 @@ enum OllamaService {
         var like_me = false
         /// Height, weight or looks asked for, not searchable (phase S6).
         var unsupported: [String] = []
+
+        /// No topic, person type, filter or "like me": nothing to search by.
+        var namesNothing: Bool {
+            entity_name == nil && interest_groups.allSatisfy(\.isEmpty) && interests.isEmpty && skills.isEmpty
+                && bio_keywords.isEmpty && job_title_keywords.isEmpty && target_gender == nil
+                && target_age_min == nil && target_age_max == nil && location == nil && place_name == nil
+                && !like_me && unsupported.isEmpty
+        }
     }
 
     /// The analyzer misses some "like me" phrasings, so these always count.
@@ -326,7 +334,9 @@ enum OllamaService {
             return hit
         }
         let (criteria, failed) = await analyzeCriteria(cfg, userQuery, mode: mode, logger: logger)
-        if let db, !failed, let json = try? JSONEncoder().encode(criteria) {
+        // A reading that names nothing is most likely a bad sample (it has
+        // dropped "beekeeping"); cached, it would fail that prompt for a day.
+        if let db, !failed, !criteria.namesNothing, let json = try? JSONEncoder().encode(criteria) {
             try? await db.raw("""
                 INSERT INTO search_criteria_cache (key, criteria)
                 VALUES (\(bind: key), \(bind: String(decoding: json, as: UTF8.self))::jsonb)

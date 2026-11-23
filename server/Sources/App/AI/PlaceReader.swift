@@ -552,20 +552,35 @@ enum PlaceReader {
             queries = unknown.map { $0 + suffix }
         }
         struct Row: Decodable { let id: String; let province_code: String; let full_name: String }
-        for query in queries {
-            guard let hit = await VenueLocationService.resolveVenueToCity(query, client: client, on: db, logger: logger),
-                  let lat = hit.lat, let lng = hit.lng else { continue }
+        func ward(at hit: VenueLocationService.Location) async throws -> Places? {
+            guard let lat = hit.lat, let lng = hit.lng else { return nil }
             let named = hit.wardName.map { g.wards.exact[phrase(bareName($0), key)] ?? [] } ?? []
             let ids = named.filter(\.isCurrent).flatMap(\.wardIDs)
-            if ids.isEmpty, address == nil { continue }
+            // A geocoded venue must name a ward of ours; a checked alias's
+            // coordinates, or an address, may use the nearest ward centre.
+            if ids.isEmpty, address == nil, !hit.fromAlias { return nil }
             var q: SQLQueryString = "SELECT id::text AS id, province_code, full_name FROM vn_wards w WHERE "
             q = q + SearchStore.kmToWard(lat: lat, lng: lng) + " <= \(bind: nearestWardKm)"
             if !ids.isEmpty { q = q + " AND w.id = ANY(\(bind: ids)::uuid[])" }
             if let expected { q = q + " AND w.province_code = \(bind: expected)" }
             q = q + " ORDER BY " + SearchStore.kmToWard(lat: lat, lng: lng) + " LIMIT 1"
-            guard let ward = try await db.raw(q).first(decoding: Row.self) else { continue }
+            guard let ward = try await db.raw(q).first(decoding: Row.self) else { return nil }
             return Places(wardIDs: [ward.id.lowercased()], provinceCodes: local.provinceCodes.union([ward.province_code]),
                           labels: [ward.full_name])
+        }
+        if address == nil, province == nil, venuesInHome {
+            // Landmarks the geocoder doesn't know by the name people use
+            // ("Landmark 81"), from `location_aliases`.
+            for p in unknown {
+                if let known = await VenueLocationService.knownPlace(in: p, on: db), let found = try await ward(at: known) {
+                    return found
+                }
+            }
+        }
+        for query in queries {
+            guard let hit = await VenueLocationService.resolveVenueToCity(query, namedOnly: address == nil, client: client,
+                                                                           on: db, logger: logger) else { continue }
+            if let found = try await ward(at: hit) { return found }
         }
         return local
     }

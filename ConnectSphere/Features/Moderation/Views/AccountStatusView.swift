@@ -410,7 +410,7 @@ private struct MyReportDetailView: View {
         switch report.targetType {
         case "post", "comment":
             guard let postId = report.postId else { return nil }
-            return AnyView(NavigationLink(bundle.loc("View post")) {
+            return AnyView(NavigationLink(bundle.loc("View post"))  {
                 PostDetailView(postId: postId, scrollToCommentId: report.targetType == "comment" ? report.targetId : nil)
             })
         case "user":

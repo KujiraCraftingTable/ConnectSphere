@@ -277,6 +277,8 @@ struct LoginView: View {
             .accessibilityIdentifier(AXID.Auth.loginSignUp)
             .scaledFont(14, .bold)
             .foregroundStyle(themeManager.theme.primary)
+            .disabled(!viewModel.acceptsPolicy)
+            .opacity(viewModel.acceptsPolicy ? 1 : 0.5)
         }
         .padding(.top, 4)
     }

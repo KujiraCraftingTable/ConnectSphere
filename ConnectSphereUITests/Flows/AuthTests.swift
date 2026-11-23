@@ -42,9 +42,21 @@ final class AuthTests: UITestCase {
         XCTAssertTrue(login.codeField.exists, "should stay on the code step")
     }
 
+    func testSignUpWaitsForTheBoxButLogInDoesNot() throws {
+        launch()
+        try login.waitUntilShown()
+        XCTAssertTrue(login.submit.isEnabled, "Log in doesn't wait for the box")
+        XCTAssertFalse(login.signUp.isEnabled, "Sign up waits for the box")
+        try login.agree()
+        XCTAssertTrue(login.signUp.isEnabled)
+        try login.signUp.tapWhenReady()
+        try RegisterScreen(app: app).username.waitToAppear(timeout: 15)
+        XCTAssertFalse(login.policy.exists, "Create account has no box of its own")
+    }
+
     func testRegisterWithoutEmail() throws {
         launch()
-        try login.waitUntilShown().signUp.tapWhenReady()
+        try login.waitUntilShown().openSignUp()
         try RegisterScreen(app: app).fill(username: username(1), password: "Qa-uitest-\(run)")
         try OnboardingScreen(app: app).completeWithDefaults(displayName: "QA \(run)")
         try main.waitUntilShown()
@@ -52,7 +64,7 @@ final class AuthTests: UITestCase {
 
     func testRegisterWithEmailCodeSubmitsItself() async throws {
         launch()
-        try login.waitUntilShown().signUp.tapWhenReady()
+        try login.waitUntilShown().openSignUp()
         let register = RegisterScreen(app: app)
         try register.fill(username: username(1), password: "Qa-uitest-\(run)", email: email(1))
         try register.codeField.waitToAppear(timeout: 15)

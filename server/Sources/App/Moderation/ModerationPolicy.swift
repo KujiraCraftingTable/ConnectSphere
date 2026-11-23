@@ -134,7 +134,7 @@ enum Restrictions {
 
     /// `PATCH /users/me` keys that are settings, not profile content.
     static let settingsKeys: Set<String> = [
-        "allow_friend_requests", "show_in_suggestions", "links_other_mode", "locked",
+        "allow_friend_requests", "show_in_suggestions", "track_activity", "links_other_mode", "locked",
         "dob_visibility", "hobby_theme", "work_theme", "mode",
     ]
 

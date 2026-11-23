@@ -237,4 +237,16 @@ final class PlaceReaderTests: XCTestCase {
     func testWholeTextStillNeedsTheKind() {
         XCTAssertEqual(wards("ghé Bến Nghé ăn tối"), [])
     }
+
+    /// The public geocoder answered "landmark 81" with "PetroVietnam
+    /// Landmark", an apartment block in another ward.
+    func testAGeocoderAnswerMustCarryTheNumbersOfTheName() {
+        let petro: [String: Any] = ["name": "PetroVietnam Landmark", "address": ["suburb": "Phường Bình Trưng"]]
+        let tower: [String: Any] = ["name": "Vincom Landmark 81", "address": [:] as [String: Any]]
+        let house: [String: Any] = ["name": "", "address": ["house_number": "45", "road": "Lê Thánh Tôn"]]
+        XCTAssertFalse(VenueLocationService.namesTheSame(petro, as: "landmark 81, Thành phố Hồ Chí Minh"))
+        XCTAssertTrue(VenueLocationService.namesTheSame(tower, as: "landmark 81, Thành phố Hồ Chí Minh"))
+        XCTAssertTrue(VenueLocationService.namesTheSame(house, as: "45 lê thánh tôn"))
+        XCTAssertTrue(VenueLocationService.namesTheSame(petro, as: "hồ tây, Thành phố Hà Nội"))
+    }
 }

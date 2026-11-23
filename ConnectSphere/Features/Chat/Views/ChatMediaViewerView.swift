@@ -8,6 +8,12 @@ struct ChatMediaViewerItem: Identifiable {
     let isVideo: Bool
 }
 
+/// Whether the viewer's comments panel is up. Shared with the bottom bar
+/// through the environment, so a post's Comment button can open it.
+@MainActor @Observable final class MediaViewerPanelState {
+    var isOpen = false
+}
+
 /// View a chat's images/videos fullscreen: horizontal pager when there are multiple media items,
 /// images support pinch-zoom + double-tap, videos play via AVPlayer. Swipe down
 /// (while not zoomed in) to close: the media follows the finger and the
@@ -34,13 +40,22 @@ struct ChatMediaViewerView: View {
 
     /// Shown along the bottom, e.g. a post's whale / comment / save / share.
     var bottomBar: AnyView? = nil
+    /// A post's caption and comments. When open, the media shrinks into the
+    /// top third and this fills the rest; tap the media or pull it down to close.
+    var panel: AnyView? = nil
+    @State private var panelState = MediaViewerPanelState()
+    /// How far the panel's grab strip has been pulled down.
+    @State private var panelPull: CGFloat = 0
+    private var isPanelOpen: Bool { panel != nil && panelState.isOpen }
 
     /// Off for Marketplace listings: a seller's photos aren't offered for
     /// download, so they're harder to lift into another listing.
     let allowsSaving: Bool
 
-    init(items: [ChatMediaViewerItem], startIndex: Int = 0, bottomBar: AnyView? = nil, allowsSaving: Bool = true) {
+    init(items: [ChatMediaViewerItem], startIndex: Int = 0, bottomBar: AnyView? = nil, panel: AnyView? = nil,
+         allowsSaving: Bool = true) {
         self.bottomBar = bottomBar
+        self.panel = panel
         self.allowsSaving = allowsSaving
         self.items = items
         _currentIndex = State(initialValue: min(max(0, startIndex), max(0, items.count - 1)))
@@ -49,86 +64,148 @@ struct ChatMediaViewerView: View {
     }
 
     var body: some View {
-        ZStack {
-            Color.black.opacity(1 - pullProgress * 0.75).ignoresSafeArea()
+        GeometryReader { geo in
+            ZStack(alignment: .top) {
+                Color.black.opacity(1 - pullProgress * 0.75).ignoresSafeArea()
 
-            TabView(selection: $currentIndex) {
-                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                    Group {
-                        if item.isVideo, let video = videos[item.id] {
-                            VideoPlayerPage(video: video, isActive: currentIndex == index, onEdgeTap: toggleChrome)
-                        } else {
-                            ZoomableAsyncImage(url: item.url, isZoomed: $isZoomed, onSingleTap: toggleChrome)
-                        }
-                    }
-                    .tag(index)
-                    .contextMenu {
-                        // Not on videos: holding an edge there plays at 2×.
-                        if allowsSaving && !item.isVideo {
-                            Button {
-                                save(item)
-                            } label: {
-                                Label(Bundle.app.loc("Save to Photos"), systemImage: "square.and.arrow.down")
+                VStack(spacing: 0) {
+                    TabView(selection: $currentIndex) {
+                        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                            Group {
+                                if item.isVideo, let video = videos[item.id] {
+                                    VideoPlayerPage(video: video, isActive: currentIndex == index, isCompact: isPanelOpen,
+                                                    onEdgeTap: handleMediaTap)
+                                } else {
+                                    ZoomableAsyncImage(url: item.url, isZoomed: $isZoomed, isCompact: isPanelOpen,
+                                                       onSingleTap: handleMediaTap)
+                                }
+                            }
+                            .tag(index)
+                            .contextMenu {
+                                // Not on videos: holding an edge there plays at 2×.
+                                if allowsSaving && !item.isVideo {
+                                    Button {
+                                        save(item)
+                                    } label: {
+                                        Label(Bundle.app.loc("Save to Photos"), systemImage: "square.and.arrow.down")
+                                    }
+                                }
                             }
                         }
                     }
-                }
-            }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .offset(y: pull)
-            .scaleEffect(reduceMotion ? 1 : 1 - pullProgress * 0.12)
-            .gesture(SwipeDownPan(isEnabled: !isZoomed, onChange: { pull = max(0, $0) }, onEnd: endPull))
+                    .tabViewStyle(.page(indexDisplayMode: .never))
+                    .offset(y: pull)
+                    .scaleEffect(reduceMotion ? 1 : 1 - pullProgress * 0.12)
+                    .gesture(SwipeDownPan(isEnabled: !isZoomed && !isPanelOpen, onChange: { pull = max(0, $0) }, onEnd: endPull))
+                    // A tall photo fitted to the full third would sit on the panel's edge.
+                    .padding(.bottom, isPanelOpen ? 16 : 0)
+                    .frame(height: isPanelOpen ? geo.size.height / 3 : geo.size.height)
+                    .accessibilityAction(named: Text(Bundle.app.loc("Show full photo"))) { collapsePanel() }
 
-            // Overlay: close button + page counter
-            VStack {
-                HStack {
-                    Button { dismiss() } label: {
-                        Image(systemName: "xmark")
-                            .scaledFont(16, .semibold)
-                            .foregroundColor(.white)
-                            .padding(10)
-                            .background(Circle().fill(Color.black.opacity(0.45)))
+                    if isPanelOpen, let panel {
+                        panelContainer(panel)
+                            .transition(reduceMotion ? .opacity : .move(edge: .bottom))
                     }
-                    .accessibilityLabel(Bundle.app.loc("Close"))
-                    Spacer()
-                    if allowsSaving, items.indices.contains(currentIndex) {
-                        Button { save(items[currentIndex]) } label: {
-                            Image(systemName: "arrow.down.to.line")
+                }
+
+                // Overlay: close button + page counter
+                VStack {
+                    HStack {
+                        Button { dismiss() } label: {
+                            Image(systemName: "xmark")
                                 .scaledFont(16, .semibold)
                                 .foregroundColor(.white)
                                 .padding(10)
                                 .background(Circle().fill(Color.black.opacity(0.45)))
                         }
-                        .disabled(saver.isSaving)
-                        .accessibilityLabel(Text(Bundle.app.loc("Save to Photos")))
+                        .accessibilityLabel(Bundle.app.loc("Close"))
+                        Spacer()
+                        if allowsSaving, items.indices.contains(currentIndex) {
+                            Button { save(items[currentIndex]) } label: {
+                                Image(systemName: "arrow.down.to.line")
+                                    .scaledFont(16, .semibold)
+                                    .foregroundColor(.white)
+                                    .padding(10)
+                                    .background(Circle().fill(Color.black.opacity(0.45)))
+                            }
+                            .disabled(saver.isSaving)
+                            .accessibilityLabel(Text(Bundle.app.loc("Save to Photos")))
+                        }
+                        if items.count > 1 {
+                            Text("\(currentIndex + 1)/\(items.count)")
+                                .scaledFont(14, .semibold)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Capsule().fill(Color.black.opacity(0.45)))
+                        }
                     }
-                    if items.count > 1 {
-                        Text("\(currentIndex + 1)/\(items.count)")
-                            .scaledFont(14, .semibold)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Capsule().fill(Color.black.opacity(0.45)))
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    Spacer()
+                    if let video = currentVideo {
+                        VideoProgressBar(video: video)
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, bottomBar == nil ? 24 : 4)
                     }
+                    if let bottomBar { bottomBar }
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                Spacer()
-                if let video = currentVideo {
-                    VideoProgressBar(video: video)
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, bottomBar == nil ? 24 : 4)
-                }
-                if let bottomBar { bottomBar }
+                // One tap on the photo or video hides all of this (like Facebook); another brings it back.
+                .opacity(chromeHidden || isPanelOpen ? 0 : 1 - pullProgress)
+                .allowsHitTesting(!chromeHidden && !isPanelOpen)
             }
-            // One tap on the photo or video hides all of this (like Facebook); another brings it back.
-            .opacity(chromeHidden ? 0 : 1 - pullProgress)
-            .allowsHitTesting(!chromeHidden)
         }
+        .environment(panelState)
         // See-through while pulled, so the screen behind shows as it fades.
         .presentationBackground(.clear)
         .mediaSaveStatus(saver)
         .statusBarHidden()
+        .onChange(of: panelState.isOpen) { _, open in if open { panelPull = 0 } }
+    }
+
+    /// The panel under the shrunk media: rounded top, a grab strip to pull it
+    /// down, and the app's light/dark surface (the media area stays black).
+    private func panelContainer(_ content: AnyView) -> some View {
+        VStack(spacing: 0) {
+            Capsule()
+                .fill(Color.secondary.opacity(0.5))
+                .frame(width: 40, height: 5)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+                .gesture(DragGesture()
+                    .onChanged { panelPull = max(0, $0.translation.height) }
+                    .onEnded { value in
+                        if value.translation.height > 100 || value.predictedEndTranslation.height > 240 {
+                            collapsePanel()
+                        } else {
+                            withAnimation(.spring(duration: 0.3)) { panelPull = 0 }
+                        }
+                    })
+                .accessibilityLabel(Text(Bundle.app.loc("Show full photo")))
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction { collapsePanel() }
+                .axID(AXID.Feed.viewerCollapse)
+            content
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(PanelBackground().ignoresSafeArea(edges: .bottom))
+        .offset(y: panelPull)
+        // A container keeps its children reachable while carrying the panel's identifier.
+        .accessibilityElement(children: .contain)
+        .axID(AXID.Feed.viewerPanel)
+    }
+
+    /// A tap on the media closes the panel when it's up; otherwise it hides the chrome.
+    private func handleMediaTap() {
+        if isPanelOpen { collapsePanel() } else { toggleChrome() }
+    }
+
+    private func collapsePanel() {
+        withAnimation(reduceMotion ? .easeInOut(duration: 0.2) : .snappy) {
+            panelState.isOpen = false
+            panelPull = 0
+        }
     }
 
     private var currentVideo: VideoPlaybackViewModel? {
@@ -153,6 +230,16 @@ struct ChatMediaViewerView: View {
     }
 }
 
+/// The panel's rounded, theme-coloured backdrop.
+private struct PanelBackground: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20)
+            .fill(AppColors.surface(colorScheme))
+    }
+}
+
 // MARK: - Video page
 
 /// Video page: plays while it's the current page. Tap the middle to pause or
@@ -160,6 +247,8 @@ struct ChatMediaViewerView: View {
 private struct VideoPlayerPage: View {
     let video: VideoPlaybackViewModel
     let isActive: Bool
+    /// Shrunk above the comments panel: any tap closes the panel, no 2× hold.
+    var isCompact = false
     var onEdgeTap: () -> Void = {}
 
     /// Flashes on a middle tap, stays while paused.
@@ -170,6 +259,10 @@ private struct VideoPlayerPage: View {
             ZStack {
                 PlayerLayerView(player: video.player)
                     .ignoresSafeArea()
+                if isCompact {
+                    Color.clear.contentShape(Rectangle())
+                        .onTapGesture { onEdgeTap() }
+                } else {
                 HStack(spacing: 0) {
                     edgeZone.frame(width: geo.size.width * 0.25)
                     Color.clear.contentShape(Rectangle())
@@ -178,6 +271,7 @@ private struct VideoPlayerPage: View {
                             showsPlayIcon = true
                         }
                     edgeZone.frame(width: geo.size.width * 0.25)
+                }
                 }
                 if showsPlayIcon || !video.isPlaying {
                     Image(systemName: video.isPlaying ? "play.fill" : "pause.fill")
@@ -286,6 +380,8 @@ private struct ZoomableAsyncImage: View {
     let url: URL
     /// Tells the viewer when the photo is zoomed in (so swipe-down stays off).
     @Binding var isZoomed: Bool
+    /// Shrunk above the comments panel: no zoom, and a tap answers at once.
+    var isCompact = false
     var onSingleTap: () -> Void = {}
 
     @State private var scale: CGFloat = 1
@@ -302,13 +398,16 @@ private struct ZoomableAsyncImage: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: geo.size.width, height: geo.size.height)
+                        // The black beside a narrow photo takes taps too (closes the panel).
+                        .contentShape(Rectangle())
                         .scaleEffect(scale)
                         .offset(offset)
-                        .gesture(zoomGesture)
+                        .gesture(zoomGesture, including: isCompact ? .none : .all)
                         // Only while zoomed: an always-on drag claimed every
                         // horizontal swipe, so the pager couldn't leave a photo.
                         .simultaneousGesture(panGesture, including: scale > 1 ? .all : .none)
-                        .onTapGesture(count: 2) { toggleZoom() }
+                        // Off while shrunk, so a single tap there needn't wait to rule out a double.
+                        .gesture(TapGesture(count: 2).onEnded { toggleZoom() }, including: isCompact ? .none : .all)
                         // After the double-tap, so a zoom isn't also read as a single tap.
                         .onTapGesture(count: 1) { onSingleTap() }
                 case .failure:
@@ -322,6 +421,7 @@ private struct ZoomableAsyncImage: View {
             }
         }
         .onDisappear { resetZoom() }
+        .onChange(of: isCompact) { _, compact in if compact { resetZoom() } }
         .onChange(of: scale) { _, value in isZoomed = value > 1 }
     }
 

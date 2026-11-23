@@ -184,6 +184,37 @@ final class SearchConceptTests: XCTestCase {
         XCTAssertEqual(SearchConcepts.postMin(for: c("sunset over the sea, sunset at the beach")), SearchConcepts.phrasePostMin)
     }
 
+    // MARK: roles that repeat a topic
+
+    /// "iOS developers who post about SwiftUI": the LLM also hands back the
+    /// job title "iOS developer" and the bio word "developers". Neither may
+    /// become a third or fourth topic everyone must match.
+    func testARoleThatRepeatsATopicIsNotAnotherGate() {
+        let skills = [Self.entry("iOS development", ["ios", "ios dev", "ios development"]),
+                      Self.entry("SwiftUI", ["swiftui", "swift ui"])]
+        var c = criteria(entity: "SwiftUI", entityType: "framework", bio: ["developers"])
+        c.job_title_keywords = ["iOS developer"]
+        let found = SearchConcepts.concepts(prompt: "iOS developers who post about SwiftUI", criteria: c, entries: skills)
+        XCTAssertEqual(found.map(\.label), ["ios", "swiftui"])
+        XCTAssertTrue(found[0].terms.contains("iOS developer"))
+    }
+
+    func testARoleOfItsOwnStaysATopic() {
+        var c = criteria(bio: ["developers"])
+        c.job_title_keywords = ["chef"]
+        let found = concepts("chefs who like anime", c)
+        XCTAssertEqual(found.map(\.label), ["anime", "chef", "developers"])
+    }
+
+    func testPluralAndSingularBothMatch() {
+        XCTAssertEqual(SearchConcepts.singular("developers"), "developer")
+        XCTAssertEqual(SearchConcepts.singular("companies"), "company")
+        XCTAssertEqual(SearchConcepts.singular("business"), "business")
+        XCTAssertEqual(SearchConcepts.singular("ios"), "ios")
+        XCTAssertEqual(SearchConcepts.withNumberForms(["developers"]), ["developers", "developer"])
+        XCTAssertEqual(SearchConcepts.withNumberForms(["iOS developer"]), ["iOS developer", "iOS developers"])
+    }
+
     // MARK: distance in the prompt
 
     func testDistanceAskedForInThePrompt() {

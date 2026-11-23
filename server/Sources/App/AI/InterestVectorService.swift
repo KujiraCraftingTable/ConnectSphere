@@ -56,6 +56,9 @@ enum InterestVectorService {
                             ELSE \(bind: SearchStore.wReactCommentOrShare)::float8 END
                 FROM post_reactions r JOIN posts p ON p.id = r.post_id
                 WHERE p.status = 'posted' AND p.privacy = 'public' AND r.user_id <> p.author_id
+                  -- Reactions are activity: they stop counting when "Personalise
+                  -- with my activity" is off (ActivityTracking).
+                  AND EXISTS (SELECT 1 FROM users ru WHERE ru.id = r.user_id AND ru.track_activity)
                   AND r.created_at > \(since)\(reactor)\(inMode)
               ) s
               JOIN users u ON u.id = s.user_id AND u.deleted_at IS NULL

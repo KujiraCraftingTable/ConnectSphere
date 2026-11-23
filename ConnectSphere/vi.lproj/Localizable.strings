@@ -2562,3 +2562,19 @@
 
 "You joined %@" = "Bạn đã tham gia %@";
 "Request sent" = "Đã gửi yêu cầu";
+"See more" = "Xem thêm";
+"See less" = "Ẩn bớt";
+
+/* Privacy & security: "do not track" (Law 91/2025 Art. 29.4) */
+"Personalise with my activity" = "Cá nhân hoá theo hoạt động của tôi";
+"Your views, likes, comments, saves and search taps help rank your feed and search. This activity counts as sensitive data. When off, we stop recording it, delete what we recorded, and rank by your profile, interests and follows. \"Not interested\" and \"Show more like this\" still work." = "Lượt xem, lượt thích, bình luận, bài đã lưu và những gì bạn chạm vào khi tìm kiếm giúp xếp hạng bảng tin và tìm kiếm. Hoạt động này là dữ liệu nhạy cảm. Khi tắt, chúng tôi ngừng ghi lại, xoá những gì đã ghi và xếp hạng theo hồ sơ, sở thích và người bạn theo dõi. \"Không quan tâm\" và \"Hiện thêm nội dung như thế này\" vẫn hoạt động.";
+
+/* Marketplace: Deal history (migration 152) */
+"Deal history" = "Lịch sử giao dịch";
+"No sales or purchases yet" = "Chưa có giao dịch mua bán nào";
+"Save a copy" = "Lưu bản sao";
+"Sold to @%@" = "Đã bán cho @%@";
+"Bought from @%@" = "Đã mua từ @%@";
+"ConnectSphere deal history" = "Lịch sử giao dịch ConnectSphere";
+"Each deal is kept for 3 years, even if the listing or an account is deleted, as Vietnamese e-commerce law requires." = "Mỗi giao dịch được lưu trong 3 năm, kể cả khi tin đăng hoặc tài khoản đã bị xoá, theo yêu cầu của pháp luật thương mại điện tử Việt Nam.";
+"Copies of your Marketplace listings (1 year) and records of your confirmed sales (3 years), which e-commerce law requires us to keep" = "Bản sao tin đăng trên Chợ (1 năm) và hồ sơ các giao dịch đã xác nhận (3 năm), theo yêu cầu của pháp luật thương mại điện tử";

@@ -19,8 +19,7 @@ ConnectSphere/          # iOS app (SwiftUI)
                         # Search, Notifications, Profile, Settings, Onboarding, Assistant
 server/Sources/App/     # Vapor backend
   Controllers/ Stores/ Services/ AI/ Jobs/ Realtime/ Infra/ Commands/
-backend/                # infra: docker-compose.yml, .env, migrations/ (001..097), uploads/
-legacy/                 # archived Dating space (not built)
+backend/                # infra: docker-compose.yml, .env, migrations/ (001..152), uploads/
 ```
 
 ## Running it

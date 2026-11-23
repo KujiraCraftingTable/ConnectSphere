@@ -12,6 +12,7 @@ struct PrivacySecurityView: View {
     @State private var showManageAccount = false
     @State private var friendRequests = FriendRequestSettingViewModel()
     @State private var suggestionVisibility = SuggestionVisibilitySettingViewModel()
+    @State private var activityTracking = ActivityTrackingSettingViewModel()
     @State private var personaLink = PersonaLinkSettingViewModel()
     @State private var profileLock = ProfileLockSettingViewModel()
     @State private var confirmLock = false
@@ -100,6 +101,31 @@ struct PrivacySecurityView: View {
                 .disabled(suggestionVisibility.isSaving)
             } footer: {
                 Text("When off, you're never suggested to anyone. You still see suggestions yourself.", bundle: bundle)
+            }
+
+            // "Do not track" (Law 91/2025 Art. 29.4): whether my activity shapes my feed and search
+            Section {
+                SettingToggleRow(isOn: Binding(
+                    get: { appState.currentUser?.trackActivity ?? true },
+                    set: { track in Task { await activityTracking.set(track, appState: appState) } }
+                )) {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 7)
+                                .fill(themeManager.theme.primary)
+                                .frame(width: 30, height: 30)
+                            Image(systemName: "sparkles")
+                                .scaledFont(13)
+                                .foregroundColor(.white)
+                        }
+                        Text("Personalise with my activity", bundle: bundle)
+                            .scaledFont(16)
+                            .foregroundColor(AppColors.textPrimary(colorScheme))
+                    }
+                }
+                .disabled(activityTracking.isSaving)
+            } footer: {
+                Text("Your views, likes, comments, saves and search taps help rank your feed and search. This activity counts as sensitive data. When off, we stop recording it, delete what we recorded, and rank by your profile, interests and follows. \"Not interested\" and \"Show more like this\" still work.", bundle: bundle)
             }
 
             // Two-factor sign-in: a code by email every time
@@ -238,6 +264,12 @@ struct PrivacySecurityView: View {
         .alert(friendRequests.errorMessage ?? "", isPresented: Binding(
             get: { friendRequests.errorMessage != nil },
             set: { if !$0 { friendRequests.errorMessage = nil } }
+        )) {
+            Button(bundle.loc("OK")) {}
+        }
+        .alert(activityTracking.errorMessage ?? "", isPresented: Binding(
+            get: { activityTracking.errorMessage != nil },
+            set: { if !$0 { activityTracking.errorMessage = nil } }
         )) {
             Button(bundle.loc("OK")) {}
         }

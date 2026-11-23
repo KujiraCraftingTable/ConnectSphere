@@ -205,6 +205,8 @@ enum AccountDeletionStore {
               UNION ALL SELECT cover_url FROM highlights WHERE user_id = \(uuid: user)
               UNION ALL SELECT i.image_url FROM highlight_items i JOIN highlights h ON h.id = i.highlight_id WHERE h.user_id = \(uuid: user)              UNION ALL SELECT cv_url FROM job_applications WHERE applicant_id = \(uuid: user)
             ) f WHERE x IS NOT NULL
+              -- A kept listing copy still shows it (migration 152); its purge removes it later.
+              AND NOT EXISTS (SELECT 1 FROM listing_archive a WHERE f.x = ANY(a.image_urls) AND a.keep_until > NOW())
             """).all(decoding: P.self)
         return Array(Set(rows.compactMap(\.path)))
     }

@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import XCTest
 
 /// The UI-test server's `/api/test` routes (`TestHooksController`): throwaway
@@ -91,6 +92,33 @@ struct TestServer {
         return try JSONDecoder().decode(Created.self, from: data).data.id
     }
 
+    /// Posts a public photo post as `account` (a small generated PNG) and returns its id.
+    func createPhotoPost(as account: Account, content: String, mode: String = "hobby") async throws -> String {
+        struct Uploaded: Decodable { let url: String }
+        let boundary = "uitest-\(UUID().uuidString)"
+        var body = Data()
+        body.append(Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"file\"; filename=\"qa.png\"\r\n".utf8))
+        body.append(Data("Content-Type: image/png\r\n\r\n".utf8))
+        body.append(Self.testPNG())
+        body.append(Data("\r\n--\(boundary)--\r\n".utf8))
+        let uploaded = try await api("POST", "uploads", as: account, body: body,
+                                     contentType: "multipart/form-data; boundary=\(boundary)")
+        let url = try JSONDecoder().decode(Uploaded.self, from: uploaded).url
+
+        struct Created: Decodable { struct Post: Decodable { let id: String }; let data: Post }
+        let data = try await api("POST", "posts", as: account,
+                                 json: ["content": content, "mode": mode, "privacy": "public", "image_urls": [url]])
+        return try JSONDecoder().decode(Created.self, from: data).data.id
+    }
+
+    /// A plain 300×200 colour block: enough for the server's image checks.
+    private static func testPNG() -> Data {
+        UIGraphicsImageRenderer(size: CGSize(width: 300, height: 200)).pngData { context in
+            UIColor.systemTeal.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 300, height: 200))
+        }
+    }
+
     /// A remote Work job posted by `recruiter` (see `makeRecruiter`); returns the post id.
     func createJob(as recruiter: Account, title: String) async throws -> String {
         struct Created: Decodable { struct Post: Decodable { let id: String }; let data: Post }
@@ -122,13 +150,17 @@ struct TestServer {
     }
 
     @discardableResult
-    private func api(_ method: String, _ path: String, as account: Account, json: [String: Any]? = nil) async throws -> Data {
+    private func api(_ method: String, _ path: String, as account: Account, json: [String: Any]? = nil,
+                     body: Data? = nil, contentType: String? = nil) async throws -> Data {
         var request = URLRequest(url: base.appending(path: "api/\(path)"), timeoutInterval: 30)
         request.httpMethod = method
         request.setValue("Bearer \(account.token)", forHTTPHeaderField: "Authorization")
         if let json {
             request.httpBody = try JSONSerialization.data(withJSONObject: json)
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        } else if let body {
+            request.httpBody = body
+            request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         }
         let (data, response) = try await URLSession.shared.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0

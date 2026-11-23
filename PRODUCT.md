@@ -203,7 +203,7 @@ Summarised from [`KNOWN_GAPS.md`](KNOWN_GAPS.md):
 
 - **Dating and partner-finding.** ConnectSphere is for finding friends and
   colleagues; people looking for a partner are better served by a dating app.
-  A Dating space was built and then archived (`legacy/dating/`).
+  A Dating space was built and then archived (`legacy/dating/`, kept outside the repository).
 - **Push notifications** while the app is closed (in-app notifications work).
 - Chat "delivered" receipts are best-effort (read receipts work).
 - No list of your *sent* connection requests yet.

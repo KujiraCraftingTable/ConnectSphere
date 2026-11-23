@@ -57,6 +57,35 @@ final class FeedTests: UITestCase {
         try detail.row(containing: comment).waitToAppear(timeout: 15)
     }
 
+    /// Photo viewer: Comment shrinks the photo to the top third with the
+    /// comments panel below; tapping the photo brings it back to full view.
+    func testPhotoViewerCommentsPanel() async throws {
+        let account = try await server.createAccount(run: run)
+        let text = "QA photo \(run)"
+        _ = try await server.createPhotoPost(as: account, content: text)
+        launch(signedInAs: account)
+        try feed.waitUntilLoaded()
+
+        // The account's own profile lists its one post; its photo is the only "Photo".
+        try MainScreen(app: app).tab(AXID.Tab.profile).tapWhenReady()
+        let photo = app.buttons["Photo"].firstMatch
+        try photo.waitToAppear(timeout: 20)
+        for _ in 0..<6 where !photo.isHittable { app.swipeUp() }
+        try photo.tapWhenReady()
+
+        let panel = app.descendants(matching: .any)[AXID.Feed.viewerPanel]
+        try app.buttons[AXID.Feed.viewerComment].firstMatch.tapWhenReady()
+        try panel.waitToAppear(timeout: 10)
+        XCTAssertTrue(app.staticTexts[text].firstMatch.waitForExistence(timeout: 5),
+                      "the panel should show the caption")
+        XCTAssertTrue(app.textViews[AXID.Comments.field].waitForExistence(timeout: 5),
+                      "the panel should have the comment composer")
+
+        // A tap on the shrunk photo closes the panel.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)).tap()
+        try panel.waitToDisappear(timeout: 10)
+    }
+
     func testCancelSavesDraft() async throws {
         try await launchSignedIn()
         try feed.composerBar.tapWhenReady()

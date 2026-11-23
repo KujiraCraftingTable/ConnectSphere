@@ -83,8 +83,6 @@ struct RegisterView: View {
                 fieldHint(viewModel.emailHint, isError: viewModel.emailError != nil)
             }
 
-            PolicyAgreementRow(isOn: $viewModel.acceptsPolicy)
-
             if let errorMessage = viewModel.errorMessage {
                 errorBanner(errorMessage)
             }

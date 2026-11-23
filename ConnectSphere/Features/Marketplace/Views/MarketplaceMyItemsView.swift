@@ -48,6 +48,16 @@ struct MarketplaceMyItemsView: View {
         .appBackground()
         .navigationTitle(Text("Marketplace", bundle: bundle))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink {
+                    DealHistoryView(mode: appState.currentMode)
+                        .environment(appState)
+                } label: {
+                    Label(bundle.loc("Deal history"), systemImage: "clock.arrow.circlepath")
+                }
+            }
+        }
         .task { await viewModel.load(token: token) }
         .refreshable { await viewModel.load(token: token) }
     }

@@ -91,6 +91,12 @@ enum AXID {
         static let like = "feed.post.likeButton"
         static let comment = "feed.post.commentButton"
         static let more = "feed.post.moreButton"
+        /// The full-screen photo viewer's comment button and its comments panel.
+        static let viewerComment = "feed.viewer.commentButton"
+        static let viewerPanel = "feed.viewer.panel"
+        static let viewerCollapse = "feed.viewer.collapse"
+        /// "See more" / "See less" under a long caption.
+        static let captionToggle = "feed.post.captionToggle"
     }
 
     enum Chat {

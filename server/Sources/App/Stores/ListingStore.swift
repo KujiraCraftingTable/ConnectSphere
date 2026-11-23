@@ -179,6 +179,7 @@ enum ListingStore {
             """).first(decoding: R.self)!.id
         for (i, item) in d.items.enumerated() { try await insertItem(item, at: i, listingID: id, on: db) }
         try await syncSummary(listingID: id, on: db)
+        try await ListingRecordStore.snapshot(listingID: id, on: db)
         return id
     }
 
@@ -310,8 +311,11 @@ enum ListingStore {
                 try await t.raw("""
                     DELETE FROM listing_item_deposits WHERE item_id = \(uuid: sale.item_id) AND buyer_id = \(uuid: sale.buyer_id)
                     """).run()
+                try await ListingRecordStore.recordSale(listingID: listingID, itemID: sale.item_id, buyerID: sale.buyer_id,
+                                                        title: sale.title, price: sale.price, quantity: sale.quantity, on: t)
             }
             try await syncSummary(listingID: listingID, on: t)
+            try await ListingRecordStore.snapshot(listingID: listingID, on: t)
             confirmed = sales
         }
         return confirmed
@@ -708,6 +712,7 @@ enum ListingStore {
                     WHERE id = (SELECT post_id FROM listing_posts WHERE id = \(uuid: listingID))
                     """).run()
             }
+            try await ListingRecordStore.snapshot(listingID: listingID, on: t)
         }
         return changed
     }
@@ -812,6 +817,8 @@ enum ListingStore {
             for table in ["saved_posts", "hidden_posts", "post_feedback"] {
                 try await t.raw("UPDATE \(unsafeRaw: table) SET post_id = \(uuid: new.id) WHERE post_id = \(uuid: cur.post_id)").run()
             }
+            // A re-up is a new posting: its own copy, kept a year from today.
+            try await ListingRecordStore.snapshot(listingID: listingID, on: t)
             newID = new.id
         }
         return newID

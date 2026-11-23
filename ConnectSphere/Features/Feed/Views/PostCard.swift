@@ -6,7 +6,7 @@ struct PostCard: View {
     @Environment(\.appBundle) var bundle
     @Environment(\.colorScheme) var colorScheme
     @Environment(UndoToastPresenter.self) var toastPresenter
-    @AppStorage(TranslationMode.storageKey) private var translationModeRaw = TranslationMode.original.rawValue
+    @AppStorage(TranslationMode.storageKey, store: AppDefaults.store) private var translationModeRaw = TranslationMode.original.rawValue
     private var translationMode: TranslationMode { TranslationMode(rawValue: translationModeRaw) ?? .original }
     private var translations: TranslationStore { .shared }
     @State private var actions: PostActionsViewModel
@@ -196,7 +196,7 @@ struct PostCard: View {
             }
             // Content, only shown if there's actual text
             if !post.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(linkifiedContent)
+                CollapsibleCaption(text: linkifiedContent, accent: themeManager.theme.primary)
                     .appFont(.body)
                     .foregroundColor(AppColors.textPrimary(colorScheme))
                     .tint(themeManager.theme.primary)
@@ -239,7 +239,8 @@ struct PostCard: View {
                         .padding(.top, 10)
                 } else {
                     PostPhotoGrid(urls: post.displayImageUrls, alts: post.displayImageAlts,
-                                  viewerBar: { closeThen in AnyView(viewerActionBar(closeThen: closeThen)) })
+                                  viewerBar: { closeThen in AnyView(viewerActionBar(closeThen: closeThen)) },
+                                  viewerPanel: { closeThen in AnyView(viewerCommentsPanel(closeThen: closeThen)) })
                         .padding(.top, 10)
                 }
             }
@@ -760,16 +761,35 @@ struct PostCard: View {
     }
 
     /// The post's whale / comment / save / share under a full-screen photo.
-    /// Comments open full height over the photo; share closes the photo first.
+    /// Comment opens the comments panel under the shrunk photo; share closes the photo first.
     private func viewerActionBar(closeThen: @escaping (@escaping () -> Void) -> Void) -> some View {
         PostViewerActionBar(
             actions: actions,
             post: post,
             accent: themeManager.theme.primary,
-            canSave: !((post.community != nil || post.postType == .listing) && (appState.currentUser?.isOfficial ?? false)),
+            canSave: canSave,
+            canShare: canShare,
+            onShare: { closeThen { showShareSheet = true } })
+    }
+
+    /// Caption, buttons and comments under the photo once Comment is tapped.
+    /// Links and share close the photo first, so their sheet shows on the card.
+    private func viewerCommentsPanel(closeThen: @escaping (@escaping () -> Void) -> Void) -> some View {
+        PostViewerCommentsPanel(
+            actions: actions,
+            post: post,
+            caption: linkifiedContent,
+            accent: themeManager.theme.primary,
+            canSave: canSave,
             canShare: canShare,
             onCommentAdded: onCommentAdded,
-            onShare: { closeThen { showShareSheet = true } })
+            onShare: { closeThen { showShareSheet = true } },
+            onOpenLink: { url in closeThen { openLink(url) } })
+    }
+
+    /// The official account visits communities and the Marketplace without saving.
+    private var canSave: Bool {
+        !((post.community != nil || post.postType == .listing) && (appState.currentUser?.isOfficial ?? false))
     }
 
     // MARK: Shared post embed
@@ -836,38 +856,40 @@ struct PostCard: View {
     }
 }
 
-/// Whale / comment / save / share in white on the full-screen photo viewer.
-/// Its own view so it follows `actions` live while the viewer is open.
-private struct PostViewerActionBar: View {
+/// Whale / comment / save / share in one row: white on the photo, theme
+/// colours in the comments panel. Its own view so it follows `actions` live.
+private struct PostViewerActionButtons: View {
     let actions: PostActionsViewModel
     let post: Post
     let accent: Color
+    let tint: Color
     let canSave: Bool
     let canShare: Bool
-    var onCommentAdded: (() -> Void)?
+    let onComment: () -> Void
     let onShare: () -> Void
-    @State private var showComments = false
 
-    private var buttons: some View {
+    var body: some View {
         HStack(spacing: 22) {
             Button {
                 Task { await actions.toggleLike(postId: post.id) }
             } label: {
                 HStack(spacing: 6) {
-                    LikeIcon(isLiked: actions.isLiked, color: actions.isLiked ? accent : .white, size: 26)
+                    LikeIcon(isLiked: actions.isLiked, color: actions.isLiked ? accent : tint, size: 26)
                     count(actions.likeCount)
                 }
             }
             .accessibilityLabel(Bundle.app.loc("Whale"))
+            .accessibilityAddTraits(actions.isLiked ? .isSelected : [])
             .disabledWhenRestricted()
 
-            Button { showComments = true } label: {
+            Button(action: onComment) {
                 HStack(spacing: 6) {
                     Image(systemName: "bubble.left").scaledFont(22)
                     count(actions.commentCount)
                 }
             }
             .accessibilityLabel(Bundle.app.loc("Comment"))
+            .axID(AXID.Feed.viewerComment)
 
             Spacer()
 
@@ -877,7 +899,7 @@ private struct PostViewerActionBar: View {
                 } label: {
                     Image(systemName: actions.isSaved ? "bookmark.fill" : "bookmark")
                         .scaledFont(22)
-                        .foregroundColor(actions.isSaved ? accent : .white)
+                        .foregroundColor(actions.isSaved ? accent : tint)
                 }
                 .accessibilityLabel(actions.isSaved ? Bundle.app.loc("Unsave") : Bundle.app.loc("Save"))
             }
@@ -891,7 +913,25 @@ private struct PostViewerActionBar: View {
                 .accessibilityLabel(Bundle.app.loc("Share"))
             }
         }
+        .foregroundColor(tint)
     }
+
+    @ViewBuilder
+    private func count(_ value: Int) -> some View {
+        if value > 0 { Text("\(value)").scaledFont(15, .semibold) }
+    }
+}
+
+/// Who posted it and the buttons, in white along the bottom of the full-screen photo.
+private struct PostViewerActionBar: View {
+    @Environment(MediaViewerPanelState.self) private var panelState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let actions: PostActionsViewModel
+    let post: Post
+    let accent: Color
+    let canSave: Bool
+    let canShare: Bool
+    let onShare: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -907,24 +947,84 @@ private struct PostViewerActionBar: View {
                     .opacity(0.75)
                     .lineLimit(1)
             }
-            buttons
+            PostViewerActionButtons(actions: actions, post: post, accent: accent, tint: .white,
+                                    canSave: canSave, canShare: canShare,
+                                    onComment: {
+                                        withAnimation(reduceMotion ? .easeInOut(duration: 0.2) : .snappy) {
+                                            panelState.isOpen = true
+                                        }
+                                    },
+                                    onShare: onShare)
         }
         .foregroundColor(.white)
         .padding(.horizontal, 22)
         .padding(.vertical, 14)
         .background(LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .top, endPoint: .bottom)
             .ignoresSafeArea())
-        .sheet(isPresented: $showComments) {
-            CommentSheet(postId: post.id, postAuthorId: post.author.id,
-                         openToWork: post.openToWork && post.mode == .work, onCommentCountChange: { delta in
-                actions.adjustCommentCount(by: delta)
-                if delta > 0 { onCommentAdded?() }
-            }, fullHeight: true)
+    }
+}
+
+/// Under the shrunk photo: who posted it, the caption, the buttons, then the
+/// comments and composer, like Instagram's and X's photo view.
+private struct PostViewerCommentsPanel: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let actions: PostActionsViewModel
+    let post: Post
+    let caption: AttributedString
+    let accent: Color
+    let canSave: Bool
+    let canShare: Bool
+    var onCommentAdded: (() -> Void)?
+    let onShare: () -> Void
+    let onOpenLink: (URL) -> Void
+    /// Bumped by the Comment button to put the cursor in the composer.
+    @State private var focusRequest = 0
+
+    var body: some View {
+        CommentsPanelBody(postId: post.id, postAuthorId: post.author.id,
+                          openToWork: post.openToWork && post.mode == .work,
+                          onCommentCountChange: { delta in
+                              actions.adjustCommentCount(by: delta)
+                              if delta > 0 { onCommentAdded?() }
+                          },
+                          autoFocus: false,
+                          focusRequest: focusRequest) {
+            header
         }
     }
 
-    @ViewBuilder
-    private func count(_ value: Int) -> some View {
-        if value > 0 { Text("\(value)").scaledFont(15, .semibold) }
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                AvatarView(user: post.author, size: 36)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(post.community?.name ?? post.author.name)
+                        .scaledFont(15, .semibold)
+                        .foregroundColor(AppColors.textPrimary(colorScheme))
+                        .lineLimit(1)
+                    Text(post.community != nil
+                         ? "\(post.author.name) · \(post.timestamp.timeAgoString)"
+                         : post.timestamp.timeAgoString)
+                        .scaledFont(12)
+                        .foregroundColor(AppColors.textSecondary(colorScheme))
+                        .lineLimit(1)
+                }
+            }
+            if !post.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                CollapsibleCaption(text: caption, accent: accent)
+                    .scaledFont(15)
+                    .foregroundColor(AppColors.textPrimary(colorScheme))
+                    .environment(\.openURL, OpenURLAction { url in onOpenLink(url); return .handled })
+            }
+            PostViewerActionButtons(actions: actions, post: post, accent: accent,
+                                    tint: AppColors.textSecondary(colorScheme),
+                                    canSave: canSave, canShare: canShare,
+                                    onComment: { focusRequest += 1 },
+                                    onShare: onShare)
+            Divider()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.bottom, 4)
     }
 }

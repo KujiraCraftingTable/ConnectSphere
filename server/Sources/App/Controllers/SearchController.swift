@@ -224,16 +224,16 @@ struct SearchController {
             criteria.target_age_min = nil
             criteria.target_age_max = nil
         }
-        let concepts = await englishConcepts(
+        let readConcepts = await englishConcepts(
             cfg, SearchConcepts.concepts(prompt: userQuery, criteria: criteria, entries: entries), logger: log)
 
         let parsed = criteria
         async let entityTask = buildEntityVector(cfg, parsed, on: db, logger: log)
         async let generalTask = buildGeneralVector(cfg, parsed, logger: log)
-        async let conceptVecTask = conceptVectors(cfg, concepts, logger: log)
+        async let conceptVecTask = conceptVectors(cfg, readConcepts, logger: log)
         let entityResult = await entityTask
-        let generalVec = await generalTask
-        let conceptVecs = await conceptVecTask
+        let readGeneralVec = await generalTask
+        let readConceptVecs = await conceptVecTask
         timer.mark("vectors")
 
         var warnings: [Warning] = []
@@ -324,6 +324,21 @@ struct SearchController {
         let kwRows = try await SearchStore.vectorSearch(keywordParams, on: db)
         timer.mark("keyword")
         let nameHits = kwRows.filter { $0.name_match >= strongNameMatch }
+
+        // The reading named nothing to search by, yet its English restatement
+        // still holds the topic ("find people interested in beekeeping"): that
+        // topic is the gate, so "no one is into it" can be said, not "unclear".
+        let concepts: [SearchConcepts.Concept], conceptVecs: [[Double]?], generalVec: [Double]?
+        if readConcepts.isEmpty, personalVecs.isEmpty, !hasFilter, nameHits.isEmpty,
+           let fallback = IntentTopic.concept(in: criteria.intent_en) {
+            concepts = [fallback]
+            conceptVecs = await conceptVectors(cfg, concepts, logger: log)
+            // Within the gate people are ranked by these vectors; with no
+            // interest read there is none, and the gate's people never show.
+            generalVec = conceptVecs.first ?? nil
+        } else {
+            (concepts, conceptVecs, generalVec) = (readConcepts, readConceptVecs, readGeneralVec)
+        }
 
         var users: [SearchStore.RawUser] = []
         if !concepts.isEmpty {

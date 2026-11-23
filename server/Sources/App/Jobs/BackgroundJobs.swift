@@ -136,6 +136,8 @@ enum BackgroundJobs {
                 DELETE FROM search_criteria_cache
                 WHERE created_at < NOW() - make_interval(hours => \(bind: OllamaService.criteriaCacheHours)::int)
                 """).run()
+            // Listing copies after 1 year, deal records after 3 (migration 152).
+            try await ListingRecordStore.purgeExpired(on: db, logger: context.logger)
             // AI people search health (AI_SEARCH_REVIEW.md, phase S3).
             if let m = try await SearchStore.weeklyMetrics(on: db) {
                 context.logger.info("AI search, last 7 days: \(m.searches) searches, \(m.zero_result) with no results, top-5 tap rate \(m.top5_tap_rate.map { String(format: "%.2f", $0) } ?? "-"), connect rate \(m.connect_rate.map { String(format: "%.2f", $0) } ?? "-")")

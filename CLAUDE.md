@@ -6,7 +6,7 @@ query pipeline and chunk-based pgvector embeddings. See `AI_SEARCH_OVERVIEW.md`.
 
 ## Running it
 - `./dev.sh start`, Docker (`backend/docker-compose.yml`: Postgres + Redis only), host Ollama, the Swift backend **on the host** (port 3000, `RUN_MIGRATIONS=1 RUN_JOBS=1`, log `/tmp/connectsphere-server.log`), then opens Xcode
-- `backend/` is the infra dir: `docker-compose.yml`, `.env`, `migrations/` (147 shared SQL files, numbered 001–148; 094 does not exist), `uploads/`
+- `backend/` is the infra dir: `docker-compose.yml`, `.env`, `migrations/` (151 shared SQL files, numbered 001–152; 094 does not exist), `uploads/`
 - Migrations replay at boot only with `RUN_MIGRATIONS=1` (advisory-locked); no separate migrate step. A server started without it won't apply new migrations
 - Fast inner loop: `cd server && RUN_MIGRATIONS=1 RUN_JOBS=1 PORT=3000 swift run App serve` (host, reads `../backend/.env`)
 - Tests: `cd server && swift test`; iOS `xcodebuild test -scheme ConnectSphere -only-testing:ConnectSphereTests` (use the iPhone 17 simulator)
@@ -32,7 +32,7 @@ Looks the user has approved (e.g. the profile cover photo's fade) are in
 [`DESIGN.md`](DESIGN.md). Keep them unless asked to change one.
 
 ## Known gaps
-Deliberately deferred scope (e.g. push notifications; the Dating space is archived in `legacy/dating/`) is tracked in [`KNOWN_GAPS.md`](KNOWN_GAPS.md). Check it before assuming a missing feature is an oversight.
+Deliberately deferred scope (e.g. push notifications; the Dating space is archived in `legacy/dating/`, kept outside the repository) is tracked in [`KNOWN_GAPS.md`](KNOWN_GAPS.md). Check it before assuming a missing feature is an oversight.
 
 ## Reading the user's messages
 The user separates requests with punctuation:

@@ -160,7 +160,7 @@ struct JobPostCard: View {
     }
 
     private func formattedDeadline(_ date: Date) -> String {
-        let isVi = (UserDefaults.standard.string(forKey: "appLanguage") ?? "vi") == "vi"
+        let isVi = (AppDefaults.store.string(forKey: "appLanguage") ?? "vi") == "vi"
         let df = DateFormatter()
         df.locale = Locale(identifier: isVi ? "vi_VN" : "en_US")
         df.dateFormat = "MMM d, yyyy"

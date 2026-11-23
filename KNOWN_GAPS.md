@@ -16,7 +16,7 @@ on 2026-11-11.)
 
 - **Dating is archived, not running.** The app is for friends and colleagues;
   finding a partner is deliberately out of scope. The code lives in
-  `legacy/dating/` (see its README to restore it). Its tables
+  `legacy/dating/`, kept outside the repository. Its tables
   (`dating_*`, `conversations.dating_match_id`) were dropped in migration 142,
   with the old `community_notifications_legacy`. AI search ignores
   partner wording ("to date", "người yêu") and searches the rest.
@@ -344,21 +344,22 @@ registration flow only if under-16s are ever admitted.
 
 ---
 
-## No "personalised feed" off switch
+## Activity tracking: built; profile matching has no opt-out
 
-**Status:** the feed and AI search rank with what a person likes, views, saves and
-searches (`post_impressions`, `post_feedback`, `search_sessions`; kept 90 days). The
-Privacy Policy says so, and deleting the account removes it, but there is no setting
-to turn the ranking off while staying signed in.
+**Done (2026-11-19):** Settings › Manage account › Privacy & Security ›
+"Personalise with my activity" (`users.track_activity`, migration 151; see
+`Stores/ActivityTracking.swift`). Off = no views, dwell time or search taps
+recorded; likes, comments, saves and views stop shaping the feed, peers and
+people-search interest vectors; what was recorded is deleted at once. This is
+Law 91/2025 Art. 29.4's "do not track" option (legal audit, S4).
 
-**Why deferred:** a non-personalised feed is a second ranking path in `FeedStore` /
-`PostRanking`, with its own tests; it is not small. Vietnam's Law 91/2025 asks that
-people can refuse behaviour tracking on social networks (Art. 29) — confirm with a
-lawyer whether in-app ranking from your own activity counts.
-
-**To pick this up:** add `users.personalised_feed BOOLEAN DEFAULT TRUE`, skip the
-signals when off (no impressions or feedback written, ranking by recency and mode),
-and a switch in Settings › Privacy & Security.
+**Why the rest is deferred:** with the switch off, people search still matches
+on the person's own profile (what they wrote about themselves), and the "For
+you" feed still ranks by profile, picked interests and follows. That is not
+behaviour tracking, and the Connections and Following tabs already give a
+plain newest-first feed. Confirm with a lawyer whether Decree 356 Art. 10.3
+("let people opt out of automated processing") also needs a way to leave AI
+search entirely.
 
 ---
 
