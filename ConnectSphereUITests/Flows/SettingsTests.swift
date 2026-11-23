@@ -19,8 +19,11 @@ final class SettingsTests: UITestCase {
 
     /// "Send a code to <masked email>", then the code from the test server.
     private func confirmWithEmailedCode(_ account: TestServer.Account) async throws {
-        try app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Send a code to")).firstMatch
-            .tapWhenReady(timeout: 15)
+        // The delete screens list what is kept above this button, so it can sit
+        // below the fold, where a List hasn't built it yet.
+        let send = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Send a code to")).firstMatch
+        try scrollUntilExists(send, app: app)
+        try send.tapWhenReady(timeout: 15)
         let field = app.textFields[AXID.Common.codeField]
         try field.waitToAppear(timeout: 15)
         let code = try await server.lastCode(for: try XCTUnwrap(account.email))
