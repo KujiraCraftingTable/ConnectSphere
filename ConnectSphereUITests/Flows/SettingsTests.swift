@@ -40,14 +40,33 @@ final class SettingsTests: UITestCase {
         try toggle.waitUntilValue(on ? "On" : "Off")
     }
 
-    private func openPrivacy(as account: TestServer.Account) throws -> XCUIElement {
+    private func openPrivacy(as account: TestServer.Account,
+                             toggle id: String = AXID.Settings.twoFactorToggle) throws -> XCUIElement {
         try launchToManageAccount(as: account)
         let privacy = app.staticTexts["Privacy & Security"]
         try scrollUntilExists(privacy, app: app)
         try privacy.tapWhenReady()
-        let toggle = app.switches[AXID.Settings.twoFactorToggle]
+        let toggle = app.switches[id]
         try scrollUntilExists(toggle, app: app)
         return toggle
+    }
+
+    /// "Personalise with my activity": off is saved on the server, so a fresh
+    /// launch and sign-in still shows it off; then it goes back on.
+    func testActivitySwitchIsSavedOnTheServer() async throws {
+        let me = try await server.createAccount(run: run)
+        let toggle = try openPrivacy(as: me, toggle: AXID.Settings.activityToggle)
+        try toggle.waitUntilValue("On")
+        try toggle.tapWhenReady()
+        try toggle.waitUntilValue("Off")
+        // The switch is disabled while it saves; relaunch only once it's back.
+        let saved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isEnabled == true"), object: toggle)
+        XCTAssertEqual(XCTWaiter.wait(for: [saved], timeout: 15), .completed)
+
+        let again = try openPrivacy(as: me, toggle: AXID.Settings.activityToggle)
+        try again.waitUntilValue("Off")
+        try again.tapWhenReady()
+        try again.waitUntilValue("On")
     }
 
     // Off and on are separate accounts: a second code within a minute is refused (429).

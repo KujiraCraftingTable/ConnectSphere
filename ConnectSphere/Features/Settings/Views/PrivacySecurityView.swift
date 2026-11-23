@@ -124,6 +124,7 @@ struct PrivacySecurityView: View {
                     }
                 }
                 .disabled(activityTracking.isSaving)
+                .axID(AXID.Settings.activityToggle)
             } footer: {
                 Text("Your views, likes, comments, saves and search taps help rank your feed and search. This activity counts as sensitive data. When off, we stop recording it, delete what we recorded, and rank by your profile, interests and follows. \"Not interested\" and \"Show more like this\" still work.", bundle: bundle)
             }

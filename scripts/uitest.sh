@@ -82,5 +82,11 @@ if [ "$LEFT" != "0" ]; then
 else
   echo "Clean: no qa_ui_ accounts left."
 fi
+# Deal records outlive accounts by design, so they're checked on their own.
+DEALS="$(psql_count "SELECT COUNT(*) FROM deal_records WHERE seller_username ~ '^qa_ui_' OR buyer_username ~ '^qa_ui_'")"
+if [ "$DEALS" != "0" ]; then
+  echo "WARNING: $DEALS qa_ui_ deal record(s) left behind." >&2
+  [ "$STATUS" = 0 ] && STATUS=3
+fi
 echo "Results: $RESULT"
 exit "$STATUS"

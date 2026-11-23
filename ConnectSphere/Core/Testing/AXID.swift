@@ -134,5 +134,10 @@ enum AXID {
     enum Settings {
         static let logout = "settings.main.logoutButton"
         static let twoFactorToggle = "settings.privacy.twoFactorToggle"
+        static let activityToggle = "settings.privacy.activityToggle"
+    }
+
+    enum Marketplace {
+        static let dealHistoryButton = "marketplace.myItems.dealHistoryButton"
     }
 }

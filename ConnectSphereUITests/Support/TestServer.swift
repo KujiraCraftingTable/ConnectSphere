@@ -70,6 +70,14 @@ struct TestServer {
         return try JSONDecoder().decode(Deleted.self, from: try await send("DELETE", "runs/\(run)")).users
     }
 
+    /// A confirmed Hobby sale from `seller` to `buyer`, as Deal history lists it.
+    func createDeal(seller: Account, buyer: Account, title: String, price: Int, quantity: Int) async throws {
+        let body = try JSONSerialization.data(withJSONObject: [
+            "seller_id": seller.id, "buyer_id": buyer.id, "title": title, "price": price, "quantity": quantity,
+        ])
+        _ = try await send("POST", "deals", body: body)
+    }
+
     /// Makes `account` a verified recruiter whose jobs go live without review.
     func makeRecruiter(_ account: Account) async throws {
         let body = try JSONSerialization.data(withJSONObject: ["user_id": account.id])

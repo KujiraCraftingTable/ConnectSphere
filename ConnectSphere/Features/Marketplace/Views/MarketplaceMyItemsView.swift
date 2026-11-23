@@ -56,6 +56,7 @@ struct MarketplaceMyItemsView: View {
                 } label: {
                     Label(bundle.loc("Deal history"), systemImage: "clock.arrow.circlepath")
                 }
+                .accessibilityIdentifier(AXID.Marketplace.dealHistoryButton)
             }
         }
         .task { await viewModel.load(token: token) }

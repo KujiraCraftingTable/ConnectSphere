@@ -18,6 +18,7 @@ struct TestHooksController {
         test.post("runs", ":runID", "embed", use: embedRun)
         test.post("recruiters", use: makeRecruiter)
         test.post("communities", use: createCommunity)
+        test.post("deals", use: createDeal)
         app.logger.warning("UITEST_HOOKS=1: /api/test routes are mounted (loopback + token only)")
     }
 
@@ -216,6 +217,38 @@ struct TestHooksController {
         }
     }
 
+    struct DealBody: Content {
+        var seller_id: String?; var buyer_id: String?
+        var title: String?; var price: Int64?; var quantity: Int?
+    }
+    struct DealCreated: Content { var id: String }
+
+    /// A confirmed Hobby sale between two run accounts, as `deal_records`
+    /// stores it when a seller confirms a deposit, without the listing and
+    /// chat that lead there.
+    @Sendable static func createDeal(_ req: Request) async throws -> DealCreated {
+        let b = try req.content.decode(DealBody.self)
+        let title = (b.title ?? "").trimmingCharacters(in: .whitespaces)
+        guard (1...100).contains(title.count) else { throw Abort(.badRequest, reason: "title must be 1-100 characters") }
+        let quantity = b.quantity ?? 1
+        guard (1...20).contains(quantity) else { throw Abort(.badRequest, reason: "quantity must be 1-20") }
+        if let price = b.price, price < 0 { throw Abort(.badRequest, reason: "price must not be negative") }
+        let db = req.db.sql()
+        let seller = try await runUser(b.seller_id, on: db)
+        let buyer = try await runUser(b.buyer_id, on: db)
+        guard seller != buyer else { throw Abort(.badRequest, reason: "seller and buyer must differ") }
+        struct R: Decodable { let id: String }
+        guard let row = try await db.raw("""
+            INSERT INTO deal_records (seller_id, buyer_id, seller_username, buyer_username, mode,
+                                      item_title, item_price, quantity)
+            SELECT s.id, b.id, s.username, b.username, 'hobby', \(bind: title), \(bind: b.price), \(bind: quantity)
+            FROM users s, users b WHERE s.id = \(uuid: seller) AND b.id = \(uuid: buyer)
+            RETURNING id::text AS id
+            """).first(decoding: R.self)
+        else { throw Abort(.internalServerError) }
+        return DealCreated(id: row.id)
+    }
+
     // MARK: - DELETE /test/runs/:runID
 
     struct Deleted: Content { var users: Int; var steps: [String] }
@@ -248,6 +281,13 @@ struct TestHooksController {
                 DELETE FROM moderation_cases
                 WHERE author_id = ANY(\(bind: ids)) OR (target_type = 'user' AND target_id = ANY(\(bind: ids)))
                 """).run()
+            // Kept copies and deal records have no foreign key to users on
+            // purpose (the law keeps them after a real account is deleted), so
+            // a test run removes its own.
+            try await t.raw("""
+                DELETE FROM deal_records WHERE seller_id = ANY(\(bind: ids)) OR buyer_id = ANY(\(bind: ids))
+                """).run()
+            try await t.raw("DELETE FROM listing_archive WHERE seller_id = ANY(\(bind: ids))").run()
             var lines = try await SeedDemoCommand.deleteAccounts(ids, on: t)
             lines += try await SeedDemoCommand.recountCounters(on: t)
             return lines
