@@ -48,7 +48,7 @@ Detailed working rules live under `.claude/rules/`. Read what's relevant to the 
 - [`interaction.md`](.claude/rules/interaction.md), clarify-before-acting / confirm-before-each-action protocol
 - [`code-conventions.md`](.claude/rules/code-conventions.md), naming, error handling, general coding rules
 - [`security.md`](.claude/rules/security.md), secrets, auth, input validation
-- [`memory.md`](.claude/rules/memory.md), agentmemory skills (`remember`, `recall`, `recap`, `handoff`, `forget`)
+- `memory.md` (kept locally, not in the repository), agentmemory skills (`remember`, `recall`, `recap`, `handoff`, `forget`)
 
 ## Context saving
 - Before reading an entire file, search with grep and read only what you need.
