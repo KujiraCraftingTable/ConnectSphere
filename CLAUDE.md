@@ -19,6 +19,10 @@ query pipeline and chunk-based pgvector embeddings. See `AI_SEARCH_OVERVIEW.md`.
 - Identifiers: `AXID` (`Core/Testing/AXID.swift`, symlinked into the test target), `<feature>.<screen>.<element>[.<id>]`. Put a row's id on the wrapping Button/NavigationLink: ids inside a button label are hoisted away
 - Waits use predicates (`waitToAppear`, `tapWhenReady`), never `sleep`. Page objects in `Screens/`, one class per flow in `Flows/`
 
+## Load test
+- `scripts/loadtest.sh` (~10 min) loads the Home feed (`GET /api/feed/recommendations`, 10/25/50 users) and AI search (`POST /api/search/ai`, 1/2/4/8 at once, new and cached queries) on a private **:3002** server, then deletes its `qa_ui_` accounts. Needs Postgres + Redis + Ollama; the generator is `scripts/loadtest.py` (standard-library Python). Steps are set by `LOADTEST_*` env vars
+- The per-IP rate limits are raised only when `LOAD_TEST=1` and `UITEST_HOOKS=1` are both set (`RateLimitMiddleware`)
+
 ## Product
 Who the app is for, what people do in it and what sets it apart: see
 [`PRODUCT.md`](PRODUCT.md). Keep its product principles when adding features.

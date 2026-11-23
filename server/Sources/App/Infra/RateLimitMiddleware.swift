@@ -20,7 +20,7 @@ struct RateLimitMiddleware: AsyncMiddleware {
     private static let store = Store()
 
     static func global() -> RateLimitMiddleware {
-        .init(name: "global", max: 1000, windowSeconds: 15 * 60, inlineErrorBody: false,
+        .init(name: "global", max: loadTest ? 1_000_000 : 1000, windowSeconds: 15 * 60, inlineErrorBody: false,
               message: "Too many requests, please try again later")
     }
     static func passwordAuth() -> RateLimitMiddleware {
@@ -31,6 +31,10 @@ struct RateLimitMiddleware: AsyncMiddleware {
     /// The UI-test server (`UITEST_HOOKS=1`, loopback only) signs in many
     /// times a run from 127.0.0.1; 10 per 15 min would fail the suite midway.
     private static let uitestHooks = Environment.get("UITEST_HOOKS") == "1"
+    /// `scripts/loadtest.sh`: thousands of requests from 127.0.0.1 in minutes.
+    /// Only with the loopback-only test hooks on too, so a stray LOAD_TEST on
+    /// a real server changes nothing.
+    private static let loadTest = uitestHooks && Environment.get("LOAD_TEST") == "1"
     /// Emailed codes (verify email, delete a persona / the account).
     static func accountCodes() -> RateLimitMiddleware {
         .init(name: "codes", max: 20, windowSeconds: 15 * 60, inlineErrorBody: false,
@@ -54,7 +58,7 @@ struct RateLimitMiddleware: AsyncMiddleware {
     }
     /// The Ollama-bound `/api/search/ai` is capped per client.
     static func aiSearch() -> RateLimitMiddleware {
-        .init(name: "ai-search", max: 30, windowSeconds: 15 * 60, inlineErrorBody: false,
+        .init(name: "ai-search", max: loadTest ? 100_000 : 30, windowSeconds: 15 * 60, inlineErrorBody: false,
               message: "Too many searches, please slow down")
     }
 
