@@ -18,8 +18,13 @@ enum OllamaService {
     struct Config: Sendable {
         var url: String
         var model: String
+        var searchModel: String
         var client: HTTPClient
-        init(_ env: AppEnv.Ollama, client: HTTPClient) { url = env.url; model = env.model; self.client = client }
+        init(_ env: AppEnv.Ollama, client: HTTPClient) {
+            url = env.url; model = env.model; searchModel = env.searchModel; self.client = client
+        }
+        /// The same server, with the model that reads search queries.
+        var forSearch: Config { var c = self; c.model = searchModel; return c }
     }
 
     // MARK: prompts
@@ -316,15 +321,18 @@ enum OllamaService {
     /// and the same prompt reads the same way.
     static let criteriaCacheHours = 24
 
-    static func criteriaCacheKey(_ query: String, mode: String?) -> String {
+    /// The model is part of the key: a reading by one model never answers a
+    /// search meant for another (`SEARCH_MODEL` changed, or an eval run).
+    static func criteriaCacheKey(_ query: String, mode: String?, model: String) -> String {
         let words = query.lowercased().split(whereSeparator: \.isWhitespace).joined(separator: " ")
-        return "\(mode ?? "-")|\(words)"
+        return "\(model)|\(mode ?? "-")|\(words)"
     }
 
     /// `db` turns on the cache (`search_criteria_cache`, migration 086).
     static func extractSearchCriteria(_ cfg: Config, _ userQuery: String, mode: String?, logger: Logger,
                                       db: (any SQLDatabase)? = nil) async -> SearchCriteria {
-        let key = criteriaCacheKey(userQuery, mode: mode)
+        let cfg = cfg.forSearch
+        let key = criteriaCacheKey(userQuery, mode: mode, model: cfg.model)
         struct Cached: Decodable { let criteria: String }
         if let db, let row = try? await db.raw("""
             SELECT criteria::text AS criteria FROM search_criteria_cache
@@ -346,7 +354,8 @@ enum OllamaService {
         return criteria
     }
 
-    private static func analyzeCriteria(_ cfg: Config, _ userQuery: String, mode: String?,
+    /// Uncached; `search-criteria-eval` calls it directly to compare models.
+    static func analyzeCriteria(_ cfg: Config, _ userQuery: String, mode: String?,
                                         logger: Logger) async -> (SearchCriteria, failed: Bool) {
         let a = await analyzeQuery(cfg, userQuery.trimmingCharacters(in: .whitespaces), logger: logger)
         let resolvedMode = mode ?? a.mode
@@ -553,7 +562,8 @@ extension OllamaService {
     /// failed; that is never cached.
     static func extractPostQuery(_ cfg: Config, _ userQuery: String, logger: Logger,
                                  db: any SQLDatabase) async -> PostQuery? {
-        let key = "post|" + criteriaCacheKey(userQuery, mode: nil)
+        let cfg = cfg.forSearch
+        let key = "post|" + criteriaCacheKey(userQuery, mode: nil, model: cfg.model)
         struct Cached: Decodable { let criteria: String }
         if let row = try? await db.raw("""
             SELECT criteria::text AS criteria FROM search_criteria_cache

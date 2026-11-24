@@ -25,6 +25,8 @@ FEED_STEPS = [int(x) for x in os.environ.get("LOADTEST_FEED_USERS", "10,25,50").
 FEED_SECONDS = float(os.environ.get("LOADTEST_FEED_SECONDS", "30"))
 SEARCH_STEPS = [int(x) for x in os.environ.get("LOADTEST_SEARCH_USERS", "1,2,4,8").split(",")]
 SEARCHES_EACH = int(os.environ.get("LOADTEST_SEARCHES_EACH", "3"))
+# "search" skips the feed steps (to compare Ollama settings quickly).
+ONLY = os.environ.get("LOADTEST_ONLY", "")
 TIMEOUT = 120
 
 HOBBIES = ["woodworking", "beekeeping", "photography", "badminton", "chess", "pottery", "hiking",
@@ -139,17 +141,18 @@ def search_step(accounts, users, cached):
 
 def main():
     run = "".join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(8))
-    needed = max(FEED_STEPS + SEARCH_STEPS)
+    needed = max(SEARCH_STEPS if ONLY == "search" else FEED_STEPS + SEARCH_STEPS)
     print(f"Run {run}: making {needed} test accounts…", flush=True)
     try:
         accounts = make_accounts(run, needed)
         status, t, _ = request("POST", f"/api/test/runs/{run}/embed", hooks=True)
         print(f"Embedded the test accounts for search (HTTP {status}, {t:.1f} s)")
 
-        print(f"\nHome feed: GET /api/feed/recommendations, {FEED_SECONDS:.0f} s per step, "
-              f"each user requesting back to back")
-        for users in FEED_STEPS:
-            feed_step(accounts, users)
+        if ONLY != "search":
+            print(f"\nHome feed: GET /api/feed/recommendations, {FEED_SECONDS:.0f} s per step, "
+                  f"each user requesting back to back")
+            for users in FEED_STEPS:
+                feed_step(accounts, users)
 
         print(f"\nAI search, new queries (the query parser runs on Ollama each time), "
               f"{SEARCHES_EACH} searches per user")

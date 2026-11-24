@@ -26,6 +26,9 @@ struct AppEnv: Sendable {
     struct Ollama: Sendable {
         var url: String
         var model: String
+        /// Reads search queries, people and posts (`SEARCH_MODEL`, else `model`):
+        /// the step a person waits on, so it can be a smaller, faster model.
+        var searchModel: String
     }
     /// The translation pipeline's own model (see `Translators`): defaults to
     /// the general Ollama model until a translation-only one is chosen.
@@ -127,7 +130,8 @@ struct AppEnv: Sendable {
             ),
             ollama: Ollama(
                 url: get("OLLAMA_URL") ?? "http://localhost:11434",
-                model: get("OLLAMA_MODEL") ?? "qwen2.5:7b-instruct-q4_k_m"
+                model: get("OLLAMA_MODEL") ?? "qwen2.5:7b-instruct-q4_k_m",
+                searchModel: get("SEARCH_MODEL") ?? get("OLLAMA_MODEL") ?? "qwen2.5:7b-instruct-q4_k_m"
             ),
             translation: Translation(
                 url: get("TRANSLATION_URL") ?? get("OLLAMA_URL") ?? "http://localhost:11434",

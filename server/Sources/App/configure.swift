@@ -41,6 +41,7 @@ public func configure(_ app: Application) async throws {
     app.asyncCommands.use(OfficialAccountCommand(), as: "official-account")
     app.asyncCommands.use(ModerationCommand(), as: "moderation")
     app.asyncCommands.use(ModerationEvalCommand(), as: "moderation-eval")
+    app.asyncCommands.use(SearchCriteriaEvalCommand(), as: "search-criteria-eval")
     app.asyncCommands.use(SeedDemoCommand(), as: "seed-demo")
 
     // 5. Routes.

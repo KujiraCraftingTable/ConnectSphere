@@ -613,6 +613,17 @@ kept in memory afterwards. The repeat figure relies on `search_criteria_cache`; 
 compared against `make_interval(hours => bigint)`, which Postgres does not have, so until
 2026-11-15 the cache was never read and every search called the LLM.
 
+**Searches at once** (measured 2026-11-24, `scripts/loadtest.sh`, M1 Pro 16 GB): a new prompt
+costs one LLM reading, and Ollama finishes about **0.5 readings per second** however many
+come in, so 8 people searching at once wait about 15 s each. Raising `OLLAMA_NUM_PARALLEL`
+to 2 or 4 doesn't help (0.5, 0.4/s): one 7B reading already keeps the GPU busy, so slots only
+share it. A repeated prompt comes from `search_criteria_cache` at about 22 searches/s.
+`SEARCH_MODEL` lets the reading use another model than the rest of the pipeline; the
+`search-criteria-eval` set (28 prompts, EN/VI) decides. qwen2.5 3B read 17/28 in full against
+24/28 for the 7B, for 1.4 s instead of 2.2 s per prompt, so search stays on the 7B. More
+searches at once needs a faster machine or a hosted model behind `SEARCH_MODEL`/`OLLAMA_URL`.
+`OllamaGate` already keeps background work (embeddings, tags, translation) out of the way.
+
 **Remaining limitations:**
 
 - Ollama down → search returns `[]`, and chunk builds pile up in the retry queue + sweep.

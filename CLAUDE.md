@@ -22,6 +22,8 @@ query pipeline and chunk-based pgvector embeddings. See `AI_SEARCH_OVERVIEW.md`.
 ## Load test
 - `scripts/loadtest.sh` (~10 min) loads the Home feed (`GET /api/feed/recommendations`, 10/25/50 users) and AI search (`POST /api/search/ai`, 1/2/4/8 at once, new and cached queries) on a private **:3002** server, then deletes its `qa_ui_` accounts. Needs Postgres + Redis + Ollama; the generator is `scripts/loadtest.py` (standard-library Python). Steps are set by `LOADTEST_*` env vars
 - The per-IP rate limits are raised only when `LOAD_TEST=1` and `UITEST_HOOKS=1` are both set (`RateLimitMiddleware`)
+- `LOADTEST_ONLY=search` skips the feed steps. AI search is capped by Ollama on this Mac (~0.5 new searches/s); `OLLAMA_NUM_PARALLEL` 2 or 4 doesn't raise it (measured 2026-11-24, see `AI_SEARCH_OVERVIEW.md` §8)
+- `SEARCH_MODEL` (default `OLLAMA_MODEL`) is the model that reads search prompts; check a candidate first with `cd server && swift run App search-criteria-eval Tests/Fixtures/search_criteria_eval.jsonl --compare <model>`
 
 ## Product
 Who the app is for, what people do in it and what sets it apart: see

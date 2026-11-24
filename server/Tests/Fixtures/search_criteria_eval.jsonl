@@ -1,0 +1,28 @@
+{"query": "friends who love woodworking and beekeeping", "mode": "hobby", "expect": {"topics": ["woodworking", "beekeeping"]}}
+{"query": "people who play badminton in Thu Duc", "mode": "hobby", "expect": {"topics": ["badminton"]}}
+{"query": "someone into film photography near Landmark 81", "mode": "hobby", "expect": {"topics": ["photography"]}}
+{"query": "girls who like K-pop and dancing", "mode": "hobby", "expect": {"topics": ["k-pop", "danc"], "gender": "female"}}
+{"query": "guys between 20 and 25 who climb", "mode": "hobby", "expect": {"topics": ["climb"], "gender": "male", "age_min": 20, "age_max": 25}}
+{"query": "people into the same stuff as me", "mode": "hobby", "expect": {"like_me": true}}
+{"query": "chess players in District 1", "mode": "hobby", "expect": {"topics": ["chess"]}}
+{"query": "anyone who bakes sourdough bread", "mode": "hobby", "expect": {"topics": ["sourdough"]}}
+{"query": "runners training for a marathon in Binh Thanh", "mode": "hobby", "expect": {"topics": ["marathon"]}}
+{"query": "board game nights and Dungeons & Dragons", "mode": "hobby", "expect": {"topics": ["board game", "dungeons"]}}
+{"query": "người thích chụp ảnh phim ở Quận 3", "mode": "hobby", "expect": {"topics": ["photo"]}}
+{"query": "bạn nữ thích đọc sách và cà phê", "mode": "hobby", "expect": {"topics": ["read", "coffee"], "gender": "female"}}
+{"query": "người chơi guitar ở Gò Vấp", "mode": "hobby", "expect": {"topics": ["guitar"]}}
+{"query": "những người giống mình", "mode": "hobby", "expect": {"like_me": true}}
+{"query": "hội nuôi mèo và làm vườn", "mode": "hobby", "expect": {"topics": ["cat", "garden"]}}
+{"query": "iOS developers near Landmark 81", "mode": "work", "expect": {"roles": ["ios"]}}
+{"query": "iOS developers who post about SwiftUI", "mode": "work", "expect": {"roles": ["ios"], "topics": ["swiftui"]}}
+{"query": "backend engineers who know Rust", "mode": "work", "expect": {"roles": ["backend"], "topics": ["rust"]}}
+{"query": "UX designers in District 7", "mode": "work", "expect": {"roles": ["design"]}}
+{"query": "data scientists with machine learning experience", "mode": "work", "expect": {"roles": ["data scien"], "topics": ["machine learning"]}}
+{"query": "product managers at fintech startups", "mode": "work", "expect": {"roles": ["product manager"], "topics": ["fintech"]}}
+{"query": "accountants who speak Japanese", "mode": "work", "expect": {"roles": ["account"], "topics": ["japanese"]}}
+{"query": "people who work at VNG", "mode": "work", "expect": {"topics": ["vng"]}}
+{"query": "React Native developers in Thu Duc", "mode": "work", "expect": {"roles": ["react native"]}}
+{"query": "lập trình viên Java ở Quận 1", "mode": "work", "expect": {"topics": ["java"]}}
+{"query": "kỹ sư DevOps biết Kubernetes", "mode": "work", "expect": {"roles": ["devops"], "topics": ["kubernetes"]}}
+{"query": "nhà thiết kế đồ họa làm freelance", "mode": "work", "expect": {"roles": ["design"], "topics": ["freelance"]}}
+{"query": "marketing people who like hiking", "mode": "work", "expect": {"roles": ["marketing"], "topics": ["hik"]}}

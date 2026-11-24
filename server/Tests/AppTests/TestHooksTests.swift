@@ -52,7 +52,7 @@ final class TestHooksTests: XCTestCase {
 
     func testRoutesPresentWhenOn() async throws {
         let paths = try await mountedTestRoutes(try env(["UITEST_HOOKS": "1", "UITEST_TOKEN": goodToken]))
-        XCTAssertEqual(Set(paths), ["api/test/users", "api/test/last-code", "api/test/runs/:runID", "api/test/runs/:runID/embed", "api/test/recruiters", "api/test/communities"])
+        XCTAssertEqual(Set(paths), ["api/test/users", "api/test/last-code", "api/test/runs/:runID", "api/test/runs/:runID/embed", "api/test/recruiters", "api/test/communities", "api/test/deals"])
     }
 
     // MARK: guard
