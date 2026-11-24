@@ -137,7 +137,11 @@ feed. Most features exist in both, and content stays in the mode it was made in.
 
 **Search & assistant**
 - **AI search** over people and posts in plain language (see below).
-- An in-app assistant chat.
+- An in-app assistant (Settings or Messages): answers how-to questions about
+  the app in English or Vietnamese, changes safe settings (light/dark, theme
+  colour, app icon, language, translations, search radius, message sounds,
+  AI suggestions) with Undo, and opens any setting with the row highlighted.
+  Privacy and security settings are only explained and opened, never changed.
 
 **Account & safety**
 - Sign in (incl. Google), email verification, two-factor authentication. The

@@ -10,9 +10,19 @@ import SwiftUI
 /// before), both push mechanisms coexist safely on the same stack.
 enum ProfileRoute: Hashable {
     case settings
+    case manageAccount
     case privacySecurity
     case blockedUsers
+    case hiddenContacts
     case notificationSettings
+    case changeUsername
+    case accountStatus
+    case activityLog
+    case dataExport
+    case mutedWords
+    case drafts
+    case saved
+    case recentlyDeleted
     case friends
     case followers
     case following
@@ -147,12 +157,32 @@ struct ProfileView: View {
                 switch route {
                 case .settings:
                     SettingsView().environment(appState).environment(themeManager)
+                case .manageAccount:
+                    ManageAccountView()
                 case .privacySecurity:
                     PrivacySecurityView().environment(appState).environment(themeManager)
                 case .blockedUsers:
                     BlockedUsersView().environment(appState).environment(themeManager)
+                case .hiddenContacts:
+                    HiddenContactsView()
                 case .notificationSettings:
                     NotificationSettingsView().environment(appState).environment(themeManager)
+                case .changeUsername:
+                    ChangeUsernameView()
+                case .accountStatus:
+                    AccountStatusView()
+                case .activityLog:
+                    ActivityLogView()
+                case .dataExport:
+                    DataExportView(hasVerifiedEmail: appState.currentUser?.emailVerified ?? false)
+                case .mutedWords:
+                    MutedWordsView()
+                case .drafts:
+                    DraftsView()
+                case .saved:
+                    SavedPostsView()
+                case .recentlyDeleted:
+                    RecentlyDeletedView()
                 case .friends:
                     ConnectionsListView()
                 case .followers:

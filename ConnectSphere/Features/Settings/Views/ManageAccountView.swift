@@ -23,6 +23,7 @@ struct ManageAccountView: View {
             Section {
                 NavigationLink { ChangeUsernameView() } label: { usernameRow }
                 Button { editingEmail = true } label: { emailRow }
+                    .assistantHighlightRow(.changeEmail)
                 Button { showEditProfile = true } label: {
                     SettingsRowLabel(icon: "person.fill", label: bundle.loc("Edit profile"), color: themeManager.theme.primary)
                 }
@@ -80,6 +81,7 @@ struct ManageAccountView: View {
                 }
                 row(.account, icon: "trash.fill", title: bundle.loc("Delete account"),
                     detail: bundle.loc("Both profiles and everything in them."))
+                    .assistantHighlightRow(.deleteAccount)
             } header: {
                 Text("Delete", bundle: bundle)
             } footer: {
@@ -89,6 +91,7 @@ struct ManageAccountView: View {
             }
             .disabled(!(user?.emailVerified ?? false))
         }
+        .assistantHighlightScroll()
         .navigationTitle(bundle.loc("Manage account"))
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $editingEmail) {

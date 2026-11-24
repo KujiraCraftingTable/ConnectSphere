@@ -236,18 +236,194 @@ struct AssistantRegistryTests {
             )
             let bundle = try #require(Bundle(path: path))
 
-            for topic in AssistantGuidanceTopic.allCases {
-                let key = topic.messageKey
+            let keys = AssistantGuidanceTopic.allCases.flatMap { [$0.messageKey, $0.titleKey] }
+                + [AssistantGuidanceTopic.setPasswordMessageKey, "I'm not sure what you mean. Is it one of these?"]
+            for key in keys {
                 let value = bundle.localizedString(forKey: key, value: "__MISSING__", table: nil)
-                #expect(value != "__MISSING__", "\(language): no entry for \(topic), \"\(key)\"")
+                #expect(value != "__MISSING__", "\(language): no entry for \"\(key)\"")
             }
         }
     }
 
-    /// Every guidance topic must map to a reachable landing screen.
-    @Test func everyGuidanceTopicHasANavigationTarget() {
+    /// Every topic can be asked for in both languages.
+    @Test func everyGuidanceTopicHasEnglishAndVietnamesePhrases() {
         for topic in AssistantGuidanceTopic.allCases {
-            #expect(topic.navigationTarget != nil as AssistantNavigationTarget?)
+            #expect(topic.phrases.contains { $0.unicodeScalars.allSatisfy(\.isASCII) }, "\(topic): no English phrase")
+            #expect(topic.phrases.contains { !$0.unicodeScalars.allSatisfy(\.isASCII) }, "\(topic): no Vietnamese phrase")
         }
+    }
+
+    /// A highlight can only point at the topic's own row, and a Profile-tab
+    /// target always lands somewhere: a pushed screen or a sheet.
+    @Test func everyProfileTargetLandsOnARealScreen() {
+        for topic in AssistantGuidanceTopic.allCases {
+            guard case .profile(let routes, let sheet, let highlight) = topic.navigationTarget else { continue }
+            #expect(!routes.isEmpty || sheet != nil, "\(topic) lands nowhere")
+            if let highlight {
+                #expect(AssistantGuidanceTopic.highlightableRows.contains(highlight), "\(topic) highlights untagged \(highlight)")
+            }
+        }
+    }
+
+    /// Privacy & Security and deleting live under Manage account, so the
+    /// back stack walks Settings → Manage account like a tap-through does.
+    @Test func privacyAndDeletingGoThroughManageAccount() {
+        let privacy: [ProfileRoute] = [.settings, .manageAccount, .privacySecurity]
+        #expect(AssistantGuidanceTopic.changePassword.navigationTarget == .profile(privacy, sheet: .changePassword))
+        #expect(AssistantGuidanceTopic.privacySecurity.navigationTarget == .profile(privacy))
+        #expect(AssistantGuidanceTopic.blockUser.navigationTarget == .profile(privacy + [.blockedUsers]))
+        #expect(AssistantGuidanceTopic.deleteAccount.navigationTarget
+                == .profile([.settings, .manageAccount], highlight: .deleteAccount))
+    }
+
+    /// A phrase made only of filler words could never be matched.
+    @Test func everyPhraseKeepsAMeaningfulWord() {
+        for command in AssistantCommandRegistry.all {
+            for phrase in command.phrases {
+                #expect(!AssistantMatcher.reduce(phrase).isEmpty, "\"\(phrase)\" is all filler")
+            }
+        }
+    }
+
+    /// New questions reach their topic, including the "where is" kind.
+    @Test(arguments: [
+        ("how do i turn on 2fa", AssistantGuidanceTopic.twoFactor),
+        ("where can i download my data", .downloadData),
+        ("change my username please", .changeUsername),
+        ("make my profile private", .lockProfile),
+        ("where is the search radius", .searchRadius),
+        ("tôi muốn đổi email", .changeEmail),
+        ("khôi phục bài viết đã xoá", .recentlyDeleted),
+        ("where are my drafts", .drafts),
+        ("delete m account", .deleteAccount),
+        ("how do i chnage my pasword", .changePassword),
+        ("doi mat khau", .changePassword),
+        ("cach xoa tai khoan", .deleteAccount),
+        ("who can see my posts", .postPrivacy),
+        ("how do deposits work", .deposits),
+        ("how do i post a job", .becomeHR),
+        ("what can the assistant do", .assistantHelp),
+        ("bạn làm được gì", .assistantHelp),
+    ])
+    func newQuestionsReachTheirTopic(_ input: String, _ topic: AssistantGuidanceTopic) {
+        #expect(AssistantMatcher.match(input).intent == .howTo(topic: topic))
+    }
+}
+
+
+// MARK: - Forgiving matching
+
+struct AssistantForgivingMatchTests {
+
+    /// A typo never turns one setting into its opposite: the first letter
+    /// must agree, so "light" can't read as "night" (a dark-mode phrase).
+    @Test func lightModeStaysLight() {
+        #expect(AssistantMatcher.match("light mode").intent == .setTheme(.light))
+        #expect(AssistantMatcher.match("ligth mode").intent == .setTheme(.light))
+    }
+
+    /// Filler words no longer dilute a command, so a polite one is confident.
+    @Test func politeCommandIsStillConfident() {
+        let match = AssistantMatcher.match("could you please switch to dark mode for me")
+        #expect(match.intent == .setTheme(.dark))
+        #expect(match.isConfident)
+    }
+
+    /// Folding "đừng" would read it as "dùng" (use); negation is checked on
+    /// the words as typed, so "use dark mode" isn't treated as a refusal.
+    @Test func useIsNotDont() {
+        #expect(AssistantMatcher.match("dùng chế độ tối").intent == .setTheme(.dark))
+        #expect(AssistantMatcher.match("đừng chuyển sang chế độ tối").intent == .unknown)
+    }
+
+    /// Unmatched text with a shared word suggests the closest topics.
+    @Test func closestTopicsShareAWord() {
+        let near = AssistantMatcher.closestTopics("something about my username please")
+        #expect(near.first == .changeUsername)
+        #expect(near.count <= 3)
+        #expect(!near.contains(.marketplace), "\"something\" alone must not suggest selling")
+        #expect(AssistantMatcher.closestTopics("change settings").isEmpty)
+    }
+}
+
+// MARK: - Safe setting commands
+
+struct AssistantSettingParserTests {
+
+    @Test(arguments: [
+        ("turn off message sounds", AssistantIntent.changeSetting(.messageSounds(false))),
+        ("enable sounds", .changeSetting(.messageSounds(true))),
+        ("tắt âm thanh tin nhắn", .changeSetting(.messageSounds(false))),
+        ("bat am thanh", .changeSetting(.messageSounds(true))),
+        ("disable ai suggestions", .changeSetting(.aiSuggestions(false))),
+        ("set search radius to 12 km", .changeSetting(.searchRadius(10))),
+        ("bán kính 25km", .changeSetting(.searchRadius(25))),
+        ("search radius unlimited", .changeSetting(.searchRadius(0))),
+        ("show posts in the original language, no translation", .changeSetting(.translations(.original))),
+        ("turn on translations", .changeSetting(.translations(.translated))),
+        ("make my theme amber", .changeSetting(.themeColor("amber"))),
+        ("change theme color to deep purple", .changeSetting(.themeColor("deep-purple"))),
+        ("change the app icon to sunset", .changeSetting(.appIcon("sunset"))),
+        ("turn off dark mode", .setTheme(.light)),
+        ("tắt chế độ tối", .setTheme(.light)),
+    ])
+    func readsTheValue(_ input: String, _ expected: AssistantIntent) {
+        #expect(AssistantSettingParser.parse(input) == expected)
+    }
+
+    /// Refusals, privacy switches and plain questions are left to the
+    /// matcher: it never turns anything on or off for those.
+    @Test(arguments: [
+        "don't turn off message sounds",
+        "đừng tắt âm thanh",
+        "turn on 2fa",
+        "turn off activity tracking",
+        "where is the search radius",
+        "what is my theme color",
+    ])
+    func leavesOthersToTheMatcher(_ input: String) {
+        #expect(AssistantSettingParser.parse(input) == nil)
+    }
+
+    @Test func everyReplyIsTranslated() throws {
+        let keys = [
+            "change that setting", "That colour isn't available in this mode. Try one of: %@.",
+            "That's already set.", "Changed back. %@", "Theme is %@.", "Message sounds are on.", "Message sounds are off.",
+            "AI post suggestions are on.", "AI post suggestions are off.",
+            "Posts in the other language now show their translation first.",
+            "Posts now show in their original language.", "Search now has no distance limit.",
+            "Search now looks within %d km of your ward.", "Theme colour changed to %@.",
+            "App icon changed to %@.", "Undo", "Ask the assistant", "Pick a chat to open its settings.",
+            "You don't have any group chats yet.", "You don't have any chats yet.",
+        ]
+        for language in ["en", "vi"] {
+            let path = try #require(Bundle(for: AppState.self).path(forResource: language, ofType: "lproj"))
+            let bundle = try #require(Bundle(path: path))
+            for key in keys {
+                #expect(bundle.localizedString(forKey: key, value: "__MISSING__", table: nil) != "__MISSING__",
+                        "\(language): no entry for \"\(key)\"")
+            }
+        }
+    }
+}
+
+
+// MARK: - Chat pickers
+
+struct AssistantChatPickerTests {
+
+    /// Renaming only makes sense for a group, so only groups are offered.
+    @Test func renameOffersGroupsOnly() {
+        #expect(AssistantGuidanceTopic.renameGroup.chatPicker == .groups)
+        #expect(AssistantGuidanceTopic.muteConversation.chatPicker == .all)
+        #expect(AssistantGuidanceTopic.chatTheme.chatPicker == .all)
+        #expect(AssistantGuidanceTopic.changePassword.chatPicker == nil)
+    }
+
+    /// "change chat theme to rose" is about one chat, never the app's colour.
+    @Test func chatThemeIsNotTheAppTheme() {
+        #expect(AssistantSettingParser.parse("change chat theme to rose") == nil)
+        #expect(AssistantMatcher.match("change chat theme to rose").intent == .howTo(topic: .chatTheme))
+        #expect(AssistantMatcher.match("đặt biệt danh").intent == .howTo(topic: .chatNickname))
     }
 }

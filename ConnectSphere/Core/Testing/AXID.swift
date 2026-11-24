@@ -131,6 +131,16 @@ enum AXID {
         static let settingsButton = "profile.header.settingsButton"
     }
 
+    enum Assistant {
+        static let launcher = "assistant.main.launcher"
+        static let settingsRow = "settings.main.assistantRow"
+        static let input = "assistant.chat.input"
+        static let sendButton = "assistant.chat.sendButton"
+        static let takeMeThere = "assistant.chat.takeMeThere"
+        static let undo = "assistant.chat.undoButton"
+        static func chatChoice(_ id: String) -> String { "assistant.chat.chatChoice.\(id)" }
+    }
+
     enum Settings {
         static let logout = "settings.main.logoutButton"
         static let twoFactorToggle = "settings.privacy.twoFactorToggle"

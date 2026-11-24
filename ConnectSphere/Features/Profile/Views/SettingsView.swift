@@ -9,6 +9,8 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var showThemePicker = false
+    @State private var showAssistant = false
+    @Environment(AssistantViewModel.self) private var assistantViewModel: AssistantViewModel?
     @State private var showLogoutConfirm = false
     @State private var moderationEntry = ModerationEntryViewModel()
     @AppStorage("searchRadiusKm", store: AppDefaults.store) private var searchRadiusKm: Int = 0
@@ -22,6 +24,17 @@ struct SettingsView: View {
 
     var body: some View {
         List {
+            // Help first: the assistant answers questions and finds any setting.
+            if assistantViewModel != nil {
+                Section {
+                    Button { showAssistant = true } label: {
+                        settingsRow(icon: "sparkles", label: bundle.loc("Ask the assistant"),
+                                    color: themeManager.theme.primary, showsChevron: false)
+                    }
+                    .accessibilityIdentifier(AXID.Assistant.settingsRow)
+                }
+            }
+
             // The official account's own section, first and apart from Safety:
             // review reports, stats and account lookup.
             if moderationEntry.isAdmin {
@@ -56,7 +69,9 @@ struct SettingsView: View {
             // is its own, below.
             Section {
                 themePickerRow
+                    .assistantHighlightRow(.themeColor)
                 AppIconRow()
+                    .assistantHighlightRow(.appIcon)
             } header: {
                 Text("App theme", bundle: bundle)
             }
@@ -71,6 +86,7 @@ struct SettingsView: View {
             Section {
                 languagePickerRow
                 translationModeRow
+                    .assistantHighlightRow(.translations)
             } header: {
                 Text("Language", bundle: bundle)
             } footer: {
@@ -80,6 +96,7 @@ struct SettingsView: View {
             // Search
             Section {
                 radiusSliderRow
+                    .assistantHighlightRow(.searchRadius)
             } header: {
                 Text("Search", bundle: bundle)
             } footer: {
@@ -251,6 +268,7 @@ struct SettingsView: View {
                 dismiss()
             }
         }
+        .assistantHighlightScroll()
         .listStyle(.insetGrouped)
         .navigationTitle(bundle.loc("Settings"))
         .navigationBarTitleDisplayMode(.large)
@@ -263,6 +281,13 @@ struct SettingsView: View {
             Button(bundle.loc("OK")) { appState.appIconError = nil }
         } message: {
             Text(appState.appIconError ?? "")
+        }
+        .sheet(isPresented: $showAssistant) {
+            if let assistantViewModel {
+                AssistantChatView(appState: appState, themeManager: themeManager, viewModel: assistantViewModel)
+                    .environment(appState)
+                    .environment(themeManager)
+            }
         }
         .sheet(isPresented: $showThemePicker) {
             ThemePickerView()

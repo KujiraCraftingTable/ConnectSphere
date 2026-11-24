@@ -81,6 +81,27 @@ current mode.
 - **`CacheStore`** keeps raw response bodies in SwiftData so a screen can
   show its last data offline. It is best-effort: the app works without it.
 
+### The in-app assistant
+
+`Features/Assistant/` runs on the phone, with no AI model and no server
+call except listing recent chats. A message goes through:
+
+1. `AssistantSettingParser`: commands with a value ("search radius 10 km",
+   "turn off message sounds", "make my theme amber"). Only safe settings;
+   each change gets an Undo.
+2. `AssistantMatcher`: fixed phrases from `AssistantCommandRegistry`, after
+   dropping filler words, folding Vietnamese accents and allowing one typo.
+   Nothing matched → `closestTopics` suggests up to 3 topics.
+3. `AssistantSettingsCatalog`: every topic's reply, phrases, and where
+   "Take me there" goes (`AssistantNavigationTarget`). Privacy and security
+   settings are only explained and opened, never changed.
+
+`MainTabView` turns a target into pushes on the Profile stack, a sheet
+(`pendingAssistantSheet`), a row highlight (`assistantHighlight`) or a chat
+(`pendingAssistantChat`, opened by Feed → Messages → the chat).
+`AssistantRegistryTests` checks every topic has both translations, phrases
+that reach it, and a real destination.
+
 ### Adding a new screen
 
 1. **Model:** add the DTO/model under `Features/<Feature>/Models` or

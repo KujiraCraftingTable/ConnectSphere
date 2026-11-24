@@ -16,7 +16,13 @@ struct AssistantCommand {
 /// All phrases are lowercase; `AssistantMatcher` lowercases input before
 /// comparing.
 enum AssistantCommandRegistry {
-    static let all: [AssistantCommand] = [
+    /// Actions first, then one command per guidance topic, built from the
+    /// topic's own phrases in `AssistantSettingsCatalog`.
+    static let all: [AssistantCommand] = actions + AssistantGuidanceTopic.allCases.map {
+        AssistantCommand(intent: .howTo(topic: $0), phrases: $0.phrases)
+    }
+
+    private static let actions: [AssistantCommand] = [
 
         // MARK: - Theme
 
@@ -98,43 +104,6 @@ enum AssistantCommandRegistry {
         AssistantCommand(intent: .logout, phrases: [
             "log out", "logout", "sign out", "log me out", "sign me out",
             "đăng xuất", "thoát tài khoản", "đăng xuất tài khoản"
-        ]),
-
-        // MARK: - Guidance
-
-        AssistantCommand(intent: .howTo(topic: .changePassword), phrases: [
-            "change my password", "how do i change my password", "reset password", "update password", "change password",
-            "forgot my password", "forgot password", "reset it", "reset my password",
-            "đổi mật khẩu", "cách đổi mật khẩu", "thay đổi mật khẩu", "cập nhật mật khẩu", "quên mật khẩu"
-        ]),
-        AssistantCommand(intent: .howTo(topic: .blockUser), phrases: [
-            "block someone", "how do i block a user", "block a user", "how to block", "block this person",
-            "chặn người dùng", "cách chặn ai đó", "chặn một người", "chặn tài khoản"
-        ]),
-        AssistantCommand(intent: .howTo(topic: .deleteAccount), phrases: [
-            "delete my account", "how do i delete my account", "remove my account", "close my account",
-            "xóa tài khoản", "cách xóa tài khoản", "huỷ tài khoản", "xoá tài khoản của tôi"
-        ]),
-        AssistantCommand(intent: .howTo(topic: .muteConversation), phrases: [
-            "mute a conversation", "mute this chat", "how do i mute a chat", "turn off chat notifications", "silence a conversation",
-            "tắt thông báo cuộc trò chuyện", "cách tắt thông báo chat", "im lặng cuộc trò chuyện", "tắt tiếng đoạn chat"
-        ]),
-        AssistantCommand(intent: .howTo(topic: .renameGroup), phrases: [
-            "rename a group", "rename this group chat", "change group name", "how do i rename my group",
-            "đổi tên nhóm", "cách đổi tên nhóm chat", "thay đổi tên nhóm"
-        ]),
-        AssistantCommand(intent: .howTo(topic: .editProfile), phrases: [
-            "edit my profile", "how do i edit my profile", "update my profile", "change my bio", "change my avatar",
-            "change my profile picture", "update my profile picture", "change my photo",
-            "chỉnh sửa hồ sơ", "cách sửa hồ sơ", "cập nhật hồ sơ", "đổi ảnh đại diện", "đổi tiểu sử"
-        ]),
-        AssistantCommand(intent: .howTo(topic: .notificationSounds), phrases: [
-            "notification sounds", "turn off message sounds", "how do i change notification sounds", "message sound settings",
-            "âm thanh thông báo", "tắt âm thanh tin nhắn", "cách đổi âm thanh thông báo"
-        ]),
-        AssistantCommand(intent: .howTo(topic: .privacySecurity), phrases: [
-            "privacy settings", "privacy and security", "how do i manage my privacy", "security settings",
-            "cài đặt quyền riêng tư", "quyền riêng tư và bảo mật", "cài đặt bảo mật"
         ])
     ]
 }

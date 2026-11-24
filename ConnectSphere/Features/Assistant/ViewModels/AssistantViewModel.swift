@@ -19,9 +19,19 @@ final class AssistantViewModel {
     var messages: [AssistantMessage] = []
 
     private let appState: AppState
+    private let themeManager: ThemeManager
+    /// Saves a theme colour to the account, the same way the picker does.
+    private let themePicker = ThemePickerViewModel()
+    private var defaults: UserDefaults { AppDefaults.store }
+    private let messageRepository = MessageRepository()
+    /// How many recent chats to offer.
+    private let chatChoiceLimit = 5
+    /// What was last typed, for suggesting near topics when nothing matched.
+    private var lastInput = ""
 
-    init(appState: AppState) {
+    init(appState: AppState, themeManager: ThemeManager) {
         self.appState = appState
+        self.themeManager = themeManager
     }
 
     /// Localized bundle for the app's *current* language. Read fresh each
@@ -37,6 +47,14 @@ final class AssistantViewModel {
         guard !trimmed.isEmpty else { return }
 
         appendUserMessage(trimmed)
+        lastInput = trimmed
+
+        // Commands with a value ("search radius 10 km") come first; the
+        // phrase matcher only knows fixed phrases.
+        if let intent = AssistantSettingParser.parse(trimmed) {
+            execute(intent)
+            return
+        }
 
         let match = AssistantMatcher.match(trimmed)
 
@@ -61,6 +79,7 @@ final class AssistantViewModel {
         case .navigateTab(let index):    handleNavigateTab(index)
         case .openSettings:              handleOpenSettings()
         case .logout:                    handleLogoutRequest()
+        case .changeSetting(let change): handleChange(change)
         case .howTo(let topic):          handleGuidance(topic)
         case .unknown:                   handleUnknown()
         }
@@ -94,6 +113,13 @@ final class AssistantViewModel {
     func confirmIntent(_ intent: AssistantIntent, messageId: String) {
         clearAction(for: messageId)
         execute(intent)
+    }
+
+    /// User tapped one of the topics suggested after an unmatched message.
+    func showTopic(_ topic: AssistantGuidanceTopic, messageId: String) {
+        clearAction(for: messageId)
+        appendUserMessage(bundle.loc(topic.titleKey))
+        handleGuidance(topic)
     }
 
     /// User rejected a low-confidence match.
@@ -134,6 +160,8 @@ final class AssistantViewModel {
             return String(format: bundle.loc("open %@"), tabName(index))
         case .openSettings:
             return bundle.loc("open Settings")
+        case .changeSetting:
+            return bundle.loc("change that setting")
         case .logout, .howTo, .unknown:
             return nil
         }
@@ -142,9 +170,11 @@ final class AssistantViewModel {
     // MARK: - Executable handlers
 
     private func handleSetTheme(_ mode: AppearanceMode) {
+        let previous = appState.appearanceMode
         appState.appearanceMode = mode
         let name = bundle.loc(mode.label)
-        appendAssistantMessage(String(format: bundle.loc("Done. Theme switched to %@."), name))
+        appendAssistantMessage(String(format: bundle.loc("Done. Theme switched to %@."), name),
+                               action: previous == mode ? nil : .undo(.setTheme(previous)))
     }
 
     private func handleSetLanguage(_ language: AppLanguage) {
@@ -188,15 +218,151 @@ final class AssistantViewModel {
         appendAssistantMessage(bundle.loc("Are you sure you want to log out?"), action: .confirmLogout)
     }
 
+    // MARK: - Safe settings
+
+    /// Applies a change and offers Undo, unless nothing changed.
+    private func handleChange(_ change: AssistantSettingChange) {
+        if case .themeColor(let id) = change, !ThemeManager.isKnown(id, mode: appState.currentMode) {
+            let names = (appState.currentMode == .hobby ? ThemePalette.socialPalettes : ThemePalette.workPalettes)
+                .map(\.name).joined(separator: ", ")
+            appendAssistantMessage(String(format: bundle.loc("That colour isn't available in this mode. Try one of: %@."), names))
+            return
+        }
+        let previous = current(of: change)
+        guard previous != change else {
+            appendAssistantMessage(bundle.loc("That's already set."))
+            return
+        }
+        apply(change)
+        appendAssistantMessage(reply(for: change), action: .undo(.changeSetting(previous)))
+    }
+
+    /// User tapped Undo: put the old value back and say what it is now, so
+    /// the reply makes sense wherever it lands in the conversation.
+    func undo(_ intent: AssistantIntent, messageId: String) {
+        clearAction(for: messageId)
+        let now: String
+        switch intent {
+        case .setTheme(let mode):
+            appState.appearanceMode = mode
+            now = String(format: bundle.loc("Theme is %@."), bundle.loc(mode.label))
+        case .changeSetting(let change):
+            apply(change)
+            now = reply(for: change)
+        default:
+            return
+        }
+        appendAssistantMessage(String(format: bundle.loc("Changed back. %@"), now))
+    }
+
+    /// The setting's value now, in the same shape as `change`.
+    private func current(of change: AssistantSettingChange) -> AssistantSettingChange {
+        switch change {
+        case .messageSounds:
+            return .messageSounds(defaults.object(forKey: "messageSoundEnabled") as? Bool ?? true)
+        case .aiSuggestions:
+            return .aiSuggestions(defaults.object(forKey: "aiSuggestionNotifsEnabled") as? Bool ?? true)
+        case .translations:
+            let raw = defaults.string(forKey: TranslationMode.storageKey) ?? ""
+            return .translations(TranslationMode(rawValue: raw) ?? .original)
+        case .searchRadius:
+            return .searchRadius(defaults.integer(forKey: "searchRadiusKm"))
+        case .themeColor:
+            return .themeColor(themeManager.paletteId(for: appState.currentMode))
+        case .appIcon:
+            return .appIcon(appState.appIconId)
+        }
+    }
+
+    /// Writes the value where its Settings screen reads it, so the screen
+    /// shows the change as soon as it's opened.
+    private func apply(_ change: AssistantSettingChange) {
+        switch change {
+        case .messageSounds(let on):   defaults.set(on, forKey: "messageSoundEnabled")
+        case .aiSuggestions(let on):   defaults.set(on, forKey: "aiSuggestionNotifsEnabled")
+        case .translations(let mode):  defaults.set(mode.rawValue, forKey: TranslationMode.storageKey)
+        case .searchRadius(let km):    defaults.set(km, forKey: "searchRadiusKm")
+        case .appIcon(let id):         appState.selectAppIcon(id)
+        case .themeColor(let id):
+            let mode = appState.currentMode
+            Task {
+                await themePicker.select(id, mode: mode, themeManager: themeManager)
+                // Saving failed and the picker put the old colour back.
+                if let error = themePicker.errorMessage {
+                    themePicker.errorMessage = nil
+                    appendAssistantMessage(error)
+                }
+            }
+        }
+    }
+
+    private func reply(for change: AssistantSettingChange) -> String {
+        switch change {
+        case .messageSounds(let on):
+            return bundle.loc(on ? "Message sounds are on." : "Message sounds are off.")
+        case .aiSuggestions(let on):
+            return bundle.loc(on ? "AI post suggestions are on." : "AI post suggestions are off.")
+        case .translations(let mode):
+            return bundle.loc(mode == .translated
+                ? "Posts in the other language now show their translation first."
+                : "Posts now show in their original language.")
+        case .searchRadius(let km):
+            return km == 0
+                ? bundle.loc("Search now has no distance limit.")
+                : String(format: bundle.loc("Search now looks within %d km of your ward."), km)
+        case .themeColor(let id):
+            return String(format: bundle.loc("Theme colour changed to %@."), paletteName(id))
+        case .appIcon(let id):
+            return String(format: bundle.loc("App icon changed to %@."), paletteName(id))
+        }
+    }
+
+    private func paletteName(_ id: String) -> String {
+        AssistantSettingParser.palettes.first { $0.id == id }?.name ?? id
+    }
+
     // MARK: - Guidance handler
 
     private func handleGuidance(_ topic: AssistantGuidanceTopic) {
-        appendAssistantMessage(bundle.loc(topic.messageKey), action: .navigate(topic.navigationTarget))
+        // Someone who signed up with Google has "Set password", not "Change".
+        let key = topic == .changePassword && appState.currentUser?.hasPassword == false
+            ? AssistantGuidanceTopic.setPasswordMessageKey
+            : topic.messageKey
+        if let filter = topic.chatPicker {
+            appendAssistantMessage(bundle.loc(key))
+            Task { await offerChats(filter) }
+            return
+        }
+        appendAssistantMessage(bundle.loc(key), action: topic.navigationTarget.map { .navigate($0) })
+    }
+
+    /// Lists recent chats in this mode so one tap opens the right chat's
+    /// settings. Without a token, chats or a connection it points to Home.
+    private func offerChats(_ filter: AssistantChatFilter) async {
+        guard let token = appState.authToken else { return }
+        let chats = (try? await messageRepository.fetchConversations(mode: appState.currentMode.rawValue, token: token)) ?? []
+        let choices = chats
+            .filter { !$0.isArchived && (filter == .all || $0.isGroup) }
+            .prefix(chatChoiceLimit)
+            .map { AssistantChatTarget(conversationId: $0.id, peer: ChatPeer($0)) }
+        guard !choices.isEmpty else {
+            let none = filter == .groups ? "You don't have any group chats yet." : "You don't have any chats yet."
+            appendAssistantMessage(bundle.loc(none), action: .navigate(.tab(0)))
+            return
+        }
+        appendAssistantMessage(bundle.loc("Pick a chat to open its settings."), action: .pickChat(Array(choices)))
     }
 
     // MARK: - Fallback
 
     private func handleUnknown() {
+        // A shared word is a better hint than generic examples.
+        let near = AssistantMatcher.closestTopics(lastInput)
+        if !near.isEmpty {
+            appendAssistantMessage(bundle.loc("I'm not sure what you mean. Is it one of these?"),
+                                   action: .suggestTopics(near))
+            return
+        }
         // Reuses the same localized labels shown as suggestion chips in the
         // empty state, so the example phrasing is in the user's current
         // language rather than always English.

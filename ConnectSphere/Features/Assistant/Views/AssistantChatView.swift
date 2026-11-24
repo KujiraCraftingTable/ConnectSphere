@@ -45,6 +45,8 @@ struct AssistantChatView: View {
             }
             .task { inputFocused = true }
         }
+        // "dark mode" / "light mode" asked here must restyle this open sheet.
+        .preferredColorScheme(appState.appearanceMode.resolvedColorScheme)
     }
 
     // MARK: - Message list
@@ -67,7 +69,9 @@ struct AssistantChatView: View {
                             onConfirmLogout: { viewModel.confirmLogout(messageId: message.id) },
                             onCancelLogout: { viewModel.cancelLogout(messageId: message.id) },
                             onConfirmIntent: { viewModel.confirmIntent($0, messageId: message.id) },
-                            onCancelIntent: { viewModel.cancelIntent(messageId: message.id) }
+                            onCancelIntent: { viewModel.cancelIntent(messageId: message.id) },
+                            onPickTopic: { viewModel.showTopic($0, messageId: message.id) },
+                            onUndo: { viewModel.undo($0, messageId: message.id) }
                         )
                         .id(message.id)
                     }
@@ -138,6 +142,7 @@ struct AssistantChatView: View {
                 .background(AppColors.elevated(colorScheme), in: RoundedRectangle(cornerRadius: 20))
                 .focused($inputFocused)
                 .onSubmit(sendCurrentInput)
+                .accessibilityIdentifier(AXID.Assistant.input)
 
             Button(action: sendCurrentInput) {
                 Image(systemName: "arrow.up.circle.fill")
@@ -145,6 +150,7 @@ struct AssistantChatView: View {
                     .foregroundColor(canSend ? themeManager.theme.primary : AppColors.textTertiary(colorScheme))
             }
             .accessibilityLabel(Bundle.app.loc("Send"))
+            .accessibilityIdentifier(AXID.Assistant.sendButton)
             .disabled(!canSend)
         }
         .padding(.horizontal, 12)
@@ -173,6 +179,8 @@ private struct AssistantBubbleView: View {
     let onCancelLogout: () -> Void
     let onConfirmIntent: (AssistantIntent) -> Void
     let onCancelIntent: () -> Void
+    let onPickTopic: (AssistantGuidanceTopic) -> Void
+    let onUndo: (AssistantIntent) -> Void
 
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.appBundle) var bundle
@@ -217,6 +225,7 @@ private struct AssistantBubbleView: View {
                 .clipShape(Capsule())
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier(AXID.Assistant.takeMeThere)
 
         case .confirmLogout:
             HStack(spacing: 8) {
@@ -255,6 +264,60 @@ private struct AssistantBubbleView: View {
                     .padding(.vertical, 6)
                     .background(AppColors.elevated(colorScheme))
                     .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+
+        case .undo(let intent):
+            Button { onUndo(intent) } label: {
+                Label {
+                    Text("Undo", bundle: bundle)
+                } icon: {
+                    Image(systemName: "arrow.uturn.backward")
+                }
+                .scaledFont(13, .semibold)
+                .foregroundColor(palette.primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(palette.primary.opacity(0.12))
+                .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier(AXID.Assistant.undo)
+
+        case .pickChat(let chats):
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(chats, id: \.conversationId) { chat in
+                    Button { onNavigate(.chat(chat)) } label: {
+                        Label {
+                            Text(chat.peer.name).lineLimit(1)
+                        } icon: {
+                            Image(systemName: chat.peer.isGroup ? "person.3.fill" : "person.fill")
+                        }
+                        .scaledFont(13, .semibold)
+                        .foregroundColor(palette.primary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(palette.primary.opacity(0.12))
+                        .clipShape(Capsule())
+                    }
+                    .accessibilityIdentifier(AXID.Assistant.chatChoice(chat.conversationId))
+                }
+            }
+            .buttonStyle(.plain)
+
+        case .suggestTopics(let topics):
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(topics, id: \.self) { topic in
+                    Button { onPickTopic(topic) } label: {
+                        Text(bundle.loc(topic.titleKey))
+                            .scaledFont(13, .semibold)
+                            .foregroundColor(palette.primary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(palette.primary.opacity(0.12))
+                            .clipShape(Capsule())
+                    }
+                }
             }
             .buttonStyle(.plain)
         }

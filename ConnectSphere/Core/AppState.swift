@@ -25,36 +25,32 @@ enum DeepLink: Equatable {
     case community(id: String)
 }
 
-/// Navigation signal set by the in-app AI assistant when it resolves a
-/// request to a screen the user should land on. Mirrors `DeepLink`/
-/// `pendingDeepLink`'s exact shape. See `AppState.pendingAssistantNavigation`.
-/// Each case names the deepest screen reachable via a `NavigationPath` push;
-/// three guidance topics land one level deeper still, inside a `.sheet` local
-/// to that screen's own `@State`. Those set `AppState.pendingAssistantSheet`
-/// as a second signal (see below) after the push lands.
+/// Navigation signal set by the in-app assistant when it resolves a request
+/// to a screen, consumed by `MainTabView.consumePendingAssistantNavigation`.
 enum AssistantNavigationTarget: Equatable {
     case tab(Int)
-    case settings
-    case privacySecurity
-    case blockedUsers
-    case notificationSettings
-    /// Settings → Privacy & Security, then opens the Change Password sheet.
-    case changePassword
-    /// Settings → Privacy & Security, then opens the Delete Account sheet.
-    case deleteAccount
-    /// Profile tab, then opens the Edit Profile sheet.
-    case editProfile
+    /// The Profile tab with `routes` pushed in order, so Back walks the same
+    /// screens a tap-through would. Then `sheet` opens on the last screen, or
+    /// `highlight` scrolls to that setting's row and flashes it.
+    case profile([ProfileRoute], sheet: AssistantSheetTarget? = nil, highlight: AssistantGuidanceTopic? = nil)
+    /// Home → Messages → this chat, with its settings sheet open.
+    case chat(AssistantChatTarget)
+
+    static let settings = AssistantNavigationTarget.profile([.settings])
 }
 
-/// A `.sheet` the assistant wants opened once its `AssistantNavigationTarget`
-/// push has landed on that sheet's owning screen. Set alongside
-/// `pendingAssistantNavigation` for the three destinations that are local
-/// `@State` sheets, not `NavigationPath` pushes. Consumed and cleared by the
-/// owning view (`PrivacySecurityView`/`ProfileView`) the same way
-/// `pendingDeepLink`/`pendingAssistantNavigation` are consumed elsewhere.
+/// A chat picked in the assistant. Home opens Messages, Messages opens the
+/// chat and the chat opens its settings, each clearing what it used.
+struct AssistantChatTarget: Equatable {
+    let conversationId: String
+    let peer: ChatPeer
+}
+
+/// A `.sheet` the assistant wants opened once its navigation has landed on
+/// the screen that owns it. Consumed and cleared by that screen
+/// (`PrivacySecurityView`/`ProfileView`).
 enum AssistantSheetTarget: Equatable {
     case changePassword
-    case deleteAccount
     case editProfile
 }
 
@@ -101,6 +97,15 @@ enum AppearanceMode: String, CaseIterable {
         case .light:  return .light
         case .dark:   return .dark
         }
+    }
+
+    /// Never nil: System reads the phone's own setting. For a sheet that
+    /// changes look while it's open, since a sheet doesn't follow the root's
+    /// `.preferredColorScheme` and can't be reset to "system" with nil.
+    var resolvedColorScheme: ColorScheme {
+        if let colorScheme { return colorScheme }
+        let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene
+        return scene?.screen.traitCollection.userInterfaceStyle == .dark ? .dark : .light
     }
 }
 
@@ -161,6 +166,11 @@ class AppState {
     /// consumed by `PrivacySecurityView`/`ProfileView`, same consume-then-clear
     /// pattern as `pendingDeepLink`.
     var pendingAssistantSheet: AssistantSheetTarget? = nil
+    /// The setting row the assistant pointed at. The screen holding that row
+    /// scrolls to it and flashes it once, then clears this.
+    var assistantHighlight: AssistantGuidanceTopic? = nil
+    /// The chat the assistant is opening (see `AssistantChatTarget`).
+    var pendingAssistantChat: AssistantChatTarget? = nil
     var appearanceMode: AppearanceMode = .system {
         didSet { AppDefaults.store.set(appearanceMode.rawValue, forKey: "appearanceMode") }
     }

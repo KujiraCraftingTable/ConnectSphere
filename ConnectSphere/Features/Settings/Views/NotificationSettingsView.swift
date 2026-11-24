@@ -16,6 +16,7 @@ struct NotificationSettingsView: View {
             Section {
                 Toggle(bundle.loc("Message sounds"), isOn: $messageSoundEnabled)
                     .tint(themeManager.theme.primary)
+                .assistantHighlightRow(.notificationSounds)
             } footer: {
                 Text("Play a sound for new messages in an open chat.", bundle: bundle)
             }
@@ -23,6 +24,7 @@ struct NotificationSettingsView: View {
             Section {
                 Toggle(bundle.loc("AI post suggestions"), isOn: $aiSuggestionNotifsEnabled)
                     .tint(themeManager.theme.primary)
+                .assistantHighlightRow(.aiSuggestions)
             } footer: {
                 Text("Notify when AI suggests a better mode for your post.", bundle: bundle)
             }
@@ -32,6 +34,7 @@ struct NotificationSettingsView: View {
                 Text("Push notifications while the app is closed will arrive in a future update.", bundle: bundle)
             }
         }
+        .assistantHighlightScroll()
         .listStyle(.insetGrouped)
         .navigationTitle(bundle.loc("Notifications"))
         .navigationBarTitleDisplayMode(.inline)

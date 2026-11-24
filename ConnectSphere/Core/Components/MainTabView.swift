@@ -82,7 +82,7 @@ struct MainTabView: View {
         .environment(assistantViewModel)
         .task {
             if assistantViewModel == nil {
-                assistantViewModel = AssistantViewModel(appState: appState)
+                assistantViewModel = AssistantViewModel(appState: appState, themeManager: themeManager)
             }
             await notificationBadge.refresh(appState: appState)
             notificationBadge.startRealtime(appState: appState)
@@ -252,34 +252,23 @@ struct MainTabView: View {
         communityNavPath.append(id)
     }
 
-    /// Navigates based on a signal from the AI assistant ("go to Communities," "open
-    /// Settings"), same consume-then-clear mechanism as `consumePendingDeepLink`.
-    /// `.tab(n)` just switches tabs; `.settings` switches to the Profile tab then pushes
-    /// `ProfileRoute.settings` onto `profileNavPath` (see `ProfileView`).
+    /// Navigates where the assistant pointed, same consume-then-clear
+    /// mechanism as `consumePendingDeepLink`. A sheet or a row highlight is
+    /// handed on to the screen that owns it, which opens or flashes it once
+    /// it has appeared.
     private func consumePendingAssistantNavigation() {
         guard let target = appState.pendingAssistantNavigation else { return }
         appState.pendingAssistantNavigation = nil
         switch target {
         case .tab(let index):
             selectedTab = index
-        case .settings:
-            pushProfilePath([.settings])
-        case .privacySecurity:
-            pushProfilePath([.settings, .privacySecurity])
-        case .blockedUsers:
-            pushProfilePath([.settings, .privacySecurity, .blockedUsers])
-        case .notificationSettings:
-            pushProfilePath([.settings, .notificationSettings])
-        case .changePassword:
-            pushProfilePath([.settings, .privacySecurity])
-            appState.pendingAssistantSheet = .changePassword
-        case .deleteAccount:
-            pushProfilePath([.settings, .privacySecurity])
-            appState.pendingAssistantSheet = .deleteAccount
-        case .editProfile:
-            selectedTab = 4
-            profileNavPath = NavigationPath()
-            appState.pendingAssistantSheet = .editProfile
+        case .profile(let routes, let sheet, let highlight):
+            pushProfilePath(routes)
+            appState.pendingAssistantSheet = sheet
+            appState.assistantHighlight = highlight
+        case .chat(let chat):
+            selectedTab = 0
+            appState.pendingAssistantChat = chat
         }
     }
 

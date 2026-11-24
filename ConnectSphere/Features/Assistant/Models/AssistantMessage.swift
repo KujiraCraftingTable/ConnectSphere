@@ -33,4 +33,10 @@ enum AssistantMessageAction: Equatable {
     /// incidental ("my work profile picture is wrong"). Asking beats silently
     /// changing something the user never requested.
     case confirmIntent(AssistantIntent)
+    /// Topics close to an unmatched message, one button each.
+    case suggestTopics([AssistantGuidanceTopic])
+    /// Puts back what a change replaced.
+    case undo(AssistantIntent)
+    /// Recent chats, one button each, for a change made inside a chat.
+    case pickChat([AssistantChatTarget])
 }

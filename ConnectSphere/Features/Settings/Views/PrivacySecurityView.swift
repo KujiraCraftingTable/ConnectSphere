@@ -9,7 +9,6 @@ struct PrivacySecurityView: View {
     @Environment(\.colorScheme) var colorScheme
 
     @State private var showChangePassword = false
-    @State private var showManageAccount = false
     @State private var friendRequests = FriendRequestSettingViewModel()
     @State private var suggestionVisibility = SuggestionVisibilitySettingViewModel()
     @State private var activityTracking = ActivityTrackingSettingViewModel()
@@ -73,6 +72,7 @@ struct PrivacySecurityView: View {
                         }
                     }
                     .disabled(friendRequests.isSaving)
+                    .assistantHighlightRow(.friendRequests)
                 } footer: {
                     Text("When off, people who aren't your friends can only follow you. You can still send friend requests yourself.", bundle: bundle)
                 }
@@ -99,6 +99,7 @@ struct PrivacySecurityView: View {
                     }
                 }
                 .disabled(suggestionVisibility.isSaving)
+                .assistantHighlightRow(.peopleYouMayKnow)
             } footer: {
                 Text("When off, you're never suggested to anyone. You still see suggestions yourself.", bundle: bundle)
             }
@@ -125,6 +126,7 @@ struct PrivacySecurityView: View {
                 }
                 .disabled(activityTracking.isSaving)
                 .axID(AXID.Settings.activityToggle)
+                .assistantHighlightRow(.activityTracking)
             } footer: {
                 Text("Your views, likes, comments, saves and search taps help rank your feed and search. This activity counts as sensitive data. When off, we stop recording it, delete what we recorded, and rank by your profile, interests and follows. \"Not interested\" and \"Show more like this\" still work.", bundle: bundle)
             }
@@ -151,6 +153,7 @@ struct PrivacySecurityView: View {
                 }
                 .disabled(!(appState.currentUser?.emailVerified ?? false))
                 .axID(AXID.Settings.twoFactorToggle)
+                .assistantHighlightRow(.twoFactor)
             } footer: {
                 Text(bundle.loc((appState.currentUser?.emailVerified ?? false)
                     ? "When on, every sign-in needs a code sent to your email. You're also emailed each time your account is signed in to."
@@ -181,6 +184,7 @@ struct PrivacySecurityView: View {
                     }
                 }
                 .disabled(profileLock.isSaving)
+                .assistantHighlightRow(.lockProfile)
             } footer: {
                 Text(bundle.loc(appState.currentMode == .work
                     ? "Only your Work connections can see your profile posts and lists. Others still see your About, experience, skills and listings."
@@ -208,6 +212,7 @@ struct PrivacySecurityView: View {
                     }
                 }
                 .disabled(personaLink.isSaving)
+                .assistantHighlightRow(.otherProfileLink)
             } footer: {
                 Text(bundle.loc(otherMode == .work
                     ? "Shown on your Hobby profile. Your Work profile stays visible to people in Work mode either way."
@@ -303,6 +308,7 @@ struct PrivacySecurityView: View {
         )) {
             Button(bundle.loc("OK")) {}
         }
+        .assistantHighlightScroll()
         .listStyle(.insetGrouped)
         .navigationTitle(bundle.loc("Privacy & Security"))
         .navigationBarTitleDisplayMode(.inline)
@@ -311,26 +317,17 @@ struct PrivacySecurityView: View {
                 .environment(appState)
                 .environment(themeManager)
         }
-        .navigationDestination(isPresented: $showManageAccount) { ManageAccountView() }
         .task { consumePendingAssistantSheet() }
         .onChange(of: appState.pendingAssistantSheet) { _, _ in
             consumePendingAssistantSheet()
         }
     }
 
-    /// Opens Change Password / Manage account when the AI assistant's
-    /// guidance action landed here. Mirrors the consume-then-clear pattern
-    /// `pendingDeepLink`/`pendingAssistantNavigation` use elsewhere.
+    /// Opens Change Password when the assistant's "Take me there" landed
+    /// here, then clears the signal so it opens once.
     private func consumePendingAssistantSheet() {
-        switch appState.pendingAssistantSheet {
-        case .changePassword:
-            appState.pendingAssistantSheet = nil
-            showChangePassword = true
-        case .deleteAccount:
-            appState.pendingAssistantSheet = nil
-            showManageAccount = true
-        case .editProfile, nil:
-            break
-        }
+        guard appState.pendingAssistantSheet == .changePassword else { return }
+        appState.pendingAssistantSheet = nil
+        showChangePassword = true
     }
 }

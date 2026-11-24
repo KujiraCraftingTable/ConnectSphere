@@ -23,5 +23,6 @@ struct AssistantLauncherButton: View {
                 .shadow(color: themeManager.theme.primary.opacity(0.5), radius: 8, x: 0, y: 4)
         }
         .accessibilityLabel(Text("AI Assistant", bundle: bundle))
+        .accessibilityIdentifier(AXID.Assistant.launcher)
     }
 }
