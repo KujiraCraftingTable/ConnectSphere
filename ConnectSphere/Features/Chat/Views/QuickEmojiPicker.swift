@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 
+// MARK: - Emoji detection
 /// Rules for the per-conversation quick-emoji send (see `quickEmojiStorageKey`).
 enum QuickEmoji {
     static let defaultValue = ReactionEmoji.thumbsUp.rawValue
@@ -24,6 +25,7 @@ enum QuickEmoji {
     }
 }
 
+// MARK: - Picker sheet
 /// Picks the quick emoji from the full system emoji keyboard. Every emoji
 /// Apple ships, with its own search, skin tones and recents.
 struct QuickEmojiPickerSheet: View {
@@ -76,6 +78,7 @@ struct QuickEmojiPickerSheet: View {
     }
 }
 
+// MARK: - Emoji keyboard field
 /// A text field that asks for the emoji keyboard and reports each whole emoji
 /// typed into it. Anything that isn't an emoji (a letter from switching
 /// keyboards, a pasted word) is dropped rather than becoming the quick send.
@@ -121,6 +124,7 @@ private struct EmojiKeyboardField: UIViewRepresentable {
     }
 }
 
+// MARK: - Emoji text field
 final class EmojiKeyboardTextField: UITextField {
     /// Opens on the emoji keyboard. Falls back to the default keyboard when
     /// the user has removed the emoji keyboard in Settings.

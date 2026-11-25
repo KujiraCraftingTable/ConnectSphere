@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Models
 /// An interest people suggested from the picker, however many sent it.
 struct InterestSuggestion: Decodable, Identifiable, Hashable {
     let text: String
@@ -31,6 +32,7 @@ struct InterestCategoryOption: Decodable, Identifiable, Hashable {
     }
 }
 
+// MARK: - Repository
 /// The official account's review of suggested interests
 /// (`/admin/interests/suggestions`). HTTP + decoding only.
 struct InterestSuggestionsRepository {

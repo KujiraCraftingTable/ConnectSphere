@@ -2,6 +2,7 @@ import Vapor
 import AsyncHTTPClient
 import NIOCore
 
+// MARK: - Translator
 /// Anything that can turn text from one language into another. The
 /// translation pipeline only ever talks to this, so a model built for
 /// translation can replace today's general chat model without touching the
@@ -23,6 +24,7 @@ enum Translators {
     static func languageName(_ code: String) -> String { code == "vi" ? "Vietnamese" : "English" }
 }
 
+// MARK: - Ollama translator
 /// Translation through an Ollama chat model (TRANSLATION_MODEL, e.g.
 /// qwen3:8b). It has its own prompt and request, separate from
 /// `OllamaService`'s search prompts.

@@ -2,6 +2,7 @@ import SwiftUI
 import Combine
 import Observation
 
+// MARK: - App mode
 enum AppMode: String, Identifiable {
     case hobby
     case work
@@ -18,6 +19,7 @@ enum AppMode: String, Identifiable {
     }
 }
 
+// MARK: - Navigation targets
 /// A deep link that opens the app from outside (e.g. tapping a shared community link in
 /// Notes/Messages). Set in `onOpenURL`, consumed (and cleared) once the destination screen
 /// is ready to navigate. See `AppState.pendingDeepLink`.
@@ -45,6 +47,7 @@ enum AssistantSheetTarget: Equatable {
     case editProfile
 }
 
+// MARK: - Language & appearance
 enum AppLanguage: String, CaseIterable {
     case vietnamese = "vi"
     case english    = "en"
@@ -100,8 +103,10 @@ enum AppearanceMode: String, CaseIterable {
     }
 }
 
+// MARK: - App state
 @Observable
 class AppState {
+    // MARK: - Session & mode state
     var isLoggedIn:   Bool = false
     var needsOnboarding: Bool = false
     var isCheckingAuth:  Bool = true   // splash while checking Keychain
@@ -144,6 +149,8 @@ class AppState {
     /// notification list can never disagree. Reading a row decrements it
     /// immediately instead of waiting for the next fetch.
     var notificationUnreadCount: Int = 0
+
+    // MARK: - Pending navigation
     /// Deep link waiting to be navigated to. Survives both a cold launch (set before
     /// RootView/MainTabView exist) and a warm launch (app already running).
     /// The consuming view reads it and sets it back to `nil` so navigation doesn't repeat.
@@ -160,6 +167,8 @@ class AppState {
     /// The setting row the assistant pointed at. The screen holding that row
     /// scrolls to it and flashes it once, then clears this.
     var assistantHighlight: AssistantGuidanceTopic? = nil
+
+    // MARK: - Appearance & app icon
     var appearanceMode: AppearanceMode = .system {
         didSet { AppDefaults.store.set(appearanceMode.rawValue, forKey: "appearanceMode") }
     }
@@ -194,6 +203,7 @@ class AppState {
             ?? Bundle.main
     }
 
+    // MARK: - Auth token & init
     /// JWT stored in the Keychain
     private(set) var authToken: String? = nil
 
@@ -240,6 +250,7 @@ class AppState {
     }
 
 
+    // MARK: - Session restore
     // ── Auto-login from Keychain ────────────────────────────────────────────────
 
     func restoreSession() async {
@@ -300,6 +311,7 @@ class AppState {
         }
     }
 
+    // MARK: - Sign in
     // ── Login after Google Sign-In ──────────────────────────────────────────────
 
     /// Signed in, or (two-factor on) waiting for the emailed code.
@@ -329,6 +341,7 @@ class AppState {
         _ = handle(.signedIn(response))
     }
 
+    // MARK: - Password sign-in & sign-up
     // ── Login / register with username (or email) + password ──────────────────
 
     func loginWithPassword(identifier: String, password: String) async throws -> SignInOutcome {
@@ -374,6 +387,7 @@ class AppState {
         refreshHRStatus()
     }
 
+    // MARK: - Verified HR & saved accounts
     /// Asks the server whether you're a verified HR.
     func refreshHRStatus() {
         guard let token = authToken else { return }
@@ -401,6 +415,7 @@ class AppState {
 
     func switchMode(to mode: AppMode) { currentMode = mode }
 
+    // MARK: - Personas & mode switching
     // ── Persona per mode ─────────────────────────────────────────────────────
 
     /// Whether the user has set up a persona (distinct identity) for this mode
@@ -478,6 +493,7 @@ class AppState {
         }
     }
 
+    // MARK: - Sign out
     func logout() {
         KeychainHelper.delete(forKey: KeychainHelper.tokenKey)
         authToken        = nil

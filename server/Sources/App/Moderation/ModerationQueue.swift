@@ -3,6 +3,7 @@ import SQLKit
 
 /// Read side of the admin queue: case list, one case in full, appeals.
 enum ModerationQueue {
+    // MARK: - Response types
     struct Author: Content {
         var id: String; var username: String
         @NullCoded var banned_at: Date?; @NullCoded var restricted_until: Date?
@@ -55,6 +56,7 @@ enum ModerationQueue {
         FROM moderation_cases mc LEFT JOIN users u ON u.id = mc.author_id
         """
 
+    // MARK: - Row mapping
     private struct Raw: Decodable {
         let id: String; let target_type: String; let target_id: String; let mode: String?; let community_id: String?
         let source: String; let policy: String; let severity: Int; let report_count: Int; let status: String
@@ -72,6 +74,7 @@ enum ModerationQueue {
                        snapshot: try JSONDecoder().decode(JSONValue.self, from: Data(r.snapshot.utf8)))
     }
 
+    // MARK: - Queries
     /// Open cases most urgent first: severity, then how many people reported
     /// it, then oldest. Decided cases newest first.
     static func cases(status: String, source: String?, limit: Int, offset: Int, on db: any SQLDatabase) async throws -> [CaseRow] {
@@ -128,6 +131,7 @@ enum ModerationQueue {
     }
 }
 
+// MARK: - JSON values
 /// Any JSON, passed through untouched (case snapshots, audit details).
 enum JSONValue: Codable, Sendable {
     case null, bool(Bool), number(Double), string(String), array([JSONValue]), object([String: JSONValue])

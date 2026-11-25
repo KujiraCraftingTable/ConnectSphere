@@ -69,6 +69,7 @@ struct ListingBuyerSheet: View {
         .presentationDetents([.large])
     }
 
+    // MARK: - Item & deposit
     /// The item at the top, with the deposit control or what's left on its right.
     private var itemCard: some View {
         HStack(spacing: 12) {
@@ -116,6 +117,7 @@ struct ListingBuyerSheet: View {
             .opacity(viewModel.selected == nil ? 0.4 : 1)
     }
 
+    // MARK: - Buyers
     private func row(_ buyer: ListingBuyerViewModel.Buyer) -> some View {
         HStack(spacing: 12) {
             Avatar(name: buyer.name, colorHex: buyer.avatarColor, imageURL: buyer.avatarUrl, size: .md)
@@ -141,6 +143,7 @@ struct ListingBuyerSheet: View {
         .contentShape(Rectangle())
     }
 
+    // MARK: - Save
     private func save() {
         Task {
             if let post = await viewModel.save(token: appState.authToken ?? "") {

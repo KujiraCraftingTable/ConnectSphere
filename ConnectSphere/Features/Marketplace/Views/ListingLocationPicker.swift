@@ -1,6 +1,7 @@
 import MapKit
 import SwiftUI
 
+// MARK: - Location picker
 /// Sell / Edit listing: where the item is, picked on a map. Search for a
 /// place or use the phone's location. Done hands back the pinned place.
 struct ListingLocationPicker: View {
@@ -96,6 +97,7 @@ struct ListingLocationPicker: View {
     }
 }
 
+// MARK: - Location row
 /// The Location row in the Sell and Edit forms: the chosen place, or a prompt
 /// to choose one, with a button to clear it.
 struct ListingLocationRow: View {
@@ -136,6 +138,7 @@ struct ListingLocationRow: View {
     }
 }
 
+// MARK: - Map preview
 /// The listing page's small map with a pin; tapping it opens Apple Maps.
 struct ListingMapPreview: View {
     let latitude: Double

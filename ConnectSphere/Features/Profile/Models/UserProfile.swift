@@ -84,6 +84,7 @@ struct UserProfile: Identifiable {
     var hrCompany: String? = nil
 }
 
+// MARK: - Access & personas
 extension UserProfile {
     /// Someone else's locked persona you're not connected to: only the
     /// name, avatar and cover show.

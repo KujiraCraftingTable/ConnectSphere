@@ -12,6 +12,7 @@ import Vapor
 /// Counters live in this server process (like `RateLimitMiddleware`), so a
 /// restart resets them and a second server would count separately.
 struct UserRateLimiter: Sendable {
+    // MARK: - Rules
     enum Action: String, Sendable {
         case comment, newChat, friendRequest
     }
@@ -58,6 +59,7 @@ struct UserRateLimiter: Sendable {
     }
 }
 
+// MARK: - Request helpers
 extension Request {
     private struct CountedActionKey: StorageKey { typealias Value = UserRateLimiter.Action }
 

@@ -4,6 +4,7 @@ import Foundation
 struct ProfileRepository {
     private let client = NetworkClient.shared
 
+    // MARK: - Profile & posts
     func fetchUser(userId: String, mode: String? = nil) async throws -> UserProfile {
         let response = try await client.fetch(
             SingleResponse<UserDTO>.self,
@@ -48,6 +49,7 @@ struct ProfileRepository {
         var relationship_status: String? = nil
     }
 
+    // MARK: - Settings toggles
     /// Privacy: off = strangers can only follow, not send friend requests.
     func setAllowFriendRequests(_ allow: Bool) async throws {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
@@ -106,6 +108,7 @@ struct ProfileRepository {
                                    bodyData: NetworkClient.encode(Body(show_in_suggestions: show)))
     }
 
+    // MARK: - Profile edits
     func updateProfile(_ update: ProfileUpdate) async throws -> UserProfile {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
             throw APIError.serverError(statusCode: 401, message: "Not authenticated")
@@ -120,6 +123,7 @@ struct ProfileRepository {
         return response.data.toUserProfile()
     }
 
+    // MARK: - Personas & default mode
     /// Creates a persona for the second mode (first switch into a mode that hasn't been set up yet).
     /// Work includes job_title/company/skills; hobby includes interests. Backend returns 409
     /// if the persona already exists (edit via updateProfile instead of recreating it).

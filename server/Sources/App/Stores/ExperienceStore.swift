@@ -7,6 +7,7 @@ enum ExperienceStore {
     static let locationTypes: Set<String> = ["onsite", "hybrid", "remote"]
     static let maxPerUser = 30
 
+    // MARK: - Types
     struct Experience: Content {
         var id: String
         @NullCoded var company_id: String?
@@ -47,6 +48,7 @@ enum ExperienceStore {
         LEFT JOIN companies c ON c.id = e.company_id
         """
 
+    // MARK: - Experience entries
     /// Current roles first, then the most recent.
     static func list(of user: String, on db: any SQLDatabase) async throws -> [Experience] {
         try await db.raw(select + """
@@ -93,6 +95,7 @@ enum ExperienceStore {
             """).first(decoding: R.self) != nil
     }
 
+    // MARK: - Current role
     /// The current role (latest start) becomes the profile's job title and
     /// company, which cards, search and suggestions already show. With no
     /// current role they're left as the person set them.
@@ -107,6 +110,7 @@ enum ExperienceStore {
             """).run()
     }
 
+    // MARK: - People at a company
     /// A company page's People tab: who works there now, newest first.
     struct Person: Content {
         var id: String

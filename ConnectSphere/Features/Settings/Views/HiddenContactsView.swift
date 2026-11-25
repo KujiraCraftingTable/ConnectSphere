@@ -51,6 +51,7 @@ struct HiddenContactsView: View {
         }
     }
 
+    // MARK: - Rows & error state
     private func row(_ contact: HiddenContact) -> some View {
         HStack(spacing: 12) {
             Avatar(name: contact.displayName, colorHex: contact.avatarColor,

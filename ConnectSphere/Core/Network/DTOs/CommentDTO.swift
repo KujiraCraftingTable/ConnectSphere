@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Comment author
 struct CommentAuthorDTO: Decodable {
     let id: String
     let displayName: String
@@ -31,6 +32,7 @@ struct CommentAuthorDTO: Decodable {
     }
 }
 
+// MARK: - Comment
 struct CommentDTO: Decodable, Identifiable {
     let id: String
     var content: String
@@ -95,6 +97,7 @@ struct CommentDTO: Decodable, Identifiable {
     }
 }
 
+// MARK: - Job & reply-to refs
 /// The job card in an HR's comment; `id` is what the Jobs tab opens.
 struct CommentJobDTO: Decodable, Hashable {
     let id: String
@@ -119,6 +122,7 @@ struct CommentReplyToDTO: Decodable {
     }
 }
 
+// MARK: - Responses
 struct CommentsResponse: Decodable {
     let data:  [CommentDTO]
     let total: Int

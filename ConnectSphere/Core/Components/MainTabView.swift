@@ -34,6 +34,7 @@ struct MainTabView: View {
         )
     }
 
+    // MARK: - Body
     var body: some View {
         @Bindable var appState = appState
         @Bindable var floatingChatPresenter = floatingChatPresenter
@@ -117,6 +118,7 @@ struct MainTabView: View {
         }
     }
 
+    // MARK: - Tabs
     /// iOS 26+: the system Liquid Glass tab bar, Home · Community ·
     /// Notifications · Profile in the pill, Search detached beside it.
     /// System `Tab(_:systemImage:)` labels (titles stay for VoiceOver;
@@ -216,6 +218,7 @@ struct MainTabView: View {
             .accessibilityLabel(Text(title, bundle: bundle))
     }
 
+    // MARK: - Tab re-tap
     /// Resets tab state to its default. Runs only when RE-TAPPING the tab while it's
     /// already active (custom binding): switching to a tab shows it as you left it.
     private func resetTabState(_ tab: Int) {
@@ -238,6 +241,7 @@ struct MainTabView: View {
         }
     }
 
+    // MARK: - Deep links & assistant navigation
     /// Navigates to a community from a share link (`connectsphere://community/<id>`),
     /// switches to the Community tab then pushes the id onto `communityNavPath`, using the
     /// same `navigationDestination(for: String.self)` mechanism that search results/Discover use

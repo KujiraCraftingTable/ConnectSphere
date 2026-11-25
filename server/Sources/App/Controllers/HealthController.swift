@@ -9,6 +9,7 @@ import SQLKit
 /// in the Node `/health` shape `{ status, env, checks }`, plus how far AI-search
 /// embeddings are behind (`embeddings`, nil if the DB can't say).
 struct HealthController {
+    // MARK: - Response
     struct Body: Content {
         let status = "ok"
         let env: String
@@ -39,6 +40,7 @@ struct HealthController {
         }
     }
 
+    // MARK: - Dependency checks
     private static func embeddingFreshness(_ db: any SQLDatabase) async -> Body.Embeddings? {
         try? await db.raw("""
             SELECT (SELECT COUNT(*) FROM embedding_out_of_date)::int AS out_of_date,

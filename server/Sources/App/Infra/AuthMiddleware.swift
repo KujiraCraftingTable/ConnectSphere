@@ -56,6 +56,7 @@ struct AuthMiddleware: AsyncMiddleware {
         return response
     }
 
+    // MARK: - Bans
     static let bannedMessage = "This account has been suspended for breaking our Community Standards"
 
     /// Banned in one mode only: the app's requests in that mode get this.
@@ -86,6 +87,7 @@ struct AuthMiddleware: AsyncMiddleware {
     }
 }
 
+// MARK: - Session checks
 /// Whether a verified token still stands for its account.
 enum Session {
     /// Pure rule: a token dies with its account, and with a password reset.
@@ -127,6 +129,7 @@ enum Session {
     }
 }
 
+// MARK: - Request session values
 extension Request {
     private struct UserIDKey: StorageKey { typealias Value = String }
     var userID: String {

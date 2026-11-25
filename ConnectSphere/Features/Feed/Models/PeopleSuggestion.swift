@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Suggestion
 /// Someone in "People you may know" (`GET /people/suggestions`), with the one
 /// reason the server picked to show on their card.
 struct PeopleSuggestion: Identifiable, Decodable, Equatable {
@@ -28,6 +29,7 @@ struct PeopleSuggestion: Identifiable, Decodable, Equatable {
         case similar
     }
 
+    // MARK: - Decoding
     enum CodingKeys: String, CodingKey {
         case id, username, reason, company, bio, location, tags
         case matchPercent = "match_percent"
@@ -67,6 +69,7 @@ struct PeopleSuggestion: Identifiable, Decodable, Equatable {
     }
 }
 
+// MARK: - Profile conversion
 extension PeopleSuggestion {
     /// The person as the search cards take them (`FriendSearchCard` /
     /// `ColleagueSearchCard`): their tags land in interests or skills by mode.
@@ -83,6 +86,7 @@ extension PeopleSuggestion {
     }
 }
 
+// MARK: - Feed placement
 /// Where the "People you may know" module goes in the feed. Pure, so the
 /// placement rules are unit-tested.
 ///

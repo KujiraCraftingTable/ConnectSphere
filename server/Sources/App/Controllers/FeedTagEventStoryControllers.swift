@@ -1,6 +1,7 @@
 import Vapor
 import SQLKit
 
+// MARK: - Feed
 /// GET /api/feed/recommendations; and
 /// POST /api/feed/impressions, what the viewer looked at.
 struct FeedController {
@@ -45,6 +46,7 @@ struct FeedController {
     }
 }
 
+// MARK: - Tags
 /// GET /api/tags/{trending,suggest}.
 struct TagsController {
     static func register(routes: any RoutesBuilder) {
@@ -99,6 +101,7 @@ struct TagsController {
     }
 }
 
+// MARK: - Event RSVP
 /// POST /api/events/:id/rsvp.
 struct EventsController {
     static func register(routes: any RoutesBuilder) {
@@ -113,6 +116,7 @@ struct EventsController {
     }
 }
 
+// MARK: - Job interest
 /// /api/jobs, "I'm interested" toggle for Job/Opportunity posts.
 struct JobsController {
     static func register(routes: any RoutesBuilder) {
@@ -129,6 +133,7 @@ struct JobsController {
     }
 }
 
+// MARK: - Stories
 /// /api/stories.
 struct StoriesController {
     static func register(routes: any RoutesBuilder) {
@@ -214,6 +219,7 @@ struct StoriesController {
         return DataListResponse(data: out)
     }
 
+    // MARK: - Story views and removal
     struct StatusOKMsg: Content { var status = "ok" }
     static func view(_ req: Request) async throws -> StatusOKMsg {
         let id = req.parameters.get("id")!

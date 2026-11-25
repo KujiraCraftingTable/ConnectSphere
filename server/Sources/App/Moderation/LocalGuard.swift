@@ -9,6 +9,7 @@ import AsyncHTTPClient
 /// template that judges the text as an assistant's *reply*, which calls every
 /// message unsafe (even a greeting). This is Qwen's own "user message" prompt.
 enum LocalGuard {
+    // MARK: - Verdicts
     enum Level: String, Sendable { case safe, controversial, unsafe }
 
     struct Verdict: Equatable, Sendable {
@@ -58,6 +59,7 @@ enum LocalGuard {
 
         """
 
+    // MARK: - Parsing
     /// "Safety: Unsafe\nCategories: Violent, PII" → a verdict; nil if it isn't that shape.
     static func parse(_ raw: String) -> Verdict? {
         var level: Level?
@@ -90,6 +92,7 @@ enum LocalGuard {
         }
     }
 
+    // MARK: - Classification
     static func classify(_ text: String, model: String, ollama: OllamaService.Config) async throws -> Verdict {
         let body: [String: Any] = [
             "model": model,

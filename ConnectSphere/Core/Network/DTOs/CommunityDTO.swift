@@ -2,6 +2,7 @@ import Foundation
 
 // ── Community ─────────────────────────────────────────────────────────────────
 
+// MARK: - Community
 struct CommunityDTO: Decodable {
     let id: String
     let name: String
@@ -54,6 +55,7 @@ struct CommunityDTO: Decodable {
         case createdAt          = "created_at"
     }
 
+    // MARK: - Decoding
     init(from decoder: Decoder) throws {
         let c    = try decoder.container(keyedBy: CodingKeys.self)
         id          = try c.decode(String.self, forKey: .id)
@@ -84,6 +86,7 @@ struct CommunityDTO: Decodable {
         createdAt   = try c.decode(Date.self, forKey: .createdAt)
     }
 
+    // MARK: - Mapping
     func toCommunity(isMemberOverride: Bool? = nil) -> Community {
         Community(
             id:          id,
@@ -118,6 +121,7 @@ struct CommunityDTO: Decodable {
 
 // ── Member ────────────────────────────────────────────────────────────────────
 
+// MARK: - Members
 struct CommunityMemberDTO: Decodable {
     let id: String
     let username: String
@@ -158,6 +162,7 @@ struct CommunityMemberDTO: Decodable {
 
 // ── Post ──────────────────────────────────────────────────────────────────────
 
+// MARK: - Community posts
 struct CommunityPostDTO: Decodable {
     let id: String
     let content: String
@@ -209,6 +214,7 @@ struct CommunityPostDTO: Decodable {
         case articleTitle = "article_title"
     }
 
+    // MARK: - Decoding
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id           = try c.decode(String.self, forKey: .id)
@@ -237,6 +243,7 @@ struct CommunityPostDTO: Decodable {
         listingData  = try c.decodeIfPresent(ListingDataDTO.self, forKey: .listingData)
     }
 
+    // MARK: - Mapping
     func toCommunityPost() -> CommunityPost {
         CommunityPost(
             id:           id,
@@ -267,6 +274,7 @@ struct CommunityPostDTO: Decodable {
     }
 }
 
+// MARK: - Post author & community ref
 struct CommunityPostAuthorDTO: Decodable {
     let id: String
     let username: String
@@ -319,6 +327,7 @@ struct CommunityRefDTO: Decodable {
 
 // ── Poll DTOs ─────────────────────────────────────────────────────────────────
 
+// MARK: - Polls
 struct PollDataDTO: Decodable {
     let options: [PollOptionDTO]
     let userVote: String?
@@ -370,6 +379,7 @@ struct PollOptionDTO: Decodable {
 
 // ── Event DTOs ────────────────────────────────────────────────────────────────
 
+// MARK: - Events
 struct EventDataDTO: Decodable {
     let id: String
     let title: String
@@ -413,6 +423,7 @@ struct EventDataDTO: Decodable {
 
 // ── Job DTOs ──────────────────────────────────────────────────────────────────
 
+// MARK: - Marketplace listings
 struct ListingDataDTO: Decodable {
     let id: String
     let title: String
@@ -434,6 +445,7 @@ struct ListingDataDTO: Decodable {
     let longitude: Double?
     let items: [ItemDTO]?
 
+    // MARK: - Items, deposits & re-ups
     struct ItemDTO: Decodable {
         let id: String
         let title: String
@@ -498,6 +510,7 @@ struct ListingDataDTO: Decodable {
         case nextReupAt      = "next_reup_at"
     }
 
+    // MARK: - Mapping
     func toListingData() -> ListingData {
         ListingData(id: id, title: title, price: price,
                     condition: ListingCondition(rawValue: condition) ?? .good,
@@ -525,6 +538,7 @@ struct ListingDataDTO: Decodable {
     }
 }
 
+// MARK: - Jobs
 struct JobDataDTO: Decodable {
     let id: String
     let title: String
@@ -595,6 +609,7 @@ struct JobDataDTO: Decodable {
 
 // ── Join Request DTO ──────────────────────────────────────────────────────────
 
+// MARK: - Join requests
 /// Flat row returned by GET /api/communities/:id/join-requests
 struct JoinRequestDTO: Decodable {
     let id: String
@@ -625,6 +640,7 @@ struct JoinRequestDTO: Decodable {
 
 // ── Misc response types ───────────────────────────────────────────────────────
 
+// MARK: - Unread count
 struct UnreadCountResponse: Decodable {
     let count: Int
 }

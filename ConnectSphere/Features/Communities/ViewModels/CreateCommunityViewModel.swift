@@ -39,6 +39,7 @@ final class CreateCommunityViewModel {
             || privacy != .public
     }
 
+    // MARK: - Validation
     /// Same name and type as a community the user can already see.
     func isDuplicateName(among existing: [Community]) -> Bool {
         let lowered = trimmedName.lowercased()
@@ -49,6 +50,7 @@ final class CreateCommunityViewModel {
     /// The photo as picked, kept so it can be re-framed; `pickedImage` is the framed result.
     private(set) var coverOriginal: UIImage?
 
+    // MARK: - Cover photo
     /// Returns true when a photo was loaded and is ready to be framed.
     func loadPhoto(from item: PhotosPickerItem) async -> Bool {
         guard let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else { return false }
@@ -61,6 +63,7 @@ final class CreateCommunityViewModel {
 
     func removePhoto() { pickedImage = nil; coverOriginal = nil }
 
+    // MARK: - Create
     /// The photo is uploaded only now, once Create is confirmed. Returns the
     /// new community, or nil with `errorMessage` set.
     func create(token: String?) async -> Community? {

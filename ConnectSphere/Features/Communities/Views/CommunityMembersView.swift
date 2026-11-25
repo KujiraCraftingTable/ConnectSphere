@@ -30,6 +30,7 @@ struct CommunityMembersView: View {
         viewModel.community.map { !$0.viewerCanRead } ?? false
     }
 
+    // MARK: - Body
     var body: some View {
         ScrollView {
             content
@@ -99,6 +100,7 @@ struct CommunityMembersView: View {
         }
     }
 
+    // MARK: - Member list
     @ViewBuilder
     private var content: some View {
         if isPrivateLockedOut {
@@ -155,6 +157,7 @@ struct CommunityMembersView: View {
         .padding(.bottom, 14)
     }
 
+    // MARK: - Member rows
     private func memberRow(_ member: CommunityMember) -> some View {
         HStack(spacing: 12) {
             Avatar(name: member.displayName, colorHex: member.avatarColor, imageURL: member.avatarUrl, diameter: 40)

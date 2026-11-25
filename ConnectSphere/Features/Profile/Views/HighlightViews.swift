@@ -2,6 +2,7 @@ import SwiftUI
 import PhotosUI
 import Combine
 
+// MARK: - Highlights row
 /// A Hobby profile's highlights: a row of circles under the card; yours
 /// starts with "New".
 struct HighlightsRow: View {
@@ -81,6 +82,7 @@ struct HighlightsRow: View {
     }
 }
 
+// MARK: - Viewer
 /// One highlight full screen: like a story, a photo every few seconds; tap
 /// the left / right to go back / on. The owner can remove the photo, make it
 /// the cover, add photos, rename or delete the highlight.
@@ -211,6 +213,7 @@ struct HighlightViewerView: View {
     }
 }
 
+// MARK: - Editor
 /// New highlight, or add photos to / rename one.
 struct HighlightEditorView: View {
     @Environment(AppState.self) private var appState
@@ -319,6 +322,7 @@ struct HighlightEditorView: View {
         }
     }
 
+    // MARK: - Editor thumbnails
     private func thumbnail(_ image: Image, selected: Bool, onRemove: @escaping () -> Void) -> some View {
         image.resizable().scaledToFill()
             .frame(width: 84, height: 84)
@@ -343,6 +347,7 @@ struct HighlightEditorView: View {
     }
 }
 
+// MARK: - Add to highlight
 /// From your own story: put it in one of your highlights, or a new one.
 struct AddToHighlightSheet: View {
     @Environment(AppState.self) private var appState

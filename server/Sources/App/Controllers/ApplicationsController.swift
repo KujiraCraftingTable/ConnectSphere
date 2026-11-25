@@ -24,6 +24,7 @@ struct ApplicationsController {
 
     static let cvDir = UploadsController.uploadDir + "/cv"
 
+    // MARK: - Applying
     struct ApplyBody: Content { var note: String?; var cv_url: String? }
 
     static func apply(_ req: Request) async throws -> Response {
@@ -74,6 +75,7 @@ struct ApplicationsController {
         return try await ConnectionsController.encode(DataResponse(data: made), req, .created)
     }
 
+    // MARK: - Application lists
     static func mine(_ req: Request) async throws -> DataListResponse<ApplicationStore.Application> {
         DataListResponse(data: try await ApplicationStore.mine(req.userID, on: req.db.sql()))
     }
@@ -87,6 +89,7 @@ struct ApplicationsController {
         return DataListResponse(data: try await ApplicationStore.forJob(jobID, on: db))
     }
 
+    // MARK: - Status changes
     struct StatusBody: Content { var status: String? }
 
     /// The poster or company admins move an application along; the
@@ -128,6 +131,7 @@ struct ApplicationsController {
         return DataResponse(data: updated)
     }
 
+    // MARK: - CV
     struct CVResponse: Content { var url: String }
 
     /// A PDF CV, at most 10 MB, saved under the uploader's id.

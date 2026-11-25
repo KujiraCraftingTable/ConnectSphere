@@ -149,6 +149,7 @@ struct MutedWordsView: View {
         }
     }
 
+    // MARK: - Rows & add
     private func wordRow(_ word: MutedWord) -> some View {
         HStack {
             Text(word.word)

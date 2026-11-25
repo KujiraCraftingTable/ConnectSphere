@@ -1,11 +1,13 @@
 import Foundation
 import Observation
 
+// MARK: - Notifications
 extension Notification.Name {
     /// A buyer sent their review from a legit card; `object` is the card id.
     static let legitCardReviewed = Notification.Name("legitCardReviewed")
 }
 
+// MARK: - Chat legit card
 /// A legit card in a chat: loaded as the viewer (its seller or its buyer),
 /// and the buyer's one review from it.
 @MainActor
@@ -57,6 +59,7 @@ final class ChatLegitCardViewModel {
     }
 }
 
+// MARK: - Seller page
 /// Loads the seller behind a reviewed card for their Marketplace page.
 @MainActor
 @Observable

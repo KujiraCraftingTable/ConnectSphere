@@ -22,6 +22,7 @@ struct ConnectButton: View {
     /// those 2 buttons go on their own row below, to avoid crowding/text wrapping.
     var companion: (() -> AnyView)? = nil
 
+    // MARK: - Init
     /// `sharedVM` lets the owner read the status too (e.g. a search card that
     /// moves Accept / Decline to their own row); by default it has its own.
     init(targetUserId: String, compact: Bool = false, fullWidth: Bool = false,
@@ -52,6 +53,7 @@ struct ConnectButton: View {
     /// icon, spacing and padding.
     private var compactChipWidth: CGFloat? { compact ? 96 : nil }
 
+    // MARK: - Body
     var body: some View {
         Group {
             switch vm.status {
@@ -123,6 +125,7 @@ struct ConnectButton: View {
         }
     }
 
+    // MARK: - Chips
     /// Places the companion (if any) next to the status chip, on the same row. Used for
     /// statuses with only a single chip (connected/sent/none), which don't need their own row.
     @ViewBuilder

@@ -31,6 +31,7 @@ struct ManageRolesView: View {
     private var token: String { appState.authToken ?? "" }
     private var myId: String { appState.currentUser?.id ?? "" }
 
+    // MARK: - Body
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -80,6 +81,7 @@ struct ManageRolesView: View {
         }
     }
 
+    // MARK: - Search
     private var searchField: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass").foregroundColor(AppColors.textTertiary(colorScheme))
@@ -110,6 +112,7 @@ struct ManageRolesView: View {
         }
     }
 
+    // MARK: - Role sections
     /// One titled box per role; a role with nobody (or no search match) hides.
     @ViewBuilder
     private func roleSection(_ title: String, _ members: [CommunityMember]) -> some View {
@@ -169,6 +172,7 @@ struct ManageRolesView: View {
         }
     }
 
+    // MARK: - Rows
     private func row(_ member: CommunityMember) -> some View {
         Button {
             // Not your own row, and the admin seat only moves through
@@ -209,6 +213,7 @@ struct ManageRolesView: View {
         }
     }
 
+    // MARK: - Confirm and apply
     private func confirmMessage(_ change: PendingChange) -> String {
         switch change {
         case .admin: return bundle.loc("A community has one admin. You'll become a moderator.")

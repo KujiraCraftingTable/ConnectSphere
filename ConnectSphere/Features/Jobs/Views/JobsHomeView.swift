@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Jobs home
 /// Work mode's Jobs tab: For you (best matches with why), Search with
 /// filters, Saved, and Applied. A verified HR posts a job from the "+".
 /// Work mode has no communities (they're Hobby-only, migration 127).
@@ -103,6 +104,7 @@ struct JobsHomeView: View {
         }
     }
 
+    // MARK: - Search & empty state
     private var searchBar: some View {
         HStack(spacing: 8) {
             HStack(spacing: 8) {
@@ -147,6 +149,7 @@ struct JobsHomeView: View {
     }
 }
 
+// MARK: - Filters
 /// Narrow the job search: place, type, format, level, pay.
 struct JobFiltersSheet: View {
     @Environment(\.appBundle) private var bundle
@@ -196,6 +199,7 @@ struct JobFiltersSheet: View {
     }
 }
 
+// MARK: - Company jobs
 /// A company page's Jobs tab.
 struct CompanyJobsList: View {
     @Environment(AppState.self) private var appState

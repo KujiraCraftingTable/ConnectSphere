@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Search criteria
 struct AISearchCriteriaDTO: Decodable {
     let entity_type:        String?
     let entity_name:        String?
@@ -31,6 +32,7 @@ struct AISearchCriteriaDTO: Decodable {
     }
 }
 
+// MARK: - Match evidence
 /// A "match reason" in the mini CV, pre-built by the backend from a chunk/community, no LLM call.
 /// Posts are already grouped by topic on the backend: postCount posts, newest/oldest timestamps.
 struct MatchEvidenceDTO: Decodable, Hashable {
@@ -73,6 +75,7 @@ struct MatchEvidenceDTO: Decodable, Hashable {
     }
 }
 
+// MARK: - Entity candidates & suggestions
 /// A canonical candidate for a gray-zone keyword (0.6–0.8): "did you mean …?"
 struct EntityCandidateDTO: Decodable, Identifiable {
     let entity_id:      String
@@ -86,6 +89,7 @@ struct EntitySuggestionDTO: Decodable, Identifiable {
     var id: String { keyword }
 }
 
+// MARK: - Search responses
 /// Something in the query the AI couldn't understand or apply (e.g. a venue it
 /// couldn't place). Backend sends a stable `code` plus optional `value` rather
 /// than prose, so the text is localized here in the app, not hardcoded server-side.

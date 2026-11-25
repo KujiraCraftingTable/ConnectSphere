@@ -7,6 +7,7 @@ import Photos
 @MainActor
 @Observable
 final class MediaSaveViewModel {
+    // MARK: - Types
     struct Item: Equatable {
         let url: URL
         let isVideo: Bool
@@ -33,6 +34,7 @@ final class MediaSaveViewModel {
         }
     }
 
+    // MARK: - Saving
     func save(_ items: [Item]) async {
         guard !items.isEmpty, !isSaving else { return }
         resetTask?.cancel()

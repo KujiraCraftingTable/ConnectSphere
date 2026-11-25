@@ -20,6 +20,7 @@ struct CreateJobSheet: View {
 
     private var token: String { appState.authToken ?? "" }
 
+    // MARK: - Body
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             sectionLabel(bundle.loc("Job Details"))
@@ -209,6 +210,7 @@ struct CreateJobSheet: View {
         )
     }
 
+    // MARK: - Form rows
     private func pickerRow<M: View>(label: String, value: String, @ViewBuilder menu: () -> M) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label)

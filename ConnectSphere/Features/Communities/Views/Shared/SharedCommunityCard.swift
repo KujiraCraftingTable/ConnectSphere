@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Shared community card
 /// A community's card where it was shared (a feed post, a chat). Tapping
 /// opens the community.
 struct SharedCommunityCard: View {
@@ -52,6 +53,7 @@ struct SharedCommunityCard: View {
     }
 }
 
+// MARK: - Chat card
 /// A community shared into a chat: loaded as the viewer, so a private one
 /// they can't see shows as unavailable.
 struct ChatCommunityCard: View {
@@ -76,6 +78,7 @@ struct ChatCommunityCard: View {
     }
 }
 
+// MARK: - Unavailable card
 /// Where a shared community used to be: it was disbanded, suspended or is
 /// otherwise out of reach, so nothing of it is shown.
 struct CommunityUnavailableCard: View {

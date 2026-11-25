@@ -10,6 +10,7 @@ struct CommunityNotificationsSheet: View {
 
     private var current: CommunityNotifyLevel { viewModel.community?.notifyLevel ?? .friends }
 
+    // MARK: - Body
     var body: some View {
         NavigationStack {
             Form {
@@ -46,6 +47,7 @@ struct CommunityNotificationsSheet: View {
         .presentationDetents([.medium])
     }
 
+    // MARK: - Level text
     private func icon(_ level: CommunityNotifyLevel) -> String {
         switch level {
         case .all: "bell.badge"

@@ -25,6 +25,7 @@ final class PeopleSuggestionsViewModel {
 
     func suggestions(for mode: AppMode) -> [PeopleSuggestion] { suggestions[mode] ?? [] }
 
+    // MARK: - Loading
     /// Reload for `mode`: called with every feed reload (pull to refresh,
     /// mode or tab switch, tapping Home again).
     func refresh(_ mode: AppMode) async {
@@ -40,6 +41,7 @@ final class PeopleSuggestionsViewModel {
         }
     }
 
+    // MARK: - Placement
     /// Indices in the post list the module goes before (see `SuggestionPlacement`).
     func slots(for mode: AppMode, postCount: Int) -> [Int] {
         SuggestionPlacement.slots(isFresh: openedFresh[mode] ?? false, postCount: postCount,
@@ -60,6 +62,7 @@ final class PeopleSuggestionsViewModel {
         defaults.set(Array(seen.prefix(Self.maxRemembered)), forKey: Self.seenKey(mode))
     }
 
+    // MARK: - Dismiss and connect
     func dismiss(_ person: PeopleSuggestion, mode: AppMode) async {
         let before = suggestions(for: mode)
         suggestions[mode] = before.filter { $0.id != person.id }   // optimistic

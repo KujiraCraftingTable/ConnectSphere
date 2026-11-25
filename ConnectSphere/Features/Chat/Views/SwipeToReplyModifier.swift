@@ -26,6 +26,7 @@ struct SwipeToReplyModifier: ViewModifier {
     private let threshold: CGFloat = 60
     private let maxTravel: CGFloat = 80
 
+    // MARK: - Body
     func body(content: Content) -> some View {
         ZStack(alignment: direction > 0 ? .leading : .trailing) {
             // Stays put at the row's edge while the bubble slides off it.
@@ -73,6 +74,7 @@ struct SwipeToReplyModifier: ViewModifier {
             }
     }
 
+    // MARK: - Helpers
     /// Follows the finger 1:1 up to the threshold, then resists, capped at
     /// `maxTravel` so a long drag can't throw the bubble across the screen.
     private func rubberBanded(_ travel: CGFloat) -> CGFloat {

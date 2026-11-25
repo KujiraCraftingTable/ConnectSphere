@@ -29,6 +29,7 @@ final class StoryViewerViewModel {
         stories.indices.contains(currentIndex) ? stories[currentIndex] : nil
     }
 
+    // MARK: - Playback
     func segmentProgress(_ index: Int) -> Double {
         if index < currentIndex { return 1 }
         if index == currentIndex { return min(progress, 1) }
@@ -73,6 +74,7 @@ final class StoryViewerViewModel {
         }
     }
 
+    // MARK: - Delete and viewers
     /// Deletes the current story; returns true when none are left. On failure
     /// the story stays and the user can retry.
     func deleteCurrent() async -> Bool {

@@ -18,6 +18,7 @@ struct ModerationEvalCommand: AsyncCommand {
 
     var help: String { "Scores the automatic text checks against a labelled set." }
 
+    // MARK: - Items and results
     struct Item: Decodable { let text: String; let expect: String; let policy: String; let note: String? }
 
     struct Result {
@@ -31,6 +32,7 @@ struct ModerationEvalCommand: AsyncCommand {
         var unsure: Bool { guardVerdict?.level == .controversial && finding == nil }
     }
 
+    // MARK: - Run
     func run(using context: CommandContext, signature: Signature) async throws {
         let app = context.application
         let console = context.console
@@ -61,6 +63,7 @@ struct ModerationEvalCommand: AsyncCommand {
         report(results, console: console, list: signature.list)
     }
 
+    // MARK: - Report
     private func pct(_ n: Int, _ of: Int) -> String {
         of == 0 ? "-" : String(format: "%d/%d (%.0f%%)", n, of, 100 * Double(n) / Double(of))
     }

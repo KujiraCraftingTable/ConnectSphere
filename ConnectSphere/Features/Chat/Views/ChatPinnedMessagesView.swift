@@ -20,6 +20,7 @@ struct ChatPinnedMessagesView: View {
     /// because this is a list, not a single toggle.
     @State private var pendingUnpin: PinnedMessage? = nil
 
+    // MARK: - Body
     var body: some View {
         Group {
             if viewModel.isLoadingPins && viewModel.pinnedMessages.isEmpty {
@@ -65,6 +66,7 @@ struct ChatPinnedMessagesView: View {
         }
     }
 
+    // MARK: - Pin rows
     private func pinRow(_ pin: PinnedMessage) -> some View {
         HStack(alignment: .top, spacing: 10) {
             VStack(alignment: .leading, spacing: 4) {
@@ -108,6 +110,7 @@ struct ChatPinnedMessagesView: View {
         return viewModel.displayName(forUserId: pin.pinnedBy) ?? bundle.loc("Someone")
     }
 
+    // MARK: - Empty state
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "pin.slash")

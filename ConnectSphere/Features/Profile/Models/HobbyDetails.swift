@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Relationship
 /// Hobby-only profile details (migration 062): relationship, languages, education.
 enum RelationshipStatus: String, CaseIterable, Identifiable {
     case single, inRelationship = "in_relationship", engaged, married, civilUnion = "civil_union"
@@ -26,6 +27,7 @@ enum RelationshipStatus: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Languages
 /// Languages are stored as ISO codes and shown in the app's language.
 enum ProfileLanguages {
     static let codes = [
@@ -39,6 +41,7 @@ enum ProfileLanguages {
     }
 }
 
+// MARK: - Education
 /// A school on a Hobby profile.
 struct Education: Identifiable, Decodable, Hashable {
     let id: String
@@ -79,6 +82,7 @@ struct Education: Identifiable, Decodable, Hashable {
     }
 }
 
+// MARK: - School catalog
 /// The built-in school list the picker searches (Vietnamese universities and
 /// colleges); anything else, a high school, is typed in.
 enum SchoolCatalog {

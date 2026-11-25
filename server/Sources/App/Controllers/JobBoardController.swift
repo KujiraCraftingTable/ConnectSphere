@@ -14,6 +14,7 @@ struct JobBoardController {
         routes.grouped("companies").grouped(AuthMiddleware()).get(":id", "jobs", use: companyJobs)
     }
 
+    // MARK: - Filters
     private static let employmentTypes: Set<String> = ["full_time", "part_time", "contract", "internship", "remote"]
 
     /// Query filters, each checked against its allowlist.
@@ -48,6 +49,7 @@ struct JobBoardController {
         return f
     }
 
+    // MARK: - Listings
     static func search(_ req: Request) async throws -> DataListResponse<JobBoardStore.Listing> {
         DataListResponse(data: try await JobBoardStore.search(try filters(req), viewer: req.userID, on: req.db.sql()))
     }

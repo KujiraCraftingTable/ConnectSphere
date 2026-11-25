@@ -19,6 +19,7 @@ struct CommunityAnalyticsView: View {
 
     private var accent: Color { Color(hex: coverColor) }
 
+    // MARK: - Body
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
@@ -82,6 +83,7 @@ struct CommunityAnalyticsView: View {
         }
     }
 
+    // MARK: - Top posts
     private func topPostsSection(_ posts: [AnalyticsPost]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Top Posts This Period", bundle: bundle)

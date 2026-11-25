@@ -9,6 +9,7 @@ import Foundation
 /// Paths in the replies follow the screens as they are: Privacy & Security,
 /// Username, Email, Activity log and deleting all sit under Manage account.
 enum AssistantGuidanceTopic: String, CaseIterable, Equatable {
+    // MARK: - Topics
     // Account and security
     case manageAccount
     case changeUsername
@@ -59,6 +60,7 @@ enum AssistantGuidanceTopic: String, CaseIterable, Equatable {
     case stories
     case assistantHelp
 
+    // MARK: - Highlightable rows
     /// The rows screens tag with `assistantHighlightRow`; a target may only
     /// highlight one of these.
     static let highlightableRows: Set<AssistantGuidanceTopic> = [
@@ -72,6 +74,7 @@ enum AssistantGuidanceTopic: String, CaseIterable, Equatable {
     static let setPasswordMessageKey =
         "You can set a password in Settings → Manage account → Privacy & Security → Set password, so you can also sign in with your username."
 
+    // MARK: - Messages
     /// The reply, which is also its localization key.
     var messageKey: String {
         switch self {
@@ -164,6 +167,7 @@ enum AssistantGuidanceTopic: String, CaseIterable, Equatable {
         }
     }
 
+    // MARK: - Titles
     /// Short name for a suggestion button.
     var titleKey: String {
         switch self {
@@ -213,6 +217,7 @@ enum AssistantGuidanceTopic: String, CaseIterable, Equatable {
         }
     }
 
+    // MARK: - Navigation targets
     /// Where "Take me there" goes: the screen the reply names, with the row
     /// highlighted when the setting is one row among many.
     var navigationTarget: AssistantNavigationTarget? {
@@ -260,6 +265,7 @@ enum AssistantGuidanceTopic: String, CaseIterable, Equatable {
         }
     }
 
+    // MARK: - Matching phrases
     /// English and Vietnamese ways of asking. Lowercase; the matcher picks
     /// the longest phrase found, so a specific phrase here beats a vaguer one
     /// on another topic.

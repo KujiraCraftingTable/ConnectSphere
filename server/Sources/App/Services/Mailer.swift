@@ -12,6 +12,7 @@ struct Mailer {
     /// the plaintext from here (`GET /api/test/last-code`).
     let codeSink: TestCodeSink?
 
+    // MARK: - Setup
     init(_ req: Request) {
         mail = req.application.appEnv.mail
         client = req.client
@@ -27,6 +28,7 @@ struct Mailer {
         codeSink = app.appEnv.uitest.hooksEnabled ? .shared : nil
     }
 
+    // MARK: - Message kinds
     enum Kind {
         case verifyEmail, changeEmail, deleteHobby, deleteWork, deleteAccount, passwordReset, loginCode, twoFactor, signup, exportData, hrEmail
 
@@ -84,6 +86,7 @@ struct Mailer {
         }
     }
 
+    // MARK: - Sending
     struct SendFailed: AbortError {
         var status: HTTPResponseStatus { .badGateway }
         var reason: String { "Couldn't send the email, please try again" }
@@ -148,6 +151,7 @@ struct Mailer {
                                                 : "A warning on your ConnectSphere \(profile)", text: text)
     }
 
+    // MARK: - Transport
     private func send(to email: String, subject: String, text: String) async throws {
         struct Address: Content { var email: String; var name: String? }
         struct Body: Content {

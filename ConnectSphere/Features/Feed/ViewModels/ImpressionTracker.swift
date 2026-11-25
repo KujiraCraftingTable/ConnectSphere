@@ -24,6 +24,7 @@ final class ImpressionTracker {
 
     init(source: Source) { self.source = source }
 
+    // MARK: - Visibility events
     /// A post came at least half on screen, or left it.
     func visibilityChanged(_ postId: String, visible: Bool) {
         if visible {
@@ -45,6 +46,7 @@ final class ImpressionTracker {
         flush()
     }
 
+    // MARK: - Batching
     private func end(_ postId: String) {
         guard let start = onScreen.removeValue(forKey: postId) else { return }
         let ms = Int(Date().timeIntervalSince(start) * 1000)
@@ -91,6 +93,7 @@ final class ImpressionTracker {
     }
 }
 
+// MARK: - View modifier
 extension View {
     /// Reports to `tracker` while this post is at least half on screen.
     func tracksImpression(_ postId: String, in tracker: ImpressionTracker) -> some View {

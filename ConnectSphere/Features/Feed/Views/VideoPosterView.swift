@@ -1,6 +1,7 @@
 import SwiftUI
 import AVFoundation
 
+// MARK: - Video frames
 /// First frame and length of a video, local file or remote URL. Shared by the
 /// post composer's thumbnail and the feed's video tiles.
 enum VideoFrame {
@@ -23,6 +24,7 @@ enum VideoFrame {
     }
 }
 
+// MARK: - Poster view
 /// A video tile's face: its first frame with a play button and a length badge.
 /// Replaces a plain black box. In a post card that read as a broken image.
 /// The frame comes over HTTP byte ranges, so only a small part of the file loads.

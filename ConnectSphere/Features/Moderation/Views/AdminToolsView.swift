@@ -92,6 +92,7 @@ struct AdminToolsView: View {
         .refreshable { await viewModel.loadStats() }
     }
 
+    // MARK: - Row helpers
     private func row(_ label: String, _ value: String) -> some View {
         LabeledContent(bundle.loc(label), value: value)
     }

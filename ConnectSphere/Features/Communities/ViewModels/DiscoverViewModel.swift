@@ -25,6 +25,7 @@ class DiscoverViewModel {
         self.token = token
     }
 
+    // MARK: - Loading
     func fetchDiscover(type: CommunityType) async {
         isLoading = true
         errorMessage = nil
@@ -59,6 +60,7 @@ class DiscoverViewModel {
         if generation == searchGeneration { isSearching = false }
     }
 
+    // MARK: - Membership
     /// Join/leave straight from any row (trending, recommended or a search
     /// result), optimistic, reverted on failure.
     func toggleMembership(_ community: Community) async {

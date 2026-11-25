@@ -1,6 +1,7 @@
 import SwiftUI
 import Observation
 
+// MARK: - Add chat view model
 /// The chats the floating window's "+" can add: accepted ones only (people
 /// and groups, not Waiting requests), not archived, newest first.
 @MainActor
@@ -45,6 +46,7 @@ final class FloatingChatAddViewModel {
     }
 }
 
+// MARK: - Add chat sheet
 /// Picks a chat to add to the floating window without leaving the screen
 /// you're on. Chats already floating show a check; tapping one shows it.
 struct FloatingChatAddSheet: View {
@@ -112,6 +114,7 @@ struct FloatingChatAddSheet: View {
         }
     }
 
+    // MARK: - Chat rows
     private func row(_ conversation: Conversation) -> some View {
         let floating = presenter.hasBubble(for: conversation.id)
         return Button { pick(conversation) } label: {

@@ -6,6 +6,7 @@ import SQLKit
 /// the LLM, cached in `suggestion_cache` with a 1-hour TTL. Falls back to the
 /// static defaults on any miss / failure.
 enum SuggestionService {
+    // MARK: - Defaults and prompts
     static let cacheTTL: TimeInterval = 60 * 60
 
     static let defaults: [String: [String]] = SearchController.defaultSuggestions
@@ -33,6 +34,7 @@ enum SuggestionService {
             """,
     ]
 
+    // MARK: - Generation and cache
     static func getSuggestions(mode: String?, cfg: OllamaService.Config, on db: any SQLDatabase, logger: Logger) async -> [String] {
         guard let mode, mode == "hobby" || mode == "work" else {
             return Array((defaults["hobby"]! + defaults["work"]!).prefix(4))

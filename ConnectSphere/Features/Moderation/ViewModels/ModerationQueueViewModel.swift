@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 
+// MARK: - Queue
 /// The app-wide review queue: open cases from reports, ones the automatic
 /// checks held, and appeals waiting for a second look.
 @MainActor
@@ -38,6 +39,7 @@ final class ModerationQueueViewModel {
     }
 }
 
+// MARK: - Case
 /// One case in full, and the decision on it (or on its appeal).
 @MainActor
 @Observable
@@ -108,6 +110,7 @@ final class ModerationCaseViewModel {
     }
 }
 
+// MARK: - Notifications
 extension Notification.Name {
     /// The queue reloads when a case it lists has been decided.
     static let moderationCaseDecided = Notification.Name("moderationCaseDecided")

@@ -49,6 +49,7 @@ final class EditCommunityViewModel {
     /// The last name (lowercased) found taken, by the live check or a refused save.
     private var takenName: String?
 
+    // MARK: - Name check
     /// Checks the typed name with the server; the view calls it after a short
     /// pause in typing. The community's own name is always fine.
     func checkName(token: String) async {
@@ -64,11 +65,13 @@ final class EditCommunityViewModel {
     /// Shows the existing cover unless a new one was picked.
     var showsExistingCover: Bool { pickedCover == nil && original.coverUrl != nil }
 
+    // MARK: - Cover photo
     func loadCover(from item: PhotosPickerItem) async {
         guard let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else { return }
         pickedCover = image
     }
 
+    // MARK: - Save
     /// The saved community, or nil with `errorMessage` set.
     func save(token: String) async -> Community? {
         guard nameProblem == nil, !isSaving else { return nil }

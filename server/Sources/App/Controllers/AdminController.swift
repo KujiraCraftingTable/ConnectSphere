@@ -17,6 +17,7 @@ struct AdminController {
         a.get("marketplace", "deals", use: dealRecords)
     }
 
+    // MARK: - Marketplace records
     /// GET /api/admin/marketplace/listings?listing_id= or ?seller_id=
     static func archivedListings(_ req: Request) async throws -> DataListResponse<ListingRecordStore.ArchivedListing> {
         let listingID = (try? req.query.get(String.self, at: "listing_id"))?.nilIfEmpty
@@ -40,6 +41,7 @@ struct AdminController {
             userID: user.uuidString.lowercased(), on: req.db.sql()))
     }
 
+    // MARK: - Moderate
     struct ModerateBody: Content {
         var action: String?        // "ban" | "warn"
         var target_type: String?   // user | post | comment | message
@@ -103,6 +105,7 @@ struct AdminController {
         return Moderated(case_id: caseID, decision: outcome.decision.rawValue, active_warnings: before + 1)
     }
 
+    // MARK: - Warnings
     struct WarningCount: Content { var active_warnings: Int; var banned: Bool }
 
     /// GET /api/admin/warnings?user_id=&mode= : for the Ban/Warn sheet.
@@ -116,6 +119,7 @@ struct AdminController {
                             banned: try await AccountBans.activeModes(user, on: db).contains(mode))
     }
 
+    // MARK: - Stats
     /// Hobby and Work are separate datasets, so every per-mode count is split.
     struct ModeCounts: Content { var hobby: Int; var work: Int }
     struct Stats: Content {
@@ -160,6 +164,7 @@ struct AdminController {
             open_cases: r.open_cases, pending_appeals: r.pending_appeals, reports_7d: r.reports_7d))
     }
 
+    // MARK: - User lookup
     struct LookedUp: Content {
         var id: String
         var username: String

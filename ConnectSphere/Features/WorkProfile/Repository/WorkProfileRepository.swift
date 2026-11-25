@@ -16,6 +16,7 @@ struct WorkProfileRepository {
         var description: String
     }
 
+    // MARK: - Experience
     func experiences(of userId: String, token: String) async throws -> [WorkExperience] {
         try await client.fetch(DataListResponse<WorkExperience>.self, path: "/users/\(userId)/experiences", token: token).data
     }
@@ -36,6 +37,7 @@ struct WorkProfileRepository {
                                method: "DELETE", token: token).data
     }
 
+    // MARK: - Skills
     func skills(of userId: String, token: String) async throws -> ProfileSkills {
         try await client.fetch(ProfileSkills.self, path: "/users/\(userId)/skills", token: token)
     }
@@ -46,6 +48,7 @@ struct WorkProfileRepository {
                                method: endorsed ? "POST" : "DELETE", token: token)
     }
 
+    // MARK: - Company people
     struct CompanyPerson: Identifiable, Decodable, Hashable {
         let id: String
         let displayName: String

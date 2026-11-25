@@ -11,6 +11,7 @@ struct PollPostCard: View {
     /// Accent color from the community cover
     var accentColor: Color
 
+    // MARK: - Body
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(vm.pollData.options) { option in
@@ -48,6 +49,7 @@ struct PollPostCard: View {
         return parts.joined(separator: " · ")
     }
 
+    // MARK: - Option rows
     /// One option as in chat polls: a bar sized by its share, your choice
     /// ticked, and, instead of the voters' faces, its percentage. Tapping
     /// votes, moves your vote here, or on your choice takes it back.

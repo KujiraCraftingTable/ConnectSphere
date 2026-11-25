@@ -1,6 +1,7 @@
 import SwiftUI
 import Observation
 
+// MARK: - Toast item
 /// One active toast. Created by `UndoToastPresenter.show(message:onUndo:)`,
 /// or `show(message:)` for a plain notice with nothing to undo.
 struct UndoToastItem: Identifiable {
@@ -12,6 +13,7 @@ struct UndoToastItem: Identifiable {
     var edge: VerticalEdge = .bottom
 }
 
+// MARK: - Presenter
 /// Presenter for a non-blocking bottom "Undo" toast, shown right after a
 /// soft-delete (post/comment) so the user has a brief window to reverse it.
 /// One instance is injected app-wide via `.environment` (see
@@ -64,6 +66,7 @@ final class UndoToastPresenter {
     }
 }
 
+// MARK: - Toast view
 /// Bottom banner UI for one `UndoToastItem`. Message + an "Undo" button.
 struct UndoToastView: View {
     @Environment(ThemeManager.self) var themeManager
@@ -99,6 +102,7 @@ struct UndoToastView: View {
     }
 }
 
+// MARK: - Overlay modifier
 extension View {
     /// Attaches the shared Undo-toast overlay bound to `presenter`'s current
     /// item, put this on a screen-level view (see `MainTabView`,

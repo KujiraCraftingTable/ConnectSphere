@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 
+// MARK: - Code helpers
 /// Shared bits of the code flows.
 enum AccountCode {
     /// "kujira.personal@gmail.com" → "k•••l@gmail.com", enough to recognise.
@@ -23,6 +24,7 @@ enum AccountCode {
     static let resendSeconds: TimeInterval = 60
 }
 
+// MARK: - Email verification
 /// The account email: shown when verified, added or changed with codes.
 /// Changing a verified one is two steps. Confirm with a code to the current
 /// address, then verify the new one.
@@ -120,6 +122,7 @@ final class EmailVerificationViewModel {
     }
 }
 
+// MARK: - Delete scope
 /// Deleting the Hobby or Work persona, or the whole account, confirmed with
 /// a code sent to the verified email.
 @MainActor
@@ -185,6 +188,7 @@ final class DeleteScopeViewModel {
     }
 }
 
+// MARK: - Two-factor
 /// Turning two-factor sign-in on or off. Either way, with a code sent to
 /// the verified email.
 @MainActor

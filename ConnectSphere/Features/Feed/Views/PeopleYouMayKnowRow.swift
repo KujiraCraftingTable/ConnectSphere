@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Feed row
 /// "People you may know" in the feed: a sideways row of cards, each with the
 /// reason we think you know them, Connect, and ✕ to stop suggesting them.
 struct PeopleYouMayKnowRow: View {
@@ -54,6 +55,7 @@ struct PeopleYouMayKnowRow: View {
         .task { await interestNames.loadIfNeeded() }
     }
 
+    // MARK: - Cards
     private func card(_ person: PeopleSuggestion) -> some View {
         VStack(spacing: 8) {
             NavigationLink {
@@ -122,6 +124,7 @@ struct PeopleYouMayKnowRow: View {
     }
 }
 
+// MARK: - Reason text
 /// The card's one-line reason, localised.
 enum PeopleSuggestionText {
     static func reason(_ reason: PeopleSuggestion.Reason, mode: AppMode, bundle: Bundle,
@@ -138,6 +141,7 @@ enum PeopleSuggestionText {
     }
 }
 
+// MARK: - Full list
 /// "See all": every suggestion for this mode, as the same cards People
 /// search uses, with how closely each profile matches yours.
 struct PeopleSuggestionsListView: View {

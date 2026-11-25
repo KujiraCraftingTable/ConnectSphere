@@ -22,6 +22,7 @@ struct AlbumStackBubble: View {
         return [(8 * Double(side), 22 * side, 6), (-5 * Double(side), -12 * side, 2)]
     }
 
+    // MARK: - Body
     var body: some View {
         let shown = Array(urls.prefix(3))
         Button(action: onOpen) {
@@ -43,6 +44,7 @@ struct AlbumStackBubble: View {
         .accessibilityHint(Text("Opens the photos", bundle: bundle))
     }
 
+    // MARK: - Cards
     private func placement(of index: Int, count: Int) -> (angle: Double, x: CGFloat, y: CGFloat) {
         guard index > 0 else { return (0, 0, 0) }
         // With only two photos the single back card takes the wider slot.
@@ -90,6 +92,7 @@ struct AlbumStackBubble: View {
     }
 }
 
+// MARK: - Badge glass
 private struct AlbumBadgeGlass: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {

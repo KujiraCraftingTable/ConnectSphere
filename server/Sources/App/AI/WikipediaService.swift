@@ -6,6 +6,7 @@ import AsyncHTTPClient
 /// into `{ canonical_name, category, aliases, genre_tags }`. Best-effort, any
 /// failure returns nil and the caller falls back to embedding the raw text.
 enum WikipediaService {
+    // MARK: - Proper noun check
     static let genericTags: Set<String> = [
         "anime", "manga", "manhwa", "manhua", "movies", "film", "music", "gaming", "game",
         "travel", "food", "coffee", "cafe", "fitness", "gym", "coding", "programming",
@@ -42,6 +43,7 @@ enum WikipediaService {
         - No duplicate values in any array
         """
 
+    // MARK: - Wikipedia fetch
     struct WikiData { var title: String; var description: String; var extract: String; var titles: [String: String]; var categories: [String] }
     struct Parsed { var canonicalName: String; var category: String; var aliases: [String]; var genreTags: [String] }
 
@@ -115,6 +117,7 @@ enum WikipediaService {
         }
     }
 
+    // MARK: - LLM parse
     static func parseWikiData(_ w: WikiData, cfg: OllamaService.Config, logger: Logger) async -> Parsed? {
         do {
             let input = String(data: try JSONSerialization.data(withJSONObject: [

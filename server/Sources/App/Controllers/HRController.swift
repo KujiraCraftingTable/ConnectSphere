@@ -19,6 +19,7 @@ struct HRController {
         app.get("uploads", "jd", ":filename", use: serveJD)
     }
 
+    // MARK: - Job descriptions
     /// Public, like the job it belongs to.
     static func serveJD(_ req: Request) async throws -> Response {
         guard let name = req.parameters.get("filename"), !name.contains("/"), !name.contains(".."),
@@ -52,6 +53,7 @@ struct HRController {
 
     static let licenceDir = UploadsController.uploadDir + "/hr"
 
+    // MARK: - Eligibility
     static func me(_ req: Request) async throws -> DataResponse<HRStore.MyStatus> {
         DataResponse(data: try await HRStore.status(of: req.userID, on: req.db.sql()))
     }
@@ -74,6 +76,7 @@ struct HRController {
         if try await HRStore.hasPending(req.userID, on: db) { throw InlineError(.conflict, "Your request is already waiting for review") }
     }
 
+    // MARK: - Company email check
     /// A checked company email, lowercased.
     static func companyEmail(_ raw: String?) throws -> String {
         let email = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -98,6 +101,7 @@ struct HRController {
         return Sent(sent_to: email)
     }
 
+    // MARK: - Licence uploads
     struct LicenceResponse: Content { var path: String }
 
     /// The business registration certificate, a PDF of at most 10 MB.
@@ -131,6 +135,7 @@ struct HRController {
         return req.fileio.streamFile(at: "\(licenceDir)/\(name)")
     }
 
+    // MARK: - Request submission
     struct SubmitBody: Content {
         var company_name: String?
         var tax_code: String?

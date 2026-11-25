@@ -16,6 +16,7 @@ struct JobApplication: Identifiable, Decodable, Hashable {
     /// How the applicant fits the job (managers' view only).
     let match: JobListing.Match?
 
+    // MARK: - Events & applicant
     struct Event: Decodable, Hashable {
         let status: String
         let createdAt: Date
@@ -51,6 +52,7 @@ struct JobApplication: Identifiable, Decodable, Hashable {
         case createdAt = "created_at"
     }
 
+    // MARK: - Display text
     /// "2 of 3 skills match" for a manager, from the job's own skill list.
     func skillsText(loc: (String) -> String) -> String? {
         guard let match else { return nil }

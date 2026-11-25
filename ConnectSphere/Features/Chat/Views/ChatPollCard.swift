@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Poll card
 /// A group poll in a chat: the question, then each option as a bar sized by
 /// its share of the votes, with its count and the faces of who picked it
 /// (tap the faces for the names). Your own choice is ticked. While the poll
@@ -50,6 +51,7 @@ struct ChatPollCard: View {
         }
     }
 
+    // MARK: - Options
     private func optionRow(_ option: ChatPoll.Option) -> some View {
         let mine = myOption == option.id
         let share = poll.share(of: option)
@@ -131,6 +133,7 @@ struct ChatPollCard: View {
     }
 }
 
+// MARK: - Voters sheet
 /// Everyone who picked one option, in the order they voted.
 private struct PollVotersSheet: View {
     @Environment(\.colorScheme) private var colorScheme
@@ -162,6 +165,7 @@ private struct PollVotersSheet: View {
     }
 }
 
+// MARK: - Poll composer
 /// A new poll for a group chat: the question, then 2–6 options and an
 /// optional end date (the same editor post polls use).
 struct ChatPollComposer: View {

@@ -4,6 +4,7 @@ import Foundation
 /// The caller's identity is read by the backend from the JWT (NetworkClient attaches the
 /// Bearer token automatically), so no endpoint accepts a viewer/user id from the client anymore.
 enum Endpoint {
+    // MARK: - Endpoints
     case listUsers(mode: String? = nil, search: String? = nil, limit: Int = 20, offset: Int = 0)
     case getUser(id: String, mode: String? = nil)
     case listPosts(mode: String? = nil, authorId: String? = nil, filter: String? = nil, tag: String? = nil, search: String? = nil, limit: Int = 20, offset: Int = 0)
@@ -33,6 +34,7 @@ enum Endpoint {
     /// adds the skills people with a similar title hold.
     case skillCatalog(jobTitle: String?)
 
+    // MARK: - URL, method & body
     // Computed, not cached, APIConfig.baseURL can change at runtime
     // (devServerOverride); a `let` here would freeze the old value.
     private static var baseURL: String { APIConfig.baseURL }
@@ -84,6 +86,7 @@ enum Endpoint {
         }
     }
 
+    // MARK: - Path & query
     private var path: String {
         switch self {
         case .listUsers:                return "/users"

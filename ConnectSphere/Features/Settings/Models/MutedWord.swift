@@ -1,11 +1,13 @@
 import Foundation
 
+// MARK: - Notifications
 extension Notification.Name {
     /// The muted-word list changed (either mode): feeds refetch so posts the
     /// server now hides (or shows again) update without a manual refresh.
     static let mutedWordsChanged = Notification.Name("mutedWordsChanged")
 }
 
+// MARK: - Muted word
 /// A word or phrase the user doesn't want to see, in one mode (migration 042).
 /// The server does the matching: accents and capitals are ignored and only
 /// whole words count.
@@ -36,6 +38,7 @@ struct MutedWord: Identifiable, Decodable, Equatable {
     }
 }
 
+// MARK: - Durations
 /// The durations the server accepts (`MutedWordStore.durations`).
 enum MuteDuration: String, CaseIterable, Identifiable {
     case day = "24h", week = "7d", month = "30d", forever

@@ -15,6 +15,7 @@ enum MutedWordStore {
         "24h": 86_400, "7d": 604_800, "30d": 2_592_000, "forever": nil,
     ]
 
+    // MARK: - Words and cleaning
     struct Word: Content {
         var id: String
         var word: String
@@ -35,6 +36,7 @@ enum MutedWordStore {
         return word
     }
 
+    // MARK: - Queries
     private static let unexpired = "(expires_at IS NULL OR expires_at > NOW())"
 
     static func list(owner: String, mode: String, on db: any SQLDatabase) async throws -> [Word] {

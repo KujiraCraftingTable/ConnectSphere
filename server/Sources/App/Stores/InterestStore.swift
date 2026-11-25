@@ -12,6 +12,7 @@ enum InterestStore {
     static let maxTextLength = 40
     static let separator = " · "
 
+    // MARK: - Catalog
     struct Entry: Content {
         var id: String
         var name_en: String
@@ -43,6 +44,7 @@ enum InterestStore {
             .all(decoding: Category.self)
     }
 
+    // MARK: - Picks
     static func current(of userID: String, on db: any SQLDatabase) async throws -> [String] {
         struct R: Decodable { let interest: String }
         return try await db.raw("SELECT interest FROM user_interests WHERE user_id = \(uuid: userID)")
@@ -71,6 +73,7 @@ enum InterestStore {
         }
     }
 
+    // MARK: - Specific interests and suggestions
     /// A specific item's canonical name when it names something already known:
     /// a catalogue entry or one of the interest entities.
     static func knownName(_ text: String, entries: [Entry], on db: any SQLDatabase) async throws -> String? {
@@ -97,6 +100,7 @@ enum InterestStore {
     }
 }
 
+// MARK: - Interest rules
 /// The checks behind every saved interest list, kept free of the database so
 /// they can be unit-tested.
 enum InterestRules {

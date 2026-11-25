@@ -49,6 +49,7 @@ struct FloatingChatComposerBar: View {
         Binding(get: { bubble.draftText }, set: { bubble.draftText = $0 })
     }
 
+    // MARK: - Body
     var body: some View {
         HStack(alignment: .bottom, spacing: 10) {
             PhotosPicker(selection: $pickerItems,
@@ -97,6 +98,7 @@ struct FloatingChatComposerBar: View {
         }
     }
 
+    // MARK: - Send button
     /// Never greyed out. A grey control reads as "this can't be used", and
     /// this one always can: with text it's the arrow, empty it's a one-tap
     /// quick-emoji send (Messenger's behaviour).
@@ -124,6 +126,7 @@ struct FloatingChatComposerBar: View {
         !bubble.draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    // MARK: - Sending
     /// Sends the typed draft and clears it.
     private func sendDraft() {
         let trimmed = bubble.draftText.trimmingCharacters(in: .whitespacesAndNewlines)

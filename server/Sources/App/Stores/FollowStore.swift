@@ -8,6 +8,7 @@ import SQLKit
 enum FollowStore {
     static let modes: Set<String> = ["hobby", "work"]
 
+    // MARK: - SQL fragments
     /// SQL: is (a, b) an accepted friendship in `modeRef`? Both arguments and
     /// `modeRef` are SQL expressions. Column refs or an allowlisted literal.
     private static func areFriends(_ a: String, _ b: String, modeRef: String) -> String {
@@ -31,6 +32,7 @@ enum FollowStore {
         """
     }
 
+    // MARK: - Following
     static func follow(_ follower: String, _ followee: String, mode: String, on db: any SQLDatabase) async throws {
         try await db.raw("""
             INSERT INTO follows (follower_id, followee_id, mode)
@@ -63,6 +65,7 @@ enum FollowStore {
             """).run()
     }
 
+    // MARK: - Follower lists
     struct Person: Content {
         var id: String
         var username: String

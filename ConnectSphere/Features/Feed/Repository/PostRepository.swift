@@ -9,6 +9,7 @@ struct PostRepository {
     /// so every new or edited text is saved as such. Text saved before that stays plain.
     static let contentFormat = "markdown"
 
+    // MARK: - Feeds
     /// `filter`: nil = everything, "connections" = friends, "following" =
     /// people you follow who aren't friends.
     func fetchPosts(mode: AppMode, filter: String? = nil, limit: Int = 20, offset: Int = 0) async throws -> [Post] {
@@ -59,6 +60,7 @@ struct PostRepository {
             .data.map { $0.toPost() }
     }
 
+    // MARK: - Post lookup and search
     /// Fetches a single post by id (used for the screen opened from a notification)
     func fetchPost(id: String) async throws -> Post {
         let response = try await client.fetch(
@@ -101,6 +103,7 @@ struct PostRepository {
         return (response.data.map { $0.toPost() }, response.criteria, response.warnings, response.match_scores)
     }
 
+    // MARK: - Sharing and link previews
     /// Shares/reposts a post; returns the new shared post
     func sharePost(postId: String, content: String, mode: AppMode) async throws -> Post {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
@@ -127,6 +130,7 @@ struct PostRepository {
         )
     }
 
+    // MARK: - Hashtag suggestions
     /// Prefix-match hashtag suggestions for `HashtagInputView`'s debounced dropdown.
     /// `prefix` must be non-empty. The backend returns 400 if it's empty, so the caller
     /// (HashtagInputView) blocks the call itself when the text field is empty.
@@ -138,6 +142,7 @@ struct PostRepository {
         return response.data
     }
 
+    // MARK: - Create
     /// Creates a post and returns the new post's ID.
     /// The backend derives the author from the JWT, so author_id is no longer sent.
     /// `hashtags` are the user-typed tags, saved synchronously with `source = 'user'`.
@@ -191,6 +196,7 @@ struct PostRepository {
         return response.data.toPost()
     }
 
+    // MARK: - Delete and restore
     /// Soft-deletes a post. Backend sets state = 'deleted', hiding the post from the feed
     func deletePost(postId: String) async throws {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
@@ -244,6 +250,7 @@ struct PostRepository {
         return response.data.map { $0.toPost() }
     }
 
+    // MARK: - Comments
     /// Edit the content of your own comment. Note: authorization here is the
     /// COMMENT's own author only, NOT the post's author (unlike delete,
     /// which also allows the post owner to moderate). Per the backend's
@@ -289,6 +296,7 @@ struct PostRepository {
         return response.data
     }
 
+    // MARK: - Hide and feedback
     /// Hides a post from your own feed (persisted server-side; someone else's post)
     func hidePost(postId: String) async throws {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else {
@@ -338,6 +346,7 @@ struct PostRepository {
         )
     }
 
+    // MARK: - Likes and saves
     /// Toggles the current user's like on a post; returns the server's
     /// authoritative liked state + count so the caller can reconcile.
     func toggleLike(postId: String) async throws -> LikeResponse {
@@ -404,6 +413,7 @@ struct PostRepository {
         return response.data.map { $0.toPost() }
     }
 
+    // MARK: - Edit
     /// Updates a post's content, privacy, and images; returns the updated Post
     func updatePost(
         postId: String,
@@ -449,6 +459,7 @@ struct PostRepository {
         return response.data.toPost()
     }
 
+    // MARK: - Uploads
     func uploadImage(_ imageData: Data) async throws -> String? {
         guard let token = KeychainHelper.load(forKey: KeychainHelper.tokenKey) else { return nil }
 

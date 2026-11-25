@@ -4,6 +4,7 @@ import SQLKit
 /// Shared chat settings someone changed (theme, nickname), shown as centered
 /// notes in the chat timeline. Migration 113.
 enum ConversationEvents {
+    // MARK: - Event types
     struct Event: Content {
         var id: String
         var conversation_id: String
@@ -31,6 +32,7 @@ enum ConversationEvents {
     /// Notes are capped: the timeline only needs the recent ones.
     static let listLimit = 300
 
+    // MARK: - Queries and SQL fragments
     private static func select(_ whereSQL: SQLQueryString, on db: any SQLDatabase) async throws -> [Event] {
         try await db.raw("""
             SELECT e.id::text AS id, e.conversation_id::text AS conversation_id, e.kind,
@@ -82,6 +84,7 @@ enum ConversationEvents {
         """
     }
 
+    // MARK: - Recording and listing
     static func record(conversationID: String, actorID: String, kind: String, theme: String? = nil,
                        targetID: String? = nil, nickname: String? = nil, on db: any SQLDatabase) async throws -> Event? {
         struct R: Decodable { let id: String }

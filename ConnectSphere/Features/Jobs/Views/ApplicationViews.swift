@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Status pill
 /// A status as a small coloured pill.
 struct ApplicationStatusPill: View {
     @Environment(ThemeManager.self) private var themeManager
@@ -26,6 +27,7 @@ struct ApplicationStatusPill: View {
     }
 }
 
+// MARK: - My application card
 /// One of your applications: the job, where it stands, and each step so far.
 struct MyApplicationCard: View {
     @Environment(ThemeManager.self) private var themeManager
@@ -86,6 +88,7 @@ struct MyApplicationCard: View {
     }
 }
 
+// MARK: - Applicants list
 /// A job's applicants, for its poster or company admins: filter by status,
 /// swipe to shortlist or turn down, open one for the note, CV and a chat.
 struct ApplicantsView: View {
@@ -173,6 +176,7 @@ struct ApplicantsView: View {
         }
     }
 
+    // MARK: - Filter chips & rows
     private func chip(_ status: String?) -> some View {
         let selected = viewModel.filter == status
         let label = status.map { bundle.loc(JobApplication.statusLabel($0)) } ?? bundle.loc("All")
@@ -222,6 +226,7 @@ struct ApplicantsView: View {
     }
 }
 
+// MARK: - Applicant detail
 /// One applicant: profile, fit, note, CV, and the next step.
 struct ApplicantDetailView: View {
     @Environment(UndoToastPresenter.self) private var toast

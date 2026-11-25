@@ -56,6 +56,7 @@ struct MarketplaceView: View {
         }
     }
 
+    // MARK: - Scope bar
     /// Top left, small like Messages' Archive button: everyone's items, or just yours.
     private var scopeBar: some View {
         HStack(spacing: AppSpacing.sm) {
@@ -85,6 +86,7 @@ struct MarketplaceView: View {
         .buttonStyle(.plain)
     }
 
+    // MARK: - Community chips
     /// A chip per community to narrow the list.
     @ViewBuilder
     private var chips: some View {
@@ -118,6 +120,7 @@ struct MarketplaceView: View {
         .buttonStyle(.plain)
     }
 
+    // MARK: - Empty state
     private var empty: some View {
         VStack(spacing: 10) {
             Image(systemName: "bag")

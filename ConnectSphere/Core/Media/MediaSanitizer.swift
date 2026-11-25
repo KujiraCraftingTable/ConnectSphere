@@ -11,6 +11,7 @@ import UniformTypeIdentifiers
 /// `nonisolated`: re-encoding a full-size photo takes long enough that it
 /// must never run on the main actor (the app's default isolation).
 nonisolated enum MediaSanitizer {
+    // MARK: - Results & errors
     struct Image {
         let data: Data
         let mimeType: String
@@ -32,6 +33,7 @@ nonisolated enum MediaSanitizer {
     /// full photo's weight.
     static let thumbnailEdge = 960
 
+    // MARK: - Images
     /// Re-encodes the image with no metadata dictionaries at all, its longest
     /// edge brought down to `maxPhotoEdge` (smaller photos keep their size).
     /// A PNG with transparency stays PNG; everything else (JPEG, HEIC, opaque
@@ -94,6 +96,7 @@ nonisolated enum MediaSanitizer {
                      thumbnail: thumbnail)
     }
 
+    // MARK: - Videos
     /// Copies the video's tracks into a new file without any metadata. A video
     /// at 1080p or below is copied as is (passthrough: no re-encoding, so no
     /// loss and no wait); anything larger (4K, 1440p…) is re-encoded to fit

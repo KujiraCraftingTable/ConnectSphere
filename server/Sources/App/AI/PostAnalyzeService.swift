@@ -13,6 +13,7 @@ enum PostAnalyzeService {
         var fast: Bool?
     }
 
+    // MARK: - Keyword fast path
     static let colleagueKeywords = [
         "sprint", "deadline", "deploy", "merge", "pull request", "code review",
         "meeting", "standup", "roadmap", "milestone", "backlog", "jira",
@@ -56,6 +57,7 @@ enum PostAnalyzeService {
         return nil
     }
 
+    // MARK: - LLM classification
     static func analyze(_ cfg: OllamaService.Config, _ content: String, logger: Logger) async -> Result {
         if let fast = keywordCheck(content) { return fast }
         do {

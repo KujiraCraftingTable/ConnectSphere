@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Space editor target
 /// What the space name/colour sheet is doing.
 enum SpaceEditorTarget: Identifiable {
     case create
@@ -13,6 +14,7 @@ enum SpaceEditorTarget: Identifiable {
     }
 }
 
+// MARK: - Space tag
 /// A space's name as a small tinted tag (Spaces-off list, chat settings).
 struct SpaceTag: View {
     @Environment(\.colorScheme) private var colorScheme
@@ -33,6 +35,7 @@ struct SpaceTag: View {
     }
 }
 
+// MARK: - Archived chats
 /// Archived chats, with swipe-to-unarchive. A new message brings a chat back
 /// to the main list on its own.
 struct ArchivedChatsView: View {
@@ -86,6 +89,7 @@ struct ArchivedChatsView: View {
     }
 }
 
+// MARK: - Waiting chats
 /// Chats from people who aren't your friends yet. Swipe to accept (moves the
 /// chat to your inbox) or delete; opening one lets you read it before deciding.
 struct WaitingChatsView: View {
@@ -156,6 +160,7 @@ struct WaitingChatsView: View {
     }
 }
 
+// MARK: - Folder styling
 /// Where a row sits inside a space's coloured folder (see `spaceFolder`).
 struct FolderSlot {
     let tint: Color

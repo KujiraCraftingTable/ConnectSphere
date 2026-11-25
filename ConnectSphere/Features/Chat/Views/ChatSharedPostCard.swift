@@ -19,6 +19,7 @@ struct ChatSharedPostCard: View {
     let onAppear: () -> Void
     let onOpen: (Post) -> Void
 
+    // MARK: - Body
     var body: some View {
         Group {
             switch state {
@@ -50,6 +51,7 @@ struct ChatSharedPostCard: View {
         RoundedRectangle(cornerRadius: corner).stroke(accent.opacity(0.6), lineWidth: 1)
     }
 
+    // MARK: - Row
     /// The floating window's version: two short lines and the first photo on the right, so a few
     /// shared posts still leave room to tap the window and reply.
     private func row(_ post: Post) -> some View {
@@ -105,6 +107,7 @@ struct ChatSharedPostCard: View {
         .accessibilityHint(Text(bundle.loc("Opens the post")))
     }
 
+    // MARK: - Card
     private func card(_ post: Post) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
@@ -173,6 +176,7 @@ struct ChatSharedPostCard: View {
         .overlay(outline)
     }
 
+    // MARK: - Helpers
     private func kindLabel(_ post: Post) -> (String, String)? {
         switch post.postType {
         case .poll:  return (bundle.loc("Poll"), "chart.bar.fill")

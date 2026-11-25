@@ -8,6 +8,7 @@
 import SwiftUI
 import GoogleSignIn
 
+// MARK: - App
 @main
 struct ConnectSphereApp: App {
     @State private var appState     = AppState()
@@ -72,6 +73,7 @@ struct ConnectSphereApp: App {
     }
 }
 
+// MARK: - Root view
 struct RootView: View {
     @Environment(AppState.self) var appState
     @Environment(ThemeManager.self) var themeManager

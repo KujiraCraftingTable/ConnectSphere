@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Window size
 /// The floating window's two sizes, switched by pinching it.
 enum FloatingChatSize: String {
     case compact, regular
@@ -12,6 +13,7 @@ enum FloatingChatSize: String {
     }
 }
 
+// MARK: - Window view
 /// The floating chat window: up to four chats, swiped left and right. The
 /// label on top names the chat on screen, says where it is in the stack
 /// ("2/4") and counts unread messages in the chats to either side. Those
@@ -83,6 +85,7 @@ struct FloatingChatWindowView: View {
     }
 }
 
+// MARK: - Header label
 /// The window's top bar and drag handle: unread to the left, the chat on
 /// screen with its place in the stack, unread to the right, add, and close.
 private struct FloatingChatLabel: View {
@@ -172,6 +175,7 @@ private struct FloatingChatLabel: View {
     }
 }
 
+// MARK: - Chat page
 /// One chat's messages in the window, newest at the bottom.
 private struct FloatingChatPage: View {
     @Environment(ThemeManager.self) private var themeManager
@@ -233,6 +237,7 @@ private struct FloatingChatPage: View {
     }
 }
 
+// MARK: - Stash tab
 /// What's left of a stashed window: a small tab on the edge, with a dot when
 /// a chat has unread messages. Tap it, or pull it inward, to bring the
 /// window back.

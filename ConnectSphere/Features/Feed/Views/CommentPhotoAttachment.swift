@@ -1,6 +1,7 @@
 import PhotosUI
 import SwiftUI
 
+// MARK: - Photo button
 /// The camera button beside a comment composer's Send: opens the photo
 /// library, photos only, no videos and no camera, for one photo per comment.
 struct CommentPhotoButton: View {
@@ -28,6 +29,7 @@ struct CommentPhotoButton: View {
     }
 }
 
+// MARK: - Photo preview
 /// The picked photo above the composer, with ✕ to drop it before sending.
 struct CommentPhotoPreview: View {
     @Environment(\.appBundle) private var bundle
@@ -63,6 +65,7 @@ struct CommentPhotoPreview: View {
     }
 }
 
+// MARK: - Comment photo
 /// A comment's photo inside its bubble: up to 200 pt wide, its own shape;
 /// tap to open it full screen in the app's media viewer.
 struct CommentPhoto: View {

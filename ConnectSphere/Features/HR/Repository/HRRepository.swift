@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - HR status
 /// Your HR status, as `/hr/me` reports it.
 struct HRStatus: Decodable, Equatable {
     /// none | pending | approved | rejected | revoked
@@ -19,6 +20,7 @@ struct HRStatus: Decodable, Equatable {
     }
 }
 
+// MARK: - Repository
 /// Becoming a verified HR (`/hr`, server migration 126). HTTP + decoding only.
 struct HRRepository {
     private let client = NetworkClient.shared
@@ -47,6 +49,7 @@ struct HRRepository {
                                bodyData: try JSONEncoder().encode(request)).data
     }
 
+    // MARK: - PDF uploads
     /// The business registration PDF; returns its private path (`/uploads/hr/…`).
     func uploadLicence(_ data: Data, fileName: String, token: String) async throws -> String {
         try await uploadPDF(data, fileName: fileName, route: "/hr/licence", token: token)

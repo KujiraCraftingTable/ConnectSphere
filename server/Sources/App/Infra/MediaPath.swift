@@ -8,6 +8,7 @@ import Vapor
 /// so they'd see a blank photo. Each client puts its own server address in
 /// front when it loads the file.
 enum MediaPath {
+    // MARK: - Storable paths
     /// `raw` as it should be stored: one of our upload links loses its host
     /// (and any query, such as a chat media `?token=`); anything else. An
     /// outside link, a bare path. Is kept as is. Blank becomes nil.
@@ -26,6 +27,7 @@ enum MediaPath {
         raw?.compactMap { storable($0, exists: exists) }
     }
 
+    // MARK: - Uploaded paths
     /// Where an upload may be referenced from. Chat attachments are private to
     /// the conversation, so a post, listing or profile can't reuse them.
     enum Scope { case publicMedia, chat }
@@ -52,6 +54,7 @@ enum MediaPath {
         try raw?.compactMap { try uploaded($0, scope: scope, exists: exists) }
     }
 
+    // MARK: - Thumbnails, links and files
     /// A post's single `image_url`: our own upload, or the thumbnail of a link
     /// preview (hosted by the linked site, so it is only accepted together with
     /// a `link_url`). Anything else, such as a bare tracking pixel or a

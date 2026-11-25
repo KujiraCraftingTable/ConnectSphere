@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 
+// MARK: - Highlights row
 /// The row of highlights on a Hobby profile.
 @MainActor
 @Observable
@@ -29,6 +30,7 @@ final class HighlightsViewModel {
     }
 }
 
+// MARK: - Viewer
 /// Watching one highlight: a photo every few seconds, tap to skip; the
 /// owner can remove the photo, set it as cover, or delete the highlight.
 @MainActor
@@ -47,6 +49,7 @@ final class HighlightViewerViewModel {
 
     var current: Highlight.Item? { highlight.items.indices.contains(index) ? highlight.items[index] : nil }
 
+    // MARK: - Playback
     /// 0…1 for segment `i` (done, current, or not yet).
     func progress(_ i: Int) -> Double {
         i < index ? 1 : i > index ? 0 : min(1, elapsed / Self.secondsPerPhoto)
@@ -71,6 +74,7 @@ final class HighlightViewerViewModel {
         elapsed = 0
     }
 
+    // MARK: - Edits from the viewer
     /// The owner's updated list, or nil (with a message). The highlight is
     /// gone with its last photo.
     func removeCurrent(token: String) async -> [Highlight]? {
@@ -116,6 +120,7 @@ final class HighlightViewerViewModel {
     }
 }
 
+// MARK: - Editor
 /// Making a highlight, or adding photos to / renaming one: a title, photos
 /// from the library (uploaded first) and your current Hobby stories.
 @MainActor

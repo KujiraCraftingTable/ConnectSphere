@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Offer job sheet
 /// Full height: the HR's open jobs as cards, like the Jobs tab. Tapping one
 /// offers it on the "Open to work" post as a comment.
 struct OfferJobSheet: View {
@@ -55,6 +56,7 @@ struct OfferJobSheet: View {
     }
 }
 
+// MARK: - Job card in comments
 /// The job an HR offered, inside their comment. Opens the job.
 struct CommentJobCard: View {
     @Environment(\.appBundle) private var bundle
@@ -91,6 +93,7 @@ struct CommentJobCard: View {
     }
 }
 
+// MARK: - Offer button
 /// The briefcase beside the comment box: a verified HR, on an "Open to work"
 /// post, offers one of their jobs.
 struct OfferJobButton: View {

@@ -56,6 +56,7 @@ final class EditMarketplaceProfileViewModel {
     var hasOwnAvatar: Bool { pickedAvatar != nil || avatarUrl != nil }
     var hasOwnCover: Bool { pickedCover != nil || coverUrl != nil }
 
+    // MARK: - Photo & cover
     func loadAvatar(from item: PhotosPickerItem) async {
         if let image = await Self.image(from: item) { pickedAvatar = image }
     }
@@ -71,6 +72,7 @@ final class EditMarketplaceProfileViewModel {
     func useProfileAvatar() { pickedAvatar = nil; avatarUrl = nil }
     func useProfileCover() { pickedCover = nil; coverOriginal = nil; coverUrl = nil }
 
+    // MARK: - Save
     /// Uploads any new photos, then saves. Returns the saved profile, or nil
     /// with `errorMessage` set.
     func save(token: String) async -> SellerProfile? {

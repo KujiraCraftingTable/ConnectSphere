@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 
+// MARK: - Item draft
 /// One item in the sell or edit form: its own title, price, condition and
 /// photos. `itemId` is the server's id when editing an item already listed,
 /// so it keeps its sold state.
@@ -69,6 +70,7 @@ final class ListingItemDraft: Identifiable {
     }
 }
 
+// MARK: - Items list
 /// The list of items being sold in one listing (1–20), shared by the sell
 /// form and Edit listing.
 @MainActor

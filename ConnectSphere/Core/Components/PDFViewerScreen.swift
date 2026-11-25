@@ -1,6 +1,7 @@
 import SwiftUI
 import PDFKit
 
+// MARK: - PDF viewer screen
 /// A PDF shown full height (e.g. a job's description): scroll, pinch to zoom,
 /// Share to save it. Present with `.fullScreenCover`.
 struct PDFViewerScreen: View {
@@ -41,6 +42,7 @@ struct PDFViewerScreen: View {
     }
 }
 
+// MARK: - PDFKit view
 /// PDFKit's view: pages stacked vertically, scaled to fit the width.
 private struct PDFKitView: UIViewRepresentable {
     let document: PDFDocument

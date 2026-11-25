@@ -2,6 +2,7 @@ import Vapor
 
 /// Typed environment configuration, read from `backend/.env`.
 struct AppEnv: Sendable {
+    // MARK: - Config sections
     struct DB: Sendable {
         var host: String
         var port: Int
@@ -61,6 +62,7 @@ struct AppEnv: Sendable {
         var token: String
     }
 
+    // MARK: - Settings
     var port: Int
     var nodeEnv: String
     var isProduction: Bool
@@ -75,6 +77,7 @@ struct AppEnv: Sendable {
     var db: DB
     var uitest: UITest
 
+    // MARK: - Validation
     /// Placeholder secrets, production must never boot with one.
     static let weakJWTSecrets: Set<String> = [
         "dev_secret",
@@ -96,6 +99,7 @@ struct AppEnv: Sendable {
         }
     }
 
+    // MARK: - Loading
     /// Reads and validates the process environment. `get` is injected so tests
     /// can supply a fixed dictionary.
     static func load(_ get: (String) -> String? = { Environment.get($0) }) throws -> AppEnv {
@@ -164,6 +168,7 @@ struct AppEnv: Sendable {
     }
 }
 
+// MARK: - Application access
 extension Application {
     private struct AppEnvKey: StorageKey { typealias Value = AppEnv }
     var appEnv: AppEnv {

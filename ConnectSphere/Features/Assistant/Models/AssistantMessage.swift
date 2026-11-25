@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Message
 /// A single local-only chat message in the assistant's conversation.
 /// Ephemeral, in-memory only. Resets when the sheet closes (persistence is
 /// a future-feature candidate, not v1). NOT the real `Message`/`MessageBubble`
@@ -21,6 +22,7 @@ struct AssistantMessage: Identifiable {
     }
 }
 
+// MARK: - Message actions
 /// Interactive affordance attached to an assistant reply.
 enum AssistantMessageAction: Equatable {
     /// A "Take me there" button that navigates to `target`.

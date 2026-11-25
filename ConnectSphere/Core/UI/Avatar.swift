@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Avatar
 /// Canonical avatar. One implementation for every "circular photo-or-initials"
 /// spot in the app (was ~13 hand-rolled copies with drifting sizes / fallbacks).
 ///
@@ -44,6 +45,7 @@ struct Avatar: View {
         self.shape = shape
     }
 
+    // MARK: - Body
     @ViewBuilder
     var body: some View {
         let framed = content.frame(width: diameter, height: diameter)
@@ -95,6 +97,7 @@ struct Avatar: View {
     }
 }
 
+// MARK: - Image cache
 /// Process-wide in-memory cache of decoded avatar images. A `bare` `AsyncImage`
 /// re-runs its async load, and shows its placeholder for a frame, every time
 /// the view is re-created (a sibling reflow, a list diff, a tab switch). Keeping
@@ -109,6 +112,7 @@ private final class RemoteImageCache: @unchecked Sendable {
     func insert(_ image: UIImage, for url: URL) { cache.setObject(image, forKey: url as NSURL) }
 }
 
+// MARK: - Cached remote image
 /// Drop-in replacement for the photo branch of `AsyncImage` that reads/writes
 /// `RemoteImageCache`. On a cache hit the image is shown immediately with no
 /// placeholder pass; on a miss it falls back to `placeholder` while loading.

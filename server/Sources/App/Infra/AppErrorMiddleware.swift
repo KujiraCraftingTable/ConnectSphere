@@ -1,5 +1,6 @@
 import Vapor
 
+// MARK: - Error middleware
 /// Central error handler. Every error, whatever was thrown, is rendered as
 /// `{status,code,message}` with 5xx messages scrubbed: one shape for the client.
 struct AppErrorMiddleware: AsyncMiddleware {
@@ -68,6 +69,7 @@ struct AppErrorMiddleware: AsyncMiddleware {
     }
 }
 
+// MARK: - Error types
 /// A 4xx with a message, kept from the Node port (where these routes answered
 /// `{ "error": "…" }`); it now renders like `Abort`.
 struct InlineError: Error {

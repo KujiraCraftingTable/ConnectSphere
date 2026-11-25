@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Seller page
 /// A seller as the Marketplace shows them. Opened by tapping the seller on
 /// an item. Like a community member's profile: the profile card, their
 /// check-legit post (buyers' reviews, never shown on the profile), then their
@@ -75,6 +76,7 @@ struct MarketplaceSellerView: View {
         } message: { Text(viewModel.errorMessage ?? "") }
     }
 
+    // MARK: - Seller card
     /// The same cover and floating card as a community member's profile.
     private var header: some View {
         let seller = viewModel.seller
@@ -142,6 +144,7 @@ struct MarketplaceSellerView: View {
         }
     }
 
+    // MARK: - Section parts
     private func sectionTitle(_ title: String) -> some View {
         Text(title)
             .scaledFont(17, .semibold)
@@ -213,6 +216,7 @@ struct MarketplaceSellerView: View {
     }
 }
 
+// MARK: - Rating badges
 /// The seller's Legit badge: a high rating over many reviews.
 struct LegitBadge: View {
     @Environment(\.appBundle) private var bundle

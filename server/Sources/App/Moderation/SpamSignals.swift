@@ -12,6 +12,7 @@ enum SpamSignals {
     /// Set once at boot (`configure`): the live-chat path has no access to the environment.
     nonisolated(unsafe) static var enforcing = false
 
+    // MARK: - Thresholds
     struct Counts: Equatable, Sendable {
         /// Strangers sent exactly this text in the last hour.
         var sameTextChats = 0
@@ -33,6 +34,7 @@ enum SpamSignals {
         return nil
     }
 
+    // MARK: - Checks after sending
     /// Looks at the sender's last hour after a message in `conversationID`.
     /// Only a message to a stranger — a chat the sender started that hasn't
     /// been accepted — counts. Never throws: a failed check mustn't fail the send.

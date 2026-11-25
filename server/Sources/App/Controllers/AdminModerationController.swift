@@ -13,6 +13,7 @@ struct AdminModerationController {
         m.post("appeals", ":id", "decide", use: decideAppeal)
     }
 
+    // MARK: - Cases
     static func listCases(_ req: Request) async throws -> DataResponse<[ModerationQueue.CaseRow]> {
         let status = (try? req.query.get(String.self, at: "status")) ?? "open"
         guard ["open", "actioned", "dismissed"].contains(status) else { throw InlineError(.badRequest, "Unknown status") }
@@ -52,6 +53,7 @@ struct AdminModerationController {
         return DataResponse(data: try await ModerationQueue.detail(id, on: req.db.sql())!)
     }
 
+    // MARK: - Appeals
     static func listAppeals(_ req: Request) async throws -> DataResponse<[ModerationQueue.AppealItem]> {
         let status = (try? req.query.get(String.self, at: "status")) ?? "pending"
         guard ["pending", "upheld", "overturned"].contains(status) else { throw InlineError(.badRequest, "Unknown status") }
@@ -75,6 +77,7 @@ struct AdminModerationController {
         return DataResponse(data: try await ModerationQueue.detail(outcome.caseID, on: req.db.sql())!)
     }
 
+    // MARK: - Helpers
     static func uuidParam(_ req: Request, _ name: String) -> String? {
         req.parameters.get(name).flatMap(UUID.init(uuidString:))?.uuidString.lowercased()
     }
@@ -86,6 +89,7 @@ struct AdminModerationController {
     }
 }
 
+// MARK: - Account status
 /// `GET /api/account-status` — like Meta's Account Status: restrictions,
 /// strikes, decisions on your content (with appeals), and how your reports
 /// ended. Open to banned accounts (see AuthMiddleware.openToBanned).
@@ -94,6 +98,7 @@ struct AccountStatusController {
         routes.grouped("account-status").grouped(AuthMiddleware()).get(use: get)
     }
 
+    // MARK: - Status shape
     /// A warning (migration 106): its mode, and the item it was for.
     struct Strike: Content {
         var policy: String; var created_at: Date; var expires_at: Date
@@ -151,6 +156,7 @@ struct AccountStatusController {
         var reports: [MyReport]
     }
 
+    // MARK: - Status lookup
     static func get(_ req: Request) async throws -> DataResponse<Status> {
         let db = req.db.sql(), me = req.userID
         struct U: Decodable { let app_role: String; let banned_at: Date?; let ban_reason: String? }
@@ -248,6 +254,7 @@ struct AccountStatusController {
     }
 }
 
+// MARK: - Filing appeals
 /// `POST /api/appeals` — the author asks for a second look at a decision.
 /// Open to banned accounts (see AuthMiddleware.openToBanned).
 struct AppealsController {

@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - View helpers
 extension View {
     /// Tags a settings row the assistant can point at. When the assistant's
     /// "Take me there" names this row, it flashes once in the theme colour.
@@ -14,6 +15,7 @@ extension View {
     }
 }
 
+// MARK: - Row highlight
 private struct AssistantHighlightRow: ViewModifier {
     @Environment(AppState.self) private var appState
     @Environment(ThemeManager.self) private var themeManager
@@ -46,6 +48,7 @@ private struct AssistantHighlightRow: ViewModifier {
     }
 }
 
+// MARK: - Scroll to highlight
 private struct AssistantHighlightScroll: ViewModifier {
     @Environment(AppState.self) private var appState
 

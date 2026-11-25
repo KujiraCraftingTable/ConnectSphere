@@ -47,6 +47,7 @@ final class ChangeUsernameViewModel {
         Calendar(identifier: .gregorian).date(byAdding: .month, value: 6, to: Date()) ?? Date()
     }
 
+    // MARK: - Availability check
     private func scheduleCheck() {
         checkTask?.cancel()
         errorMessage = nil
@@ -65,6 +66,7 @@ final class ChangeUsernameViewModel {
         }
     }
 
+    // MARK: - Save
     /// True once changed; the session user carries the new name and date.
     func save(appState: AppState) async -> Bool {
         guard canSave, let token = appState.authToken else { return false }

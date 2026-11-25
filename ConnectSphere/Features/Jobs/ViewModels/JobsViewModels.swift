@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 
+// MARK: - Jobs home
 /// The Jobs tab: For you (recommended), Search (with filters), Saved,
 /// and Applied (your applications and where each stands).
 @MainActor
@@ -80,6 +81,7 @@ final class JobsHomeViewModel {
     }
 }
 
+// MARK: - Job detail
 /// One job's screen.
 @MainActor
 @Observable
@@ -122,6 +124,7 @@ final class JobDetailViewModel {
     }
 }
 
+// MARK: - Company jobs
 /// A company page's Jobs tab.
 @MainActor
 @Observable
@@ -136,6 +139,7 @@ final class CompanyJobsViewModel {
     }
 }
 
+// MARK: - Apply
 /// The Apply sheet: an optional note and an optional PDF CV, sent with
 /// your Work profile.
 @MainActor
@@ -211,6 +215,7 @@ final class ApplyViewModel {
     }
 }
 
+// MARK: - Applicants
 /// A job's applicants, for its poster or company admins.
 @MainActor
 @Observable
@@ -255,6 +260,7 @@ final class ApplicantsViewModel {
         }
     }
 
+    // MARK: - Status changes & undo
     /// Shown at once; put back if refused. The applicant hears about every
     /// step except "viewed".
     func setStatus(_ status: String, for application: JobApplication, token: String) async {
@@ -303,6 +309,7 @@ final class ApplicantsViewModel {
         if let i = applications.firstIndex(where: { $0.id == applicationId }) { applications[i] = staged.before }
     }
 
+    // MARK: - Open & chat
     /// Opening a new application marks it "viewed".
     func opened(_ application: JobApplication, token: String) async {
         guard application.status == "applied" else { return }

@@ -16,6 +16,7 @@ struct CompaniesController {
         c.delete(":id", "follow", use: unfollow)
     }
 
+    // MARK: - Validation
     struct Body: Content {
         var name: String?
         var logo_url: String?
@@ -72,6 +73,7 @@ struct CompaniesController {
             foundedYear: b.founded_year)
     }
 
+    // MARK: - Company pages
     static func search(_ req: Request) async throws -> DataListResponse<CompanyStore.Company> {
         let q = ((try? req.query.get(String.self, at: "q")) ?? "").trimmedText
         let limit = PostsController.clamp(try? req.query.get(Int.self, at: "limit"), 20, 1, 50)
@@ -114,6 +116,7 @@ struct CompaniesController {
         return DataResponse(data: try await company(req))
     }
 
+    // MARK: - Following
     static func follow(_ req: Request) async throws -> DataResponse<CompanyStore.Company> {
         _ = try await company(req)
         try await CompanyStore.setFollowing(true, company: try companyID(req), user: req.userID, on: req.db)
@@ -126,6 +129,7 @@ struct CompaniesController {
         return DataResponse(data: try await company(req))
     }
 
+    // MARK: - Helpers
     private static func companyID(_ req: Request) throws -> String {
         guard let id = req.parameters.get("id"), UUID(uuidString: id) != nil else {
             throw Abort(.notFound, reason: "Company not found")

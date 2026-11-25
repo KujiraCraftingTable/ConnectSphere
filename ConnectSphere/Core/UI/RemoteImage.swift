@@ -1,6 +1,7 @@
 import SwiftUI
 import ImageIO
 
+// MARK: - Remote image
 /// A remote photo loaded through the shared, disk-backed URL cache and decoded
 /// at no more than `maxPixelSize`. A 2048 px photo in a feed card costs a
 /// screen's worth of memory, not 2048². Uploads are served as immutable, so a
@@ -39,6 +40,7 @@ struct RemoteImage<Content: View>: View {
     }
 }
 
+// MARK: - Loader & cache
 /// Decoded images by URL and size, over `URLCache.shared` for the bytes.
 enum RemoteImageLoader {
     private static let memory: NSCache<NSString, UIImage> = {

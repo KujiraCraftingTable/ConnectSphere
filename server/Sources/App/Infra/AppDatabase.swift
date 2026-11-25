@@ -9,6 +9,7 @@ final class AppDatabase: @unchecked Sendable {
     let pool: EventLoopGroupConnectionPool<PostgresConnectionSource>
     private let logger: Logger
 
+    // MARK: - Setup
     init(env: AppEnv, eventLoopGroup: any EventLoopGroup, logger: Logger) {
         let config = SQLPostgresConfiguration(
             hostname: env.db.host,
@@ -37,6 +38,7 @@ final class AppDatabase: @unchecked Sendable {
         self.logger = logger
     }
 
+    // MARK: - Queries and transactions
     /// SQLKit query interface. Use `db.sql().raw("… \(bind: x) …")` for the
     /// ported queries (the `\(bind:)` interpolation emits `$1, $2, …` in order).
     func sql() -> any SQLDatabase {
@@ -71,6 +73,7 @@ final class AppDatabase: @unchecked Sendable {
         }.get()
     }
 
+    // MARK: - Health and shutdown
     func healthCheck() async -> Bool {
         do {
             try await sql().raw("SELECT 1").run()
@@ -85,6 +88,7 @@ final class AppDatabase: @unchecked Sendable {
     }
 }
 
+// MARK: - Application and request access
 extension Application {
     private struct AppDatabaseKey: StorageKey { typealias Value = AppDatabase }
     var db: AppDatabase {

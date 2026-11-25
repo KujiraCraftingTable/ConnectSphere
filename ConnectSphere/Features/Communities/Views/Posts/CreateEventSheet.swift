@@ -12,6 +12,7 @@ struct CreateEventSheet: View {
     @Binding var endsAt: Date?
     @Binding var showEndDate: Bool
 
+    // MARK: - Body
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             sectionLabel(bundle.loc("Event Details"))
@@ -83,6 +84,7 @@ struct CreateEventSheet: View {
         )
     }
 
+    // MARK: - Field layout
     private func sectionLabel(_ text: String) -> some View {
         Text(text)
             .scaledFont(13, .semibold)

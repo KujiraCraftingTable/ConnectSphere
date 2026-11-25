@@ -10,6 +10,7 @@ enum SellerProfileStore {
     static let maxNameLength = 50
     static let maxBioLength = 300
 
+    // MARK: - Profile
     struct Profile: Content {
         var user_id: String
         var username: String
@@ -69,6 +70,7 @@ enum SellerProfileStore {
         try await get(seller: seller, mode: mode, viewer: seller, on: db)?.display_name ?? ""
     }
 
+    // MARK: - Saving
     struct Fields {
         var displayName: String?
         var avatarURL: String?
@@ -88,6 +90,7 @@ enum SellerProfileStore {
             """).run()
     }
 
+    // MARK: - Follows
     static func follow(_ follower: String, seller: String, mode: String, on db: any SQLDatabase) async throws {
         try await db.raw("""
             INSERT INTO seller_follows (follower_id, seller_id, mode)
@@ -115,6 +118,7 @@ enum SellerProfileStore {
             """).all(decoding: R.self).map(\.id)
     }
 
+    // MARK: - Author SQL
     /// SQL for a listing post's author name/avatar: the seller's marketplace
     /// value when set. `post`/`fallback` are trusted SQL fragments.
     static func authorExpr(_ field: String, post: String, fallback: String) -> String {

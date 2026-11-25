@@ -12,6 +12,7 @@ struct ExperiencesController {
         routes.grouped("companies").grouped(AuthMiddleware()).get(":id", "people", use: people)
     }
 
+    // MARK: - Validation
     struct Body: Content {
         var company_id: String?
         var company_name: String?
@@ -82,6 +83,7 @@ struct ExperiencesController {
         return row.name
     }
 
+    // MARK: - Handlers
     static func list(_ req: Request) async throws -> DataListResponse<ExperienceStore.Experience> {
         var id = req.parameters.get("id")!
         if id == "me" { id = req.userID }
@@ -130,6 +132,7 @@ struct ExperiencesController {
         return DataListResponse(data: try await ExperienceStore.list(of: req.userID, on: db))
     }
 
+    // MARK: - Company people
     static func people(_ req: Request) async throws -> DataListResponse<ExperienceStore.Person> {
         guard let id = req.parameters.get("id"), UUID(uuidString: id) != nil else { throw Abort(.notFound) }
         let limit = PostsController.clamp(try? req.query.get(Int.self, at: "limit"), 50, 1, 100)

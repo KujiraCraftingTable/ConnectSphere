@@ -22,6 +22,7 @@ struct CommunityMemberProfileView: View {
 
     private var token: String { appState.authToken ?? "" }
 
+    // MARK: - Body
     var body: some View {
         ScrollView {
             LazyVStack(spacing: AppSpacing.sm) {
@@ -63,6 +64,7 @@ struct CommunityMemberProfileView: View {
         } message: { Text(viewModel.errorMessage ?? "") }
     }
 
+    // MARK: - Header
     /// Laid out like a profile's header (`ProfileHeaderCard`): the same cover
     /// and floating card, holding what this community knows about them.
     private func header(_ p: CommunityMemberProfile) -> some View {

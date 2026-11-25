@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Decoration layout
 /// What one comment row draws in its left gutter so a thread reads as a tree
 /// (Facebook-style): a line runs down from under a parent's avatar and curves
 /// into each reply's avatar, and keeps running past a reply while more of its
@@ -37,6 +38,7 @@ struct ThreadDecoration: Equatable {
     }
 }
 
+// MARK: - Lines shape
 /// Draws a `ThreadDecoration` for a row whose content starts at the thread's
 /// left edge (indent included), using `CommentRow`'s avatar geometry.
 struct ThreadLinesShape: Shape {
@@ -75,6 +77,7 @@ struct ThreadLinesShape: Shape {
     }
 }
 
+// MARK: - View modifier
 extension View {
     /// Thread connector lines behind a comment row (the bubble and avatar draw on top).
     func threadLines(_ decoration: ThreadDecoration, level: Int, color: Color) -> some View {

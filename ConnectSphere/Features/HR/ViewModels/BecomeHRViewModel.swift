@@ -26,6 +26,7 @@ final class BecomeHRViewModel {
     static let licenceLimit = 10 * 1024 * 1024
     private let repository = HRRepository()
 
+    // MARK: - Form checks
     /// Asking (again) is open when there's no request waiting and you aren't HR.
     var canAsk: Bool { status.map { !["pending", "approved"].contains($0.status) } ?? false }
 
@@ -46,6 +47,7 @@ final class BecomeHRViewModel {
             && licencePath != nil && !isSubmitting && !isUploadingLicence
     }
 
+    // MARK: - Load & email code
     func load(token: String) async {
         isLoading = status == nil
         defer { isLoading = false }
@@ -72,6 +74,7 @@ final class BecomeHRViewModel {
         }
     }
 
+    // MARK: - Licence & submit
     func attachLicence(at url: URL, token: String) async {
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }

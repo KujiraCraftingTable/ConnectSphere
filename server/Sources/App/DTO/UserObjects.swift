@@ -1,5 +1,6 @@
 import Vapor
 
+// MARK: - User core
 /// Shared column set for the user list and profile reads. `interests`/`skills`
 /// come from `array_agg` (sorted, DISTINCT).
 struct UserCore: Content {
@@ -36,6 +37,7 @@ struct UserCore: Content {
     @NullCoded var relationship_status: String?
 }
 
+// MARK: - Search and public users
 /// `findAll` row, `UserCore` + `mutual_count`, flattened (Node returns one flat
 /// object). The same struct decodes the SQL row and encodes the response.
 struct SearchUserObject: Content {
@@ -92,6 +94,7 @@ struct PublicUserObject: Content {
     }
 }
 
+// MARK: - Private user
 /// PATCH /users/me response, `PublicUserObject` + the owner-only fields the
 /// controller merges in (`email`, `has_password`, `dob`, `dob_visibility`, `age`).
 /// Response-only (never decoded).
@@ -141,6 +144,7 @@ struct PrivateUserObject: Content {
     }
 }
 
+// MARK: - Blocked users
 struct BlockedUserObject: Content {
     var id: String
     var display_name: String
@@ -149,6 +153,7 @@ struct BlockedUserObject: Content {
     var blocked_at: Date
 }
 
+// MARK: - Response wrappers
 // Small response envelopes.
 struct DataResponse<T: Content>: Content { var data: T }
 struct DataListResponse<T: Content>: Content { var data: [T] }

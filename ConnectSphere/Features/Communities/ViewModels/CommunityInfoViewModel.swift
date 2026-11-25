@@ -14,6 +14,7 @@ final class CommunityInfoViewModel {
 
     init(communityId: String) { self.communityId = communityId }
 
+    // MARK: - Loading
     func load(token: String) async {
         isLoading = true
         defer { isLoading = false }
@@ -25,6 +26,7 @@ final class CommunityInfoViewModel {
         }
     }
 
+    // MARK: - Other members
     /// Who to show after the admins and moderators: your connections who
     /// joined, or, with none, the latest to join. `roster` is the members the
     /// community page has loaded. A regular-member viewer comes first, as

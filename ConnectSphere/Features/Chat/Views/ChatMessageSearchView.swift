@@ -12,6 +12,7 @@ struct ChatMessageSearchView: View {
     var onSelect: ((Message) -> Void)? = nil
     @State private var query = ""
 
+    // MARK: - Body
     var body: some View {
         Group {
             if viewModel.isSearching {
@@ -41,6 +42,7 @@ struct ChatMessageSearchView: View {
         }
     }
 
+    // MARK: - Results
     private func resultRow(_ message: Message) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(highlighted(message.content ?? "", term: query))
@@ -66,6 +68,7 @@ struct ChatMessageSearchView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    // MARK: - Highlighting
     /// Bolds + tints every case-insensitive occurrence of `term` in `text`.
     private func highlighted(_ text: String, term: String) -> AttributedString {
         var attr = AttributedString(text)

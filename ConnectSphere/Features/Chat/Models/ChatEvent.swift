@@ -24,6 +24,7 @@ struct ChatEvent: Decodable, Identifiable, Equatable {
     let nickname: String?
     let createdAt: Date
 
+    // MARK: - Display text
     /// "Kujira changed the theme to Amber", "You set Kujira's nickname to Bro".
     func text(currentUserId: String, bundle: Bundle) -> String {
         Self.text(kind: kind, actorId: actorId, actorName: actorName, theme: theme, targetId: targetId,
@@ -66,6 +67,7 @@ struct ChatEvent: Decodable, Identifiable, Equatable {
         }
     }
 
+    // MARK: - Decoding
     enum CodingKeys: String, CodingKey {
         case id, kind, theme, nickname
         case conversationId = "conversation_id"

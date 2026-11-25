@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Bar hiding modifier
 /// Scrolling down a long page slides the tab bar away (and whatever the
 /// screen ties to `hidden`); scrolling back up, or being near the top, brings
 /// it back. Shared by the Home feed and community pages.
@@ -70,6 +71,7 @@ private struct HidesBarsOnScroll: ViewModifier {
     }
 }
 
+// MARK: - View extension
 extension View {
     /// Put on the page's `ScrollView`; `hidden` also drives any bars of the
     /// screen's own that should go with the tab bar.

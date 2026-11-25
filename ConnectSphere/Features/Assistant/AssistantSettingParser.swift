@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Setting changes
 /// A safe setting the assistant changes itself. Privacy and security
 /// settings are never here: for those it only explains and opens the screen.
 enum AssistantSettingChange: Equatable {
@@ -13,6 +14,7 @@ enum AssistantSettingChange: Equatable {
     case appIcon(String)
 }
 
+// MARK: - Parser
 /// Reads commands that carry a value, which fixed phrases can't: which way a
 /// switch goes ("turn off message sounds", "tắt âm thanh"), a distance
 /// ("search radius 10 km") or a name ("make my theme amber"). Runs before
@@ -66,6 +68,7 @@ enum AssistantSettingParser {
         return nil
     }
 
+    // MARK: - Palettes and numbers
     /// Every palette, each once (Blue is in both modes).
     static var palettes: [ThemePalette] {
         var seen = Set<String>()

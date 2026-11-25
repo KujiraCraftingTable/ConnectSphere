@@ -14,6 +14,7 @@ struct HighlightsController {
         u.delete("me", "highlights", ":highlightId", "items", ":itemId", use: removeItem)
     }
 
+    // MARK: - Input checks
     /// Photos for a highlight: our own uploads (never chat media or CVs),
     /// or the images of your own Hobby stories.
     struct PhotosBody: Content {
@@ -46,6 +47,7 @@ struct HighlightsController {
         return images
     }
 
+    // MARK: - Handlers
     static func list(_ req: Request) async throws -> DataListResponse<HighlightStore.Highlight> {
         var id = req.parameters.get("id")!
         if id == "me" { id = req.userID }

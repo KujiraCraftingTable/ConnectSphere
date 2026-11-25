@@ -42,6 +42,7 @@ final class OnboardingViewModel {
     /// already picked theirs at registration.
     private(set) var needsUsername = false
 
+    // MARK: - Username
     enum UsernameStatus: Equatable { case idle, checking, available, taken, failed }
     private(set) var usernameStatus: UsernameStatus = .idle
 
@@ -140,6 +141,7 @@ final class OnboardingViewModel {
     /// How many steps can be swiped to: past the basics only once they're done.
     var reachableSteps: Int { basicsComplete ? Self.totalSteps : 2 }
 
+    // MARK: - Steps
     func refusedMove() { showsMissing = true }
 
     var canGoBack: Bool { step > 0 }
@@ -162,6 +164,7 @@ final class OnboardingViewModel {
         step = min(max(page, 0), reachableSteps - 1)
     }
 
+    // MARK: - Finish
     func finish(appState: AppState) async {
         form.interests = selectedInterests.map { $0.displayText }
         form.accepted_policy_version = pending?.acceptedPolicyVersion

@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Carousel
 /// A listing's photos and videos, one at a time. Swipe through them (on past
 /// the last back to the first), with a "2/6" count; tap one
 /// to see it full screen (the app's shared media viewer). Used by the
@@ -75,6 +76,7 @@ struct ListingPhotoCarousel: View {
     /// The photo shown, counting the copy of the first as the first.
     private var current: Int { urls.isEmpty ? 0 : page % urls.count }
 
+    // MARK: - Counter & slides
     /// "2/6" in the top-right corner.
     private var counter: some View {
         Text("\(current + 1)/\(urls.count)")
@@ -136,6 +138,7 @@ struct ListingPhotoCarousel: View {
     }
 }
 
+// MARK: - Price tags
 /// What's drawn on one listing photo: its item's price, and whether it's sold.
 struct ListingPhotoTag: Equatable {
     let price: String
@@ -166,6 +169,7 @@ struct ListingPriceTagView: View {
     }
 }
 
+// MARK: - Photo tags from listings
 extension ListingItem {
     func photoTag(loc: (String) -> String) -> ListingPhotoTag { .init(price: priceText(loc: loc), isSold: isSold) }
 }

@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Card
 /// "Mini CV" for AI search results. Replaces the regular user card when searching with Kujira.
 /// Part 1: round avatar + name + bio (fallback when empty) + match % badge on the right.
 /// Part 2: up to 5 "why it matched" bullets, formatted from the match_evidence the backend
@@ -115,6 +116,7 @@ struct MiniCVCard: View {
         .simultaneousGesture(TapGesture().onEnded { onOpen() })
     }
 
+    // MARK: - Evidence text
     /// Icon based on evidence type: profile / post / engagement / community.
     private func icon(for item: MatchEvidenceDTO) -> String {
         switch item.type {
@@ -204,6 +206,7 @@ struct MiniCVCard: View {
     }
 }
 
+// MARK: - Match badge
 /// How closely someone's profile matches yours (vector similarity × 100),
 /// the same number on AI search results and People you may know.
 struct MatchPercentBadge: View {

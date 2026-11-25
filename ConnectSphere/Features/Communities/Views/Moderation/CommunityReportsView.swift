@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Reports list
 /// "..." › Manage community › Reports: reported posts and members, one case
 /// each, for the community's admins and moderators.
 struct CommunityReportsView: View {
@@ -65,6 +66,7 @@ struct CommunityReportsView: View {
     }
 }
 
+// MARK: - Case row
 /// One case in the list: what was reported, how many times, and why.
 struct ReportCaseRow: View {
     @Environment(\.appBundle) private var bundle

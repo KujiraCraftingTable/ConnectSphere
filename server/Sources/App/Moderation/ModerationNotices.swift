@@ -7,6 +7,7 @@ import SQLKit
 /// Fire-and-forget, like every notification: a failed notice never undoes
 /// the decision.
 enum ModerationNotices {
+    // MARK: - Reports and holds
     /// `communityID`: the report went to that community's moderators, and the
     /// reporter is told so, so they know it reached someone who'll act on it.
     static func reportReceived(reporter: String, type: ReportTarget, communityID: String? = nil,
@@ -23,6 +24,7 @@ enum ModerationNotices {
                                                  on: db, hub: hub, logger: logger)
     }
 
+    // MARK: - Decisions
     static func decided(_ o: ModerationService.Outcome, on db: any SQLDatabase, hub: SocketHub, logger: Logger) async {
         guard let c = try? await ModerationService.loadCase(o.caseID, on: db) else { return }
         // Every reporter hears the outcome once, whatever they each picked.
@@ -66,6 +68,7 @@ enum ModerationNotices {
                                                  payload: payload, on: db, hub: hub, logger: logger)
     }
 
+    // MARK: - Appeal decisions
     static func appealDecided(_ o: ModerationService.AppealOutcome, on db: any SQLDatabase, hub: SocketHub, logger: Logger) async {
         await NotifyService.pushUserNotification(userID: o.userID, type: "appeal_outcome", groupTargetID: o.caseID,
                                                  payload: ["caseId": o.caseID, "outcome": o.overturned ? "overturned" : "upheld"],
@@ -91,6 +94,7 @@ enum ModerationNotices {
         return (n?.isEmpty ?? true) ? nil : n
     }
 
+    // MARK: - Email notices
     /// Emails a warning or ban to the person's verified address, if they have one.
     /// Never fails the decision: it runs detached and only logs.
     static func email(_ o: ModerationService.Outcome, app: Application, logger: Logger) {

@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Picker
 /// Settings › Appearance: three tiles (System / Light / Dark), each a tiny
 /// preview of the app in that look, à la iOS Display & Brightness. Lives in a
 /// normal card row so it matches every other Settings section.
@@ -50,6 +51,7 @@ struct AppearancePicker: View {
     }
 }
 
+// MARK: - Preview
 /// A miniature phone screen in one look: page colour, a header bar and two
 /// cards. System shows light and dark split diagonally.
 private struct AppearancePreview: View {
@@ -94,6 +96,7 @@ private struct AppearancePreview: View {
     }
 }
 
+// MARK: - Diagonal half shape
 /// Bottom-right triangle of the rect.
 private struct DiagonalHalf: Shape {
     func path(in rect: CGRect) -> Path {

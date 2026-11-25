@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Environment
 /// Opens the rating sheet for a legit card from the chat screen itself. The
 /// card sits in the chat's lazy message list, which re-lays out (and can
 /// rebuild the card) when the keyboard comes up; a sheet presented from the
@@ -25,6 +26,7 @@ extension EnvironmentValues {
     }
 }
 
+// MARK: - Chat legit card
 /// A review (legit) card in a chat. The buyer taps it to rate the seller (once, within
 /// 3 days); the seller sees whether it's been used.
 struct ChatLegitCard: View {
@@ -148,6 +150,7 @@ struct ChatLegitCard: View {
     }
 }
 
+// MARK: - Seller page
 /// Which card the chat screen is rating, or whose seller page it shows.
 struct LegitReviewRoute: Identifiable { let id: String }
 
@@ -170,6 +173,7 @@ struct LegitSellerPage: View {
     }
 }
 
+// MARK: - Review screen
 /// The rating sheet as the chat screen presents it: loads the card itself.
 struct LegitReviewScreen: View {
     @Environment(AppState.self) private var appState
@@ -182,6 +186,7 @@ struct LegitReviewScreen: View {
     }
 }
 
+// MARK: - Review sheet
 /// The buyer's review: 0–5 stars and a few words, posted on the seller's
 /// check-legit post.
 struct LegitReviewSheet: View {

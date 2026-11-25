@@ -1,6 +1,7 @@
 import SwiftUI
 import WebKit
 
+// MARK: - Browser view
 /// Where every external link opens first: a full-screen web page inside the app,
 /// with "Open app" to continue in the app that owns the link (YouTube, Google
 /// Maps…), the way Facebook/Instagram/Messenger handle links. Nothing leaves
@@ -37,6 +38,7 @@ struct InAppBrowserView: View {
         }
     }
 
+    // MARK: - Toolbars
     private var topBar: some View {
         HStack(spacing: 12) {
             Button(action: onDismiss) {
@@ -90,6 +92,7 @@ struct InAppBrowserView: View {
     }
 }
 
+// MARK: - Web view
 /// Lets the SwiftUI buttons reach the web view they control.
 final class WebHandle {
     weak var webView: WKWebView?
@@ -155,6 +158,7 @@ private struct WebContent: UIViewRepresentable {
     }
 }
 
+// MARK: - Presentation modifier
 /// `URL` isn't `Identifiable`, so `.fullScreenCover(item:)` needs a thin wrapper.
 private struct IdentifiableURL: Identifiable {
     let url: URL

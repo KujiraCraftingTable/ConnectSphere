@@ -2,6 +2,7 @@ import CoreLocation
 import MapKit
 import Observation
 
+// MARK: - Picked place
 /// A place picked on the map: what buyers read, and where its pin goes.
 nonisolated struct PickedPlace: Equatable {
     var name: String
@@ -11,6 +12,7 @@ nonisolated struct PickedPlace: Equatable {
     var coordinate: CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: latitude, longitude: longitude) }
 }
 
+// MARK: - Location picker
 /// Where a listing's item is. A searched place, or the phone's current
 /// location (which asks for permission the first time).
 @MainActor

@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Space
 /// A private folder the user puts people and group chats in to organise
 /// Messages ("Greenwich Uni", "Badminton"). Per mode; a person or group can be
 /// in several spaces; nobody but the owner ever sees them.
@@ -43,6 +44,7 @@ struct ChatSpace: Identifiable, Decodable, Equatable {
         members = (try? c.decodeIfPresent([SpaceMember].self, forKey: .members)) ?? []
     }
 
+    // MARK: - Membership
     /// Ids compare case-insensitively: the server's text-cast ids are lower
     /// case, while ids that went through a Swift `UUID` come back upper case.
     func contains(_ userId: String) -> Bool {
@@ -61,6 +63,7 @@ struct ChatSpace: Identifiable, Decodable, Equatable {
     }
 }
 
+// MARK: - Space colors
 /// The preset colours a space can take. The same keys the server allowlists.
 /// System colours, so each stays legible in both light and dark mode.
 enum SpaceColor: String, CaseIterable, Identifiable {
@@ -115,6 +118,7 @@ enum SpaceColor: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Space members
 /// Someone in a space, as the server lists them (persona for the space's mode).
 struct SpaceMember: Identifiable, Decodable, Equatable {
     let id: String
@@ -130,6 +134,7 @@ struct SpaceMember: Identifiable, Decodable, Equatable {
     }
 }
 
+// MARK: - Inbox sections
 /// One section of Messages while the Spaces view is on.
 struct SpaceSection: Identifiable, Equatable {
     enum Kind: Equatable {
@@ -188,6 +193,7 @@ struct SpaceSection: Identifiable, Equatable {
     }
 }
 
+// MARK: - Space candidates
 /// Someone who can be put in a space: anyone you have an accepted 1-on-1 chat
 /// with in this mode, plus your connections (the server enforces the same).
 struct SpaceCandidate: Identifiable, Equatable {

@@ -32,6 +32,7 @@ final class DraftsViewModel {
         if let observer { NotificationCenter.default.removeObserver(observer) }
     }
 
+    // MARK: - Loading
     func load() async {
         do {
             posts = try await repository.list()
@@ -41,6 +42,7 @@ final class DraftsViewModel {
         }
     }
 
+    // MARK: - Opening
     /// A draft and the composer it belongs in.
     struct Opened: Identifiable {
         enum Place { case feed, community(Community) }
@@ -62,6 +64,7 @@ final class DraftsViewModel {
         }
     }
 
+    // MARK: - Draft actions
     func unschedule(_ post: Post) async {
         do {
             try await repository.unschedule(post.id)

@@ -1,5 +1,6 @@
 import Vapor
 
+// MARK: - Auth user
 /// The `user` object returned by `/api/auth/*` and `/api/auth/me`: every `users` column
 /// except `password_hash` / `google_id`, with `display_name` / `bio` /
 /// `avatar_url` / `cover_url` persona-resolved from `default_mode`, plus the
@@ -83,6 +84,7 @@ struct AuthUserObject: Content {
     var skills: [String]
 }
 
+// MARK: - Auth responses
 /// `{ token, user, is_new_user }`. Register / login / google.
 struct AuthResponse: Content {
     var token: String

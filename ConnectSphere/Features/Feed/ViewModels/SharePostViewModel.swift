@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Share target
 /// What a share sheet passes on.
 enum ShareTarget: Equatable {
     case post(String)
@@ -7,6 +8,7 @@ enum ShareTarget: Equatable {
 }
 import Observation
 
+// MARK: - Share view model
 /// Sharing a post: picking chats (the most recent 20, or any chat from the
 /// full list) and sending to them all with one Send, or reposting it to your
 /// own Feed. The note typed at the top goes with either.
@@ -52,6 +54,7 @@ final class SharePostViewModel {
         if selected.contains(conversation.id) { selected.remove(conversation.id) } else { selected.insert(conversation.id) }
     }
 
+    // MARK: - Sending
     /// Sends the post (or community), with the note, to every picked chat.
     /// True when all went through; chats that failed stay picked.
     func sendSelected(_ target: ShareTarget, token: String) async -> Bool {

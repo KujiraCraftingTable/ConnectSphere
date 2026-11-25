@@ -20,6 +20,7 @@ struct SearchCriteriaEvalCommand: AsyncCommand {
 
     var help: String { "Scores how well a model reads AI-search prompts against a fixed set." }
 
+    // MARK: - Fixtures and scores
     struct Expect: Decodable {
         var topics: [String]?; var roles: [String]?
         var gender: String?; var age_min: Int?; var age_max: Int?; var like_me: Bool?
@@ -38,6 +39,7 @@ struct SearchCriteriaEvalCommand: AsyncCommand {
         }
     }
 
+    // MARK: - Run
     func run(using context: CommandContext, signature: Signature) async throws {
         let app = context.application
         let console = context.console
@@ -76,6 +78,7 @@ struct SearchCriteriaEvalCommand: AsyncCommand {
         }
     }
 
+    // MARK: - Scoring
     private func score(_ items: [Item], cfg: OllamaService.Config, logger: Logger) async -> Score {
         var s = Score()
         for item in items {

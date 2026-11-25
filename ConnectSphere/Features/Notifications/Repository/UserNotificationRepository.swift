@@ -1,11 +1,13 @@
 import Foundation
 
+// MARK: - Filter
 /// Filter for the notification list. Mirrors the backend's `filter` query param.
 enum NotificationFilter: String, CaseIterable {
     case all
     case unread
 }
 
+// MARK: - Repository
 struct UserNotificationRepository {
     private let client = NetworkClient.shared
 
@@ -54,6 +56,7 @@ struct UserNotificationRepository {
         try await fetch(token: token)
     }
 
+    // MARK: - Badge
     /// The tab badge: unread notifications that arrived since the tab was last left.
     func badgeCount(mode: AppMode, token: String) async throws -> Int {
         let response = try await client.fetch(
@@ -77,6 +80,7 @@ struct UserNotificationRepository {
         )
     }
 
+    // MARK: - Mismatch & actions
     /// Returns the first unresolved mode_mismatch notification for a specific post.
     func fetchMismatchFor(postId: String, token: String) async throws -> UserNotificationDTO? {
         let response = try await fetchAll(token: token)
@@ -99,6 +103,7 @@ struct UserNotificationRepository {
         )
     }
 
+    // MARK: - Read state
     func markRead(notificationId: String, token: String) async throws {
         try await setRead(notificationId: notificationId, isRead: true, token: token)
     }

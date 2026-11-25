@@ -21,6 +21,7 @@ struct MeetingProposalComposerView: View {
 
     private let titleLimit = 40
 
+    // MARK: - Body
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             sectionLabel("Meeting Details")
@@ -129,6 +130,7 @@ struct MeetingProposalComposerView: View {
         .onChange(of: startsAt) { _, _ in fitReminder() }
     }
 
+    // MARK: - Helpers
     private func fitReminder() {
         let fitting = MeetingReminderOffset.closestFitting(reminderOffset, before: startsAt)
         if fitting != reminderOffset { reminderOffset = fitting }

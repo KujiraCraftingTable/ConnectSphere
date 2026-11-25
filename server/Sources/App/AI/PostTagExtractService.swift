@@ -6,6 +6,7 @@ import SQLKit
 /// vector; the Wikipedia self-learn tier is Phase 8) → dedup → bulk insert into
 /// `post_tags` with `source = 'ai'`.
 enum PostTagExtractService {
+    // MARK: - Prompt
     static let systemPrompt = """
         You extract topics and entities from a social media post to use as searchable tags.
         Return ONLY a JSON array of strings. No explanation outside the array.
@@ -57,6 +58,7 @@ enum PostTagExtractService {
         → ["Taylor Swift", "music", "pop music"]
         """
 
+    // MARK: - Tag extraction
     static func extractRawTags(_ cfg: OllamaService.Config, _ content: String, logger: Logger) async -> [String] {
         (try? await OllamaService.rawChatArray(cfg, system: systemPrompt, user: content, temperature: 0.2)) ?? []
     }
@@ -81,6 +83,7 @@ enum PostTagExtractService {
         return all.filter { !$0.isEmpty }
     }
 
+    // MARK: - Saving tags
     static func savePostTags(_ postID: String, _ tags: [String], on db: any SQLDatabase) async throws {
         guard !tags.isEmpty else { return }
         try await db.raw("""

@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Activity item
 /// One line of your activity log: a comment you wrote, or something you liked.
 struct ActivityItem: Identifiable, Decodable, Hashable {
     enum Kind: String, Decodable { case comment, postLike = "post_like", commentLike = "comment_like" }
@@ -47,6 +48,7 @@ struct ActivityItem: Identifiable, Decodable, Hashable {
     }
 }
 
+// MARK: - Grouping by day
 /// Day sections, newest first.
 enum ActivityGrouping {
     struct Day: Identifiable {

@@ -7,6 +7,7 @@ enum HighlightStore {
     static let maxHighlights = 30
     static let maxItems = 100
 
+    // MARK: - Types
     struct Item: Content {
         var id: String
         var image_url: String
@@ -28,6 +29,7 @@ enum HighlightStore {
         let items: String
     }
 
+    // MARK: - Reads
     /// Oldest first, like Facebook's row; photos in the order added.
     static func list(of user: String, on db: any SQLDatabase) async throws -> [Highlight] {
         let rows = try await db.raw("""
@@ -68,6 +70,7 @@ enum HighlightStore {
             .first(decoding: R.self)?.image_url
     }
 
+    // MARK: - Writes
     static func create(_ user: String, title: String, images: [String], on db: AppDatabase) async throws {
         try await db.tx { t in
             struct R: Decodable { let id: String }

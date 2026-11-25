@@ -323,6 +323,7 @@ struct PrivacySecurityView: View {
         }
     }
 
+    // MARK: - Assistant hand-off
     /// Opens Change Password when the assistant's "Take me there" landed
     /// here, then clears the signal so it opens once.
     private func consumePendingAssistantSheet() {

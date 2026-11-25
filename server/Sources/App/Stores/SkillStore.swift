@@ -10,6 +10,7 @@ enum SkillStore {
     /// The "Suggested for you" row, from people with a similar job title.
     static let suggestedCount = 8
 
+    // MARK: - Catalog
     struct Entry: Content {
         var id: String
         var name_en: String
@@ -33,6 +34,7 @@ enum SkillStore {
         try await db.raw("SELECT key, name_en, name_vi FROM skill_categories").all(decoding: Category.self)
     }
 
+    // MARK: - Picks
     static func current(of userID: String, on db: any SQLDatabase) async throws -> [String] {
         struct R: Decodable { let skill: String }
         return try await db.raw("SELECT skill FROM user_skills WHERE user_id = \(uuid: userID)")
@@ -53,6 +55,7 @@ enum SkillStore {
         }
     }
 
+    // MARK: - Suggestions
     /// The skills most held by people whose job title is like `jobTitle`
     /// (trigram similarity, so "iOS Dev" finds "iOS Developer"), catalogue
     /// entries only, LinkedIn's "suggested based on your profile".
@@ -82,6 +85,7 @@ enum SkillStore {
     }
 }
 
+// MARK: - Skill rules
 /// The checks behind every saved skill list, kept free of the database so
 /// they can be unit-tested.
 enum SkillRules {

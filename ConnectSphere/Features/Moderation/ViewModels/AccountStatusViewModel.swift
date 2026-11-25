@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 
+// MARK: - Account status
 /// Settings › Account status, like Meta's: whether you're restricted or
 /// banned, your strikes, what was removed and why (with a way to ask for a
 /// review), and how the reports you made turned out.
@@ -50,6 +51,7 @@ final class AccountStatusViewModel {
     }
 }
 
+// MARK: - Moderation entry
 /// Whether Settings shows the Moderation row: only app moderators and admins.
 @MainActor
 @Observable

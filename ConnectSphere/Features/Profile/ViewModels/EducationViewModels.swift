@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 
+// MARK: - School list
 /// Someone's schools on their Hobby profile.
 @MainActor
 @Observable
@@ -17,6 +18,7 @@ final class EducationListViewModel {
     func replace(_ updated: [Education]) { schools = updated }
 }
 
+// MARK: - School editor
 /// Adding or editing one of your schools.
 @MainActor
 @Observable

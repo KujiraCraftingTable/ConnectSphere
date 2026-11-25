@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Notifications
 extension Notification.Name {
     static let postDeleted = Notification.Name("postDeleted")
     static let postUpdated = Notification.Name("postUpdated")
@@ -24,6 +25,7 @@ extension Notification.Name {
     static let postCreated = Notification.Name("postCreated")
 }
 
+// MARK: - Privacy
 enum PostPrivacy: String, CaseIterable {
     case publicAll  = "public"
     case friends    = "friends"
@@ -73,6 +75,7 @@ enum PostPrivacy: String, CaseIterable {
     }
 }
 
+// MARK: - Shared post preview
 /// Condensed version of the original post embedded in a shared post
 struct SharedPostPreview {
     let id: String
@@ -104,6 +107,7 @@ struct SharedPostPreview {
     }
 }
 
+// MARK: - Post
 struct Post: Identifiable {
     let id: String
     let author: UserProfile

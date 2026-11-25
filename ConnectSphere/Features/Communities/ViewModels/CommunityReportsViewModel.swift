@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 
+// MARK: - Report queue
 /// A community's Reports screen: reported posts and members, one case each.
 @MainActor
 @Observable
@@ -46,6 +47,7 @@ final class CommunityReportsViewModel {
     }
 }
 
+// MARK: - Report case
 /// One case: its reports, history, and the decision.
 @MainActor
 @Observable

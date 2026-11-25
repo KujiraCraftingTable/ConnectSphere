@@ -3,6 +3,7 @@ import SQLKit
 
 /// Skill endorsements (migration 057).
 enum EndorsementStore {
+    // MARK: - Types
     struct Endorser: Content {
         var id: String
         var display_name: String
@@ -20,6 +21,7 @@ enum EndorsementStore {
         var top_endorsers: [Endorser]
     }
 
+    // MARK: - Reads
     static func skills(of user: String, viewer: String, on db: any SQLDatabase) async throws -> [Skill] {
         struct Row: Decodable { let id: Int; let skill: String; let endorsement_count: Int; let endorsed_by_me: Bool; let top_endorsers: String }
         let rows = try await db.raw("""
@@ -60,6 +62,7 @@ enum EndorsementStore {
             """).first(decoding: R.self)?.ok ?? false
     }
 
+    // MARK: - Endorsing
     /// True when this added a new endorsement (so it's worth a notification).
     static func endorse(_ skillID: Int, by endorser: String, on db: any SQLDatabase) async throws -> Bool {
         struct R: Decodable { let skill_id: Int }
@@ -73,6 +76,7 @@ enum EndorsementStore {
         try await db.raw("DELETE FROM skill_endorsements WHERE skill_id = \(bind: skillID) AND endorser_id = \(uuid: endorser)").run()
     }
 
+    // MARK: - Skill list
     /// Sets someone's skills to `wanted`, keeping the rows (and endorsements)
     /// of skills that stay; only removed ones go, only new ones are added.
     static let maxSkills = 30

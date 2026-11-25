@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Community
 struct Community: Identifiable {
     let id: String
     let name: String
@@ -52,6 +53,7 @@ struct Community: Identifiable {
     var deletionDate: Date? { disbandedAt.map { $0.addingTimeInterval(7 * 86_400) } }
 }
 
+// MARK: - Settings and roles
 /// Which new posts in a community notify a member.
 enum CommunityNotifyLevel: String, CaseIterable {
     case all, friends, off
@@ -88,6 +90,7 @@ enum MemberRole: String {
     }
 }
 
+// MARK: - Members
 struct CommunityMember: Identifiable {
     let id: String
     let username: String
@@ -103,6 +106,7 @@ struct CommunityMember: Identifiable {
     var isFriend = false
 }
 
+// MARK: - Community info
 /// The "About this community" page (`GET /communities/:id/info`).
 struct CommunityInfo: Decodable {
     struct Person: Decodable, Identifiable {
@@ -148,6 +152,7 @@ struct CommunityInfo: Decodable {
     }
 }
 
+// MARK: - My community content
 /// "Manage your content" (`GET /communities/:id/my-content`).
 struct MyCommunityContent: Decodable {
     enum Kind: String, CaseIterable { case posts, comments }
@@ -191,6 +196,7 @@ struct MyCommunityContent: Decodable {
     }
 }
 
+// MARK: - Shared community
 /// A community's card where it's shared: under a feed post's note.
 struct SharedCommunityRef: Decodable, Equatable {
     let id: String
@@ -210,6 +216,7 @@ struct SharedCommunityRef: Decodable, Equatable {
     }
 }
 
+// MARK: - Member profile
 /// Someone as they appear in one community
 /// (`GET /communities/:id/members/:userId/profile`).
 struct CommunityMemberProfile: Decodable {
@@ -252,6 +259,7 @@ struct CommunityMemberProfile: Decodable {
     }
 }
 
+// MARK: - Description
 /// A community's description: up to 200 words.
 enum CommunityDescription {
     static let maxWords = 200
@@ -276,6 +284,7 @@ enum CommunityDescription {
     }
 }
 
+// MARK: - Access
 extension Community {
     /// Posts and members are readable: the server says so, else member-or-public.
     var viewerCanRead: Bool { canView ?? (privacy != .private || isMember) }
@@ -284,6 +293,7 @@ extension Community {
     var isReadOnlyVisit: Bool { privacy == .private && !isMember && viewerCanRead }
 }
 
+// MARK: - Moderation
 /// Someone the admin banned: removed and kept out of the community.
 struct BannedMember: Decodable, Identifiable {
     let id: String

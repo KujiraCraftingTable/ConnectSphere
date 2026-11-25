@@ -1,6 +1,7 @@
 import SwiftUI
 import Observation
 
+// MARK: - Bubble state
 /// One conversation in the floating chat window. Its own already-joined
 /// `ChatViewModel` and its per-chat state. `id` = conversationId, so a
 /// conversation is in the window at most once.
@@ -64,11 +65,13 @@ final class FloatingBubbleState: Identifiable {
     }
 }
 
+// MARK: - Stash edge
 /// The side of the screen a stashed window is tucked into.
 enum FloatingChatStashEdge: Equatable {
     case leading, trailing
 }
 
+// MARK: - Presenter
 /// App-wide presenter for the floating chat window. Lets the user keep up
 /// to four conversations open (still receiving and able to send) while
 /// browsing any other tab, the way Android's chat bubbles work, scoped to
@@ -114,6 +117,7 @@ final class FloatingChatPresenter {
     /// here has to guess a keyboard height. `nil` while no bar is on screen.
     var composerTopY: CGFloat?
 
+    // MARK: - Derived state
     var isStashed: Bool { stashEdge != nil }
 
     var active: FloatingBubbleState? {
@@ -144,6 +148,7 @@ final class FloatingChatPresenter {
         bubbles.first { $0.isComposing }
     }
 
+    // MARK: - Full chat visibility
     /// Full `ChatView`s currently on screen. A count, not a flag: one chat can
     /// appear before the previous one's `onDisappear` fires (chat → chat).
     private var visibleFullChats = 0
@@ -177,6 +182,7 @@ final class FloatingChatPresenter {
         bubbles.contains { $0.id == conversationId }
     }
 
+    // MARK: - Adding bubbles
     /// Floats a conversation's already-loaded `ChatView`/`ChatViewModel` into
     /// the window and shows it. Re-tags the view model's socket listeners (see
     /// `ChatViewModel.retag(to:)`) rather than tearing them down and
@@ -247,6 +253,7 @@ final class FloatingChatPresenter {
         return evicted
     }
 
+    // MARK: - Activation & seen
     /// Shows `bubble` in the window (a swipe, an edge count, a new chat). Any
     /// reply bar closes and the playing video stops. Both belonged to the
     /// chat being left.
@@ -274,6 +281,7 @@ final class FloatingChatPresenter {
         bubble.viewModel.markRead()
     }
 
+    // MARK: - Close & stash
     /// Closes a chat without restoring. Tears down its socket listeners
     /// entirely (the conversation is no longer live anywhere). The window
     /// moves to a neighbour; closing the last one removes the window.
@@ -303,6 +311,7 @@ final class FloatingChatPresenter {
         stashEdge = nil
     }
 
+    // MARK: - Composing & restore
     /// Toggles `bubble`'s inline-compose affordance, closing any other
     /// chat's first, the on-screen keyboard is a single, device-wide
     /// resource, so only one chat composes at a time.

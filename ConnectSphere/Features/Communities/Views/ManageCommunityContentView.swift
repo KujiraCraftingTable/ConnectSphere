@@ -19,6 +19,7 @@ struct ManageCommunityContentView: View {
 
     private var token: String { appState.authToken ?? "" }
 
+    // MARK: - Body
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: AppSpacing.sm) {
@@ -86,6 +87,7 @@ struct ManageCommunityContentView: View {
         } message: { Text(viewModel.errorMessage ?? "") }
     }
 
+    // MARK: - Status chips and badges
     /// All / Published / Pending / Declined, each with its count. Pending is
     /// always there, even in a community that doesn't hold posts.
     private var statusChips: some View {
@@ -136,6 +138,7 @@ struct ManageCommunityContentView: View {
         }
     }
 
+    // MARK: - Comment rows
     private func commentRow(_ comment: MyCommunityContent.Comment) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(comment.content)

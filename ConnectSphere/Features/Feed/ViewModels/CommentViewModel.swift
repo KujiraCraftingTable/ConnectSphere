@@ -3,6 +3,7 @@ import Observation
 import PhotosUI
 import SwiftUI
 
+// MARK: - Sort order
 /// How root comments are ordered. Only affects top-level comments. Each
 /// root's own replies always stay chronological underneath it, same as a
 /// real conversation thread. A third `.mostRelated` case (relevance-ranked)
@@ -14,6 +15,7 @@ enum CommentSortOrder: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+// MARK: - Comments
 @MainActor
 @Observable
 class CommentViewModel {
@@ -49,6 +51,7 @@ class CommentViewModel {
     /// Muted comments the user chose to show anyway (this screen only).
     private(set) var revealed: Set<String> = []
 
+    // MARK: - Collapsing
     func isCollapsed(_ comment: CommentDTO) -> Bool {
         comment.muted && !revealed.contains(comment.id)
     }
@@ -68,6 +71,7 @@ class CommentViewModel {
         }
     }
 
+    // MARK: - Loading
     /// Replies to a given root comment
     func replies(for parentId: String) -> [CommentDTO] {
         comments.filter { $0.parentCommentId == parentId }
@@ -96,6 +100,7 @@ class CommentViewModel {
         comments = all
     }
 
+    // MARK: - Photo attachment
     /// Loads a photo picked from the library into the composer (one per comment;
     /// a new pick replaces it).
     func attachPhoto(_ item: PhotosPickerItem) async {
@@ -110,6 +115,7 @@ class CommentViewModel {
         attachedPhotoData = nil
     }
 
+    // MARK: - Sending
     /// Whether Send is available: some text, a photo, or both.
     func canSend(_ text: String) -> Bool {
         !isSending && (!text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || attachedPhoto != nil)
@@ -188,6 +194,7 @@ class CommentViewModel {
         return refusedText
     }
 
+    // MARK: - Delete, restore and edit
     /// Deletes one of your own comments for good. The backend soft-deletes its
     /// replies too, and the list drops the same rows at once. Returns how many
     /// comments were removed, so the caller can lower the post's count;
@@ -260,6 +267,7 @@ class CommentViewModel {
         return true
     }
 
+    // MARK: - Likes
     /// Toggles a like on a comment: flips at once, then takes the server's
     /// count, or flips back if the request fails.
     func toggleLike(postId: String, commentId: String) async {

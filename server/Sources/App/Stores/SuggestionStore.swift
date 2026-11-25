@@ -14,6 +14,7 @@ enum SuggestionStore {
     static let nearestProfiles = 100
     static let poolLimit = 300
 
+    // MARK: - Types
     struct Reason: Content {
         /// mutual | interest | skill | company | place | similar
         var kind: String
@@ -59,6 +60,7 @@ enum SuggestionStore {
         let same_province: String?
     }
 
+    // MARK: - Scoring
     /// 0…1. Mutual friends weigh most (you likely know them), then how alike
     /// the profiles read, then shared interests/skills, then same place.
     static func score(mutual: Int, similarity: Double?, shared: Int, samePlace: Bool) -> Double {
@@ -77,6 +79,7 @@ enum SuggestionStore {
         return Reason(kind: "similar", value: nil, count: nil)
     }
 
+    // MARK: - Suggestions
     static func suggestions(for me: String, mode: String, limit: Int, on db: any SQLDatabase) async throws -> [Suggestion] {
         // `mode` is checked against `modes` by the caller, so these literals
         // and the table name come from an allowlist, never from input.
@@ -170,6 +173,7 @@ enum SuggestionStore {
         similarity.map { min(100, max(0, Int(($0 * 100).rounded()))) }
     }
 
+    // MARK: - Dismissing
     static func dismiss(_ target: String, by me: String, mode: String, on db: any SQLDatabase) async throws {
         try await db.raw("""
             INSERT INTO suggestion_dismissals (user_id, target_id, mode)

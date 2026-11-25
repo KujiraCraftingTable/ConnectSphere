@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Requests list
 /// Admin tools › HR requests: who asked to become a company's verified HR.
 struct HRRequestsView: View {
     @Environment(AppState.self) private var appState
@@ -57,6 +58,7 @@ struct HRRequestsView: View {
     }
 }
 
+// MARK: - Request detail
 /// One request: the details, the business registration, the checks, and the decision.
 struct HRRequestDetailView: View {
     @Environment(AppState.self) private var appState
@@ -169,6 +171,7 @@ struct HRRequestDetailView: View {
     }
 }
 
+// MARK: - Pending jobs
 /// Admin tools › Jobs to review: a new HR's first jobs, before they go live.
 struct PendingJobsView: View {
     @Environment(AppState.self) private var appState

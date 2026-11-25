@@ -9,6 +9,7 @@ struct ChatPoll: Decodable, Equatable {
     let endsAt: Date?
     var options: [Option]
 
+    // MARK: - Options and voters
     struct Option: Decodable, Equatable, Identifiable {
         let id: String
         let text: String
@@ -35,6 +36,7 @@ struct ChatPoll: Decodable, Equatable {
         }
     }
 
+    // MARK: - Decoding
     enum CodingKeys: String, CodingKey {
         case options
         case endsAt = "ends_at"
@@ -42,6 +44,7 @@ struct ChatPoll: Decodable, Equatable {
 
     var totalVotes: Int { options.reduce(0) { $0 + $1.voteCount } }
 
+    // MARK: - Results and local votes
     /// The option `userId` voted for, if any.
     func myOptionID(userId: String) -> String? {
         options.first { option in option.voters.contains { $0.id.caseInsensitiveCompare(userId) == .orderedSame } }?.id

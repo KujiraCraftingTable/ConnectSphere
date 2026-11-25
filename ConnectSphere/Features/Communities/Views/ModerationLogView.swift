@@ -15,6 +15,7 @@ struct ModerationLogView: View {
 
     private var token: String { appState.authToken ?? "" }
 
+    // MARK: - Body
     var body: some View {
         List {
             if viewModel.entries.isEmpty && !viewModel.isLoading {
@@ -43,6 +44,7 @@ struct ModerationLogView: View {
         }
     }
 
+    // MARK: - Rows
     private func row(_ entry: ModLogEntry) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: icon(entry.action))
@@ -66,6 +68,7 @@ struct ModerationLogView: View {
         .padding(.vertical, 4)
     }
 
+    // MARK: - Entry text
     private func sentence(_ e: ModLogEntry) -> String {
         let actor = e.actorName ?? bundle.loc("Someone")
         let target = e.targetName ?? bundle.loc("someone")

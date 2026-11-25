@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Alt text chip
 /// The "ALT" chip on a picked photo/video in the composer. Filled once the
 /// item has a description. Tapping opens `AltTextEditorSheet`.
 struct AltTextChip: View {
@@ -23,6 +24,7 @@ struct AltTextChip: View {
     }
 }
 
+// MARK: - Alt text editor
 /// Describe a photo or video for people whose media hasn't loaded (or who
 /// can't see it). Saved only on Done.
 struct AltTextEditorSheet: View {

@@ -11,6 +11,7 @@ struct EducationsController {
         u.delete("me", "educations", ":educationId", use: remove)
     }
 
+    // MARK: - Validation
     struct Body: Content {
         var school_name: String?
         var school_type: String?
@@ -40,6 +41,7 @@ struct EducationsController {
         return .init(schoolName: name, schoolType: type, major: major, startYear: b.start_year, endYear: b.end_year)
     }
 
+    // MARK: - Handlers
     static func list(_ req: Request) async throws -> DataListResponse<EducationStore.Education> {
         var id = req.parameters.get("id")!
         if id == "me" { id = req.userID }

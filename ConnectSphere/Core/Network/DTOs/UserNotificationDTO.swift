@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Payload
 /// Shared payload for every kind of user notification.
 /// - mode_mismatch: suggestedMode / currentMode / reason
 /// - connection_request / connection_accepted: from* + mode
@@ -99,6 +100,7 @@ struct UserNotificationPayloadDTO: Decodable {
     let companyName: String?
 }
 
+// MARK: - Destination
 /// Where tapping a notification should take the user. Computed server-side, so
 /// a routing fix ships with the backend rather than an App Store release.
 struct NotificationDestinationDTO: Decodable {
@@ -112,6 +114,7 @@ struct NotificationDestinationDTO: Decodable {
     let jobId: String?
 }
 
+// MARK: - Notification
 struct UserNotificationDTO: Decodable, Identifiable {
     let id: String
     let type: String
@@ -166,6 +169,7 @@ struct UserNotificationDTO: Decodable, Identifiable {
     var sortDate: Date { updatedAt ?? createdAt }
 }
 
+// MARK: - Counts & list responses
 struct UserNotificationCountsDTO: Decodable {
     let total: Int?
     let social: Int?

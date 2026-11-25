@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Suggestions list
 /// Admin tools › Interest suggestions: interests people asked to add to the
 /// picker, most-requested first. Tap one to add it to the catalog or reject it.
 struct InterestSuggestionsView: View {
@@ -53,6 +54,7 @@ struct InterestSuggestionsView: View {
     }
 }
 
+// MARK: - Review sheet
 /// One suggestion: its English and Vietnamese names (pre-filled with what was
 /// typed) and a category, then Add to catalog or Reject.
 private struct InterestSuggestionReviewSheet: View {

@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Post author
 struct PostAuthorDTO: Decodable {
     let id: String
     let username: String
@@ -67,6 +68,7 @@ struct PostAuthorDTO: Decodable {
     }
 }
 
+// MARK: - Shared post
 /// The original post embedded in a shared post (backend nests it under shared_post)
 struct SharedPostDTO: Decodable {
     let id: String
@@ -129,6 +131,7 @@ struct SharedPostDTO: Decodable {
     }
 }
 
+// MARK: - Post
 struct PostDTO: Decodable {
     let id: String
     let content: String
@@ -200,6 +203,7 @@ struct PostDTO: Decodable {
         case declineReason = "decline_reason"
     }
 
+    // MARK: - Decoding
     // Custom init (instead of synthesized) so isSaved/postType/pollData/
     // eventData all get backward-compat defaults via decodeIfPresent,
     // mirrors CommunityPostDTO's existing pattern, so responses from before
@@ -246,6 +250,7 @@ struct PostDTO: Decodable {
         declineReason = try c.decodeIfPresent(String.self, forKey: .declineReason)
     }
 
+    // MARK: - Mapping
     func toPost() -> Post {
         Post(
             id:                     id,

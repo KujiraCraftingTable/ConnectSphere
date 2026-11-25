@@ -5,6 +5,7 @@ import SQLKit
 /// an email, and confirming a persona or account deletion. Stored bcrypt'd,
 /// valid 10 minutes, single use, 5 tries.
 enum AccountCodeStore {
+    // MARK: - Purposes
     enum Purpose: String, CaseIterable {
         case verifyEmail = "verify_email"
         case changeEmail = "change_email"
@@ -32,6 +33,7 @@ enum AccountCodeStore {
         }
     }
 
+    // MARK: - Limits and messages
     static let ttlMinutes = 10
     static let resendSeconds = 60
     static let maxAttempts = 5
@@ -44,6 +46,7 @@ enum AccountCodeStore {
     }
     static let expiredMessage = "This code has expired. Ask for a new one"
 
+    // MARK: - Issuing codes
     /// A new code (any earlier one for the same purpose stops working).
     /// Refuses a resend within a minute of the last.
     static func issue(user: String, purpose: Purpose, email: String, on db: any SQLDatabase) async throws -> String {
@@ -78,6 +81,7 @@ enum AccountCodeStore {
         return (code, row.id)
     }
 
+    // MARK: - Challenges
     struct Challenge: Decodable {
         let id: String
         let user_id: String
@@ -111,6 +115,7 @@ enum AccountCodeStore {
             """).first(decoding: Challenge.self)
     }
 
+    // MARK: - Consuming codes
     /// Uses up a code; returns the email it was sent to. Each wrong try counts.
     /// `id` pins one sign-in challenge. Its own code, not the user's latest.
     static func consume(user: String, purpose: Purpose, code: String, id: String? = nil,

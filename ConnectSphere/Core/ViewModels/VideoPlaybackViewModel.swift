@@ -25,6 +25,7 @@ final class VideoPlaybackViewModel {
 
     var progress: Double { durationSeconds > 0 ? min(max(currentSeconds / durationSeconds, 0), 1) : 0 }
 
+    // MARK: - Activation
     /// The page became the one on screen.
     func activate() {
         if player == nil {
@@ -60,6 +61,7 @@ final class VideoPlaybackViewModel {
         isFast = false
     }
 
+    // MARK: - Playback controls
     func togglePlay() { isPlaying ? pause() : play() }
 
     private func play() {
@@ -85,6 +87,7 @@ final class VideoPlaybackViewModel {
         }
     }
 
+    // MARK: - Scrubbing
     func beginScrubbing() { isScrubbing = true }
 
     /// `fraction` of the way through, 0...1.
@@ -105,6 +108,7 @@ final class VideoPlaybackViewModel {
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
     }
 
+    // MARK: - Time label
     /// "0:12" or "1:02:03".
     static func clock(_ seconds: Double) -> String {
         guard seconds.isFinite, seconds >= 0 else { return "0:00" }

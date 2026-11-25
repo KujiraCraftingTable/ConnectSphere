@@ -23,6 +23,7 @@ struct CommunityReportCaseView: View {
 
     private var token: String { appState.authToken ?? "" }
 
+    // MARK: - Body
     var body: some View {
         ScrollView {
             if let detail = viewModel.detail {
@@ -109,6 +110,7 @@ struct CommunityReportCaseView: View {
         } message: { Text(viewModel.errorMessage ?? "") }
     }
 
+    // MARK: - Decision
     private func decisionSection(_ item: CommunityReportCase) -> some View {
         section("Decision") {
             TextField(bundle.loc("Note (optional, sent with a warning)"), text: $note, axis: .vertical)
@@ -136,6 +138,7 @@ struct CommunityReportCaseView: View {
         }
     }
 
+    // MARK: - Labels
     private func reasonLabel(_ raw: String) -> String {
         bundle.loc(ModerationReason(communityValue: raw)?.displayName ?? raw.capitalized)
     }

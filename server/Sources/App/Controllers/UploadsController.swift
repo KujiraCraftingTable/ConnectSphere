@@ -4,6 +4,7 @@ import SQLKit
 /// Generic media upload, used by post image attachments, avatar/cover-photo
 /// upload, and Stories.
 struct UploadsController {
+    // MARK: - Routes
     /// `POST /api/uploads`, auth required, matches the Node route exactly.
     static func register(routes: any RoutesBuilder) {
         routes.grouped(AuthMiddleware())
@@ -36,6 +37,7 @@ struct UploadsController {
         app.get("uploads", "messages", ":filename", use: serveMessageMedia)
     }
 
+    // MARK: - Message media
     static func serveMessageMedia(_ req: Request) async throws -> Response {
         guard let token = req.query[String.self, at: "token"] else {
             throw Abort(.unauthorized, reason: "Missing token")
@@ -53,6 +55,7 @@ struct UploadsController {
         return req.fileio.streamFile(at: path)
     }
 
+    // MARK: - Uploading
     struct UploadResponse: Content {
         var url: String
         var filename: String
@@ -115,6 +118,7 @@ struct UploadsController {
             size: size)
     }
 
+    // MARK: - Serving files
     static func serve(_ req: Request) async throws -> Response {
         guard let filename = req.parameters.get("filename"),
               let path = resolve(filename, exists: { FileManager.default.fileExists(atPath: "\(uploadDir)/\($0)") })

@@ -19,6 +19,7 @@ struct WorkExperience: Identifiable, Decodable, Hashable {
 
     var isCurrent: Bool { endMonth == nil }
 
+    // MARK: - Kinds
     enum EmploymentKind: String, Decodable, CaseIterable, Hashable {
         case fullTime = "full_time", partTime = "part_time", internship, contract, freelance
         case selfEmployed = "self_employed"
@@ -45,6 +46,7 @@ struct WorkExperience: Identifiable, Decodable, Hashable {
         }
     }
 
+    // MARK: - Grouping
     /// Roles at one company together: the page (or name), and the time there.
     struct Group: Identifiable, Hashable {
         let id: String
@@ -94,6 +96,7 @@ struct WorkExperience: Identifiable, Decodable, Hashable {
     }
 }
 
+// MARK: - Month
 /// A calendar month ("2024-03"), for durations like "2 yrs 3 mos".
 struct WorkMonth: Comparable, Hashable {
     let year: Int
@@ -144,6 +147,7 @@ struct WorkMonth: Comparable, Hashable {
     }
 }
 
+// MARK: - Bundle locale
 extension Bundle {
     /// The locale matching the app language this bundle was loaded for
     /// (`vi.lproj` → Vietnamese), for dates like "Mar 2024" / "thg 3 2024".

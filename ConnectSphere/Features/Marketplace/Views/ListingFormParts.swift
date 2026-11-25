@@ -1,6 +1,7 @@
 import SwiftUI
 import PhotosUI
 
+// MARK: - Items section
 /// What's for sale in the sell and edit forms: the headline (asked for once
 /// there are several items), the description, then a section per item
 /// (photos, title, price, condition) and "Add another item". The description
@@ -50,6 +51,7 @@ struct ListingItemsSection: View {
     }
 }
 
+// MARK: - Item section
 /// One item of the form.
 private struct ListingItemSection: View {
     @Environment(\.appBundle) private var bundle
@@ -123,6 +125,7 @@ private struct ListingItemSection: View {
     }
 }
 
+// MARK: - Photo strip
 /// One item's photo strip: add, remove, alt text.
 struct ListingPhotosStrip: View {
     @Environment(ThemeManager.self) private var themeManager
@@ -200,6 +203,7 @@ struct ListingPhotosStrip: View {
     }
 }
 
+// MARK: - Price field
 /// The price box: digits grouped as you type, with "đ" always at its right edge.
 struct ListingPriceField: View {
     @Environment(\.colorScheme) private var colorScheme
@@ -223,6 +227,7 @@ struct ListingPriceField: View {
     }
 }
 
+// MARK: - Auto re-up
 /// "Auto re-up": post the item again as new every 1, 3 or 7 days at a set hour
 /// (Vietnam time), for the sell form and Edit listing.
 struct AutoReupSection: View {
@@ -248,6 +253,7 @@ struct AutoReupSection: View {
     }
 }
 
+// MARK: - Also list in
 /// A community in the "Also list in" checklist.
 struct ListingCommunityOption: Identifiable {
     let id: String

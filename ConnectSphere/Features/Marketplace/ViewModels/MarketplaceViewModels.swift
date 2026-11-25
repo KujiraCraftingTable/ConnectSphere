@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 
+// MARK: - Marketplace tab
 /// The Marketplace tab: available listings in your communities for the mode
 /// you're in, searchable and filterable by community.
 @MainActor
@@ -54,6 +55,7 @@ final class MarketplaceViewModel {
         observers.forEach { NotificationCenter.default.removeObserver($0) }
     }
 
+    // MARK: - Loading
     func load(mode: AppMode, token: String) async {
         isLoading = true
         defer { isLoading = false }
@@ -103,6 +105,7 @@ final class MarketplaceViewModel {
         await load(mode: mode, token: token)
     }
 
+    // MARK: - Updates
     /// A new listing from "Sell" shows straight away (unless it's waiting
     /// for the community's approval).
     func added(_ post: Post) {
@@ -117,6 +120,7 @@ final class MarketplaceViewModel {
     }
 }
 
+// MARK: - Seller page
 /// A seller as the Marketplace shows them: their check-legit post first,
 /// then their items in the community you came from, then the rest (sold ones
 /// last in each), not their whole profile.
@@ -210,6 +214,7 @@ final class MarketplaceSellerViewModel {
     var avatarUrl: String? { profile == nil ? seller.avatarUrl : profile?.avatarUrl }
     var coverUrl: String? { profile == nil ? seller.coverUrl : profile?.coverUrl }
 
+    // MARK: - Follow
     /// Follow or unfollow the seller, shown at once and undone if it fails.
     func toggleFollow(token: String) async {
         guard var current = profile, !isTogglingFollow else { return }
@@ -231,6 +236,7 @@ final class MarketplaceSellerViewModel {
     }
 }
 
+// MARK: - Listing
 /// One listing: messaging the seller, and the seller's own edits.
 @MainActor
 @Observable
@@ -248,6 +254,7 @@ final class ListingViewModel {
 
     func isSeller(_ userId: String?) -> Bool { userId == post.author.id }
 
+    // MARK: - Messaging the seller
     /// Opens the chat with the seller in the listing's mode and sends the
     /// listing into it, so they know what it's about (the seller's
     /// auto-reply follows from the server). With several items, `item` is the
@@ -309,6 +316,7 @@ final class ListingViewModel {
         NotificationCenter.default.post(name: .postUpdated, object: nil, userInfo: ["post": updated])
     }
 
+    // MARK: - Re-up
     /// Posts the item again as new, in the communities it was listed in. True when done.
     @discardableResult
     func reup(token: String) async -> Bool {
@@ -332,6 +340,7 @@ final class ListingViewModel {
         await save(["clear_auto_reup": true], token: token)
     }
 
+    // MARK: - Edit & delete
     /// The seller's edits from the edit sheet. True when saved.
     @discardableResult
     func save(_ fields: [String: Any], token: String) async -> Bool {
@@ -374,6 +383,7 @@ final class ListingViewModel {
     }
 }
 
+// MARK: - Your items
 /// "Your items": everything you have for sale in this mode, sold ones last.
 @MainActor
 @Observable

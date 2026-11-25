@@ -5,6 +5,7 @@ import SwiftUI
 // Buttons are borderless because both pickers also sit inside Form rows,
 // where a plain button fires on any tap in the row.
 
+// MARK: - Search field
 struct CatalogSearchField: View {
     let placeholder: String
     @Binding var text: String
@@ -34,6 +35,7 @@ struct CatalogSearchField: View {
     }
 }
 
+// MARK: - Section
 /// An uppercase header over a wrapping row of chips.
 struct CatalogSection<Content: View>: View {
     let title: String
@@ -52,6 +54,7 @@ struct CatalogSection<Content: View>: View {
     }
 }
 
+// MARK: - Chip
 /// A catalogue entry: filled when picked, faded when the list is full.
 struct CatalogChip: View {
     let title: String
@@ -82,6 +85,7 @@ struct CatalogChip: View {
     }
 }
 
+// MARK: - More button
 /// "More" at the end of a collapsed category.
 struct CatalogMoreButton: View {
     let action: () -> Void
@@ -100,6 +104,7 @@ struct CatalogMoreButton: View {
     }
 }
 
+// MARK: - Selected chip
 /// A picked entry, with ✕ to remove it.
 struct CatalogSelectedChip: View {
     let title: String

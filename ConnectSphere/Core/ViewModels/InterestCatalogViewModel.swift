@@ -22,6 +22,7 @@ final class InterestCatalogViewModel {
 
     var canSuggest: Bool { repository.canSuggest }
 
+    // MARK: - Loading
     func load() async {
         guard categories.isEmpty else { return }
         do {
@@ -48,6 +49,7 @@ final class InterestCatalogViewModel {
         }
     }
 
+    // MARK: - Lookup
     func entry(named name: String) -> InterestEntry? {
         categories.lazy.flatMap(\.entries).first { $0.nameEn.caseInsensitiveCompare(name) == .orderedSame }
     }
@@ -59,6 +61,7 @@ final class InterestCatalogViewModel {
         return vietnamese ? e.nameVi : e.nameEn
     }
 
+    // MARK: - Checks & suggestions
     /// The pick to store ("Gaming · Roblox"), or nil with `specificError` set
     /// when the item names nothing real.
     func checkSpecific(base: String, text: String) async -> String? {

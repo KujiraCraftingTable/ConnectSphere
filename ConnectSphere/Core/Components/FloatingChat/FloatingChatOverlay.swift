@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Overlay modifier
 extension View {
     /// Attaches the floating chat window from `presenter`. Put this on a
     /// screen-level view (see `MainTabView`), the same way
@@ -9,6 +10,7 @@ extension View {
     }
 }
 
+// MARK: - Chat layer
 /// The window, its stash tab and the docked reply bar, over the whole app.
 private struct FloatingChatLayer: View {
     let presenter: FloatingChatPresenter
@@ -71,6 +73,7 @@ private struct FloatingChatLayer: View {
         }
     }
 
+    // MARK: - Chat window
     @ViewBuilder
     private func window(in container: CGSize) -> some View {
         let size = chatSize.size
@@ -117,6 +120,7 @@ private struct FloatingChatLayer: View {
         }
     }
 
+    // MARK: - Drag & pinch gestures
     /// A label drag ended: past a side edge (or flung hard at it) the window
     /// stashes there, like Apple's picture-in-picture; otherwise it snaps to
     /// the nearer side.
@@ -143,6 +147,7 @@ private struct FloatingChatLayer: View {
     }
 }
 
+// MARK: - Layout math
 /// Sizing/placement maths for the floating window. Kept in one place so the
 /// spawn, snap, stash and keyboard-lift rules stay consistent as sizes change.
 enum FloatingChatLayout {

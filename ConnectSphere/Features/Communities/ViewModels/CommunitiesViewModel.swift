@@ -18,6 +18,7 @@ class CommunitiesViewModel {
     private var token: String = ""
     private var searchTask: Task<Void, Never>?
 
+    // MARK: - Loading
     func fetchInitial(token: String, type: CommunityType) async {
         self.token = token
         async let discover: () = loadDiscover(type: type)
@@ -61,6 +62,7 @@ class CommunitiesViewModel {
         isLoadingMine = false
     }
 
+    // MARK: - Membership
     func join(_ community: Community) async {
         updateMembership(id: community.id, isMember: true, delta: +1)
         do {

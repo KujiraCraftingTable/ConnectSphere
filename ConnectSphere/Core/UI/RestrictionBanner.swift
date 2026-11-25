@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Countdown text
 /// Time left on a moderation restriction, to the minute: "2d 5h 12m".
 /// Rounded up, so the last minute reads "0d 0h 1m" rather than nothing.
 enum RestrictionCountdown {
@@ -20,6 +21,7 @@ enum RestrictionCountdown {
     }
 }
 
+// MARK: - Banner
 /// Shown at the top of Home while a moderation restriction runs in the
 /// current mode: a red card counting down to the end, and what still works.
 struct RestrictionBanner: View {
@@ -65,6 +67,7 @@ struct RestrictionBanner: View {
     }
 }
 
+// MARK: - Restricted controls
 /// Greys out a control a restricted account can't use. The server refuses the
 /// action anyway; this just saves a tap that would only end in an error.
 private struct RestrictedControl: ViewModifier {
@@ -115,6 +118,7 @@ private struct RestrictedMessagingControl: ViewModifier {
     }
 }
 
+// MARK: - View modifiers
 extension View {
     /// `applies: false` leaves the control alone.
     func disabledWhenRestricted(_ applies: Bool = true) -> some View { modifier(RestrictedControl(applies: applies)) }

@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Radius scale
 /// Position math for the search-radius track, kept free of SwiftUI so it can be
 /// tested directly (`RadiusScaleTests`). Distances map *linearly* onto the
 /// first `linearSpan` of the track, 5 km is exactly a sixth of 0–30 km, and
@@ -39,6 +40,7 @@ enum RadiusScale {
     }
 }
 
+// MARK: - Slider
 /// Search radius picker drawn on a true-to-scale track. Drawn by hand rather
 /// than with `Slider` because the labels must sit exactly under their stops,
 /// and the system thumb's inset (a wide glass pill on iOS 26) isn't ours to

@@ -1,5 +1,6 @@
 import UIKit
 
+// MARK: - Tap to dismiss
 /// App-wide: a tap anywhere outside the field being typed in hides the
 /// keyboard, every screen, sheet and cover, without each one opting in.
 /// One tap recognizer per window; it never cancels the tap, so the button or
@@ -67,6 +68,7 @@ enum KeyboardDismissal {
     }
 }
 
+// MARK: - First responder lookup
 private extension UIResponder {
     nonisolated(unsafe) static weak var found: UIResponder?
 
@@ -82,6 +84,7 @@ private extension UIResponder {
 
 import SwiftUI
 
+// MARK: - Keeping the keyboard
 extension View {
     /// Taps on this view don't hide the keyboard, for buttons that work with
     /// the field being typed in (SwiftUI buttons aren't UIControls, so the

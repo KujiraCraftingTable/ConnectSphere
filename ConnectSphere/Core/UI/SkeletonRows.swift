@@ -4,6 +4,7 @@ import SwiftUI
 // first load instead of a lone spinner: the layout appears at once and the
 // content fills in where the eye already is. Later refreshes keep the content.
 
+// MARK: - Shimmer
 /// A soft highlight sweeping across, so a skeleton reads as "loading".
 struct Shimmer: ViewModifier {
     @Environment(\.appBundle) private var bundle
@@ -35,6 +36,7 @@ extension View {
     func shimmering() -> some View { modifier(Shimmer()) }
 }
 
+// MARK: - Skeleton views
 private struct Bone: View {
     var width: CGFloat? = nil
     var height: CGFloat = 12

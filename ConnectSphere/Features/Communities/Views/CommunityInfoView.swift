@@ -23,6 +23,7 @@ struct CommunityInfoView<Members: View>: View {
         _viewModel = State(initialValue: CommunityInfoViewModel(communityId: community.id))
     }
 
+    // MARK: - Body
     var body: some View {
         List {
             if let info = viewModel.info {
@@ -42,6 +43,7 @@ struct CommunityInfoView<Members: View>: View {
         .inAppBrowser(url: $inAppBrowserURL)
     }
 
+    // MARK: - Sections
     private func aboutSection(_ info: CommunityInfo) -> some View {
         Section {
             if let about = info.about, !about.isEmpty {
@@ -105,6 +107,7 @@ struct CommunityInfoView<Members: View>: View {
         }
     }
 
+    // MARK: - Helpers
     private func historyText(_ info: CommunityInfo) -> String {
         let created = String(format: bundle.loc("Created on %@."),
                              info.createdAt.formatted(date: .long, time: .omitted))

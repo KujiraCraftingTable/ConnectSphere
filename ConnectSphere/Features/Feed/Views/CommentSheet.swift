@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Comment sheet
 /// Modal comment view, `PostCard`'s fallback when it has no `onOpenDetail`
 /// to push to (e.g. from inside `PostDetailView` itself, or before that push
 /// wiring existed for a given screen). Feed's main flow shows comments inline
@@ -31,6 +32,7 @@ struct CommentSheet: View {
     }
 }
 
+// MARK: - Comments panel
 /// The comment list, reply banner and composer, shared by `CommentSheet` and
 /// the photo viewer's comments panel. `header` scrolls above the comments.
 struct CommentsPanelBody<Header: View>: View {
@@ -161,6 +163,7 @@ struct CommentsPanelBody<Header: View>: View {
     }
 }
 
+// MARK: - Header-less init
 extension CommentsPanelBody where Header == EmptyView {
     init(postId: String, postAuthorId: String, openToWork: Bool = false,
          onCommentCountChange: ((Int) -> Void)? = nil, autoFocus: Bool = true) {

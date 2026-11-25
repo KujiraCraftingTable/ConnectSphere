@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Schedule sheet
 /// Pick when a post goes out. "Remove schedule" sends it back to posting now.
 struct SchedulePickerSheet: View {
     @Environment(ThemeManager.self) private var themeManager
@@ -45,6 +46,7 @@ struct SchedulePickerSheet: View {
     }
 }
 
+// MARK: - Schedule line
 /// "Goes out 14 Oct, 09:00" under the composer, with ✕ to post now instead.
 struct ScheduleLine: View {
     @Environment(ThemeManager.self) private var themeManager

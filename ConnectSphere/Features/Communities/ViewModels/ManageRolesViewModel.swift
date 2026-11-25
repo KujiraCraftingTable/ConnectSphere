@@ -18,6 +18,7 @@ final class ManageRolesViewModel {
 
     init(communityId: String) { self.communityId = communityId }
 
+    // MARK: - Search
     /// Waits for typing to pause so each keystroke doesn't hit the server.
     func queryChanged(token: String) {
         searchTask?.cancel()
@@ -41,6 +42,7 @@ final class ManageRolesViewModel {
         } catch {}
     }
 
+    // MARK: - Bans
     func loadBans(token: String) async {
         do {
             banned = try await repository.fetchBans(communityId: communityId, token: token)
@@ -69,6 +71,7 @@ final class ManageRolesViewModel {
         }
     }
 
+    // MARK: - Roles
     /// Moderator or member.
     func setRole(_ member: CommunityMember, to role: MemberRole, token: String) async {
         do {

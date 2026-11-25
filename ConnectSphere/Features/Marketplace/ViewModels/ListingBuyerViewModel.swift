@@ -78,6 +78,7 @@ final class ListingBuyerViewModel {
 
     var allowsSeveral: Bool { mode == .confirmAll }
 
+    // MARK: - Picking buyers
     func isPicked(_ buyer: Buyer) -> Bool { allowsSeveral ? checked.contains(buyer.id) : selected == buyer }
 
     func pick(_ buyer: Buyer) {
@@ -136,6 +137,7 @@ final class ListingBuyerViewModel {
         return out
     }
 
+    // MARK: - Load & save
     /// 1-on-1 Hobby chats that aren't archived (deleted ones aren't returned);
     /// for confirming, only buyers who have a deposit.
     func load(token: String) async {

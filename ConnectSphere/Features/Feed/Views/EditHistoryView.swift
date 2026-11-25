@@ -14,6 +14,7 @@ struct EditHistoryView: View {
         _viewModel = State(initialValue: EditHistoryViewModel(subject: subject))
     }
 
+    // MARK: - Body
     var body: some View {
         NavigationStack {
             Group {
@@ -44,6 +45,7 @@ struct EditHistoryView: View {
         .task { await viewModel.load() }
     }
 
+    // MARK: - Subviews
     private func message(_ text: String) -> some View {
         Text(text)
             .scaledFont(15)

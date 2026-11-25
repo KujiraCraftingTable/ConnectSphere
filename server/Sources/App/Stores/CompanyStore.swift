@@ -5,6 +5,7 @@ import SQLKit
 enum CompanyStore {
     static let sizes: Set<String> = ["1-10", "11-50", "51-200", "201-500", "501-1000", "1000+"]
 
+    // MARK: - Types
     /// A company as one viewer sees it.
     struct Company: Content {
         var id: String
@@ -39,6 +40,7 @@ enum CompanyStore {
         var foundedYear: Int?
     }
 
+    // MARK: - Reads
     private static func select(_ viewer: String) -> SQLQueryString {
         """
         SELECT c.id::text AS id, c.name, c.slug, c.logo_url, c.cover_url, c.about, c.industry, c.size,
@@ -76,6 +78,7 @@ enum CompanyStore {
             """).all(decoding: Company.self)
     }
 
+    // MARK: - Names and slugs
     static func nameTaken(_ name: String, except id: String? = nil, on db: any SQLDatabase) async throws -> Bool {
         struct R: Decodable { let id: String }
         let q: SQLQueryString = id.map {
@@ -100,6 +103,7 @@ enum CompanyStore {
         return candidate
     }
 
+    // MARK: - Writes
     /// Creates the page with `owner` as its owner, in one transaction.
     static func create(_ f: Fields, owner: String, on db: AppDatabase) async throws -> String {
         let sdb = db.sql()
@@ -127,6 +131,7 @@ enum CompanyStore {
             """).run()
     }
 
+    // MARK: - Roles and follows
     static func role(of user: String, in company: String, on db: any SQLDatabase) async throws -> String? {
         struct R: Decodable { let role: String }
         return try await db.raw("SELECT role FROM company_admins WHERE company_id = \(uuid: company) AND user_id = \(uuid: user)")

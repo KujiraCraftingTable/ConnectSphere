@@ -152,6 +152,7 @@ struct EditMarketplaceProfileView: View {
         }
     }
 
+    // MARK: - Cover & photo previews
     @ViewBuilder
     private var coverPreview: some View {
         // The same frame as Edit profile and the seller page's cover.

@@ -1,11 +1,13 @@
 import Foundation
 
+// MARK: - Notifications
 extension Notification.Name {
     /// A draft was saved, published or deleted: the drafts list and the
     /// composer's "Drafts" count refresh.
     static let draftsChanged = Notification.Name("draftsChanged")
 }
 
+// MARK: - Publish choice
 /// How the composer saves a post. A post opened from a draft also sends the
 /// draft's id (`replaces_draft`): the server saves the new version, then
 /// removes the old one, so a draft is never left behind twice.
@@ -29,6 +31,7 @@ enum PublishChoice: Equatable {
     }
 }
 
+// MARK: - Schedule window
 /// The times a post can be scheduled for. The server's window, with a
 /// minute's slack so a time picked right at the edge isn't refused.
 enum ScheduleWindow {
@@ -45,6 +48,7 @@ enum ScheduleWindow {
     }
 }
 
+// MARK: - Draft snippet
 extension Post {
     /// The one line a drafts list shows: the text, or what the post holds.
     var draftSnippet: String {

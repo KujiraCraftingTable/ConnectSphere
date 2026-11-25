@@ -41,6 +41,7 @@ struct JobListing: Identifiable, Decodable, Hashable {
     /// How many applied, for the job's poster or company admins only.
     let applicantCount: Int?
 
+    // MARK: - Poster & match
     struct Poster: Decodable, Hashable {
         let id: String
         let displayName: String
@@ -98,6 +99,7 @@ struct JobListing: Identifiable, Decodable, Hashable {
         case applicantCount = "applicant_count"
     }
 
+    // MARK: - Display text
     /// "15–30 million ₫/month", "From 15 million ₫/month", the poster's own
     /// text, or nil (shown as "Negotiable").
     func salaryText(loc: (String) -> String) -> String? {
@@ -133,6 +135,7 @@ struct JobListing: Identifiable, Decodable, Hashable {
         return f.date(from: d)
     }
 
+    // MARK: - Levels & formats
     static let levels = ["intern", "fresher", "junior", "mid", "senior", "lead", "manager"]
     static func levelLabel(_ level: String) -> String {
         ["intern": "Intern", "fresher": "Fresher", "junior": "Junior", "mid": "Mid-level", "senior": "Senior",

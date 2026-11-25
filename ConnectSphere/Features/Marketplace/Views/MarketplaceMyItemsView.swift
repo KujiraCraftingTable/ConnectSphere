@@ -63,6 +63,7 @@ struct MarketplaceMyItemsView: View {
         .refreshable { await viewModel.load(token: token) }
     }
 
+    // MARK: - Filters
     /// "All items" / "Available", sold ones hide under Available.
     private var filterBar: some View {
         HStack(spacing: 8) {

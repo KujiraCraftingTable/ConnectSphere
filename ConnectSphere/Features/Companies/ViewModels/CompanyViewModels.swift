@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 
+// MARK: - Company page
 /// One company page: load it, follow / unfollow.
 @MainActor
 @Observable
@@ -41,6 +42,7 @@ final class CompanyPageViewModel {
     func replace(with updated: Company) { company = updated }
 }
 
+// MARK: - Company editor
 /// Creating or editing a page. Photos are uploaded on save.
 @MainActor
 @Observable
@@ -114,6 +116,7 @@ final class CompanyEditorViewModel {
     }
 }
 
+// MARK: - Company search
 /// Search's Companies tab: pages matching the text (all pages when empty).
 @MainActor
 @Observable

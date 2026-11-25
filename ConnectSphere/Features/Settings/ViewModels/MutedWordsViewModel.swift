@@ -19,6 +19,7 @@ final class MutedWordsViewModel {
 
     func words(for mode: AppMode) -> [MutedWord] { words[mode] ?? [] }
 
+    // MARK: - Load
     func load(_ mode: AppMode) async {
         do {
             words[mode] = try await repository.list(mode: mode)
@@ -39,6 +40,7 @@ final class MutedWordsViewModel {
         return word
     }
 
+    // MARK: - Add & delete
     /// Re-adding a word the list already has just updates its duration.
     func add(_ text: String, duration: MuteDuration, mode: AppMode) async -> Bool {
         guard let word = Self.cleaned(text) else { return false }
@@ -69,6 +71,7 @@ final class MutedWordsViewModel {
         }
     }
 
+    // MARK: - Copy from other mode
     /// Copies this mode's list into the other mode; words already there stay.
     func copy(from mode: AppMode) async {
         let target: AppMode = mode == .hobby ? .work : .hobby

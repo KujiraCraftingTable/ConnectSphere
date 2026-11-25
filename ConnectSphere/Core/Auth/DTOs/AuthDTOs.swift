@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Auth responses
 struct AuthResponse: Decodable {
     let token: String
     let user: AuthUserDTO
@@ -13,6 +14,7 @@ struct MeResponse: Decodable {
     let user: AuthUserDTO
 }
 
+// MARK: - Auth user
 struct AuthUserDTO: Decodable {
     let id: String
     let username: String
@@ -107,6 +109,7 @@ struct AuthUserDTO: Decodable {
         case workTheme      = "work_theme"
     }
 
+    // MARK: - Decoding
     // A pre-onboarding /auth/me (or a Google first-login) can omit half of
     // these. Decode leniently so login / auto-login never fails outright. A
     // missing displayName/defaultMode/counts just gets a sensible default.
@@ -160,6 +163,7 @@ struct AuthUserDTO: Decodable {
         workTheme      = try c.decodeIfPresent(String.self, forKey: .workTheme)
     }
 
+    // MARK: - Mapping to UserProfile
     func toUserProfile() -> UserProfile {
         UserProfile(
             id: id, name: displayName, username: username,
@@ -196,6 +200,7 @@ struct AuthUserDTO: Decodable {
     }
 }
 
+// MARK: - Onboarding form
 struct OnboardingForm: Encodable {
     var username: String = ""
     var display_name: String = ""
@@ -214,6 +219,7 @@ struct OnboardingForm: Encodable {
     var accepted_policy_version: String?
 }
 
+// MARK: - Restrictions
 extension AuthUserDTO {
     /// Each restricted mode and when it ends. An older server sends one
     /// account-wide date, which then applies to both.

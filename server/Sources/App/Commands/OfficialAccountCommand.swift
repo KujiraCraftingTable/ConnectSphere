@@ -54,6 +54,7 @@ struct OfficialAccountCommand: AsyncCommand {
         }
     }
 
+    // MARK: - Claim
     private func claim(_ context: CommandContext, _ signature: Signature, _ db: any SQLDatabase) async throws {
         guard let name = signature.user?.trimmingCharacters(in: CharacterSet(charactersIn: "@ ")).lowercased(),
               !name.isEmpty else {
@@ -126,6 +127,7 @@ struct OfficialAccountCommand: AsyncCommand {
         context.console.info("Done. Sign in as @\(Self.username) with the same email and password.")
     }
 
+    // MARK: - Tidy
     /// The official account's least information, safe to run again: both
     /// profiles named ConnectSphere (it posts in Hobby and Work), and no
     /// location, birthday, about, work, education, interests or skills.
@@ -162,6 +164,7 @@ struct OfficialAccountCommand: AsyncCommand {
         try await t.raw("DELETE FROM follows WHERE follower_id = \(uuid: id)").run()
     }
 
+    // MARK: - Dry run counts
     /// What `claim` erases, for the dry run.
     static func counts(of id: String, on db: any SQLDatabase) async throws -> [(String, Int)] {
         struct N: Decodable { let posts: Int; let comments: Int; let connections: Int; let follows: Int

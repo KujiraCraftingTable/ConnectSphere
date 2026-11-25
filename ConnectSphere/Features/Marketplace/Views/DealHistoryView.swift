@@ -54,6 +54,7 @@ struct DealHistoryView: View {
         .refreshable { await viewModel.load(token: token) }
     }
 
+    // MARK: - Deal row
     private func row(_ deal: Deal) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: deal.role == .sold ? "arrow.up.right.circle.fill" : "arrow.down.left.circle.fill")

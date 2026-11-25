@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Analytics
 /// Full analytics summary returned by GET /api/communities/:id/analytics
 struct CommunityAnalytics: Decodable {
     let totalMembers:     Int
@@ -19,6 +20,7 @@ struct CommunityAnalytics: Decodable {
     }
 }
 
+// MARK: - Daily snapshots
 /// One day's analytics snapshot. Used as chart data points
 struct DailySnapshot: Decodable {
     let snapshotDate:  String  // "YYYY-MM-DD", kept as String for x-axis labels
@@ -60,6 +62,7 @@ struct DailySnapshot: Decodable {
     }()
 }
 
+// MARK: - Top posts
 /// Minimal post data used in top-posts list within analytics
 struct AnalyticsPost: Identifiable, Decodable {
     let id:           String

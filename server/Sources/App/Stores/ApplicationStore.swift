@@ -7,6 +7,7 @@ enum ApplicationStore {
     static let managerStatuses: Set<String> = ["viewed", "shortlisted", "rejected", "hired"]
     static let maxNoteLength = 1000
 
+    // MARK: - Types
     struct Event: Content {
         var status: String
         var created_at: Date
@@ -39,6 +40,7 @@ enum ApplicationStore {
         @NullCoded var match: JobBoardStore.Match? = nil
     }
 
+    // MARK: - Permissions
     /// The job's poster, or an admin of the company it's posted as.
     static func canManage(job: String, user: String, on db: any SQLDatabase) async throws -> Bool {
         struct R: Decodable { let ok: Bool }
@@ -59,6 +61,7 @@ enum ApplicationStore {
             """).all(decoding: R.self).map(\.id)
     }
 
+    // MARK: - Applying
     /// The new application's id, or nil when they'd already applied.
     static func apply(job: String, applicant: String, note: String?, cvURL: String?, on db: AppDatabase) async throws -> String? {
         var id: String?
@@ -90,6 +93,7 @@ enum ApplicationStore {
         LEFT JOIN companies c ON c.id = jp.company_id
         """
 
+    // MARK: - Reads
     private struct Row: Decodable {
         let id: String; let job_id: String; let job_title: String; let company_name: String?; let company_logo_url: String?
         let status: String; let note: String?; let cv_url: String?; let created_at: Date; let updated_at: Date
@@ -127,6 +131,7 @@ enum ApplicationStore {
         try await db.raw(select + " WHERE a.id = \(uuid: id)").first(decoding: Row.self).map(map)
     }
 
+    // MARK: - Status changes
     /// Moves an application along and records the step. False when it
     /// was already there.
     static func setStatus(_ id: String, to status: String, on db: AppDatabase) async throws -> Bool {

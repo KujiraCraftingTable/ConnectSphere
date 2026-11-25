@@ -13,6 +13,7 @@ enum InterestVectorService {
     /// search weights (`SearchStore.wReactCommentOrShare`, `wReactLike`).
     static let wAuthored = 1.0
 
+    // MARK: - Clustering
     struct Cluster: Equatable { let centroid: [Double]; let weight: Double; let postCount: Int }
 
     /// `FeedStore.clusterTaste`'s interests with what each one holds, heaviest
@@ -34,6 +35,7 @@ enum InterestVectorService {
             .sorted { $0.weight > $1.weight }
     }
 
+    // MARK: - Activity signals
     /// `signals(user_id, mode, post_id, w)`: every public post someone wrote or
     /// reacted to within the window that has an embedding, at their strongest
     /// signal for it. Both the build and the staleness check read this, so
@@ -72,6 +74,7 @@ enum InterestVectorService {
     private static let hashSQL: SQLQueryString =
         "md5(string_agg(post_id::text || ':' || w::text, ',' ORDER BY post_id))"
 
+    // MARK: - Rebuilds
     /// Rebuilds one person's interests in one mode. No signals → no rows.
     static func refresh(userID: String, mode: String, on db: any SQLDatabase) async throws {
         struct Row: Decodable { let w: Double; let vec: String; let h: String }

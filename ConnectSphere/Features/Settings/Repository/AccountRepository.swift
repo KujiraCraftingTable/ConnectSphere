@@ -23,6 +23,7 @@ struct AccountRepository {
 
     private func body(_ dict: [String: String]) throws -> Data { try JSONSerialization.data(withJSONObject: dict) }
 
+    // MARK: - Email
     /// A code to `email` (the address being verified).
     func sendEmailCode(to email: String, token: String) async throws -> Sent {
         try await client.fetch(Sent.self, path: "/users/me/email/code", method: "POST", token: token,
@@ -48,6 +49,7 @@ struct AccountRepository {
                                bodyData: try body(["code": code])).email
     }
 
+    // MARK: - Username & two-factor
     /// A new @username (once per 6 months); the updated user.
     func changeUsername(_ username: String, token: String) async throws -> AuthUserDTO {
         try await client.fetch(MeResponse.self, path: "/users/me/username", method: "PATCH", token: token,
@@ -66,6 +68,7 @@ struct AccountRepository {
         _ = try await client.fetch(State.self, path: "/users/me/two-factor", method: "PATCH", token: token, bodyData: data)
     }
 
+    // MARK: - Deletion & export
     func sendDeletionCode(_ scope: Scope, token: String) async throws -> Sent {
         try await client.fetch(Sent.self, path: "/users/me/deletion/code", method: "POST", token: token,
                                bodyData: try body(["scope": scope.rawValue]))

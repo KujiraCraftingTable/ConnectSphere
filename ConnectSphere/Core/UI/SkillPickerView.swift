@@ -24,6 +24,7 @@ struct SkillPickerView: View {
     private var vietnamese: Bool { appState.appLanguage == .vietnamese }
     private var isFull: Bool { skills.count >= limit }
 
+    // MARK: - Body
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             if !skills.isEmpty {
@@ -81,6 +82,7 @@ struct SkillPickerView: View {
         }
     }
 
+    // MARK: - Sections
     private func categorySection(_ category: SkillCategory) -> some View {
         let showAll = expanded.contains(category.key) || !catalog.query.isEmpty
         let entries = showAll ? category.entries : Array(category.entries.prefix(collapsedCount))
@@ -113,6 +115,7 @@ struct SkillPickerView: View {
         }
     }
 
+    // MARK: - Selection
     private func isPicked(_ name: String) -> Bool {
         skills.contains { $0.caseInsensitiveCompare(name) == .orderedSame }
     }

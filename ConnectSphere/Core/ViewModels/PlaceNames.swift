@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Place names
 /// Place names in the app's language, for places that come from the ward
 /// tables rather than from what someone typed:
 ///   • a person's province, stored in English ("Ho Chi Minh") → "Hồ Chí Minh"
@@ -63,6 +64,7 @@ enum PlaceNames {
     }
 }
 
+// MARK: - Bundle helpers
 extension Bundle {
     /// A person's province in this bundle's language (`PlaceNames.province`).
     func province(_ stored: String) -> String { PlaceNames.province(stored, vietnamese: isVietnamese) }

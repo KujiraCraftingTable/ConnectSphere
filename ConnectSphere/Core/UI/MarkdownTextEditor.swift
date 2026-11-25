@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Editor
 /// A multi-line text box for text that may contain Markdown. On iOS 26 and newer
 /// it styles what is typed as it is typed: the words between `**`, `_`, `~~`, `` ` ``
 /// are bold, italic, struck through or monospaced, links are coloured, and the marks
@@ -88,6 +89,7 @@ struct MarkdownTextEditor: View {
     }
 }
 
+// MARK: - Live markdown editor
 @available(iOS 26.0, *)
 private struct LiveMarkdownEditor: View {
     @Environment(\.colorScheme) private var colorScheme
@@ -116,6 +118,7 @@ private struct LiveMarkdownEditor: View {
             .onChange(of: colorScheme) { _, _ in restyleInPlace() }
     }
 
+    // MARK: - Live styling
     private func load(_ plain: String) {
         var next = AttributedString(plain)
         style(&next)

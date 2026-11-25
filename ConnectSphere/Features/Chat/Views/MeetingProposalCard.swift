@@ -26,6 +26,7 @@ struct MeetingProposalCard: View {
     var onReschedule: (() -> Void)? = nil
     var onCancel: (() -> Void)? = nil
 
+    // MARK: - Body
     var body: some View {
         let cancelled = proposal.isCancelled
         let iconColor = cancelled ? AppColors.textTertiary(colorScheme) : accent
@@ -126,6 +127,7 @@ struct MeetingProposalCard: View {
         .inAppBrowser(url: $browserURL)
     }
 
+    // MARK: - Reminder and RSVP
     /// Non-interactive reminder indicator shown in place of RSVP buttons for
     /// a 1:1 proposal (RSVP is redundant there. The two people already
     /// coordinate by talking; the reminder is what actually matters).
@@ -172,6 +174,7 @@ struct MeetingProposalCard: View {
         }
     }
 
+    // MARK: - Helpers
     /// Short formatted date: "Sat, Jun 7 · 7:00 PM", same format as EventPostCard.
     static func formattedDate(_ date: Date) -> String {
         let df = DateFormatter()

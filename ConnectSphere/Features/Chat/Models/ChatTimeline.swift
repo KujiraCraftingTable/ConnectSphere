@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Timeline entries
 /// What the chat timeline rules read. `Message` conforms; tests use a small
 /// stand-in, since `Message` itself can only be built by decoding.
 protocol ChatTimelineEntry {
@@ -8,6 +9,7 @@ protocol ChatTimelineEntry {
 
 extension Message: ChatTimelineEntry {}
 
+// MARK: - Date separators
 /// Messenger-style chat timeline rules: when a centered time separator goes
 /// between two messages (bubbles carry no time of their own). Kept free of SwiftUI so the rules are unit-tested
 /// directly (`ChatTimelineTests`) rather than only by eye in the simulator.
@@ -29,6 +31,7 @@ enum ChatTimeline {
             || !calendar.isDate(previous, inSameDayAs: current)
     }
 
+    // MARK: - Separator labels
     /// The separator's text: "15:49" today, "Yesterday 15:49", "Mon 15:49"
     /// within the week, "Sep 12 15:49" earlier this year, "Sep 12, 2025 15:49"
     /// before that (English; Vietnamese orders day before month).

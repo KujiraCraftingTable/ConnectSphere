@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Catalog models
 /// One skill of the curated Work catalogue (server migration 084).
 struct SkillEntry: Decodable, Identifiable, Hashable {
     let nameEn: String
@@ -37,6 +38,7 @@ struct SkillCatalog: Decodable {
     }
 }
 
+// MARK: - Repository
 /// `/api/skills`, HTTP + decoding only.
 struct SkillRepository {
     private let client = NetworkClient.shared

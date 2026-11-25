@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - UI test mode
 /// How the XCUITest suite (`ConnectSphereUITests`) runs the app. Debug builds
 /// only; in Release `isActive` is always false and nothing here does anything.
 ///
@@ -57,6 +58,7 @@ enum UITestMode {
     }
 }
 
+// MARK: - App defaults
 /// The app's `UserDefaults`. Always `.standard`, except under the UI tests,
 /// which get a suite of their own (`UITestMode`) so a test run never touches
 /// the developer's saved accounts, theme or settings. Use it everywhere
@@ -65,6 +67,7 @@ enum AppDefaults {
     static let store: UserDefaults = UITestMode.makeDefaults()
 }
 
+// MARK: - Accessibility IDs
 extension View {
     /// `accessibilityIdentifier`, skipped when there's no id (shared
     /// components that only some screens tag).

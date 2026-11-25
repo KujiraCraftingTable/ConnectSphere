@@ -4,6 +4,7 @@ import Foundation
 /// The base URL is read from Info.plist (key `APIBaseURL`) so it can change per environment
 /// (real device/production) without touching code; falls back to localhost for dev.
 enum APIConfig {
+    // MARK: - Server base URL
     /// Computed (not cached) so a `devServerOverride` change from
     /// DevServerSettingsView takes effect on the next call, no relaunch
     /// needed, see Endpoint.swift's baseURL for the one place that still
@@ -47,6 +48,7 @@ enum APIConfig {
 
     static var baseURL: String { "\(serverBase)/api" }
 
+    // MARK: - Media URLs
     /// The URL to load a stored media link from. Our uploads are stored as a
     /// bare path (`/uploads/x.jpg`) and get this device's server address in
     /// front, never the uploader's, which other devices can't reach. Outside

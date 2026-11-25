@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - List row
 /// A settings/detail list row: a leading slot, a title (+ optional subtitle), a
 /// trailing slot, an optional chevron. Replaces `SettingsView.settingsRow`,
 /// `ChatSettingsView.SettingsRow`, `CommunityDetailView.memberRow`,
@@ -44,6 +45,7 @@ struct ListRow<Leading: View, Trailing: View>: View {
     }
 }
 
+// MARK: - Convenience inits
 // Convenience initializers for the common shapes.
 extension ListRow where Leading == EmptyView, Trailing == EmptyView {
     init(_ title: String, subtitle: String? = nil, destructive: Bool = false, showsChevron: Bool = false) {
@@ -59,6 +61,7 @@ extension ListRow where Trailing == EmptyView {
     }
 }
 
+// MARK: - Settings icon tile
 /// The iOS-Settings colored icon tile. Kept as a deliberate style, but
 /// tokenised so callers stop passing raw hex.
 struct SettingsIconTile: View {

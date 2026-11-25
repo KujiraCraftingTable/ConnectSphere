@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 
+// MARK: - Experience list
 /// Someone's work history on their profile.
 @MainActor
 @Observable
@@ -28,6 +29,7 @@ final class ExperienceListViewModel {
     func replace(_ updated: [WorkExperience]) { roles = updated }
 }
 
+// MARK: - Experience editor
 /// Adding or editing one of your roles.
 @MainActor
 @Observable
@@ -80,6 +82,7 @@ final class ExperienceEditorViewModel {
         description = e.description ?? ""
     }
 
+    // MARK: - Validation
     enum Field: Hashable { case title, company }
     /// Fields the user has left; an empty one only gets its hint then, so a
     /// fresh form doesn't open in red.
@@ -122,6 +125,7 @@ final class ExperienceEditorViewModel {
             && [titleProblem, companyProblem, locationProblem, dateProblem, descriptionProblem].allSatisfy { $0 == nil }
     }
 
+    // MARK: - Company search
     /// Typing a name unlinks any picked page and looks for matching pages.
     func companyTyped(_ text: String, token: String) {
         if let picked = suggestions.first(where: { $0.id == companyId }), picked.name == text { return }
@@ -142,6 +146,7 @@ final class ExperienceEditorViewModel {
         suggestions = []
     }
 
+    // MARK: - Save & remove
     /// The updated list, or nil (with `errorMessage`).
     func save(token: String) async -> [WorkExperience]? {
         isSaving = true
@@ -172,6 +177,7 @@ final class ExperienceEditorViewModel {
     }
 }
 
+// MARK: - Company people
 /// A company page's People tab.
 @MainActor
 @Observable
@@ -186,6 +192,7 @@ final class CompanyPeopleViewModel {
     }
 }
 
+// MARK: - Skills
 /// The Skills section: most-endorsed first; endorse when it's a Work connection.
 @MainActor
 @Observable

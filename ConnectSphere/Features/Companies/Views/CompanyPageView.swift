@@ -24,6 +24,7 @@ struct CompanyPageView: View {
 
     private var token: String { appState.authToken ?? "" }
 
+    // MARK: - Body
     var body: some View {
         ScrollView {
             if let company = viewModel.company {
@@ -88,6 +89,7 @@ struct CompanyPageView: View {
         .inAppBrowser(url: $browserURL)
     }
 
+    // MARK: - Header
     private func header(_ company: Company) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             ZStack(alignment: .bottomLeading) {
@@ -156,6 +158,7 @@ struct CompanyPageView: View {
                        startPoint: .topLeading, endPoint: .bottomTrailing)
     }
 
+    // MARK: - About tab
     private func about(_ company: Company) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             if let about = company.about {
@@ -219,6 +222,7 @@ struct CompanyPageView: View {
     }
 }
 
+// MARK: - Official badge
 /// "✓ Official" next to a verified company's name, and next to the official
 /// @connectsphere account wherever its name appears.
 struct OfficialBadge: View {
@@ -234,6 +238,7 @@ struct OfficialBadge: View {
     }
 }
 
+// MARK: - Company row
 /// A company in a list: logo, name (✓), what it is, followers.
 struct CompanyRow: View {
     @Environment(\.colorScheme) private var colorScheme

@@ -16,6 +16,7 @@ struct JoinRequestsView: View {
         self.onCount = onCount
     }
 
+    // MARK: - Body
     var body: some View {
         Group {
             if viewModel.isLoading {
@@ -74,6 +75,7 @@ struct JoinRequestsView: View {
         }
     }
 
+    // MARK: - Request rows
     private func requestRow(_ request: JoinRequest) -> some View {
         HStack(spacing: 12) {
             // Avatar
@@ -123,6 +125,7 @@ struct JoinRequestsView: View {
         .buttonStyle(.plain)
     }
 
+    // MARK: - Empty state
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "person.badge.plus")

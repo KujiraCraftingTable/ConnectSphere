@@ -17,6 +17,7 @@ enum SpaceStore {
     static let maxGroups = 100
     static let maxNameLength = 30
 
+    // MARK: - Types and columns
     struct Space: Content {
         var id: String
         var name: String
@@ -70,6 +71,7 @@ enum SpaceStore {
         """
     }
 
+    // MARK: - Lookups
     /// The name to store, or nil when it's empty or too long once trimmed.
     static func cleanName(_ raw: String?) -> String? {
         guard let name = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -106,6 +108,7 @@ enum SpaceStore {
             .first(decoding: N.self)?.n ?? 0
     }
 
+    // MARK: - Membership checks
     /// Whether the owner already has a space with this name in this mode
     /// (case-insensitive), other than `excluding`.
     static func nameTaken(_ name: String, owner: String, mode: String, excluding: String? = nil,
@@ -149,6 +152,7 @@ enum SpaceStore {
         return Set(rows.map { $0.id.lowercased() })
     }
 
+    // MARK: - Writes
     static func create(owner: String, mode: String, name: String, color: String,
                        on db: any SQLDatabase) async throws -> String {
         struct I: Decodable { let id: String }
@@ -171,6 +175,7 @@ enum SpaceStore {
         try await db.raw("DELETE FROM chat_spaces WHERE id = \(uuid: id) AND owner_id = \(uuid: owner)").run()
     }
 
+    // MARK: - Members and groups
     static func replaceMembers(_ id: String, with members: [UUID], on db: any SQLDatabase) async throws {
         try await db.raw("DELETE FROM chat_space_members WHERE space_id = \(uuid: id)").run()
         try await addMembers(id, members, on: db)

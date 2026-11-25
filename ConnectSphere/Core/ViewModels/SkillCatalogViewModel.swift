@@ -20,6 +20,7 @@ final class SkillCatalogViewModel {
 
     var canSuggest: Bool { repository.canSuggest }
 
+    // MARK: - Loading
     /// Loads the catalogue once; a changed job title only refreshes the
     /// suggestions.
     func load(jobTitle: String) async {
@@ -49,6 +50,7 @@ final class SkillCatalogViewModel {
         }
     }
 
+    // MARK: - Names & suggestions
     /// The skill's name in the app's language; skills from before the
     /// catalogue keep their stored text.
     func displayName(_ name: String, vietnamese: Bool) -> String {

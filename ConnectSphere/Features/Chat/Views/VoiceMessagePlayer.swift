@@ -32,6 +32,7 @@ struct VoiceMessagePlayer: View {
     @State private var progress: Double = 0
     @State private var progressTimer: Timer?
 
+    // MARK: - Body
     var body: some View {
         // The duration gets its own line at the bottom right rather than
         // sharing the row: beside the waveform it was squeezed to a few
@@ -62,6 +63,7 @@ struct VoiceMessagePlayer: View {
         .onDisappear { stop() }
     }
 
+    // MARK: - Waveform
     private var waveform: some View {
         // Empty/missing waveform (e.g. a malformed or very old row) renders a
         // flat placeholder row instead of crashing on an empty array index.
@@ -99,6 +101,7 @@ struct VoiceMessagePlayer: View {
         return String(format: "%d:%02d", seconds / 60, seconds % 60)
     }
 
+    // MARK: - Playback
     private func toggle() {
         if isPlaying {
             stop()

@@ -6,6 +6,7 @@ struct SpaceRepository {
 
     private struct ListResponse: Decodable { let data: [ChatSpace] }
 
+    // MARK: - Spaces
     func list(mode: String, token: String) async throws -> [ChatSpace] {
         try await client.fetch(ListResponse.self, path: "/spaces", token: token,
                                queryItems: [URLQueryItem(name: "mode", value: mode)]).data
@@ -33,6 +34,7 @@ struct SpaceRepository {
         _ = try await client.fetch(OK.self, path: "/spaces/\(id)", method: "DELETE", token: token)
     }
 
+    // MARK: - Members and groups
     func setMembers(_ id: String, memberIds: [String], groupIds: [String], token: String) async throws -> ChatSpace {
         struct Body: Encodable { let member_ids: [String]; let conversation_ids: [String] }
         return try await client.fetch(ChatSpace.self, path: "/spaces/\(id)/members", method: "PUT", token: token,

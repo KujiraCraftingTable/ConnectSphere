@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 
+// MARK: - HR requests list
 /// Admin tools › HR requests: the queue and the decided ones.
 @MainActor
 @Observable
@@ -25,6 +26,7 @@ final class HRRequestsViewModel {
     }
 }
 
+// MARK: - HR request review
 /// One request: the checks the reviewer confirms, then approve or reject.
 @MainActor
 @Observable
@@ -97,6 +99,7 @@ final class HRRequestDetailViewModel {
     }
 }
 
+// MARK: - Pending jobs
 /// Admin tools › Jobs to review: a new HR's first jobs, before they go live.
 @MainActor
 @Observable

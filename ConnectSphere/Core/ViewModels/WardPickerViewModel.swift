@@ -16,6 +16,7 @@ final class WardPickerViewModel {
     // "Ho Chi Minh City", "Phường Sài Gòn" / "Sai Gon Ward". Search matches
     // either language, with or without accents.
 
+    // MARK: - Names
     func name(of province: ProvinceDTO, vietnamese: Bool) -> String {
         vietnamese ? province.province_name : province.province_name_en
     }
@@ -32,6 +33,7 @@ final class WardPickerViewModel {
         wards.first { $0.id == id }.map { name(of: $0, vietnamese: vietnamese) }
     }
 
+    // MARK: - Search
     /// Wards whose name contains the query ("sai gon" finds "Phường Sài
     /// Gòn"), or that a former ward of that name is now part of ("ben nghe"
     /// finds it too), in the order of the names shown.
@@ -74,6 +76,7 @@ final class WardPickerViewModel {
         return Self.shown(Self.formerMatches(province.former_names, province.former_names_en, q), vietnamese: vietnamese)
     }
 
+    // MARK: - Matching helpers
     private static func ownNameMatches(_ vietnamese: String, _ english: String, _ foldedQuery: String) -> Bool {
         contains(folded(vietnamese), foldedQuery) || contains(folded(english), foldedQuery)
     }
@@ -112,6 +115,7 @@ final class WardPickerViewModel {
             .replacingOccurrences(of: "đ", with: "d")
     }
 
+    // MARK: - Loading
     /// Loads provinces once; with a province already chosen (editing), its
     /// wards are loaded too.
     func loadProvinces(selectedProvinceCode: String?) async {

@@ -25,6 +25,7 @@ struct JobDetailView: View {
 
     private var token: String { appState.authToken ?? "" }
 
+    // MARK: - Body
     var body: some View {
         ScrollView {
             if let job = viewModel.job {
@@ -118,6 +119,7 @@ struct JobDetailView: View {
         }
     }
 
+    // MARK: - JD & careers links
     /// The company's own job description, opened full screen in the app.
     private func jdCard(_ url: URL) -> some View {
         card(bundle.loc("Job description")) {
@@ -171,6 +173,7 @@ struct JobDetailView: View {
         }
     }
 
+    // MARK: - Header & skills
     private func header(_ job: JobListing) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
@@ -260,6 +263,7 @@ struct JobDetailView: View {
         .background(AppColors.surface(colorScheme), in: RoundedRectangle(cornerRadius: 16))
     }
 
+    // MARK: - Save & apply bar
     private func actions(_ job: JobListing) -> some View {
         HStack(spacing: 10) {
             if let count = job.applicantCount {

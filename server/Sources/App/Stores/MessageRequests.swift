@@ -7,6 +7,7 @@ import SQLKit
 enum MessageRequests {
     static let limit = 3
 
+    // MARK: - Connection SQL
     /// `'<uuid>'::uuid` for embedding a *validated* id in a SQL fragment
     /// (callers pass the authenticated user's id, never request input).
     static func quoted(_ id: String) -> String {
@@ -38,6 +39,7 @@ enum MessageRequests {
             """).first(decoding: X.self) != nil
     }
 
+    // MARK: - Sending gate
     enum Gate: Equatable {
         case open
         /// The starter has used up their messages; the reason to show.
@@ -87,6 +89,7 @@ enum MessageRequests {
     /// The starter's limit, as a pure rule.
     static func decide(sent: Int) -> Gate { sent >= limit ? .limitReached : .open }
 
+    // MARK: - Accepting requests
     /// Who started an accepted request, and when it was accepted.
     struct Acceptance: Decodable { let request_from: String; let request_accepted_at: Date }
 
@@ -110,6 +113,7 @@ enum MessageRequests {
             """).first(decoding: R.self) != nil
     }
 
+    // MARK: - Pending request limits
     static let limitReason = "You can send up to 3 messages until they accept your request"
     /// Until a request is accepted, the sender can only write (up to `limit`
     /// messages) and the recipient can only accept or decline; either can open
@@ -140,6 +144,7 @@ enum MessageRequests {
         return Set(rows.map { $0.id.lowercased() })
     }
 
+    // MARK: - Restrictions and links
     /// Restricted in the chat's mode (migration 125).
     static func isRestricted(_ userID: String, mode: String, on db: any SQLDatabase) async throws -> Bool {
         try await AccountRestrictions.active(userID, on: db)[mode] != nil

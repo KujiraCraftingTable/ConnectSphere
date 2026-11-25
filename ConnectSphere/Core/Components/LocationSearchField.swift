@@ -1,6 +1,7 @@
 import MapKit
 import SwiftUI
 
+// MARK: - Location search field
 /// A text field for a place, with MapKit suggestions listed under it while
 /// it has focus; tapping one fills the field ("Title, subtitle"). Every typed
 /// location in the app uses it. First built for the chat meeting composer.
@@ -45,6 +46,7 @@ struct LocationSearchField<Styled: View>: View {
         }
     }
 
+    // MARK: - Suggestions
     private var suggestions: some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(completer.results.enumerated()), id: \.offset) { index, result in
@@ -85,6 +87,7 @@ struct LocationSearchField<Styled: View>: View {
     }
 }
 
+// MARK: - Default style
 extension LocationSearchField where Styled == AnyView {
     /// A plain field, as in a Form row.
     init(_ placeholder: String, text: Binding<String>) {

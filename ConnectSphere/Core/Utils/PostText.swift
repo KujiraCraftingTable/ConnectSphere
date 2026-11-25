@@ -12,6 +12,7 @@ enum PostText {
     /// Longest tag the server keeps (`PostStore.sanitizeHashtags`).
     private static let maxTagLength = 100
 
+    // MARK: - Hashtags
     /// Tag ranges in `text` (including the `#`); digits-only like `#123` are not tags.
     static func tagRanges(in text: String) -> [Range<String.Index>] {
         let whole = NSRange(text.startIndex..., in: text)
@@ -33,6 +34,7 @@ enum PostText {
         return out
     }
 
+    // MARK: - Links
     /// `text` with each URL removed and the gap closed. A line that held only
     /// a link goes away entirely, so no blank line is left where it was.
     static func removingLinks(from text: String) -> String {
@@ -53,6 +55,7 @@ enum PostText {
         return kept.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    // MARK: - Finished tags
     /// Pulls finished tags (followed by a space or line break, so a tag still
     /// being typed stays put) out of `text`, closing the gap they leave.
     /// `includingTrailing` also takes a tag at the very end, for when the text is final.

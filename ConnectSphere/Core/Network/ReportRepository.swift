@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Report targets
 /// What can be reported app-wide (server `ReportTarget`, migration 089).
 enum ReportTargetType: String {
     case post, comment, message, user, community, story, company
@@ -30,6 +31,7 @@ enum ReportTargetType: String {
     }
 }
 
+// MARK: - Reasons
 /// The shared policy list (server `ModerationPolicy`).
 enum ModerationReason: String, CaseIterable {
     case childSafety = "child_safety"
@@ -74,6 +76,7 @@ enum ModerationReason: String, CaseIterable {
     }
 }
 
+// MARK: - Report subject
 /// Who or what a report sheet is about.
 enum ReportSubject: Identifiable, Hashable {
     /// App-wide report, reviewed by the app's moderators. `mode` (hobby/work)
@@ -104,6 +107,7 @@ enum ReportSubject: Identifiable, Hashable {
     }
 }
 
+// MARK: - Repository
 /// `POST /api/reports` (and the community member route) — HTTP only.
 struct ReportRepository {
     private let client = NetworkClient.shared

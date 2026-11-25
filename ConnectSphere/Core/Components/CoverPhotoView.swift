@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Cover photo
 /// Profile cover photo: the real photo if the user has uploaded one, otherwise a
 /// theme-based gradient fallback (matches the original look before a photo exists).
 struct CoverPhotoView: View {
@@ -25,6 +26,7 @@ struct CoverPhotoView: View {
     }
 }
 
+// MARK: - Cover artwork
 /// What a cover shows, filling whatever frame it's given: the photo, or the
 /// theme gradient when there's none. Shared by `CoverPhotoView` and the
 /// profile header's mirrored extension below it.

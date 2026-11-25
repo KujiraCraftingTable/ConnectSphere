@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - About section
 /// A Hobby profile's "About": relationship, languages and education. Display
 /// only, all three are edited in Edit profile.
 struct HobbyAboutSection: View {
@@ -84,6 +85,7 @@ struct HobbyAboutSection: View {
     }
 }
 
+// MARK: - School editor
 /// Add or edit a school: name (from the built-in list, or typed), type,
 /// major and years.
 struct EducationEditorView: View {
@@ -188,6 +190,7 @@ struct EducationEditorView: View {
     }
 }
 
+// MARK: - Languages picker
 /// Pick the languages you speak (searchable, several).
 struct LanguagesPickerView: View {
     @Environment(ThemeManager.self) private var themeManager

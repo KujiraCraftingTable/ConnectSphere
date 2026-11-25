@@ -4,6 +4,7 @@ import SQLKit
 /// Cases, reports and the audit log (migration 089). One open case per item:
 /// every report and AI flag on it merges in, so the item is judged once.
 enum ModerationStore {
+    // MARK: - Report targets
     /// A reportable item: who it lands on, where it lives, and a copy of it.
     struct Target: Decodable {
         let author_id: String?
@@ -92,6 +93,7 @@ enum ModerationStore {
         return try await db.raw(q).first(decoding: Target.self)
     }
 
+    // MARK: - Filing reports
     static func hasReported(_ reporter: String, _ type: ReportTarget, _ id: String, on db: any SQLDatabase) async throws -> Bool {
         struct R: Decodable { let n: Int }
         return try await db.raw("""
@@ -129,6 +131,7 @@ enum ModerationStore {
             """).first(decoding: Filed.self)!
     }
 
+    // MARK: - Opening cases
     /// A case the official account opens itself (banning a profile from it),
     /// or the item's open case when one exists already.
     static func openAdminCase(type: ReportTarget, id: String, target: Target, policy: ModerationPolicy,
@@ -166,6 +169,7 @@ enum ModerationStore {
             """).first(decoding: Filed.self)!
     }
 
+    // MARK: - Community reports and audit log
     /// The community staff's own queue (community_reports) for posts in a
     /// community. Their unique key means a repeat is silently ignored.
     static func fileCommunityReport(reporter: String, postID: String, communityID: String,

@@ -19,6 +19,7 @@ struct RateLimitMiddleware: AsyncMiddleware {
 
     private static let store = Store()
 
+    // MARK: - Limits
     static func global() -> RateLimitMiddleware {
         .init(name: "global", max: loadTest ? 1_000_000 : 1000, windowSeconds: 15 * 60, inlineErrorBody: false,
               message: "Too many requests, please try again later")
@@ -62,6 +63,7 @@ struct RateLimitMiddleware: AsyncMiddleware {
               message: "Too many searches, please slow down")
     }
 
+    // MARK: - Middleware
     func respond(to request: Request, chainingTo next: any AsyncResponder) async throws -> Response {
         let key = "\(name):\(request.route?.description ?? request.url.path):\(clientIP(request))"
         let (count, resetIn) = Self.store.hit(key: key, windowSeconds: windowSeconds)
@@ -92,6 +94,7 @@ struct RateLimitMiddleware: AsyncMiddleware {
         return request.remoteAddress?.ipAddress ?? "unknown"
     }
 
+    // MARK: - Store
     final class Store: @unchecked Sendable {
         private let lock = NIOLock()
         private var windows: [String: (count: Int, resetAt: Date)] = [:]

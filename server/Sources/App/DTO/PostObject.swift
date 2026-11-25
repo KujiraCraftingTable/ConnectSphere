@@ -63,6 +63,7 @@ struct PostObject: Content {
     /// Work post looking for a job (migration 132).
     var open_to_work: Bool? = nil
 
+    // MARK: - Author and shares
     struct SharedCommunity: Content {
         var id: String
         var name: String
@@ -104,6 +105,8 @@ struct PostObject: Content {
             @NullCoded var avatar_url: String?
         }
     }
+
+    // MARK: - Events and polls
     struct EventData: Content {
         var id: String
         var title: String
@@ -124,6 +127,8 @@ struct PostObject: Content {
             @NullCoded var ends_at: Date?
         }
     }
+
+    // MARK: - Marketplace listings
     /// A marketplace listing's details (migration 072). `auto_reply` is only
     /// filled in for the seller.
     struct ListingData: Content {
@@ -183,6 +188,8 @@ struct PostObject: Content {
             var hour: Int
         }
     }
+
+    // MARK: - Jobs
     struct JobData: Content {
         var id: String
         var title: String
@@ -207,6 +214,8 @@ struct PostObject: Content {
         @NullCoded var careers_url: String? = nil
         var skills: [String]? = nil
     }
+
+    // MARK: - Community
     struct CommunityRef: Content {
         var id: String
         var name: String

@@ -52,6 +52,7 @@ struct UserDTO: Decodable {
     let wardId: String?
     let wardProvinceCode: String?
 
+    // MARK: - Coding keys
     enum CodingKeys: String, CodingKey {
         case bioFormat = "bio_format"
         case id, username, bio, location, gender, email, company, interests, skills, score, age, dob
@@ -86,6 +87,7 @@ struct UserDTO: Decodable {
         case wardProvinceCode = "ward_province_code"
     }
 
+    // MARK: - Mapping
     func toUserProfile() -> UserProfile {
         UserProfile(
             id:             id,

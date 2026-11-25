@@ -13,6 +13,7 @@ struct AdminInterestsController {
         a.post("suggestions", "reject", use: reject)
     }
 
+    // MARK: - Listing
     /// One suggested text, however many people sent it (case and spaces ignored).
     struct Suggestion: Content {
         var text: String
@@ -38,6 +39,7 @@ struct AdminInterestsController {
         return ListResponse(suggestions: suggestions, categories: categories)
     }
 
+    // MARK: - Approve
     struct ApproveBody: Content {
         var text: String?; var name_en: String?; var name_vi: String?; var category: String?
         var allows_specific: Bool?
@@ -86,6 +88,7 @@ struct AdminInterestsController {
         return Done(updated: count.value)
     }
 
+    // MARK: - Reject
     struct RejectBody: Content { var text: String? }
 
     static func reject(_ req: Request) async throws -> Done {

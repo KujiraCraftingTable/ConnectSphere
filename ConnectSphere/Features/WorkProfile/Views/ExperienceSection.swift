@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Experience section
 /// Work mode's "Experience" on a profile: roles grouped by company with the
 /// logo and the total time there, and, for several roles at one company,
 /// a timeline of them. Your own profile can add and edit.
@@ -70,6 +71,7 @@ struct ExperienceSection: View {
         }
     }
 
+    // MARK: - Role rows
     @ViewBuilder
     private func groupView(_ group: WorkExperience.Group) -> some View {
         HStack(alignment: .top, spacing: 12) {
@@ -175,6 +177,7 @@ struct ExperienceSection: View {
     }
 }
 
+// MARK: - Experience editor
 /// The role form: title, company (a page or a typed name), type, place,
 /// months, and what you did.
 struct ExperienceEditorView: View {
@@ -295,6 +298,7 @@ struct ExperienceEditorView: View {
     }
 }
 
+// MARK: - Form problems
 extension ExperienceEditorView {
     /// What's wrong in a section, in red under it.
     @ViewBuilder
@@ -316,6 +320,7 @@ extension ExperienceEditorView {
     }
 }
 
+// MARK: - Month picker
 /// Month and year wheels for a role's start or end.
 struct MonthYearPicker: View {
     @Environment(\.appBundle) private var bundle
@@ -343,6 +348,7 @@ struct MonthYearPicker: View {
     }
 }
 
+// MARK: - Company people
 /// A company page's People tab: who works there now (from work history).
 struct CompanyPeopleList: View {
     @Environment(AppState.self) private var appState

@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - HR request
 /// A "Become HR" request, as the admin reviews it.
 struct HRRequestItem: Decodable, Identifiable, Hashable {
     struct Person: Decodable, Hashable {
@@ -43,6 +44,7 @@ struct HRRequestItem: Decodable, Identifiable, Hashable {
     }
 }
 
+// MARK: - Pending job
 /// A new HR's job waiting for review before it goes live.
 struct PendingJobItem: Decodable, Identifiable, Hashable {
     let postId: String
@@ -66,6 +68,7 @@ struct PendingJobItem: Decodable, Identifiable, Hashable {
     }
 }
 
+// MARK: - Repository
 /// The official account's HR review (`/admin/hr`). HTTP + decoding only.
 struct HRAdminRepository {
     private let client = NetworkClient.shared

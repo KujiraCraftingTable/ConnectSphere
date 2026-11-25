@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Code field
 /// A one-time code as six boxes, one digit each. A transparent text field
 /// lies over the boxes, so tapping them types into it (number pad, iOS code
 /// autofill and paste all work) and the boxes just draw what's in it.
@@ -56,6 +57,7 @@ struct OTPCodeField: View {
     }
 }
 
+// MARK: - Code entry
 /// The code boxes, then Confirm (filled) and Resend code (outlined) as two
 /// separate full-width buttons. Without `confirmTitle` the screen submits by
 /// itself once all six digits are in, so there's no Confirm.
@@ -115,6 +117,7 @@ struct CodeEntry: View {
     }
 }
 
+// MARK: - Email verification
 /// Settings › Account › Email: your verified email, and, from there,
 /// changing it (confirm with the current address, then verify the new one).
 /// Without a verified email it goes straight to adding one.

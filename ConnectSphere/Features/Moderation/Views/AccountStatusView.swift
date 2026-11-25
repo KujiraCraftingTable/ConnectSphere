@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Account status
 /// Settings › Account status. Also the whole app for a banned account
 /// (`SuspendedView`), since appeals are the one thing it can still do.
 struct AccountStatusView: View {
@@ -82,6 +83,7 @@ struct AccountStatusView: View {
         .sheet(item: $viewModel.appealing) { decision in appealSheet(decision) }
     }
 
+    // MARK: - Standing & decisions
     @ViewBuilder
     private func standing(_ status: AccountStatus) -> some View {
         if status.bannedAt != nil {
@@ -142,6 +144,7 @@ struct AccountStatusView: View {
         .padding(.vertical, 4)
     }
 
+    // MARK: - Appeal
     private func appealSheet(_ decision: AccountStatus.Decision) -> some View {
         NavigationStack {
             Form {
@@ -174,6 +177,7 @@ struct AccountStatusView: View {
         .environment(themeManager)
     }
 
+    // MARK: - Per-mode rows
     @ViewBuilder
     private func modeRows(_ status: AccountStatus, mode: String) -> some View {
         let warnings = status.warnings(in: mode)
@@ -234,6 +238,7 @@ struct AccountStatusView: View {
     }
 }
 
+// MARK: - Suspended
 /// What a banned account sees instead of the app: why, and a way to appeal.
 /// What a banned person sees in a banned mode (migration 106): why, until
 /// when, the post or comment it was about, and how to appeal. Banned in one
@@ -365,6 +370,7 @@ struct SuspendedView: View {
     }
 }
 
+// MARK: - Report detail
 /// One of your reports: what you reported, what moderators decided and why,
 /// and a way to open the content while it's still up.
 private struct MyReportDetailView: View {
@@ -436,6 +442,7 @@ private struct MyReportDetailView: View {
     }
 }
 
+// MARK: - Outcome labels
 /// How a report you filed ended, in the reporter's words.
 enum ReportOutcomeLabel {
     static func text(_ outcome: String) -> String {

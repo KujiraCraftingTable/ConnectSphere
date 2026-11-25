@@ -25,6 +25,7 @@ struct ForwardMessagePickerView: View {
         viewModel.conversations.filter { $0.id != excludeConversationId }
     }
 
+    // MARK: - Body
     var body: some View {
         NavigationStack {
             Group {
@@ -70,6 +71,7 @@ struct ForwardMessagePickerView: View {
         }
     }
 
+    // MARK: - Rows
     private func row(_ conversation: Conversation) -> some View {
         let isSelected = selectedId == conversation.id
         return HStack(spacing: 10) {

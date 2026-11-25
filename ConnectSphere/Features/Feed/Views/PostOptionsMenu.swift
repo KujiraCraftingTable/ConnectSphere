@@ -34,6 +34,7 @@ struct PostOptionsMenu: View {
     @State private var showModerate = false
     @State private var showEditHistory = false
 
+    // MARK: - Body
     var body: some View {
         menu
             .sheet(isPresented: $showEditSheet) {
@@ -97,6 +98,7 @@ struct PostOptionsMenu: View {
             }
     }
 
+    // MARK: - Menu
     private var menu: some View {
         Menu {
             if let onPin, !post.isPinned {

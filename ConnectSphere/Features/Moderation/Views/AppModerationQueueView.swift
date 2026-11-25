@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Queue
 /// Settings › Moderation, for app moderators and admins: reports to approve
 /// or deny, items the automatic checks held, and appeals. Most urgent first.
 struct AppModerationQueueView: View {
@@ -75,6 +76,7 @@ struct AppModerationQueueView: View {
 
     private var isEmpty: Bool { viewModel.tab == .appeals ? viewModel.appeals.isEmpty : viewModel.cases.isEmpty }
 
+    // MARK: - Case rows
     private func caseRow(_ c: ModerationCase, appeal: ModerationAppeal?) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Circle()
@@ -117,6 +119,7 @@ struct AppModerationQueueView: View {
     }
 }
 
+// MARK: - Case detail
 /// One case: what was reported, by whom and why, the author's record, what's
 /// been done — and the decision.
 struct ModerationCaseView: View {
@@ -228,6 +231,7 @@ struct ModerationCaseView: View {
         }
     }
 
+    // MARK: - Decision
     @ViewBuilder
     private func decisionSection(_ d: ModerationCaseDetail) -> some View {
         if viewModel.isOpen {
@@ -319,6 +323,7 @@ struct ModerationCaseView: View {
         }
     }
 
+    // MARK: - Links & history
     /// Opens the reported post, comment (in its post) or profile; a message
     /// has no screen of its own, so its snapshot is all there is.
     @ViewBuilder
@@ -381,6 +386,7 @@ struct ModerationCaseView: View {
     }
 }
 
+// MARK: - Confirming button
 /// A button that asks before acting, with the question shown from the button
 /// itself (a popover on iPad and newer iOS anchors to what it's attached to,
 /// so it no longer floats at the top of the screen).

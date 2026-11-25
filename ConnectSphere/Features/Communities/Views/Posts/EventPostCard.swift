@@ -8,6 +8,7 @@ struct EventPostCard: View {
 
     var accentColor: Color
 
+    // MARK: - Body
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             // Event header row
@@ -57,6 +58,7 @@ struct EventPostCard: View {
         .padding(.bottom, 12)
     }
 
+    // MARK: - RSVP buttons
     private func rsvpButton(_ status: RsvpStatus) -> some View {
         let isActive = vm.eventData.userRsvp == status
         return Button {

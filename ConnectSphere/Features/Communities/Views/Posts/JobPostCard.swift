@@ -28,6 +28,7 @@ struct JobPostCard: View {
         }
     }
 
+    // MARK: - Body
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             // Job header row
@@ -114,6 +115,7 @@ struct JobPostCard: View {
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
+    // MARK: - Buttons
     private var interestedButton: some View {
         let isActive = vm.jobData.userInterested
         return Button {
@@ -159,6 +161,7 @@ struct JobPostCard: View {
         .disabled(vm.isOpeningChat)
     }
 
+    // MARK: - Formatting
     private func formattedDeadline(_ date: Date) -> String {
         let isVi = (AppDefaults.store.string(forKey: "appLanguage") ?? "vi") == "vi"
         let df = DateFormatter()

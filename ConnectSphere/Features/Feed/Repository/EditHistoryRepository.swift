@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Subject
 /// Whose edit history to load: a post, or one comment on a post.
 enum EditHistorySubject: Hashable, Identifiable {
     case post(id: String)
@@ -13,6 +14,7 @@ enum EditHistorySubject: Hashable, Identifiable {
     }
 }
 
+// MARK: - Revisions
 /// One earlier version of a post or comment. `replacedAt` is when an edit
 /// replaced it. Comments carry at most one photo; posts carry several.
 struct EditRevisionDTO: Decodable, Identifiable {
@@ -49,6 +51,7 @@ struct EditRevisionDTO: Decodable, Identifiable {
     }
 }
 
+// MARK: - Repository
 /// Loads the earlier versions of posts and comments, newest first.
 struct EditHistoryRepository {
     private let client = NetworkClient.shared

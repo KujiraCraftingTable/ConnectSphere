@@ -25,6 +25,7 @@ class GroupParticipantsViewModel {
         self.token = token
     }
 
+    // MARK: - Loading
     func fetchMembers() async {
         isLoading = true
         defer { isLoading = false }
@@ -36,6 +37,7 @@ class GroupParticipantsViewModel {
         }
     }
 
+    // MARK: - Member management
     /// Owner-only server-side: remove a member from the group.
     func kickMember(_ userId: String) async {
         do {
@@ -67,6 +69,7 @@ class GroupParticipantsViewModel {
         }
     }
 
+    // MARK: - Leave group
     /// Any member may leave. Posts `.userLeftGroupConversation` (mirroring the
     /// existing `.userBlockStatusChanged` cross-screen sync pattern) so
     /// `ChatSettingsView`/`ChatView`, still open underneath this pushed

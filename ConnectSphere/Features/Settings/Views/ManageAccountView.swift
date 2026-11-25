@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Manage account
 /// Settings › Account › Manage account: your username and email, editing
 /// the profile, privacy, your activity, and deleting the Hobby profile, the
 /// Work profile or the whole account (each confirmed with an emailed code).
@@ -187,6 +188,7 @@ struct ManageAccountView: View {
         }
     }
 
+    // MARK: - Rows
     private func row(_ scope: AccountRepository.Scope, icon: String, title: String, detail: String) -> some View {
         NavigationLink {
             DeleteScopeView(scope: scope, hasVerifiedEmail: user?.emailVerified ?? false) { dismiss() }
@@ -209,6 +211,7 @@ struct ManageAccountView: View {
     }
 }
 
+// MARK: - Delete scope
 /// One deletion: what goes, what stays, then the code and a last "are you sure".
 struct DeleteScopeView: View {
     @Environment(AppState.self) private var appState

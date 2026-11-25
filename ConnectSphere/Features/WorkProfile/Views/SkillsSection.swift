@@ -67,6 +67,7 @@ struct SkillsSection: View {
         }
     }
 
+    // MARK: - Skill row
     private func row(_ skill: ProfileSkill) -> some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 4) {

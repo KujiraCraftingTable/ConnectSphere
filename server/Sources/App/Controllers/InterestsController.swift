@@ -15,6 +15,7 @@ struct InterestsController {
         i.grouped(AuthMiddleware()).grouped(RateLimitMiddleware.clarify()).post("suggestions", use: suggest)
     }
 
+    // MARK: - Catalog
     struct CatalogCategory: Content {
         var key: String; var name_en: String; var name_vi: String; var section: String
         var entries: [InterestStore.Entry]
@@ -46,6 +47,7 @@ struct InterestsController {
         }
     }
 
+    // MARK: - Specific interest
     struct SpecificBody: Content { var base: String?; var text: String? }
     struct SpecificResponse: Content { var interest: String; var name: String }
 
@@ -68,6 +70,7 @@ struct InterestsController {
         return SpecificResponse(interest: base.name_en + InterestStore.separator + name, name: name)
     }
 
+    // MARK: - Suggestions
     struct SuggestBody: Content { var text: String? }
     struct SuggestResponse: Content {
         var status: String

@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Report case
 /// One reported post or member in a community's Reports screen: every report
 /// on it, grouped. Reporters stay anonymous to community staff.
 struct CommunityReportCase: Identifiable, Decodable, Hashable {
@@ -36,6 +37,7 @@ struct CommunityReportCase: Identifiable, Decodable, Hashable {
     }
 }
 
+// MARK: - Queue and detail
 struct CommunityReportQueue: Decodable {
     let cases: [CommunityReportCase]
     let pendingCount: Int
@@ -85,6 +87,7 @@ struct CommunityReportDetail: Decodable {
     }
 }
 
+// MARK: - Decisions
 /// What staff can do with a case. Banning is the admin's alone.
 enum CommunityReportDecision: String, CaseIterable, Identifiable {
     case keep, remove

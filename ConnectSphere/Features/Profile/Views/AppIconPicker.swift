@@ -1,11 +1,13 @@
 import SwiftUI
 
+// MARK: - Palettes
 /// Every palette once: Blue is in both the Hobby and Work lists.
 private var appIconPalettes: [ThemePalette] {
     var seen = Set<String>()
     return (ThemePalette.socialPalettes + ThemePalette.workPalettes).filter { seen.insert($0.id).inserted }
 }
 
+// MARK: - Settings row
 /// The Settings row for the app icon: the chosen icon, its name, a chevron. Tapping
 /// it opens `AppIconPickerView`, mirroring the Theme color row above it.
 struct AppIconRow: View {
@@ -44,6 +46,7 @@ struct AppIconRow: View {
     }
 }
 
+// MARK: - Picker
 /// The sheet: the whale icon in each theme colour, four to a row.
 struct AppIconPickerView: View {
     @Environment(AppState.self) private var appState
@@ -109,6 +112,7 @@ struct AppIconPickerView: View {
     }
 }
 
+// MARK: - Icon previews
 /// The real icon, from the `AppIconPreview-<id>` imageset that `scripts/app-icon/make.py`
 /// exports next to each icon set (alternate icon sets can't be loaded as images at runtime).
 struct AppIconPreview: View {

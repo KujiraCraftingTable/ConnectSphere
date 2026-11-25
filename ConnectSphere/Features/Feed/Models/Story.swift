@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Stories
 /// A 24h story (backend returns a flat list, client groups by author)
 struct StoryDTO: Decodable, Identifiable {
     let id: String
@@ -19,6 +20,7 @@ struct StoryDTO: Decodable, Identifiable {
     }
 }
 
+// MARK: - Viewers
 /// Someone who has viewed one of the current user's stories (GET /stories/:id/viewers)
 struct StoryViewerDTO: Decodable, Identifiable {
     let id: String
@@ -36,6 +38,7 @@ struct StoryViewerDTO: Decodable, Identifiable {
     }
 }
 
+// MARK: - Grouping
 /// One person's stories, used for the bubble + viewer
 struct StoryGroup: Identifiable {
     let author: UserProfile

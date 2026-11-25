@@ -10,6 +10,7 @@ extension ChatStore {
     static let pollOptionMaxLength = 80
     static let pollQuestionMaxLength = 200
 
+    // MARK: - Validation
     struct ValidatedPoll: Equatable {
         let question: String
         let options: [String]
@@ -46,6 +47,7 @@ extension ChatStore {
         return ValidatedPoll(question: question, options: cleaned, endsAt: end)
     }
 
+    // MARK: - Creating polls
     /// The poll's row and its options, in one statement so a poll never
     /// exists half-made.
     static func createPoll(messageID: String, _ poll: ValidatedPoll, on db: any SQLDatabase) async throws {
@@ -60,6 +62,7 @@ extension ChatStore {
             """).run()
     }
 
+    // MARK: - Voting
     enum PollVoteResult { case changed, unchanged, notFound, invalidOption, ended }
 
     /// Sets `userID`'s vote to `optionID`. A first vote, or a move from

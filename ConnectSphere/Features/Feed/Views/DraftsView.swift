@@ -1,5 +1,6 @@
 import SwiftUI
 
+// MARK: - Draft row
 /// One draft or scheduled post in a list: what kind of post, its first line,
 /// where it'll go (Hobby / Work / a community) and when it was saved.
 struct DraftRow: View {
@@ -63,6 +64,7 @@ struct DraftRow: View {
     }
 }
 
+// MARK: - Draft picker
 /// The composer's "Drafts" button: pick one to continue.
 struct DraftPickerSheet: View {
     @Environment(\.appBundle) private var bundle
@@ -91,6 +93,7 @@ struct DraftPickerSheet: View {
     }
 }
 
+// MARK: - Drafts list
 /// Settings → Drafts: every draft and scheduled post, in both modes and every
 /// community. Tap to keep writing; swipe to delete, or, for a scheduled
 /// post, to publish it now or move it back to drafts.

@@ -56,6 +56,7 @@ struct ActivityLogView: View {
         }
     }
 
+    // MARK: - Row
     private func row(_ item: ActivityItem) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Group {

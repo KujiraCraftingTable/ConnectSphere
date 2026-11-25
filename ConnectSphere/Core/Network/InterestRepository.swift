@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Catalog models
 /// One entry of the curated interest catalogue (server migration 080).
 struct InterestEntry: Decodable, Identifiable, Hashable {
     let nameEn: String
@@ -39,6 +40,7 @@ struct InterestCatalog: Decodable {
     enum CodingKeys: String, CodingKey { case categories, maxPicks = "max_picks" }
 }
 
+// MARK: - Repository
 /// `/api/interests`, HTTP + decoding only.
 struct InterestRepository {
     private let client = NetworkClient.shared

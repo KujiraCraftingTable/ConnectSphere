@@ -13,6 +13,7 @@ struct SkillsController {
         s.grouped(AuthMiddleware()).grouped(RateLimitMiddleware.clarify()).post("suggestions", use: suggest)
     }
 
+    // MARK: - Catalog
     struct CatalogCategory: Content {
         var key: String; var name_en: String; var name_vi: String
         var entries: [SkillStore.Entry]
@@ -49,6 +50,7 @@ struct SkillsController {
         return categories.sorted { picks($0) != picks($1) ? picks($0) > picks($1) : $0.name_en < $1.name_en }
     }
 
+    // MARK: - Suggestions
     struct SuggestBody: Content { var text: String? }
     struct SuggestResponse: Content {
         var status: String

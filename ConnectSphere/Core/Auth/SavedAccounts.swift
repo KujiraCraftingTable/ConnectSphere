@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Saved account
 /// An account that signed in on this device, offered on the login screen so
 /// nobody has to remember which username goes with which account. No
 /// password or token is kept here. Signing in still needs the password
@@ -16,6 +17,7 @@ struct SavedAccount: Codable, Identifiable, Equatable {
     var lastUsed: Date
 }
 
+// MARK: - Saved accounts store
 /// The device's saved accounts, newest first (at most 5).
 struct SavedAccounts {
     static let limit = 5

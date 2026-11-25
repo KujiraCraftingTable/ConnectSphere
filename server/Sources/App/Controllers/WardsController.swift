@@ -10,6 +10,7 @@ struct WardsController {
         w.get(use: list)
     }
 
+    // MARK: - Provinces
     /// `former_names`: what the units were called before the 1 July 2025
     /// merger (migration 146), so the pickers find "Bình Dương" or "Bến Nghé,
     /// Quận 1" and show which of today's units that is.
@@ -43,6 +44,7 @@ struct WardsController {
         })
     }
 
+    // MARK: - Wards
     struct Ward: Content {
         var id: String; var code: String; var name: String
         @NullCoded var name_en: String?; @NullCoded var full_name: String?; @NullCoded var full_name_en: String?

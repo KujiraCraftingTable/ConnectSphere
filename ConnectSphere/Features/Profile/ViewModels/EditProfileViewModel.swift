@@ -79,6 +79,7 @@ final class EditProfileViewModel {
     /// Has anything been changed since the form opened? Cancel only asks then.
     var hasChanges: Bool { signature != openedSignature }
 
+    // MARK: - Load
     func load(from user: UserProfile?) {
         guard let user else { return }
         defer { openedSignature = signature }
@@ -108,6 +109,7 @@ final class EditProfileViewModel {
         }
     }
 
+    // MARK: - Photo & cover
     func loadAvatar(from item: PhotosPickerItem) async {
         if let image = await Self.image(from: item) { pickedImage = image }
     }
@@ -119,6 +121,7 @@ final class EditProfileViewModel {
         return true
     }
 
+    // MARK: - Save
     /// Uploads any new avatar/cover first, then saves every field. Returns the
     /// updated profile, or nil with `errorMessage` set.
     func save(mode: AppMode) async -> UserProfile? {

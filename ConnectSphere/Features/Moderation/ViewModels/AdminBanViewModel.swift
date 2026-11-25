@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 
+// MARK: - Target
 /// What the official account is acting on: an item and whose it is.
 struct ModerationTarget: Identifiable, Hashable {
     /// "user", "post", "comment" or "message".
@@ -14,6 +15,7 @@ struct ModerationTarget: Identifiable, Hashable {
     let mode: String?
 }
 
+// MARK: - Warn or ban
 /// The official account warning or banning from a post, comment, message or
 /// profile (migration 106). Three active warnings in a mode turn into a ban,
 /// so a third warning becomes a ban whose length the admin picks.

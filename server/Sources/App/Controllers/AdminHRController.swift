@@ -16,6 +16,7 @@ struct AdminHRController {
         a.post("jobs", ":postId", "decide", use: decideJob)
     }
 
+    // MARK: - Helpers
     static func page(_ req: Request) -> (limit: Int, offset: Int) {
         (PostsController.clamp(try? req.query.get(Int.self, at: "limit"), 20, 1, 50),
          max(0, (try? req.query.get(Int.self, at: "offset")) ?? 0))
@@ -27,6 +28,7 @@ struct AdminHRController {
         return n
     }
 
+    // MARK: - Recruiter requests
     static func list(_ req: Request) async throws -> DataResponse<[HRStore.Request]> {
         let status = (try? req.query.get(String.self, at: "status")) ?? "pending"
         guard ["pending", "approved", "rejected", "revoked"].contains(status) else { throw InlineError(.badRequest, "Unknown status") }
@@ -76,6 +78,7 @@ struct AdminHRController {
         return DataResponse(data: decided)
     }
 
+    // MARK: - Revoking recruiters
     struct RevokeBody: Content { var note: String? }
     struct Done: Content { var ok: Bool }
 
@@ -97,6 +100,7 @@ struct AdminHRController {
         return Done(ok: true)
     }
 
+    // MARK: - Job approvals
     static func pendingJobs(_ req: Request) async throws -> DataResponse<[HRStore.PendingJob]> {
         let p = page(req)
         return DataResponse(data: try await HRStore.pendingJobs(limit: p.limit, offset: p.offset, on: req.db.sql()))

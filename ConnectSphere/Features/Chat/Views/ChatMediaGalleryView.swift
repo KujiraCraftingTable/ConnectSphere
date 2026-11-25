@@ -26,6 +26,7 @@ struct ChatMediaGalleryView: View {
         }
     }
 
+    // MARK: - Body
     var body: some View {
         ScrollView {
             if viewModel.isLoadingMedia && viewModel.media.isEmpty {
@@ -50,6 +51,7 @@ struct ChatMediaGalleryView: View {
         }
     }
 
+    // MARK: - Media cells
     private func mediaCell(_ item: ChatMediaItem) -> some View {
         Color.clear
             .aspectRatio(1, contentMode: .fit)
@@ -86,6 +88,7 @@ struct ChatMediaGalleryView: View {
         }
     }
 
+    // MARK: - Empty state
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "photo.on.rectangle.angled")

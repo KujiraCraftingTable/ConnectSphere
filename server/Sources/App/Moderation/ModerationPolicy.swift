@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Policies
 /// The one list of rules that report reasons, AI verdicts, notices and
 /// strikes all speak. Severity follows the big platforms' split (Meta since
 /// January 2025): automation acts alone only on the severe end; the rest waits
@@ -31,6 +32,7 @@ enum ModerationPolicy: String, CaseIterable, Codable, Sendable {
     }
 }
 
+// MARK: - Report targets
 /// What can be reported, and with which reasons.
 enum ReportTarget: String, CaseIterable, Sendable {
     case post, comment, message, user, community, story, company
@@ -48,6 +50,7 @@ enum ReportTarget: String, CaseIterable, Sendable {
     }
 }
 
+// MARK: - Report rules
 enum ReportRules {
     enum Problem: Error, Equatable { case badTarget, badReason, detailTooLong }
 
@@ -77,6 +80,7 @@ enum ReportRules {
     }
 }
 
+// MARK: - Decisions
 /// What an admin can decide on a case. Every outcome except `keep` takes the
 /// content down; `restrict` and `ban` also act on the account.
 enum ModerationDecision: String, CaseIterable, Sendable {
@@ -90,6 +94,7 @@ enum ModerationDecision: String, CaseIterable, Sendable {
     var removesContent: Bool { self != .keep }
 }
 
+// MARK: - Enforcement
 enum Enforcement {
     static let maxRestrictDays = 30
     /// Restrictions shorter than a day a moderator can pick; anything longer is
@@ -125,6 +130,7 @@ enum Enforcement {
     }
 }
 
+// MARK: - Read-only restrictions
 /// A restricted account is read-only in that mode: it can look at everything
 /// but change or interact with nothing, apart from its settings, safety tools
 /// (block, mute, report, appeal) and the passive calls reading makes.
@@ -186,6 +192,7 @@ enum Restrictions {
     }
 }
 
+// MARK: - Report outcomes
 /// How a report ended, as its reporter sees it. Shared by account-status and
 /// the report_outcome notification so both say the same thing.
 enum ReportOutcome {

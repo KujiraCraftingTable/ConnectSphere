@@ -1,6 +1,7 @@
 import Vapor
 import SQLKit
 
+// MARK: - Polls
 /// Polls.
 enum PollStore {
     static func createWithOptions(postID: String, options: [String], endsAt: String?, on db: any SQLDatabase) async throws {
@@ -57,6 +58,7 @@ enum PollStore {
     }
 }
 
+// MARK: - Events
 /// Events.
 enum EventStore {
     static func create(postID: String, title: String, location: String?, startsAt: String, endsAt: String?, on db: any SQLDatabase) async throws {
@@ -101,6 +103,7 @@ enum EventStore {
     }
 }
 
+// MARK: - Jobs
 /// Job/Opportunity posts (Work mode only). "Interested" is a plain toggle
 /// (row presence in job_interests), unlike event_rsvps' 3-state status.
 enum JobStore {
@@ -111,6 +114,7 @@ enum JobStore {
     /// `job_posts.employment_type` CHECK values (migration 031).
     static let employmentTypes: Set<String> = ["full_time", "part_time", "contract", "internship", "remote"]
 
+    // MARK: - Job validation
     /// The headline fields of a job, checked before the post row is written so
     /// a rejected job can't leave a bare post in the feed. Lengths are the
     /// column sizes; a longer value would be a 500 from the DB.
@@ -218,6 +222,7 @@ enum JobStore {
         return extra
     }
 
+    // MARK: - Job records
     static func create(postID: String, title: String, company: String?, location: String?,
                         employmentType: String?, salaryRange: String?, applicationDeadline: String?,
                         extra: Extra = Extra(), on db: any SQLDatabase) async throws {
