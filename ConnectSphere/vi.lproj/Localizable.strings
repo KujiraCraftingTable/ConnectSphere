@@ -468,6 +468,7 @@
 "Reset password" = "Đặt lại mật khẩu";
 "Send code" = "Gửi mã";
 "If the account has an email on file, a 6-digit code has been sent." = "Nếu tài khoản có email, mã 6 số đã được gửi.";
+"If the account has an email on file, we'll send a 6-digit code to it." = "Nếu tài khoản có email, chúng tôi sẽ gửi mã 6 số đến email đó.";
 "Verification code" = "Mã xác nhận";
 "Invalid or expired code" = "Mã không đúng hoặc đã hết hạn";
 "Password reset. Please log in with your new password." = "Đã đặt lại mật khẩu. Hãy đăng nhập bằng mật khẩu mới.";

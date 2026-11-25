@@ -468,6 +468,7 @@
 "Reset password" = "Reset password";
 "Send code" = "Send code";
 "If the account has an email on file, a 6-digit code has been sent." = "If the account has an email on file, a 6-digit code has been sent.";
+"If the account has an email on file, we'll send a 6-digit code to it." = "If the account has an email on file, we'll send a 6-digit code to it.";
 "Verification code" = "Verification code";
 "Invalid or expired code" = "Invalid or expired code";
 "Password reset. Please log in with your new password." = "Password reset. Please log in with your new password.";

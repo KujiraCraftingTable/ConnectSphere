@@ -63,7 +63,7 @@ struct ForgotPasswordView: View {
             }
             .disabled(!viewModel.canSendCode)
         } footer: {
-            Text("If the account has an email on file, a 6-digit code has been sent.", bundle: bundle)
+            Text("If the account has an email on file, we'll send a 6-digit code to it.", bundle: bundle)
         }
     }
 
