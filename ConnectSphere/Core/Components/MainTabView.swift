@@ -266,9 +266,6 @@ struct MainTabView: View {
             pushProfilePath(routes)
             appState.pendingAssistantSheet = sheet
             appState.assistantHighlight = highlight
-        case .chat(let chat):
-            selectedTab = 0
-            appState.pendingAssistantChat = chat
         }
     }
 

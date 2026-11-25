@@ -138,7 +138,6 @@ enum AXID {
         static let sendButton = "assistant.chat.sendButton"
         static let takeMeThere = "assistant.chat.takeMeThere"
         static let undo = "assistant.chat.undoButton"
-        static func chatChoice(_ id: String) -> String { "assistant.chat.chatChoice.\(id)" }
     }
 
     enum Settings {

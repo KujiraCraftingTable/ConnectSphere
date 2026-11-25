@@ -37,6 +37,4 @@ enum AssistantMessageAction: Equatable {
     case suggestTopics([AssistantGuidanceTopic])
     /// Puts back what a change replaced.
     case undo(AssistantIntent)
-    /// Recent chats, one button each, for a change made inside a chat.
-    case pickChat([AssistantChatTarget])
 }

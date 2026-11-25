@@ -141,7 +141,8 @@ feed. Most features exist in both, and content stays in the mode it was made in.
   the app in English or Vietnamese, changes safe settings (light/dark, theme
   colour, app icon, language, translations, search radius, message sounds,
   AI suggestions) with Undo, and opens any setting with the row highlighted.
-  Privacy and security settings are only explained and opened, never changed.
+  Privacy and security settings are only explained and opened, never changed;
+  chat settings (mute, nickname, chat theme) are only explained.
 
 **Account & safety**
 - Sign in (incl. Google), email verification, two-factor authentication. The

@@ -1,8 +1,8 @@
 import XCTest
 
 /// The in-app assistant, opened from the top of Settings: a safe setting it
-/// changes with Undo, a "Take me there" that lands on the right sheet, and a
-/// picked chat whose settings it opens.
+/// changes with Undo, a "Take me there" that lands on the right sheet, and
+/// chat settings it only explains.
 final class AssistantTests: UITestCase {
     /// Profile → Settings → Ask the assistant.
     private func openAssistantFromSettings(as account: TestServer.Account) throws {
@@ -46,18 +46,14 @@ final class AssistantTests: UITestCase {
         try app.navigationBars["Change password"].waitToAppear(timeout: 15)
     }
 
-    /// "mute a chat" lists recent chats; picking one opens that chat's
-    /// settings, all the way from Settings through Home and Messages.
-    func testPickedChatOpensItsSettings() async throws {
+    /// A chat's settings are the person's to change: the reply explains the
+    /// steps and offers no button.
+    func testChatQuestionOnlyExplains() async throws {
         let me = try await server.createAccount(run: run)
-        let friend = try await server.createAccount(run: run)
-        try await server.connect(me, friend)
-        let chat = try await server.openConversation(as: me, with: friend)
-        try await server.sendMessage(as: friend, conversation: chat, content: "hi from the test")
-
         try openAssistantFromSettings(as: me)
+
         try ask("mute a chat")
-        try app.buttons[AXID.Assistant.chatChoice(chat)].tapWhenReady(timeout: 15)
-        try app.navigationBars["Chat settings"].waitToAppear(timeout: 20)
+        try app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Mute notifications")).firstMatch.waitToAppear()
+        XCTAssertFalse(app.buttons[AXID.Assistant.takeMeThere].exists)
     }
 }

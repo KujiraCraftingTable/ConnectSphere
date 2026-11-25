@@ -23,9 +23,6 @@ final class AssistantViewModel {
     /// Saves a theme colour to the account, the same way the picker does.
     private let themePicker = ThemePickerViewModel()
     private var defaults: UserDefaults { AppDefaults.store }
-    private let messageRepository = MessageRepository()
-    /// How many recent chats to offer.
-    private let chatChoiceLimit = 5
     /// What was last typed, for suggesting near topics when nothing matched.
     private var lastInput = ""
 
@@ -328,29 +325,7 @@ final class AssistantViewModel {
         let key = topic == .changePassword && appState.currentUser?.hasPassword == false
             ? AssistantGuidanceTopic.setPasswordMessageKey
             : topic.messageKey
-        if let filter = topic.chatPicker {
-            appendAssistantMessage(bundle.loc(key))
-            Task { await offerChats(filter) }
-            return
-        }
         appendAssistantMessage(bundle.loc(key), action: topic.navigationTarget.map { .navigate($0) })
-    }
-
-    /// Lists recent chats in this mode so one tap opens the right chat's
-    /// settings. Without a token, chats or a connection it points to Home.
-    private func offerChats(_ filter: AssistantChatFilter) async {
-        guard let token = appState.authToken else { return }
-        let chats = (try? await messageRepository.fetchConversations(mode: appState.currentMode.rawValue, token: token)) ?? []
-        let choices = chats
-            .filter { !$0.isArchived && (filter == .all || $0.isGroup) }
-            .prefix(chatChoiceLimit)
-            .map { AssistantChatTarget(conversationId: $0.id, peer: ChatPeer($0)) }
-        guard !choices.isEmpty else {
-            let none = filter == .groups ? "You don't have any group chats yet." : "You don't have any chats yet."
-            appendAssistantMessage(bundle.loc(none), action: .navigate(.tab(0)))
-            return
-        }
-        appendAssistantMessage(bundle.loc("Pick a chat to open its settings."), action: .pickChat(Array(choices)))
     }
 
     // MARK: - Fallback

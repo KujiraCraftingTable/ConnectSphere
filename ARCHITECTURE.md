@@ -96,9 +96,10 @@ call except listing recent chats. A message goes through:
    "Take me there" goes (`AssistantNavigationTarget`). Privacy and security
    settings are only explained and opened, never changed.
 
-`MainTabView` turns a target into pushes on the Profile stack, a sheet
-(`pendingAssistantSheet`), a row highlight (`assistantHighlight`) or a chat
-(`pendingAssistantChat`, opened by Feed → Messages → the chat).
+`MainTabView` turns a target into a tab, pushes on the Profile stack, a sheet
+(`pendingAssistantSheet`) or a row highlight (`assistantHighlight`). For chat
+settings (mute, nickname, chat theme, group name) the assistant only explains
+the steps; it never opens or changes a chat's settings.
 `AssistantRegistryTests` checks every topic has both translations, phrases
 that reach it, and a real destination.
 

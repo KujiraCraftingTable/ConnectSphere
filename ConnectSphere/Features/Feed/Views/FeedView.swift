@@ -180,10 +180,6 @@ struct FeedView: View {
             .navigationDestination(isPresented: $showMessages) {
                 ConversationListView()
             }
-            // The assistant picked a chat: Messages takes it from here.
-            .onChange(of: appState.pendingAssistantChat) { _, chat in
-                if chat != nil { showMessages = true }
-            }
             // `isPresented:` (not `item:`) so it doesn't collide with the
             // identical PostRoute destination TagFeedView also puts on this
             // same stack, SwiftUI keeps only the root-most `item:` of a type.

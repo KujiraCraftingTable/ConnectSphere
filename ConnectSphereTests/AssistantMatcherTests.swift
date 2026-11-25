@@ -393,8 +393,7 @@ struct AssistantSettingParserTests {
             "Posts in the other language now show their translation first.",
             "Posts now show in their original language.", "Search now has no distance limit.",
             "Search now looks within %d km of your ward.", "Theme colour changed to %@.",
-            "App icon changed to %@.", "Undo", "Ask the assistant", "Pick a chat to open its settings.",
-            "You don't have any group chats yet.", "You don't have any chats yet.",
+            "App icon changed to %@.", "Undo", "Ask the assistant",
         ]
         for language in ["en", "vi"] {
             let path = try #require(Bundle(for: AppState.self).path(forResource: language, ofType: "lproj"))
@@ -408,16 +407,21 @@ struct AssistantSettingParserTests {
 }
 
 
-// MARK: - Chat pickers
+// MARK: - Chat settings
 
-struct AssistantChatPickerTests {
+struct AssistantChatSettingsTests {
 
-    /// Renaming only makes sense for a group, so only groups are offered.
-    @Test func renameOffersGroupsOnly() {
-        #expect(AssistantGuidanceTopic.renameGroup.chatPicker == .groups)
-        #expect(AssistantGuidanceTopic.muteConversation.chatPicker == .all)
-        #expect(AssistantGuidanceTopic.chatTheme.chatPicker == .all)
-        #expect(AssistantGuidanceTopic.changePassword.chatPicker == nil)
+    /// A chat's settings are only explained: no button opens or changes them.
+    @Test func chatTopicsOnlyExplain() {
+        for topic in [AssistantGuidanceTopic.muteConversation, .renameGroup, .chatTheme, .chatNickname] {
+            #expect(topic.navigationTarget == nil, "\(topic)")
+        }
+    }
+
+    /// "mute a chat" is guidance, never a setting the assistant changes.
+    @Test func muteAChatIsGuidance() {
+        #expect(AssistantSettingParser.parse("mute a chat") == nil)
+        #expect(AssistantMatcher.match("mute a chat").intent == .howTo(topic: .muteConversation))
     }
 
     /// "change chat theme to rose" is about one chat, never the app's colour.

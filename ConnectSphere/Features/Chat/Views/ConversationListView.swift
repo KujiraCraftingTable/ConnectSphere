@@ -124,8 +124,6 @@ struct ConversationListView: View {
         .sheet(item: $profileTarget) { target in
             ProfilePopup { UserProfileView(userId: target.id) }
         }
-        .task { openAssistantChat() }
-        .onChange(of: appState.pendingAssistantChat) { _, _ in openAssistantChat() }
         .navigationDestination(item: $activeRoute) { route in
             ChatView(
                 conversationId: route.conversationId,
@@ -710,13 +708,6 @@ struct ConversationListView: View {
                 await spacesViewModel.update(space, name: name, color: color, token: token)
             }
         }
-    }
-
-    /// Opens the chat the assistant picked. The signal stays set so the chat
-    /// itself can open its settings and clear it.
-    private func openAssistantChat() {
-        guard let chat = appState.pendingAssistantChat else { return }
-        activeRoute = ChatRoute(conversationId: chat.conversationId, peer: chat.peer, location: nil)
     }
 
     private func open(_ conversation: Conversation) {

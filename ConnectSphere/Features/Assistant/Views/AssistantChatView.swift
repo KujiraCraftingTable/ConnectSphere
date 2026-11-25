@@ -284,27 +284,6 @@ private struct AssistantBubbleView: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier(AXID.Assistant.undo)
 
-        case .pickChat(let chats):
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(chats, id: \.conversationId) { chat in
-                    Button { onNavigate(.chat(chat)) } label: {
-                        Label {
-                            Text(chat.peer.name).lineLimit(1)
-                        } icon: {
-                            Image(systemName: chat.peer.isGroup ? "person.3.fill" : "person.fill")
-                        }
-                        .scaledFont(13, .semibold)
-                        .foregroundColor(palette.primary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(palette.primary.opacity(0.12))
-                        .clipShape(Capsule())
-                    }
-                    .accessibilityIdentifier(AXID.Assistant.chatChoice(chat.conversationId))
-                }
-            }
-            .buttonStyle(.plain)
-
         case .suggestTopics(let topics):
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(topics, id: \.self) { topic in

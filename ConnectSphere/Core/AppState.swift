@@ -33,17 +33,8 @@ enum AssistantNavigationTarget: Equatable {
     /// screens a tap-through would. Then `sheet` opens on the last screen, or
     /// `highlight` scrolls to that setting's row and flashes it.
     case profile([ProfileRoute], sheet: AssistantSheetTarget? = nil, highlight: AssistantGuidanceTopic? = nil)
-    /// Home → Messages → this chat, with its settings sheet open.
-    case chat(AssistantChatTarget)
 
     static let settings = AssistantNavigationTarget.profile([.settings])
-}
-
-/// A chat picked in the assistant. Home opens Messages, Messages opens the
-/// chat and the chat opens its settings, each clearing what it used.
-struct AssistantChatTarget: Equatable {
-    let conversationId: String
-    let peer: ChatPeer
 }
 
 /// A `.sheet` the assistant wants opened once its navigation has landed on
@@ -169,8 +160,6 @@ class AppState {
     /// The setting row the assistant pointed at. The screen holding that row
     /// scrolls to it and flashes it once, then clears this.
     var assistantHighlight: AssistantGuidanceTopic? = nil
-    /// The chat the assistant is opening (see `AssistantChatTarget`).
-    var pendingAssistantChat: AssistantChatTarget? = nil
     var appearanceMode: AppearanceMode = .system {
         didSet { AppDefaults.store.set(appearanceMode.rawValue, forKey: "appearanceMode") }
     }

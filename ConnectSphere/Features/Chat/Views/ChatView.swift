@@ -297,13 +297,6 @@ struct ChatView: View {
                 UserProfileView(userId: peer.otherUserId ?? "")
             }
         }
-        .task {
-            // Opened by the assistant to change something in this chat.
-            if appState.pendingAssistantChat?.conversationId == conversationId {
-                appState.pendingAssistantChat = nil
-                showChatSettings = true
-            }
-        }
         .sheet(isPresented: $showChatSettings) {
             ChatSettingsView(
                 conversationId: conversationId,

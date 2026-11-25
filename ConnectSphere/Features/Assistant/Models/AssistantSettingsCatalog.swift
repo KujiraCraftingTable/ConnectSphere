@@ -1,7 +1,5 @@
 import Foundation
 
-enum AssistantChatFilter { case all, groups }
-
 /// Everything the assistant can explain and take you to, kept in one place:
 /// each topic's reply, the phrases that ask for it and the screen it opens.
 /// The reply text is also the localization key, and `AssistantRegistryTests`
@@ -166,16 +164,6 @@ enum AssistantGuidanceTopic: String, CaseIterable, Equatable {
         }
     }
 
-    /// Which chats the assistant lists for a topic done inside one chat;
-    /// nil for everything else.
-    var chatPicker: AssistantChatFilter? {
-        switch self {
-        case .renameGroup: return .groups
-        case .muteConversation, .chatTheme, .chatNickname: return .all
-        default: return nil
-        }
-    }
-
     /// Short name for a suggestion button.
     var titleKey: String {
         switch self {
@@ -260,9 +248,9 @@ enum AssistantGuidanceTopic: String, CaseIterable, Equatable {
         case .notificationSounds: return .profile([.settings, .notificationSettings], highlight: .notificationSounds)
         case .aiSuggestions:      return .profile([.settings, .notificationSettings], highlight: .aiSuggestions)
         case .muteConversation, .renameGroup, .chatTheme, .chatNickname:
-            // These need a chat picked first (see `chatPicker`); Home, where
-            // Messages is, if there's none to pick.
-            return .tab(0)
+            // A chat's settings are the person's to change in that chat, so
+            // these only explain the steps.
+            return nil
         case .appModes, .stories: return .tab(0)
         case .postPrivacy:        return .profile(privacy, highlight: .lockProfile)
         case .aiSearch:           return .tab(1)
