@@ -1,7 +1,5 @@
 import Foundation
 
-// ── Community ─────────────────────────────────────────────────────────────────
-
 // MARK: - Community
 struct CommunityDTO: Decodable {
     let id: String
@@ -119,8 +117,6 @@ struct CommunityDTO: Decodable {
     }
 }
 
-// ── Member ────────────────────────────────────────────────────────────────────
-
 // MARK: - Members
 struct CommunityMemberDTO: Decodable {
     let id: String
@@ -159,8 +155,6 @@ struct CommunityMemberDTO: Decodable {
         )
     }
 }
-
-// ── Post ──────────────────────────────────────────────────────────────────────
 
 // MARK: - Community posts
 struct CommunityPostDTO: Decodable {
@@ -325,8 +319,6 @@ struct CommunityRefDTO: Decodable {
     }
 }
 
-// ── Poll DTOs ─────────────────────────────────────────────────────────────────
-
 // MARK: - Polls
 struct PollDataDTO: Decodable {
     let options: [PollOptionDTO]
@@ -377,8 +369,6 @@ struct PollOptionDTO: Decodable {
     }
 }
 
-// ── Event DTOs ────────────────────────────────────────────────────────────────
-
 // MARK: - Events
 struct EventDataDTO: Decodable {
     let id: String
@@ -420,8 +410,6 @@ struct EventDataDTO: Decodable {
         )
     }
 }
-
-// ── Job DTOs ──────────────────────────────────────────────────────────────────
 
 // MARK: - Marketplace listings
 struct ListingDataDTO: Decodable {
@@ -607,8 +595,6 @@ struct JobDataDTO: Decodable {
     }
 }
 
-// ── Join Request DTO ──────────────────────────────────────────────────────────
-
 // MARK: - Join requests
 /// Flat row returned by GET /api/communities/:id/join-requests
 struct JoinRequestDTO: Decodable {
@@ -637,8 +623,6 @@ struct JoinRequestDTO: Decodable {
         )
     }
 }
-
-// ── Misc response types ───────────────────────────────────────────────────────
 
 // MARK: - Unread count
 struct UnreadCountResponse: Decodable {

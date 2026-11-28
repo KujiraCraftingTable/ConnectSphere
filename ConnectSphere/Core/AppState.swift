@@ -251,7 +251,6 @@ class AppState {
 
 
     // MARK: - Session restore
-    // ── Auto-login from Keychain ────────────────────────────────────────────────
 
     func restoreSession() async {
         defer { Task { @MainActor in isCheckingAuth = false } }
@@ -312,7 +311,6 @@ class AppState {
     }
 
     // MARK: - Sign in
-    // ── Login after Google Sign-In ──────────────────────────────────────────────
 
     /// Signed in, or (two-factor on) waiting for the emailed code.
     enum SignInOutcome: Equatable {
@@ -342,7 +340,6 @@ class AppState {
     }
 
     // MARK: - Password sign-in & sign-up
-    // ── Login / register with username (or email) + password ──────────────────
 
     func loginWithPassword(identifier: String, password: String) async throws -> SignInOutcome {
         handle(try await AuthService.shared.login(identifier: identifier, password: password))
@@ -416,7 +413,6 @@ class AppState {
     func switchMode(to mode: AppMode) { currentMode = mode }
 
     // MARK: - Personas & mode switching
-    // ── Persona per mode ─────────────────────────────────────────────────────
 
     /// Whether the user has set up a persona (distinct identity) for this mode
     func isPersonaSetup(_ mode: AppMode) -> Bool {
